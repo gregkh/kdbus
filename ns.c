@@ -32,8 +32,12 @@ static LIST_HEAD(namespace_list);
 static __u64 kdbus_ns_id_next;
 
 /* control nodes are world accessible */
-static char *kdbus_devnode_control(struct device *dev,
-				   umode_t *mode, uid_t *uid, gid_t *gid)
+static char *kdbus_devnode_control(struct device *dev, umode_t *mode
+#ifdef DRIVER_CORE_DEVICE_TYPE_DEVNODE_UID
+		, uid_t *uid, gid_t *gid)
+#else
+		)
+#endif
 {
 	if (mode)
 		*mode = 0666;

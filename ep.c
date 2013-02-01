@@ -20,23 +20,27 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/init.h>
-//#include <uapi/linux/major.h>
-//#include <uapi/kdbus/kdbus.h>
 
 #include "kdbus_internal.h"
 
 /* endpoints are by default owned by the bus owner */
-static char *kdbus_devnode_ep(struct device *dev,
-			      umode_t *mode, uid_t *uid, gid_t *gid)
+static char *kdbus_devnode_ep(struct device *dev, umode_t *mode
+#ifdef DRIVER_CORE_DEVICE_TYPE_DEVNODE_UID
+		, uid_t *uid, gid_t *gid)
+#else
+		)
+#endif
 {
 	struct kdbus_ep *ep = dev_get_drvdata(dev);
 
 	if (mode)
 		*mode = ep->mode;
+#ifdef DRIVER_CORE_DEVICE_TYPE_DEVNODE_UID
 	if (uid)
 		*uid = ep->uid;
 	if (gid)
 		*gid = ep->gid;
+#endif
 	return NULL;
 }
 
