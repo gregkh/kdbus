@@ -1,0 +1,5 @@
+config KDBUS
+	tristate "kdbus interprocess message router"
+	help
+	  kdbus provides efficient kernel-aided message exchange and routing
+	  between processes. It is used as the low-level transport of D-Bus.
