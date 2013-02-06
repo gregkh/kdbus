@@ -180,6 +180,14 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 
+/* resolver stuff */
+int resolve_remove_id(void);
+int resolve_set_name_id(void);
+int resolve_query_list_names(void);
+int resolve_query_list_ids(void);
+
+int resolve_id_added(void);
+int resolve_id_removed(void);
 
 
 #endif

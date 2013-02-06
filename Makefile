@@ -1,4 +1,4 @@
-dbus-y	:= kdbus.o ep.o bus.o ns.o
+dbus-y	:= kdbus.o ep.o bus.o ns.o resolver.o
 
 obj-$(CONFIG_KDBUS)	+= dbus.o
 
