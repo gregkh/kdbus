@@ -1,9 +1,8 @@
-dbus-y	:= kdbus.o ep.o bus.o ns.o resolver.o
+kdbus-y	:= main.o ep.o bus.o ns.o resolver.o
 
-obj-$(CONFIG_KDBUS)	+= dbus.o
+obj-$(CONFIG_KDBUS)	+= kdbus.o
 
-
-obj-m:= dbus.o
+obj-m:= kdbus.o
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build	
 PWD       := $(shell pwd)
