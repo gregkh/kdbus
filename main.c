@@ -30,12 +30,13 @@
 
 /*
  * TODO:
- * - set parent for driver-core /sys/devices/kdbus!... devices to virtual/kdbus/,
- *   the bus subsys misses the "no parent" logic the class subsys has
+ * - use subsys_virtual_register() to avoid kdbus showing up directly
+ *   in /sys/devices/
+ *     https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
  *
- * - switch to a 64bit idr for connection id <--> kdbus_conn
+ * - switch to hashmap for connection id <--> kdbus_conn
  *
- * - convert Greg's 8 pages of notes into workable code...
+ * - enforce $UID-user but allow $UID-user to be requested
  */
 
 /*
@@ -70,11 +71,6 @@
 struct bus_type kdbus_subsys = {
 	.name = "kdbus",
 };
-
-/* List of all connections in the system. */
-/* Well, really only the endpoint connections,
- * that's all we care about for now */
-static LIST_HEAD(connection_list);
 
 /* kdbus initial namespace */
 static struct kdbus_ns *kdbus_ns_init;
@@ -162,8 +158,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	mutex_init(&conn->msg_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
 
-	list_add_tail(&connection_list, &conn->connection_entry);
-
 	file->private_data = conn;
 	mutex_unlock(&conn->ns->lock);
 
@@ -245,18 +239,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		conn->bus_owner = bus;
 		break;
 
-#if 0	/* FIXME Don't know if we really want this... */
-	case KDBUS_CMD_BUS_REMOVE:
-		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
-			return -EFAULT;
-
-		bus = kdbus_bus_find(name.name);
-		if (!bus)
-			return -EINVAL;
-		kdbus_bus_disconnect(bus);	// FIXME needed?
-		kdbus_bus_unref(bus);
-		break;
-#endif
 	case KDBUS_CMD_NS_CREATE:
 		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
 			return -EFAULT;
@@ -267,21 +249,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 				name.name, err);
 			return err;
 		}
-		break;
-
-	case KDBUS_CMD_NS_REMOVE:
-		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
-			return -EFAULT;
-
-		ns = kdbus_ns_find(name.name);
-		if (!ns)
-			return -EINVAL;
-
-		/* we can not remove the "default" namespace */
-		if (ns == kdbus_ns_init)
-			return -EINVAL;
-
-		kdbus_ns_unref(ns);
 		break;
 
 	default:
@@ -379,7 +346,6 @@ static long kdbus_conn_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		return kdbus_conn_ioctl_ep(file, cmd, argp);
 
 	default:
-		pr_info("bad type\n");
 		return -EINVAL;
 	}
 }
@@ -404,124 +370,6 @@ static unsigned int kdbus_conn_poll(struct file *file,
 	return 0;
 }
 
-static int kdbus_conn_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	return -EINVAL;
-}
-
-static ssize_t kdbus_conn_write(struct file *file, const char __user *ubuf, size_t count, loff_t *ppos)
-{
-	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_conn *temp_conn;
-	struct kdbus_test_msg *msg;
-
-	/* Only an endpoint can read/write data */
-	if (conn->type != KDBUS_CONN_EP)
-		return -EINVAL;
-
-	/* FIXME: Let's cap a message size at PAGE_SIZE for now */
-	if (count > PAGE_SIZE)
-		return -EINVAL;
-
-	if (count == 0)
-		return 0;
-
-	msg = kmalloc((sizeof(*msg) + count), GFP_KERNEL);
-	if (!msg)
-		return -ENOMEM;
-
-	if (copy_from_user(&msg->data[0], ubuf, count))
-		return -EFAULT;
-
-	kref_init(&msg->kref);
-	msg->length = count;
-
-	/* Walk the list of connections,
-	 * find any endpoints that match our endpoint,
-	 * create a kdbus_msg_list_entry for it,
-	 * attach the message to the endpoint list,
-	 * wake the connection up. */
-
-	/* what do we lock here?  FIXME */
-
-	list_for_each_entry(temp_conn, &connection_list, connection_entry) {
-		if (temp_conn->type != KDBUS_CONN_EP)
-			continue;
-		if (temp_conn->ep == conn->ep) {
-			/* Matching endpoints */
-			struct kdbus_msg_list_entry *msg_list_entry;
-
-			msg_list_entry = kmalloc(sizeof(*msg_list_entry), GFP_KERNEL);
-			kref_get(&msg->kref);
-			msg_list_entry->msg = msg;
-			mutex_lock(&temp_conn->msg_lock);
-			list_add_tail(&temp_conn->msg_list, &msg_list_entry->entry);
-			mutex_unlock(&temp_conn->msg_lock);
-			/* wake up the other processes.  Hopefully... */
-			wake_up_interruptible_all(&temp_conn->ep->wait);
-		}
-	}
-
-	/* drop our reference on the message, as we are done with it */
-	kref_put(&msg->kref, kdbus_msg_release);
-	return count;
-}
-
-static ssize_t kdbus_conn_read(struct file *file, char __user *ubuf, size_t count, loff_t *ppos)
-{
-	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_msg_list_entry *msg_list_entry;
-	struct kdbus_test_msg *msg;
-	ssize_t retval = 0;
-
-	/* Only an endpoint can read/write data */
-	if (conn->type != KDBUS_CONN_EP)
-		return -EINVAL;
-
-	if (count == 0)
-		return 0;
-
-	if (mutex_lock_interruptible(&conn->msg_lock))
-		return -ERESTARTSYS;
-
-	while (list_empty(&conn->msg_list)) {
-		/* Nothing to read, so try again or sleep */
-		mutex_unlock(&conn->msg_lock);
-
-		if (file->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-
-		/* sleep until we get something */
-		if (wait_event_interruptible(conn->ep->wait, list_empty(&conn->msg_list)))
-			return -ERESTARTSYS;
-
-		if (mutex_lock_interruptible(&conn->msg_lock))
-			return -ERESTARTSYS;
-	}
-
-	/* let's grab a message from our list to write out */
-	if (!list_empty(&conn->msg_list)) {
-		msg_list_entry = list_entry(&conn->msg_list, struct kdbus_msg_list_entry, entry);
-		msg = msg_list_entry->msg;
-		if (msg->length > count) {
-			retval = -E2BIG;		// FIXME wrong error code, I know, what should we use?
-			goto exit;
-		}
-		if (copy_to_user(ubuf, &msg->data[0], msg->length)) {
-			retval = -EFAULT;
-			goto exit;
-		}
-		list_del(&msg_list_entry->entry);
-		kfree(msg_list_entry);
-		retval = msg->length;
-		kref_put(&msg->kref, kdbus_msg_release);
-	}
-
-exit:
-	mutex_unlock(&conn->msg_lock);
-	return retval;
-}
-
 const struct file_operations kdbus_device_ops = {
 	.owner =		THIS_MODULE,
 	.open =			kdbus_conn_open,
@@ -529,10 +377,7 @@ const struct file_operations kdbus_device_ops = {
 	.unlocked_ioctl =	kdbus_conn_ioctl,
 	.compat_ioctl =		kdbus_conn_ioctl,
 	.poll = 		kdbus_conn_poll,
-	.mmap =			kdbus_conn_mmap,
 	.llseek =		noop_llseek,
-	.write = 		kdbus_conn_write,
-	.read =			kdbus_conn_read,
 };
 
 static void kdbus_msg_free(struct kdbus_msg *msg)
@@ -555,7 +400,7 @@ static int kdbus_msg_new(struct kdbus_conn *conn, struct kdbus_msg __user *umsg,
 	}
 
 	m->src_id = conn->id;
-	m->msg_id = conn->ep->bus->msg_id_next++;
+	m->id = conn->ep->bus->msg_id_next++;
 	*msg = m;
 	return 0;
 out_err:
@@ -572,7 +417,7 @@ static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg)
 		return -ENOENT;
 
 	pr_info("sending message %llu from %llu to %llu\n",
-		(unsigned long long)msg->msg_id,
+		(unsigned long long)msg->id,
 		(unsigned long long)msg->src_id,
 		(unsigned long long)msg->dst_id);
 
