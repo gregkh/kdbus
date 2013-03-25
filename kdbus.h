@@ -16,12 +16,32 @@
 /* FIXME: move to include/uapi/linux/major.h */
 #define KDBUS_CHAR_MAJOR	222
 
-#define KDBUS_IOC_MAGIC 0x95
+#define KDBUS_IOC_MAGIC		0x95
 
 /* kdbus control device commands */
 struct kdbus_cmd_name {
 	uint64_t capabilities;
 	char name[256];
+};
+
+enum kdbus_msg_data_type {
+	KDBUS_MSG_DATA_MEMORY_INLINE,
+	KDBUS_MSG_DATA_MEMORY_OUTOFLINE,
+};
+
+/**
+ * struct  kdbus_msg_data - chain of data blocks
+ *
+ * type: kdbus_msg_data_type of data
+ * size: overall data record size
+ */
+struct kdbus_msg_data {
+	uint64_t type;
+	uint64_t size;
+	union {
+		uint8_t data[0];
+		uint64_t addr;
+	};
 };
 
 /**
@@ -30,32 +50,30 @@ struct kdbus_cmd_name {
  * set by userspace:
  * dst_id: destination id
  * filter: bloom filter for the kernel to use to filter messages
- * data_count: number of data structures for this message
+ * data_size: overall message size
  * data: data for the message
  *
  * set by kernel:
  * id: message sequence number
  * src_id: who sent the message
  * src_uid: uid of sending process
- * src_gid: gid of sending process
  * src_pid: pid of sending process
  * src_tid: tid of sending process
  * ts_nsec: timestamp when message was sent to the kernel
  */
 struct kdbus_msg {
-	__u64 dst_id;
-	__u64 filter;
-
-	__u64 id;
-	__u64 src_id;
-	__kernel_uid_t src_uid;
-	__kernel_gid_t src_gid;
-	__kernel_pid_t src_pid;
-	__kernel_pid_t src_tid;
-	__u64 capabilities[2];
-	__u64 ts_nsec;
-	__u64 flags;
-	__u64 data_size;
+	uint64_t data_size;
+	uint64_t flags;
+	uint64_t dst_id;
+	uint64_t filter[2];
+	uint64_t id;
+	uint64_t src_id;
+	uint64_t src_uid;
+	uint64_t src_pid;
+	uint64_t src_tid;
+	uint64_t caps[2];
+	uint64_t ts_nsec;
+	struct kdbus_msg_data data;
 };
 
 enum kdbus_cmd {

@@ -1,0 +1,10 @@
+- use subsys_virtual_register() to avoid devices showing up directly
+  in the root of /sys/devices/
+    https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
+
+- switch to hashmap for connection id <--> kdbus_conn
+
+- require $UID-user to be requested, refuse anything else
+
+- "id" is the id of "self", id_foo is the id of foo
+

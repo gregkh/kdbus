@@ -29,17 +29,6 @@
 #include "kdbus_internal.h"
 
 /*
- * TODO:
- * - use subsys_virtual_register() to avoid kdbus showing up directly
- *   in /sys/devices/
- *     https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
- *
- * - switch to hashmap for connection id <--> kdbus_conn
- *
- * - enforce $UID-user but allow $UID-user to be requested
- */
-
-/*
  * Example of device nodes in /dev. For any future changes, keep in mind,
  * that the layout should support a possible /dev/kdbus/ filesystem for the
  * init namspace and one for each sub-namespace.
@@ -85,13 +74,12 @@ static int kdbus_msg_new(struct kdbus_conn *conn, struct kdbus_msg __user *umsg,
 			 struct kdbus_msg **msg);
 static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg);
 
-
 static void kdbus_msg_release(struct kref *kref)
 {
-	struct kdbus_test_msg *msg = container_of(kref, struct kdbus_test_msg, kref);
+	struct kdbus_kmsg *msg = container_of(kref, struct kdbus_kmsg, kref);
+
 	kfree(msg);
 }
-
 
 /* kdbus file operations */
 static int kdbus_conn_open(struct inode *inode, struct file *file)
@@ -175,7 +163,7 @@ err_unlock:
 static int kdbus_conn_release(struct inode *inode, struct file *file)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_test_msg *msg;
+	struct kdbus_kmsg *msg;
 	struct kdbus_msg_list_entry *msg_entry, *tmp_entry;
 
 	switch (conn->type) {

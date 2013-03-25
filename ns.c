@@ -140,7 +140,6 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns
 	} else {
 		n->parent = parent;
 		n->devpath = kasprintf(GFP_KERNEL, "kdbus/ns/%s/%s", parent->devpath, name);
-//		n->devpath = kasprintf(GFP_KERNEL, "kdbus/ns/%s", name);
 		if (!n->devpath) {
 			err = -ENOMEM;
 			goto err;
@@ -219,4 +218,3 @@ exit:
 	mutex_unlock(&kdbus_subsys_lock);
 	return ns;
 }
-

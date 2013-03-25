@@ -10,9 +10,10 @@
  *
  */
 
-
 #ifndef __INTERNAL_KDBUS_H
 #define __INTERNAL_KDBUS_H
+
+#include "kdbus.h"
 
 /*
  * kdbus namespace
@@ -122,33 +123,17 @@ struct kdbus_conn {
 	struct list_head connection_entry;
 };
 
-/* kdbus message */
-enum kdbus_msg_data_type {
-	KDBUS_MSG_DATA_UNDEFINED,
-	KDBUS_MSG_DATA_MEM,
-};
-
-struct kdbus_msg_data {
-	u64 data;
-	u64 size;
-	u32 type;
-	u32 flags;
-};
-
-/* To knock around with for now */
-struct kdbus_test_msg {
+struct kdbus_kmsg {
 	struct kref kref;
-	u32 length;
-	u8 data[0];
+	struct kdbus_msg msg;
 };
 
 struct kdbus_msg_list_entry {
-	struct kdbus_test_msg *msg;
+	struct kdbus_kmsg *msg;
 	struct list_head entry;
 };
 
-/* namespace stuff */
-
+/* namespace */
 extern const struct file_operations kdbus_device_ops;
 extern struct mutex kdbus_subsys_lock;
 extern struct idr kdbus_ns_major_idr;
@@ -159,7 +144,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns
 struct kdbus_ns *kdbus_ns_find(const char *name);
 
 
-/* bus stuff */
+/* bus */
 extern struct bus_type kdbus_subsys;
 void kdbus_release(struct device *dev);
 
@@ -169,8 +154,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus);
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 		  uid_t uid, gid_t gid, struct kdbus_bus **bus);
 
-
-/* endpoint stuff */
+/* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep);
 
@@ -180,7 +164,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 
-/* resolver stuff */
+/* resolver */
 int resolve_remove_id(void);
 int resolve_set_name_id(void);
 int resolve_query_list_names(void);
@@ -188,6 +172,4 @@ int resolve_query_list_ids(void);
 
 int resolve_id_added(void);
 int resolve_id_removed(void);
-
-
 #endif
