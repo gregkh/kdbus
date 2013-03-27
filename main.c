@@ -35,10 +35,10 @@
  *
  * /dev/kdbus/
  * |-- control
- * |-- system
+ * |-- 0-system
  * |   |-- bus
- * |   |-- ep-epiphany
- * |   `-- ep-firefox
+ * |   |-- ep.epiphany
+ * |   `-- ep.firefox
  * |-- 2702-user
  * |   `-- bus
  * |-- 1000-user
@@ -46,13 +46,13 @@
  * `-- ns
  *     |-- myfedoracontainer
  *     |   |-- control
- *     |   |-- system
+ *     |   |-- 0-system
  *     |   |   `-- bus
  *     |   `-- 1000-user
  *     |       `-- bus
  *     `-- mydebiancontainer
  *         |-- control
- *         |-- system
+ *         |-- 0-system
  *             `-- bus
  */
 

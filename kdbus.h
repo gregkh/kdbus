@@ -19,29 +19,57 @@
 #define KDBUS_IOC_MAGIC		0x95
 
 /* kdbus control device commands */
-struct kdbus_cmd_name {
-	uint64_t capabilities;
-	char name[256];
+struct kdbus_cmd_fname {
+	mode_t mode;
+	char name[128];
 };
 
 enum kdbus_msg_data_type {
-	KDBUS_MSG_DATA_MEMORY_INLINE,
-	KDBUS_MSG_DATA_MEMORY_OUTOFLINE,
+	/* Filled in by userspace */
+	KDBUS_MSG_PAYLOAD,
+	KDBUS_MSG_PAYLOAD_REF,
+	KDBUS_MSG_UNIX_FDS,
+	KDBUS_MSG_BLOOM,		/* Only filled in for broadcasts */
+	KDBUS_MSG_DST_NAME,		/* Used only when destination is well-known name */
+
+	/* Filled in by kernelspace */
+	KDBUS_MSG_SRC_CAPS,
+	KDBUS_MSG_SRC_SECLABEL,
+	KDBUS_MSG_SRC_AUDIT,
+	KDBUS_MSG_SRC_NAMES,
+	KDBUS_MSG_DST_NAMES,
+	KDBUS_MSG_KERNEL,
 };
 
 /**
  * struct  kdbus_msg_data - chain of data blocks
  *
- * type: kdbus_msg_data_type of data
  * size: overall data record size
+ * type: kdbus_msg_data_type of data
  */
 struct kdbus_msg_data {
-	uint64_t type;
 	uint64_t size;
+	uint32_t type;
+	uint32_t reserved;
 	union {
 		uint8_t data[0];
-		uint64_t addr;
+		struct {
+			uint64_t address;
+			uint64_t size;
+		} payload_ref;
 	};
+};
+
+enum kdbus_msg_flags {
+	EXPECT_REPLY = 1,
+};
+
+enum kdbus_manager_msg_type {
+	KDBUS_NAME_CHANGE,   	uint64_t old_id, new_id, char[] name
+	KDBUS_ID_NEW,		uint64_t id,
+	KDBUS_ID_REMOVE,	uint64_t id,
+	KDBUS_REPLY_TIMEOUT,
+	KDBUS_REPLY_DEAD
 };
 
 /**
@@ -49,7 +77,6 @@ struct kdbus_msg_data {
  *
  * set by userspace:
  * dst_id: destination id
- * filter: bloom filter for the kernel to use to filter messages
  * data_size: overall message size
  * data: data for the message
  *
@@ -64,37 +91,145 @@ struct kdbus_msg_data {
 struct kdbus_msg {
 	uint64_t data_size;
 	uint64_t flags;
-	uint64_t dst_id;
-	uint64_t filter[2];
-	uint64_t id;
-	uint64_t src_id;
+	uint64_t dst_id;	/* 0: well known name in data, -1: multicast, otherwise: unique name */
+	uint64_t src_id;	/* 0: from kernel, otherwise: unique name */
+	uint64_t serial;	/* userspace-supplied cookie */
+	uint64_t serial_reply;	/* serial of msg this is a reply to */
+	uint64_t payload_type;	/* 'DBUSDBUS', 'GVARIANT', ... */
 	uint64_t src_uid;
+	uint64_t src_gid;
 	uint64_t src_pid;
 	uint64_t src_tid;
-	uint64_t caps[2];
 	uint64_t ts_nsec;
-	struct kdbus_msg_data data;
+	struct kdbus_msg_data data[0];
 };
 
+enum payload_type {
+	KDBUS_PAYLOAD_DBUS1,
+	KDBUS_PAYLOAD_GVARIANT,
+};
+
+struct kdbus_policy {
+	uint64_t size;
+	uint8_t type; /* NAME or ACCESS */
+	uint8_t reserved[7];
+	union {
+		char name[0];
+		struct {
+			uint8_t type;  /* USER, GROUP, WORLD */
+			uint8_t bits;  /* SEND, RECV, OWN */
+			uint64_t id;   /* uid, gid, 0 */
+		} access;
+	}
+};
+
+struct kdbus_cmd_hello {
+	/* userspace → kernel, kernel → userspace */
+	uint64_t flags;
+
+	/* kernel → userspace */
+	uint64_t id;
+};
+
+enum {
+	KDBUS_CMD_MATCH_BLOOM,
+	KDBUS_CMD_DST_NAME,
+	KDBUS_CMD_SRC_NAME
+};
+
+struct kdbus_cmd_match_item {
+	uint8_t type;
+	uint8_t data[0];
+};
+
+struct kdbus_cmd_match {
+	uint64_t cookie; /* when adding: userspace sets arbitrary cookie; when removing; kernel deletes everything with same cookie */
+	uint64_t src_id; /* -1: any. other: exact unique match */
+	uint64_t dst_id; /* dito */
+	struct kdbus_cmd_match_item  items[0];
+};
+
+enum {
+	/* userspace → kernel */
+	KDBUS_CMD_NAME_REPLACE_EXISTING = 1,
+	KDBUS_CMD_NAME_QUEUE = 2,
+	KDBUS_CMD_NAME_ALLOW_REPLACEMENT = 4,
+	KDBUS_CMD_NAME_STARTER = 8,
+
+	/* kernel → userspace */
+	KDBUS_CMD_NAME_IN_QUEUE = 256,
+}
+
+struct kdbus_cmd_name {
+	uint8_t flags;
+	char name[256];
+};
+
+struct kdbus_cmd_names {
+	uint64_t count;
+	kdbus_cmd_name names[0];
+};
+
+enum {
+	KDBUS_CMD_NAME_INFO_ITEM_SECLABEL,
+	KDBUS_CMD_NAME_INFO_ITEM_AUDIT,
+};
+
+struct kdbus_cmd_name_info_item {
+	uint64_t size;
+	uint32_t type;
+	uint32_t reserved;
+	uint8_t data[0];
+}
+
+struct kdbus_cmd_name_info {
+	uint64_t size;
+	uint8_t flags;
+	uint8_t reserved[7];
+	uint64_t id;
+	uint64_t pid;
+	uint64_t tid;
+	uint64_t uid;
+	uint64_t gid;
+	struct kdbus_cmd_name_info_item[0];
+};
+
+/* fd types
+ *
+ *	control nodes: 	unset
+ *			bus owner  (via KDBUS_CMD_BUS_MAKE)
+ *			ns owner   (via KDBUS_CMD_NS_MAKE)
+ *	ep nodes:	unset
+ *			connected  (via KDBUS_CMD_HELLO)
+ *			ep owner   (via KDBUS_CMD_EP_MAKE)
+*/
+
 enum kdbus_cmd {
-	/* kdbus control commands */
-	KDBUS_CMD_BUS_CREATE =    _IOW(KDBUS_IOC_MAGIC, 0x00, struct kdbus_cmd_name),
-	KDBUS_CMD_NS_CREATE =     _IOW(KDBUS_IOC_MAGIC, 0x10, struct kdbus_cmd_name),
+	/* kdbus control node commands: require unset state */
+	KDBUS_CMD_BUS_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x00, struct kdbus_cmd_fname),
+	KDBUS_CMD_NS_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x10, struct kdbus_cmd_fname),
 
-	/* kdbus endpoint commands */
-	KDBUS_CMD_EP_CREATE =     _IOWR(KDBUS_IOC_MAGIC, 0x30, struct kdbus_cmd_name),
-	KDBUS_CMD_EP_REMOVE =     _IOWR(KDBUS_IOC_MAGIC, 0x31, struct kdbus_cmd_name),
-	KDBUS_CMD_EP_POLICY_SET = _IOWR(KDBUS_IOC_MAGIC, 0x32, int),
+	/* kdbus control node commands: require bus owner state */
+	KDBUS_CMD_BUS_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x20, struct kdbus_cmd_policy),
 
-	KDBUS_CMD_NAME_ACQUIRE =  _IOWR(KDBUS_IOC_MAGIC, 0x50, int),
-	KDBUS_CMD_NAME_RELEASE =  _IOWR(KDBUS_IOC_MAGIC, 0x51, int),
-	KDBUS_CMD_NAME_LIST =     _IOWR(KDBUS_IOC_MAGIC, 0x52, int),
+	/* kdbus ep node commands: require unset state */
+	KDBUS_CMD_EP_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x30, struct kdbus_cmd_fname),
+	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOC_MAGIC, 0x31, struct kdbus_cmd_hello),
 
-	KDBUS_CMD_MATCH_ADD =     _IOWR(KDBUS_IOC_MAGIC, 0x60, int),
-	KDBUS_CMD_MATCH_REMOVE =  _IOWR(KDBUS_IOC_MAGIC, 0x61, int),
+	/* kdbus ep node commands: require connected state */
+	KDBUS_CMD_NAME_ACQUIRE =	_IOWR(KDBUS_IOC_MAGIC, 0x40, struct kdbus_cmd_name),
+	KDBUS_CMD_NAME_RELEASE =	_IOWR(KDBUS_IOC_MAGIC, 0x41, struct kdbus_cmd_name),
+	KDBUS_CMD_NAME_LIST =		_IOWR(KDBUS_IOC_MAGIC, 0x42, struct kdbus_cmd_names),
+	KDBUS_CMD_NAME_QUERY =		_IOWR(KDBUS_IOC_MAGIC, 0x43, struct kdbus_cmd_name),
 
-	KDBUS_CMD_MSG_SEND =      _IOWR(KDBUS_IOC_MAGIC, 0x80, struct kdbus_msg),
-	KDBUS_CMD_MSG_RECV =      _IOWR(KDBUS_IOC_MAGIC, 0x81, struct kdbus_msg),
+	KDBUS_CMD_MATCH_ADD =		_IOWR(KDBUS_IOC_MAGIC, 0x50, struct kdbus_cmd_match),
+	KDBUS_CMD_MATCH_REMOVE =	_IOWR(KDBUS_IOC_MAGIC, 0x51, struct kdbus_cmd_match_info),
+
+	KDBUS_CMD_MSG_SEND =		_IOWR(KDBUS_IOC_MAGIC, 0x60, struct kdbus_msg),
+	KDBUS_CMD_MSG_RECV =		_IOWR(KDBUS_IOC_MAGIC, 0x61, struct kdbus_msg),
+
+	/* kdbus ep node commands: require ep owner state */
+	KDBUS_CMD_EP_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_policy),
 };
 
 #endif
