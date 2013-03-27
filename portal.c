@@ -58,6 +58,7 @@ static struct connection {
 	int			id;
 	struct list_head	msg_list;
 	struct mutex		msg_lock;
+	wait_queue_head_t	wait;		/* wake up this connection */
 } conn1, conn2, conn3, conn4;
 
 static u32 msg_id_next;
@@ -67,6 +68,7 @@ static void init_connection(struct connection *conn, int id)
 	conn->id = id;
 	mutex_init(&conn->msg_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
+	init_waitqueue_head(&conn->wait);
 }
 
 
@@ -89,7 +91,7 @@ static void msg_release(struct kref *kref)
 	kfree(msg);
 }
 
-struct connection *minor_to_conn(int minor)
+static struct connection *minor_to_conn(int minor)
 {
 	if (minor == 0)
 		return &conn1;
@@ -166,13 +168,12 @@ static long conn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return -EINVAL;
 }
 
-static unsigned int kdbus_conn_poll(struct file *file,
-				    struct poll_table_struct *wait)
+static unsigned int conn_poll(struct file *file, struct poll_table_struct *wait)
 {
-	struct kdbus_conn *conn = file->private_data;
+	struct connection *conn = file->private_data;
 	unsigned int mask = 0;
 
-	poll_wait(file, &conn->ep->wait, wait);
+	poll_wait(file, &conn->wait, wait);
 
 	mutex_lock(&conn->msg_lock);
 	if (!list_empty(&conn->msg_list))
@@ -187,71 +188,20 @@ static int conn_mmap(struct file *file, struct vm_area_struct *vma)
 	return -EINVAL;
 }
 
-static ssize_t kdbus_conn_write(struct file *file, const char __user *ubuf, size_t count, loff_t *ppos)
+static ssize_t conn_write(struct file *file, const char __user *ubuf, size_t count, loff_t *ppos)
 {
-	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_conn *temp_conn;
-	struct kdbus_test_msg *msg;
+	pr_info("%s: use the ioctl instead\n", __func__);
+	return -EINVAL;
 
-	pr_info("%s: \n");
-	/* FIXME: Let's cap a message size at PAGE_SIZE for now */
-	if (count > PAGE_SIZE)
-		return -EINVAL;
-
-	if (count == 0)
-		return 0;
-
-	msg = kmalloc((sizeof(*msg) + count), GFP_KERNEL);
-	if (!msg)
-		return -ENOMEM;
-
-	if (copy_from_user(&msg->data[0], ubuf, count))
-		return -EFAULT;
-
-	kref_init(&msg->kref);
-	msg->length = count;
-
-	/* Walk the list of connections,
-	 * find any endpoints that match our endpoint,
-	 * create a kdbus_msg_list_entry for it,
-	 * attach the message to the endpoint list,
-	 * wake the connection up. */
-
-	/* what do we lock here?  FIXME */
-
-	list_for_each_entry(temp_conn, &connection_list, connection_entry) {
-		if (temp_conn->type != KDBUS_CONN_EP)
-			continue;
-		if (temp_conn->ep == conn->ep) {
-			/* Matching endpoints */
-			struct kdbus_msg_list_entry *msg_list_entry;
-
-			msg_list_entry = kmalloc(sizeof(*msg_list_entry), GFP_KERNEL);
-			kref_get(&msg->kref);
-			msg_list_entry->msg = msg;
-			mutex_lock(&temp_conn->msg_lock);
-			list_add_tail(&temp_conn->msg_list, &msg_list_entry->entry);
-			mutex_unlock(&temp_conn->msg_lock);
-			/* wake up the other processes.  Hopefully... */
-			wake_up_interruptible_all(&temp_conn->ep->wait);
-		}
-	}
-
-	/* drop our reference on the message, as we are done with it */
-	kref_put(&msg->kref, msg_release);
-	return count;
 }
 
-static ssize_t kdbus_conn_read(struct file *file, char __user *ubuf, size_t count, loff_t *ppos)
+static ssize_t conn_read(struct file *file, char __user *ubuf, size_t count, loff_t *ppos)
 {
-	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_msg_list_entry *msg_list_entry;
-	struct kdbus_test_msg *msg;
+	struct connection *conn = file->private_data;
+	struct kmsg_list_entry *msg_list_entry;
+	struct kmsg *msg;
+	int msg_size;
 	ssize_t retval = 0;
-
-	/* Only an endpoint can read/write data */
-	if (conn->type != KDBUS_CONN_EP)
-		return -EINVAL;
 
 	if (count == 0)
 		return 0;
@@ -267,7 +217,7 @@ static ssize_t kdbus_conn_read(struct file *file, char __user *ubuf, size_t coun
 			return -EAGAIN;
 
 		/* sleep until we get something */
-		if (wait_event_interruptible(conn->ep->wait, list_empty(&conn->msg_list)))
+		if (wait_event_interruptible(conn->wait, list_empty(&conn->msg_list)))
 			return -ERESTARTSYS;
 
 		if (mutex_lock_interruptible(&conn->msg_lock))
@@ -276,19 +226,20 @@ static ssize_t kdbus_conn_read(struct file *file, char __user *ubuf, size_t coun
 
 	/* let's grab a message from our list to write out */
 	if (!list_empty(&conn->msg_list)) {
-		msg_list_entry = list_entry(&conn->msg_list, struct kdbus_msg_list_entry, entry);
-		msg = msg_list_entry->msg;
-		if (msg->length > count) {
+		msg_list_entry = list_entry(&conn->msg_list, struct kmsg_list_entry, entry);
+		msg = msg_list_entry->kmsg;
+		msg_size = msg->size;
+		if (msg_size > count) {
 			retval = -E2BIG;		// FIXME wrong error code, I know, what should we use?
 			goto exit;
 		}
-		if (copy_to_user(ubuf, &msg->data[0], msg->length)) {
+		if (copy_to_user(ubuf, &msg->data[0], msg_size)) {
 			retval = -EFAULT;
 			goto exit;
 		}
 		list_del(&msg_list_entry->entry);
 		kfree(msg_list_entry);
-		retval = msg->length;
+		retval = msg_size;
 		kref_put(&msg->kref, msg_release);
 	}
 
@@ -297,38 +248,46 @@ exit:
 	return retval;
 }
 
-const struct file_operations kdbus_device_ops = {
+static const struct file_operations kdbus_device_ops = {
 	.owner =		THIS_MODULE,
 	.open =			conn_open,
 	.release =		conn_release,
 	.unlocked_ioctl =	conn_ioctl,
 	.compat_ioctl =		conn_ioctl,
-	.poll = 		kdbus_conn_poll,
+	.poll = 		conn_poll,
 	.mmap =			conn_mmap,
 	.llseek =		noop_llseek,
-	.write = 		kdbus_conn_write,
-	.read =			kdbus_conn_read,
+	.write = 		conn_write,
+	.read =			conn_read,
 };
 
 
 static int msg_new(struct connection *conn, struct umsg __user *umsg, struct kmsg **kmsg)
 {
 	struct kmsg *m;
+	u32 size;
 	int err;
 
-	if (umsg->size > PAGE_SIZE)
+	if (copy_from_user(&size, &umsg->size, sizeof(size)))
+		return -EFAULT;
+
+	if (size > PAGE_SIZE)
 		return -ENOMEM;
 
-	m = kzalloc(sizeof(struct kmsg) + umsg->size, GFP_KERNEL);
+	m = kzalloc(sizeof(struct kmsg) + size, GFP_KERNEL);
 	if (!m)
 		return -ENOMEM;
-	if (copy_from_user(m->data, umsg->data, umsg->size)) {
+	if (copy_from_user(m->data, umsg->data, size)) {
 		err = -EFAULT;
 		goto out_err;
 	}
 
+	if (copy_from_user(&m->dst_id, &umsg->dst_id, sizeof(u32))) {
+		kfree(m);
+		return -EFAULT;
+	}
+
 	kref_init(&m->kref);
-	m->dst_id = umsg->dst_id;
 	m->src_id = conn->id;
 	m->msg_id = msg_id_next++;
 	*kmsg = m;
@@ -340,20 +299,27 @@ out_err:
 
 static int msg_send(struct connection *conn, struct kmsg *msg)
 {
+	struct kmsg_list_entry *msg_list_entry;
 	struct connection *conn_dst;
 
 	conn_dst = minor_to_conn(msg->dst_id-1);
 	if (!conn_dst)
 		return -ENOENT;
 
-	// FIXME
+	pr_info("sending message %d from %d to %d\n", msg->msg_id, msg->src_id, msg->dst_id);
 
-	pr_info("sending message %llu from %llu to %llu\n",
-		(unsigned long long)msg->msg_id,
-		(unsigned long long)msg->src_id,
-		(unsigned long long)msg->dst_id);
+	msg_list_entry = kmalloc(sizeof(*msg_list_entry), GFP_KERNEL);
+	kref_get(&msg->kref);
+	msg_list_entry->kmsg = msg;
+	mutex_lock(&conn_dst->msg_lock);
+	list_add_tail(&conn_dst->msg_list, &msg_list_entry->entry);
+	mutex_unlock(&conn_dst->msg_lock);
 
-	kfree(msg);
+	/* wake up the other processes.  Hopefully... */
+	wake_up_interruptible_all(&conn_dst->wait);
+
+	/* drop our reference on the message, as we are done with it */
+	kref_put(&msg->kref, msg_release);
 	return 0;
 }
 
