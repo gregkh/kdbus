@@ -378,4 +378,4 @@ static void __exit portal_exit(void)
 module_init(portal_init);
 module_exit(portal_exit);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("portal manipulator");
+MODULE_DESCRIPTION("portal subether manipulator tester");
