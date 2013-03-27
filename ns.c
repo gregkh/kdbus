@@ -157,13 +157,10 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns
 
 	/* register major in our namespace map */
 	mutex_lock(&kdbus_subsys_lock);
-	if (!idr_pre_get(&kdbus_ns_major_idr, GFP_KERNEL)) {
-		err = -ENOMEM;
-		goto err_unlock;
-	}
-	err = idr_get_new_above(&kdbus_ns_major_idr, n, n->major, &i);
-	if (err >= 0 && n->major != i) {
-		idr_remove(&kdbus_ns_major_idr, i);
+
+	/* FIXME - is this even needed?  */
+	i = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
+	if (i <= 0) {
 		err = -EEXIST;
 		goto err_unlock;
 	}
