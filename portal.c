@@ -1,5 +1,8 @@
 /*
- * portal - test code for dealing with shoving data around different character devices
+ * portal
+ *	Test code for dealing with shoving data around different character
+ *	devices.  I want a framework to see how well the kmsg-as-a-kref idea
+ *	works out.
  *
  * Copyright (C) 2013 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
  * Copyright (C) 2013 Linux Foundation
@@ -72,7 +75,7 @@ static void init_connection(struct connection *conn, int id)
 }
 
 
-static struct bus_type portal_subsys = {
+static struct class portal_class = {
 	.name = "portal",
 };
 
@@ -81,18 +84,9 @@ static struct bus_type portal_subsys = {
  * that's all we care about for now */
 static LIST_HEAD(connection_list);
 
-static int msg_new(struct connection *conn, struct umsg __user *umsg, struct kmsg **kmsg);
-static int msg_send(struct connection *conn, struct kmsg *msg);
-
-
-static void msg_release(struct kref *kref)
-{
-	struct kmsg *msg = container_of(kref, struct kmsg, kref);
-	kfree(msg);
-}
-
 static struct connection *minor_to_conn(int minor)
 {
+	/* Aren't static variables grand? */
 	if (minor == 0)
 		return &conn1;
 	if (minor == 1)
@@ -102,6 +96,75 @@ static struct connection *minor_to_conn(int minor)
 	if (minor == 3)
 		return &conn4;
 	return NULL;
+}
+
+static void msg_release(struct kref *kref)
+{
+	struct kmsg *msg = container_of(kref, struct kmsg, kref);
+	kfree(msg);
+}
+
+static int msg_new(struct connection *conn, struct umsg __user *umsg,
+		   struct kmsg **kmsg)
+{
+	struct kmsg *m;
+	u32 size;
+	int err;
+
+	if (copy_from_user(&size, &umsg->size, sizeof(size)))
+		return -EFAULT;
+
+	if (size > PAGE_SIZE)
+		return -ENOMEM;
+
+	m = kzalloc(sizeof(struct kmsg) + size, GFP_KERNEL);
+	if (!m)
+		return -ENOMEM;
+	if (copy_from_user(m->data, umsg->data, size)) {
+		err = -EFAULT;
+		goto out_err;
+	}
+
+	if (copy_from_user(&m->dst_id, &umsg->dst_id, sizeof(u32))) {
+		kfree(m);
+		return -EFAULT;
+	}
+
+	kref_init(&m->kref);
+	m->src_id = conn->id;
+	m->msg_id = msg_id_next++;
+	*kmsg = m;
+	return 0;
+out_err:
+	kfree(m);
+	return err;
+}
+
+static int msg_send(struct connection *conn, struct kmsg *msg)
+{
+	struct kmsg_list_entry *msg_list_entry;
+	struct connection *conn_dst;
+
+	conn_dst = minor_to_conn(msg->dst_id-1);
+	if (!conn_dst)
+		return -ENOENT;
+
+	pr_info("sending message %d from %d to %d\n",
+		msg->msg_id, msg->src_id, msg->dst_id);
+
+	msg_list_entry = kmalloc(sizeof(*msg_list_entry), GFP_KERNEL);
+	kref_get(&msg->kref);
+	msg_list_entry->kmsg = msg;
+	mutex_lock(&conn_dst->msg_lock);
+	list_add_tail(&conn_dst->msg_list, &msg_list_entry->entry);
+	mutex_unlock(&conn_dst->msg_lock);
+
+	/* wake up the other processes.  Hopefully... */
+	wake_up_interruptible_all(&conn_dst->wait);
+
+	/* drop our reference on the message, as we are done with it */
+	kref_put(&msg->kref, msg_release);
+	return 0;
 }
 
 static int conn_open(struct inode *inode, struct file *file)
@@ -188,14 +251,16 @@ static int conn_mmap(struct file *file, struct vm_area_struct *vma)
 	return -EINVAL;
 }
 
-static ssize_t conn_write(struct file *file, const char __user *ubuf, size_t count, loff_t *ppos)
+static ssize_t conn_write(struct file *file, const char __user *ubuf,
+			  size_t count, loff_t *ppos)
 {
 	pr_info("%s: use the ioctl instead\n", __func__);
 	return -EINVAL;
 
 }
 
-static ssize_t conn_read(struct file *file, char __user *ubuf, size_t count, loff_t *ppos)
+static ssize_t conn_read(struct file *file, char __user *ubuf,
+			 size_t count, loff_t *ppos)
 {
 	struct connection *conn = file->private_data;
 	struct kmsg_list_entry *msg_list_entry;
@@ -217,7 +282,8 @@ static ssize_t conn_read(struct file *file, char __user *ubuf, size_t count, lof
 			return -EAGAIN;
 
 		/* sleep until we get something */
-		if (wait_event_interruptible(conn->wait, list_empty(&conn->msg_list)))
+		if (wait_event_interruptible(conn->wait,
+					     list_empty(&conn->msg_list)))
 			return -ERESTARTSYS;
 
 		if (mutex_lock_interruptible(&conn->msg_lock))
@@ -226,7 +292,8 @@ static ssize_t conn_read(struct file *file, char __user *ubuf, size_t count, lof
 
 	/* let's grab a message from our list to write out */
 	if (!list_empty(&conn->msg_list)) {
-		msg_list_entry = list_entry(&conn->msg_list, struct kmsg_list_entry, entry);
+		msg_list_entry = list_entry(&conn->msg_list,
+					    struct kmsg_list_entry, entry);
 		msg = msg_list_entry->kmsg;
 		msg_size = msg->size;
 		if (msg_size > count) {
@@ -248,86 +315,27 @@ exit:
 	return retval;
 }
 
-static const struct file_operations kdbus_device_ops = {
+static const struct file_operations portal_device_ops = {
 	.owner =		THIS_MODULE,
 	.open =			conn_open,
 	.release =		conn_release,
 	.unlocked_ioctl =	conn_ioctl,
 	.compat_ioctl =		conn_ioctl,
-	.poll = 		conn_poll,
+	.poll =			conn_poll,
 	.mmap =			conn_mmap,
 	.llseek =		noop_llseek,
-	.write = 		conn_write,
+	.write =		conn_write,
 	.read =			conn_read,
 };
 
-
-static int msg_new(struct connection *conn, struct umsg __user *umsg, struct kmsg **kmsg)
-{
-	struct kmsg *m;
-	u32 size;
-	int err;
-
-	if (copy_from_user(&size, &umsg->size, sizeof(size)))
-		return -EFAULT;
-
-	if (size > PAGE_SIZE)
-		return -ENOMEM;
-
-	m = kzalloc(sizeof(struct kmsg) + size, GFP_KERNEL);
-	if (!m)
-		return -ENOMEM;
-	if (copy_from_user(m->data, umsg->data, size)) {
-		err = -EFAULT;
-		goto out_err;
-	}
-
-	if (copy_from_user(&m->dst_id, &umsg->dst_id, sizeof(u32))) {
-		kfree(m);
-		return -EFAULT;
-	}
-
-	kref_init(&m->kref);
-	m->src_id = conn->id;
-	m->msg_id = msg_id_next++;
-	*kmsg = m;
-	return 0;
-out_err:
-	kfree(m);
-	return err;
-}
-
-static int msg_send(struct connection *conn, struct kmsg *msg)
-{
-	struct kmsg_list_entry *msg_list_entry;
-	struct connection *conn_dst;
-
-	conn_dst = minor_to_conn(msg->dst_id-1);
-	if (!conn_dst)
-		return -ENOENT;
-
-	pr_info("sending message %d from %d to %d\n", msg->msg_id, msg->src_id, msg->dst_id);
-
-	msg_list_entry = kmalloc(sizeof(*msg_list_entry), GFP_KERNEL);
-	kref_get(&msg->kref);
-	msg_list_entry->kmsg = msg;
-	mutex_lock(&conn_dst->msg_lock);
-	list_add_tail(&conn_dst->msg_list, &msg_list_entry->entry);
-	mutex_unlock(&conn_dst->msg_lock);
-
-	/* wake up the other processes.  Hopefully... */
-	wake_up_interruptible_all(&conn_dst->wait);
-
-	/* drop our reference on the message, as we are done with it */
-	kref_put(&msg->kref, msg_release);
-	return 0;
-}
+static int portal_major;	/* Our major number */
 
 static int __init portal_init(void)
 {
 	int err;
+	struct device *dev;
 
-	err = bus_register(&portal_subsys);
+	err = class_register(&portal_class);
 	if (err < 0)
 		return err;
 
@@ -336,13 +344,34 @@ static int __init portal_init(void)
 	init_connection(&conn3, 3);
 	init_connection(&conn4, 4);
 
+	/* Create our static device nodes, with one dynamic major */
+	portal_major = register_chrdev(0, "portal", &portal_device_ops);
+	if (portal_major < 0) {
+		err = portal_major;
+		goto err;
+	}
+
+	/* Create 4 sysfs entries */
+	dev = device_create(&portal_class, NULL, MKDEV(portal_major, 0), NULL, "portal1");
+	dev = device_create(&portal_class, NULL, MKDEV(portal_major, 1), NULL, "portal2");
+	dev = device_create(&portal_class, NULL, MKDEV(portal_major, 2), NULL, "portal3");
+	dev = device_create(&portal_class, NULL, MKDEV(portal_major, 3), NULL, "portal4");
+
 	pr_info("initialized\n");
 	return 0;
+err:
+	class_unregister(&portal_class);
+	return err;
 }
 
 static void __exit portal_exit(void)
 {
-	bus_unregister(&portal_subsys);
+	device_destroy(&portal_class, MKDEV(portal_major, 0));
+	device_destroy(&portal_class, MKDEV(portal_major, 1));
+	device_destroy(&portal_class, MKDEV(portal_major, 2));
+	device_destroy(&portal_class, MKDEV(portal_major, 3));
+	class_unregister(&portal_class);
+	unregister_chrdev(portal_major, "portal");
 	pr_info("unloaded\n");
 }
 
