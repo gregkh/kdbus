@@ -128,13 +128,6 @@ enum kdbus_msg_data_type {
 	KDBUS_MSG_DATA_MEM,
 };
 
-struct kdbus_msg_data {
-	u64 data;
-	u64 size;
-	u32 type;
-	u32 flags;
-};
-
 /* To knock around with for now */
 struct kdbus_test_msg {
 	struct kref kref;

@@ -30,6 +30,22 @@ struct kdbus_fake_message {
 	char msg[256]; /* FIXME obviously... */
 };
 
+
+/**
+ * struct kdbus_msg_data
+ *
+ * type:
+ * flags:
+ * size:
+ * data:
+ */
+struct kdbus_msg_data {
+	__u32 type;
+	__u32 flags;
+	__u64 size;
+	__u8 *data;
+};
+
 /**
  * struct kdbus_msg
  *
