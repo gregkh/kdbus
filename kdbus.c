@@ -145,15 +145,12 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 
 	/* get and register new id for this connection */
 	conn->id = conn->ep->bus->conn_id_next++;
-	if (!idr_pre_get(&conn->ep->bus->conn_idr, GFP_KERNEL)) {
-		err = -ENOMEM;
-		goto err_unlock;
-	}
+
 	/* FIXME: get 64 bit working, this will fail for the 2^31th connection */
 	/* use a hash table to get 64bit ids working properly, idr is the wrong
 	 * thing to use here. */
-	err = idr_get_new_above(&conn->ep->bus->conn_idr, conn, conn->id, &i);
-	if (err >= 0 && conn->id != i) {
+	i = idr_alloc(&conn->ep->bus->conn_idr, conn, conn->id, 0, GFP_KERNEL);
+	if (i >= 0 && conn->id != i) {
 		idr_remove(&conn->ep->bus->conn_idr, i);
 		err = -EEXIST;
 		goto err_unlock;
