@@ -138,13 +138,11 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	}
 
 	/* register minor in our endpoint map */
-	if (!idr_pre_get(&bus->ns->idr, GFP_KERNEL)) {
-		err = -ENOMEM;
+	i = idr_alloc(&bus->ns->idr, e, 1, 0, GFP_KERNEL);
+	if (i <= 0) {
+		err = i;
 		goto err_unlock;
 	}
-	err = idr_get_new_above(&bus->ns->idr, e, 1, &i);
-	if (err < 0)
-		goto err_unlock;
 	e->minor = i;
 
 	/* get id for this endpoint from bus */
@@ -154,8 +152,10 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
-	if (!e->dev)
+	if (!e->dev) {
+		err = -ENOMEM;
 		goto err;
+	}
 	dev_set_name(e->dev, "%s/%s/%s", bus->ns->devpath, bus->name, name);
 	e->dev->bus = &kdbus_subsys;
 	e->dev->type = &kdbus_devtype_ep;
