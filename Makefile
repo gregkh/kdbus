@@ -2,10 +2,10 @@ dbus-y	:= kdbus.o ep.o bus.o ns.o resolver.o
 
 obj-$(CONFIG_KDBUS)	+= dbus.o
 
+obj-m += dbus.o
+obj-m += portal.o
 
-obj-m:= dbus.o
-
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build	
+KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD       := $(shell pwd)
 
 all:
@@ -14,4 +14,4 @@ all:
 clean:
 	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
 	rm -f Module.markers Module.symvers modules.order
-	rm -rf .tmp_versions Modules.symvers	
+	rm -rf .tmp_versions Modules.symvers
