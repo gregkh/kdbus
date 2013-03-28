@@ -8,11 +8,11 @@ KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD       := $(shell pwd)
 
 TEST_CFLAGS = -Wall -Wextra -Wno-unused-parameter -D_GNU_SOURCE
-TEST_SRC = test/kdbus.c
+TEST_SRC = test/test-kdbus.c
 
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)
-	gcc $(TEST_CFLAGS) -I$(KERNELDIR)/include/ -o kdbus-test $(TEST_SRC)
+	gcc $(TEST_CFLAGS) -I$(KERNELDIR)/include/ -o test-kdbus $(TEST_SRC)
 
 clean:
 	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
