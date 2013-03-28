@@ -29,7 +29,7 @@
 static LIST_HEAD(namespace_list);
 
 /* next namespace id sequence number */
-static __u64 kdbus_ns_id_next;
+static u64 kdbus_ns_id_next;
 
 /* control nodes are world accessible */
 static char *kdbus_devnode_control(struct device *dev, umode_t *mode
