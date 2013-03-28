@@ -18,10 +18,12 @@
 
 #define KDBUS_IOC_MAGIC		0x95
 
+#define KDBUS_WELL_KNOWN_NAME_LENGTH 256
+
 /* Message sent from kernel to userspace, when the owner or starter of
  * a well-known name changes */
 struct kdbus_manager_msg_name_change {
-	char name[256];
+	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
 	uint64_t old_id;
 	uint64_t new_id;
 	uint64_t flags;      /* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
@@ -196,7 +198,7 @@ enum {
 struct kdbus_cmd_name {
 	uint64_t flags;
 	uint64_t id;		/* We allow registration/deregestration of names of other peers */
-	char name[256];
+	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
 };
 
 struct kdbus_cmd_names {
@@ -218,7 +220,8 @@ struct kdbus_cmd_name_info_item {
 struct kdbus_cmd_name_info {
 	uint64_t size;
 	uint64_t flags;
-	uint64_t id;
+	uint64_t id;	/* either fill in a valid ID here or set this to 0, and fill in .name instead */
+	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
 	struct kdbus_creds creds;
 	struct kdbus_cmd_name_info_item items[0];
 };
