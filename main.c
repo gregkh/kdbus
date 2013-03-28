@@ -74,12 +74,14 @@ static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
 			 struct kdbus_msg **msg);
 static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg);
 
+#if 0
 static void kdbus_msg_release(struct kref *kref)
 {
 	struct kdbus_kmsg *msg = container_of(kref, struct kdbus_kmsg, kref);
 
 	kfree(msg);
 }
+#endif
 
 /* kdbus file operations */
 static int kdbus_conn_open(struct inode *inode, struct file *file)
@@ -163,8 +165,6 @@ err_unlock:
 static int kdbus_conn_release(struct inode *inode, struct file *file)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_kmsg *msg;
-	struct kdbus_msg_list_entry *msg_entry, *tmp_entry;
 
 	switch (conn->type) {
 	case KDBUS_CONN_NS_OWNER:
