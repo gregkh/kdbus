@@ -177,6 +177,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 
 	case KDBUS_CONN_EP:
 		kdbus_ep_unref(conn->ep);
+#if 0
 		list_del(&conn->connection_entry);
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->msg_lock);
@@ -187,6 +188,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			kref_put(&msg->kref, kdbus_msg_release);
 		}
 		mutex_unlock(&conn->msg_lock);
+#endif
 
 		break;
 
