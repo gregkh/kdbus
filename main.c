@@ -201,7 +201,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int check_flags(const struct kdbus_cmd_fname *fname)
+static bool check_flags(const struct kdbus_cmd_fname *fname)
 {
 	/* The higher 32bit are considered 'incompatible
 	 * flags'. Refuse them all for now */
@@ -253,6 +253,9 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		}
 		break;
 
+	case KDBUS_CMD_BUS_POLICY_SET:
+		return -ENOSYS;
+
 	default:
 		return -ENOTTY;
 	}
@@ -274,7 +277,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE:
-		/* create a new endpoint for this bus */
+		/* create a new endpoint for this bus, and turn this
+		 * fd into a reference to it */
 		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
 			return -EFAULT;
 
@@ -284,6 +288,10 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		return kdbus_ep_new(conn->ep->bus, fname.name, fname.mode,
 				    current_fsuid(), current_fsgid(),
 				    NULL);
+
+	case KDBUS_CMD_HELLO:
+		/* turn this fd into a connection. */
+		return -ENOSYS;
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this bus */
@@ -301,12 +309,20 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		/* return all current well-known names */
 		return -ENOSYS;
 
+	case KDBUS_CMD_NAME_QUERY:
+		/* return details about a specific well-known name */
+		return -ENOSYS;
+
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
 		return -ENOSYS;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
+		return -ENOSYS;
+
+	case KDBUS_CMD_MONITOR:
+		/* turn on/turn off monitor mode */
 		return -ENOSYS;
 
 	case KDBUS_CMD_MSG_SEND:
