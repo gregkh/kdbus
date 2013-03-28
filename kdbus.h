@@ -182,6 +182,7 @@ enum {
 
 struct kdbus_cmd_name {
 	uint64_t flags;
+	uint64_t id;		/* We allow registration/deregestration of names of other peers */
 	char name[256];
 };
 
@@ -224,9 +225,15 @@ struct kdbus_cmd_match_item {
 
 struct kdbus_cmd_match {
 	uint64_t size;
-	uint64_t cookie; /* userspace supplied cookie; when removing; kernel deletes everything with same cookie */
-	uint64_t src_id; /* ~0: any. other: exact unique match */
+	uint64_t id;		/* We allow registration/deregestration of matches for other peers */
+	uint64_t cookie;	/* userspace supplied cookie; when removing; kernel deletes everything with same cookie */
+	uint64_t src_id;	/* ~0: any. other: exact unique match */
 	struct kdbus_cmd_match_item items[0];
+};
+
+struct kdbus_cmd_monitor {
+	uint64_t id;		/* We allow setting the monitor flag of other peers */
+	int enabled;
 };
 
 /* fd types
@@ -262,7 +269,7 @@ enum kdbus_cmd {
 
 	KDBUS_CMD_MATCH_ADD =		_IOWR(KDBUS_IOC_MAGIC, 0x60, struct kdbus_cmd_match),
 	KDBUS_CMD_MATCH_REMOVE =	_IOWR(KDBUS_IOC_MAGIC, 0x61, struct kdbus_cmd_match),
-	KDBUS_CMD_MATCH_MONITOR =	_IOWR(KDBUS_IOC_MAGIC, 0x62, int),
+	KDBUS_CMD_MONITOR =		_IOWR(KDBUS_IOC_MAGIC, 0x62, struct kdbus_cmd_monitor),
 
 	/* kdbus ep node commands: require ep owner state */
 	KDBUS_CMD_EP_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_policy),
