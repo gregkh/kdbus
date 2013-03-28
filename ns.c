@@ -102,7 +102,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns
 	int i;
 	int err;
 
-	pr_info("%s, %s\n", __func__, name);
+	pr_info("%s: %s\n", __func__, name ? name : "init");
 
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
