@@ -36,10 +36,6 @@ struct kdbus_creds {
 	uint64_t tid;
 };
 
-struct kdbus_timestamp {
-	uint64_t nsec;
-};
-
 /* Message Data Types */
 enum {
 	/* Filled in by userspace */
