@@ -70,7 +70,7 @@ DEFINE_IDR(kdbus_ns_major_idr);
 /* namespace list lock */
 DEFINE_MUTEX(kdbus_subsys_lock);
 
-static int kdbus_msg_new(struct kdbus_conn *conn, struct kdbus_msg __user *umsg,
+static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
 			 struct kdbus_msg **msg);
 static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg);
 
@@ -212,7 +212,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 	int err;
 
 	switch (cmd) {
-	case KDBUS_CMD_BUS_CREATE:
+	case KDBUS_CMD_BUS_MAKE:
 		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
 			return -EFAULT;
 
@@ -227,7 +227,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		conn->bus_owner = bus;
 		break;
 
-	case KDBUS_CMD_NS_CREATE:
+	case KDBUS_CMD_NS_MAKE:
 		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
 			return -EFAULT;
 
@@ -252,7 +252,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	struct kdbus_conn *conn = file->private_data;
 	struct kdbus_cmd_name name;
 	struct kdbus_msg *msg;
-	struct kdbus_ep *ep;
 	long err;
 
 	/* We need a connection before we can do anything with an ioctl */
@@ -260,23 +259,13 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		return -EINVAL;
 
 	switch (cmd) {
-	case KDBUS_CMD_EP_CREATE:
+	case KDBUS_CMD_EP_MAKE:
 		/* create a new endpoint for this bus */
 		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
 			return -EFAULT;
 		return kdbus_ep_new(conn->ep->bus, name.name,
 				    0660, current_fsuid(), current_fsgid(),
 				    NULL);
-
-	case KDBUS_CMD_EP_REMOVE:
-		/* remove an endpoint from this bus */
-		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
-			return -EFAULT;
-		ep = kdbus_ep_find(conn->bus_owner, name.name);
-		if (!ep)
-			return -EINVAL;
-
-		return kdbus_ep_remove(ep);
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this bus */
@@ -373,24 +362,37 @@ static void kdbus_msg_free(struct kdbus_msg *msg)
 	kfree(msg);
 }
 
-static int kdbus_msg_new(struct kdbus_conn *conn, struct kdbus_msg __user *umsg,
+static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
 			 struct kdbus_msg **msg)
 {
+	u64 __user *msgsize = argp;
 	struct kdbus_msg *m;
+	u64 size;
 	int err;
 
-	m = kmalloc(sizeof(struct kdbus_msg), GFP_KERNEL);
+	if (get_user(size, msgsize))
+		err = -EFAULT;
+
+	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
+		return -EMSGSIZE;
+
+	m = kmalloc(size, GFP_KERNEL);
 	if (!m)
 		return -ENOMEM;
-	if (copy_from_user(m, umsg, sizeof(struct kdbus_msg))) {
+	if (copy_from_user(m, argp, size)) {
 		err = -EFAULT;
 		goto out_err;
 	}
 
+	if (m->src_id != 0) {
+		err = -EINVAL;
+		goto out_err;
+	}
 	m->src_id = conn->id;
-	m->id = conn->ep->bus->msg_id_next++;
+
 	*msg = m;
 	return 0;
+
 out_err:
 	kdbus_msg_free(m);
 	return err;
@@ -405,7 +407,7 @@ static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg)
 		return -ENOENT;
 
 	pr_info("sending message %llu from %llu to %llu\n",
-		(unsigned long long)msg->id,
+		(unsigned long long)msg->cookie,
 		(unsigned long long)msg->src_id,
 		(unsigned long long)msg->dst_id);
 

@@ -178,7 +178,7 @@ enum {
 
 	/* kernel → userspace */
 	KDBUS_CMD_NAME_IN_QUEUE = 256,
-}
+};
 
 struct kdbus_cmd_name {
 	uint64_t flags;
@@ -187,7 +187,7 @@ struct kdbus_cmd_name {
 
 struct kdbus_cmd_names {
 	uint64_t count;
-	kdbus_cmd_name names[0];
+	struct kdbus_cmd_name names[0];
 };
 
 enum {
@@ -199,19 +199,19 @@ struct kdbus_cmd_name_info_item {
 	uint64_t size;
 	uint64_t type;
 	uint8_t data[0];
-}
+};
 
 struct kdbus_cmd_name_info {
 	uint64_t size;
 	uint64_t flags;
 	uint64_t id;
 	struct kdbus_creds creds;
-	struct kdbus_cmd_name_info_item[0];
+	struct kdbus_cmd_name_info_item items[0];
 };
 
 enum {
 	KDBUS_CMD_MATCH_BLOOM,
-	KDBUS_CMD_MATCH_SRC_NAME
+	KDBUS_CMD_MATCH_SRC_NAME,
 	KDBUS_CMD_MATCH_NAME_CHANGE,
 	KDBUS_CMD_MATCH_ID_NEW,
 	KDBUS_CMD_MATCH_ID_REMOVE,
@@ -224,7 +224,7 @@ struct kdbus_cmd_match_item {
 
 struct kdbus_cmd_match {
 	uint64_t size;
-	uint64_t cookie; /* when adding: userspace sets arbitrary cookie; when removing; kernel deletes everything with same cookie */
+	uint64_t cookie; /* userspace supplied cookie; when removing; kernel deletes everything with same cookie */
 	uint64_t src_id; /* ~0: any. other: exact unique match */
 	struct kdbus_cmd_match_item items[0];
 };
