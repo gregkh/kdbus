@@ -42,14 +42,14 @@ int main(int argc, char *argv[])
 	asprintf(&ns, "mydebiancontainer");
 	strcpy(name.name, ns);
 	printf("-- creating namespace called %s\n", ns);
-	err = ioctl(fdc, KDBUS_CMD_NS_CREATE, &name);
+	err = ioctl(fdc, KDBUS_CMD_NS_MAKE, &name);
 	if (err)
-		printf("--- error \"%s\"\n", err, strerror(errno));
+		printf("--- error %d (\"%s\")\n", err, strerror(errno));
 
 	printf("-- creating bus '%s'\n", name.name);
-	err = ioctl(fdc, KDBUS_CMD_BUS_CREATE, &name);
+	err = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &name);
 	if (err)
-		printf("--- error \"%s\"\n", err, strerror(errno));
+		printf("--- error %d (\"%s\")\n", err, strerror(errno));
 
 	if (uid > 0)
 		asprintf(&bus, "/dev/kdbus/%u-%s/bus", uid, busname);
@@ -62,9 +62,9 @@ int main(int argc, char *argv[])
 	asprintf(&ep, "ep-42");
 	strcpy(name.name, ep);
 	printf("-- creating endpoint for bus %s called %s\n", bus, ep);
-	err = ioctl(fdb, KDBUS_CMD_EP_CREATE, &name);
+	err = ioctl(fdb, KDBUS_CMD_EP_MAKE, &name);
 	if (err)
-		printf("--- error \"%s\"\n", err, strerror(errno));
+		printf("--- error %d (\"%s\")\n", err, strerror(errno));
 
 	printf("-- sleeping 10s\n");
 	sleep(10);
