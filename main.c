@@ -365,7 +365,7 @@ static void kdbus_msg_free(struct kdbus_msg *msg)
 static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
 			 struct kdbus_msg **msg)
 {
-	u64 __user *msgsize = argp;
+	u64 __user *msgsize = argp + offsetof(struct kdbus_msg, size);
 	struct kdbus_msg *m;
 	u64 size;
 	int err;
