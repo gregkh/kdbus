@@ -62,6 +62,7 @@ struct kdbus_bus {
 	struct idr conn_idr;	/* map of connection ids */
 	struct kdbus_ep *ep;	/* "bus" default endpoint */
 	struct list_head ep_list;	/* endpoints assigned to this bus */
+	__u64 bus_flags;	/* simple pass-thru flags from userspace to userspace */
 };
 
 /*
@@ -140,7 +141,7 @@ extern struct idr kdbus_ns_major_idr;
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns);
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns);
+int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
 struct kdbus_ns *kdbus_ns_find(const char *name);
 
 
@@ -152,7 +153,7 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
-		  uid_t uid, gid_t gid, struct kdbus_bus **bus);
+		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus);
 
 /* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);

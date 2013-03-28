@@ -201,23 +201,34 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static int check_flags(const struct kdbus_cmd_fname *fname)
+{
+	/* The higher 32bit are considered 'incompatible
+	 * flags'. Refuse them all for now */
+
+	return fname->kernel_flags <= 0xFFFFFFFFULL;
+}
+
 /* kdbus control device commands */
 static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 				     void __user *argp)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_name name;
+	struct kdbus_cmd_fname fname;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
 	int err;
 
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE:
-		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
+		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
 			return -EFAULT;
 
-		err = kdbus_bus_new(conn->ns, name.name,
-				    0660, current_fsuid(), current_fsgid(),
+		if (!check_flags(&fname))
+			return -ENOTSUPP;
+
+		err = kdbus_bus_new(conn->ns, fname.name, fname.bus_flags, fname.mode,
+				    current_fsuid(), current_fsgid(),
 				    &bus);
 		if (err < 0)
 			return err;
@@ -228,13 +239,16 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_NS_MAKE:
-		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
+		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
 			return -EFAULT;
 
-		err = kdbus_ns_new(kdbus_ns_init, name.name, &ns);
+		if (!check_flags(&fname))
+			return -ENOTSUPP;
+
+		err = kdbus_ns_new(kdbus_ns_init, fname.name, fname.mode, &ns);
 		if (err < 0) {
 			pr_err("failed to create namespace %s, err=%i\n",
-				name.name, err);
+				fname.name, err);
 			return err;
 		}
 		break;
@@ -250,7 +264,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 				void __user *argp)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_name name;
+	struct kdbus_cmd_fname fname;
 	struct kdbus_msg *msg;
 	long err;
 
@@ -261,10 +275,14 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE:
 		/* create a new endpoint for this bus */
-		if (copy_from_user(&name, argp, sizeof(struct kdbus_cmd_name)))
+		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
 			return -EFAULT;
-		return kdbus_ep_new(conn->ep->bus, name.name,
-				    0660, current_fsuid(), current_fsgid(),
+
+		if (!check_flags(&fname))
+			return -ENOTSUPP;
+
+		return kdbus_ep_new(conn->ep->bus, fname.name, fname.mode,
+				    current_fsuid(), current_fsgid(),
 				    NULL);
 
 	case KDBUS_CMD_EP_POLICY_SET:
@@ -423,7 +441,7 @@ static int __init kdbus_init(void)
 	if (err < 0)
 		return err;
 
-	err = kdbus_ns_new(NULL, NULL, &kdbus_ns_init);
+	err = kdbus_ns_new(NULL, NULL, 0, &kdbus_ns_init);
 	if (err < 0) {
 		bus_unregister(&kdbus_subsys);
 		pr_err("failed to initialize err=%i\n", err);

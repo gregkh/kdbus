@@ -153,13 +153,31 @@ struct kdbus_cmd_policy {
 
 struct kdbus_cmd_hello {
 	/* userspace → kernel, kernel → userspace */
-	uint64_t flags;
+	uint64_t kernel_flags;	/* userspace specifies its
+				 * capabilities, kernel returns its
+				 * capabilites. Kernel might refuse
+				 * client's capabilities by returning
+				 * an error from KDBUS_CMD_HELLO */
 
 	/* kernel → userspace */
-	uint64_t id;
+	uint64_t bus_flags;	/* this is copied verbatim from the
+				 * original KDBUS_CMD_BUS_MAKE
+				 * ioctl. It's intended to be useful
+				 * to do negotiation of features of
+				 * the payload that is transferred. */
+	uint64_t id;		/* peer id */
 };
 
 struct kdbus_cmd_fname {
+	/* userspace → kernel, kernel → userspace */
+	uint64_t kernel_flags;	/* When creating a bus/ns/ep feature
+				 * kernel negotiation done the same
+				 * way as for KDBUS_CMD_BUS_MAKE. */
+	/* userspace → kernel */
+	uint64_t bus_flags;	/* When a bus is created this value is
+				 * copied verbatim into the bus
+				 * structure and returned from
+				 * KDBUS_CMD_HELLO, later */
 	mode_t mode;
 	char name[64];
 };

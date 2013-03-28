@@ -77,7 +77,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 }
 
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
-		  uid_t uid, gid_t gid, struct kdbus_bus **bus)
+		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus)
 {
 	char prefix[16];
 	struct kdbus_bus *b;
@@ -94,6 +94,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 
 	b->ref = 1;
 	b->ns = ns;
+	b->bus_flags = bus_flags;
 	/* connection 0 == kernel/multi-cast */
 	b->conn_id_next = 1;
 	mutex_init(&b->lock);
@@ -121,5 +122,3 @@ err:
 	kdbus_bus_unref(b);
 	return err;
 }
-
-

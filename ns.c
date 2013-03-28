@@ -95,7 +95,7 @@ struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
 	return NULL;
 }
 
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns)
+int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
 {
 	struct kdbus_ns *n;
 	const char *ns_name = NULL;
