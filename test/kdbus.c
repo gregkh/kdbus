@@ -10,7 +10,8 @@
 #include <assert.h>
 #include <sys/ioctl.h>
 
-#include "include/uapi/kdbus/kdbus.h"
+//#include "include/uapi/kdbus/kdbus.h"
+#include "../kdbus.h"
 
 int main(int argc, char *argv[])
 {
