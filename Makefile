@@ -4,11 +4,15 @@ obj-$(CONFIG_KDBUS)	+= kdbus.o
 
 obj-m:= kdbus.o
 
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build	
+KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD       := $(shell pwd)
+
+TEST_CFLAGS = -Wall -Wextra -Wno-unused-parameter -D_GNU_SOURCE
+TEST_SRC = test/kdbus.c
 
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)
+	gcc $(TEST_CFLAGS) -I$(KERNELDIR)/include/ -o kdbus-test $(TEST_SRC)
 
 clean:
 	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
