@@ -6,4 +6,4 @@ Module.symvers
 *.o
 *.swp
 .tmp_versions
-kdbus-test
+test-kdbus
