@@ -18,15 +18,13 @@
 
 #define KDBUS_IOC_MAGIC		0x95
 
+/* Message sent from kernel to userspace, when the owner or starter of
+ * a well-known name changes */
 struct kdbus_manager_msg_name_change {
+	char name[256];
 	uint64_t old_id;
 	uint64_t new_id;
 	uint64_t flags;      /* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
-	char name[256];
-};
-
-struct kdbus_manager_msg_id_change {
-	uint64_t id;
 };
 
 struct kdbus_creds {
@@ -39,27 +37,27 @@ struct kdbus_creds {
 /* Message Data Types */
 enum {
 	/* Filled in by userspace */
-	KDBUS_MSG_PAYLOAD,
-	KDBUS_MSG_PAYLOAD_REF,
-	KDBUS_MSG_UNIX_FDS,
-	KDBUS_MSG_BLOOM,		/* Only filled in for broadcasts */
+	KDBUS_MSG_PAYLOAD,		/* Carries binary blob */
+	KDBUS_MSG_PAYLOAD_REF,		/* Carries .ref */
+	KDBUS_MSG_UNIX_FDS,		/* Carries int[] of file descriptors */
+	KDBUS_MSG_BLOOM,		/* Only filled in for broadcasts, carries bloom filter blob */
 	KDBUS_MSG_DST_NAME,		/* Used only when destination is well-known name */
 
 	/* Filled in by kernelspace */
-	KDBUS_MSG_SRC_CREDS,
-	KDBUS_MSG_SRC_CAPS,
-	KDBUS_MSG_SRC_SECLABEL,
-	KDBUS_MSG_SRC_AUDIT,
-	KDBUS_MSG_SRC_NAMES,
-	KDBUS_MSG_DST_NAMES,
-	KDBUS_MSG_TIMESTAMP,
+	KDBUS_MSG_SRC_CREDS,		/* Carries .creds */
+	KDBUS_MSG_SRC_CAPS,		/* Carries caps blob */
+	KDBUS_MSG_SRC_SECLABEL,		/* Carries NUL terminated string */
+	KDBUS_MSG_SRC_AUDIT,		/* Carries array of two uint64_t of audit loginuid + sessiond */
+	KDBUS_MSG_SRC_NAMES,		/* Carries concatenation of NUL terminated strings with all well-known names of source */
+	KDBUS_MSG_DST_NAMES,		/* Carries concatenation of NUL terminated strings with all well-known names of destination */
+	KDBUS_MSG_TIMESTAMP,		/* Carries uint64_t nsec timestamp of CLOCK_MONOTONIC */
 
-	/* Special message from kernel, consisting of one and only one of these data blocks */
-	KDBUS_MSG_NAME_CHANGE,
-	KDBUS_MSG_ID_NEW,
-	KDBUS_MSG_ID_REMOVE,
-	KDBUS_MSG_REPLY_TIMEOUT,
-	KDBUS_MSG_REPLY_DEAD,
+	/* Special messages from kernel, consisting of one and only one of these data blocks */
+	KDBUS_MSG_NAME_CHANGE,		/* Carries .name_change */
+	KDBUS_MSG_ID_NEW,		/* Carries ID as uint64_t */
+	KDBUS_MSG_ID_REMOVE,		/* Dito */
+	KDBUS_MSG_REPLY_TIMEOUT,	/* Empty, only .reply_serial is relevant in the header */
+	KDBUS_MSG_REPLY_DEAD,		/* Dito */
 };
 
 /**
@@ -78,8 +76,9 @@ struct kdbus_msg_data {
 		struct {
 			uint64_t address;
 			uint64_t size;
-		} payload_ref;
+		} ref;
 		struct kdbus_creds creds;
+		struct kdbus_manager_msg_name_change name_change;
 	};
 };
 
@@ -129,9 +128,9 @@ enum {
 };
 
 enum {
-	KDBUS_POLICY_RECV = 1,
-	KDBUS_POLICY_WRITE = 2,
-	KDBUS_POLICY_OWN = 4,
+	KDBUS_POLICY_RECV = 4,
+	KDBUS_POLICY_SEND = 2,
+	KDBUS_POLICY_OWN = 1,
 };
 
 struct kdbus_policy {
@@ -141,7 +140,7 @@ struct kdbus_policy {
 		char name[0];
 		struct {
 			uint32_t type;  /* USER, GROUP, WORLD */
-			uint32_t bits;  /* SEND, RECV, OWN */
+			uint32_t bits;  /* RECV, SEND, OWN */
 			uint64_t id;    /* uid, gid, 0 */
 		} access;
 	};
@@ -207,16 +206,16 @@ struct kdbus_cmd_name_info {
 };
 
 enum {
-	KDBUS_CMD_MATCH_BLOOM,
-	KDBUS_CMD_MATCH_SRC_NAME,
-	KDBUS_CMD_MATCH_NAME_CHANGE,
-	KDBUS_CMD_MATCH_ID_NEW,
-	KDBUS_CMD_MATCH_ID_REMOVE,
+	KDBUS_CMD_MATCH_BLOOM,		/* Matches a mask blob against KDBUS_MSG_BLOOM */
+	KDBUS_CMD_MATCH_SRC_NAME,	/* Matches a name string against KDBUS_MSG_SRC_NAMES */
+	KDBUS_CMD_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_MSG_NAME_CHANGE */
+	KDBUS_CMD_MATCH_ID_NEW,		/* Matches a uint64_t against KDBUS_MSG_ID_NEW */
+	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches a uint64_t against KDBUS_MSG_ID_REMOVE */
 };
 
 struct kdbus_cmd_match_item {
 	uint64_t type;
-	uint8_t data[0];
+	char data[0];
 };
 
 struct kdbus_cmd_match {
@@ -229,10 +228,10 @@ struct kdbus_cmd_match {
 
 struct kdbus_cmd_monitor {
 	uint64_t id;		/* We allow setting the monitor flag of other peers */
-	int enabled;
+	int enabled;		/* A boolean to enable/disable monitoring */
 };
 
-/* fd types
+/* FD states:
  *
  *	control nodes: 	unset
  *			bus owner  (via KDBUS_CMD_BUS_MAKE)
