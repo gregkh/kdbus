@@ -161,6 +161,17 @@ struct kdbus_cmd_hello {
 				 * client's capabilities by returning
 				 * an error from KDBUS_CMD_HELLO */
 
+	/* userspace → kernel */
+	uint64_t pid;		/* To allow translator services which
+				 * connect to the bus on behalf of
+				 * somebody else, allow specifiying
+				 * the PID of the client to connect on
+				 * behalf on. Normal clients should
+				 * pass this as 0 (i.e. to do things
+				 * under their own PID). Priviliged
+				 * clients can pass != 0, to operate
+				 * on behalf of somebody else. */
+
 	/* kernel → userspace */
 	uint64_t bus_flags;	/* this is copied verbatim from the
 				 * original KDBUS_CMD_BUS_MAKE
