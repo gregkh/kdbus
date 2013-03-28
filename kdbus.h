@@ -63,7 +63,7 @@ enum {
 	KDBUS_MSG_ID_NEW,
 	KDBUS_MSG_ID_REMOVE,
 	KDBUS_MSG_REPLY_TIMEOUT,
-	KDBUS_MSG_REPLY_DEAD
+	KDBUS_MSG_REPLY_DEAD,
 };
 
 /**
@@ -146,14 +146,14 @@ struct kdbus_policy {
 		struct {
 			uint32_t type;  /* USER, GROUP, WORLD */
 			uint32_t bits;  /* SEND, RECV, OWN */
-			uint64_t id;   /* uid, gid, 0 */
+			uint64_t id;    /* uid, gid, 0 */
 		} access;
 	};
 };
 
 struct kdbus_cmd_policy {
 	uint64_t size;
-	uint8_t buffer[0];
+	uint8_t buffer[0];	/* a series of KDBUS_POLICY_NAME plus one or more KDBUS_POLICY_ACCESS each. */
 };
 
 struct kdbus_cmd_hello {
