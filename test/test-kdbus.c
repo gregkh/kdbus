@@ -16,11 +16,13 @@ int main(int argc, char *argv[])
 {
 	int fdc;
 	int fdb;
-	struct kdbus_cmd_name name;
+	struct kdbus_cmd_fname name;
 	char *busname;
 	char *bus;
 	uid_t uid;
 	int err;
+
+	memset(&name, 0, sizeof(name));
 
 	uid = getuid();
 	if (argv[1])
@@ -54,7 +56,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "--- error %d (\"%s\")\n", fdb, strerror(errno));
 		return EXIT_FAILURE;
 	}
-
 	printf("-- sleeping 10s\n");
 	sleep(10);
 
