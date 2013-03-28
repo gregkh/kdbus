@@ -79,8 +79,14 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 		  uid_t uid, gid_t gid, struct kdbus_bus **bus)
 {
+	char prefix[16];
 	struct kdbus_bus *b;
 	int err;
+
+	/* enforce "$UID-" prefix */
+	snprintf(prefix, sizeof(prefix), "%u-", uid);
+	if (strncmp(name, prefix, strlen(prefix) != 0))
+		return -EINVAL;
 
 	b = kzalloc(sizeof(struct kdbus_bus), GFP_KERNEL);
 	if (!b)
@@ -93,11 +99,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 	mutex_init(&b->lock);
 	idr_init(&b->conn_idr);
 	INIT_LIST_HEAD(&b->ep_list);
-
-	if (uid > 0)
-		b->name = kasprintf(GFP_KERNEL, "%u-%s", uid, name);
-	else
-		b->name = kstrdup(name, GFP_KERNEL);
+	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
 		err = -ENOMEM;
 		goto err;
