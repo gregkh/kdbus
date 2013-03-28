@@ -201,12 +201,12 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static bool check_flags(const struct kdbus_cmd_fname *fname)
+static bool check_flags(uint64_t kernel_flags)
 {
 	/* The higher 32bit are considered 'incompatible
 	 * flags'. Refuse them all for now */
 
-	return fname->kernel_flags <= 0xFFFFFFFFULL;
+	return kernel_flags <= 0xFFFFFFFFULL;
 }
 
 /* kdbus control device commands */
@@ -224,7 +224,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
 			return -EFAULT;
 
-		if (!check_flags(&fname))
+		if (!check_flags(fname.kernel_flags))
 			return -ENOTSUPP;
 
 		err = kdbus_bus_new(conn->ns, fname.name, fname.bus_flags, fname.mode,
@@ -242,7 +242,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
 			return -EFAULT;
 
-		if (!check_flags(&fname))
+		if (!check_flags(fname.kernel_flags))
 			return -ENOTSUPP;
 
 		err = kdbus_ns_new(kdbus_ns_init, fname.name, fname.mode, &ns);
@@ -282,16 +282,27 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
 			return -EFAULT;
 
-		if (!check_flags(&fname))
+		if (!check_flags(fname.kernel_flags))
 			return -ENOTSUPP;
 
 		return kdbus_ep_new(conn->ep->bus, fname.name, fname.mode,
 				    current_fsuid(), current_fsgid(),
 				    NULL);
 
-	case KDBUS_CMD_HELLO:
+	case KDBUS_CMD_HELLO: {
 		/* turn this fd into a connection. */
+		struct kdbus_cmd_hello hello;
+
+		if (copy_from_user(&hello, argp, sizeof(struct kdbus_cmd_hello)))
+			return -EFAULT;
+
+		if (!check_flags(hello.kernel_flags))
+			return -ENOTSUPP;
+
+		/* ... */
+
 		return -ENOSYS;
+	}
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this bus */
