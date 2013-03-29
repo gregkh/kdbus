@@ -13,6 +13,8 @@
 #ifndef _KDBUS_H_
 #define _KDBUS_H_
 
+#include <linux/types.h>
+
 /* FIXME: move to include/uapi/linux/major.h */
 #define KDBUS_CHAR_MAJOR	222
 
