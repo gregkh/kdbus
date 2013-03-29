@@ -192,8 +192,13 @@ static int conn_release(struct inode *inode, struct file *file)
 	struct kmsg *msg;
 	struct kmsg_list_entry *msg_entry, *tmp_entry;
 
+	/* Wake up anything sleeping */
+//	wake_up_interruptible_all(&conn->wait);
+
 	/* clean up any messages still left on this endpoint */
-	mutex_lock(&conn->msg_lock);
+	if (mutex_lock_interruptible(&conn->msg_lock))
+		return -ERESTARTSYS;
+
 	list_for_each_entry_safe(msg_entry, tmp_entry, &conn->msg_list, entry) {
 		msg = msg_entry->kmsg;
 		list_del(&msg_entry->entry);
@@ -274,41 +279,27 @@ static ssize_t conn_read(struct file *file, char __user *ubuf,
 	if (mutex_lock_interruptible(&conn->msg_lock))
 		return -ERESTARTSYS;
 
-	while (list_empty(&conn->msg_list)) {
-		/* Nothing to read, so try again or sleep */
-		mutex_unlock(&conn->msg_lock);
-
-		if (file->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-
-		/* sleep until we get something */
-		if (wait_event_interruptible(conn->wait,
-					     list_empty(&conn->msg_list)))
-			return -ERESTARTSYS;
-
-		if (mutex_lock_interruptible(&conn->msg_lock))
-			return -ERESTARTSYS;
-	}
+	if (list_empty(&conn->msg_list))
+		goto exit;
 
 	/* let's grab a message from our list to write out */
-	if (!list_empty(&conn->msg_list)) {
-		msg_list_entry = list_entry(&conn->msg_list,
-					    struct kmsg_list_entry, entry);
-		msg = msg_list_entry->kmsg;
-		msg_size = msg->size;
-		if (msg_size > count) {
-			retval = -E2BIG;		// FIXME wrong error code, I know, what should we use?
-			goto exit;
-		}
-		if (copy_to_user(ubuf, &msg->data[0], msg_size)) {
-			retval = -EFAULT;
-			goto exit;
-		}
-		list_del(&msg_list_entry->entry);
-		kfree(msg_list_entry);
-		retval = msg_size;
-		kref_put(&msg->kref, msg_release);
+	msg_list_entry = list_entry(&conn->msg_list, struct kmsg_list_entry,
+				    entry);
+	msg = msg_list_entry->kmsg;
+	msg_size = msg->size;
+	if (msg_size > count) {
+		/* FIXME wrong error code, I know, what should we use? */
+		retval = -E2BIG;
+		goto exit;
 	}
+	if (copy_to_user(ubuf, &msg->data[0], msg_size)) {
+		retval = -EFAULT;
+		goto exit;
+	}
+	list_del(&msg_list_entry->entry);
+	kfree(msg_list_entry);
+	retval = msg_size;
+	kref_put(&msg->kref, msg_release);
 
 exit:
 	mutex_unlock(&conn->msg_lock);
