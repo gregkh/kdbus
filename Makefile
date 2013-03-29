@@ -6,7 +6,7 @@ obj-m += dbus.o
 obj-m += portal.o
 
 # test programs
-hostprogs-y	:= kdbus_test
+hostprogs-y	:= kdbus_test portal_test
 always		:= $(hostprogs-y)
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
