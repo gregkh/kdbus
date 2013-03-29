@@ -273,6 +273,8 @@ static ssize_t conn_read(struct file *file, char __user *ubuf,
 	int msg_size;
 	ssize_t retval = 0;
 
+	pr_info("connection %d reading\n", conn->id);
+
 	if (count == 0)
 		return 0;
 
