@@ -498,6 +498,7 @@ static ssize_t kdbus_conn_read(struct file *file, char __user *ubuf, size_t coun
 
 	/* let's grab a message from our list to write out */
 	if (!list_empty(&conn->msg_list)) {
+		// FIXME, this will oops, need to use list_safe_loop()
 		msg_list_entry = list_entry(&conn->msg_list, struct kdbus_msg_list_entry, entry);
 		msg = msg_list_entry->msg;
 		if (msg->length > count) {

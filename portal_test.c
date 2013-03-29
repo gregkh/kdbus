@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
 	printf("-- reading from portal 1\n");
 	count = read(fd1, &string[0], 100);
 	printf("--- count = %d, string = \"%s\"\n", (int)count, &string[0]);
+
 //	msg = create_message(20, "123456789012345678901234567890");
 //	err = ioctl(fd1, PORTAL_MSG_READ, msg);
 
