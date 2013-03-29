@@ -159,7 +159,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	mutex_init(&conn->msg_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
 
-	list_add_tail(&connection_list, &conn->connection_entry);
+	list_add_tail(&conn->connection_entry, &connection_list);
 
 	file->private_data = conn;
 	mutex_unlock(&conn->ns->lock);
@@ -452,7 +452,7 @@ static ssize_t kdbus_conn_write(struct file *file, const char __user *ubuf, size
 			kref_get(&msg->kref);
 			msg_list_entry->msg = msg;
 			mutex_lock(&temp_conn->msg_lock);
-			list_add_tail(&temp_conn->msg_list, &msg_list_entry->entry);
+			list_add_tail(&msg_list_entry->entry, &temp_conn->msg_list);
 			mutex_unlock(&temp_conn->msg_lock);
 			/* wake up the other processes.  Hopefully... */
 			wake_up_interruptible_all(&temp_conn->ep->wait);

@@ -142,8 +142,9 @@ static int msg_send(struct connection *conn, struct kmsg *msg)
 	msg_list_entry = kmalloc(sizeof(*msg_list_entry), GFP_KERNEL);
 	kref_get(&msg->kref);
 	msg_list_entry->kmsg = msg;
+
 	mutex_lock(&conn_dst->msg_lock);
-	list_add_tail(&conn_dst->msg_list, &msg_list_entry->entry);
+	list_add_tail(&msg_list_entry->entry, &conn_dst->msg_list);
 	mutex_unlock(&conn_dst->msg_lock);
 
 	/* wake up the other processes.  Hopefully... */
@@ -265,6 +266,7 @@ static ssize_t conn_read(struct file *file, char __user *ubuf,
 	if (count == 0)
 		return 0;
 
+	pr_info("%s: trace 01\n", __func__);
 	if (mutex_lock_interruptible(&conn->msg_lock))
 		return -ERESTARTSYS;
 
