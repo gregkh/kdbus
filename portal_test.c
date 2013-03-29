@@ -32,6 +32,8 @@ int main(int argc, char *argv[])
 {
 	int err;
 	int fd1, fd2, fd3, fd4;
+	ssize_t count;
+	char string[100];
 	struct umsg *msg;
 
 	printf("-- opening portals\n");
@@ -51,9 +53,15 @@ int main(int argc, char *argv[])
 	printf("-- sending 1 message to portal 1, from portal 1\n");
 	msg = create_message(1, "hello");malloc(sizeof(*msg) + 4000);
 	err = ioctl(fd1, PORTAL_MSG_SEND, msg);
+	if (err)
 		printf("--- error %d \"%s\"\n", err, strerror(errno));
 	free(msg);
 
+	printf("-- reading from portal 1\n");
+	count = read(fd1, &string[0], 100);
+	printf("--- count = %d, string = \"%s\"\n", (int)count, &string[0]);
+//	msg = create_message(20, "123456789012345678901234567890");
+//	err = ioctl(fd1, PORTAL_MSG_READ, msg);
 
 	close(fd1);
 	close(fd2);
