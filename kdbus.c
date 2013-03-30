@@ -502,7 +502,7 @@ static ssize_t kdbus_conn_read(struct file *file, char __user *ubuf, size_t coun
 		msg_list_entry = list_entry(&conn->msg_list, struct kdbus_msg_list_entry, entry);
 		msg = msg_list_entry->msg;
 		if (msg->length > count) {
-			retval = -E2BIG;		// FIXME wrong error code, I know, what should we use?
+			retval = -EMSGSIZE;
 			goto exit;
 		}
 		if (copy_to_user(ubuf, &msg->data[0], msg->length)) {
