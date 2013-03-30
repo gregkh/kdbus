@@ -28,12 +28,17 @@ static struct umsg *create_message(int dst_id, char *string)
 	return msg;
 }
 
+static void print_message(struct umsg *msg)
+{
+	printf("message: dst_id=%d size=%d data=\"%s\"\n", msg->dst_id, msg->size, msg->data);
+}
+
 int main(int argc, char *argv[])
 {
 	int err;
 	int fd1, fd2, fd3, fd4;
-	ssize_t count;
-	char string[100];
+//	ssize_t count;
+//	char string[100];
 	struct umsg *msg;
 
 	printf("-- opening portals\n");
@@ -58,11 +63,16 @@ int main(int argc, char *argv[])
 	free(msg);
 
 	printf("-- reading from portal 1\n");
-	count = read(fd1, &string[0], 100);
-	printf("--- count = %d, string = \"%s\"\n", (int)count, &string[0]);
+//	count = read(fd1, &string[0], 100);
+//	printf("--- count = %d, string = \"%s\"\n", (int)count, &string[0]);
 
-//	msg = create_message(20, "123456789012345678901234567890");
-//	err = ioctl(fd1, PORTAL_MSG_READ, msg);
+	msg = create_message(20, "123456789012345678901234567890");
+	err = ioctl(fd1, PORTAL_MSG_RECV, msg);
+	if (err)
+		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	else
+		print_message(msg);
+	free(msg);
 
 	close(fd1);
 	close(fd2);
