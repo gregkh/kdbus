@@ -57,7 +57,7 @@ init namspace and one for each sub-namespace.
 +-----------------------------------------------------------------------------+
 
 +-----------------------------------------------------------------------------+
-| Namespace (Container; inside it fedoracontainer/ becomes /dev/kdbus/)       |
+| Namespace (Container; inside it, fedoracontainer/ becomes /dev/kdbus/)      |
 | /dev/kdbus/ns/fedoracontainer/                                              |
 | +-------------------------------------------------------------------------+ |
 | | Bus                                                                     | |
