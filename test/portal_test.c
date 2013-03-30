@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -10,7 +9,7 @@
 #include <assert.h>
 #include <sys/ioctl.h>
 
-#include "portal.h"
+#include "../portal.h"
 
 static struct umsg *create_message(int dst_id, char *string)
 {
