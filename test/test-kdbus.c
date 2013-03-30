@@ -11,19 +11,19 @@
 #include <sys/ioctl.h>
 
 //#include "include/uapi/kdbus/kdbus.h"
-#include "kdbus.h"
+#include "../kdbus.h"
 
 int main(int argc, char *argv[])
 {
 	int fdc;
 	int fdb;
-	struct kdbus_cmd_name name;
+	struct kdbus_cmd_fname name;
 	char *busname;
 	char *bus;
-	char *ep;
-	char *ns;
 	uid_t uid;
 	int err;
+
+	memset(&name, 0, sizeof(name));
 
 	uid = getuid();
 	if (argv[1])
@@ -32,40 +32,31 @@ int main(int argc, char *argv[])
 		busname = "system";
 	else
 		busname = "user";
-	strcpy(name.name, busname);
+	strncpy(name.name, busname, sizeof(name.name));
 
 	printf("-- opening /dev/kdbus/control\n");
 	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
-	if (fdc < 0)
+	if (fdc < 0) {
+		fprintf(stderr, "--- error %d (\"%s\")\n", fdc, strerror(fdc));
 		return EXIT_FAILURE;
+	}
 
-	asprintf(&ns, "mydebiancontainer");
-	strcpy(name.name, ns);
-	printf("-- creating namespace called %s\n", ns);
-	err = ioctl(fdc, KDBUS_CMD_NS_CREATE, &name);
-	if (err)
-		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	snprintf(name.name, sizeof(name.name), "%u-testbus", uid);
 
 	printf("-- creating bus '%s'\n", name.name);
-	err = ioctl(fdc, KDBUS_CMD_BUS_CREATE, &name);
-	if (err)
-		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	err = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &name);
+	if (err) {
+		fprintf(stderr, "--- error %d (\"%s\")\n", err, strerror(errno));
+		return EXIT_FAILURE;
+	}
 
-	if (uid > 0)
-		asprintf(&bus, "/dev/kdbus/%u-%s/bus", uid, busname);
-	else
-		asprintf(&bus, "/dev/kdbus/%s/bus", busname);
+	asprintf(&bus, "/dev/kdbus/%s/bus", name.name);
 	printf("-- opening bus connection %s\n", bus);
 	fdb = open(bus, O_RDWR|O_CLOEXEC);
-
-
-	asprintf(&ep, "ep-42");
-	strcpy(name.name, ep);
-	printf("-- creating endpoint for bus %s called %s\n", bus, ep);
-	err = ioctl(fdb, KDBUS_CMD_EP_CREATE, &name);
-	if (err)
-		printf("--- error %d \"%s\"\n", err, strerror(errno));
-
+	if (fdb < 0) {
+		fprintf(stderr, "--- error %d (\"%s\")\n", fdb, strerror(errno));
+		return EXIT_FAILURE;
+	}
 	printf("-- sleeping 10s\n");
 	sleep(10);
 
@@ -74,5 +65,6 @@ int main(int argc, char *argv[])
 
 	printf("-- closing bus master\n");
 	close(fdc);
+
 	return EXIT_SUCCESS;
 }

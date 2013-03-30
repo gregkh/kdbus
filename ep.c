@@ -200,5 +200,3 @@ int kdbus_ep_remove(struct kdbus_ep *ep)
 	kdbus_bus_unref(bus);
 	return 0;
 }
-
-

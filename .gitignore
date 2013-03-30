@@ -6,5 +6,5 @@ Module.symvers
 *.o
 *.swp
 .tmp_versions
-kdbus_test
 portal_test
+test-kdbus

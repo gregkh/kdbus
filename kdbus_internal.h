@@ -10,9 +10,10 @@
  *
  */
 
-
 #ifndef __INTERNAL_KDBUS_H
 #define __INTERNAL_KDBUS_H
+
+#include "kdbus.h"
 
 /*
  * kdbus namespace
@@ -25,17 +26,17 @@
  * - closing the connection destroys the created namespace
  */
 struct kdbus_ns {
-	unsigned int ref;	/* reference count */
-	const char *name;	/* name of the namespace */
-	bool disconnected;	/* invalidated data */
-	struct kdbus_ns *parent;/* parent namespace */
-	__u64 id;		/* global id of this namespace */
-	const char *devpath;	/* /dev base directory path */
-	int major;		/* device major number for all nodes */
-	struct idr idr;		/* map of endpoint minors to buses */
-	struct device *dev;	/* control device node, minor == 0 */
-	struct mutex lock;	/* ns data lock */
-	__u64 bus_id_next;	/* next bus id sequence number */
+	unsigned int ref;		/* reference count */
+	const char *name;		/* name of the namespace */
+	bool disconnected;		/* invalidated data */
+	struct kdbus_ns *parent;	/* parent namespace */
+	u64 id;				/* global id of this namespace */
+	const char *devpath;		/* /dev base directory path */
+	int major;			/* device major number for all nodes */
+	struct idr idr;			/* map of endpoint minors to buses */
+	struct device *dev;		/* control device node, minor == 0 */
+	struct mutex lock;		/* ns data lock */
+	u64 bus_id_next;		/* next bus id sequence number */
 	struct list_head list_entry;
 };
 
@@ -49,18 +50,19 @@ struct kdbus_ns {
  * - closing the connection destroys the created bus
  */
 struct kdbus_bus {
-	unsigned int ref;	/* reference count */
-	bool disconnected;	/* invalidated data */
-	struct kdbus_ns *ns;	/* namespace of this bus */
-	const char *name;	/* bus name */
-	__u64 id;		/* id of this bus in the namespace */
-	struct mutex lock;	/* bus data lock */
-	__u64 ep_id_next;	/* next endpoint id sequence number */
-	__u64 conn_id_next;	/* next connection id sequence number */
-	__u64 msg_id_next;	/* next message id sequence number */
-	struct idr conn_idr;	/* map of connection ids */
-	struct kdbus_ep *ep;	/* "bus" default endpoint */
+	unsigned int ref;		/* reference count */
+	bool disconnected;		/* invalidated data */
+	struct kdbus_ns *ns;		/* namespace of this bus */
+	const char *name;		/* bus name */
+	u64 id;				/* id of this bus in the namespace */
+	struct mutex lock;		/* bus data lock */
+	u64 ep_id_next;			/* next endpoint id sequence number */
+	u64 conn_id_next;		/* next connection id sequence number */
+	u64 msg_id_next;		/* next message id sequence number */
+	struct idr conn_idr;		/* map of connection ids */
+	struct kdbus_ep *ep;		/* "bus" default endpoint */
 	struct list_head ep_list;	/* endpoints assigned to this bus */
+	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
 };
 
 /*
@@ -69,16 +71,16 @@ struct kdbus_bus {
  * - additional endpoints can carry a specific policy/filters
  */
 struct kdbus_ep {
-	unsigned int ref;	/* reference count */
-	bool disconnected;	/* invalidated data */
-	struct kdbus_bus *bus;	/* bus behind this endpoint */
-	const char *name;	/* name, prefixed with uid */
-	__u64 id;		/* id of this endpoint on the bus */
-	unsigned int minor;	/* minor of this endpoint in the namespace major */
-	struct device *dev;	/* device node of this endpoint */
-	umode_t mode;		/* file mode of this endpoint device node */
-	uid_t uid;		/* uid owning this endpoint */
-	gid_t gid;		/* gid owning this endpoint */
+	unsigned int ref;		/* reference count */
+	bool disconnected;		/* invalidated data */
+	struct kdbus_bus *bus;		/* bus behind this endpoint */
+	const char *name;		/* name, prefixed with uid */
+	u64 id;				/* id of this endpoint on the bus */
+	unsigned int minor;		/* minor of this endpoint in the namespace major */
+	struct device *dev;		/* device node of this endpoint */
+	umode_t mode;			/* file mode of this endpoint device node */
+	uid_t uid;			/* uid owning this endpoint */
+	gid_t gid;			/* gid owning this endpoint */
 	struct list_head bus_entry;	/* list of endpoints for this bus */
 	struct list_head message_list;	/* messages in flight for this endpoint */
 	wait_queue_head_t wait;		/* wake up this endpoint */
@@ -104,7 +106,7 @@ struct kdbus_conn {
 		struct kdbus_bus *bus_owner;
 		struct kdbus_ep *ep;
 	};
-	__u64 id;		/* id of the connection on the bus */
+	u64 id;		/* id of the connection on the bus */
 
 	/*
 	 * first, horrible cut at messages assigned to connections
@@ -122,37 +124,28 @@ struct kdbus_conn {
 	struct list_head connection_entry;
 };
 
-/* kdbus message */
-enum kdbus_msg_data_type {
-	KDBUS_MSG_DATA_UNDEFINED,
-	KDBUS_MSG_DATA_MEM,
-};
-
-/* To knock around with for now */
-struct kdbus_test_msg {
+struct kdbus_kmsg {
 	struct kref kref;
-	u32 length;
-	u8 data[0];
+	struct kdbus_msg msg;
 };
 
 struct kdbus_msg_list_entry {
-	struct kdbus_test_msg *msg;
+	struct kdbus_kmsg *msg;
 	struct list_head entry;
 };
 
-/* namespace stuff */
-
+/* namespace */
 extern const struct file_operations kdbus_device_ops;
 extern struct mutex kdbus_subsys_lock;
 extern struct idr kdbus_ns_major_idr;
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns);
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns);
+int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
 struct kdbus_ns *kdbus_ns_find(const char *name);
 
 
-/* bus stuff */
+/* bus */
 extern struct bus_type kdbus_subsys;
 void kdbus_release(struct device *dev);
 
@@ -160,10 +153,9 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
-		  uid_t uid, gid_t gid, struct kdbus_bus **bus);
+		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus);
 
-
-/* endpoint stuff */
+/* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep);
 
@@ -173,7 +165,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 
-/* resolver stuff */
+/* resolver */
 int resolve_remove_id(void);
 int resolve_set_name_id(void);
 int resolve_query_list_names(void);
@@ -181,6 +173,4 @@ int resolve_query_list_ids(void);
 
 int resolve_id_added(void);
 int resolve_id_removed(void);
-
-
 #endif

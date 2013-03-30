@@ -29,7 +29,7 @@
 static LIST_HEAD(namespace_list);
 
 /* next namespace id sequence number */
-static __u64 kdbus_ns_id_next;
+static u64 kdbus_ns_id_next;
 
 /* control nodes are world accessible */
 static char *kdbus_devnode_control(struct device *dev, umode_t *mode
@@ -95,14 +95,14 @@ struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
 	return NULL;
 }
 
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns)
+int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
 {
 	struct kdbus_ns *n;
 	const char *ns_name = NULL;
 	int i;
 	int err;
 
-	pr_info("%s, %s\n", __func__, name);
+	pr_info("%s: %s\n", __func__, name ? name : "init");
 
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
@@ -140,7 +140,6 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, struct kdbus_ns **ns
 	} else {
 		n->parent = parent;
 		n->devpath = kasprintf(GFP_KERNEL, "kdbus/ns/%s/%s", parent->devpath, name);
-//		n->devpath = kasprintf(GFP_KERNEL, "kdbus/ns/%s", name);
 		if (!n->devpath) {
 			err = -ENOMEM;
 			goto err;
@@ -216,4 +215,3 @@ exit:
 	mutex_unlock(&kdbus_subsys_lock);
 	return ns;
 }
-
