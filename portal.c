@@ -206,8 +206,8 @@ static int msg_recv(struct connection *conn, struct umsg __user *umsg)
 		}
 		list_del(&msg_entry->entry);
 		kfree(msg_entry);
-		retval = msg_size;
 		kref_put(&msg->kref, msg_release);
+		retval = 0;
 		break;
 	}
 
