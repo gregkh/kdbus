@@ -122,6 +122,7 @@ struct kdbus_msg {
 	uint64_t cookie;	/* userspace-supplied cookie */
 	uint64_t cookie_reply;	/* cookie of msg this is a reply to. non-zero for replies, 0 for requests. */
 	uint64_t payload_type;	/* 'DBUSDBUS', 'GVARIANT', ... */
+	uint64_t timeout;	/* If this is a method call, time this out after this many nsec */
 	struct kdbus_msg_data data[0];
 };
 
@@ -148,9 +149,9 @@ struct kdbus_policy {
 	union {
 		char name[0];
 		struct {
-			uint32_t type;  /* USER, GROUP, WORLD */
-			uint32_t bits;  /* RECV, SEND, OWN */
-			uint64_t id;    /* uid, gid, 0 */
+			uint32_t type;	/* USER, GROUP, WORLD */
+			uint32_t bits;	/* RECV, SEND, OWN */
+			uint64_t id;	/* uid, gid, 0 */
 		} access;
 	};
 };
@@ -272,7 +273,7 @@ struct kdbus_cmd_monitor {
 
 /* FD states:
  *
- *	control nodes: 	unset
+ *	control nodes:	unset
  *			bus owner  (via KDBUS_CMD_BUS_MAKE)
  *			ns owner   (via KDBUS_CMD_NS_MAKE)
  *	ep nodes:	unset
