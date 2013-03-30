@@ -26,7 +26,7 @@ struct kdbus_manager_msg_name_change {
 	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
 	uint64_t old_id;
 	uint64_t new_id;
-	uint64_t flags;      /* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
+	uint64_t flags;		/* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
 };
 
 struct kdbus_creds {
@@ -34,6 +34,13 @@ struct kdbus_creds {
 	uint64_t gid;
 	uint64_t pid;
 	uint64_t tid;
+
+	/* The starttime of the process PID. This is useful to detect
+	PID overruns from the client side. i.e. if you use the PID to
+	look something up in /proc/$PID/ you can afterwards check the
+	starttime field of it to ensure you didn't run into a PID
+	overrun. */
+	uint64_t starttime;
 };
 
 /* Message Data Types */
