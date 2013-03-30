@@ -12,15 +12,35 @@
 //#include "include/uapi/kdbus/kdbus.h"
 #include "../kdbus.h"
 
+static int connect_to_bus(const char *path)
+{
+	int fd, err;
+	struct kdbus_cmd_hello hello;
+
+	printf("-- opening bus connection %s\n", path);
+	fd = open(path, O_RDWR|O_CLOEXEC);
+	if (fd < 0) {
+		fprintf(stderr, "--- error %d (\"%s\")\n", fd, strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	memset(&hello, 0, sizeof(hello));
+	err = ioctl(fd, KDBUS_CMD_HELLO, &hello);
+	if (err) {
+		fprintf(stderr, "--- error when saying hello: %d (\"%s\")\n", err, strerror(errno));
+		return EXIT_FAILURE;
+	}
+	printf("-- Our peer ID for %s: %lu\n", path, hello.id);
+
+	return fd;
+}
+
 int main(int argc, char *argv[])
 {
-	int fdc;
-	int fdb;
 	struct kdbus_cmd_fname name;
-	char *busname;
-	char *bus;
+	int fdc, fdb, err;
+	char *busname, *bus;
 	uid_t uid;
-	int err;
 
 	memset(&name, 0, sizeof(name));
 
@@ -50,12 +70,9 @@ int main(int argc, char *argv[])
 	}
 
 	asprintf(&bus, "/dev/kdbus/%s/bus", name.name);
-	printf("-- opening bus connection %s\n", bus);
-	fdb = open(bus, O_RDWR|O_CLOEXEC);
-	if (fdb < 0) {
-		fprintf(stderr, "--- error %d (\"%s\")\n", fdb, strerror(errno));
-		return EXIT_FAILURE;
-	}
+
+	fdb = connect_to_bus(bus);
+
 	printf("-- sleeping 10s\n");
 	sleep(10);
 
