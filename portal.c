@@ -144,6 +144,7 @@ static int msg_send(struct connection *conn, struct kmsg *msg)
 	pr_info("sending message %d from %d to %d\n",
 		msg->msg_id, msg->src_id, msg->dst_id);
 
+	/* Create a new msg list entry, attach our message to it, and fire it off */
 	msg_list_entry = kmalloc(sizeof(*msg_list_entry), GFP_KERNEL);
 	kref_get(&msg->kref);
 	msg_list_entry->kmsg = msg;
@@ -158,6 +159,61 @@ static int msg_send(struct connection *conn, struct kmsg *msg)
 	/* drop our reference on the message, as we are done with it */
 	kref_put(&msg->kref, msg_release);
 	return 0;
+}
+
+static int msg_recv(struct connection *conn, struct umsg __user *umsg)
+{
+	struct kmsg_list_entry *msg_entry, *tmp_entry;
+	struct kmsg *msg;
+	int msg_size;
+	ssize_t retval = -ENODATA;
+	u32 user_size;
+
+	pr_info("receiving message for %d\n", conn->id);
+
+	if (copy_from_user(&user_size, &umsg->size, sizeof(user_size)))
+		return -EFAULT;
+
+	if (user_size > PAGE_SIZE)
+		return -ENOMEM;
+
+	if (mutex_lock_interruptible(&conn->msg_lock))
+		return -ERESTARTSYS;
+
+	if (list_empty(&conn->msg_list))
+		goto exit;
+
+	/* let's grab a message from our list to write out */
+	list_for_each_entry_safe(msg_entry, tmp_entry, &conn->msg_list, entry) {
+		msg = msg_entry->kmsg;
+		msg_size = msg->size;
+		if (msg_size > user_size) {
+			retval = -EMSGSIZE;
+			goto exit;
+		}
+
+		if (copy_to_user(&umsg->data[0], &msg->data[0], msg_size)) {
+			retval = -EFAULT;
+			goto exit;
+		}
+		if (copy_to_user(&umsg->dst_id, &msg->dst_id, sizeof(umsg->dst_id))) {
+			retval = -EFAULT;
+			goto exit;
+		}
+		if (copy_to_user(&umsg->size, &msg->size, sizeof(umsg->size))) {
+			retval = -EFAULT;
+			goto exit;
+		}
+		list_del(&msg_entry->entry);
+		kfree(msg_entry);
+		retval = msg_size;
+		kref_put(&msg->kref, msg_release);
+		break;
+	}
+
+exit:
+	mutex_unlock(&conn->msg_lock);
+	return retval;
 }
 
 static int conn_open(struct inode *inode, struct file *file)
@@ -221,8 +277,7 @@ static long conn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case PORTAL_MSG_RECV:
 		pr_info("connection %d: receive message\n", conn->id);
-		pr_info("Use the read syscall instead to get the data\n");
-		return -ENOSYS;
+		return msg_recv(conn, argp);
 	}
 
 	pr_info("%s: bad command, %d\n", __func__, cmd);
@@ -282,8 +337,7 @@ static ssize_t conn_read(struct file *file, char __user *ubuf,
 		msg = msg_entry->kmsg;
 		msg_size = msg->size;
 		if (msg_size > count) {
-			/* FIXME wrong error code, I know, what should we use? */
-			retval = -E2BIG;
+			retval = -EMSGSIZE;
 			goto exit;
 		}
 
