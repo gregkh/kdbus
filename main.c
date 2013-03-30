@@ -28,34 +28,6 @@
 
 #include "kdbus_internal.h"
 
-/*
- * Example of device nodes in /dev. For any future changes, keep in mind,
- * that the layout should support a possible /dev/kdbus/ filesystem for the
- * init namspace and one for each sub-namespace.
- *
- * /dev/kdbus/
- * |-- control
- * |-- 0-system
- * |   |-- bus
- * |   |-- ep.epiphany
- * |   `-- ep.firefox
- * |-- 2702-user
- * |   `-- bus
- * |-- 1000-user
- * |   `-- bus
- * `-- ns
- *     |-- myfedoracontainer
- *     |   |-- control
- *     |   |-- 0-system
- *     |   |   `-- bus
- *     |   `-- 1000-user
- *     |       `-- bus
- *     `-- mydebiancontainer
- *         |-- control
- *         |-- 0-system
- *             `-- bus
- */
-
 /* kdbus sysfs subsystem */
 struct bus_type kdbus_subsys = {
 	.name = "kdbus",
