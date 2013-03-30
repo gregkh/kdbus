@@ -61,12 +61,22 @@ int main(int argc, char *argv[])
 	if (err)
 		printf("--- error %d \"%s\"\n", err, strerror(errno));
 	free(msg);
+	msg = create_message(1, "world");malloc(sizeof(*msg) + 4000);
+	err = ioctl(fd1, PORTAL_MSG_SEND, msg);
+	if (err)
+		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	free(msg);
 
 	printf("-- reading from portal 1\n");
 //	count = read(fd1, &string[0], 100);
 //	printf("--- count = %d, string = \"%s\"\n", (int)count, &string[0]);
 
 	msg = create_message(20, "123456789012345678901234567890");
+	err = ioctl(fd1, PORTAL_MSG_RECV, msg);
+	if (err)
+		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	else
+		print_message(msg);
 	err = ioctl(fd1, PORTAL_MSG_RECV, msg);
 	if (err)
 		printf("--- error %d \"%s\"\n", err, strerror(errno));
