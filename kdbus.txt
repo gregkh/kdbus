@@ -18,7 +18,7 @@ Terminology
     A bus is a named object inside a namespace. Clients exchange messages
     over a bus. Buses have no connection to each other, they never exchange
     messages between them. The default entry point to a bus, where clients
-    establish the connect to, is the "bus" device node /dev/kdbus/<bus name>/bus.
+    establish the connection to, is the "bus" device node /dev/kdbus/<bus name>/bus.
     Common setups create one "system bus" per system, and one "user bus"
     per logged-in user. Application or services can create their own named
     buses if they need.
@@ -26,16 +26,15 @@ Terminology
   Endpoint:
     An endpoint provides the device node to talk to a bus. Every bus has
     a default endpoint called "bus". A bus can offer additional end points
-    with custom names to provide restricted access policy to the same bus.
-    Custom end points can carry additional policy which can be used to give
-    sandboxed processes only a locked-down, limited, filtered access access
-    to a bus.
+    with custom names to provide a restricted access to the same bus. Custom
+    end points can carry additional policy which can be used to give sandboxed
+    processes only a locked-down, limited, filtered access access to a bus.
 
   Connection:
-    A connection is created by opening an end point device node of a bus,
-    and conncting to the bus with the HELLO exchange. Every connected client
-    is given a unique identifier on the bus, and can talk to every other
-    connection on the same bus.
+    A connection to a bus is created by opening an end point device node of
+    a bus, and becoming an active client with the HELLO exchange. Every connected
+    client has a unique identifier on the bus, and can address messages to every
+    other connection on the same bus.
 
 ===============================================================================
 Device node layout
