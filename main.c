@@ -45,6 +45,7 @@ DEFINE_MUTEX(kdbus_subsys_lock);
 static int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
 			  struct kdbus_kmsg **kmsg);
 static int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg);
+static int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *user);
 
 #if 0
 static void kdbus_msg_release(struct kref *kref)
@@ -326,8 +327,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		return kdbus_kmsg_send(conn, kmsg);
 
 	case KDBUS_CMD_MSG_RECV:
-		/* receive a message, needs to be freed */
-		return -ENOSYS;
+		/* receive a message */
+		return kdbus_kmsg_recv(conn, argp);
 
 	default:
 		return -ENOTTY;
@@ -373,7 +374,7 @@ static unsigned int kdbus_conn_poll(struct file *file,
 		mask |= POLLIN | POLLRDNORM;
 	mutex_unlock(&conn->msg_lock);
 
-	return 0;
+	return mask;
 }
 
 const struct file_operations kdbus_device_ops = {
@@ -417,7 +418,7 @@ static int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
 
-	size += sizeof(*kmsg);
+	size += sizeof(*kmsg) - sizeof(kmsg->msg);
 
 	kmsg = kmalloc(size, GFP_KERNEL);
 	if (!kmsg)
@@ -489,7 +490,7 @@ static void kdbus_msg_dump(const struct kdbus_msg *msg)
 static struct kdbus_kmsg *kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
 						 const struct kdbus_msg_data *data)
 {
-        uint64_t size = sizeof(kmsg) - sizeof(kmsg->msg) +
+        uint64_t size = sizeof(*kmsg) - sizeof(kmsg->msg) +
 			kmsg->msg.size + data->size;
 
         kmsg = krealloc(kmsg, size, GFP_KERNEL);
@@ -502,10 +503,52 @@ static struct kdbus_kmsg *kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
         return kmsg;
 }
 
+static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
+				   struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_msg_list_entry *entry;
+
+	if (!conn->active)
+		return -EAGAIN;
+
+	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+	if (!entry)
+		return -ENOMEM;
+
+	entry->kmsg = kdbus_kmsg_ref(kmsg);
+	INIT_LIST_HEAD(&entry->list);
+
+	mutex_lock(&conn->msg_lock);
+	list_add_tail(&conn->msg_list, &entry->list);
+	mutex_unlock(&conn->msg_lock);
+
+	wake_up_interruptible(&conn->ep->wait);
+
+	return 0;
+}
+
+static struct kdbus_kmsg *kdbus_conn_dequeue_kmsg(struct kdbus_conn *conn)
+{
+	struct kdbus_msg_list_entry *entry;
+	struct kdbus_kmsg *kmsg = NULL;
+
+	mutex_lock(&conn->msg_lock);
+	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, list);
+	if (entry) {
+		kmsg = entry->kmsg;
+		list_del(&entry->list);
+		kfree(entry);
+	}
+	mutex_unlock(&conn->msg_lock);
+
+	return kmsg;
+}
+
 static int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_msg *msg = &kmsg->msg;
+	int ret = 0;
 
 	kdbus_msg_dump(msg);
 
@@ -534,13 +577,28 @@ static int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 
 	if (conn_dst) {
 		/* direct message */
+		ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
 	} else {
 		/* broadcast */
 	}
 
 	kdbus_kmsg_unref(kmsg);
 
-	return 0;
+	return ret;
+}
+
+static int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *user)
+{
+	struct kdbus_kmsg *kmsg = kdbus_conn_dequeue_kmsg(conn);
+	int ret;
+
+	if (!kmsg)
+		return -ENOENT;
+
+	ret = copy_to_user(user, &kmsg->msg, kmsg->msg.size);
+	kdbus_kmsg_unref(kmsg);
+
+	return ret;
 }
 
 static int __init kdbus_init(void)
