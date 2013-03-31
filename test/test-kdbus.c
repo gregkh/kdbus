@@ -3,10 +3,12 @@
 #include <time.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 
 //#include "include/uapi/kdbus/kdbus.h"
@@ -49,7 +51,7 @@ static struct conn *connect_to_bus(const char *path)
 	return conn;
 }
 
-static int send_msg(const struct conn *conn,
+static int msg_send(const struct conn *conn,
 		    const char *name,
 		    uint64_t cookie,
 		    uint64_t dst_id)
@@ -110,12 +112,54 @@ static int send_msg(const struct conn *conn,
 	return 0;
 }
 
+static void msg_dump(struct kdbus_msg *msg)
+{
+	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
+	const struct kdbus_msg_data *data = msg->data;
+
+	printf("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
+		"cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
+		(unsigned long long) msg->size,
+		(unsigned long long) msg->flags,
+		(unsigned long long) msg->dst_id,
+		(unsigned long long) msg->src_id,
+		(unsigned long long) msg->cookie,
+		(unsigned long long) msg->payload_type,
+		(unsigned long long) msg->timeout);
+
+	while (size > 0 && size >= data->size) {
+		printf("`- msg_data size=%llu, type=0x%llx\n",
+			data->size, data->type);
+
+		size -= data->size;
+		data = (struct kdbus_msg_data *) (((char *) data) + data->size);
+	}
+}
+
+static int msg_recv(struct conn *conn)
+{
+	char tmp[0xffff];
+	struct kdbus_msg *msg = (struct kdbus_msg *) tmp;
+	int err;
+
+	err = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, msg);
+	if (err) {
+		fprintf(stderr, "error receiving message: %d (\"%s\")\n", err, strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	msg_dump(msg);
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	struct kdbus_cmd_fname name;
-	int fdc, err;
+	int fdc, err, cookie;
 	char *busname, *bus;
 	struct conn *conn_a, *conn_b;
+	struct pollfd fds[2];
 	uid_t uid;
 
 	memset(&name, 0, sizeof(name));
@@ -152,10 +196,35 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	send_msg(conn_a, NULL, 0xc00c0001, conn_b->id);
+	cookie = 0;
+	msg_send(conn_a, NULL, 0xc0000000 | cookie, conn_b->id);
 
-	printf("-- sleeping 10s\n");
-	sleep(10);
+	fds[0].fd = conn_a->fd;
+	fds[1].fd = conn_b->fd;
+
+	printf("-- entering poll loop ...\n");
+
+	while (1) {
+		int i, nfds = sizeof(fds) / sizeof(fds[0]);
+
+		for (i = 0; i < nfds; i++) {
+			fds[i].events = POLLIN | POLLPRI | POLLHUP;
+			fds[i].revents = 0;
+		}
+
+		err = poll(fds, nfds, -1);
+		if (err < 0)
+			break;
+
+		if (fds[0].revents & POLLIN) {
+			msg_recv(conn_a);
+			msg_send(conn_a, NULL, 0xc0000000 | cookie++, conn_b->id);
+		}
+		if (fds[1].revents & POLLIN) {
+			msg_recv(conn_b);
+			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);
+		}
+	}
 
 	printf("-- closing bus connections\n");
 	close(conn_a->fd);
