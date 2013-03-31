@@ -108,6 +108,8 @@ struct kdbus_conn {
 	};
 	u64 id;		/* id of the connection on the bus */
 
+	bool active;	/* did the connection say hello yet? */
+
 	/*
 	 * first, horrible cut at messages assigned to connections
 	 * odds are, this is going to be slow, but let's measure it first to

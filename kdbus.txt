@@ -1,0 +1,257 @@
+D-Bus is a system for low-latency, low-overhead, easy to use interprocess
+communication (IPC).
+
+The focus of this document is the low-level, native kernel D-Bus protocol
+transport called kdbus. Kdbus in the kernel acts similar to a device driver
+and all communication takes places over special device nodes.
+
+For the general D-Bus protocol specification, the message payload formatting,
+please refer to:
+  http://dbus.freedesktop.org/doc/dbus-specification.html
+
+For a kdbus specific client library implementation please refer to:
+  http://cgit.freedesktop.org/systemd/systemd/tree/src/libsystemd-bus/sd-bus.h
+
+===============================================================================
+Terminology
+===============================================================================
+  Namespace:
+    A namespace is a named object containing a number of buses. A system
+    container which contains its own init system and users usually also
+    runs in its own kdbus namespace. The /dev/kdbus/ns/<container-name>/
+    directory shows up inside the namespace as /dev/kdbus/. Every namespace
+    offers a "control" device node to create new buses or namespaces.
+    Namespaces have no connection to each other, cannot see or talk to
+    each other. Only from the initial namespace, given the process has the
+    needed access rights, the device nodes inside of other namespaces
+    can be seen.
+
+  Bus:
+    A bus is a named object inside a namespace. Clients exchange messages
+    over a bus. Multiple buses themselves have no connection to each other,
+    messages are only exchanged on the same bus. The default entry point to a
+    bus, where clients establish the connection to, is the "bus" device node
+    /dev/kdbus/<bus name>/bus.
+    Common operating system setups create one "system bus" per system, and one
+    "user bus" for every logged-in user. Applications or services can create
+    their own private named buses if they want to.
+
+  Endpoint:
+    An endpoint provides the device node to talk to a bus. Every bus has
+    a default endpoint called "bus". A bus can offer additional end points
+    with custom names to provide a restricted access to the same bus. Custom
+    end points can carry additional policy which can be used to give sandboxed
+    processes only a locked-down, limited, filtered access access to a bus.
+
+  Connection:
+    A connection to a bus is created by opening an end point device node of
+    a bus, and becoming an active client with the HELLO exchange. Every
+    connected client connection has a unique identifier on the bus, and can
+    address messages to every other connection on the same bus.
+
+===============================================================================
+Device node layout
+===============================================================================
+  For any future changes, keep in mind, that the layout should support a
+  possible /dev/kdbus/ filesystem for the init namspace and one separate
+  instance mounted for each namespace.
+
+  /sys/bus/kdbus
+  `-- devices
+    |-- kdbus!0-system!bus -> ../../../devices/virtual/kdbus/kdbus!0-system!bus
+    |-- kdbus!2702-user!bus -> ../../../devices/virtual/kdbus/kdbus!2702-user!bus
+    |-- kdbus!2702-user!ep.app -> ../../../devices/virtual/kdbus/kdbus!2702-user!ep.app
+    `-- kdbus!control -> ../../../devices/kdbus!control
+
+  /dev/kdbus/
+  |-- control
+  |-- 0-system
+  |   |-- bus
+  |   `-- ep.apache
+  |-- 1000-user
+  |   `-- bus
+  |-- 2702-user
+  |   |-- bus
+  |   `-- ep.app
+  `-- ns
+      |-- fedoracontainer
+      |   |-- control
+      |   |-- 0-system
+      |   |   `-- bus
+      |   `-- 1000-user
+      |       `-- bus
+      `-- mydebiancontainer
+          |-- control
+          `-- 0-system
+              `-- bus
+
+===============================================================================
+Objects
+===============================================================================
+  +-------------------------------------------------------------------------+
+  | Namespace (Init Namespace)                                              |
+  | /dev/kdbus/control                                                      |
+  | +---------------------------------------------------------------------+ |
+  | | Bus (System Bus)                                                    | |
+  | | ./0-system/control                                                  | |
+  | | +-------------------------------+ +-------------------------------+ | |
+  | | | Endpoint                      | | Endpoint                      | | |
+  | | | ./bus                         | | ./ep.sandbox                  | | |
+  | | | +------------+ +------------+ | | +------------+ +------------+ | | |
+  | | | | Connection | | Connection | | | | Connection | | Connection | | | |
+  | | | | :1.22      | | :1.25      | | | | :1.55      | | :1:81      | | | |
+  | | | +------------+ +------------+ | | +------------+ +------------+ | | |
+  | | +-------------------------------+ +-------------------------------+ | |
+  | +---------------------------------------------------------------------+ |
+  |                                                                         |
+  | +---------------------------------------------------------------------+ |
+  | | Bus (User Bus for UID 2702)                                         | |
+  | | /dev/kdbus/2702-user/                                               | |
+  | | +-------------------------------+ +-------------------------------+ | |
+  | | | Endpoint                      | | Endpoint                      | | |
+  | | | /dev/kdbus/2702-user/bus      | | /dev/kdbus/2702-user/ep.app   | | |
+  | | | +------------+ +------------+ | | +------------+ +------------+ | | |
+  | | | | Connection | | Connection | | | | Connection | | Connection | | | |
+  | | | | :1.22      | | :1.25      | | | | :1.55      | | :1:81      | | | |
+  | | | +------------+ +------------+ | | +------------+ +------------+ | | |
+  | | +-------------------------------+ +-------------------------------+ | |
+  | +---------------------------------------------------------------------+ |
+  +-------------------------------------------------------------------------+
+
+  +-------------------------------------------------------------------------+
+  | Namespace (Container; inside it, fedoracontainer/ becomes /dev/kdbus/)  |
+  | /dev/kdbus/ns/fedoracontainer/control                                   |
+  | +---------------------------------------------------------------------+ |
+  | | Bus                                                                 | |
+  | | ./0-system/                                                         | |
+  | | +---------------------------------+                                 | |
+  | | | Endpoint                        |                                 | |
+  | | | ./bus                           |                                 | |
+  | | | +-------------+ +-------------+ |                                 | |
+  | | | | Connection  | | Connection  | |                                 | |
+  | | | | :1.22       | | :1.25       | |                                 | |
+  | | | +-------------+ +-------------+ |                                 | |
+  | | +---------------------------------+                                 | |
+  | +---------------------------------------------------------------------+ |
+  |                                                                         |
+  | +---------------------------------------------------------------------+ |
+  | | Bus                                                                 | |
+  | | /dev/kdbus/2702-user/                                               | |
+  | | +---------------------------------+                                 | |
+  | | | Endpoint                        |                                 | |
+  | | | /dev/kdbus/2702-user/bus        |                                 | |
+  | | | +-------------+ +-------------+ |                                 | |
+  | | | | Connection  | | Connection  | |                                 | |
+  | | | | :1.22       | | :1.25       | |                                 | |
+  | | | +-------------+ +-------------+ |                                 | |
+  | | +---------------------------------+                                 | |
+  | +---------------------------------------------------------------------+ |
+  +-------------------------------------------------------------------------+
+
+===============================================================================
+Creation of new namespaces and buses
+===============================================================================
+The inital kdbus namespace is unconditionally created by the kernel module. A
+namespace contains a "control" device node which allows to create a new bus or
+namespace. New namespaces do not have any buses created by default.
+
+Opening the control device node returns a file descriptor, it accepts the
+ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_NS_MAKE which specify the name of the new
+bus or namespace to create. The control file descriptor needs to be kept open
+for the entire life-time of the created bus or namespace, closing it will
+immediately cleanup the entire bus or namespace and all its associated
+resources and connections. Every control file descriptor can only be used once
+to create a new bus or namespace; from that point, it is not used for any
+further communication than the final close().
+
+===============================================================================
+Connection IDs and Well-Known Connection Names
+===============================================================================
+Connections are identified by their connection id, internally implemented as a
+uint64_t counter. The IDs of every newly created bus start at 1, and every new
+connection will increment the counter by 1. The ids are not reused.
+
+In higher level tools, the user visible representation of a connection is
+defined by the D-Bus protocol specification as ":1.<id>".
+
+Messages with a specific uint64_t destination id are directly delivered to
+the connection with the corresponding id. Messages with the special destination
+id 0xffffffffffffffff are broadcast messages and are potentially delivered
+to all known connections on the bus; clients interested in broadcast messages
+need to subscribe to the specific messages they are interested though, before
+any broadcast message reaches them.
+
+Messages synthesized and sent directly by the kernel, will carry the special
+source id 0.
+
+In addition to the unique uint64_t connection id, established connections can
+request the ownership of well-known names, under which they can be found and
+addressed by other bus clients. A well-known name is associated with one and
+only one connection at a time.
+
+Messages can specify the special destination id 0 and carry a well-known name
+in the message data. Such a message is delivered to the destination connection
+which owns that well-known name.
+
+  +-------------------------------------------------------------------------+
+  | +---------------+     +---------------------------+                     |
+  | | Connection    |     | Message                   | -----------------+  |
+  | | :1.22         | --> | src: 22                   |                  |  |
+  | |               |     | dst: 25                   |                  |  |
+  | |               |     |                           |                  |  |
+  | |               |     |                           |                  |  |
+  | |               |     +---------------------------+                  |  |
+  | |               |                                                    |  |
+  | |               | <--------------------------------------+           |  |
+  | +---------------+                                        |           |  |
+  |                                                          |           |  |
+  | +---------------+     +---------------------------+      |           |  |
+  | | Connection    |     | Message                   | -----+           |  |
+  | | :1.25         | --> | src: 25                   |                  |  |
+  | |               |     | dst: 0xffffffffffffffff   | -------------+   |  |
+  | |               |     |                           |              |   |  |
+  | |               |     |                           | ---------+   |   |  |
+  | |               |     +---------------------------+          |   |   |  |
+  | |               |                                            |   |   |  |
+  | |               | <------------------------------------------|-------+  |
+  | +---------------+                                            |   |      |
+  |                                                              |   |      |
+  | +---------------+     +---------------------------+          |   |      |
+  | | Connection    |     | Message                   | --+      |   |      |
+  | | :1.55         | --> | src: 55                   |   |      |   |      |
+  | |               |     | dst: 0 / org.foo.bar      |   |      |   |      |
+  | |               |     |                           |   |      |   |      |
+  | |               |     |                           |   |      |   |      |
+  | |               |     +---------------------------+   |      |   |      |
+  | |               |                                     |      |   |      |
+  | |               | <------------------------------------------+   |      |
+  | +---------------+                                     |          |      |
+  |                                                       |          |      |
+  | +---------------+                                     |          |      |
+  | | Connection    |                                     |          |      |
+  | | :1.81         |                                     |          |      |
+  | | org.foo.bar   |                                     |          |      |
+  | |               |                                     |          |      |
+  | |               |                                     |          |      |
+  | |               | <-----------------------------------+          |      |
+  | |               |                                                |      |
+  | |               | <----------------------------------------------+      |
+  | +---------------+                                                       |
+  +-------------------------------------------------------------------------+
+
+===============================================================================
+Message exchange and content
+===============================================================================
+Messages consist of fixed-size header followed directly be a variable-sized
+list of data segments. The overall message size is specified in the header
+of the message. The chain of data segments can contain well-defined message
+meta data fields, raw data, references to data (mmap()), or file descriptors.
+
+Messages are passed to the kernel with the ioctl KDBUS_CMD_MSG_SEND. Depending
+on the the destination address of the message, the kernel delivers the message
+to the specific destination connection or to all connections on the same bus.
+Messages are queued in the destination connection.
+
+Messages are delivered to the client with the ioctl KDBUS_CMD_MSG_RECV. The
+end point device node of the bus supports poll() to wake up the receiving
+process when new messages are queued up to be received.

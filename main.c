@@ -28,34 +28,6 @@
 
 #include "kdbus_internal.h"
 
-/*
- * Example of device nodes in /dev. For any future changes, keep in mind,
- * that the layout should support a possible /dev/kdbus/ filesystem for the
- * init namspace and one for each sub-namespace.
- *
- * /dev/kdbus/
- * |-- control
- * |-- 0-system
- * |   |-- bus
- * |   |-- ep.epiphany
- * |   `-- ep.firefox
- * |-- 2702-user
- * |   `-- bus
- * |-- 1000-user
- * |   `-- bus
- * `-- ns
- *     |-- myfedoracontainer
- *     |   |-- control
- *     |   |-- 0-system
- *     |   |   `-- bus
- *     |   `-- 1000-user
- *     |       `-- bus
- *     `-- mydebiancontainer
- *         |-- control
- *         |-- 0-system
- *             `-- bus
- */
-
 /* kdbus sysfs subsystem */
 struct bus_type kdbus_subsys = {
 	.name = "kdbus",
@@ -250,6 +222,10 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 				fname.name, err);
 			return err;
 		}
+
+		/* turn the control fd into a new ns owner device */
+		conn->type = KDBUS_CONN_NS_OWNER;
+		conn->ns_owner = ns;
 		break;
 
 	case KDBUS_CMD_BUS_POLICY_SET:
@@ -278,7 +254,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_EP_MAKE:
 		/* create a new endpoint for this bus, and turn this
 		 * fd into a reference to it */
-		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
+		if (copy_from_user(&fname, argp, sizeof(fname)))
 			return -EFAULT;
 
 		if (!check_flags(fname.kernel_flags))
@@ -292,15 +268,22 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		/* turn this fd into a connection. */
 		struct kdbus_cmd_hello hello;
 
-		if (copy_from_user(&hello, argp, sizeof(struct kdbus_cmd_hello)))
+		if (conn->active)
+			return -EBUSY;
+
+		if (copy_from_user(&hello, argp, sizeof(hello)))
 			return -EFAULT;
 
 		if (!check_flags(hello.kernel_flags))
 			return -ENOTSUPP;
 
-		/* ... */
+		hello.id = conn->id;
 
-		return -ENOSYS;
+		if (copy_to_user(argp, &hello, sizeof(hello)) < 0)
+			return -EFAULT;
+
+		conn->active = true;
+		break;
 	}
 
 	case KDBUS_CMD_EP_POLICY_SET:
@@ -349,6 +332,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	default:
 		return -ENOTTY;
 	}
+
+	return 0;
 }
 
 static long kdbus_conn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
