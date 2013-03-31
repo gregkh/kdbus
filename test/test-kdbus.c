@@ -148,6 +148,7 @@ static int msg_recv(struct conn *conn)
 	struct kdbus_msg *msg = (struct kdbus_msg *) tmp;
 	int err;
 
+	msg->size = sizeof(tmp);
 	err = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, msg);
 	if (err) {
 		fprintf(stderr, "error receiving message: %d (\"%s\")\n", err, strerror(errno));
