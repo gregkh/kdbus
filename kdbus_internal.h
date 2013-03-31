@@ -67,6 +67,7 @@ struct kdbus_name_queue_item {
 	struct kdbus_name_entry	*entry;
 	u64			 flags;
 	struct list_head	 entry_entry;
+	struct list_head	 conn_entry;
 };
 
 struct kdbus_name_registry *kdbus_name_registry_new(void);
@@ -178,6 +179,7 @@ struct kdbus_conn {
 	struct list_head connection_entry;
 
 	struct list_head names_list;
+	struct list_head names_queue_list;
 };
 
 struct kdbus_kmsg {

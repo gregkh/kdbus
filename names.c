@@ -94,6 +94,7 @@ static void kdbus_name_add_to_conn(struct kdbus_name_entry *e,
 static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 {
 	list_del(&q->entry_entry);
+	list_del(&q->conn_entry);
 	kfree(q);
 }
 
@@ -120,12 +121,16 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn)
 {
-	struct kdbus_name_entry *tmp, *e;
+	struct kdbus_name_entry *e_tmp, *e;
+	struct kdbus_name_queue_item *q_tmp, *q;
 
 	mutex_lock(&reg->entries_lock);
 
-	list_for_each_entry_safe(e, tmp, &conn->names_list, conn_entry)
+	list_for_each_entry_safe(e, e_tmp, &conn->names_list, conn_entry)
 		kdbus_name_entry_release(e);
+
+	list_for_each_entry_safe(q, q_tmp, &conn->names_queue_list, conn_entry)
+		kdbus_name_queue_item_free(q);
 
 	mutex_unlock(&reg->entries_lock);
 }
@@ -198,6 +203,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 		q->flags = *flags;
 		INIT_LIST_HEAD(&q->entry_entry);
 		list_add_tail(&e->queue_list, &q->entry_entry);
+		list_add_tail(&conn->names_queue_list, &q->conn_entry);
 		*flags |= KDBUS_CMD_NAME_IN_QUEUE;
 
 		return 0;
