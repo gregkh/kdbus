@@ -134,3 +134,52 @@ Objects
   | | +---------------------------------+                                 | |
   | +---------------------------------------------------------------------+ |
   +-------------------------------------------------------------------------+
+
+===============================================================================
+Creation of new namespaces and buses
+===============================================================================
+The inital kdbus namespace is unconditinally created by the kernel module. A
+namespace contains a "control" device node which allows to create a new bus or
+namespace. New namespaces do not have any buses created by default.
+
+Opening the control device node returns a file descriptor, it accepts the
+ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_NS_MAKE which specify the name of the new
+bus or namespace to create. The control file descriptor needs to be kept open
+for the entire life-time of the created bus or namespace, closing it will
+immediately cleanup the entire bus or namespace and all its associated
+ressources and connections. Every control file descriptor can only be used once
+to create a new bus or namespace; from that point, it is not used for any
+further communication than the final close().
+
+===============================================================================
+Connection IDs
+===============================================================================
+Connections are identified by their connection id, internally implemented as a
+uint64_t counter. The IDs of every newly created bus start at 1, and every new
+connection will increment the counter by 1. The ids are not reused.
+
+In higher level tools, the user visible representation of a connection is
+defined by the D-Bus protocol specification as ":1.<id>".
+
+Messages with a specific uint64_t destination id are directly delivered to
+the connection with the corresponding id. Messages with the special destination
+id 0xffffffffffffffff are broadcast messages and are potentially delivered
+to all known connections on the bus; clients interested in broadcast messages
+need to subscribe to the specific messages they are interested though, before
+any broadcast message reaches them.
+
+Messages synthesized and sent directly by the kernel, will carry the special
+source id 0.
+
+===============================================================================
+Well-Known Connection Names
+===============================================================================
+Every connection is uniquely identified by its uint64_t connection id. In
+addition to this, connections can request the ownership of well-known names,
+under which they can be found and addressed by other bus clients.
+
+A well-known name is associated with one and only one connection at a time.
+
+Messages can specify the special destination id 0 and carry a well-known name
+in the message data. Such a message is delivered to the destination connection
+which owns that well-known name.
