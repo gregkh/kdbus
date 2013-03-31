@@ -284,9 +284,9 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 {
 	u64 __user *msgsize = buf + offsetof(struct kdbus_msg, size);
-	u64 size;
 	struct kdbus_msg_list_entry *entry;
 	struct kdbus_msg *msg;
+	u64 size;
 	int ret;
 
 	if (get_user(size, msgsize))
