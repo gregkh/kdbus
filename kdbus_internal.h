@@ -50,7 +50,7 @@ struct kdbus_ns {
  * - closing the connection destroys the created bus
  */
 struct kdbus_bus {
-	unsigned int ref;		/* reference count */
+	struct kref kref;		/* reference count */
 	bool disconnected;		/* invalidated data */
 	struct kdbus_ns *ns;		/* namespace of this bus */
 	const char *name;		/* bus name */
@@ -152,8 +152,8 @@ struct kdbus_ns *kdbus_ns_find(const char *name);
 extern struct bus_type kdbus_subsys;
 void kdbus_release(struct device *dev);
 
-struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
+void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus);

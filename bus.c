@@ -32,19 +32,13 @@ void kdbus_release(struct device *dev)
 
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
 {
-	if (!bus)
-		return NULL;
-	bus->ref++;
+	kref_get(&bus->kref);
 	return bus;
 }
 
-struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
+void __kdbus_bus_free(struct kref *kref)
 {
-	if (!bus)
-		return NULL;
-	bus->ref--;
-	if (bus->ref > 0)
-		return bus;
+	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
 	kdbus_bus_disconnect(bus);
 	pr_info("clean up bus %s/%s\n",
@@ -52,7 +46,11 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 
 	kfree(bus->name);
 	kfree(bus);
-	return NULL;
+}
+
+void kdbus_bus_unref(struct kdbus_bus *bus)
+{
+	kref_put(&bus->kref, __kdbus_bus_free);
 }
 
 void kdbus_bus_disconnect(struct kdbus_bus *bus)
@@ -88,7 +86,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 	if (!b)
 		return -ENOMEM;
 
-	b->ref = 1;
+	kref_init(&b->kref);
 	b->ns = ns;
 	b->bus_flags = bus_flags;
 	/* connection 0 == kernel/multi-cast */
