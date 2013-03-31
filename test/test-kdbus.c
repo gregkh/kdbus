@@ -162,19 +162,44 @@ static int msg_recv(struct conn *conn)
 
 static int name_acquire(struct conn *conn, const char *name)
 {
-	struct kdbus_cmd_name cmd_name;
+	struct kdbus_cmd_name *cmd_name;
 	int err;
+	uint64_t size = sizeof(*cmd_name) + strlen(name) + 1;
 
-	memset(&cmd_name, 0, sizeof(cmd_name));
-	strncpy(cmd_name.name, name, sizeof(cmd_name.name));
+	cmd_name = alloca(size);
 
-	err = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, &cmd_name);
+	memset(cmd_name, 0, size);
+	strcpy(cmd_name->name, name);
+	cmd_name->size = size;
+
+	err = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (err) {
 		fprintf(stderr, "error aquiring name: %d (\"%s\")\n", err, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
-	printf("%s(): flags after call: 0x%llx\n", __func__, cmd_name.flags);
+	printf("%s(): flags after call: 0x%llx\n", __func__, cmd_name->flags);
+
+	return 0;
+}
+
+static int name_release(struct conn *conn, const char *name)
+{
+	struct kdbus_cmd_name *cmd_name;
+	int err;
+	uint64_t size = sizeof(*cmd_name) + strlen(name) + 1;
+
+	cmd_name = alloca(size);
+
+	memset(cmd_name, 0, size);
+	strcpy(cmd_name->name, name);
+	cmd_name->size = size;
+
+	err = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
+	if (err) {
+		fprintf(stderr, "error releasing name: %d (\"%s\")\n", err, strerror(errno));
+		return EXIT_FAILURE;
+	}
 
 	return 0;
 }
@@ -223,6 +248,7 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 
 	name_acquire(conn_b, "foo.bar.blubb");
+	//name_release(conn_b, "foo.bar.blubb");
 
 	cookie = 0;
 	msg_send(conn_a, "foo.bar.blubb", 0xc0000000 | cookie, ~0ULL);

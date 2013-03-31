@@ -133,23 +133,34 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       void __user *buf)
 {
+	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_name, size);
 	struct kdbus_name_entry *e = NULL;
-	struct kdbus_cmd_name name;
-	u64 hash, type = 0; /* FIXME */
+	struct kdbus_cmd_name *name;
+	u64 size, hash, type = 0; /* FIXME */
 	int ret = 0;
 
-	ret = copy_from_user(&name, buf, sizeof(name));
+	if (get_user(size, msgsize))
+		return -EFAULT;
+
+	if (size < sizeof(*name) || size >= 0xffff)
+		return -EMSGSIZE;
+
+	name = kzalloc(size, GFP_KERNEL);
+	if (!name)
+		return -ENOMEM;
+
+	ret = copy_from_user(name, buf, size);
 	if (ret < 0)
 		return -EFAULT;
 
-	hash = kdbus_name_make_hash(name.name);
+	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name.name, type);
+	e = __kdbus_name_lookup(reg, hash, name->name, type);
 	if (e) {
-		if (name.flags & KDBUS_CMD_NAME_QUEUE) {
+		if (name->flags & KDBUS_CMD_NAME_QUEUE) {
 			/* TODO */
-			name.flags |= KDBUS_CMD_NAME_IN_QUEUE;
+			name->flags |= KDBUS_CMD_NAME_IN_QUEUE;
 			goto exit_copy;
 		} else {
 			ret = -EEXIST;
@@ -163,7 +174,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto err_unlock_free;
 	}
 
-	e->name = kstrdup(name.name, GFP_KERNEL);
+	e->name = kstrdup(name->name, GFP_KERNEL);
 	if (!e->name) {
 		ret = -ENOMEM;
 		goto err_unlock_free;
@@ -178,16 +189,18 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	kdbus_name_add_to_conn(e, conn);
 
 exit_copy:
-	ret = copy_to_user(buf, &name, sizeof(name));
+	ret = copy_to_user(buf, name, size);
 	if (ret < 0) {
 		ret = -EFAULT;
 		goto err_unlock_free;
 	}
 
+	kfree(name);
 	mutex_unlock(&reg->entries_lock);
 	return 0;
 
 err_unlock_free:
+	kfree(name);
 	kdbus_name_entry_free(e);
 
 err_unlock:
@@ -200,26 +213,41 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       void __user *buf)
 {
+	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_name, size);
 	struct kdbus_name_entry *e;
-	struct kdbus_cmd_name name;
-	u64 hash;
+	struct kdbus_cmd_name *name;
+	u64 size, hash;
 	u64 type = 0; /* FIXME */
-	int ret;
+	int ret = 0;
 
-	ret = copy_from_user(&name, buf, sizeof(name));
-	if (ret < 0)
+	if (get_user(size, msgsize))
 		return -EFAULT;
 
-	hash = kdbus_name_make_hash(name.name);
+	if (size < sizeof(*name) || size >= 0xffff)
+		return -EMSGSIZE;
+
+	name = kzalloc(size, GFP_KERNEL);
+	if (!name)
+		return -ENOMEM;
+
+	ret = copy_from_user(name, buf, size);
+	if (ret < 0) {
+		ret = -EFAULT;
+		goto exit_free;
+	}
+
+	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name.name, type);
+	e = __kdbus_name_lookup(reg, hash, name->name, type);
 	if (e && e->conn == conn)
 		kdbus_name_entry_free(e);
-
 	mutex_unlock(&reg->entries_lock);
 
-	return 0;
+exit_free:
+	kfree(name);
+
+	return ret;
 }
 
 int kdbus_name_list(struct kdbus_name_registry *reg,
