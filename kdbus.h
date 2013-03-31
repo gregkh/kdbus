@@ -15,20 +15,21 @@
 
 #include <linux/types.h>
 
-/* FIXME: move to include/uapi/linux/major.h */
+/* FIXME: just move to include/uapi/linux/major.h */
+#ifndef KDBUS_CHAR_MAJOR
 #define KDBUS_CHAR_MAJOR	222
+#endif
 
 #define KDBUS_IOC_MAGIC		0x95
-
-#define KDBUS_WELL_KNOWN_NAME_LENGTH 256
 
 /* Message sent from kernel to userspace, when the owner or starter of
  * a well-known name changes */
 struct kdbus_manager_msg_name_change {
-	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
+	__u64 size;
 	__u64 old_id;
 	__u64 new_id;
 	__u64 flags;		/* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
+	char name[0];
 };
 
 struct kdbus_creds {
@@ -217,9 +218,10 @@ enum {
 };
 
 struct kdbus_cmd_name {
+	__u64 size;
 	__u64 flags;
 	__u64 id;		/* We allow registration/deregestration of names of other peers */
-	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
+	char name[0];
 };
 
 struct kdbus_cmd_names {
@@ -228,6 +230,7 @@ struct kdbus_cmd_names {
 };
 
 enum {
+	KDBUS_CMD_NAME_INFO_ITEM_NAME,
 	KDBUS_CMD_NAME_INFO_ITEM_SECLABEL,
 	KDBUS_CMD_NAME_INFO_ITEM_AUDIT,
 };
@@ -239,12 +242,11 @@ struct kdbus_cmd_name_info_item {
 };
 
 struct kdbus_cmd_name_info {
-	__u64 size;
+	__u64 size;			/* overall size of info */
 	__u64 flags;
-	__u64 id;	/* either fill in a valid ID here or set this to 0, and fill in .name instead */
-	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
+	__u64 id;			/* either ID, or 0 and _ITEM_NAME follows */
 	struct kdbus_creds creds;
-	struct kdbus_cmd_name_info_item items[0];
+	struct kdbus_cmd_name_info_item item[0]; /* list of item records */
 };
 
 enum {
