@@ -29,6 +29,9 @@
 
 #include "kdbus_internal.h"
 
+#define KDBUS_MSG_DATA_SIZE(SIZE) \
+	ALIGN((SIZE) + offsetof(struct kdbus_msg_data, data), sizeof(u64))
+
 static void __kdbus_kmsg_free(struct kref *kref)
 {
 	struct kdbus_kmsg *kmsg = container_of(kref, struct kdbus_kmsg, kref);
@@ -70,12 +73,6 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
 		goto out_err;
 	}
 
-/*
-	if (m->src_id == 0) {
-		err = -EINVAL;
-		goto out_err;
-	}
-*/
 	kmsg->msg.src_id = conn->id;
 	kref_init(&kmsg->kref);
 
@@ -131,9 +128,9 @@ static void kdbus_msg_dump(const struct kdbus_msg *msg)
 
 static struct kdbus_kmsg __must_check *
 kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
-		      const struct kdbus_msg_data *data)
+		       const struct kdbus_msg_data *data)
 {
-        u64 size = sizeof(*kmsg) - sizeof(kmsg->msg) +
+	u64 size = sizeof(*kmsg) - sizeof(kmsg->msg) +
 			kmsg->msg.size + data->size;
 
         kmsg = krealloc(kmsg, size, GFP_KERNEL);
@@ -150,7 +147,7 @@ static struct kdbus_kmsg __must_check *
 kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_msg_data *data;
-	u64 size = sizeof(*kmsg) + sizeof(u64);
+	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(u64));
 	struct timespec ts;
 
 	data = kzalloc(size, GFP_KERNEL);
