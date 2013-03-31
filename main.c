@@ -83,12 +83,6 @@ static int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
 		goto out_err;
 	}
 
-/*
-	if (m->src_id == 0) {
-		err = -EINVAL;
-		goto out_err;
-	}
-*/
 	kmsg->msg.src_id = conn->id;
 	kref_init(&kmsg->kref);
 
@@ -101,10 +95,10 @@ out_err:
 }
 
 static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
-						       uint64_t type,
+						       u64 type,
 						       int index)
 {
-	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
+	u64 size = msg->size - offsetof(struct kdbus_msg, data);
 	const struct kdbus_msg_data *data = msg->data;
 
 	while (size > 0 && size >= data->size) {
@@ -120,7 +114,7 @@ static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg)
 {
-	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
+	u64 size = msg->size - offsetof(struct kdbus_msg, data);
 	const struct kdbus_msg_data *data = msg->data;
 
 	pr_info("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
@@ -146,17 +140,17 @@ static struct kdbus_kmsg __must_check *
 kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
 		      const struct kdbus_msg_data *data)
 {
-        uint64_t size = sizeof(*kmsg) - sizeof(kmsg->msg) +
+	u64 size = sizeof(*kmsg) - sizeof(kmsg->msg) +
 			kmsg->msg.size + data->size;
 
-        kmsg = krealloc(kmsg, size, GFP_KERNEL);
-        if (!kmsg)
-                return NULL;
+	kmsg = krealloc(kmsg, size, GFP_KERNEL);
+	if (!kmsg)
+		return NULL;
 
-        memcpy(((u8 *) &kmsg->msg) + kmsg->msg.size, data, data->size);
-        kmsg->msg.size += data->size;
+	memcpy(((u8 *) &kmsg->msg) + kmsg->msg.size, data, data->size);
+	kmsg->msg.size += data->size;
 
-        return kmsg;
+	return kmsg;
 }
 
 static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
@@ -206,7 +200,7 @@ static struct kdbus_kmsg __must_check *
 kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_msg_data *data;
-	uint64_t size = sizeof(*kmsg) + sizeof(uint64_t);
+	u64 size = sizeof(*kmsg) + sizeof(u64);
 	struct timespec ts;
 
 	data = kzalloc(size, GFP_KERNEL);
@@ -403,7 +397,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static bool check_flags(uint64_t kernel_flags)
+static bool check_flags(u64 kernel_flags)
 {
 	/* The higher 32bit are considered 'incompatible
 	 * flags'. Refuse them all for now */

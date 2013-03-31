@@ -38,7 +38,7 @@ static struct conn *connect_to_bus(const char *path)
 		fprintf(stderr, "--- error when saying hello: %d (\"%s\")\n", err, strerror(errno));
 		return NULL;
 	}
-	printf("-- Our peer ID for %s: %lu\n", path, (uint64_t)hello.id);
+	printf("-- Our peer ID for %s: %llu\n", path, (unsigned long long)hello.id);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {
