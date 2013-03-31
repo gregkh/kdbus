@@ -56,9 +56,17 @@ struct kdbus_name_entry {
 	char 			*name;
 	u32			hash;
 	u64			flags;
+	struct list_head	queue_list;
 	struct list_head	registry_entry;
 	struct list_head	conn_entry;
 	struct kdbus_conn	*conn;
+};
+
+struct kdbus_name_queue_item {
+	struct kdbus_conn 	*conn;
+	struct kdbus_name_entry	*entry;
+	u64			 flags;
+	struct list_head	 entry_entry;
 };
 
 struct kdbus_name_registry *kdbus_name_registry_new(void);
