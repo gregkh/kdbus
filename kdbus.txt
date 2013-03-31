@@ -242,19 +242,21 @@ which owns that well-known name.
 ===============================================================================
 Message format, content, exchange
 ===============================================================================
-Messages consist of fixed-size header followed directly be a variable-sized
-list of data segments. The overall message size is specified in the header
-of the message. The chain of data segments can contain well-defined message
-meta data fields, raw data, references to data (mmap()), or file descriptors.
+Messages consist of fixed-size header followed directly be a list of
+variable-sized data records. The overall message size is specified in the
+header of the message. The chain of data records can contain well-defined
+message metadata fields, raw data, references to data (mmap), or file
+descriptors.
 
 Messages are passed to the kernel with the ioctl KDBUS_CMD_MSG_SEND. Depending
 on the the destination address of the message, the kernel delivers the message
 to the specific destination connection or to all connections on the same bus.
-Messages are queued in the destination connection.
+Messages are always queued in the destination connection.
 
-Messages are delivered to the client with the ioctl KDBUS_CMD_MSG_RECV. The
+Messages are received by the client with the ioctl KDBUS_CMD_MSG_RECV. The
 end point device node of the bus supports poll() to wake up the receiving
-process when new messages are queued up to be received.
+process when new messages are queued up to be received. The receiver of the
+message has to suppply a buffer large enough to receive a complete message.
 
   +-------------------------------------------------------------------------+
   | Message                                                                 |
@@ -264,21 +266,21 @@ process when new messages are queued up to be received.
   | | destination: connection id of the receiver                          | |
   | | source: connection id of the sender (set by kernel)                 | |
   | | payload_type: "DBUSVER1" textual identifier stored as uint64_t      | |
-  | | +-----------------------------------------------------------------+ | |
-  | | | Data Record                                                     | | |
-  | | | size: overall record size                                       | | |
-  | | | type: type of data                                              | | |
-  | | | data: variable sized inlined data, or reference to data         | | |
-  | | +-----------------------------------------------------------------+ | |
-  | | +-----------------------------------------------------------------+ | |
-  | | | Data Record                                                     | | |
-  | | | size: overall record size                                       | | |
-  | | | ...                                                             | | |
-  | | +-----------------------------------------------------------------+ | |
-  | | +-----------------------------------------------------------------+ | |
-  | | | Data Record                                                     | | |
-  | | | size: overall record size                                       | | |
-  | | | ...                                                             | | |
-  | | +-----------------------------------------------------------------+ | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | Data Record                                                         | |
+  | | size: overall record size                                           | |
+  | | type: type of data                                                  | |
+  | | data: variable sized inlined data, or reference to data             | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | Data Record                                                         | |
+  | | size: overall record size                                           | |
+  | | ...                                                                 | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | Data Record                                                         | |
+  | | size: overall record size                                           | |
+  | | ...                                                                 | |
   | +---------------------------------------------------------------------+ |
   +-------------------------------------------------------------------------+
