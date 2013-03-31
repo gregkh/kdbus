@@ -47,7 +47,16 @@ Terminology
     A connection to a bus is created by opening an end point device node of
     a bus, and becoming an active client with the HELLO exchange. Every
     connected client connection has a unique identifier on the bus, and can
-    address messages to every other connection on the same bus.
+    address messages to every other connection on the same bus by using
+    the peers connection id as the destination.
+
+  Well-known Names:
+    A connection can, in addition to is implicit unique connection id, request
+    the ownership of a textual well-known name. Well-known names are noted
+    in revese-domain notation like com.example.service. Connections offering
+    a service on a bus are usually reached by its well-known name. The analogy
+    of connection id and well-known name is an IP address and a DNS name
+    associated with that address.
 
 ===============================================================================
 Device node layout
@@ -59,7 +68,7 @@ Device node layout
     |-- kdbus!2702-user!ep.app -> ../../../devices/virtual/kdbus/kdbus!2702-user!ep.app
     `-- kdbus!control -> ../../../devices/kdbus!control
 
-  /dev/kdbus/
+  /dev/kdbus
   |-- control
   |-- 0-system
   |   |-- bus
@@ -82,7 +91,7 @@ Device node layout
               `-- bus
 
 Note:
-  The device node subdirectry layout is arranged that a future version of
+  The device node subdirectory layout is arranged that a future version of
   kdbus could be implemented as a filesystem with a separate instance mounted
   for each namespace. For any future changes, this always needs to be kept
   in mind. Also the dependency on udev's userspace hookups or sysfs attribute
