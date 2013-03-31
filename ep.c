@@ -52,9 +52,7 @@ static struct device_type kdbus_devtype_ep = {
 
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 {
-	if (!ep)
-		return NULL;
-	ep->ref++;
+	kref_get(&ep->kref);
 	return ep;
 }
 
@@ -76,13 +74,9 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 		ep->bus->ns->devpath, ep->bus->name, ep->name);
 }
 
-struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
+static void __kdbus_ep_free(struct kref *kref)
 {
-	if (!ep)
-		return NULL;
-	ep->ref--;
-	if (ep->ref > 0)
-		return ep;
+	struct kdbus_ep *ep = container_of(kref, struct kdbus_ep, kref);
 
 	mutex_lock(&ep->bus->lock);
 	kdbus_ep_disconnect(ep);
@@ -93,7 +87,11 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 
 	kfree(ep->name);
 	kfree(ep);
-	return NULL;
+}
+
+void kdbus_ep_unref(struct kdbus_ep *ep)
+{
+	kref_put(&ep->kref, __kdbus_ep_free);
 }
 
 /* Find the endpoint for a specific bus */
@@ -126,7 +124,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		return -ENOMEM;
 
 	mutex_lock(&bus->ns->lock);
-	e->ref = 1;
+	kref_init(&e->kref);
 	e->mode = mode;
 	e->uid = uid;
 	e->gid = gid;

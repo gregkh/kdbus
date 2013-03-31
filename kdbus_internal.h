@@ -71,7 +71,7 @@ struct kdbus_bus {
  * - additional endpoints can carry a specific policy/filters
  */
 struct kdbus_ep {
-	unsigned int ref;		/* reference count */
+	struct kref kref;		/* reference count */
 	bool disconnected;		/* invalidated data */
 	struct kdbus_bus *bus;		/* bus behind this endpoint */
 	const char *name;		/* name, prefixed with uid */
@@ -160,7 +160,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 
 /* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
-struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep);
+void kdbus_ep_unref(struct kdbus_ep *ep);
 
 struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name);
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
