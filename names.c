@@ -75,9 +75,9 @@ struct kdbus_name_entry *__kdbus_name_lookup(struct kdbus_name_registry *reg,
 					     u64 hash, const char *name,
 					     u64 type)
 {
-	struct kdbus_name_entry *tmp, *e;
+	struct kdbus_name_entry *e;
 
-	list_for_each_entry_safe(e, tmp, &reg->entries_list, registry_entry) {
+	list_for_each_entry(e, &reg->entries_list, registry_entry) {
 		if (e->hash == hash && e->type == type &&
 		    strcmp(e->name, name) == 0)
 			return e;
@@ -254,15 +254,54 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 		    struct kdbus_conn *conn,
 		    void __user *buf)
 {
-	//u64 __user *count = buf + offsetof(struct kdbus_cmd_names, count);
-	//struct kdbus_cmd_names *names;
+	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_names, size);
+	struct kdbus_cmd_names *names;
+	struct kdbus_cmd_name *name;
+	struct kdbus_name_entry *e;
+	u64 user_size, size = 0;
+	int ret = 0;
 
-	/* FIXME: do we really want to dump the whole thing here in one go !? */
+	if (get_user(user_size, msgsize))
+		return -EFAULT;
 
 	mutex_lock(&reg->entries_lock);
+
+	size = sizeof(struct kdbus_cmd_names);
+
+	list_for_each_entry(e, &reg->entries_list, registry_entry)
+		size += sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
+
+	if (size > user_size) {
+		ret = -ENOSPC;
+		goto exit_unlock;
+	}
+
+	names = kzalloc(size, GFP_KERNEL);
+	if (!names) {
+		ret = -ENOMEM;
+		goto exit_unlock;
+	}
+
+	names->size = size;
+	name = names->names;
+
+	list_for_each_entry(e, &reg->entries_list, registry_entry) {
+		name->size = sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
+		name->flags = 0; /* FIXME */
+		name->id = e->conn->id;
+		strcpy(name->name, e->name);
+		name = (struct kdbus_cmd_name *) ((u8 *) name + name->size);
+	}
+
+	if (copy_to_user(buf, names, size) < 0) {
+		ret = -EFAULT;
+		goto exit_unlock;
+	}
+
+exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
-	return -ENOSYS;
+	return ret;
 }
 
 int kdbus_name_query(struct kdbus_name_registry *reg,

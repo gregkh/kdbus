@@ -204,6 +204,34 @@ static int name_release(struct conn *conn, const char *name)
 	return 0;
 }
 
+static int name_list(struct conn *conn)
+{
+	uint64_t size = 0xffff;
+	struct kdbus_cmd_names *names;
+	struct kdbus_cmd_name *name;
+	int err;
+
+	names = alloca(size);
+	names->size = size;
+
+	err = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, names);
+	if (err) {
+		fprintf(stderr, "error listing names: %d (\"%s\")\n", err, strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	size = names->size - sizeof(*names);
+	name = names->names;
+
+	while (size > 0) {
+		printf("name '%s' is acquired by id 0x%llx\n", name->name, name->id);
+		size -= name->size;
+		name = (struct kdbus_cmd_name *) ((char *) name + name->size);
+	}
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	struct kdbus_cmd_fname name;
@@ -249,6 +277,8 @@ int main(int argc, char *argv[])
 
 	name_acquire(conn_b, "foo.bar.blubb");
 	//name_release(conn_b, "foo.bar.blubb");
+
+	name_list(conn_b);
 
 	cookie = 0;
 	msg_send(conn_a, "foo.bar.blubb", 0xc0000000 | cookie, ~0ULL);
