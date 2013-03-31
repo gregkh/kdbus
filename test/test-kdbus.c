@@ -55,14 +55,14 @@ static int send_msg(const struct conn *conn,
 		    uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
-	uint64_t size, extra_size;
-	void *extra;
+	uint64_t size, extra_size = 0;
+	void *extra = NULL;
 	int err;
 
 	if (name) {
 		struct kdbus_msg_data *name_data;
 
-		extra_size = sizeof(*name_data) + strlen(name);
+		extra_size = sizeof(*name_data) + strlen(name) + 1;
 
 		name_data = malloc(extra_size);
 		if (!name_data) {
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	send_msg(conn_a, "blabla1", 0xc00c0001, 0); //conn_b->id);
+	send_msg(conn_a, NULL, 0xc00c0001, conn_b->id);
 
 	printf("-- sleeping 10s\n");
 	sleep(10);
