@@ -42,9 +42,9 @@ DEFINE_IDR(kdbus_ns_major_idr);
 /* namespace list lock */
 DEFINE_MUTEX(kdbus_subsys_lock);
 
-static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
-			 struct kdbus_msg **msg);
-static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg);
+static int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
+			  struct kdbus_kmsg **kmsg);
+static int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg);
 
 #if 0
 static void kdbus_msg_release(struct kref *kref)
@@ -243,7 +243,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 {
 	struct kdbus_conn *conn = file->private_data;
 	struct kdbus_cmd_fname fname;
-	struct kdbus_msg *msg;
+	struct kdbus_kmsg *kmsg;
 	long err;
 
 	/* We need a connection before we can do anything with an ioctl */
@@ -320,10 +320,10 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MSG_SEND:
 		/* send a message */
-		err = kdbus_msg_new(conn, argp, &msg);
+		err = kdbus_kmsg_new(conn, argp, &kmsg);
 		if (err < 0)
 			return err;
-		return kdbus_msg_send(conn, msg);
+		return kdbus_kmsg_send(conn, kmsg);
 
 	case KDBUS_CMD_MSG_RECV:
 		/* receive a message, needs to be freed */
@@ -386,16 +386,28 @@ const struct file_operations kdbus_device_ops = {
 	.llseek =		noop_llseek,
 };
 
-static void kdbus_msg_free(struct kdbus_msg *msg)
+static void __kdbus_kmsg_free(struct kref *kref)
 {
-	kfree(msg);
+	struct kdbus_kmsg *kmsg = container_of(kref, struct kdbus_kmsg, kref);
+	kfree(kmsg);
 }
 
-static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
-			 struct kdbus_msg **msg)
+static void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg)
+{
+	kref_put(&kmsg->kref, __kdbus_kmsg_free);
+}
+
+static struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg)
+{
+	kref_get(&kmsg->kref);
+	return kmsg;
+}
+
+static int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
+			  struct kdbus_kmsg **m)
 {
 	u64 __user *msgsize = argp + offsetof(struct kdbus_msg, size);
-	struct kdbus_msg *m;
+	struct kdbus_kmsg *kmsg;
 	u64 size;
 	int err;
 
@@ -405,10 +417,12 @@ static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
 
-	m = kmalloc(size, GFP_KERNEL);
-	if (!m)
+	size += sizeof(*kmsg);
+
+	kmsg = kmalloc(size, GFP_KERNEL);
+	if (!kmsg)
 		return -ENOMEM;
-	if (copy_from_user(m, argp, size)) {
+	if (copy_from_user(&kmsg->msg, argp, size)) {
 		err = -EFAULT;
 		goto out_err;
 	}
@@ -419,21 +433,23 @@ static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
 		goto out_err;
 	}
 */
-	m->src_id = conn->id;
+	kmsg->msg.src_id = conn->id;
+	kref_init(&kmsg->kref);
 
-	*msg = m;
+	*m = kmsg;
 	return 0;
 
 out_err:
-	kdbus_msg_free(m);
+	kfree(m);
 	return err;
 }
 
-static struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
-						 uint64_t type, int index)
+static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
+						       uint64_t type,
+						       int index)
 {
 	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
-	struct kdbus_msg_data *data = msg->data;
+	const struct kdbus_msg_data *data = msg->data;
 
 	while (size > 0 && size >= data->size) {
 		if (data->type == type && index-- == 0)
@@ -470,52 +486,60 @@ static void kdbus_msg_dump(const struct kdbus_msg *msg)
 	}
 }
 
-static struct kdbus_msg *kdbus_msg_append_data(struct kdbus_msg *msg,
-					       const struct kdbus_msg_data *data)
+static struct kdbus_kmsg *kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
+						 const struct kdbus_msg_data *data)
 {
-        uint64_t size = msg->size + data->size;
+        uint64_t size = sizeof(kmsg) - sizeof(kmsg->msg) +
+			kmsg->msg.size + data->size;
 
-        msg = krealloc(msg, size, GFP_KERNEL);
-        if (!msg)
+        kmsg = krealloc(kmsg, size, GFP_KERNEL);
+        if (!kmsg)
                 return NULL;
 
-        memcpy(((u8 *) msg) + msg->size, data, data->size);
-        msg->size += data->size;
+        memcpy(((u8 *) &kmsg->msg) + kmsg->msg.size, data, data->size);
+        kmsg->msg.size += data->size;
 
-        return msg;
+        return kmsg;
 }
 
-static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg)
+static int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 {
-	struct kdbus_conn *conn_dst;
+	struct kdbus_conn *conn_dst = NULL;
+	struct kdbus_msg *msg = &kmsg->msg;
 
 	kdbus_msg_dump(msg);
 
 	if (msg->dst_id == 0) {
 		/* look up well-known name from supplied data */
-		struct kdbus_msg_data *name_data;
+		const struct kdbus_msg_data *name_data;
 
 		name_data = kdbus_msg_get_data(msg, KDBUS_MSG_DST_NAMES, 0);
 		if (!name_data) {
 			pr_err("message %llu does not contain KDBUS_MSG_DST_NAMES\n",
-				(unsigned long long)msg->cookie);
+				(unsigned long long) msg->cookie);
 			return -EINVAL;
 		}
 
 		pr_info("name in message: >%s<\n", name_data->data);
-	} else if (msg->dst_id == ~0ULL) {
-		/* broadcast */
-	} else {
+		/* lookup and determine conn_dst ... */
+		/* ... */
+		if (!conn_dst)
+			return -ENOENT;
+	} else if (msg->dst_id != ~0ULL) {
 		/* direct message */
 		conn_dst = idr_find(&conn->ep->bus->conn_idr, msg->dst_id);
 		if (!conn_dst)
 			return -ENOENT;
-
 	}
 
-		
+	if (conn_dst) {
+		/* direct message */
+	} else {
+		/* broadcast */
+	}
 
-	kdbus_msg_free(msg);
+	kdbus_kmsg_unref(kmsg);
+
 	return 0;
 }
 
