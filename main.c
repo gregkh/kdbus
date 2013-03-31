@@ -137,24 +137,26 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		kdbus_bus_unref(conn->bus_owner);
 		break;
 
-	case KDBUS_CONN_EP:
+	case KDBUS_CONN_EP: {
+		struct kdbus_msg_list_entry *entry, *tmp;
+
  		bus = conn->ep->bus;
 		kdbus_name_remove_by_conn(bus->name_registry, conn);
 		kdbus_ep_unref(conn->ep);
-#if 0
-		list_del(&conn->connection_entry);
+
+		//list_del(&conn->connection_entry);
+
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->msg_lock);
-		list_for_each_entry_safe(msg_entry, tmp_entry, &conn->msg_list, entry) {
-			msg = msg_entry->msg;
-			list_del(&msg_entry->entry);
-			kfree(msg_entry);
-			kref_put(&msg->kref, kdbus_msg_release);
+		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
+			list_del(&entry->list);
+			kdbus_kmsg_unref(entry->kmsg);
+			kfree(entry);
 		}
 		mutex_unlock(&conn->msg_lock);
-#endif
 
 		break;
+	}
 
 	default:
 		break;
