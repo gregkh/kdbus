@@ -91,7 +91,7 @@ static int msg_send(const struct conn *conn,
 	memset(msg, 0, size);
 	msg->size = size;
 	msg->src_id = conn->id;
-	msg->dst_id = dst_id;
+	msg->dst_id = name ? 0 : dst_id;
 	msg->cookie = cookie;
 	msg->payload_type = 0xdeadbeef;
 
@@ -160,6 +160,25 @@ static int msg_recv(struct conn *conn)
 	return 0;
 }
 
+static int name_acquire(struct conn *conn, const char *name)
+{
+	struct kdbus_cmd_name cmd_name;
+	int err;
+
+	memset(&cmd_name, 0, sizeof(cmd_name));
+	strncpy(cmd_name.name, name, sizeof(cmd_name.name));
+
+	err = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, &cmd_name);
+	if (err) {
+		fprintf(stderr, "error aquiring name: %d (\"%s\")\n", err, strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	printf("%s(): flags after call: 0x%llx\n", __func__, cmd_name.flags);
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	struct kdbus_cmd_fname name;
@@ -203,11 +222,14 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
+	name_acquire(conn_b, "foo.bar.blubb");
+
 	cookie = 0;
-	msg_send(conn_a, NULL, 0xc0000000 | cookie, ~0ULL);
+	msg_send(conn_a, "foo.bar.blubb", 0xc0000000 | cookie, ~0ULL);
 
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;
+
 
 	printf("-- entering poll loop ...\n");
 
@@ -225,11 +247,11 @@ int main(int argc, char *argv[])
 
 		if (fds[0].revents & POLLIN) {
 			msg_recv(conn_a);
-			msg_send(conn_a, NULL, 0xc0000000 | cookie++, conn_b->id);
+//			msg_send(conn_a, NULL, 0xc0000000 | cookie++, conn_b->id);
 		}
 		if (fds[1].revents & POLLIN) {
 			msg_recv(conn_b);
-			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);
+//			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);
 		}
 	}
 

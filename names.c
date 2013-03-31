@@ -89,6 +89,7 @@ struct kdbus_name_entry *__kdbus_name_lookup(struct kdbus_name_registry *reg,
 static void kdbus_name_add_to_conn(struct kdbus_name_entry *e,
 				   struct kdbus_conn *conn)
 {
+	e->conn = conn;
 	list_add_tail(&conn->names_list, &e->conn_entry);
 }
 
@@ -234,7 +235,6 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 	mutex_unlock(&reg->entries_lock);
 
 	return -ENOSYS;
-
 }
 
 int kdbus_name_query(struct kdbus_name_registry *reg,
