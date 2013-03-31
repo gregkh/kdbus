@@ -225,7 +225,7 @@ struct kdbus_cmd_name {
 };
 
 struct kdbus_cmd_names {
-	__u64 count;
+	__u64 size;
 	struct kdbus_cmd_name names[0];
 };
 
