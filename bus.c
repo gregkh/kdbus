@@ -40,6 +40,7 @@ void __kdbus_bus_free(struct kref *kref)
 {
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
+	kdbus_name_registry_unref(bus->name_registry);
 	kdbus_bus_disconnect(bus);
 	pr_info("clean up bus %s/%s\n",
 		bus->ns->devpath, bus->name);
@@ -96,6 +97,12 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 	INIT_LIST_HEAD(&b->ep_list);
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
+		err = -ENOMEM;
+		goto err;
+	}
+
+	b->name_registry = kdbus_name_registry_new();
+	if (!b->name_registry) {
 		err = -ENOMEM;
 		goto err;
 	}

@@ -217,7 +217,7 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		}
 
 		/* lookup and determine conn_dst ... */
-		name_entry = kdbus_name_lookup(conn->ep->name_registry,
+		name_entry = kdbus_name_lookup(conn->ep->bus->name_registry,
 					       name_data->data, 0);
 		if (name_entry)
 			conn_dst = name_entry->conn;

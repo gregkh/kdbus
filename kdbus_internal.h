@@ -100,6 +100,7 @@ struct kdbus_bus {
 	struct kdbus_ep *ep;		/* "bus" default endpoint */
 	struct list_head ep_list;	/* endpoints assigned to this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
+	struct kdbus_name_registry *name_registry;
 };
 
 /*
@@ -122,7 +123,6 @@ struct kdbus_ep {
 	struct list_head message_list;	/* messages in flight for this endpoint */
 	struct list_head connection_list;
 	wait_queue_head_t wait;		/* wake up this endpoint */
-	struct kdbus_name_registry *name_registry;
 };
 
 /*

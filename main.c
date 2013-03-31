@@ -125,6 +125,7 @@ err_unlock:
 static int kdbus_conn_release(struct inode *inode, struct file *file)
 {
 	struct kdbus_conn *conn = file->private_data;
+	struct kdbus_bus *bus;
 
 	switch (conn->type) {
 	case KDBUS_CONN_NS_OWNER:
@@ -136,7 +137,8 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_CONN_EP:
-		kdbus_name_remove_by_conn(conn->ep->name_registry, conn);
+ 		bus = conn->ep->bus;
+		kdbus_name_remove_by_conn(bus->name_registry, conn);
 		kdbus_ep_unref(conn->ep);
 #if 0
 		list_del(&conn->connection_entry);
@@ -238,6 +240,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	struct kdbus_conn *conn = file->private_data;
 	struct kdbus_cmd_fname fname;
 	struct kdbus_kmsg *kmsg;
+	struct kdbus_bus *bus;
 	long err;
 
 	/* We need a connection before we can do anything with an ioctl */
@@ -286,19 +289,23 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
-		return kdbus_name_acquire(conn->ep->name_registry, conn, argp);
+		bus = conn->ep->bus;
+		return kdbus_name_acquire(bus->name_registry, conn, argp);
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
-		return kdbus_name_release(conn->ep->name_registry, conn, argp);
+		bus = conn->ep->bus;
+		return kdbus_name_release(bus->name_registry, conn, argp);
 
 	case KDBUS_CMD_NAME_LIST:
 		/* return all current well-known names */
-		return kdbus_name_list(conn->ep->name_registry, conn, argp);
+		bus = conn->ep->bus;
+		return kdbus_name_list(bus->name_registry, conn, argp);
 
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
-		return kdbus_name_query(conn->ep->name_registry, conn, argp);
+		bus = conn->ep->bus;
+		return kdbus_name_query(bus->name_registry, conn, argp);
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
