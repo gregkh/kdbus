@@ -52,10 +52,6 @@ Terminology
 ===============================================================================
 Device node layout
 ===============================================================================
-  For any future changes, keep in mind, that the layout should support a
-  possible /dev/kdbus/ filesystem for the init namspace and one separate
-  instance mounted for each namespace.
-
   /sys/bus/kdbus
   `-- devices
     |-- kdbus!0-system!bus -> ../../../devices/virtual/kdbus/kdbus!0-system!bus
@@ -84,6 +80,13 @@ Device node layout
           |-- control
           `-- 0-system
               `-- bus
+
+Note:
+  The device node subdirectry layout is arranged that a future version of
+  kdbus could be implemented as a filesystem with a separate instance mounted
+  for each namespace. For any future changes, this always needs to be kept
+  in mind. Also the dependency on udev's userspace hookups or sysfs attribute
+  use should be limited for the same reason.
 
 ===============================================================================
 Objects
@@ -116,8 +119,6 @@ Objects
   | | | +------------+ +------------+ | | +------------+ +------------+ | | |
   | | +-------------------------------+ +-------------------------------+ | |
   | +---------------------------------------------------------------------+ |
-  +-------------------------------------------------------------------------+
-
   +-------------------------------------------------------------------------+
   | Namespace (Container; inside it, fedoracontainer/ becomes /dev/kdbus/)  |
   | /dev/kdbus/ns/fedoracontainer/control                                   |
