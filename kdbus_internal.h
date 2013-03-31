@@ -59,7 +59,8 @@ struct kdbus_name_entry {
 struct kdbus_name_registry *kdbus_name_registry_new(void);
 void kdbus_name_registry_unref(struct kdbus_name_registry *reg);
 
-int kdbus_name_add(struct kdbus_name_registry *reg, const char *name, u64 type);
+int kdbus_name_add(struct kdbus_name_registry *reg, struct kdbus_conn *conn,
+		   const char *name, u64 type);
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name, u64 type);
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
