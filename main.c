@@ -167,6 +167,8 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	if (!conn->active)
 		return -EAGAIN;
 
+	/* TODO: implement filtering */
+
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return -ENOMEM;
@@ -232,7 +234,7 @@ static int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 	kmsg = kdbus_kmsg_append_timestamp(kmsg);
 
 	msg = &kmsg->msg;
-	kdbus_msg_dump(msg);
+//	kdbus_msg_dump(msg);
 
 	if (msg->dst_id == 0) {
 		/* look up well-known name from supplied data */
@@ -262,6 +264,18 @@ static int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
 	} else {
 		/* broadcast */
+		struct kdbus_conn *tmp;
+
+		list_for_each_entry_safe(conn_dst, tmp,
+					 &conn->ep->connection_list,
+					 connection_entry) {
+			if (conn_dst->type != KDBUS_CONN_EP)
+				continue;
+
+			ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
+			if (ret < 0)
+				break;
+		}
 	}
 
 	kdbus_kmsg_unref(kmsg);
@@ -330,6 +344,9 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 
 	mutex_init(&conn->msg_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
+	INIT_LIST_HEAD(&conn->connection_entry);
+
+	list_add_tail(&conn->ep->connection_list, &conn->connection_entry);
 
 	file->private_data = conn;
 	mutex_unlock(&conn->ns->lock);

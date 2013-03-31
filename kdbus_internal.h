@@ -83,6 +83,7 @@ struct kdbus_ep {
 	gid_t gid;			/* gid owning this endpoint */
 	struct list_head bus_entry;	/* list of endpoints for this bus */
 	struct list_head message_list;	/* messages in flight for this endpoint */
+	struct list_head connection_list;
 	wait_queue_head_t wait;		/* wake up this endpoint */
 };
 

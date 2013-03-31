@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 
 	cookie = 0;
-	msg_send(conn_a, NULL, 0xc0000000 | cookie, conn_b->id);
+	msg_send(conn_a, NULL, 0xc0000000 | cookie, ~0ULL);
 
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;

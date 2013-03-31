@@ -168,6 +168,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	}
 
 	init_waitqueue_head(&e->wait);
+	INIT_LIST_HEAD(&e->connection_list);
 
 	/* Link this endpoint to the bus it is on */
 	e->bus = kdbus_bus_ref(bus);
