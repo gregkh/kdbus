@@ -102,7 +102,8 @@ static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
 	return NULL;
 }
 
-static void kdbus_msg_dump(const struct kdbus_msg *msg)
+
+static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 {
 	u64 size = msg->size - offsetof(struct kdbus_msg, data);
 	const struct kdbus_msg_data *data = msg->data;
@@ -133,14 +134,14 @@ kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
 	u64 size = sizeof(*kmsg) - sizeof(kmsg->msg) +
 			kmsg->msg.size + data->size;
 
-        kmsg = krealloc(kmsg, size, GFP_KERNEL);
-        if (!kmsg)
-                return NULL;
+	kmsg = krealloc(kmsg, size, GFP_KERNEL);
+	if (!kmsg)
+		return NULL;
 
-        memcpy(((u8 *) &kmsg->msg) + kmsg->msg.size, data, data->size);
-        kmsg->msg.size += data->size;
+	memcpy(((u8 *) &kmsg->msg) + kmsg->msg.size, data, data->size);
+	kmsg->msg.size += data->size;
 
-        return kmsg;
+	return kmsg;
 }
 
 static struct kdbus_kmsg __must_check *
@@ -252,22 +253,37 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 {
+	u64 __user *msgsize = buf + offsetof(struct kdbus_msg, size);
+	u64 size;
 	struct kdbus_msg_list_entry *entry;
-	int ret = -ENOENT;
+	struct kdbus_msg *msg;
+	int ret;
+
+	if (get_user(size, msgsize))
+		return -EFAULT;
 
 	mutex_lock(&conn->msg_lock);
 	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, list);
-	if (entry) {
-		struct kdbus_msg *msg = &entry->kmsg->msg;
-		ret = copy_to_user(buf, msg, msg->size);
-		if (ret == 0) {
-			kdbus_kmsg_unref(entry->kmsg);
-			list_del(&entry->list);
-			kfree(entry);
-		}
+	if (!entry) {
+		ret = -ENOENT;
+		goto out_unlock;
 	}
+
+	msg = &entry->kmsg->msg;
+	if (size < msg->size) {
+		ret = -ENOSPC;
+		goto out_unlock;
+	}
+
+	ret = copy_to_user(buf, msg, msg->size);
+	if (ret == 0) {
+		kdbus_kmsg_unref(entry->kmsg);
+		list_del(&entry->list);
+		kfree(entry);
+	}
+
+out_unlock:
 	mutex_unlock(&conn->msg_lock);
 
 	return ret;
 }
-
