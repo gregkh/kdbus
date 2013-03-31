@@ -24,6 +24,7 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/hash.h>
+#include <linux/uaccess.h>
 //#include <uapi/linux/major.h>
 #include "kdbus.h"
 
@@ -99,42 +100,6 @@ static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 	kfree(e);
 }
 
-int kdbus_name_add(struct kdbus_name_registry *reg,
-		   struct kdbus_conn *conn,
-		   const char *name, u64 type)
-{
-	u64 hash = kdbus_name_make_hash(name);
-	struct kdbus_name_entry *e;
-	int ret = 0;
-
-	e = kzalloc(sizeof(*e), GFP_KERNEL);
-	if (!e)
-		return -ENOMEM;
-
-	e->name = kstrdup(name, GFP_KERNEL);
-	if (!e->name)
-		return -ENOMEM;
-
-	e->hash = kdbus_name_make_hash(name);
-	e->type = type;
-	INIT_LIST_HEAD(&e->registry_entry);
-	INIT_LIST_HEAD(&e->conn_entry);
-
-	mutex_lock(&reg->entries_lock);
-	if (__kdbus_name_lookup(reg, hash, name, type) != NULL)
-		ret = -EEXIST;
-	else
-		list_add_tail(&reg->entries_list, &e->registry_entry);
-	mutex_unlock(&reg->entries_lock);
-
-	if (ret < 0)
-		kdbus_name_entry_free(e);
-	else
-		kdbus_name_add_to_conn(e, conn);
-
-	return ret;
-}
-
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn)
 {
@@ -161,3 +126,123 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 	return e;
 }
 
+/* IOCTL interface */
+
+int kdbus_name_acquire(struct kdbus_name_registry *reg,
+		       struct kdbus_conn *conn,
+		       void __user *buf)
+{
+	struct kdbus_name_entry *e = NULL;
+	struct kdbus_cmd_name name;
+	u64 hash, type = 0; /* FIXME */
+	int ret = 0;
+
+	ret = copy_from_user(&name, buf, sizeof(name));
+	if (ret < 0)
+		return -EFAULT;
+
+	hash = kdbus_name_make_hash(name.name);
+
+	mutex_lock(&reg->entries_lock);
+	e = __kdbus_name_lookup(reg, hash, name.name, type);
+	if (e) {
+		if (name.flags & KDBUS_CMD_NAME_QUEUE) {
+			/* TODO */
+			name.flags |= KDBUS_CMD_NAME_IN_QUEUE;
+			goto exit_copy;
+		} else {
+			ret = -EEXIST;
+		}
+		goto err_unlock;
+	}
+
+	e = kzalloc(sizeof(*e), GFP_KERNEL);
+	if (!e) {
+		ret = -ENOMEM;
+		goto err_unlock_free;
+	}
+
+	e->name = kstrdup(name.name, GFP_KERNEL);
+	if (!e->name) {
+		ret = -ENOMEM;
+		goto err_unlock_free;
+	}
+
+	e->hash = hash;
+	e->type = type;
+	INIT_LIST_HEAD(&e->registry_entry);
+	INIT_LIST_HEAD(&e->conn_entry);
+
+	list_add_tail(&reg->entries_list, &e->registry_entry);
+	kdbus_name_add_to_conn(e, conn);
+
+exit_copy:
+	ret = copy_to_user(buf, &name, sizeof(name));
+	if (ret < 0) {
+		ret = -EFAULT;
+		goto err_unlock_free;
+	}
+
+	mutex_unlock(&reg->entries_lock);
+	return 0;
+
+err_unlock_free:
+	kdbus_name_entry_free(e);
+
+err_unlock:
+	mutex_unlock(&reg->entries_lock);
+
+	return ret;
+}
+
+int kdbus_name_release(struct kdbus_name_registry *reg,
+		       struct kdbus_conn *conn,
+		       void __user *buf)
+{
+	struct kdbus_name_entry *e;
+	struct kdbus_cmd_name name;
+	u64 hash;
+	u64 type = 0; /* FIXME */
+	int ret;
+
+	ret = copy_from_user(&name, buf, sizeof(name));
+	if (ret < 0)
+		return -EFAULT;
+
+	hash = kdbus_name_make_hash(name.name);
+
+	mutex_lock(&reg->entries_lock);
+	e = __kdbus_name_lookup(reg, hash, name.name, type);
+	if (e && e->conn == conn)
+		kdbus_name_entry_free(e);
+
+	mutex_unlock(&reg->entries_lock);
+
+	return 0;
+}
+
+int kdbus_name_list(struct kdbus_name_registry *reg,
+		    struct kdbus_conn *conn,
+		    void __user *buf)
+{
+	//u64 __user *count = buf + offsetof(struct kdbus_cmd_names, count);
+	//struct kdbus_cmd_names *names;
+
+	/* FIXME: do we really want to dump the whole thing here in one go !? */
+
+	mutex_lock(&reg->entries_lock);
+	mutex_unlock(&reg->entries_lock);
+
+	return -ENOSYS;
+
+}
+
+int kdbus_name_query(struct kdbus_name_registry *reg,
+		     struct kdbus_conn *conn,
+		     void __user *buf)
+{
+	//struct kdbus_name_entry *e;
+	//struct kdbus_cmd_name_info name_info;
+
+	return -ENOSYS;
+}

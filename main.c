@@ -286,19 +286,19 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
-		return -ENOSYS;
+		return kdbus_name_acquire(conn->ep->name_registry, conn, argp);
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
-		return -ENOSYS;
+		return kdbus_name_release(conn->ep->name_registry, conn, argp);
 
 	case KDBUS_CMD_NAME_LIST:
 		/* return all current well-known names */
-		return -ENOSYS;
+		return kdbus_name_list(conn->ep->name_registry, conn, argp);
 
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
-		return -ENOSYS;
+		return kdbus_name_query(conn->ep->name_registry, conn, argp);
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */

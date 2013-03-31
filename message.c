@@ -207,6 +207,7 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 	if (msg->dst_id == 0) {
 		/* look up well-known name from supplied data */
 		const struct kdbus_msg_data *name_data;
+		const struct kdbus_name_entry *name_entry;
 
 		name_data = kdbus_msg_get_data(msg, KDBUS_MSG_DST_NAMES, 0);
 		if (!name_data) {
@@ -215,9 +216,12 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 			return -EINVAL;
 		}
 
-		pr_info("name in message: >%s<\n", name_data->data);
 		/* lookup and determine conn_dst ... */
-		/* ... */
+		name_entry = kdbus_name_lookup(conn->ep->name_registry,
+					       name_data->data, 0);
+		if (name_entry)
+			conn_dst = name_entry->conn;
+
 		if (!conn_dst)
 			return -ENOENT;
 	} else if (msg->dst_id != ~0ULL) {
