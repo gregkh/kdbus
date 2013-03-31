@@ -435,19 +435,12 @@ static struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
 	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
 	struct kdbus_msg_data *data = msg->data;
 
-	while (1) {
-		if (size < data->size)
-			break;
+	while (size > 0 && size >= data->size) {
+		if (data->type == type && index-- == 0)
+			return data;
 
-		if (data->type == type) {
-			if (index == 0)
-				return data;
-
-			index--;
-		}
-
-		data = (struct kdbus_msg_data *) (((u8 *) data) + data->size);
 		size -= data->size;
+		data = (struct kdbus_msg_data *) (((u8 *) data) + data->size);
 	}
 
 	return NULL;
