@@ -413,10 +413,12 @@ static int kdbus_msg_new(struct kdbus_conn *conn, void __user *argp,
 		goto out_err;
 	}
 
-	if (m->src_id != 0) {
+/*
+	if (m->src_id == 0) {
 		err = -EINVAL;
 		goto out_err;
 	}
+*/
 	m->src_id = conn->id;
 
 	*msg = m;
@@ -427,18 +429,62 @@ out_err:
 	return err;
 }
 
+static struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
+						 uint64_t type, int index)
+{
+	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
+	struct kdbus_msg_data *data = msg->data;
+
+	while (1) {
+		if (size < data->size)
+			break;
+
+		if (data->type == type) {
+			if (index == 0)
+				return data;
+
+			index--;
+		}
+
+		data = (struct kdbus_msg_data *) (((u8 *) data) + data->size);
+		size -= data->size;
+	}
+
+	return NULL;
+}
+
 static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg)
 {
 	struct kdbus_conn *conn_dst;
-
-	conn_dst = idr_find(&conn->ep->bus->conn_idr, msg->dst_id);
-	if (!conn_dst)
-		return -ENOENT;
 
 	pr_info("sending message %llu from %llu to %llu\n",
 		(unsigned long long)msg->cookie,
 		(unsigned long long)msg->src_id,
 		(unsigned long long)msg->dst_id);
+
+	if (msg->dst_id == 0) {
+		/* look up well-known name from supplied data */
+		struct kdbus_msg_data *name_data;
+
+		name_data = kdbus_msg_get_data(msg, KDBUS_MSG_DST_NAMES, 0);
+		if (!name_data) {
+			pr_err("message %llu does not contain KDBUS_MSG_DST_NAMES\n",
+				(unsigned long long)msg->cookie);
+			return -EINVAL;
+		}
+
+		pr_info("name in message: >%s<\n", name_data->data);
+	} else if (msg->dst_id == ~0ULL) {
+		/* broadcast */
+	} else {
+		/* direct message */
+		conn_dst = idr_find(&conn->ep->bus->conn_idr, msg->dst_id);
+		if (!conn_dst)
+			return -ENOENT;
+
+	}
+
+		
 
 	kdbus_msg_free(msg);
 	return 0;
