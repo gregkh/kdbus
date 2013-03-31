@@ -1,7 +1,12 @@
 - validate all incoming data fields in the message, clear all values
-  which are not suppoed to be set from a peer, check that the appendend
-  data block sizes, and that the last listed block ends exactly at the
-  overall message size provided in the header
+  which are not suppoed to be set from a peer
+
+- check that the appendend data block sizes, and that individual records
+  have the proper size and that the last listed record validly ends at
+  the overall message size provided in the header
+
+- always align to 8 byte boundaries, keep size correct, but start next
+  record at proper offset
 
 - use subsys_virtual_register() to avoid devices showing up directly
   in the root of /sys/devices/
