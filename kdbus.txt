@@ -33,7 +33,7 @@ Terminology
     bus, where clients establish the connection to, is the "bus" device node
     /dev/kdbus/<bus name>/bus.
     Common operating system setups create one "system bus" per system, and one
-    "user bus" for every logged-in user. Application or services can create
+    "user bus" for every logged-in user. Applications or services can create
     their own private named buses if they want to.
 
   Endpoint:
@@ -96,7 +96,7 @@ Objects
   | | ./0-system/control                                                  | |
   | | +-------------------------------+ +-------------------------------+ | |
   | | | Endpoint                      | | Endpoint                      | | |
-  | | | ./bus                         | | ./ep.apache                   | | |
+  | | | ./bus                         | | ./ep.sandbox                  | | |
   | | | +------------+ +------------+ | | +------------+ +------------+ | | |
   | | | | Connection | | Connection | | | | Connection | | Connection | | | |
   | | | | :1.22      | | :1.25      | | | | :1.55      | | :1:81      | | | |
@@ -151,7 +151,7 @@ Objects
 ===============================================================================
 Creation of new namespaces and buses
 ===============================================================================
-The inital kdbus namespace is unconditinally created by the kernel module. A
+The inital kdbus namespace is unconditionally created by the kernel module. A
 namespace contains a "control" device node which allows to create a new bus or
 namespace. New namespaces do not have any buses created by default.
 
@@ -160,7 +160,7 @@ ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_NS_MAKE which specify the name of the new
 bus or namespace to create. The control file descriptor needs to be kept open
 for the entire life-time of the created bus or namespace, closing it will
 immediately cleanup the entire bus or namespace and all its associated
-ressources and connections. Every control file descriptor can only be used once
+resources and connections. Every control file descriptor can only be used once
 to create a new bus or namespace; from that point, it is not used for any
 further communication than the final close().
 
@@ -245,8 +245,7 @@ Message exchange and content
 Messages consist of fixed-size header followed directly be a variable-sized
 list of data segments. The overall message size is specified in the header
 of the message. The chain of data segments can contain well-defined message
-meta data fields, raw data, references to data (mmap()), or unix file
-descriptors.
+meta data fields, raw data, references to data (mmap()), or file descriptors.
 
 Messages are passed to the kernel with the ioctl KDBUS_CMD_MSG_SEND. Depending
 on the the destination address of the message, the kernel delivers the message
@@ -255,4 +254,4 @@ Messages are queued in the destination connection.
 
 Messages are delivered to the client with the ioctl KDBUS_CMD_MSG_RECV. The
 end point device node of the bus supports poll() to wake up the receiving
-process when new messages are queued up to be receivced.
+process when new messages are queued up to be received.
