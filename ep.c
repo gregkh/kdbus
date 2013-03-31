@@ -78,6 +78,7 @@ static void __kdbus_ep_free(struct kref *kref)
 {
 	struct kdbus_ep *ep = container_of(kref, struct kdbus_ep, kref);
 
+	kdbus_name_registry_unref(ep->name_registry);
 	mutex_lock(&ep->bus->lock);
 	kdbus_ep_disconnect(ep);
 	pr_info("clean up endpoint %s/%s/%s\n",
@@ -152,7 +153,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	e->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	if (!e->dev) {
 		err = -ENOMEM;
-		goto err;
+		goto err_unlock;
 	}
 	dev_set_name(e->dev, "%s/%s/%s", bus->ns->devpath, bus->name, name);
 	e->dev->bus = &kdbus_subsys;
@@ -171,6 +172,12 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	/* Link this endpoint to the bus it is on */
 	e->bus = kdbus_bus_ref(bus);
 	list_add_tail(&e->bus_entry, &bus->ep_list);
+
+	e->name_registry = kdbus_name_registry_new();
+	if (!e->name_registry) {
+		err = -ENOMEM;
+		goto err_unlock;
+	}
 
 	mutex_unlock(&bus->ns->lock);
 

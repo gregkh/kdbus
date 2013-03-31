@@ -88,12 +88,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	conn->type = KDBUS_CONN_EP;
 	conn->ep = kdbus_ep_ref(ep);
 
-	conn->name_registry = kdbus_name_registry_new(conn);
-	if (!conn->name_registry) {
-		err = -ENOMEM;
-		goto err_unlock;
-	}
-
 	/* get and register new id for this connection */
 	conn->id = conn->ep->bus->conn_id_next++;
 
@@ -142,7 +136,6 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 
 	case KDBUS_CONN_EP:
 		kdbus_ep_unref(conn->ep);
-		kdbus_name_registry_unref(conn->name_registry);
 #if 0
 		list_del(&conn->connection_entry);
 		/* clean up any messages still left on this endpoint */
@@ -205,10 +198,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		conn->type = KDBUS_CONN_BUS_OWNER;
 		conn->bus_owner = bus;
 
-		/* we can give up our names registry */
-		kdbus_name_registry_unref(conn->name_registry);
-		conn->name_registry = NULL;
-
 		break;
 
 	case KDBUS_CMD_NS_MAKE:
@@ -228,10 +217,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		/* turn the control fd into a new ns owner device */
 		conn->type = KDBUS_CONN_NS_OWNER;
 		conn->ns_owner = ns;
-
-		/* we can give up our names registry */
-		kdbus_name_registry_unref(conn->name_registry);
-		conn->name_registry = NULL;
 
 		break;
 

@@ -107,6 +107,7 @@ struct kdbus_ep {
 	struct list_head message_list;	/* messages in flight for this endpoint */
 	struct list_head connection_list;
 	wait_queue_head_t wait;		/* wake up this endpoint */
+	struct kdbus_name_registry *name_registry;
 };
 
 /*
@@ -124,7 +125,6 @@ enum kdbus_conn_type {
 struct kdbus_conn {
 	enum kdbus_conn_type type;
 	struct kdbus_ns *ns;
-	struct kdbus_name_registry *name_registry;
 	union {
 		struct kdbus_ns *ns_owner;
 		struct kdbus_bus *bus_owner;
