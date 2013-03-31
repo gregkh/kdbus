@@ -25,7 +25,6 @@
 #include <linux/init.h>
 #include <linux/hash.h>
 #include <linux/uaccess.h>
-//#include <uapi/linux/major.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"

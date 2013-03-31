@@ -24,7 +24,6 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
-//#include <uapi/linux/major.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"

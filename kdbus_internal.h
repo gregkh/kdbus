@@ -13,7 +13,12 @@
 #ifndef __INTERNAL_KDBUS_H
 #define __INTERNAL_KDBUS_H
 
+#include <uapi/linux/major.h>
 #include "kdbus.h"
+
+/* FIXME: move to uapi/linux/major.h */
+#define KDBUS_CHAR_MAJOR	222
+
 
 /*
  * kdbus namespace

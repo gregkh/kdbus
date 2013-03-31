@@ -14,12 +14,6 @@
 #define _KDBUS_H_
 
 #include <linux/types.h>
-
-/* FIXME: just move to include/uapi/linux/major.h */
-#ifndef KDBUS_CHAR_MAJOR
-#define KDBUS_CHAR_MAJOR	222
-#endif
-
 #define KDBUS_IOC_MAGIC		0x95
 
 /* Message sent from kernel to userspace, when the owner or starter of
