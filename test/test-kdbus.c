@@ -275,8 +275,9 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
+	name_acquire(conn_b, "foo.bar.baz");
+	name_release(conn_b, "foo.bar.baz");
 	name_acquire(conn_b, "foo.bar.blubb");
-	//name_release(conn_b, "foo.bar.blubb");
 
 	name_list(conn_b);
 
