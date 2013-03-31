@@ -40,6 +40,28 @@ struct kdbus_ns {
 	struct list_head list_entry;
 };
 
+/* names registry */
+struct kdbus_name_registry {
+	struct kref		kref;
+	struct list_head	entries_list;
+	struct mutex		entries_lock;
+};
+
+struct kdbus_name_entry {
+	char 			*name;
+	u64			hash;
+	u64			type;
+	struct list_head	list;
+	struct kdbus_conn	*conn;
+};
+
+struct kdbus_name_registry *kdbus_name_registry_new(void);
+void kdbus_name_registry_unref(struct kdbus_name_registry *reg);
+
+int kdbus_name_add(struct kdbus_name_registry *reg, const char *name, u64 type);
+struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
+					   const char *name, u64 type);
+
 /*
  * kdbus bus
  * - provides a "bus" endpoint
@@ -102,6 +124,7 @@ enum kdbus_conn_type {
 struct kdbus_conn {
 	enum kdbus_conn_type type;
 	struct kdbus_ns *ns;
+	struct kdbus_name_registry *name_registry;
 	union {
 		struct kdbus_ns *ns_owner;
 		struct kdbus_bus *bus_owner;
@@ -174,6 +197,7 @@ int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 
 /* resolver */
+
 int resolve_remove_id(void);
 int resolve_set_name_id(void);
 int resolve_query_list_names(void);
