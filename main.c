@@ -470,6 +470,21 @@ static void kdbus_msg_dump(const struct kdbus_msg *msg)
 	}
 }
 
+static struct kdbus_msg *kdbus_msg_append_data(struct kdbus_msg *msg,
+					       const struct kdbus_msg_data *data)
+{
+        uint64_t size = msg->size + data->size;
+
+        msg = krealloc(msg, size, GFP_KERNEL);
+        if (!msg)
+                return NULL;
+
+        memcpy(((u8 *) msg) + msg->size, data, data->size);
+        msg->size += data->size;
+
+        return msg;
+}
+
 static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg)
 {
 	struct kdbus_conn *conn_dst;
