@@ -1,4 +1,16 @@
-Kdbus - interprocess message exchange
+D-Bus is a system for low-latency, low-overhead, easy to use interprocess
+communication (IPC).
+
+The focus of this document is the low-level, native kernel D-Bus protocol
+transport called kdbus. Kdbus in the kernel acts similar to a device driver
+and all communication takes places over special device nodes.
+
+For the general D-Bus protocol specification, the message payload formatting,
+please refer to:
+  http://dbus.freedesktop.org/doc/dbus-specification.html
+
+For a kdbus specific client library implementation please refer to:
+  http://cgit.freedesktop.org/systemd/systemd/tree/src/libsystemd-bus/sd-bus.h
 
 ===============================================================================
 Terminology
