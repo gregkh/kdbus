@@ -191,23 +191,6 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
-static struct kdbus_kmsg *kdbus_conn_dequeue_kmsg(struct kdbus_conn *conn)
-{
-	struct kdbus_msg_list_entry *entry;
-	struct kdbus_kmsg *kmsg = NULL;
-
-	mutex_lock(&conn->msg_lock);
-	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, list);
-	if (entry) {
-		kmsg = entry->kmsg;
-		list_del(&entry->list);
-		kfree(entry);
-	}
-	mutex_unlock(&conn->msg_lock);
-
-	return kmsg;
-}
-
 int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
@@ -269,14 +252,21 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 {
-	struct kdbus_kmsg *kmsg = kdbus_conn_dequeue_kmsg(conn);
-	int ret;
+	struct kdbus_msg_list_entry *entry;
+	int ret = -ENOENT;
 
-	if (!kmsg)
-		return -ENOENT;
-
-	ret = copy_to_user(buf, &kmsg->msg, kmsg->msg.size);
-	kdbus_kmsg_unref(kmsg);
+	mutex_lock(&conn->msg_lock);
+	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, list);
+	if (entry) {
+		struct kdbus_msg *msg = &entry->kmsg->msg;
+		ret = copy_to_user(buf, msg, msg->size);
+		if (ret == 0) {
+			kdbus_kmsg_unref(entry->kmsg);
+			list_del(&entry->list);
+			kfree(entry);
+		}
+	}
+	mutex_unlock(&conn->msg_lock);
 
 	return ret;
 }
