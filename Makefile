@@ -7,11 +7,10 @@ obj-m += portal.o
 # test programs
 hostprogs-y	:= test/test-kdbus test/portal_test
 always		:= $(hostprogs-y)
-HOST_EXTRACFLAGS += -Wall -Wextra -Wno-unused-parameter -D_GNU_SOURCE
+HOST_EXTRACFLAGS += -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD       := $(shell pwd)
-
 
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)

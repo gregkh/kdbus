@@ -148,6 +148,7 @@ static int msg_recv(struct conn *conn)
 	struct kdbus_msg *msg = (struct kdbus_msg *) tmp;
 	int err;
 
+	memset(tmp, 0, sizeof(tmp));
 	msg->size = sizeof(tmp);
 	err = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, msg);
 	if (err) {
@@ -212,6 +213,7 @@ static int name_list(struct conn *conn)
 	int err;
 
 	names = alloca(size);
+	memset(names, 0, size);
 	names->size = size;
 
 	err = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, names);
@@ -268,7 +270,8 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	asprintf(&bus, "/dev/kdbus/%s/bus", name.name);
+	if (asprintf(&bus, "/dev/kdbus/%s/bus", name.name) < 0)
+		return EXIT_FAILURE;
 
 	conn_a = connect_to_bus(bus);
 	conn_b = connect_to_bus(bus);
@@ -298,8 +301,8 @@ int main(int argc, char *argv[])
 			fds[i].revents = 0;
 		}
 
-		err = poll(fds, nfds, -1);
-		if (err < 0)
+		err = poll(fds, nfds, 3000);
+		if (err <= 0)
 			break;
 
 		if (fds[0].revents & POLLIN) {
@@ -315,9 +318,12 @@ int main(int argc, char *argv[])
 	printf("-- closing bus connections\n");
 	close(conn_a->fd);
 	close(conn_b->fd);
+	free(conn_a);
+	free(conn_b);
 
 	printf("-- closing bus master\n");
 	close(fdc);
+	free(bus);
 
 	return EXIT_SUCCESS;
 }
