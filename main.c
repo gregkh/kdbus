@@ -446,14 +446,35 @@ static struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
 	return NULL;
 }
 
+static void kdbus_msg_dump(const struct kdbus_msg *msg)
+{
+	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
+	const struct kdbus_msg_data *data = msg->data;
+
+	pr_info("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
+		"cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
+		(unsigned long long) msg->size,
+		(unsigned long long) msg->flags,
+		(unsigned long long) msg->dst_id,
+		(unsigned long long) msg->src_id,
+		(unsigned long long) msg->cookie,
+		(unsigned long long) msg->payload_type,
+		(unsigned long long) msg->timeout);
+
+	while (size > 0 && size >= data->size) {
+		pr_info("`- msg_data size=%llu, type=0x%llx\n",
+			data->size, data->type);
+
+		size -= data->size;
+		data = (struct kdbus_msg_data *) (((u8 *) data) + data->size);
+	}
+}
+
 static int kdbus_msg_send(struct kdbus_conn *conn, struct kdbus_msg *msg)
 {
 	struct kdbus_conn *conn_dst;
 
-	pr_info("sending message %llu from %llu to %llu\n",
-		(unsigned long long)msg->cookie,
-		(unsigned long long)msg->src_id,
-		(unsigned long long)msg->dst_id);
+	kdbus_msg_dump(msg);
 
 	if (msg->dst_id == 0) {
 		/* look up well-known name from supplied data */
