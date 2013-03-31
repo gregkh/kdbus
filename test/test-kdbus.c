@@ -131,6 +131,12 @@ static void msg_dump(struct kdbus_msg *msg)
 		printf("`- msg_data size=%llu, type=0x%llx\n",
 			data->size, data->type);
 
+		switch (data->type) {
+		case KDBUS_MSG_TIMESTAMP:
+			printf(" `- timestamp: %llu ns\n", data->data_u64[0]);
+			break;
+		}
+
 		size -= data->size;
 		data = (struct kdbus_msg_data *) (((char *) data) + data->size);
 	}

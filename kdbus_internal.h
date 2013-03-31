@@ -132,8 +132,8 @@ struct kdbus_kmsg {
 };
 
 struct kdbus_msg_list_entry {
-	struct kdbus_kmsg *msg;
-	struct list_head entry;
+	struct kdbus_kmsg *kmsg;
+	struct list_head list;
 };
 
 /* namespace */
