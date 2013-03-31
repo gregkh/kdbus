@@ -37,7 +37,7 @@ static void __kdbus_kmsg_free(struct kref *kref)
 	kfree(kmsg);
 }
 
-static void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg)
+void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg)
 {
 	kref_put(&kmsg->kref, __kdbus_kmsg_free);
 }
@@ -48,8 +48,36 @@ static struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg)
 	return kmsg;
 }
 
-int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
+static void kdbus_kmsg_init(struct kdbus_kmsg *kmsg,
+			    struct kdbus_conn *conn)
+{
+	kmsg->msg.src_id = conn->id;
+	kref_init(&kmsg->kref);
+}
+
+int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
 		   struct kdbus_kmsg **m)
+{
+	u64 size = sizeof(struct kdbus_kmsg) +
+		   sizeof(struct kdbus_msg_data) +
+		   extra_size;
+	struct kdbus_kmsg *kmsg = kzalloc(size, GFP_KERNEL);
+
+	if (!kmsg)
+		return -ENOMEM;
+
+	kdbus_kmsg_init(kmsg, conn);
+
+	kmsg->msg.size = sizeof(struct kdbus_msg_data) + extra_size;
+	if (extra_size)
+		kmsg->msg.data[0].size = extra_size;
+
+	*m = kmsg;
+	return 0;
+}
+
+int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
+			     struct kdbus_kmsg **m)
 {
 	u64 __user *msgsize = argp + offsetof(struct kdbus_msg, size);
 	struct kdbus_kmsg *kmsg;
@@ -72,8 +100,7 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
 		goto out_err;
 	}
 
-	kmsg->msg.src_id = conn->id;
-	kref_init(&kmsg->kref);
+	kdbus_kmsg_init(kmsg, conn);
 
 	*m = kmsg;
 	return 0;

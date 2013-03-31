@@ -77,8 +77,7 @@ struct kdbus_name_entry *__kdbus_name_lookup(struct kdbus_name_registry *reg,
 	struct kdbus_name_entry *e;
 
 	list_for_each_entry(e, &reg->entries_list, registry_entry) {
-		if (e->hash == hash && e->type == type &&
-		    strcmp(e->name, name) == 0)
+		if (e->hash == hash && strcmp(e->name, name) == 0)
 			return e;
 	}
 
@@ -114,16 +113,68 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 }
 
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
-					   const char *name, u64 type)
+					   const char *name, u64 flags)
 {
 	struct kdbus_name_entry *e = NULL;
 	u64 hash = kdbus_name_make_hash(name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name, type);
+	e = __kdbus_name_lookup(reg, hash, name, flags);
 	mutex_unlock(&reg->entries_lock);
 
 	return e;
+}
+
+static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
+					    struct kdbus_conn *new,
+					    struct kdbus_name_entry *e)
+{
+	struct kdbus_kmsg *kmsg;
+	struct kdbus_msg_data *data;
+	struct kdbus_manager_msg_name_change *name_change;
+	u64 extra_size = sizeof(*name_change) + strlen(e->name) + 1;
+	int ret;
+
+	ret = kdbus_kmsg_new(new, extra_size, &kmsg);
+	if (ret < 0)
+		return ret;
+
+	data = kmsg->msg.data;
+	data->type = KDBUS_MSG_NAME_CHANGE;
+	name_change = &data->name_change;
+
+	name_change->size = sizeof(*name_change) + strlen(e->name) + 1;
+	name_change->old_id = old->id;
+	name_change->new_id = new->id;
+	name_change->flags = 0; /* FIXME */
+	strcpy(name_change->name, e->name);
+
+	/* FIXME: broadcast? */
+	ret = kdbus_kmsg_send(new, kmsg);
+	if (ret < 0)
+		return ret;
+
+	kdbus_kmsg_unref(kmsg);
+
+	return 0;
+}
+
+static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
+				      struct kdbus_conn *conn,
+				      struct kdbus_name_entry *e, u64 *flags)
+{
+	if ((*flags   & KDBUS_CMD_NAME_REPLACE_EXISTING) &&
+	    (e->flags & KDBUS_CMD_NAME_ALLOW_REPLACEMENT)) {
+		/* ... */
+		return kdbus_name_send_name_changed_msg(e->conn, conn, e);
+	}
+
+	if (*flags & KDBUS_CMD_NAME_QUEUE) {
+		*flags |= KDBUS_CMD_NAME_IN_QUEUE;
+		return 0;
+	}
+
+	return -EEXIST;
 }
 
 /* IOCTL interface */
@@ -135,7 +186,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_name, size);
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name *name;
-	u64 size, hash, type = 0; /* FIXME */
+	u64 size, hash, flags = 0; /* FIXME */
 	int ret = 0;
 
 	if (get_user(size, msgsize))
@@ -155,16 +206,13 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name->name, type);
+	e = __kdbus_name_lookup(reg, hash, name->name, flags);
 	if (e) {
-		if (name->flags & KDBUS_CMD_NAME_QUEUE) {
-			/* TODO */
-			name->flags |= KDBUS_CMD_NAME_IN_QUEUE;
-			goto exit_copy;
-		} else {
-			ret = -EEXIST;
-		}
-		goto err_unlock;
+		ret = kdbus_name_handle_conflict(reg, conn, e, &flags);
+		if (ret < 0)
+			goto err_unlock;
+
+		goto exit_copy;
 	}
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
@@ -180,7 +228,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	}
 
 	e->hash = hash;
-	e->type = type;
+	e->flags = flags;
 	INIT_LIST_HEAD(&e->registry_entry);
 	INIT_LIST_HEAD(&e->conn_entry);
 

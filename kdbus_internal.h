@@ -54,8 +54,8 @@ struct kdbus_name_registry {
 
 struct kdbus_name_entry {
 	char 			*name;
-	u64			hash;
-	u64			type;
+	u32			hash;
+	u64			flags;
 	struct list_head	registry_entry;
 	struct list_head	conn_entry;
 	struct kdbus_conn	*conn;
@@ -182,8 +182,11 @@ struct kdbus_msg_list_entry {
 	struct list_head list;
 };
 
-int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
+int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
 		   struct kdbus_kmsg **m);
+int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
+			     struct kdbus_kmsg **m);
+void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
 
@@ -218,13 +221,4 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 
-/* resolver */
-
-int resolve_remove_id(void);
-int resolve_set_name_id(void);
-int resolve_query_list_names(void);
-int resolve_query_list_ids(void);
-
-int resolve_id_added(void);
-int resolve_id_removed(void);
 #endif
