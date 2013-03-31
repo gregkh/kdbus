@@ -165,7 +165,7 @@ to create a new bus or namespace; from that point, it is not used for any
 further communication than the final close().
 
 ===============================================================================
-Connection IDs
+Connection IDs and Well-Known Connection Names
 ===============================================================================
 Connections are identified by their connection id, internally implemented as a
 uint64_t counter. The IDs of every newly created bus start at 1, and every new
@@ -184,21 +184,61 @@ any broadcast message reaches them.
 Messages synthesized and sent directly by the kernel, will carry the special
 source id 0.
 
-===============================================================================
-Well-Known Connection Names
-===============================================================================
-Every connection is uniquely identified by its uint64_t connection id. In
-addition to this, connections can request the ownership of well-known names,
-under which they can be found and addressed by other bus clients.
-
-A well-known name is associated with one and only one connection at a time.
+In addition to the unique uint64_t connection id, established connections can
+request the ownership of well-known names, under which they can be found and
+addressed by other bus clients. A well-known name is associated with one and
+only one connection at a time.
 
 Messages can specify the special destination id 0 and carry a well-known name
 in the message data. Such a message is delivered to the destination connection
 which owns that well-known name.
 
+  +-------------------------------------------------------------------------+
+  | +---------------+     +---------------------------+                     |
+  | | Connection    |     | Message                   | -----------------+  |
+  | | :1.22         | --> | src: 22                   |                  |  |
+  | |               |     | dst: 25                   |                  |  |
+  | |               |     |                           |                  |  |
+  | |               |     |                           |                  |  |
+  | |               |     +---------------------------+                  |  |
+  | |               |                                                    |  |
+  | |               | <--------------------------------------+           |  |
+  | +---------------+                                        |           |  |
+  |                                                          |           |  |
+  | +---------------+     +---------------------------+      |           |  |
+  | | Connection    |     | Message                   | -----+           |  |
+  | | :1.25         | --> | src: 25                   |                  |  |
+  | |               |     | dst: 0xffffffffffffffff   | -------------+   |  |
+  | |               |     |                           |              |   |  |
+  | |               |     |                           | ---------+   |   |  |
+  | |               |     +---------------------------+          |   |   |  |
+  | |               |                                            |   |   |  |
+  | |               | <------------------------------------------|-------+  |
+  | +---------------+                                            |   |      |
+  |                                                              |   |      |
+  | +---------------+     +---------------------------+          |   |      |
+  | | Connection    |     | Message                   | --+      |   |      |
+  | | :1.55         | --> | src: 55                   |   |      |   |      |
+  | |               |     | dst: 0 / org.foo.bar      |   |      |   |      |
+  | |               |     |                           |   |      |   |      |
+  | |               |     |                           |   |      |   |      |
+  | |               |     +---------------------------+   |      |   |      |
+  | |               |                                     |      |   |      |
+  | |               | <------------------------------------------+   |      |
+  | +---------------+                                     |          |      |
+  |                                                       |          |      |
+  | +---------------+                                     |          |      |
+  | | Connection    |                                     |          |      |
+  | | :1.81         |                                     |          |      |
+  | | org.foo.bar   |                                     |          |      |
+  | |               | <-----------------------------------+          |      |
+  | |               |                                                |      |
+  | |               | <----------------------------------------------+      |
+  | +---------------+                                                       |
+  +-------------------------------------------------------------------------+
+
 ===============================================================================
-Messages
+Message exchange and content
 ===============================================================================
 Messages consist of fixed-size header followed directly be a variable-sized
 list of data segments. The overall message size is specified in the header
