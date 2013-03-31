@@ -123,7 +123,7 @@ struct kdbus_msg {
 	__u64 src_id;	/* 0: from kernel, otherwise: unique name */
 	__u64 cookie;	/* userspace-supplied cookie */
 	__u64 cookie_reply;	/* cookie of msg this is a reply to. non-zero for replies, 0 for requests. */
-	__u64 payload_type;	/* 'DBUSDBUS', 'GVARIANT', ... */
+	__u64 payload_type;	/* 'DBUSVER1', 'GVARIANT', ... */
 	__u64 timeout;	/* If this is a method call, time this out after this many nsec */
 	struct kdbus_msg_data data[0];
 };

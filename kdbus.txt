@@ -240,7 +240,7 @@ which owns that well-known name.
   +-------------------------------------------------------------------------+
 
 ===============================================================================
-Message exchange and content
+Message format, content, exchange
 ===============================================================================
 Messages consist of fixed-size header followed directly be a variable-sized
 list of data segments. The overall message size is specified in the header
@@ -255,3 +255,30 @@ Messages are queued in the destination connection.
 Messages are delivered to the client with the ioctl KDBUS_CMD_MSG_RECV. The
 end point device node of the bus supports poll() to wake up the receiving
 process when new messages are queued up to be received.
+
+  +-------------------------------------------------------------------------+
+  | Message                                                                 |
+  | +---------------------------------------------------------------------+ |
+  | | Header                                                              | |
+  | | size: overall message size, including the data records              | |
+  | | destination: connection id of the receiver                          | |
+  | | source id: connection id of the sender (set by kernel)              | |
+  | | payload_type: "DBUSVER1" textual identifier in a uint64_t           | |
+  | | +-----------------------------------------------------------------+ | |
+  | | | Data Record                                                     | | |
+  | | | size: overall record size                                       | | |
+  | | | type: type of data                                              | | |
+  | | | data: variable sized inlined data, or reference to data         | | |
+  | | +-----------------------------------------------------------------+ | |
+  | | +-----------------------------------------------------------------+ | |
+  | | | Data Record                                                     | | |
+  | | | size: overall record size                                       | | |
+  | | | ...                                                             | | |
+  | | +-----------------------------------------------------------------+ | |
+  | | +-----------------------------------------------------------------+ | |
+  | | | Data Record                                                     | | |
+  | | | size: overall record size                                       | | |
+  | | | ...                                                             | | |
+  | | +-----------------------------------------------------------------+ | |
+  | +---------------------------------------------------------------------+ |
+  +-------------------------------------------------------------------------+
