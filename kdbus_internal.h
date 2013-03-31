@@ -51,7 +51,8 @@ struct kdbus_name_entry {
 	char 			*name;
 	u64			hash;
 	u64			type;
-	struct list_head	list;
+	struct list_head	registry_entry;
+	struct list_head	conn_entry;
 	struct kdbus_conn	*conn;
 };
 
@@ -61,6 +62,8 @@ void kdbus_name_registry_unref(struct kdbus_name_registry *reg);
 int kdbus_name_add(struct kdbus_name_registry *reg, const char *name, u64 type);
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name, u64 type);
+void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
+			       struct kdbus_conn *conn);
 
 /*
  * kdbus bus
@@ -148,6 +151,8 @@ struct kdbus_conn {
 	 * endpoints of the connections associated with that endpoint?  That's
 	 * all we really need in the end... */
 	struct list_head connection_entry;
+
+	struct list_head names_list;
 };
 
 struct kdbus_kmsg {

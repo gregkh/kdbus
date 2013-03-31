@@ -103,6 +103,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 
 	mutex_init(&conn->msg_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
+	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->connection_entry);
 
 	list_add_tail(&conn->ep->connection_list, &conn->connection_entry);
@@ -135,6 +136,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_CONN_EP:
+		kdbus_name_remove_by_conn(conn->ep->name_registry, conn);
 		kdbus_ep_unref(conn->ep);
 #if 0
 		list_del(&conn->connection_entry);
