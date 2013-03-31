@@ -137,6 +137,11 @@ struct kdbus_msg_list_entry {
 	struct list_head list;
 };
 
+int kdbus_kmsg_new(struct kdbus_conn *conn, void __user *argp,
+		   struct kdbus_kmsg **m);
+int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg);
+int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
+
 /* namespace */
 extern const struct file_operations kdbus_device_ops;
 extern struct mutex kdbus_subsys_lock;
