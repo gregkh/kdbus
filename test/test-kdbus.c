@@ -30,7 +30,7 @@ static int connect_to_bus(const char *path)
 		fprintf(stderr, "--- error when saying hello: %d (\"%s\")\n", err, strerror(errno));
 		return EXIT_FAILURE;
 	}
-	printf("-- Our peer ID for %s: %lu\n", path, hello.id);
+	printf("-- Our peer ID for %s: %lu\n", path, (uint64_t)hello.id);
 
 	return fd;
 }

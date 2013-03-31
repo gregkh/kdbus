@@ -26,23 +26,23 @@
  * a well-known name changes */
 struct kdbus_manager_msg_name_change {
 	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
-	uint64_t old_id;
-	uint64_t new_id;
-	uint64_t flags;		/* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
+	__u64 old_id;
+	__u64 new_id;
+	__u64 flags;		/* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
 };
 
 struct kdbus_creds {
-	uint64_t uid;
-	uint64_t gid;
-	uint64_t pid;
-	uint64_t tid;
+	__u64 uid;
+	__u64 gid;
+	__u64 pid;
+	__u64 tid;
 
 	/* The starttime of the process PID. This is useful to detect
 	PID overruns from the client side. i.e. if you use the PID to
 	look something up in /proc/$PID/ you can afterwards check the
 	starttime field of it to ensure you didn't run into a PID
 	overrun. */
-	uint64_t starttime;
+	__u64 starttime;
 };
 
 /* Message Data Types */
@@ -58,14 +58,14 @@ enum {
 	KDBUS_MSG_SRC_CREDS,		/* Carries .creds */
 	KDBUS_MSG_SRC_CAPS,		/* Carries caps blob */
 	KDBUS_MSG_SRC_SECLABEL,		/* Carries NUL terminated string */
-	KDBUS_MSG_SRC_AUDIT,		/* Carries array of two uint64_t of audit loginuid + sessiond */
+	KDBUS_MSG_SRC_AUDIT,		/* Carries array of two __u64 of audit loginuid + sessiond */
 	KDBUS_MSG_SRC_NAMES,		/* Carries concatenation of NUL terminated strings with all well-known names of source */
 	KDBUS_MSG_DST_NAMES,		/* Carries concatenation of NUL terminated strings with all well-known names of destination */
-	KDBUS_MSG_TIMESTAMP,		/* Carries uint64_t nsec timestamp of CLOCK_MONOTONIC */
+	KDBUS_MSG_TIMESTAMP,		/* Carries __u64 nsec timestamp of CLOCK_MONOTONIC */
 
 	/* Special messages from kernel, consisting of one and only one of these data blocks */
 	KDBUS_MSG_NAME_CHANGE,		/* Carries .name_change */
-	KDBUS_MSG_ID_NEW,		/* Carries ID as uint64_t */
+	KDBUS_MSG_ID_NEW,		/* Carries ID as __u64 */
 	KDBUS_MSG_ID_REMOVE,		/* Dito */
 	KDBUS_MSG_REPLY_TIMEOUT,	/* Empty, only .reply_serial is relevant in the header */
 	KDBUS_MSG_REPLY_DEAD,		/* Dito */
@@ -78,15 +78,15 @@ enum {
  * type: kdbus_msg_data_type of data
  */
 struct kdbus_msg_data {
-	uint64_t size;
-	uint64_t type;
+	__u64 size;
+	__u64 type;
 	union {
-		char data[0];
-		uint32_t data_u32[0];
-		uint64_t data_u64[0];
+		__u8 data[0];
+		__u32 data_u32[0];
+		__u64 data_u64[0];
 		struct {
-			uint64_t address;
-			uint64_t size;
+			__u64 address;
+			__u64 size;
 		} ref;
 		struct kdbus_creds creds;
 		struct kdbus_manager_msg_name_change name_change;
@@ -117,14 +117,14 @@ enum {
  * ts_nsec: timestamp when message was sent to the kernel
  */
 struct kdbus_msg {
-	uint64_t size;
-	uint64_t flags;
-	uint64_t dst_id;	/* 0: well known name in data, ~0: multicast, otherwise: unique name */
-	uint64_t src_id;	/* 0: from kernel, otherwise: unique name */
-	uint64_t cookie;	/* userspace-supplied cookie */
-	uint64_t cookie_reply;	/* cookie of msg this is a reply to. non-zero for replies, 0 for requests. */
-	uint64_t payload_type;	/* 'DBUSDBUS', 'GVARIANT', ... */
-	uint64_t timeout;	/* If this is a method call, time this out after this many nsec */
+	__u64 size;
+	__u64 flags;
+	__u64 dst_id;	/* 0: well known name in data, ~0: multicast, otherwise: unique name */
+	__u64 src_id;	/* 0: from kernel, otherwise: unique name */
+	__u64 cookie;	/* userspace-supplied cookie */
+	__u64 cookie_reply;	/* cookie of msg this is a reply to. non-zero for replies, 0 for requests. */
+	__u64 payload_type;	/* 'DBUSDBUS', 'GVARIANT', ... */
+	__u64 timeout;	/* If this is a method call, time this out after this many nsec */
 	struct kdbus_msg_data data[0];
 };
 
@@ -146,33 +146,33 @@ enum {
 };
 
 struct kdbus_policy {
-	uint64_t size;
-	uint64_t type; /* NAME or ACCESS */
+	__u64 size;
+	__u64 type; /* NAME or ACCESS */
 	union {
 		char name[0];
 		struct {
-			uint32_t type;	/* USER, GROUP, WORLD */
-			uint32_t bits;	/* RECV, SEND, OWN */
-			uint64_t id;	/* uid, gid, 0 */
+			__u32 type;	/* USER, GROUP, WORLD */
+			__u32 bits;	/* RECV, SEND, OWN */
+			__u64 id;	/* uid, gid, 0 */
 		} access;
 	};
 };
 
 struct kdbus_cmd_policy {
-	uint64_t size;
-	uint8_t buffer[0];	/* a series of KDBUS_POLICY_NAME plus one or more KDBUS_POLICY_ACCESS each. */
+	__u64 size;
+	__u8 buffer[0];	/* a series of KDBUS_POLICY_NAME plus one or more KDBUS_POLICY_ACCESS each. */
 };
 
 struct kdbus_cmd_hello {
 	/* userspace → kernel, kernel → userspace */
-	uint64_t kernel_flags;	/* userspace specifies its
+	__u64 kernel_flags;	/* userspace specifies its
 				 * capabilities, kernel returns its
 				 * capabilites. Kernel might refuse
 				 * client's capabilities by returning
 				 * an error from KDBUS_CMD_HELLO */
 
 	/* userspace → kernel */
-	uint64_t pid;		/* To allow translator services which
+	__u64 pid;		/* To allow translator services which
 				 * connect to the bus on behalf of
 				 * somebody else, allow specifiying
 				 * the PID of the client to connect on
@@ -183,21 +183,21 @@ struct kdbus_cmd_hello {
 				 * on behalf of somebody else. */
 
 	/* kernel → userspace */
-	uint64_t bus_flags;	/* this is copied verbatim from the
+	__u64 bus_flags;	/* this is copied verbatim from the
 				 * original KDBUS_CMD_BUS_MAKE
 				 * ioctl. It's intended to be useful
 				 * to do negotiation of features of
 				 * the payload that is transferred. */
-	uint64_t id;		/* peer id */
+	__u64 id;		/* peer id */
 };
 
 struct kdbus_cmd_fname {
 	/* userspace → kernel, kernel → userspace */
-	uint64_t kernel_flags;	/* When creating a bus/ns/ep feature
+	__u64 kernel_flags;	/* When creating a bus/ns/ep feature
 				 * kernel negotiation done the same
 				 * way as for KDBUS_CMD_BUS_MAKE. */
 	/* userspace → kernel */
-	uint64_t bus_flags;	/* When a bus is created this value is
+	__u64 bus_flags;	/* When a bus is created this value is
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
@@ -217,13 +217,13 @@ enum {
 };
 
 struct kdbus_cmd_name {
-	uint64_t flags;
-	uint64_t id;		/* We allow registration/deregestration of names of other peers */
+	__u64 flags;
+	__u64 id;		/* We allow registration/deregestration of names of other peers */
 	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
 };
 
 struct kdbus_cmd_names {
-	uint64_t count;
+	__u64 count;
 	struct kdbus_cmd_name names[0];
 };
 
@@ -233,15 +233,15 @@ enum {
 };
 
 struct kdbus_cmd_name_info_item {
-	uint64_t size;
-	uint64_t type;
-	uint8_t data[0];
+	__u64 size;
+	__u64 type;
+	__u8 data[0];
 };
 
 struct kdbus_cmd_name_info {
-	uint64_t size;
-	uint64_t flags;
-	uint64_t id;	/* either fill in a valid ID here or set this to 0, and fill in .name instead */
+	__u64 size;
+	__u64 flags;
+	__u64 id;	/* either fill in a valid ID here or set this to 0, and fill in .name instead */
 	char name[KDBUS_WELL_KNOWN_NAME_LENGTH];
 	struct kdbus_creds creds;
 	struct kdbus_cmd_name_info_item items[0];
@@ -251,25 +251,25 @@ enum {
 	KDBUS_CMD_MATCH_BLOOM,		/* Matches a mask blob against KDBUS_MSG_BLOOM */
 	KDBUS_CMD_MATCH_SRC_NAME,	/* Matches a name string against KDBUS_MSG_SRC_NAMES */
 	KDBUS_CMD_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_MSG_NAME_CHANGE */
-	KDBUS_CMD_MATCH_ID_NEW,		/* Matches a uint64_t against KDBUS_MSG_ID_NEW */
-	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches a uint64_t against KDBUS_MSG_ID_REMOVE */
+	KDBUS_CMD_MATCH_ID_NEW,		/* Matches a __u64 against KDBUS_MSG_ID_NEW */
+	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches a __u64 against KDBUS_MSG_ID_REMOVE */
 };
 
 struct kdbus_cmd_match_item {
-	uint64_t type;
-	char data[0];
+	__u64 type;
+	__u8 data[0];
 };
 
 struct kdbus_cmd_match {
-	uint64_t size;
-	uint64_t id;		/* We allow registration/deregestration of matches for other peers */
-	uint64_t cookie;	/* userspace supplied cookie; when removing; kernel deletes everything with same cookie */
-	uint64_t src_id;	/* ~0: any. other: exact unique match */
+	__u64 size;
+	__u64 id;		/* We allow registration/deregestration of matches for other peers */
+	__u64 cookie;	/* userspace supplied cookie; when removing; kernel deletes everything with same cookie */
+	__u64 src_id;	/* ~0: any. other: exact unique match */
 	struct kdbus_cmd_match_item items[0];
 };
 
 struct kdbus_cmd_monitor {
-	uint64_t id;		/* We allow setting the monitor flag of other peers */
+	__u64 id;		/* We allow setting the monitor flag of other peers */
 	int enabled;		/* A boolean to enable/disable monitoring */
 };
 
