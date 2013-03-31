@@ -275,7 +275,7 @@ message has to suppply a buffer large enough to receive a complete message.
   | | size: overall message size, including the data records              | |
   | | destination: connection id of the receiver                          | |
   | | source: connection id of the sender (set by kernel)                 | |
-  | | payload_type: "DBUSVER1" textual identifier stored as uint64_t      | |
+  | | payload_type: "DBusVer1" textual identifier stored as uint64_t      | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | Data Record                                                         | |
@@ -283,14 +283,16 @@ message has to suppply a buffer large enough to receive a complete message.
   | | type: type of data                                                  | |
   | | data: variable sized inlined data, or reference to data             | |
   | +---------------------------------------------------------------------+ |
-  | | padding: bytes to the next 8 byte alignment                         | |
+  | +---------------------------------------------------------------------+ |
+  | | padding bytes to the next 8 byte alignment                          | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | Data Record                                                         | |
   | | size: overall record size (without padding)                         | |
   | | ...                                                                 | |
   | +---------------------------------------------------------------------+ |
-  | | padding: bytes to the next 8 byte alignment                         | |
+  | +---------------------------------------------------------------------+ |
+  | | padding bytes to the next 8 byte alignment                          | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | Data Record                                                         | |
