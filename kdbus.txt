@@ -28,12 +28,13 @@ Terminology
 
   Bus:
     A bus is a named object inside a namespace. Clients exchange messages
-    over a bus. Buses have no connection to each other, they never exchange
-    messages between them. The default entry point to a bus, where clients
-    establish the connection to, is the "bus" device node /dev/kdbus/<bus name>/bus.
-    Common setups create one "system bus" per system, and one "user bus"
-    per logged-in user. Application or services can create their own named
-    buses if they need.
+    over a bus. Multiple buses themselves have no connection to each other,
+    messages are only exchanged on the same bus. The default entry point to a
+    bus, where clients establish the connection to, is the "bus" device node
+    /dev/kdbus/<bus name>/bus.
+    Common operating system setups create one "system bus" per system, and one
+    "user bus" for every logged-in user. Application or services can create
+    their own private named buses if they want to.
 
   Endpoint:
     An endpoint provides the device node to talk to a bus. Every bus has
@@ -44,9 +45,9 @@ Terminology
 
   Connection:
     A connection to a bus is created by opening an end point device node of
-    a bus, and becoming an active client with the HELLO exchange. Every connected
-    client has a unique identifier on the bus, and can address messages to every
-    other connection on the same bus.
+    a bus, and becoming an active client with the HELLO exchange. Every
+    connected client connection has a unique identifier on the bus, and can
+    address messages to every other connection on the same bus.
 
 ===============================================================================
 Device node layout
@@ -195,3 +196,21 @@ A well-known name is associated with one and only one connection at a time.
 Messages can specify the special destination id 0 and carry a well-known name
 in the message data. Such a message is delivered to the destination connection
 which owns that well-known name.
+
+===============================================================================
+Messages
+===============================================================================
+Messages consist of fixed-size header followed directly be a variable-sized
+list of data segments. The overall message size is specified in the header
+of the message. The chain of data segments can contain well-defined message
+meta data fields, raw data, references to data (mmap()), or unix file
+descriptors.
+
+Messages are passed to the kernel with the ioctl KDBUS_CMD_MSG_SEND. Depending
+on the the destination address of the message, the kernel delivers the message
+to the specific destination connection or to all connections on the same bus.
+Messages are queued in the destination connection.
+
+Messages are delivered to the client with the ioctl KDBUS_CMD_MSG_RECV. The
+end point device node of the bus supports poll() to wake up the receiving
+process when new messages are queued up to be receivced.
