@@ -247,6 +247,11 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 
 		if (!conn_dst)
 			return -ENOENT;
+
+		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
+		    (name_entry->flags & KDBUS_CMD_NAME_STARTER))
+			return -ENOENT;
+
 	} else if (msg->dst_id != KDBUS_DST_ID_BROADCAST) {
 		/* direct message */
 		conn_dst = idr_find(&ep->bus->conn_idr, msg->dst_id);
