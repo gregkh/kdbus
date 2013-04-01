@@ -197,7 +197,7 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
 			     struct kdbus_kmsg **m);
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
-int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg);
+int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
 
 /* namespace */

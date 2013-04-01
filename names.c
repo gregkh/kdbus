@@ -117,10 +117,7 @@ static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
 	name_change->flags = e->flags;
 	strcpy(name_change->name, e->name);
 
-	ret = kdbus_kmsg_send(new, kmsg);
-
-	printk(" xxx  ret from send: %d, size %ld\n", ret, kmsg->msg.size);
-	printk(" extra size %ld\n", extra_size);
+	ret = kdbus_kmsg_send(new->ep, kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return ret;

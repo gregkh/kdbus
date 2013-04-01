@@ -216,7 +216,7 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
-int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
+int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_msg *msg;
@@ -241,7 +241,7 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		}
 
 		/* lookup and determine conn_dst ... */
-		name_entry = kdbus_name_lookup(conn->ep->bus->name_registry,
+		name_entry = kdbus_name_lookup(ep->bus->name_registry,
 					       name_data->data, 0);
 		if (name_entry)
 			conn_dst = name_entry->conn;
@@ -250,7 +250,7 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 			return -ENOENT;
 	} else if (msg->dst_id != ~0ULL) {
 		/* direct message */
-		conn_dst = idr_find(&conn->ep->bus->conn_idr, msg->dst_id);
+		conn_dst = idr_find(&ep->bus->conn_idr, msg->dst_id);
 		if (!conn_dst)
 			return -ENOENT;
 	}
@@ -263,7 +263,7 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		struct kdbus_conn *tmp;
 
 		list_for_each_entry_safe(conn_dst, tmp,
-					 &conn->ep->connection_list,
+					 &ep->connection_list,
 					 connection_entry) {
 			if (conn_dst->type != KDBUS_CONN_EP)
 				continue;
