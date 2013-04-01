@@ -88,9 +88,43 @@ static void kdbus_name_add_to_conn(struct kdbus_name_entry *e,
 				   struct kdbus_conn *conn)
 {
 	e->conn = conn;
-	list_add_tail(&conn->names_list, &e->conn_entry);
+	list_add_tail(&e->conn_entry, &conn->names_list);
 }
 
+static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
+					    struct kdbus_conn *new,
+					    struct kdbus_name_entry *e)
+{
+	struct kdbus_kmsg *kmsg;
+	struct kdbus_msg_data *data;
+	struct kdbus_manager_msg_name_change *name_change;
+	u64 extra_size = sizeof(*name_change) + strlen(e->name) + 1;
+	int ret;
+
+	ret = kdbus_kmsg_new(new, extra_size, &kmsg);
+	if (ret < 0)
+		return ret;
+
+	/* FIXME: broadcast? */
+	kmsg->msg.dst_id = ~0ULL;
+
+	data = kmsg->msg.data;
+	data->type = KDBUS_MSG_NAME_CHANGE;
+	name_change = &data->name_change;
+
+	name_change->old_id = old->id;
+	name_change->new_id = new->id;
+	name_change->flags = e->flags;
+	strcpy(name_change->name, e->name);
+
+	ret = kdbus_kmsg_send(new, kmsg);
+
+	printk(" xxx  ret from send: %d, size %ld\n", ret, kmsg->msg.size);
+	printk(" extra size %ld\n", extra_size);
+	kdbus_kmsg_unref(kmsg);
+
+	return ret;
+}
 static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 {
 	list_del(&q->entry_entry);
@@ -98,9 +132,10 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 	kfree(q);
 }
 
-static void kdbus_name_entry_release(struct kdbus_name_entry *e)
+static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
+	int ret = 0;
 
 	list_del(&e->conn_entry);
 
@@ -109,13 +144,18 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 		kfree(e->name);
 		kfree(e);
 	} else {
+		struct kdbus_conn *old_conn = e->conn;
+
 		q = list_first_entry(&e->queue_list,
 				     struct kdbus_name_queue_item,
 				     entry_entry);
 		kdbus_name_add_to_conn(e, q->conn);
 		e->flags = q->flags;
 		kdbus_name_queue_item_free(q);
+		ret = kdbus_name_send_name_changed_msg(old_conn, e->conn, e);
 	}
+
+	return ret;
 }
 
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
@@ -126,11 +166,13 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 
 	mutex_lock(&reg->entries_lock);
 
+#if 0
 	list_for_each_entry_safe(q, q_tmp, &conn->names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
 
 	list_for_each_entry_safe(e, e_tmp, &conn->names_list, conn_entry)
 		kdbus_name_entry_release(e);
+#endif
 
 	mutex_unlock(&reg->entries_lock);
 }
@@ -148,40 +190,8 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 	return e;
 }
 
-static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
-					    struct kdbus_conn *new,
-					    struct kdbus_name_entry *e)
-{
-	struct kdbus_kmsg *kmsg;
-	struct kdbus_msg_data *data;
-	struct kdbus_manager_msg_name_change *name_change;
-	u64 extra_size = sizeof(*name_change) + strlen(e->name) + 1;
-	int ret;
 
-	ret = kdbus_kmsg_new(new, extra_size, &kmsg);
-	if (ret < 0)
-		return ret;
-
-	data = kmsg->msg.data;
-	data->type = KDBUS_MSG_NAME_CHANGE;
-	name_change = &data->name_change;
-
-	name_change->size = sizeof(*name_change) + strlen(e->name) + 1;
-	name_change->old_id = old->id;
-	name_change->new_id = new->id;
-	name_change->flags = 0; /* FIXME */
-	strcpy(name_change->name, e->name);
-
-	/* FIXME: broadcast? */
-	ret = kdbus_kmsg_send(new, kmsg);
-	if (ret < 0)
-		return ret;
-
-	kdbus_kmsg_unref(kmsg);
-
-	return 0;
-}
-
+/* called with entries_lock held! */
 static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
 				      struct kdbus_name_entry *e, u64 *flags)
@@ -202,8 +212,9 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 		q->conn = conn;
 		q->flags = *flags;
 		INIT_LIST_HEAD(&q->entry_entry);
-		list_add_tail(&e->queue_list, &q->entry_entry);
-		list_add_tail(&conn->names_queue_list, &q->conn_entry);
+
+		list_add_tail(&q->entry_entry, &e->queue_list);
+		list_add_tail(&q->conn_entry, &conn->names_queue_list);
 		*flags |= KDBUS_CMD_NAME_IN_QUEUE;
 
 		return 0;
@@ -243,7 +254,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, name->name, flags);
 	if (e) {
-		ret = kdbus_name_handle_conflict(reg, conn, e, &flags);
+		ret = kdbus_name_handle_conflict(reg, conn, e, &name->flags);
 		if (ret < 0)
 			goto err_unlock;
 
@@ -268,7 +279,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	INIT_LIST_HEAD(&e->registry_entry);
 	INIT_LIST_HEAD(&e->conn_entry);
 
-	list_add_tail(&reg->entries_list, &e->registry_entry);
+	list_add_tail(&e->registry_entry, &reg->entries_list);
 	kdbus_name_add_to_conn(e, conn);
 
 exit_copy:
