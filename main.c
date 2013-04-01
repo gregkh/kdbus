@@ -347,14 +347,14 @@ static long kdbus_conn_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	struct kdbus_conn *conn = file->private_data;
 	void __user *argp = (void __user *)arg;
 
-	pr_info("%s, cmd=%d\n", __func__, cmd);
+	//pr_info("%s, cmd=%d\n", __func__, cmd);
 	switch (conn->type) {
 	case KDBUS_CONN_CONTROL:
-		pr_info("control ioctl\n");
+		//pr_info("control ioctl\n");
 		return kdbus_conn_ioctl_control(file, cmd, argp);
 
 	case KDBUS_CONN_EP:
-		pr_info("endpoint ioctl\n");
+		//pr_info("endpoint ioctl\n");
 		return kdbus_conn_ioctl_ep(file, cmd, argp);
 
 	default:
