@@ -21,5 +21,4 @@ enum portal_cmd {
 
 /* End public stuff */
 
-
 #endif

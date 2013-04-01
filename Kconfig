@@ -1,5 +1,5 @@
 config KDBUS
-	tristate "kdbus interprocess message router"
+	tristate "kdbus interprocess communication"
 	help
-	  kdbus provides efficient kernel-aided message exchange and routing
-	  between processes. It is used as the low-level transport of D-Bus.
+	  D-Bus is a system for low-latency, low-overhead, easy to use
+	  interprocess communication (IPC).
