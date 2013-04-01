@@ -67,9 +67,9 @@ static u64 kdbus_name_make_hash(const char *name)
 	return end_name_hash(hash);
 }
 
-struct kdbus_name_entry *__kdbus_name_lookup(struct kdbus_name_registry *reg,
-					     u64 hash, const char *name,
-					     u32 type)
+static struct kdbus_name_entry *__kdbus_name_lookup(struct kdbus_name_registry *reg,
+						    u64 hash, const char *name,
+						    u32 type)
 {
 	struct kdbus_name_entry *e;
 

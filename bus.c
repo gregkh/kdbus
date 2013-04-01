@@ -35,7 +35,7 @@ struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
 	return bus;
 }
 
-void __kdbus_bus_free(struct kref *kref)
+static void __kdbus_bus_free(struct kref *kref)
 {
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
