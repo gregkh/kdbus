@@ -185,7 +185,7 @@ struct kdbus_conn {
 
 struct kdbus_kmsg {
 	struct kref kref;
-	uint64_t deadline;
+	u64 deadline;
 	struct kdbus_msg msg;
 };
 
@@ -195,7 +195,7 @@ struct kdbus_msg_list_entry {
 };
 
 /* message */
-int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
+int kdbus_kmsg_new(struct kdbus_conn *conn, u64 extra_size,
 		   struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
 			     struct kdbus_kmsg **m);

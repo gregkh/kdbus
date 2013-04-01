@@ -88,6 +88,7 @@ struct kdbus_msg_data {
 			__u64 size;
 		} data_ref;
 
+		__u64 ts_ns;
 		struct kdbus_creds creds;
 		struct kdbus_manager_msg_name_change name_change;
 	};

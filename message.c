@@ -52,7 +52,7 @@ static void kdbus_kmsg_init(struct kdbus_kmsg *kmsg,
 	kref_init(&kmsg->kref);
 }
 
-int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
+int kdbus_kmsg_new(struct kdbus_conn *conn, u64 extra_size,
 		   struct kdbus_kmsg **m)
 {
 	u64 size = sizeof(struct kdbus_kmsg) + KDBUS_MSG_DATA_SIZE(extra_size);
@@ -165,7 +165,7 @@ kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
 }
 
 static struct kdbus_kmsg __must_check *
-kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, uint64_t *now_ns)
+kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 {
 	struct kdbus_msg_data *data;
 	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(u64));
@@ -181,7 +181,7 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, uint64_t *now_ns)
 	data->type = KDBUS_MSG_TIMESTAMP;
 	data->data_u64[0] = (ts.tv_sec * 1000000000ULL) + ts.tv_nsec;
 	if (now_ns)
-		*now_ns = data->data_u64[0];
+		*now_ns = data->ts_ns;
 
 	kmsg = kdbus_kmsg_append_data(kmsg, data);
 	kfree(data);
@@ -243,7 +243,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_msg *msg;
-	uint64_t now_ns = 0;
+	u64 now_ns = 0;
 	int ret = 0;
 
 	/* augment incoming message */
