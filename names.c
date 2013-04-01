@@ -72,7 +72,7 @@ static u64 kdbus_name_make_hash(const char *name)
 
 struct kdbus_name_entry *__kdbus_name_lookup(struct kdbus_name_registry *reg,
 					     u64 hash, const char *name,
-					     u64 type)
+					     u32 type)
 {
 	struct kdbus_name_entry *e;
 
@@ -228,7 +228,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_name, size);
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name *name;
-	u64 size, hash, flags = 0; /* FIXME */
+	u64 size;
+	u32 hash;
 	int ret = 0;
 
 	if (get_user(size, msgsize))
@@ -248,11 +249,17 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name->name, flags);
+	e = __kdbus_name_lookup(reg, hash, name->name, 0);
 	if (e) {
-		ret = kdbus_name_handle_conflict(reg, conn, e, &name->flags);
-		if (ret < 0)
-			goto err_unlock;
+		if (e->conn == conn) {
+			/* just update flags */
+			e->flags = name->flags;
+		} else {
+			ret = kdbus_name_handle_conflict(reg, conn, e,
+							 &name->flags);
+			if (ret < 0)
+				goto err_unlock;
+		}
 
 		goto exit_copy;
 	}
@@ -270,7 +277,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	}
 
 	e->hash = hash;
-	e->flags = flags;
+	e->flags = name->flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->registry_entry);
 	INIT_LIST_HEAD(&e->conn_entry);
@@ -306,8 +313,8 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_name, size);
 	struct kdbus_name_entry *e;
 	struct kdbus_cmd_name *name;
-	u64 size, hash;
-	u64 type = 0; /* FIXME */
+	u64 size;
+	u32 hash;
 	int ret = 0;
 
 	if (get_user(size, msgsize))
@@ -329,7 +336,7 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name->name, type);
+	e = __kdbus_name_lookup(reg, hash, name->name, 0);
 	if (e && e->conn == conn)
 		kdbus_name_entry_release(e);
 	mutex_unlock(&reg->entries_lock);
