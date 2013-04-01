@@ -58,9 +58,7 @@ static void kdbus_kmsg_init(struct kdbus_kmsg *kmsg,
 int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
 		   struct kdbus_kmsg **m)
 {
-	u64 size = sizeof(struct kdbus_kmsg) +
-		   sizeof(struct kdbus_msg_data) +
-		   extra_size;
+	u64 size = sizeof(struct kdbus_kmsg) + KDBUS_MSG_DATA_SIZE(extra_size);
 	struct kdbus_kmsg *kmsg = kzalloc(size, GFP_KERNEL);
 
 	if (!kmsg)
@@ -68,9 +66,9 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
 
 	kdbus_kmsg_init(kmsg, conn);
 
-	kmsg->msg.size = sizeof(struct kdbus_msg_data) + extra_size;
+	kmsg->msg.size = size - offsetof(struct kdbus_kmsg, msg);
 	if (extra_size)
-		kmsg->msg.data[0].size = extra_size;
+		kmsg->msg.data[0].size = KDBUS_MSG_DATA_SIZE(extra_size);
 
 	*m = kmsg;
 	return 0;
