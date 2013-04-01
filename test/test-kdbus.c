@@ -112,6 +112,11 @@ static int msg_send(const struct conn *conn,
 	return 0;
 }
 
+static void names_dump(const struct kdbus_msg_data *data, const char *prefix)
+{
+	printf(" `- %s: '%s'\n", prefix, data->data);
+}
+
 static void msg_dump(struct kdbus_msg *msg)
 {
 	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
@@ -132,8 +137,39 @@ static void msg_dump(struct kdbus_msg *msg)
 			data->size, data->type);
 
 		switch (data->type) {
+		case KDBUS_MSG_SRC_CREDS:
+			printf(" `- creds: uid: %llx, gid: %llx, pid: %llx, tid: %llx\n",
+				data->creds.uid, data->creds.gid,
+				data->creds.pid, data->creds.tid);
+			break;
+		case KDBUS_MSG_SRC_CAPS:
+			break;
+		case KDBUS_MSG_SRC_SECLABEL:
+			break;
+		case KDBUS_MSG_SRC_AUDIT:
+			break;
+		case KDBUS_MSG_SRC_NAMES:
+			names_dump(data, "src_names");
+			break;
+		case KDBUS_MSG_DST_NAMES:
+			names_dump(data, "dst_names");
+			break;
 		case KDBUS_MSG_TIMESTAMP:
 			printf(" `- timestamp: %llu ns\n", data->data_u64[0]);
+			break;
+		case KDBUS_MSG_NAME_CHANGE:
+			printf(" `- name change: '%s', old id: %lld, new id: %lld, flags: 0x%llx\n",
+				data->name_change.name, data->name_change.old_id,
+				data->name_change.new_id, data->name_change.flags);
+			break;
+		case KDBUS_MSG_ID_NEW:
+			printf(" `- id new: %lld\n", data->data_u64[0]);
+			break;
+		case KDBUS_MSG_ID_REMOVE:
+			printf(" `- id remove: %lld\n", data->data_u64[0]);
+			break;
+		case KDBUS_MSG_REPLY_TIMEOUT:
+			printf(" `- timeout for cookie 0x%llx\n", msg->cookie_reply);
 			break;
 		}
 
@@ -161,7 +197,7 @@ static int msg_recv(struct conn *conn)
 	return 0;
 }
 
-static int name_acquire(struct conn *conn, const char *name)
+static int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 {
 	struct kdbus_cmd_name *cmd_name;
 	int err;
@@ -172,6 +208,7 @@ static int name_acquire(struct conn *conn, const char *name)
 	memset(cmd_name, 0, size);
 	strcpy(cmd_name->name, name);
 	cmd_name->size = size;
+	cmd_name->flags = flags;
 
 	err = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (err) {
@@ -195,6 +232,8 @@ static int name_release(struct conn *conn, const char *name)
 	memset(cmd_name, 0, size);
 	strcpy(cmd_name->name, name);
 	cmd_name->size = size;
+
+	printf("conn %ld giving up name '%s'\n", conn->id, name);
 
 	err = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
 	if (err) {
@@ -225,6 +264,8 @@ static int name_list(struct conn *conn)
 	size = names->size - sizeof(*names);
 	name = names->names;
 
+	printf("=========== dumping name registry: ==========\n");
+
 	while (size > 0) {
 		printf("name '%s' is acquired by id 0x%llx\n", name->name, name->id);
 		size -= name->size;
@@ -241,6 +282,7 @@ int main(int argc, char *argv[])
 	char *busname, *bus;
 	struct conn *conn_a, *conn_b;
 	struct pollfd fds[2];
+	int count;
 	uid_t uid;
 
 	memset(&name, 0, sizeof(name));
@@ -278,14 +320,13 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	name_acquire(conn_b, "foo.bar.baz");
-	name_release(conn_b, "foo.bar.baz");
-	name_acquire(conn_b, "foo.bar.blubb");
+	name_acquire(conn_a, "foo.bar.baz", 0);
+	name_acquire(conn_b, "foo.bar.baz", KDBUS_CMD_NAME_QUEUE);
 
 	name_list(conn_b);
 
 	cookie = 0;
-	msg_send(conn_a, "foo.bar.blubb", 0xc0000000 | cookie, ~0ULL);
+	msg_send(conn_b, "foo.bar.baz", 0xc0000000 | cookie, ~0ULL);
 
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;
@@ -293,7 +334,7 @@ int main(int argc, char *argv[])
 
 	printf("-- entering poll loop ...\n");
 
-	while (1) {
+	for (count = 0;; count++) {
 		int i, nfds = sizeof(fds) / sizeof(fds[0]);
 
 		for (i = 0; i < nfds; i++) {
@@ -306,13 +347,21 @@ int main(int argc, char *argv[])
 			break;
 
 		if (fds[0].revents & POLLIN) {
+			if (count > 2)
+				name_release(conn_a, "foo.bar.baz");
+
 			msg_recv(conn_a);
-//			msg_send(conn_a, NULL, 0xc0000000 | cookie++, conn_b->id);
+			msg_send(conn_a, NULL, 0xc0000000 | cookie++, conn_b->id);
 		}
 		if (fds[1].revents & POLLIN) {
 			msg_recv(conn_b);
-//			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);
+			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);
 		}
+
+		name_list(conn_b);
+
+		if (count > 10)
+			break;
 	}
 
 	printf("-- closing bus connections\n");
