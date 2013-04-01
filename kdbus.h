@@ -40,6 +40,10 @@ struct kdbus_creds {
 	__u64 starttime;
 };
 
+#define KDBUS_SRC_ID_KERNEL		(0)
+#define KDBUS_DST_ID_WELL_KNOWN_NAME	(0)
+#define KDBUS_DST_ID_BROADCAST		(~0ULL)
+
 /* Message Data Types */
 enum {
 	/* Filled in by userspace */
