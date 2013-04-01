@@ -46,27 +46,27 @@ struct kdbus_creds {
 /* Message Data Types */
 enum {
 	/* Filled in by userspace */
-	KDBUS_MSG_PAYLOAD,		/* Carries binary blob */
-	KDBUS_MSG_PAYLOAD_REF,		/* Carries .ref */
-	KDBUS_MSG_UNIX_FDS,		/* Carries int[] of file descriptors */
-	KDBUS_MSG_BLOOM,		/* Only filled in for broadcasts, carries bloom filter blob */
-	KDBUS_MSG_DST_NAME,		/* Used only when destination is well-known name */
+	KDBUS_MSG_PAYLOAD,		/* .data */
+	KDBUS_MSG_PAYLOAD_REF,		/* .data_ref */
+	KDBUS_MSG_UNIX_FDS,		/* int[] of file descriptors */
+	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob */
+	KDBUS_MSG_DST_NAME,		/* destination's well-known name */
 
 	/* Filled in by kernelspace */
-	KDBUS_MSG_SRC_CREDS,		/* Carries .creds */
-	KDBUS_MSG_SRC_CAPS,		/* Carries caps blob */
-	KDBUS_MSG_SRC_SECLABEL,		/* Carries NUL terminated string */
-	KDBUS_MSG_SRC_AUDIT,		/* Carries array of two __u64 of audit loginuid + sessiond */
-	KDBUS_MSG_SRC_NAMES,		/* Carries concatenation of NUL terminated strings with all well-known names of source */
-	KDBUS_MSG_DST_NAMES,		/* Carries concatenation of NUL terminated strings with all well-known names of destination */
-	KDBUS_MSG_TIMESTAMP,		/* Carries __u64 nsec timestamp of CLOCK_MONOTONIC */
+	KDBUS_MSG_SRC_CREDS	= 0x200,/* .creds */
+	KDBUS_MSG_SRC_CAPS,		/* caps data blob */
+	KDBUS_MSG_SRC_SECLABEL,		/* NUL terminated string */
+	KDBUS_MSG_SRC_AUDIT,		/* array of two __u64 of audit loginuid + sessiond */
+	KDBUS_MSG_SRC_NAMES,		/* NUL separated string list with well-known names of source */
+	KDBUS_MSG_DST_NAMES,		/* NUL separated strings list all well-known names of destination */
+	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
 
 	/* Special messages from kernel, consisting of one and only one of these data blocks */
-	KDBUS_MSG_NAME_CHANGE,		/* Carries .name_change */
-	KDBUS_MSG_ID_NEW,		/* Carries ID as __u64 */
-	KDBUS_MSG_ID_REMOVE,		/* Dito */
-	KDBUS_MSG_REPLY_TIMEOUT,	/* Empty, only .reply_serial is relevant in the header */
-	KDBUS_MSG_REPLY_DEAD,		/* Dito */
+	KDBUS_MSG_NAME_CHANGE	= 0x400,/* .name_change */
+	KDBUS_MSG_ID_NEW,		/* ID as __u64 */
+	KDBUS_MSG_ID_REMOVE,		/* dito */
+	KDBUS_MSG_REPLY_TIMEOUT,	/* .cookie of request */
+	KDBUS_MSG_REPLY_DEAD,		/* dito */
 };
 
 /**
@@ -82,10 +82,12 @@ struct kdbus_msg_data {
 		__u8 data[0];
 		__u32 data_u32[0];
 		__u64 data_u64[0];
+
 		struct {
 			__u64 address;
 			__u64 size;
-		} ref;
+		} data_ref;
+
 		struct kdbus_creds creds;
 		struct kdbus_manager_msg_name_change name_change;
 	};
@@ -106,23 +108,22 @@ enum {
  *
  * set by userspace:
  * dst_id: destination id
+ * flags: KDBUS_MSG_FLAGS_*
  * data_size: overall message size
- * data: data for the message
+ * data: data records
  *
  * set by kernel:
- * id: message sequence number
  * src_id: who sent the message
- * ts_nsec: timestamp when message was sent to the kernel
  */
 struct kdbus_msg {
 	__u64 size;
 	__u64 flags;
-	__u64 dst_id;	/* 0: well known name in data, ~0: multicast, otherwise: unique name */
-	__u64 src_id;	/* 0: from kernel, otherwise: unique name */
-	__u64 cookie;	/* userspace-supplied cookie */
-	__u64 cookie_reply;	/* cookie of msg this is a reply to. non-zero for replies, 0 for requests. */
+	__u64 dst_id;		/* connection, 0 == name in data, ~0 broadcast */
+	__u64 src_id;		/* connection, 0 == kernel */
 	__u64 payload_type;	/* 'DBUSVER1', 'GVARIANT', ... */
-	__u64 timeout;	/* If this is a method call, time this out after this many nsec */
+	__u64 cookie;		/* userspace-supplied cookie */
+	__u64 cookie_reply;	/* cookie we reply to */
+	__u64 timeout;		/* reply */
 	struct kdbus_msg_data data[0];
 };
 
@@ -273,15 +274,14 @@ struct kdbus_cmd_monitor {
 };
 
 /* FD states:
+ * control nodes: unset
+ *   bus owner  (via KDBUS_CMD_BUS_MAKE)
+ *   ns owner   (via KDBUS_CMD_NS_MAKE)
  *
- *	control nodes:	unset
- *			bus owner  (via KDBUS_CMD_BUS_MAKE)
- *			ns owner   (via KDBUS_CMD_NS_MAKE)
- *	ep nodes:	unset
- *			connected  (via KDBUS_CMD_HELLO)
- *			ep owner   (via KDBUS_CMD_EP_MAKE)
-*/
-
+ * ep nodes: unset
+ *   connected  (via KDBUS_CMD_HELLO)
+ *   ep owner   (via KDBUS_CMD_EP_MAKE)
+ */
 enum kdbus_cmd {
 	/* kdbus control node commands: require unset state */
 	KDBUS_CMD_BUS_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x00, struct kdbus_cmd_fname),
