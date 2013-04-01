@@ -276,8 +276,6 @@ int kdbus_kmsg_send(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		}
 	}
 
-	kdbus_kmsg_unref(kmsg);
-
 	return ret;
 }
 
