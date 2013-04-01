@@ -1,4 +1,4 @@
-kdbus-y	:= main.o ep.o bus.o ns.o names.o message.o
+kdbus-y	:= main.o ep.o bus.o ns.o names.o message.o connection.o
 
 # obj-$(CONFIG_KDBUS)	+= kdbus.o
 obj-m += kdbus.o

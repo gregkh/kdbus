@@ -7,7 +7,6 @@
  * the terms of the GNU Lesser General Public License as published by the
  * Free Software Foundation; either version 2.1 of the License, or (at
  * your option) any later version.
- *
  */
 
 #ifndef __INTERNAL_KDBUS_H
@@ -18,7 +17,6 @@
 
 /* FIXME: move to uapi/linux/major.h */
 #define KDBUS_CHAR_MAJOR	222
-
 
 /*
  * kdbus namespace
@@ -192,6 +190,7 @@ struct kdbus_msg_list_entry {
 	struct list_head list;
 };
 
+/* message */
 int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
 		   struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
@@ -200,21 +199,22 @@ void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
 
-/* namespace */
-extern const struct file_operations kdbus_device_ops;
+/* main */
+extern struct bus_type kdbus_subsys;
+void kdbus_release(struct device *dev);
 extern struct mutex kdbus_subsys_lock;
 extern struct idr kdbus_ns_major_idr;
+extern struct kdbus_ns *kdbus_ns_init;
+
+/* namespace */
+extern const struct file_operations kdbus_device_ops;
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
 struct kdbus_ns *kdbus_ns_find(const char *name);
 
-
 /* bus */
-extern struct bus_type kdbus_subsys;
-void kdbus_release(struct device *dev);
-
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
