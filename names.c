@@ -106,7 +106,7 @@ static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
 		return ret;
 
 	/* FIXME: broadcast? */
-	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST
+	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 
 	data = kmsg->msg.data;
@@ -164,13 +164,11 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 
 	mutex_lock(&reg->entries_lock);
 
-#if 0
 	list_for_each_entry_safe(q, q_tmp, &conn->names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
 
 	list_for_each_entry_safe(e, e_tmp, &conn->names_list, conn_entry)
 		kdbus_name_entry_release(e);
-#endif
 
 	mutex_unlock(&reg->entries_lock);
 }
