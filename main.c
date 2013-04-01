@@ -107,7 +107,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->connection_entry);
 
-	list_add_tail(&conn->ep->connection_list, &conn->connection_entry);
+	list_add_tail(&conn->connection_entry, &conn->ep->connection_list);
 
 	file->private_data = conn;
 	mutex_unlock(&conn->ns->lock);

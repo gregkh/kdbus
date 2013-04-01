@@ -208,7 +208,7 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	INIT_LIST_HEAD(&entry->list);
 
 	mutex_lock(&conn->msg_lock);
-	list_add_tail(&conn->msg_list, &entry->list);
+	list_add_tail(&entry->list, &conn->msg_list);
 	mutex_unlock(&conn->msg_lock);
 
 	wake_up_interruptible(&conn->ep->wait);
@@ -266,6 +266,9 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 					 &ep->connection_list,
 					 connection_entry) {
 			if (conn_dst->type != KDBUS_CONN_EP)
+				continue;
+
+			if (conn_dst->id == msg->src_id)
 				continue;
 
 			ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
