@@ -144,13 +144,12 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		kdbus_name_remove_by_conn(bus->name_registry, conn);
 		kdbus_ep_unref(conn->ep);
 
-		//list_del(&conn->connection_entry);
-
+		list_del(&conn->connection_entry);
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->msg_lock);
 		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
-			list_del(&entry->list);
 			kdbus_kmsg_unref(entry->kmsg);
+			list_del(&entry->list);
 			kfree(entry);
 		}
 		mutex_unlock(&conn->msg_lock);
