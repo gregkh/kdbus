@@ -106,8 +106,8 @@ static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
 		return ret;
 
 	/* FIXME: broadcast? */
-	kmsg->msg.dst_id = ~0ULL;
-	kmsg->msg.src_id = 0;
+	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST
+	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 
 	data = kmsg->msg.data;
 	data->type = KDBUS_MSG_NAME_CHANGE;
