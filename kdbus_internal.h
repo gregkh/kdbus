@@ -13,6 +13,7 @@
 #define __INTERNAL_KDBUS_H
 
 #include <uapi/linux/major.h>
+#include <linux/workqueue.h>
 #include "kdbus.h"
 
 /* FIXME: move to uapi/linux/major.h */
@@ -175,13 +176,16 @@ struct kdbus_conn {
 	 * endpoints of the connections associated with that endpoint?  That's
 	 * all we really need in the end... */
 	struct list_head connection_entry;
-
 	struct list_head names_list;
 	struct list_head names_queue_list;
+
+	struct work_struct work;
+	struct timer_list timer;
 };
 
 struct kdbus_kmsg {
 	struct kref kref;
+	uint64_t deadline;
 	struct kdbus_msg msg;
 };
 
@@ -198,6 +202,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
+int kdbus_msg_send_timeout(struct kdbus_conn *conn, struct kdbus_msg *msg);
 
 /* main */
 extern struct bus_type kdbus_subsys;
@@ -220,6 +225,7 @@ void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus);
+void kdbus_bus_scan_timeout_list(struct kdbus_bus *bus);
 
 /* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
@@ -230,5 +236,8 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		 uid_t uid, gid_t gid, struct kdbus_ep **ep);
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
+
+/* connection */
+void kdbus_conn_scan_timeout(struct kdbus_conn *conn);;
 
 #endif

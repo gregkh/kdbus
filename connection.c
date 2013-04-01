@@ -25,6 +25,52 @@
 
 #include "kdbus_internal.h"
 
+void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
+{
+	struct kdbus_msg_list_entry *entry, *tmp;
+	u64 deadline = -1;
+	struct timespec ts;
+	uint64_t now;
+
+	ktime_get_ts(&ts);
+	now = (ts.tv_sec * 1000000000ULL) + ts.tv_nsec;
+
+	mutex_lock(&conn->msg_lock);
+	list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
+		struct kdbus_kmsg *kmsg = entry->kmsg;
+
+		if (kmsg->deadline == 0)
+			continue;
+
+		if (kmsg->deadline <= now) {
+			kdbus_msg_send_timeout(conn, &kmsg->msg);
+			kdbus_kmsg_unref(entry->kmsg);
+			list_del(&entry->list);
+			kfree(entry);
+		} else if (kmsg->deadline < deadline) {
+			deadline = kmsg->deadline;
+		}
+	}
+	mutex_unlock(&conn->msg_lock);
+
+	if (deadline != -1)
+		mod_timer(&conn->timer, jiffies +
+				usecs_to_jiffies((deadline - now) / 1000));
+}
+
+static void kdbus_conn_work(struct work_struct *work)
+{
+	struct kdbus_conn *conn = container_of(work, struct kdbus_conn, work);
+	kdbus_conn_scan_timeout(conn);
+}
+
+static void kdbus_conn_timer_func(unsigned long val)
+{
+	struct kdbus_conn *conn = (struct kdbus_conn *) val;
+	schedule_work(&conn->work);
+}
+
+
 /* kdbus file operations */
 static int kdbus_conn_open(struct inode *inode, struct file *file)
 {
@@ -95,6 +141,14 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	file->private_data = conn;
 	mutex_unlock(&conn->ns->lock);
 
+	INIT_WORK(&conn->work, kdbus_conn_work);
+
+	init_timer(&conn->timer);
+	conn->timer.expires = 0;
+	conn->timer.function = kdbus_conn_timer_func;
+	conn->timer.data = (unsigned long) conn;
+	add_timer(&conn->timer);
+
 	pr_info("created endpoint bus connection %llu '%s/%s'\n",
 		(unsigned long long)conn->id, conn->ns->devpath,
 		conn->ep->bus->name);
@@ -123,6 +177,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	case KDBUS_CONN_EP: {
 		struct kdbus_msg_list_entry *entry, *tmp;
 
+		del_timer(&conn->timer);
  		bus = conn->ep->bus;
 		kdbus_name_remove_by_conn(bus->name_registry, conn);
 		kdbus_ep_unref(conn->ep);

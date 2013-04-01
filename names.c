@@ -120,6 +120,7 @@ static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
 
 	return ret;
 }
+
 static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 {
 	list_del(&q->entry_entry);

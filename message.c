@@ -64,8 +64,7 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, uint64_t extra_size,
 	kdbus_kmsg_init(kmsg, conn);
 
 	kmsg->msg.size = size - offsetof(struct kdbus_kmsg, msg);
-	if (extra_size)
-		kmsg->msg.data[0].size = KDBUS_MSG_DATA_SIZE(extra_size);
+	kmsg->msg.data[0].size = KDBUS_MSG_DATA_SIZE(extra_size);
 
 	*m = kmsg;
 	return 0;
@@ -166,7 +165,7 @@ kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
 }
 
 static struct kdbus_kmsg __must_check *
-kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg)
+kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, uint64_t *now_ns)
 {
 	struct kdbus_msg_data *data;
 	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(u64));
@@ -181,6 +180,9 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg)
 	data->size = size;
 	data->type = KDBUS_MSG_TIMESTAMP;
 	data->data_u64[0] = (ts.tv_sec * 1000000000ULL) + ts.tv_nsec;
+	if (now_ns)
+		*now_ns = data->data_u64[0];
+
 	kmsg = kdbus_kmsg_append_data(kmsg, data);
 	kfree(data);
 
@@ -213,14 +215,39 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
+int kdbus_msg_send_timeout(struct kdbus_conn *conn,
+			   struct kdbus_msg *msg)
+{
+	struct kdbus_kmsg *kmsg;
+	struct kdbus_msg_data *data;
+	int ret;
+
+	ret = kdbus_kmsg_new(conn, 0, &kmsg);
+	if (ret < 0)
+		return ret;
+
+	kmsg->msg.dst_id = msg->src_id;
+	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
+	kmsg->msg.cookie_reply = msg->cookie;
+
+	data = kmsg->msg.data;
+	data->type = KDBUS_MSG_REPLY_TIMEOUT;
+
+	ret = kdbus_kmsg_send(conn->ep, kmsg);
+	kdbus_kmsg_unref(kmsg);
+
+	return ret;
+}
+
 int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_msg *msg;
+	uint64_t now_ns = 0;
 	int ret = 0;
 
 	/* augment incoming message */
-	kmsg = kdbus_kmsg_append_timestamp(kmsg);
+	kmsg = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
 
 	msg = &kmsg->msg;
 //	kdbus_msg_dump(msg);
@@ -258,7 +285,13 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 
 	if (conn_dst) {
 		/* direct message */
+		if (msg->timeout)
+			kmsg->deadline = now_ns + msg->timeout;
+
 		ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
+
+		if (msg->timeout)
+			kdbus_conn_scan_timeout(conn_dst);
 	} else {
 		/* broadcast */
 		struct kdbus_conn *tmp;
