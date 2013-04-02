@@ -166,14 +166,9 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
 
-	cmd = kmalloc(size, GFP_KERNEL);
+	cmd = memdup_user(buf, size);
 	if (!cmd)
-		return -ENOMEM;
-
-	if (copy_from_user(cmd, buf, size)) {
-		ret = -EFAULT;
-		goto out_err;
-	}
+		return -EFAULT;
 
 	size -= offsetof(struct kdbus_cmd_policy, buffer);
 	pol = (struct kdbus_policy *) cmd->buffer;
@@ -187,7 +182,6 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 		pol = (struct kdbus_policy *) ((u8 *) pol + pol->size);
 	}
 
-out_err:
 	kfree(cmd);
 
 	return 0;
