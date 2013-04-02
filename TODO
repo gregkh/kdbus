@@ -33,10 +33,6 @@
   in the root of /sys/devices/
     https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
 
-- use hashmap instead of linked list for name loookups
-
-- switch from idr mis-use to hashmap for connection id <--> kdbus_conn
-
 
 API question:
   What if a client (A) acquires a name with KDBUS_CMD_NAME_STARTER set in flags.

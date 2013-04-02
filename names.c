@@ -50,7 +50,7 @@ struct kdbus_name_registry *kdbus_name_registry_new(void)
 		return NULL;
 
 	kref_init(&reg->kref);
-	INIT_LIST_HEAD(&reg->entries_list);
+	hash_init(reg->entries_hash);
 	mutex_init(&reg->entries_lock);
 
 	return reg;
@@ -67,16 +67,15 @@ static u64 kdbus_name_make_hash(const char *name)
 	return end_name_hash(hash);
 }
 
-static struct kdbus_name_entry *__kdbus_name_lookup(struct kdbus_name_registry *reg,
-						    u64 hash, const char *name,
-						    u32 type)
+static struct kdbus_name_entry *
+__kdbus_name_lookup(struct kdbus_name_registry *reg,
+		    u32 hash, const char *name)
 {
 	struct kdbus_name_entry *e;
 
-	list_for_each_entry(e, &reg->entries_list, registry_entry) {
-		if (e->hash == hash && strcmp(e->name, name) == 0)
+	hash_for_each_possible(reg->entries_hash, e, hentry, hash)
+		if (strcmp(e->name, name) == 0)
 			return e;
-	}
 
 	return NULL;
 }
@@ -136,7 +135,6 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 	list_del(&e->conn_entry);
 
 	if (list_empty(&e->queue_list)) {
-		list_del(&e->registry_entry);
 		kfree(e->name);
 		kfree(e);
 	} else {
@@ -178,7 +176,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 	u64 hash = kdbus_name_make_hash(name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name, flags);
+	e = __kdbus_name_lookup(reg, hash, name);
 	mutex_unlock(&reg->entries_lock);
 
 	return e;
@@ -243,7 +241,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name->name, 0);
+	e = __kdbus_name_lookup(reg, hash, name->name);
 	if (e) {
 		if (e->conn == conn) {
 			/* just update flags */
@@ -270,13 +268,11 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto err_unlock_free;
 	}
 
-	e->hash = hash;
 	e->flags = name->flags;
 	INIT_LIST_HEAD(&e->queue_list);
-	INIT_LIST_HEAD(&e->registry_entry);
 	INIT_LIST_HEAD(&e->conn_entry);
 
-	list_add_tail(&e->registry_entry, &reg->entries_list);
+	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_add_to_conn(e, conn);
 
 exit_copy:
@@ -324,7 +320,7 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name->name, 0);
+	e = __kdbus_name_lookup(reg, hash, name->name);
 	if (e && e->conn == conn)
 		kdbus_name_entry_release(e);
 	mutex_unlock(&reg->entries_lock);
@@ -341,7 +337,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 	struct kdbus_cmd_names *names;
 	struct kdbus_cmd_name *name;
 	struct kdbus_name_entry *e;
-	u64 user_size, size = 0;
+	u64 user_size, size = 0, tmp;
 	int ret = 0;
 
 	if (kdbus_size_user(user_size, buf, struct kdbus_cmd_names, size))
@@ -351,7 +347,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 
 	size = sizeof(struct kdbus_cmd_names);
 
-	list_for_each_entry(e, &reg->entries_list, registry_entry)
+	hash_for_each(reg->entries_hash, tmp, e, hentry)
 		size += sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
 
 	if (size > user_size) {
@@ -368,7 +364,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 	names->size = size;
 	name = names->names;
 
-	list_for_each_entry(e, &reg->entries_list, registry_entry) {
+	hash_for_each(reg->entries_hash, tmp, e, hentry) {
 		name->size = sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
 		name->flags = 0; /* FIXME */
 		name->id = e->conn->id;

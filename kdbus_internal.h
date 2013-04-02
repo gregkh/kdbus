@@ -56,16 +56,16 @@ struct kdbus_ns {
 struct kdbus_name_registry {
 	struct kref		kref;
 	struct list_head	entries_list;
+	DECLARE_HASHTABLE(entries_hash, 6);
 	struct mutex		entries_lock;
 };
 
 struct kdbus_name_entry {
 	char 			*name;
-	u32			hash;
 	u64			flags;
 	struct list_head	queue_list;
-	struct list_head	registry_entry;
 	struct list_head	conn_entry;
+	struct hlist_node	hentry;
 	struct kdbus_conn	*conn;
 };
 
