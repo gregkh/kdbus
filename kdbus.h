@@ -20,8 +20,13 @@
 struct kdbus_manager_msg_name_change {
 	__u64 old_id;
 	__u64 new_id;
-	__u64 flags;		/* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
+	__u64 flags;		/* 0 or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
 	char name[0];
+};
+
+struct kdbus_manager_msg_id_change {
+	__u64 id;
+	__u64 flags; /* The kernel flags field from KDBUS_CMD_HELLO */
 };
 
 struct kdbus_creds {
@@ -57,13 +62,15 @@ enum {
 	KDBUS_MSG_SRC_SECLABEL,		/* NUL terminated string */
 	KDBUS_MSG_SRC_AUDIT,		/* array of two __u64 of audit loginuid + sessiond */
 	KDBUS_MSG_SRC_NAMES,		/* NUL separated string list with well-known names of source */
-	KDBUS_MSG_DST_NAMES,		/* NUL separated strings list all well-known names of destination */
 	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
 
 	/* Special messages from kernel, consisting of one and only one of these data blocks */
-	KDBUS_MSG_NAME_CHANGE	= 0x400,/* .name_change */
-	KDBUS_MSG_ID_NEW,		/* ID as __u64 */
-	KDBUS_MSG_ID_REMOVE,		/* dito */
+	KDBUS_MSG_NAME_ADD	= 0x400,/* .name_change */
+	KDBUS_MSG_NAME_REMOVE,		/* .name_change */
+	KDBUS_MSG_NAME_CHANGE,		/* .name_change */
+	KDBUS_MSG_ID_ADD,		/* .id_change */
+	KDBUS_MSG_ID_REMOVE,		/* .id_change */
+	KDBUS_MSG_ID_CHANGE,            /* .id_change */
 	KDBUS_MSG_REPLY_TIMEOUT,	/* .cookie of request */
 	KDBUS_MSG_REPLY_DEAD,		/* dito */
 };
@@ -90,6 +97,7 @@ struct kdbus_msg_data {
 		__u64 ts_ns;
 		struct kdbus_creds creds;
 		struct kdbus_manager_msg_name_change name_change;
+		struct kdbus_manager_msg_id_change id_change;
 	};
 };
 
@@ -162,13 +170,18 @@ struct kdbus_cmd_policy {
 	__u8 buffer[0];	/* a series of KDBUS_POLICY_NAME plus one or more KDBUS_POLICY_ACCESS each. */
 };
 
+enum {
+	KDBUS_CMD_HELLO_STARTER = 1,
+};
+
 struct kdbus_cmd_hello {
 	/* userspace → kernel, kernel → userspace */
 	__u64 kernel_flags;	/* userspace specifies its
-				 * capabilities, kernel returns its
-				 * capabilites. Kernel might refuse
-				 * client's capabilities by returning
-				 * an error from KDBUS_CMD_HELLO */
+				 * capabilities and more, kernel
+				 * returns its capabilites and
+				 * more. Kernel might refuse client's
+				 * capabilities by returning an error
+				 * from KDBUS_CMD_HELLO */
 
 	/* userspace → kernel */
 	__u64 pid;		/* To allow translator services which
@@ -209,7 +222,6 @@ enum {
 	KDBUS_CMD_NAME_REPLACE_EXISTING = 1,
 	KDBUS_CMD_NAME_QUEUE = 2,
 	KDBUS_CMD_NAME_ALLOW_REPLACEMENT = 4,
-	KDBUS_CMD_NAME_STARTER = 8,
 
 	/* kernel → userspace */
 	KDBUS_CMD_NAME_IN_QUEUE = 256,
@@ -250,9 +262,12 @@ struct kdbus_cmd_name_info {
 enum {
 	KDBUS_CMD_MATCH_BLOOM,		/* Matches a mask blob against KDBUS_MSG_BLOOM */
 	KDBUS_CMD_MATCH_SRC_NAME,	/* Matches a name string against KDBUS_MSG_SRC_NAMES */
+	KDBUS_CMD_MATCH_NAME_ADD,	/* Matches a name string against KDBUS_MSG_NAME_ADD */
+	KDBUS_CMD_MATCH_NAME_REMOVE,	/* Matches a name string against KDBUS_MSG_NAME_REMOVE */
 	KDBUS_CMD_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_MSG_NAME_CHANGE */
-	KDBUS_CMD_MATCH_ID_NEW,		/* Matches a __u64 against KDBUS_MSG_ID_NEW */
+	KDBUS_CMD_MATCH_ID_ADD,		/* Matches a __u64 against KDBUS_MSG_ID_ADD */
 	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches a __u64 against KDBUS_MSG_ID_REMOVE */
+	KDBUS_CMD_MATCH_ID_CHANGE,	/* Matches a __u64 against KDBUS_MSG_ID_CHANGE */
 };
 
 struct kdbus_cmd_match_item {
