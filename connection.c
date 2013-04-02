@@ -53,9 +53,11 @@ void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	}
 	mutex_unlock(&conn->msg_lock);
 
-	if (deadline != -1)
-		mod_timer(&conn->timer, jiffies +
-				usecs_to_jiffies((deadline - now) / 1000));
+	if (deadline != -1) {
+		u64 usecs = deadline - now;
+		do_div(usecs, 1000ULL);
+		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
+	}
 }
 
 static void kdbus_conn_work(struct work_struct *work)
