@@ -152,10 +152,10 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		n->name = ns_name;
 	}
 
-	/* register major in our namespace map */
 	mutex_lock(&kdbus_subsys_lock);
 
-	/* FIXME - is this even needed?  */
+	/* kdbus_device_ops' dev_t finds the namespace in the major map,
+	 * and the bus in the minor map of that namespace */
 	i = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
 	if (i <= 0) {
 		err = -EEXIST;

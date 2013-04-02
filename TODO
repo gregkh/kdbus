@@ -1,3 +1,19 @@
+- convert all out-of-line memory to inline memory:
+  - at _SEND, allocate a second buffer in struct kdbus_kmsg to
+    copy_from_user() the data
+  - at _RECV, copy the data from the second buffer, replacing the
+    out-of-line data with inline data
+
+- let HELLO specify if fds or out-of-line memory are accepted to
+  be received; refuse the message otherwise
+
+- limit out-of-line memory and file descriptor passing to unicast,
+  do no try to broadcast them
+
+- allow only anonymous mappings to be transferred; or find a way to
+  ensure that file-based mappings can never change the content
+  when the file content changes, like reflink
+
 - validate all incoming data fields in the message, clear all values
   which are not suppoed to be set from a peer
 
@@ -5,29 +21,25 @@
   have the proper size and that the last listed record validly ends at
   the overall message size provided in the header
 
-- always align to 8 byte boundaries, keep size correct, but start next
-  record at proper offset
+- always align data records to 8 byte boundaries, keep size correct,
+  but start next record at proper offset
 
 - use subsys_virtual_register() to avoid devices showing up directly
   in the root of /sys/devices/
     https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
 
-- switch to hashmap for connection id <--> kdbus_conn
+- use hashmap instead of linked list for name loookups
+
+- switch from idr mis-use to hashmap for connection id <--> kdbus_conn
 
 
-API related:
+API question:
+  What if a client (A) acquires a name with KDBUS_CMD_NAME_STARTER set in flags.
 
+  Another client (B) sends a message with flags == 0, which will start the
+  service of connection A.
 
-CASE:
-
-What if a client (A) acquires a name with KDBUS_CMD_NAME_STARTER set in flags.
-
-Another client (B) sends a message with flags == 0, which will start the
-service of connection A.
-
-Yet client (C) comes along, sending a message with KDBUS_MSG_FLAGS_NO_AUTO_START
-NOT send in flags. That message will be rejected, even though client A already
-started the service.
-
-How do we handle this?
+  Yet client (C) comes along, sending a message with KDBUS_MSG_FLAGS_NO_AUTO_START
+  NOT send in flags. That message will be rejected, even though client A already
+  started the service.
 
