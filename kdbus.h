@@ -269,8 +269,8 @@ enum {
 	KDBUS_CMD_MATCH_NAME_REMOVE,	/* Matches a name string against KDBUS_MSG_NAME_REMOVE */
 	KDBUS_CMD_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_MSG_NAME_CHANGE */
 	KDBUS_CMD_MATCH_ID_ADD,		/* Matches an ID against KDBUS_MSG_ID_ADD */
-	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches an ID uint64_t against KDBUS_MSG_ID_REMOVE */
-	KDBUS_CMD_MATCH_ID_CHANGE,	/* Matches an ID uint64_t against KDBUS_MSG_ID_CHANGE */
+	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches an ID against KDBUS_MSG_ID_REMOVE */
+	KDBUS_CMD_MATCH_ID_CHANGE,	/* Matches an ID against KDBUS_MSG_ID_CHANGE */
 };
 
 struct kdbus_cmd_match_item {

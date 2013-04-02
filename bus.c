@@ -89,7 +89,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 	kref_init(&b->kref);
 	b->ns = ns;
 	b->bus_flags = bus_flags;
-	/* connection 0 == kernel/multi-cast */
+	/* connection 0 == kernel */
 	b->conn_id_next = 1;
 	mutex_init(&b->lock);
 	idr_init(&b->conn_idr);
