@@ -235,15 +235,16 @@ int kdbus_msg_send_timeout(struct kdbus_conn *conn,
 	data = kmsg->msg.data;
 	data->type = KDBUS_MSG_REPLY_TIMEOUT;
 
-	ret = kdbus_kmsg_send(conn->ep, kmsg);
+	ret = kdbus_kmsg_send(conn->ep, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return ret;
 }
 
-int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
+int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
+	struct kdbus_kmsg *kmsg = *_kmsg;
 	struct kdbus_msg *msg;
 	u64 now_ns = 0;
 	int ret = 0;
@@ -311,6 +312,8 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 				break;
 		}
 	}
+
+	*_kmsg = kmsg;
 
 	return ret;
 }

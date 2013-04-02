@@ -365,7 +365,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		err = kdbus_kmsg_new_from_user(conn, argp, &kmsg);
 		if (err < 0)
 			return err;
-		err = kdbus_kmsg_send(conn->ep, kmsg);
+		err = kdbus_kmsg_send(conn->ep, &kmsg);
 		kdbus_kmsg_unref(kmsg);
 		return err;
 
