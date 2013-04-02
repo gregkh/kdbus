@@ -261,49 +261,6 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
-static int kdbus_msg_reply(struct kdbus_ep *ep,
-			   const struct kdbus_msg *orig_msg,
-			   u64 msg_type)
-{
-	struct kdbus_conn *dst_conn;
-	struct kdbus_kmsg *kmsg;
-	struct kdbus_msg_data *data;
-	u64 dst_id = orig_msg->src_id;
-	int ret;
-
-	dst_conn = kdbus_bus_find_conn_by_id(ep->bus, dst_id);
-	if (!dst_conn)
-		return -ENOENT;
-
-	ret = kdbus_kmsg_new(0, &kmsg);
-	if (ret < 0)
-		return ret;
-
-	kmsg->msg.dst_id = dst_id;
-	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
-	kmsg->msg.cookie_reply = orig_msg->cookie;
-
-	data = kmsg->msg.data;
-	data->type = msg_type;
-
-	ret = kdbus_kmsg_send(ep, &kmsg);
-	kdbus_kmsg_unref(kmsg);
-
-	return ret;
-}
-
-int kdbus_msg_reply_timeout(struct kdbus_ep *ep,
-			    const struct kdbus_msg *orig_msg)
-{
-	return kdbus_msg_reply(ep, orig_msg, KDBUS_MSG_REPLY_TIMEOUT);
-}
-
-int kdbus_msg_reply_dead(struct kdbus_ep *ep,
-			 const struct kdbus_msg *orig_msg)
-{
-	return kdbus_msg_reply(ep, orig_msg, KDBUS_MSG_REPLY_DEAD);
-}
-
 int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
