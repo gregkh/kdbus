@@ -170,14 +170,15 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	case KDBUS_CONN_EP: {
 		struct kdbus_msg_list_entry *entry, *tmp;
 
+		hash_del(&conn->hentry);
 		list_del(&conn->connection_entry);
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->msg_lock);
 		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
 			struct kdbus_kmsg *kmsg = entry->kmsg;
-			struct kdbus_msg *msg = &kmsg->msg;
 
 #if 0
+			struct kdbus_msg *msg = &kmsg->msg;
 			if (msg->dst_id != KDBUS_DST_ID_BROADCAST &&
 			    msg->src_id != conn->id)
 				kdbus_msg_reply_dead(conn->ep, msg);

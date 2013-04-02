@@ -135,6 +135,7 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 	list_del(&e->conn_entry);
 
 	if (list_empty(&e->queue_list)) {
+		hash_del(&e->hentry);
 		kfree(e->name);
 		kfree(e);
 	} else {
