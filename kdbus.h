@@ -18,7 +18,6 @@
 /* Message sent from kernel to userspace, when the owner or starter of
  * a well-known name changes */
 struct kdbus_manager_msg_name_change {
-	__u64 size;
 	__u64 old_id;
 	__u64 new_id;
 	__u64 flags;		/* 0, or KDBUS_CMD_NAME_STARTER, or (possibly?) KDBUS_CMD_NAME_IN_QUEUE */
