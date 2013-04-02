@@ -55,15 +55,17 @@ int main(int argc, char *argv[])
 
 
 	printf("-- sending 1 message to portal 1, from portal 1\n");
-	msg = create_message(1, "hello");malloc(sizeof(*msg) + 4000);
+	msg = create_message(1, "hello");
+	malloc(sizeof(*msg) + 4000);
 	ret = ioctl(fd1, PORTAL_MSG_SEND, msg);
 	if (ret)
-		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
+		printf("--- retor %d (%m)\n", ret);
 	free(msg);
-	msg = create_message(1, "world");malloc(sizeof(*msg) + 4000);
+	msg = create_message(1, "world");
+	malloc(sizeof(*msg) + 4000);
 	ret = ioctl(fd1, PORTAL_MSG_SEND, msg);
 	if (ret)
-		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
+		printf("--- retor %d (%m)\n", ret);
 	free(msg);
 
 	printf("-- reading from portal 1\n");
@@ -73,12 +75,12 @@ int main(int argc, char *argv[])
 	msg = create_message(20, "123456789012345678901234567890");
 	ret = ioctl(fd1, PORTAL_MSG_RECV, msg);
 	if (ret)
-		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
+		printf("--- retor %d (%m)\n", ret);
 	else
 		print_message(msg);
 	ret = ioctl(fd1, PORTAL_MSG_RECV, msg);
 	if (ret)
-		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
+		printf("--- retor %d (%m)\n", ret);
 	else
 		print_message(msg);
 	free(msg);
