@@ -70,8 +70,8 @@ enum {
 	KDBUS_MSG_NAME_CHANGE,		/* .name_change */
 	KDBUS_MSG_ID_ADD,		/* .id_change */
 	KDBUS_MSG_ID_REMOVE,		/* .id_change */
-	KDBUS_MSG_ID_CHANGE,            /* .id_change */
-	KDBUS_MSG_REPLY_TIMEOUT,	/* .cookie of request */
+	KDBUS_MSG_ID_CHANGE,		/* .id_change */
+	KDBUS_MSG_REPLY_TIMEOUT,	/* empty, but .reply_cookie in .kdbus_msg is filled in */
 	KDBUS_MSG_REPLY_DEAD,		/* dito */
 };
 
@@ -107,8 +107,8 @@ enum {
 };
 
 enum {
-	KDBUS_PAYLOAD_DBUS1     = 0x4442757356657231ULL, /* 'DBusVer1' */
-	KDBUS_PAYLOAD_GVARIANT  = 0x4756617269616e74ULL, /* 'GVariant' */
+	KDBUS_PAYLOAD_DBUS1	= 0x4442757356657231ULL, /* 'DBusVer1' */
+	KDBUS_PAYLOAD_GVARIANT	= 0x4756617269616e74ULL, /* 'GVariant' */
 };
 
 /**
@@ -292,12 +292,12 @@ struct kdbus_cmd_monitor {
 
 /* FD states:
  * control nodes: unset
- *   bus owner  (via KDBUS_CMD_BUS_MAKE)
- *   ns owner   (via KDBUS_CMD_NS_MAKE)
+ *   bus owner	(via KDBUS_CMD_BUS_MAKE)
+ *   ns owner	(via KDBUS_CMD_NS_MAKE)
  *
  * ep nodes: unset
- *   connected  (via KDBUS_CMD_HELLO)
- *   ep owner   (via KDBUS_CMD_EP_MAKE)
+ *   connected	(via KDBUS_CMD_HELLO)
+ *   ep owner	(via KDBUS_CMD_EP_MAKE)
  */
 enum kdbus_cmd {
 	/* kdbus control node commands: require unset state */
