@@ -72,6 +72,33 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, u64 extra_size,
 	return 0;
 }
 
+static int kdbus_msg_validate_from_user(const struct kdbus_msg *msg)
+{
+	u64 size = msg->size - KDBUS_MSG_HEADER_SIZE;
+	const struct kdbus_msg_data *data = msg->data;
+
+	if (msg->src_id == KDBUS_SRC_ID_KERNEL)
+		return -EINVAL;
+
+	while (size > 0 && size >= data->size) {
+		switch (data->type) {
+		case KDBUS_MSG_PAYLOAD:
+		case KDBUS_MSG_PAYLOAD_REF:
+		case KDBUS_MSG_UNIX_FDS:
+		case KDBUS_MSG_BLOOM:
+		case KDBUS_MSG_DST_NAME:
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		size -= data->size;
+		data = (struct kdbus_msg_data *) (((u8 *) data) + data->size);
+	}
+
+	return 0;
+}
+
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 			     struct kdbus_kmsg **m)
 {
@@ -90,10 +117,15 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	kmsg = kmalloc(size, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
+
 	if (copy_from_user(&kmsg->msg, buf, size)) {
 		err = -EFAULT;
 		goto out_err;
 	}
+
+	err = kdbus_msg_validate_from_user(&kmsg->msg);
+	if (err < 0)
+		goto out_err;
 
 	kdbus_kmsg_init(kmsg, conn);
 
