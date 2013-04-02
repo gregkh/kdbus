@@ -320,11 +320,12 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			return -EFAULT;
 
 		conn->active = true;
+		conn->starter = hello.kernel_flags & KDBUS_CMD_HELLO_STARTER;
 		break;
 	}
 
 	case KDBUS_CMD_EP_POLICY_SET:
-		/* upload a policy for this bus */
+		/* upload a policy for this endpoint */
 		return -ENOSYS;
 
 	case KDBUS_CMD_NAME_ACQUIRE:

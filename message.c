@@ -256,9 +256,9 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 		const struct kdbus_msg_data *name_data;
 		const struct kdbus_name_entry *name_entry;
 
-		name_data = kdbus_msg_get_data(msg, KDBUS_MSG_DST_NAMES, 0);
+		name_data = kdbus_msg_get_data(msg, KDBUS_MSG_DST_NAME, 0);
 		if (!name_data) {
-			pr_err("message %llu does not contain KDBUS_MSG_DST_NAMES\n",
+			pr_err("message %llu does not contain KDBUS_MSG_DST_NAME\n",
 				(unsigned long long) msg->cookie);
 			return -EINVAL;
 		}
@@ -272,8 +272,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 		if (!conn_dst)
 			return -ENOENT;
 
-		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (name_entry->flags & KDBUS_CMD_NAME_STARTER))
+		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) && conn_dst->starter)
 			return -ENOENT;
 
 	} else if (msg->dst_id != KDBUS_DST_ID_BROADCAST) {

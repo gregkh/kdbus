@@ -75,7 +75,7 @@ static int msg_send(const struct conn *conn,
 		memset(name_data, 0, extra_size);
 
 		name_data->size = extra_size;
-		name_data->type = KDBUS_MSG_DST_NAMES;
+		name_data->type = KDBUS_MSG_DST_NAME;
 
 		memcpy(name_data->data, name, strlen(name));
 		extra = name_data;
@@ -151,8 +151,8 @@ static void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_SRC_NAMES:
 			names_dump(data, "src_names");
 			break;
-		case KDBUS_MSG_DST_NAMES:
-			names_dump(data, "dst_names");
+		case KDBUS_MSG_DST_NAME:
+			names_dump(data, "dst_name");
 			break;
 		case KDBUS_MSG_TIMESTAMP:
 			printf(" `- timestamp: %llu ns\n", data->data_u64[0]);
@@ -162,7 +162,7 @@ static void msg_dump(struct kdbus_msg *msg)
 				data->name_change.name, data->name_change.old_id,
 				data->name_change.new_id, data->name_change.flags);
 			break;
-		case KDBUS_MSG_ID_NEW:
+		case KDBUS_MSG_ID_ADD:
 			printf(" `- id new: %lld\n", data->data_u64[0]);
 			break;
 		case KDBUS_MSG_ID_REMOVE:

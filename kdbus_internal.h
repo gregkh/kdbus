@@ -161,6 +161,7 @@ struct kdbus_conn {
 	u64 id;		/* id of the connection on the bus */
 
 	bool active;	/* did the connection say hello yet? */
+	bool starter;
 
 	/*
 	 * first, horrible cut at messages assigned to connections
@@ -171,10 +172,6 @@ struct kdbus_conn {
 	struct mutex msg_lock;
 	struct list_head msg_list;
 
-	/* Ugh a list of all connections in the system?  Ugly, but we need to
-	 * be able to walk them all somehow.  Maybe just have a list on the
-	 * endpoints of the connections associated with that endpoint?  That's
-	 * all we really need in the end... */
 	struct list_head connection_entry;
 	struct list_head names_list;
 	struct list_head names_queue_list;

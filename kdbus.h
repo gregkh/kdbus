@@ -13,7 +13,7 @@
 #define _KDBUS_H_
 
 #include <linux/types.h>
-#define KDBUS_IOC_MAGIC		0x95
+#define KDBUS_IOC_MAGIC			0x95
 
 /* Message sent from kernel to userspace, when the owner or starter of
  * a well-known name changes */
@@ -60,7 +60,7 @@ enum {
 	KDBUS_MSG_SRC_CREDS	= 0x200,/* .creds */
 	KDBUS_MSG_SRC_CAPS,		/* caps data blob */
 	KDBUS_MSG_SRC_SECLABEL,		/* NUL terminated string */
-	KDBUS_MSG_SRC_AUDIT,		/* array of two __u64 of audit loginuid + sessiond */
+	KDBUS_MSG_SRC_AUDIT,		/* array of two uint64_t of audit loginuid + sessiond */
 	KDBUS_MSG_SRC_NAMES,		/* NUL separated string list with well-known names of source */
 	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
 
@@ -102,8 +102,8 @@ struct kdbus_msg_data {
 };
 
 enum {
-	KDBUS_MSG_FLAGS_EXPECT_REPLY = 1,
-	KDBUS_MSG_FLAGS_NO_AUTO_START = 2, /* possibly? */
+	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1,
+	KDBUS_MSG_FLAGS_NO_AUTO_START	= 2, /* possibly? */
 };
 
 enum {
@@ -149,9 +149,9 @@ enum {
 };
 
 enum {
-	KDBUS_POLICY_RECV = 4,
-	KDBUS_POLICY_SEND = 2,
-	KDBUS_POLICY_OWN = 1,
+	KDBUS_POLICY_RECV	= 4,
+	KDBUS_POLICY_SEND	= 2,
+	KDBUS_POLICY_OWN	= 1,
 };
 
 struct kdbus_policy {
@@ -221,10 +221,10 @@ struct kdbus_cmd_fname {
 
 enum {
 	/* userspace → kernel */
-	KDBUS_CMD_NAME_REPLACE_EXISTING = 1,
-	KDBUS_CMD_NAME_QUEUE = 2,
-	KDBUS_CMD_NAME_ALLOW_REPLACEMENT = 4,
-	KDBUS_CMD_NAME_STEAL_MESSAGES = 8,
+	KDBUS_CMD_NAME_REPLACE_EXISTING		=  1,
+	KDBUS_CMD_NAME_QUEUE			=  2,
+	KDBUS_CMD_NAME_ALLOW_REPLACEMENT	=  4,
+	KDBUS_CMD_NAME_STEAL_MESSAGES		=  8,
 
 	/* kernel → userspace */
 	KDBUS_CMD_NAME_IN_QUEUE = 256,
@@ -268,9 +268,9 @@ enum {
 	KDBUS_CMD_MATCH_NAME_ADD,	/* Matches a name string against KDBUS_MSG_NAME_ADD */
 	KDBUS_CMD_MATCH_NAME_REMOVE,	/* Matches a name string against KDBUS_MSG_NAME_REMOVE */
 	KDBUS_CMD_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_MSG_NAME_CHANGE */
-	KDBUS_CMD_MATCH_ID_ADD,		/* Matches a __u64 against KDBUS_MSG_ID_ADD */
-	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches a __u64 against KDBUS_MSG_ID_REMOVE */
-	KDBUS_CMD_MATCH_ID_CHANGE,	/* Matches a __u64 against KDBUS_MSG_ID_CHANGE */
+	KDBUS_CMD_MATCH_ID_ADD,		/* Matches an ID against KDBUS_MSG_ID_ADD */
+	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches an ID uint64_t against KDBUS_MSG_ID_REMOVE */
+	KDBUS_CMD_MATCH_ID_CHANGE,	/* Matches an ID uint64_t against KDBUS_MSG_ID_CHANGE */
 };
 
 struct kdbus_cmd_match_item {
@@ -293,13 +293,13 @@ struct kdbus_cmd_monitor {
 
 /* FD states:
  * control nodes: unset
- *   bus owner	(via KDBUS_CMD_BUS_MAKE)
- *   ns owner	(via KDBUS_CMD_NS_MAKE)
+ *   bus owner  (via KDBUS_CMD_BUS_MAKE)
+ *   ns owner   (via KDBUS_CMD_NS_MAKE)
  *
  * ep nodes: unset
- *   connected	(via KDBUS_CMD_HELLO)
+ *   connected  (via KDBUS_CMD_HELLO)
  *   starter    (via KDBUS_CMD_HELLO with KDBUS_CMD_HELLO_STARTER)
- *   ep owner	(via KDBUS_CMD_EP_MAKE)
+ *   ep owner   (via KDBUS_CMD_EP_MAKE)
  */
 enum kdbus_cmd {
 	/* kdbus control node commands: require unset state */
