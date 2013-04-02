@@ -298,6 +298,7 @@ struct kdbus_cmd_monitor {
  *
  * ep nodes: unset
  *   connected	(via KDBUS_CMD_HELLO)
+ *   starter    (via KDBUS_CMD_HELLO with KDBUS_CMD_HELLO_STARTER)
  *   ep owner	(via KDBUS_CMD_EP_MAKE)
  */
 enum kdbus_cmd {
