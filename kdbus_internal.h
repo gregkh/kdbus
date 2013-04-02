@@ -55,7 +55,6 @@ struct kdbus_ns {
 /* names registry */
 struct kdbus_name_registry {
 	struct kref		kref;
-	struct list_head	entries_list;
 	DECLARE_HASHTABLE(entries_hash, 6);
 	struct mutex		entries_lock;
 };
