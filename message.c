@@ -238,8 +238,9 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
-int kdbus_msg_send_timeout(struct kdbus_conn *conn,
-			   struct kdbus_msg *msg)
+static int kdbus_msg_reply(struct kdbus_conn *conn,
+			   struct kdbus_msg *msg,
+			   u64 msg_type)
 {
 	struct kdbus_kmsg *kmsg;
 	struct kdbus_msg_data *data;
@@ -254,12 +255,24 @@ int kdbus_msg_send_timeout(struct kdbus_conn *conn,
 	kmsg->msg.cookie_reply = msg->cookie;
 
 	data = kmsg->msg.data;
-	data->type = KDBUS_MSG_REPLY_TIMEOUT;
+	data->type = msg_type;
 
 	ret = kdbus_kmsg_send(conn->ep, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return ret;
+}
+
+int kdbus_msg_reply_timeout(struct kdbus_conn *conn,
+			    struct kdbus_msg *msg)
+{
+	return kdbus_msg_reply(conn, msg, KDBUS_MSG_REPLY_TIMEOUT);
+}
+
+int kdbus_msg_reply_dead(struct kdbus_conn *conn,
+			 struct kdbus_msg *msg)
+{
+	return kdbus_msg_reply(conn, msg, KDBUS_MSG_REPLY_DEAD);
 }
 
 int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)

@@ -43,7 +43,7 @@ void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			continue;
 
 		if (kmsg->deadline <= now) {
-			kdbus_msg_send_timeout(conn, &kmsg->msg);
+			kdbus_msg_reply_timeout(conn, &kmsg->msg);
 			kdbus_kmsg_unref(entry->kmsg);
 			list_del(&entry->list);
 			kfree(entry);
@@ -187,7 +187,9 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->msg_lock);
 		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
-			kdbus_kmsg_unref(entry->kmsg);
+			struct kdbus_kmsg *kmsg = entry->kmsg;
+			kdbus_msg_reply_dead(conn, &kmsg->msg);
+			kdbus_kmsg_unref(kmsg);
 			list_del(&entry->list);
 			kfree(entry);
 		}
