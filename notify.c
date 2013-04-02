@@ -102,7 +102,8 @@ int kdbus_notify_name_change(struct kdbus_conn *conn,
 	name_change->flags = flags;
 	strcpy(name_change->name, name);
 
-	//kdbus_msg_send
+	ret = kdbus_kmsg_send(conn->ep, &kmsg);
+	kdbus_kmsg_unref(kmsg);
 
 	return 0;
 }
@@ -137,7 +138,8 @@ int kdbus_notify_id_change(struct kdbus_conn *conn,
 
 	id_change->id = id;
 
-	//kdbus_msg_send
+	ret = kdbus_kmsg_send(conn->ep, &kmsg);
+	kdbus_kmsg_unref(kmsg);
 
 	return 0;
 }
