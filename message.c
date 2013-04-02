@@ -86,7 +86,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
 
-	size += sizeof(*kmsg) - sizeof(kmsg->msg);
+	size += offsetof(struct kdbus_kmsg, msg);
 
 	kmsg = kmalloc(size, GFP_KERNEL);
 	if (!kmsg)
@@ -107,8 +107,7 @@ out_err:
 }
 
 static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
-						       u64 type,
-						       int index)
+						       u64 type, int index)
 {
 	u64 size = msg->size - KDBUS_MSG_HEADER_SIZE;
 	const struct kdbus_msg_data *data = msg->data;
@@ -347,8 +346,8 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 	ret = copy_to_user(buf, msg, msg->size);
 	if (ret == 0) {
-		kdbus_kmsg_unref(entry->kmsg);
 		list_del(&entry->list);
+		kdbus_kmsg_unref(entry->kmsg);
 		kfree(entry);
 	}
 
