@@ -81,14 +81,6 @@ struct kdbus_name_entry {
 	struct kdbus_conn	*conn;
 };
 
-struct kdbus_name_queue_item {
-	struct kdbus_conn 	*conn;
-	struct kdbus_name_entry	*entry;
-	u64			 flags;
-	struct list_head	 entry_entry;
-	struct list_head	 conn_entry;
-};
-
 struct kdbus_name_registry *kdbus_name_registry_new(void);
 void kdbus_name_registry_unref(struct kdbus_name_registry *reg);
 

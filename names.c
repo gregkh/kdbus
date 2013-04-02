@@ -29,10 +29,34 @@
 #define KDBUS_MSG_DATA_SIZE(SIZE) \
 	ALIGN((SIZE) + offsetof(struct kdbus_msg_data, data), sizeof(u64))
 
+struct kdbus_name_queue_item {
+	struct kdbus_conn 	*conn;
+	struct kdbus_name_entry	*entry;
+	u64			 flags;
+	struct list_head	 entry_entry;
+	struct list_head	 conn_entry;
+};
+
+static void kdbus_name_entry_free(struct kdbus_name_entry *e)
+{
+	hash_del(&e->hentry);
+	kfree(e->name);
+	kfree(e);
+}
+
 static void __kdbus_name_registry_free(struct kref *kref)
 {
+	struct kdbus_name_entry *e;
+	struct hlist_node *tmp;
 	struct kdbus_name_registry *reg =
 		container_of(kref, struct kdbus_name_registry, kref);
+	int i;
+
+	mutex_lock(&reg->entries_lock);
+	hash_for_each_safe(reg->entries_hash, i, tmp, e, hentry)
+		kdbus_name_entry_free(e);
+	mutex_unlock(&reg->entries_lock);
+
 	kfree(reg);
 }
 
@@ -135,9 +159,7 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 	list_del(&e->conn_entry);
 
 	if (list_empty(&e->queue_list)) {
-		hash_del(&e->hentry);
-		kfree(e->name);
-		kfree(e);
+		kdbus_name_entry_free(e);
 	} else {
 		struct kdbus_conn *old_conn = e->conn;
 
