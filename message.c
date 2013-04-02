@@ -150,18 +150,25 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 }
 
 static struct kdbus_kmsg __must_check *
-kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
-		       const struct kdbus_msg_data *data)
+kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 extra_size,
+		       struct kdbus_msg_data **data)
 {
-	u64 size = sizeof(*kmsg) - sizeof(kmsg->msg) +
-			kmsg->msg.size + data->size;
+	struct kdbus_msg *msg;
+	struct kdbus_msg_data *d;
+	u64 new_size = offsetof(struct kdbus_kmsg, msg) +
+			kmsg->msg.size + extra_size + 100;
 
-	kmsg = krealloc(kmsg, size, GFP_KERNEL);
+	kmsg = krealloc(kmsg, new_size, GFP_KERNEL);
 	if (!kmsg)
 		return NULL;
 
-	memcpy(((u8 *) &kmsg->msg) + kmsg->msg.size, data, data->size);
-	kmsg->msg.size += data->size;
+	msg = &kmsg->msg;
+
+	d = (struct kdbus_msg_data *) ((u8 *) msg + msg->size);
+	d->size = extra_size;
+	msg->size += extra_size;
+
+	*data = d;
 
 	return kmsg;
 }
@@ -169,24 +176,20 @@ kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg,
 static struct kdbus_kmsg __must_check *
 kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 {
-	struct kdbus_msg_data *data;
+	struct kdbus_msg_data *data = NULL;
 	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(u64));
 	struct timespec ts;
 
-	data = kzalloc(size, GFP_KERNEL);
-	if (!data)
+	kmsg = kdbus_kmsg_append_data(kmsg, size, &data);
+	if (!kmsg || !data)
 		return NULL;
 
 	ktime_get_ts(&ts);
-
-	data->size = size;
 	data->type = KDBUS_MSG_TIMESTAMP;
 	data->data_u64[0] = (ts.tv_sec * 1000000000ULL) + ts.tv_nsec;
+
 	if (now_ns)
 		*now_ns = data->ts_ns;
-
-	kmsg = kdbus_kmsg_append_data(kmsg, data);
-	kfree(data);
 
 	return kmsg;
 }
