@@ -43,7 +43,7 @@ void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			continue;
 
 		if (kmsg->deadline <= now) {
-			kdbus_msg_reply_timeout(conn->ep, &kmsg->msg);
+			kdbus_notify_reply_timeout(conn->ep, &kmsg->msg);
 			kdbus_kmsg_unref(entry->kmsg);
 			list_del(&entry->list);
 			kfree(entry);
@@ -181,7 +181,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			struct kdbus_msg *msg = &kmsg->msg;
 			if (msg->dst_id != KDBUS_DST_ID_BROADCAST &&
 			    msg->src_id != conn->id)
-				kdbus_msg_reply_dead(conn->ep, msg);
+				kdbus_notify_reply_dead(conn->ep, msg);
 #endif
 
 			kdbus_kmsg_unref(kmsg);
