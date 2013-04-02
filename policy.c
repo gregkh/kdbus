@@ -170,7 +170,7 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 
 	cmd = memdup_user(buf, size);
 	if (IS_ERR(cmd))
-		return -EFAULT;
+		return PTR_ERR(cmd);
 
 	size -= offsetof(struct kdbus_cmd_policy, buffer);
 	pol = (struct kdbus_policy *) cmd->buffer;
