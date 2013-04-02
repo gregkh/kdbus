@@ -1,42 +1,41 @@
-- convert mode bitmask of device node to simple flags: group, world?
+Message Buffering:
+  - kmalloc is limited to < 128k
+  - replace inefficient realloc() with vmap/own pages allocation logic
+    http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/mm/util.c#n110
+  - convert all out-of-line memory to inline memory:
+    - at _SEND, allocate a second buffer in struct kdbus_kmsg to
+      copy_from_user() the data
+    - at _RECV, copy the data from the second buffer, replacing the
+      out-of-line data with inline data
 
-- kmalloc is limited to < 128k
+Security:
+  - let HELLO specify if fds or out-of-line memory are accepted to
+    be received; refuse the message otherwise
+  - limit out-of-line memory and file descriptor passing to unicast,
+    do no try to broadcast them
+  - allow only anonymous mappings to be transferred; or find a way to
+    ensure that file-based mappings can never change the content
+    when the file content changes, like reflink
 
-- replace inefficient realloc() with vmap/own pages allocation logic
-  http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/mm/util.c#n110
+Mesage Validation:
+  - validate all incoming data fields in the message, clear all values
+    which are not suppoed to be set from a peer
+  - always align data records to 8 byte boundaries, keep size correct,
+    but start next record at proper offset
+  - validation:
+  - always align data records to 8 byte boundaries, keep size correct,
 
-- convert all out-of-line memory to inline memory:
-  - at _SEND, allocate a second buffer in struct kdbus_kmsg to
-    copy_from_user() the data
-  - at _RECV, copy the data from the second buffer, replacing the
-    out-of-line data with inline data
+External API:
+  - convert mode bitmask of device node to more abstract and simple
+    flags: ACCESS_GROUP, ACCESS_WORLD?
 
-- let HELLO specify if fds or out-of-line memory are accepted to
-  be received; refuse the message otherwise
-
-- limit out-of-line memory and file descriptor passing to unicast,
-  do no try to broadcast them
-
-- allow only anonymous mappings to be transferred; or find a way to
-  ensure that file-based mappings can never change the content
-  when the file content changes, like reflink
-
-- validate all incoming data fields in the message, clear all values
-  which are not suppoed to be set from a peer
-
-- check that the appendend data block sizes, and that individual records
-  have the proper size and that the last listed record validly ends at
-  the overall message size provided in the header
-
-- always align data records to 8 byte boundaries, keep size correct,
-  but start next record at proper offset
-
-- use subsys_virtual_register() to avoid devices showing up directly
-  in the root of /sys/devices/
-    https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
+Kernel Core:
+  - use subsys_virtual_register() to avoid devices showing up directly
+    in the root of /sys/devices/
+      https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
 
 
-API question:
+API Question:
   What if a client (A) acquires a name with KDBUS_CMD_NAME_STARTER set in flags.
 
   Another client (B) sends a message with flags == 0, which will start the
