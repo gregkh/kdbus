@@ -26,9 +26,6 @@
 
 #include "kdbus_internal.h"
 
-#define KDBUS_MSG_DATA_SIZE(SIZE) \
-	ALIGN((SIZE) + offsetof(struct kdbus_msg_data, data), sizeof(u64))
-
 struct kdbus_name_queue_item {
 	struct kdbus_conn 	*conn;
 	struct kdbus_name_entry	*entry;
