@@ -46,10 +46,12 @@ static void __kdbus_policy_db_free(struct kref *kref)
 		container_of(kref, struct kdbus_policy_db, kref);
 	int i;
 
+	mutex_lock(&db->entries_lock);
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
 		hash_del(&e->hentry);
 		kfree(e);
 	}
+	mutex_unlock(&db->entries_lock);
 
 	kfree(db);
 }
