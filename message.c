@@ -25,8 +25,10 @@
 
 #include "kdbus_internal.h"
 
-#define KDBUS_MSG_DATA_SIZE(SIZE) \
-	ALIGN((SIZE) + offsetof(struct kdbus_msg_data, data), sizeof(u64))
+#define KDBUS_MSG_DATA_SIZE(s) \
+	ALIGN((s) + offsetof(struct kdbus_msg_data, data), sizeof(u64))
+#define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, data)
+#define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 
 static void __kdbus_kmsg_free(struct kref *kref)
 {
@@ -63,7 +65,7 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, u64 extra_size,
 
 	kdbus_kmsg_init(kmsg, conn);
 
-	kmsg->msg.size = size - offsetof(struct kdbus_kmsg, msg);
+	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	kmsg->msg.data[0].size = KDBUS_MSG_DATA_SIZE(extra_size);
 
 	*m = kmsg;
@@ -108,7 +110,7 @@ static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
 						       u64 type,
 						       int index)
 {
-	u64 size = msg->size - offsetof(struct kdbus_msg, data);
+	u64 size = msg->size - KDBUS_MSG_HEADER_SIZE;
 	const struct kdbus_msg_data *data = msg->data;
 
 	while (size > 0 && size >= data->size) {
@@ -125,7 +127,7 @@ static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,
 
 static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 {
-	u64 size = msg->size - offsetof(struct kdbus_msg, data);
+	u64 size = msg->size - KDBUS_MSG_HEADER_SIZE;
 	const struct kdbus_msg_data *data = msg->data;
 
 	pr_info("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
@@ -315,7 +317,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg *kmsg)
 
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 {
-	u64 __user *msgsize = buf + offsetof(struct kdbus_msg, size);
+	u64 __user *msgsize = buf + KDBUS_MSG_HEADER_SIZE;
 	struct kdbus_msg_list_entry *entry;
 	struct kdbus_msg *msg;
 	u64 size;
