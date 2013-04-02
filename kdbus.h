@@ -206,17 +206,17 @@ struct kdbus_cmd_hello {
 };
 
 struct kdbus_cmd_fname {
-	/* userspace → kernel, kernel → userspace */
-	__u64 kernel_flags;	/* When creating a bus/ns/ep feature
+	__u64 kernel_flags;	/* userspace → kernel, kernel → userspace
+				 * When creating a bus/ns/ep feature
 				 * kernel negotiation done the same
 				 * way as for KDBUS_CMD_BUS_MAKE. */
-	/* userspace → kernel */
-	__u64 bus_flags;	/* When a bus is created this value is
+	__u64 bus_flags;	/* userspace → kernel
+				 * When a bus is created this value is
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
 	mode_t mode;
-	char name[64];
+	char name[256];
 };
 
 enum {
@@ -227,7 +227,7 @@ enum {
 	KDBUS_CMD_NAME_STEAL_MESSAGES		=  8,
 
 	/* kernel → userspace */
-	KDBUS_CMD_NAME_IN_QUEUE = 256,
+	KDBUS_CMD_NAME_IN_QUEUE = 0x200,
 };
 
 struct kdbus_cmd_name {

@@ -1,3 +1,10 @@
+- kmalloc is limited to < 128k
+
+- replace inefficient realloc() with vmap/own pages allocation logic
+  http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/mm/util.c#n110
+
+- do_div(ts_usec, 1000000000) to avoid 64bit div
+
 - convert all out-of-line memory to inline memory:
   - at _SEND, allocate a second buffer in struct kdbus_kmsg to
     copy_from_user() the data
