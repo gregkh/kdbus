@@ -115,7 +115,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		 uid_t uid, gid_t gid, struct kdbus_ep **ep)
 {
 	struct kdbus_ep *e;
-	int err;
+	int ret;
 	int i;
 
 	e = kzalloc(sizeof(struct kdbus_ep), GFP_KERNEL);
@@ -130,15 +130,15 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {
-		err = -ENOMEM;
-		goto err;
+		ret = -ENOMEM;
+		goto ret;
 	}
 
 	/* register minor in our endpoint map */
 	i = idr_alloc(&bus->ns->idr, e, 1, 0, GFP_KERNEL);
 	if (i <= 0) {
-		err = i;
-		goto err_unlock;
+		ret = i;
+		goto ret_unlock;
 	}
 	e->minor = i;
 
@@ -150,24 +150,24 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	if (!e->dev) {
-		err = -ENOMEM;
-		goto err_unlock;
+		ret = -ENOMEM;
+		goto ret_unlock;
 	}
 	dev_set_name(e->dev, "%s/%s/%s", bus->ns->devpath, bus->name, name);
 	e->dev->bus = &kdbus_subsys;
 	e->dev->type = &kdbus_devtype_ep;
 	e->dev->devt = MKDEV(bus->ns->major, e->minor);
 	dev_set_drvdata(e->dev, e);
-	err = device_register(e->dev);
-	if (err < 0) {
+	ret = device_register(e->dev);
+	if (ret < 0) {
 		put_device(e->dev);
 		e->dev = NULL;
 	}
 
 	e->policy_db = kdbus_policy_db_new();
 	if (!e->policy_db) {
-		err = -ENOMEM;
-		goto err;
+		ret = -ENOMEM;
+		goto ret;
 	}
 
 	init_waitqueue_head(&e->wait);
@@ -185,11 +185,11 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		(unsigned long long)e->id, bus->ns->devpath, bus->name, name);
 	return 0;
 
-err_unlock:
+ret_unlock:
 	mutex_unlock(&bus->ns->lock);
-err:
+ret:
 	kdbus_ep_unref(e);
-	return err;
+	return ret;
 }
 
 int kdbus_ep_remove(struct kdbus_ep *ep)

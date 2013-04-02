@@ -34,7 +34,7 @@ static void print_message(struct umsg *msg)
 
 int main(int argc, char *argv[])
 {
-	int err;
+	int ret;
 	int fd1, fd2, fd3, fd4;
 //	ssize_t count;
 //	char string[100];
@@ -56,14 +56,14 @@ int main(int argc, char *argv[])
 
 	printf("-- sending 1 message to portal 1, from portal 1\n");
 	msg = create_message(1, "hello");malloc(sizeof(*msg) + 4000);
-	err = ioctl(fd1, PORTAL_MSG_SEND, msg);
-	if (err)
-		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	ret = ioctl(fd1, PORTAL_MSG_SEND, msg);
+	if (ret)
+		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
 	free(msg);
 	msg = create_message(1, "world");malloc(sizeof(*msg) + 4000);
-	err = ioctl(fd1, PORTAL_MSG_SEND, msg);
-	if (err)
-		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	ret = ioctl(fd1, PORTAL_MSG_SEND, msg);
+	if (ret)
+		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
 	free(msg);
 
 	printf("-- reading from portal 1\n");
@@ -71,14 +71,14 @@ int main(int argc, char *argv[])
 //	printf("--- count = %d, string = \"%s\"\n", (int)count, &string[0]);
 
 	msg = create_message(20, "123456789012345678901234567890");
-	err = ioctl(fd1, PORTAL_MSG_RECV, msg);
-	if (err)
-		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	ret = ioctl(fd1, PORTAL_MSG_RECV, msg);
+	if (ret)
+		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
 	else
 		print_message(msg);
-	err = ioctl(fd1, PORTAL_MSG_RECV, msg);
-	if (err)
-		printf("--- error %d \"%s\"\n", err, strerror(errno));
+	ret = ioctl(fd1, PORTAL_MSG_RECV, msg);
+	if (ret)
+		printf("--- retor %d \"%s\"\n", ret, strerror(errno));
 	else
 		print_message(msg);
 	free(msg);

@@ -78,7 +78,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	struct kdbus_conn *conn;
 	struct kdbus_ns *ns;
 	struct kdbus_ep *ep;
-	int err;
+	int ret;
 
 	conn = kzalloc(sizeof(struct kdbus_conn), GFP_KERNEL);
 	if (!conn)
@@ -109,8 +109,8 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	mutex_lock(&conn->ns->lock);
 	ep = idr_find(&conn->ns->idr, MINOR(inode->i_rdev));
 	if (!ep || ep->disconnected) {
-		err = -ENOENT;
-		goto err_unlock;
+		ret = -ENOENT;
+		goto ret_unlock;
 	}
 
 	/* create endpoint connection */
@@ -147,10 +147,10 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 		conn->ep->bus->name);
 	return 0;
 
-err_unlock:
+ret_unlock:
 	mutex_unlock(&conn->ns->lock);
 	kfree(conn);
-	return err;
+	return ret;
 }
 
 static int kdbus_conn_release(struct inode *inode, struct file *file)
@@ -251,16 +251,16 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
 	umode_t mode = 0;
-	int err;
+	int ret;
 
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE:
-		err = kdbus_fname_user(buf, &fname);
-		if (err < 0)
+		ret = kdbus_fname_user(buf, &fname);
+		if (ret < 0)
 			break;
 
 		if (!check_flags(fname->kernel_flags)) {
-			err = -ENOTSUPP;
+			ret = -ENOTSUPP;
 			break;
 		}
 
@@ -269,9 +269,9 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
 			mode = 0660;
 
-		err = kdbus_bus_new(conn->ns, fname->name, fname->flags,
+		ret = kdbus_bus_new(conn->ns, fname->name, fname->flags,
 				    mode, current_fsuid(), current_fsgid(), &bus);
-		if (err < 0)
+		if (ret < 0)
 			break;
 
 		/* turn the control fd into a new bus owner device */
@@ -281,8 +281,8 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_NS_MAKE:
-		err = kdbus_fname_user(buf, &fname);
-		if (err < 0)
+		ret = kdbus_fname_user(buf, &fname);
+		if (ret < 0)
 			break;
 
 		if (!check_flags(fname->kernel_flags))
@@ -293,11 +293,11 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
 			mode = 0660;
 
-		err = kdbus_ns_new(kdbus_ns_init, fname->name, mode, &ns);
-		if (err < 0) {
-			pr_err("failed to create namespace %s, err=%i\n",
-			       fname->name, err);
-			return err;
+		ret = kdbus_ns_new(kdbus_ns_init, fname->name, mode, &ns);
+		if (ret < 0) {
+			pr_err("failed to create namespace %s, ret=%i\n",
+			       fname->name, ret);
+			return ret;
 		}
 
 		/* turn the control fd into a new ns owner device */
@@ -307,18 +307,18 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_BUS_POLICY_SET:
-		err = -ENOSYS;
+		ret = -ENOSYS;
 
 		break;
 
 	default:
-		err = -ENOTTY;
+		ret = -ENOTTY;
 
 		break;
 	}
 
 	kfree(fname);
-	return err;
+	return ret;
 }
 
 /* kdbus bus endpoint commands */
@@ -329,7 +329,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	struct kdbus_cmd_fname *fname = NULL;
 	struct kdbus_kmsg *kmsg;
 	struct kdbus_bus *bus;
-	long err = 0;
+	long ret = 0;
 
 	/* We need a connection before we can do anything with an ioctl */
 	if (!conn)
@@ -343,29 +343,29 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		/* create a new endpoint for this bus, and turn this
 		 * fd into a reference to it */
 		if (kdbus_size_user(size, buf, struct kdbus_cmd_fname, size)) {
-			err = -EFAULT;
+			ret = -EFAULT;
 			break;
 		}
 
 		if (size < sizeof(struct kdbus_cmd_fname) + 2) {
-			err = -EINVAL;
+			ret = -EINVAL;
 			break;
 		}
 
 		if (size > sizeof(struct kdbus_cmd_fname) + 64) {
-			err = -ENAMETOOLONG;
+			ret = -ENAMETOOLONG;
 			break;
 		}
 
 		fname = memdup_user(buf, size);
 		if (IS_ERR(fname)) {
-			err = PTR_ERR(fname);
+			ret = PTR_ERR(fname);
 			fname = NULL;
 			break;
 		}
 
 		if (!check_flags(fname->kernel_flags)) {
-			err = -ENOTSUPP;
+			ret = -ENOTSUPP;
 			break;
 		}
 
@@ -374,7 +374,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
 			mode = 0660;
 
-		err = kdbus_ep_new(conn->ep->bus, fname->name, mode,
+		ret = kdbus_ep_new(conn->ep->bus, fname->name, mode,
 				   current_fsuid(), current_fsgid(), NULL);
 
 		break;
@@ -385,17 +385,17 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_hello hello;
 
 		if (conn->active) {
-			err = -EBUSY;
+			ret = -EBUSY;
 			break;
 		}
 
 		if (copy_from_user(&hello, buf, sizeof(hello))) {
-			err = -EFAULT;
+			ret = -EFAULT;
 			break;
 		}
 
 		if (!check_flags(hello.kernel_flags)) {
-			err = -ENOTSUPP;
+			ret = -ENOTSUPP;
 			break;
 		}
 
@@ -403,7 +403,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		hello.id = conn->id;
 
 		if (copy_to_user(buf, &hello, sizeof(hello))) {
-			err = -EFAULT;
+			ret = -EFAULT;
 			break;
 		}
 
@@ -415,82 +415,82 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
-		err = kdbus_policy_set_from_user(conn->ep->policy_db, buf);
+		ret = kdbus_policy_set_from_user(conn->ep->policy_db, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
 		bus = conn->ep->bus;
-		err = kdbus_name_acquire(bus->name_registry, conn, buf);
+		ret = kdbus_name_acquire(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
 		bus = conn->ep->bus;
-		err = kdbus_name_release(bus->name_registry, conn, buf);
+		ret = kdbus_name_release(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_LIST:
 		/* return all current well-known names */
 		bus = conn->ep->bus;
-		err = kdbus_name_list(bus->name_registry, conn, buf);
+		ret = kdbus_name_list(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
 		bus = conn->ep->bus;
-		err =kdbus_name_query(bus->name_registry, conn, buf);
+		ret =kdbus_name_query(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
-		err = -ENOSYS;
+		ret = -ENOSYS;
 
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
-		err = -ENOSYS;
+		ret = -ENOSYS;
 
 		break;
 
 	case KDBUS_CMD_MONITOR:
 		/* turn on/turn off monitor mode */
-		err = -ENOSYS;
+		ret = -ENOSYS;
 
 		break;
 
 	case KDBUS_CMD_MSG_SEND:
 		/* send a message */
-		err = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
-		if (err < 0)
+		ret = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
+		if (ret < 0)
 			break;
 
-		err = kdbus_kmsg_send(conn->ep, &kmsg);
+		ret = kdbus_kmsg_send(conn->ep, &kmsg);
 		kdbus_kmsg_unref(kmsg);
 
 		break;
 
 	case KDBUS_CMD_MSG_RECV:
 		/* receive a message */
-		err = kdbus_kmsg_recv(conn, buf);
+		ret = kdbus_kmsg_recv(conn, buf);
 
 		break;
 
 	default:
-		err = -ENOTTY;
+		ret = -ENOTTY;
 
 		break;
 	}
 
 	kfree(fname);
 
-	return err;
+	return ret;
 }
 
 static long kdbus_conn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)

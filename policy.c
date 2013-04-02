@@ -138,7 +138,7 @@ static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
 		break;
 	default:
 		ret = -EINVAL;
-		goto err_free;
+		goto ret_free;
 	}
 
 	e->access.type = pol->access.type;
@@ -149,7 +149,7 @@ static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
 
 	return 0;
 
-err_free:
+ret_free:
 	kfree(e);
 	return ret;
 }

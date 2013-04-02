@@ -271,7 +271,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			ret = kdbus_name_handle_conflict(reg, conn, e,
 							 &name->flags);
 			if (ret < 0)
-				goto err_unlock;
+				goto ret_unlock;
 		}
 
 		goto exit_copy;
@@ -280,13 +280,13 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e) {
 		ret = -ENOMEM;
-		goto err_unlock_free;
+		goto ret_unlock_free;
 	}
 
 	e->name = kstrdup(name->name, GFP_KERNEL);
 	if (!e->name) {
 		ret = -ENOMEM;
-		goto err_unlock_free;
+		goto ret_unlock_free;
 	}
 
 	e->flags = name->flags;
@@ -300,18 +300,18 @@ exit_copy:
 	ret = copy_to_user(buf, name, size);
 	if (ret < 0) {
 		ret = -EFAULT;
-		goto err_unlock_free;
+		goto ret_unlock_free;
 	}
 
 	kfree(name);
 	mutex_unlock(&reg->entries_lock);
 	return 0;
 
-err_unlock_free:
+ret_unlock_free:
 	kfree(name);
 	kdbus_name_entry_release(e);
 
-err_unlock:
+ret_unlock:
 	mutex_unlock(&reg->entries_lock);
 
 	return ret;

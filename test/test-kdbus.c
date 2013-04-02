@@ -21,21 +21,21 @@ struct conn {
 
 static struct conn *connect_to_bus(const char *path)
 {
-	int fd, err;
+	int fd, ret;
 	struct kdbus_cmd_hello hello;
 	struct conn *conn;
 
 	printf("-- opening bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
 	if (fd < 0) {
-		fprintf(stderr, "--- error %d (%m)\n", fd);
+		fprintf(stderr, "--- retor %d (%m)\n", fd);
 		return NULL;
 	}
 
 	memset(&hello, 0, sizeof(hello));
-	err = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	if (err) {
-		fprintf(stderr, "--- error when saying hello: %d (%m)\n", err);
+	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
+	if (ret) {
+		fprintf(stderr, "--- retor when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
 	printf("-- Our peer ID for %s: %llu\n", path, (unsigned long long)hello.id);
@@ -59,7 +59,7 @@ static int msg_send(const struct conn *conn,
 	struct kdbus_msg *msg;
 	uint64_t size, extra_size = 0;
 	void *extra = NULL;
-	int err;
+	int ret;
 
 	if (name) {
 		struct kdbus_msg_data *name_data;
@@ -98,9 +98,9 @@ static int msg_send(const struct conn *conn,
 	if (extra)
 		memcpy(msg->data, extra, extra_size);
 
-	err = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
-	if (err) {
-		fprintf(stderr, "error sending message: %d (%m)\n", err);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	if (ret) {
+		fprintf(stderr, "retor sending message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -182,13 +182,13 @@ static int msg_recv(struct conn *conn)
 {
 	char tmp[0xffff];
 	struct kdbus_msg *msg = (struct kdbus_msg *) tmp;
-	int err;
+	int ret;
 
 	memset(tmp, 0, sizeof(tmp));
 	msg->size = sizeof(tmp);
-	err = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, msg);
-	if (err) {
-		fprintf(stderr, "error receiving message: %d (%m)\n", err);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, msg);
+	if (ret) {
+		fprintf(stderr, "retor receiving message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -200,7 +200,7 @@ static int msg_recv(struct conn *conn)
 static int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 {
 	struct kdbus_cmd_name *cmd_name;
-	int err;
+	int ret;
 	uint64_t size = sizeof(*cmd_name) + strlen(name) + 1;
 
 	cmd_name = alloca(size);
@@ -210,9 +210,9 @@ static int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 	cmd_name->size = size;
 	cmd_name->flags = flags;
 
-	err = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
-	if (err) {
-		fprintf(stderr, "error aquiring name: %d (%m)\n", err);
+	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	if (ret) {
+		fprintf(stderr, "retor aquiring name: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -224,7 +224,7 @@ static int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 static int name_release(struct conn *conn, const char *name)
 {
 	struct kdbus_cmd_name *cmd_name;
-	int err;
+	int ret;
 	uint64_t size = sizeof(*cmd_name) + strlen(name) + 1;
 
 	cmd_name = alloca(size);
@@ -235,9 +235,9 @@ static int name_release(struct conn *conn, const char *name)
 
 	printf("conn %ld giving up name '%s'\n", conn->id, name);
 
-	err = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
-	if (err) {
-		fprintf(stderr, "error releasing name: %d (%m)\n", err);
+	ret = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
+	if (ret) {
+		fprintf(stderr, "retor releasing name: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -249,15 +249,15 @@ static int name_list(struct conn *conn)
 	uint64_t size = 0xffff;
 	struct kdbus_cmd_names *names;
 	struct kdbus_cmd_name *name;
-	int err;
+	int ret;
 
 	names = alloca(size);
 	memset(names, 0, size);
 	names->size = size;
 
-	err = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, names);
-	if (err) {
-		fprintf(stderr, "error listing names: %d (%m)\n", err);
+	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, names);
+	if (ret) {
+		fprintf(stderr, "retor listing names: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
 		struct kdbus_cmd_fname head;
 		char name[64];
 	} fname;
-	int fdc, err, cookie;
+	int fdc, ret, cookie;
 	char *bus;
 	struct conn *conn_a, *conn_b;
 	struct pollfd fds[2];
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 	printf("-- opening /dev/kdbus/control\n");
 	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
 	if (fdc < 0) {
-		fprintf(stderr, "--- error %d (%m)\n", fdc);
+		fprintf(stderr, "--- retor %d (%m)\n", fdc);
 		return EXIT_FAILURE;
 	}
 
@@ -300,9 +300,9 @@ int main(int argc, char *argv[])
 	fname.head.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
 
 	printf("-- creating bus '%s'\n", fname.name);
-	err = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &fname);
-	if (err) {
-		fprintf(stderr, "--- error %d (%m)\n", err);
+	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &fname);
+	if (ret) {
+		fprintf(stderr, "--- retor %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -336,8 +336,8 @@ int main(int argc, char *argv[])
 			fds[i].revents = 0;
 		}
 
-		err = poll(fds, nfds, 3000);
-		if (err <= 0)
+		ret = poll(fds, nfds, 3000);
+		if (ret <= 0)
 			break;
 
 		if (fds[0].revents & POLLIN) {

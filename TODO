@@ -13,7 +13,7 @@ Security:
     be received; refuse the message otherwise
   - limit out-of-line memory and file descriptor passing to unicast,
     do no try to broadcast them
-  - allow only anonymous mappings to be transferred; or find a way to
+  - allow only anonymous mappings to be transfreted; or find a way to
     ensure that file-based mappings can never change the content
     when the file content changes, like reflink
 

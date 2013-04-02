@@ -99,7 +99,7 @@ static int msg_new(struct connection *conn, struct umsg __user *umsg,
 {
 	struct kmsg *m;
 	u32 size;
-	int err;
+	int ret;
 
 	if (copy_from_user(&size, &umsg->size, sizeof(size)))
 		return -EFAULT;
@@ -111,8 +111,8 @@ static int msg_new(struct connection *conn, struct umsg __user *umsg,
 	if (!m)
 		return -ENOMEM;
 	if (copy_from_user(m->data, umsg->data, size)) {
-		err = -EFAULT;
-		goto out_err;
+		ret = -EFAULT;
+		goto out_ret;
 	}
 
 	if (copy_from_user(&m->dst_id, &umsg->dst_id, sizeof(u32))) {
@@ -126,9 +126,9 @@ static int msg_new(struct connection *conn, struct umsg __user *umsg,
 	m->msg_id = msg_id_next++;
 	*kmsg = m;
 	return 0;
-out_err:
+out_ret:
 	kfree(m);
-	return err;
+	return ret;
 }
 
 static int msg_send(struct connection *conn, struct kmsg *msg)
@@ -263,15 +263,15 @@ static long conn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct connection *conn = file->private_data;
 	struct kmsg *msg;
-	int err;
+	int ret;
 	void __user *argp = (void __user *)arg;
 
 	switch (cmd) {
 	case PORTAL_MSG_SEND:
 		pr_info("connection %d: send message\n", conn->id);
-		err = msg_new(conn, argp, &msg);
-		if (err < 0)
-			return err;
+		ret = msg_new(conn, argp, &msg);
+		if (ret < 0)
+			return ret;
 		return msg_send(conn, msg);
 
 	case PORTAL_MSG_RECV:
@@ -373,12 +373,12 @@ static int portal_major;	/* Our major number */
 
 static int __init portal_init(void)
 {
-	int err;
+	int ret;
 	struct device *dev;
 
-	err = class_register(&portal_class);
-	if (err < 0)
-		return err;
+	ret = class_register(&portal_class);
+	if (ret < 0)
+		return ret;
 
 	init_connection(&conn1, 1);
 	init_connection(&conn2, 2);
@@ -388,8 +388,8 @@ static int __init portal_init(void)
 	/* Create our static device nodes, with one dynamic major */
 	portal_major = register_chrdev(0, "portal", &portal_device_ops);
 	if (portal_major < 0) {
-		err = portal_major;
-		goto err;
+		ret = portal_major;
+		goto ret;
 	}
 
 	/* Create 4 sysfs entries */
@@ -400,9 +400,9 @@ static int __init portal_init(void)
 
 	pr_info("initialized\n");
 	return 0;
-err:
+ret:
 	class_unregister(&portal_class);
-	return err;
+	return ret;
 }
 
 static void __exit portal_exit(void)

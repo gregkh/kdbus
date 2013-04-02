@@ -41,17 +41,17 @@ DEFINE_MUTEX(kdbus_subsys_lock);
 
 static int __init kdbus_init(void)
 {
-	int err;
+	int ret;
 
-	err = bus_register(&kdbus_subsys);
-	if (err < 0)
-		return err;
+	ret = bus_register(&kdbus_subsys);
+	if (ret < 0)
+		return ret;
 
-	err = kdbus_ns_new(NULL, NULL, 0, &kdbus_ns_init);
-	if (err < 0) {
+	ret = kdbus_ns_new(NULL, NULL, 0, &kdbus_ns_init);
+	if (ret < 0) {
 		bus_unregister(&kdbus_subsys);
-		pr_err("failed to initialize err=%i\n", err);
-		return err;
+		pr_err("failed to initialize ret=%i\n", ret);
+		return ret;
 	}
 
 	pr_info("initialized\n");

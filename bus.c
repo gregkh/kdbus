@@ -86,7 +86,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 {
 	char prefix[16];
 	struct kdbus_bus *b;
-	int err;
+	int ret;
 
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-", uid);
@@ -107,19 +107,19 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 	INIT_LIST_HEAD(&b->ep_list);
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
-		err = -ENOMEM;
-		goto err;
+		ret = -ENOMEM;
+		goto ret;
 	}
 
 	b->name_registry = kdbus_name_registry_new();
 	if (!b->name_registry) {
-		err = -ENOMEM;
-		goto err;
+		ret = -ENOMEM;
+		goto ret;
 	}
 
-	err = kdbus_ep_new(b, "bus", mode, uid, gid, &b->ep);
-	if (err < 0)
-		goto err;
+	ret = kdbus_ep_new(b, "bus", mode, uid, gid, &b->ep);
+	if (ret < 0)
+		goto ret;
 
 	mutex_lock(&ns->lock);
 	b->id = ns->bus_id_next++;
@@ -129,7 +129,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 	pr_info("created bus %llu '%s/%s'\n",
 		(unsigned long long)b->id, ns->devpath, b->name);
 	return 0;
-err:
+ret:
 	kdbus_bus_unref(b);
-	return err;
+	return ret;
 }

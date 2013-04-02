@@ -104,7 +104,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 {
 	struct kdbus_kmsg *kmsg;
 	u64 size;
-	int err;
+	int ret;
 
 	if (kdbus_size_user(size, buf, struct kdbus_msg, size))
 		return -EFAULT;
@@ -119,22 +119,22 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 		return -ENOMEM;
 
 	if (copy_from_user(&kmsg->msg, buf, size)) {
-		err = -EFAULT;
-		goto out_err;
+		ret = -EFAULT;
+		goto out_ret;
 	}
 
-	err = kdbus_msg_validate_from_user(&kmsg->msg);
-	if (err < 0)
-		goto out_err;
+	ret = kdbus_msg_validate_from_user(&kmsg->msg);
+	if (ret < 0)
+		goto out_ret;
 
 	kdbus_kmsg_init(kmsg, conn);
 
 	*m = kmsg;
 	return 0;
 
-out_err:
+out_ret:
 	kfree(m);
-	return err;
+	return ret;
 }
 
 static const struct kdbus_msg_data *kdbus_msg_get_data(struct kdbus_msg *msg,

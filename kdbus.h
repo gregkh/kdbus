@@ -36,10 +36,10 @@ struct kdbus_creds {
 	__u64 tid;
 
 	/* The starttime of the process PID. This is useful to detect
-	PID overruns from the client side. i.e. if you use the PID to
+	PID ovretuns from the client side. i.e. if you use the PID to
 	look something up in /proc/$PID/ you can afterwards check the
 	starttime field of it to ensure you didn't run into a PID
-	overrun. */
+	ovretun. */
 	__u64 starttime;
 };
 
@@ -187,7 +187,7 @@ struct kdbus_cmd_hello {
 				 * capabilities and more, kernel
 				 * returns its capabilites and
 				 * more. Kernel might refuse client's
-				 * capabilities by returning an error
+				 * capabilities by returning an retor
 				 * from KDBUS_CMD_HELLO */
 
 	/* userspace → kernel */
@@ -206,7 +206,7 @@ struct kdbus_cmd_hello {
 				 * from original KDBUS_CMD_BUS_MAKE
 				 * ioctl. It's intended to be useful
 				 * to do negotiation of features of
-				 * the payload that is transferred. */
+				 * the payload that is transfreted. */
 	__u64 id;		/* peer id */
 };
 
