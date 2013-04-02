@@ -26,6 +26,9 @@
 /* global list of all namespaces */
 static LIST_HEAD(namespace_list);
 
+/* namespace list lock */
+DEFINE_MUTEX(kdbus_subsys_lock);
+
 /* next namespace id sequence number */
 static u64 kdbus_ns_id_next;
 
