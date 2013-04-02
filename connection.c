@@ -145,6 +145,11 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	pr_info("created endpoint bus connection %llu '%s/%s'\n",
 		(unsigned long long)conn->id, conn->ns->devpath,
 		conn->ep->bus->name);
+
+	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, 0);
+	if (ret < 0)
+		return ret;
+
 	return 0;
 
 err_unlock:
