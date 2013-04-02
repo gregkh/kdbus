@@ -118,7 +118,7 @@ static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
 	u64 extra_size = sizeof(*name_change) + strlen(e->name) + 1;
 	int ret;
 
-	ret = kdbus_kmsg_new(new, extra_size, &kmsg);
+	ret = kdbus_kmsg_new(extra_size, &kmsg);
 	if (ret < 0)
 		return ret;
 

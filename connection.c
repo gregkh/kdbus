@@ -467,7 +467,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MSG_SEND:
 		/* send a message */
-		ret = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
+		ret = kdbus_kmsg_new_from_user(buf, &kmsg);
 		if (ret < 0)
 			break;
 

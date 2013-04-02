@@ -47,15 +47,7 @@ static struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg)
 	return kmsg;
 }
 
-static void kdbus_kmsg_init(struct kdbus_kmsg *kmsg,
-			    struct kdbus_conn *conn)
-{
-	kmsg->msg.src_id = conn->id;
-	kref_init(&kmsg->kref);
-}
-
-int kdbus_kmsg_new(struct kdbus_conn *conn, u64 extra_size,
-		   struct kdbus_kmsg **m)
+int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m)
 {
 	u64 size = sizeof(struct kdbus_kmsg) + KDBUS_MSG_DATA_SIZE(extra_size);
 	struct kdbus_kmsg *kmsg = kzalloc(size, GFP_KERNEL);
@@ -63,7 +55,7 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, u64 extra_size,
 	if (!kmsg)
 		return -ENOMEM;
 
-	kdbus_kmsg_init(kmsg, conn);
+	kref_init(&kmsg->kref);
 
 	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	kmsg->msg.data[0].size = KDBUS_MSG_DATA_SIZE(extra_size);
@@ -99,8 +91,7 @@ static int kdbus_msg_validate_from_user(const struct kdbus_msg *msg)
 	return 0;
 }
 
-int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
-			     struct kdbus_kmsg **m)
+int kdbus_kmsg_new_from_user(void __user *buf, struct kdbus_kmsg **m)
 {
 	struct kdbus_kmsg *kmsg;
 	u64 size;
@@ -127,7 +118,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	if (ret < 0)
 		goto out_ret;
 
-	kdbus_kmsg_init(kmsg, conn);
+	kref_init(&kmsg->kref);
 
 	*m = kmsg;
 	return 0;
@@ -284,7 +275,7 @@ static int kdbus_msg_reply(struct kdbus_ep *ep,
 	if (!dst_conn)
 		return -ENOENT;
 
-	ret = kdbus_kmsg_new(dst_conn, 0, &kmsg);
+	ret = kdbus_kmsg_new(0, &kmsg);
 	if (ret < 0)
 		return ret;
 
