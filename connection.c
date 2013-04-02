@@ -367,7 +367,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
-		return -ENOSYS;
+		return kdbus_policy_set_from_user(conn->ep->policy_db, argp);
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */

@@ -56,7 +56,7 @@ struct kdbus_name_registry *kdbus_name_registry_new(void)
 	return reg;
 }
 
-static u64 kdbus_name_make_hash(const char *name)
+static u32 kdbus_name_make_hash(const char *name)
 {
 	unsigned int len = strlen(name);
 	u64 hash = init_name_hash();

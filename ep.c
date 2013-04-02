@@ -82,6 +82,7 @@ static void __kdbus_ep_free(struct kref *kref)
 		ep->bus->ns->devpath, ep->bus->name, ep->name);
 	kdbus_bus_unref(ep->bus);
 	mutex_unlock(&ep->bus->lock);
+	kdbus_policy_db_unref(ep->policy_db);
 
 	kfree(ep->name);
 	kfree(ep);
@@ -161,6 +162,12 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	if (err < 0) {
 		put_device(e->dev);
 		e->dev = NULL;
+	}
+
+	e->policy_db = kdbus_policy_db_new();
+	if (!e->policy_db) {
+		err = -ENOMEM;
+		goto err;
 	}
 
 	init_waitqueue_head(&e->wait);

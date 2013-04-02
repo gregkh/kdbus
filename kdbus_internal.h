@@ -52,6 +52,19 @@ struct kdbus_ns {
 	struct list_head list_entry;
 };
 
+/* policy */
+
+struct kdbus_policy_db {
+	struct kref kref;
+	DECLARE_HASHTABLE(entries_hash, 6);
+	struct mutex		entries_lock;
+};
+
+struct kdbus_policy_db *kdbus_policy_db_new(void);
+void kdbus_policy_db_unref(struct kdbus_policy_db *db);
+int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
+			       void __user *buf);
+
 /* names registry */
 struct kdbus_name_registry {
 	struct kref		kref;
@@ -144,6 +157,7 @@ struct kdbus_ep {
 	struct list_head message_list;	/* messages in flight for this endpoint */
 	struct list_head connection_list;
 	wait_queue_head_t wait;		/* wake up this endpoint */
+	struct kdbus_policy_db *policy_db;
 };
 
 /*
