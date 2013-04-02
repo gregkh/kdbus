@@ -173,7 +173,12 @@ struct kdbus_cmd_policy {
 };
 
 enum {
-	KDBUS_CMD_HELLO_STARTER = 1,
+	KDBUS_CMD_HELLO_STARTER		=  1,
+};
+
+enum {
+	KDBUS_CMD_FNAME_ACCESS_GROUP	=  1,
+	KDBUS_CMD_FNAME_ACCESS_WORLD	=  2,
 };
 
 struct kdbus_cmd_hello {
@@ -197,8 +202,8 @@ struct kdbus_cmd_hello {
 				 * on behalf of somebody else. */
 
 	/* kernel → userspace */
-	__u64 bus_flags;	/* this is copied verbatim from the
-				 * original KDBUS_CMD_BUS_MAKE
+	__u64 bus_flags;	/* this is .flags copied verbatim from
+				 * from original KDBUS_CMD_BUS_MAKE
 				 * ioctl. It's intended to be useful
 				 * to do negotiation of features of
 				 * the payload that is transferred. */
@@ -211,12 +216,11 @@ struct kdbus_cmd_fname {
 				 * When creating a bus/ns/ep feature
 				 * kernel negotiation done the same
 				 * way as for KDBUS_CMD_BUS_MAKE. */
-	__u64 bus_flags;	/* userspace → kernel
+	__u64 flags;		/* userspace → kernel
 				 * When a bus is created this value is
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
-	__u64 mode;
 	char name[0];
 };
 

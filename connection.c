@@ -264,9 +264,12 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if ((fname->mode & 0777) > 0)
-			mode = fname->mode & 0777;
-		err = kdbus_bus_new(conn->ns, fname->name, fname->bus_flags,
+		if (fname->flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
+			mode = 0666;
+		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
+			mode = 0660;
+
+		err = kdbus_bus_new(conn->ns, fname->name, fname->flags,
 				    mode, current_fsuid(), current_fsgid(), &bus);
 		if (err < 0)
 			break;
@@ -285,7 +288,12 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (!check_flags(fname->kernel_flags))
 			return -ENOTSUPP;
 
-		err = kdbus_ns_new(kdbus_ns_init, fname->name, fname->mode, &ns);
+		if (fname->flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
+			mode = 0666;
+		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
+			mode = 0660;
+
+		err = kdbus_ns_new(kdbus_ns_init, fname->name, mode, &ns);
 		if (err < 0) {
 			pr_err("failed to create namespace %s, err=%i\n",
 			       fname->name, err);
@@ -315,110 +323,174 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 
 /* kdbus bus endpoint commands */
 static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
-				void __user *argp)
+				void __user *buf)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_fname fname;
+	struct kdbus_cmd_fname *fname = NULL;
 	struct kdbus_kmsg *kmsg;
 	struct kdbus_bus *bus;
-	long err;
+	long err = 0;
 
 	/* We need a connection before we can do anything with an ioctl */
 	if (!conn)
 		return -EINVAL;
 
 	switch (cmd) {
-	case KDBUS_CMD_EP_MAKE:
+	case KDBUS_CMD_EP_MAKE: {
+		u64 size;
+		umode_t mode = 0;
+
 		/* create a new endpoint for this bus, and turn this
 		 * fd into a reference to it */
-		if (copy_from_user(&fname, argp, sizeof(fname)))
-			return -EFAULT;
+		if (kdbus_size_user(size, buf, struct kdbus_cmd_fname, size)) {
+			err = -EFAULT;
+			break;
+		}
 
-		if (!check_flags(fname.kernel_flags))
-			return -ENOTSUPP;
+		if (size < sizeof(struct kdbus_cmd_fname) + 2) {
+			err = -EINVAL;
+			break;
+		}
 
-		return kdbus_ep_new(conn->ep->bus, fname.name, fname.mode,
-				    current_fsuid(), current_fsgid(),
-				    NULL);
+		if (size > sizeof(struct kdbus_cmd_fname) + 64) {
+			err = -ENAMETOOLONG;
+			break;
+		}
+
+		fname = memdup_user(buf, size);
+		if (IS_ERR(fname)) {
+			err = PTR_ERR(fname);
+			fname = NULL;
+			break;
+		}
+
+		if (!check_flags(fname->kernel_flags)) {
+			err = -ENOTSUPP;
+			break;
+		}
+
+		if (fname->flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
+			mode = 0666;
+		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
+			mode = 0660;
+
+		err = kdbus_ep_new(conn->ep->bus, fname->name, mode,
+				   current_fsuid(), current_fsgid(), NULL);
+
+		break;
+	}
 
 	case KDBUS_CMD_HELLO: {
 		/* turn this fd into a connection. */
 		struct kdbus_cmd_hello hello;
 
-		if (conn->active)
-			return -EBUSY;
+		if (conn->active) {
+			err = -EBUSY;
+			break;
+		}
 
-		if (copy_from_user(&hello, argp, sizeof(hello)))
-			return -EFAULT;
+		if (copy_from_user(&hello, buf, sizeof(hello))) {
+			err = -EFAULT;
+			break;
+		}
 
-		if (!check_flags(hello.kernel_flags))
-			return -ENOTSUPP;
+		if (!check_flags(hello.kernel_flags)) {
+			err = -ENOTSUPP;
+			break;
+		}
 
 		hello.bus_flags = 0; /* FIXME */
 		hello.id = conn->id;
 
-		if (copy_to_user(argp, &hello, sizeof(hello)) < 0)
-			return -EFAULT;
+		if (copy_to_user(buf, &hello, sizeof(hello))) {
+			err = -EFAULT;
+			break;
+		}
 
 		conn->active = true;
 		conn->starter = hello.kernel_flags & KDBUS_CMD_HELLO_STARTER;
+
 		break;
 	}
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
-		return kdbus_policy_set_from_user(conn->ep->policy_db, argp);
+		err = kdbus_policy_set_from_user(conn->ep->policy_db, buf);
+
+		break;
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
 		bus = conn->ep->bus;
-		return kdbus_name_acquire(bus->name_registry, conn, argp);
+		err = kdbus_name_acquire(bus->name_registry, conn, buf);
+
+		break;
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
 		bus = conn->ep->bus;
-		return kdbus_name_release(bus->name_registry, conn, argp);
+		err = kdbus_name_release(bus->name_registry, conn, buf);
+
+		break;
 
 	case KDBUS_CMD_NAME_LIST:
 		/* return all current well-known names */
 		bus = conn->ep->bus;
-		return kdbus_name_list(bus->name_registry, conn, argp);
+		err = kdbus_name_list(bus->name_registry, conn, buf);
+
+		break;
 
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
 		bus = conn->ep->bus;
-		return kdbus_name_query(bus->name_registry, conn, argp);
+		err =kdbus_name_query(bus->name_registry, conn, buf);
+
+		break;
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
-		return -ENOSYS;
+		err = -ENOSYS;
+
+		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
-		return -ENOSYS;
+		err = -ENOSYS;
+
+		break;
 
 	case KDBUS_CMD_MONITOR:
 		/* turn on/turn off monitor mode */
-		return -ENOSYS;
+		err = -ENOSYS;
+
+		break;
 
 	case KDBUS_CMD_MSG_SEND:
 		/* send a message */
-		err = kdbus_kmsg_new_from_user(conn, argp, &kmsg);
+		err = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
 		if (err < 0)
-			return err;
+			break;
+
 		err = kdbus_kmsg_send(conn->ep, &kmsg);
 		kdbus_kmsg_unref(kmsg);
-		return err;
+
+		break;
 
 	case KDBUS_CMD_MSG_RECV:
 		/* receive a message */
-		return kdbus_kmsg_recv(conn, argp);
+		err = kdbus_kmsg_recv(conn, buf);
+
+		break;
 
 	default:
-		return -ENOTTY;
+		err = -ENOTTY;
+
+		break;
 	}
 
-	return 0;
+	kfree(fname);
+
+	return err;
 }
 
 static long kdbus_conn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)

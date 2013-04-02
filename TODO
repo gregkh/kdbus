@@ -26,8 +26,7 @@ Mesage Validation:
   - always align data records to 8 byte boundaries, keep size correct,
 
 External API:
-  - convert mode bitmask of device node to more abstract and simple
-    flags: ACCESS_GROUP, ACCESS_WORLD?
+  - add some "uint64_t reserved" in the basic structures?
 
 Kernel Core:
   - use subsys_virtual_register() to avoid devices showing up directly

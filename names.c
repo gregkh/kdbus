@@ -393,7 +393,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 		name = (struct kdbus_cmd_name *) ((u8 *) name + name->size);
 	}
 
-	if (copy_to_user(buf, names, size) < 0) {
+	if (copy_to_user(buf, names, size)) {
 		ret = -EFAULT;
 		goto exit_unlock;
 	}
