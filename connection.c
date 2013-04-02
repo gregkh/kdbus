@@ -318,6 +318,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (!check_flags(hello.kernel_flags))
 			return -ENOTSUPP;
 
+		hello.bus_flags = 0; /* FIXME */
 		hello.id = conn->id;
 
 		if (copy_to_user(argp, &hello, sizeof(hello)) < 0)

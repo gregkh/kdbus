@@ -238,6 +238,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	if (IS_ERR(name))
 		return PTR_ERR(name);
 
+	name->flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
 	hash = kdbus_name_make_hash(name->name);
 
 	mutex_lock(&reg->entries_lock);
