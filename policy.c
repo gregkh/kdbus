@@ -40,10 +40,18 @@ struct kdbus_policy_db_entry {
 
 static void __kdbus_policy_db_free(struct kref *kref)
 {
-	struct kdbus_policy_db *reg =
+	struct kdbus_policy_db_entry *e;
+	struct hlist_node *tmp;
+	struct kdbus_policy_db *db =
 		container_of(kref, struct kdbus_policy_db, kref);
-	/* :.. */
-	kfree(reg);
+	int i;
+
+	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
+		hash_del(&e->hentry);
+		kfree(e);
+	}
+
+	kfree(db);
 }
 
 void kdbus_policy_db_unref(struct kdbus_policy_db *db)
