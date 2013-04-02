@@ -138,7 +138,7 @@ static void msg_dump(struct kdbus_msg *msg)
 
 		switch (data->type) {
 		case KDBUS_MSG_SRC_CREDS:
-			printf(" `- creds: uid: %llx, gid: %llx, pid: %llx, tid: %llx\n",
+			printf(" `- creds: uid: %lld, gid: %lld, pid: %lld, tid: %lld\n",
 				data->creds.uid, data->creds.gid,
 				data->creds.pid, data->creds.tid);
 			break;
