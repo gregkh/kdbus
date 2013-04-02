@@ -68,8 +68,7 @@ int kdbus_notify_reply_dead(struct kdbus_ep *ep,
 	return kdbus_notify_reply(ep, orig_msg, KDBUS_MSG_REPLY_DEAD);
 }
 
-int kdbus_notify_name_change(struct kdbus_conn *conn,
-			     struct kdbus_bus *bus, u64 type,
+int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     u64 old_id, u64 new_id, u64 flags,
 			     const char *name)
 {
@@ -102,14 +101,13 @@ int kdbus_notify_name_change(struct kdbus_conn *conn,
 	name_change->flags = flags;
 	strcpy(name_change->name, name);
 
-	ret = kdbus_kmsg_send(conn->ep, &kmsg);
+	ret = kdbus_kmsg_send(ep, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return 0;
 }
 
-int kdbus_notify_id_change(struct kdbus_conn *conn,
-			   struct kdbus_bus *bus, u64 type,
+int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 			   u64 id, u64 flags)
 {
 	struct kdbus_manager_msg_id_change *id_change;
@@ -138,7 +136,7 @@ int kdbus_notify_id_change(struct kdbus_conn *conn,
 
 	id_change->id = id;
 
-	ret = kdbus_kmsg_send(conn->ep, &kmsg);
+	ret = kdbus_kmsg_send(ep, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return 0;

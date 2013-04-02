@@ -108,39 +108,6 @@ static void kdbus_name_add_to_conn(struct kdbus_name_entry *e,
 	list_add_tail(&e->conn_entry, &conn->names_list);
 }
 
-static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
-					    struct kdbus_conn *new,
-					    struct kdbus_name_entry *e)
-{
-	struct kdbus_kmsg *kmsg;
-	struct kdbus_msg_data *data;
-	struct kdbus_manager_msg_name_change *name_change;
-	u64 extra_size = sizeof(*name_change) + strlen(e->name) + 1;
-	int ret;
-
-	ret = kdbus_kmsg_new(extra_size, &kmsg);
-	if (ret < 0)
-		return ret;
-
-	/* FIXME: broadcast? */
-	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
-	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
-
-	data = kmsg->msg.data;
-	data->type = KDBUS_MSG_NAME_CHANGE;
-	name_change = &data->name_change;
-
-	name_change->old_id = old->id;
-	name_change->new_id = new->id;
-	name_change->flags = e->flags;
-	strcpy(name_change->name, e->name);
-
-	ret = kdbus_kmsg_send(new->ep, &kmsg);
-	kdbus_kmsg_unref(kmsg);
-
-	return ret;
-}
-
 static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 {
 	list_del(&q->entry_entry);
@@ -156,6 +123,9 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 	list_del(&e->conn_entry);
 
 	if (list_empty(&e->queue_list)) {
+		kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_REMOVE,
+					 e->conn->id, 0, e->flags, e->name);
+
 		kdbus_name_entry_free(e);
 	} else {
 		struct kdbus_conn *old_conn = e->conn;
@@ -166,7 +136,9 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 		kdbus_name_add_to_conn(e, q->conn);
 		e->flags = q->flags;
 		kdbus_name_queue_item_free(q);
-		ret = kdbus_name_send_name_changed_msg(old_conn, e->conn, e);
+		ret = kdbus_notify_name_change(old_conn->ep, KDBUS_MSG_NAME_CHANGE,
+					       old_conn->id, e->conn->id, e->flags,
+					       e->name);
 	}
 
 	return ret;
@@ -211,7 +183,9 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	if ((*flags   & KDBUS_CMD_NAME_REPLACE_EXISTING) &&
 	    (e->flags & KDBUS_CMD_NAME_ALLOW_REPLACEMENT)) {
 		/* ... */
-		return kdbus_name_send_name_changed_msg(e->conn, conn, e);
+		return kdbus_notify_name_change(conn->ep, KDBUS_MSG_NAME_CHANGE,
+						e->conn->id, conn->id, *flags,
+						e->name);
 	}
 
 	if (*flags & KDBUS_CMD_NAME_QUEUE) {
@@ -302,6 +276,9 @@ exit_copy:
 		ret = -EFAULT;
 		goto err_unlock_free;
 	}
+
+	kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_ADD, 0,
+				 e->conn->id, e->flags, e->name);
 
 	kfree(name);
 	mutex_unlock(&reg->entries_lock);

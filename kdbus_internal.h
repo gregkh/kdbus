@@ -215,12 +215,10 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **kmsg);
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
 
 /* kernel generated notifications */
-int kdbus_notify_name_change(struct kdbus_conn *conn,
-			     struct kdbus_bus *bus, u64 type,
+int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     u64 old_id, u64 new_id, u64 flags,
 			     const char *name);
-int kdbus_notify_id_change(struct kdbus_conn *conn,
-			   struct kdbus_bus *bus, u64 type,
+int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 			   u64 id, u64 flags);
 int kdbus_notify_reply_timeout(struct kdbus_ep *ep,
 			       const struct kdbus_msg *orig_msg);
