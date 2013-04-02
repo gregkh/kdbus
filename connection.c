@@ -43,7 +43,7 @@ void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			continue;
 
 		if (kmsg->deadline <= now) {
-			kdbus_msg_reply_timeout(conn, &kmsg->msg);
+			kdbus_msg_reply_timeout(conn->ep, &kmsg->msg);
 			kdbus_kmsg_unref(entry->kmsg);
 			list_del(&entry->list);
 			kfree(entry);
@@ -170,22 +170,31 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	case KDBUS_CONN_EP: {
 		struct kdbus_msg_list_entry *entry, *tmp;
 
-		del_timer(&conn->timer);
- 		bus = conn->ep->bus;
-		kdbus_name_remove_by_conn(bus->name_registry, conn);
-		kdbus_ep_unref(conn->ep);
-
 		list_del(&conn->connection_entry);
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->msg_lock);
 		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
 			struct kdbus_kmsg *kmsg = entry->kmsg;
-			//kdbus_msg_reply_dead(conn, &kmsg->msg);
+			struct kdbus_msg *msg = &kmsg->msg;
+
+#if 0
+			if (msg->dst_id != KDBUS_DST_ID_BROADCAST &&
+			    msg->src_id != conn->id)
+				kdbus_msg_reply_dead(conn->ep, msg);
+#endif
+
 			kdbus_kmsg_unref(kmsg);
 			list_del(&entry->list);
 			kfree(entry);
 		}
 		mutex_unlock(&conn->msg_lock);
+
+		del_timer(&conn->timer);
+		cancel_work_sync(&conn->work);
+
+		bus = conn->ep->bus;
+		kdbus_name_remove_by_conn(bus->name_registry, conn);
+		kdbus_ep_unref(conn->ep);
 
 		break;
 	}

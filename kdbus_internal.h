@@ -210,8 +210,10 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **kmsg);
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
-int kdbus_msg_reply_timeout(struct kdbus_conn *conn, struct kdbus_msg *msg);
-int kdbus_msg_reply_dead(struct kdbus_conn *conn, struct kdbus_msg *msg);
+int kdbus_msg_reply_timeout(struct kdbus_ep *ep,
+			    const struct kdbus_msg *orig_msg);
+int kdbus_msg_reply_dead(struct kdbus_ep *ep,
+			 const struct kdbus_msg *orig_msg);
 
 /* main */
 extern struct bus_type kdbus_subsys;
