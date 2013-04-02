@@ -96,6 +96,24 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 	return db;
 }
 
+int kdbus_policy_db_check_access(struct kdbus_policy_db *db,
+				 struct kdbus_conn *conn_from,
+				 struct kdbus_conn *conn_to,
+				 u8 type)
+{
+	if (conn_from->ep != conn_to->ep)
+		return -EINVAL;
+
+	switch (type) {
+	case KDBUS_POLICY_RECV:
+	case KDBUS_POLICY_SEND:
+	case KDBUS_POLICY_OWN:
+		break;
+	}
+
+	return -EPERM;
+}
+
 static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
 				   const struct kdbus_policy *pol)
 {
