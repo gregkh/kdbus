@@ -36,9 +36,6 @@ struct kdbus_ns *kdbus_ns_init;
 /* map of majors to namespaces */
 DEFINE_IDR(kdbus_ns_major_idr);
 
-/* namespace list lock */
-DEFINE_MUTEX(kdbus_subsys_lock);
-
 static int __init kdbus_init(void)
 {
 	int ret;
