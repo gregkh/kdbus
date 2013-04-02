@@ -1,3 +1,5 @@
+- convert mode bitmask of device node to simple flags: group, world?
+
 - kmalloc is limited to < 128k
 
 - replace inefficient realloc() with vmap/own pages allocation logic

@@ -277,24 +277,15 @@ static int name_list(struct conn *conn)
 
 int main(int argc, char *argv[])
 {
-	struct kdbus_cmd_fname name;
+	struct {
+		struct kdbus_cmd_fname meta;
+		char name[64];
+	} fname;
 	int fdc, err, cookie;
-	char *busname, *bus;
+	char *bus;
 	struct conn *conn_a, *conn_b;
 	struct pollfd fds[2];
 	int count;
-	uid_t uid;
-
-	memset(&name, 0, sizeof(name));
-
-	uid = getuid();
-	if (argv[1])
-		busname = argv[1];
-	else if (uid > 0)
-		busname = "system";
-	else
-		busname = "user";
-	strncpy(name.name, busname, sizeof(name.name));
 
 	printf("-- opening /dev/kdbus/control\n");
 	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
@@ -303,16 +294,19 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	snprintf(name.name, sizeof(name.name), "%u-testbus", uid);
+	memset(&fname, 0, sizeof(fname));
+	snprintf(fname.name, sizeof(fname.name), "%u-testbus", getuid());
+	fname.meta.mode = 0666;
+	fname.meta.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
 
-	printf("-- creating bus '%s'\n", name.name);
-	err = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &name);
+	printf("-- creating bus '%s'\n", fname.name);
+	err = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &fname);
 	if (err) {
 		fprintf(stderr, "--- error %d (\"%s\")\n", err, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
-	if (asprintf(&bus, "/dev/kdbus/%s/bus", name.name) < 0)
+	if (asprintf(&bus, "/dev/kdbus/%s/bus", fname.name) < 0)
 		return EXIT_FAILURE;
 
 	conn_a = connect_to_bus(bus);

@@ -219,29 +219,57 @@ static bool check_flags(u64 kernel_flags)
 	return kernel_flags <= 0xFFFFFFFFULL;
 }
 
+static int kdbus_fname_user(void __user *buf, struct kdbus_cmd_fname **fname)
+{
+	u64 size;
+	struct kdbus_cmd_fname *fn;
+
+	if (kdbus_size_user(size, buf, struct kdbus_cmd_fname, size))
+		return -EFAULT;
+
+	if (size < sizeof(struct kdbus_cmd_fname) + 2)
+		return -EINVAL;
+
+	if (size > sizeof(struct kdbus_cmd_fname) + 64)
+		return -ENAMETOOLONG;
+
+	fn = memdup_user(buf, size);
+	if (IS_ERR(fn))
+		return PTR_ERR(fn);
+
+	*fname = fn;
+
+	return 0;
+}
+
 /* kdbus control device commands */
 static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
-				     void __user *argp)
+				     void __user *buf)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_fname fname;
+	struct kdbus_cmd_fname *fname = NULL;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
+	umode_t mode = 0;
 	int err;
 
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE:
-		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
-			return -EFAULT;
-
-		if (!check_flags(fname.kernel_flags))
-			return -ENOTSUPP;
-
-		err = kdbus_bus_new(conn->ns, fname.name, fname.bus_flags, fname.mode,
-				    current_fsuid(), current_fsgid(),
-				    &bus);
+		err = kdbus_fname_user(buf, &fname);
 		if (err < 0)
-			return err;
+			break;
+
+		if (!check_flags(fname->kernel_flags)) {
+			err = -ENOTSUPP;
+			break;
+		}
+
+		if ((fname->mode & 0777) > 0)
+			mode = fname->mode & 0777;
+		err = kdbus_bus_new(conn->ns, fname->name, fname->bus_flags,
+				    mode, current_fsuid(), current_fsgid(), &bus);
+		if (err < 0)
+			break;
 
 		/* turn the control fd into a new bus owner device */
 		conn->type = KDBUS_CONN_BUS_OWNER;
@@ -250,16 +278,17 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_NS_MAKE:
-		if (copy_from_user(&fname, argp, sizeof(struct kdbus_cmd_fname)))
-			return -EFAULT;
+		err = kdbus_fname_user(buf, &fname);
+		if (err < 0)
+			break;
 
-		if (!check_flags(fname.kernel_flags))
+		if (!check_flags(fname->kernel_flags))
 			return -ENOTSUPP;
 
-		err = kdbus_ns_new(kdbus_ns_init, fname.name, fname.mode, &ns);
+		err = kdbus_ns_new(kdbus_ns_init, fname->name, fname->mode, &ns);
 		if (err < 0) {
 			pr_err("failed to create namespace %s, err=%i\n",
-				fname.name, err);
+			       fname->name, err);
 			return err;
 		}
 
@@ -270,12 +299,18 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_BUS_POLICY_SET:
-		return -ENOSYS;
+		err = -ENOSYS;
+
+		break;
 
 	default:
-		return -ENOTTY;
+		err = -ENOTTY;
+
+		break;
 	}
-	return 0;
+
+	kfree(fname);
+	return err;
 }
 
 /* kdbus bus endpoint commands */

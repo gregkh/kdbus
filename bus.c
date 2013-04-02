@@ -81,8 +81,8 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	pr_info("closing bus %s/%s\n", bus->ns->devpath, bus->name);
 }
 
-int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
-		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus)
+int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
+		  umode_t mode, uid_t uid, gid_t gid, struct kdbus_bus **bus)
 {
 	char prefix[16];
 	struct kdbus_bus *b;

@@ -206,6 +206,7 @@ struct kdbus_cmd_hello {
 };
 
 struct kdbus_cmd_fname {
+	__u64 size;
 	__u64 kernel_flags;	/* userspace → kernel, kernel → userspace
 				 * When creating a bus/ns/ep feature
 				 * kernel negotiation done the same
@@ -215,8 +216,8 @@ struct kdbus_cmd_fname {
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
-	mode_t mode;
-	char name[256];
+	__u64 mode;
+	char name[0];
 };
 
 enum {

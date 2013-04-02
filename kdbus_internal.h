@@ -234,8 +234,8 @@ struct kdbus_ns *kdbus_ns_find(const char *name);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
-int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
-		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus);
+int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
+		  umode_t mode, uid_t uid, gid_t gid, struct kdbus_bus **bus);
 void kdbus_bus_scan_timeout_list(struct kdbus_bus *bus);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
 
@@ -250,6 +250,6 @@ int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 
 /* connection */
-void kdbus_conn_scan_timeout(struct kdbus_conn *conn);;
+void kdbus_conn_scan_timeout(struct kdbus_conn *conn);
 
 #endif

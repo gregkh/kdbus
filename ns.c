@@ -48,7 +48,6 @@ static struct device_type kdbus_devtype_control = {
 	.devnode	= kdbus_devnode_control,
 };
 
-
 /* kdbus namespace */
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
 {

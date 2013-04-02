@@ -123,7 +123,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 
 	mutex_lock(&bus->ns->lock);
 	kref_init(&e->kref);
-	e->mode = mode;
+	e->mode = mode > 0 ? mode : 0660;
 	e->uid = uid;
 	e->gid = gid;
 
