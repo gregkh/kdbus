@@ -70,7 +70,6 @@ static void kdbus_conn_timer_func(unsigned long val)
 	schedule_work(&conn->work);
 }
 
-
 /* kdbus file operations */
 static int kdbus_conn_open(struct inode *inode, struct file *file)
 {

@@ -192,6 +192,26 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 	return kmsg;
 }
 
+static struct kdbus_kmsg __must_check *
+kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_msg_data *data = NULL;
+	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(struct kdbus_creds));
+
+	kmsg = kdbus_kmsg_append_data(kmsg, size, &data);
+	if (!kmsg || !data)
+		return NULL;
+
+	data->size = size;
+	data->type = KDBUS_MSG_SRC_CREDS;
+	data->creds.uid = current_uid();
+	data->creds.gid = current_gid();
+	data->creds.pid = current->pid;
+	data->creds.tid = current->tgid;
+
+	return kmsg;
+}
+
 static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 				   struct kdbus_kmsg *kmsg)
 {
@@ -252,6 +272,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 
 	/* augment incoming message */
 	kmsg = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
+	kmsg = kdbus_kmsg_append_cred(kmsg);
 
 	msg = &kmsg->msg;
 //	kdbus_msg_dump(msg);
@@ -298,6 +319,10 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 	} else {
 		/* broadcast */
 		struct kdbus_conn *tmp;
+
+		/* timeouts are not allowed for broadcasts */
+		if (msg->timeout)
+			return -EINVAL;
 
 		list_for_each_entry_safe(conn_dst, tmp,
 					 &ep->connection_list,
