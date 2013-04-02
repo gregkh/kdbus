@@ -78,7 +78,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	struct kdbus_conn *conn;
 	struct kdbus_ns *ns;
 	struct kdbus_ep *ep;
-	int i;
 	int err;
 
 	conn = kzalloc(sizeof(struct kdbus_conn), GFP_KERNEL);
@@ -121,15 +120,8 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	/* get and register new id for this connection */
 	conn->id = conn->ep->bus->conn_id_next++;
 
-	/* FIXME: get 64 bit working, this will fail for the 2^31th connection */
-	/* use a hash table to get 64bit ids working properly, idr is the wrong
-	 * thing to use here. */
-	i = idr_alloc(&conn->ep->bus->conn_idr, conn, conn->id, 0, GFP_KERNEL);
-	if (i >= 0 && conn->id != i) {
-		idr_remove(&conn->ep->bus->conn_idr, i);
-		err = -EEXIST;
-		goto err_unlock;
-	}
+	/* add this connection to hash table */
+	hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
 
 	mutex_init(&conn->msg_lock);
 	INIT_LIST_HEAD(&conn->msg_list);

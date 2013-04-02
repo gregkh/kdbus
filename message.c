@@ -315,7 +315,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 
 	} else if (msg->dst_id != KDBUS_DST_ID_BROADCAST) {
 		/* direct message */
-		conn_dst = idr_find(&ep->bus->conn_idr, msg->dst_id);
+		conn_dst = kdbus_bus_find_conn_by_id(ep->bus, msg->dst_id);
 		if (!conn_dst)
 			return -ENOENT;
 	}

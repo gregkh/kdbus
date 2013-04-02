@@ -13,8 +13,8 @@
 
 #include <linux/module.h>
 #include <linux/device.h>
-#include <linux/idr.h>
 #include <linux/fs.h>
+#include <linux/idr.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/init.h>
@@ -51,6 +51,17 @@ static void __kdbus_bus_free(struct kref *kref)
 void kdbus_bus_unref(struct kdbus_bus *bus)
 {
 	kref_put(&bus->kref, __kdbus_bus_free);
+}
+
+struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
+{
+	struct kdbus_conn *conn;
+
+	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
+		if (conn->id == id)
+			return conn;
+
+	return NULL;
 }
 
 void kdbus_bus_disconnect(struct kdbus_bus *bus)
@@ -92,7 +103,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 	/* connection 0 == kernel */
 	b->conn_id_next = 1;
 	mutex_init(&b->lock);
-	idr_init(&b->conn_idr);
+	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {

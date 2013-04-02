@@ -14,6 +14,7 @@
 
 #include <uapi/linux/major.h>
 #include <linux/workqueue.h>
+#include <linux/hashtable.h>
 #include "kdbus.h"
 
 /* FIXME: move to uapi/linux/major.h */
@@ -117,6 +118,7 @@ struct kdbus_bus {
 	u64 conn_id_next;		/* next connection id sequence number */
 	u64 msg_id_next;		/* next message id sequence number */
 	struct idr conn_idr;		/* map of connection ids */
+	DECLARE_HASHTABLE(conn_hash, 6);
 	struct kdbus_ep *ep;		/* "bus" default endpoint */
 	struct list_head ep_list;	/* endpoints assigned to this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
@@ -179,6 +181,8 @@ struct kdbus_conn {
 	struct mutex msg_lock;
 	struct list_head msg_list;
 
+	struct hlist_node hentry;
+
 	struct list_head connection_entry;
 	struct list_head names_list;
 	struct list_head names_queue_list;
@@ -231,6 +235,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus);
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, umode_t mode,
 		  u64 bus_flags, uid_t uid, gid_t gid, struct kdbus_bus **bus);
 void kdbus_bus_scan_timeout_list(struct kdbus_bus *bus);
+struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
 
 /* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
