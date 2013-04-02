@@ -117,6 +117,19 @@ static void names_dump(const struct kdbus_msg_data *data, const char *prefix)
 	printf(" `- %s: '%s'\n", prefix, data->data);
 }
 
+static void msg_name_dump(const struct kdbus_msg_data *data, const char *prefix)
+{
+	printf(" `- name %s: '%s', old id: %lld, new id: %lld, flags: 0x%llx\n",
+		prefix,
+		data->name_change.name, data->name_change.old_id,
+		data->name_change.new_id, data->name_change.flags);
+}
+
+static void msg_id_dump(const struct kdbus_msg_data *data, const char *prefix)
+{
+	printf(" `- id %s: %lld\n", prefix, data->data_u64[0]);
+}
+
 static void msg_dump(struct kdbus_msg *msg)
 {
 	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
@@ -157,19 +170,26 @@ static void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_TIMESTAMP:
 			printf(" `- timestamp: %llu ns\n", data->data_u64[0]);
 			break;
-		case KDBUS_MSG_NAME_CHANGE:
-			printf(" `- name change: '%s', old id: %lld, new id: %lld, flags: 0x%llx\n",
-				data->name_change.name, data->name_change.old_id,
-				data->name_change.new_id, data->name_change.flags);
-			break;
-		case KDBUS_MSG_ID_ADD:
-			printf(" `- id new: %lld\n", data->data_u64[0]);
-			break;
-		case KDBUS_MSG_ID_REMOVE:
-			printf(" `- id remove: %lld\n", data->data_u64[0]);
-			break;
 		case KDBUS_MSG_REPLY_TIMEOUT:
 			printf(" `- timeout for cookie 0x%llx\n", msg->cookie_reply);
+			break;
+		case KDBUS_MSG_NAME_ADD:
+			msg_name_dump(data, "add");
+			break;
+		case KDBUS_MSG_NAME_REMOVE:
+			msg_name_dump(data, "remove");
+			break;
+		case KDBUS_MSG_NAME_CHANGE:
+			msg_name_dump(data, "change");
+			break;
+		case KDBUS_MSG_ID_ADD:
+			msg_id_dump(data, "add");
+			break;
+		case KDBUS_MSG_ID_REMOVE:
+			msg_id_dump(data, "remove");
+			break;
+		case KDBUS_MSG_ID_CHANGE:
+			msg_id_dump(data, "change");
 			break;
 		}
 
