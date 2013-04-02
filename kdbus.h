@@ -130,8 +130,10 @@ struct kdbus_msg {
 	__u64 src_id;		/* connection, 0 == kernel */
 	__u64 payload_type;	/* 'DBUSVER1', 'GVARIANT', ... */
 	__u64 cookie;		/* userspace-supplied cookie */
-	__u64 cookie_reply;	/* cookie we reply to */
-	__u64 timeout;		/* reply */
+	union {
+		__u64 cookie_reply;	/* cookie we reply to */
+		__u64 timeout;		/* reply */
+	};
 	struct kdbus_msg_data data[0];
 };
 
