@@ -115,7 +115,7 @@ static int kdbus_name_send_name_changed_msg(struct kdbus_conn *old,
 	name_change->flags = e->flags;
 	strcpy(name_change->name, e->name);
 
-	ret = kdbus_kmsg_send(new->ep, kmsg);
+	ret = kdbus_kmsg_send(new->ep, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return ret;
@@ -223,26 +223,22 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       void __user *buf)
 {
-	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_name, size);
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name *name;
 	u64 size;
 	u32 hash;
 	int ret = 0;
 
-	if (get_user(size, msgsize))
+	if (kdbus_size_user(size, buf, struct kdbus_cmd_name, size))
 		return -EFAULT;
 
-	if (size < sizeof(*name) || size >= 0xffff)
+	if (size < sizeof(struct kdbus_cmd_name)||
+	    size > sizeof(struct kdbus_cmd_name) + 256)
 		return -EMSGSIZE;
 
-	name = kzalloc(size, GFP_KERNEL);
-	if (!name)
-		return -ENOMEM;
-
-	ret = copy_from_user(name, buf, size);
-	if (ret < 0)
-		return -EFAULT;
+	name = memdup_user(buf, size);
+	if (IS_ERR(name))
+		return PTR_ERR(name);
 
 	hash = kdbus_name_make_hash(name->name);
 
@@ -308,28 +304,22 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       void __user *buf)
 {
-	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_name, size);
 	struct kdbus_name_entry *e;
 	struct kdbus_cmd_name *name;
 	u64 size;
 	u32 hash;
 	int ret = 0;
 
-	if (get_user(size, msgsize))
+	if (kdbus_size_user(size, buf, struct kdbus_cmd_name, size))
 		return -EFAULT;
 
-	if (size < sizeof(*name) || size >= 0xffff)
+	if (size < sizeof(struct kdbus_cmd_name)||
+	    size > sizeof(struct kdbus_cmd_name) + 256)
 		return -EMSGSIZE;
 
-	name = kzalloc(size, GFP_KERNEL);
-	if (!name)
-		return -ENOMEM;
-
-	ret = copy_from_user(name, buf, size);
-	if (ret < 0) {
-		ret = -EFAULT;
-		goto exit_free;
-	}
+	name = memdup_user(buf, size);
+	if (IS_ERR(name))
+		return PTR_ERR(name);
 
 	hash = kdbus_name_make_hash(name->name);
 
@@ -339,7 +329,6 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 		kdbus_name_entry_release(e);
 	mutex_unlock(&reg->entries_lock);
 
-exit_free:
 	kfree(name);
 
 	return ret;
@@ -349,14 +338,13 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 		    struct kdbus_conn *conn,
 		    void __user *buf)
 {
-	u64 __user *msgsize = buf + offsetof(struct kdbus_cmd_names, size);
 	struct kdbus_cmd_names *names;
 	struct kdbus_cmd_name *name;
 	struct kdbus_name_entry *e;
 	u64 user_size, size = 0;
 	int ret = 0;
 
-	if (get_user(user_size, msgsize))
+	if (kdbus_size_user(user_size, buf, struct kdbus_cmd_names, size))
 		return -EFAULT;
 
 	mutex_lock(&reg->entries_lock);

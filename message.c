@@ -72,16 +72,15 @@ int kdbus_kmsg_new(struct kdbus_conn *conn, u64 extra_size,
 	return 0;
 }
 
-int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
+int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 			     struct kdbus_kmsg **m)
 {
-	u64 __user *msgsize = argp + offsetof(struct kdbus_msg, size);
 	struct kdbus_kmsg *kmsg;
 	u64 size;
 	int err;
 
-	if (get_user(size, msgsize))
-		err = -EFAULT;
+	if (kdbus_size_user(size, buf, struct kdbus_msg, size))
+		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
@@ -91,7 +90,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp,
 	kmsg = kmalloc(size, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
-	if (copy_from_user(&kmsg->msg, argp, size)) {
+	if (copy_from_user(&kmsg->msg, buf, size)) {
 		err = -EFAULT;
 		goto out_err;
 	}
@@ -322,13 +321,12 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 {
-	u64 __user *msgsize = buf + offsetof(struct kdbus_msg, size);
 	struct kdbus_msg_list_entry *entry;
 	struct kdbus_msg *msg;
 	u64 size;
 	int ret;
 
-	if (get_user(size, msgsize))
+	if (kdbus_size_user(size, buf, struct kdbus_msg, size))
 		return -EFAULT;
 
 	mutex_lock(&conn->msg_lock);
