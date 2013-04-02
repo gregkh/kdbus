@@ -158,7 +158,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	i = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
 	if (i <= 0) {
 		ret = -EEXIST;
-		goto ret_unlock;
+		goto err_unlock;
 	}
 
 	/* get id for this namespace */
@@ -167,7 +167,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	/* register control device for this namespace */
 	n->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	if (!n->dev)
-		goto ret_unlock;
+		goto err_unlock;
 	dev_set_name(n->dev, "%s/%s", n->devpath, "control");
 	n->dev->bus = &kdbus_subsys;
 	n->dev->type = &kdbus_devtype_control;
@@ -177,7 +177,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	if (ret < 0) {
 		put_device(n->dev);
 		n->dev = NULL;
-		goto ret_unlock;
+		goto err_unlock;
 	}
 
 	/* Add to global list of namespaces so we can find it again */
@@ -190,7 +190,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		(unsigned long long)n->id, n->devpath);
 	return 0;
 
-ret_unlock:
+err_unlock:
 	mutex_unlock(&kdbus_subsys_lock);
 ret:
 	kdbus_ns_unref(n);

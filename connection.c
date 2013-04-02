@@ -110,7 +110,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	ep = idr_find(&conn->ns->idr, MINOR(inode->i_rdev));
 	if (!ep || ep->disconnected) {
 		ret = -ENOENT;
-		goto ret_unlock;
+		goto err_unlock;
 	}
 
 	/* create endpoint connection */
@@ -147,7 +147,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 		conn->ep->bus->name);
 	return 0;
 
-ret_unlock:
+err_unlock:
 	mutex_unlock(&conn->ns->lock);
 	kfree(conn);
 	return ret;

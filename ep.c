@@ -138,7 +138,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	i = idr_alloc(&bus->ns->idr, e, 1, 0, GFP_KERNEL);
 	if (i <= 0) {
 		ret = i;
-		goto ret_unlock;
+		goto err_unlock;
 	}
 	e->minor = i;
 
@@ -151,7 +151,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	e->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	if (!e->dev) {
 		ret = -ENOMEM;
-		goto ret_unlock;
+		goto err_unlock;
 	}
 	dev_set_name(e->dev, "%s/%s/%s", bus->ns->devpath, bus->name, name);
 	e->dev->bus = &kdbus_subsys;
@@ -185,7 +185,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		(unsigned long long)e->id, bus->ns->devpath, bus->name, name);
 	return 0;
 
-ret_unlock:
+err_unlock:
 	mutex_unlock(&bus->ns->lock);
 ret:
 	kdbus_ep_unref(e);

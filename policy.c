@@ -99,8 +99,8 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 }
 
 int kdbus_policy_db_check_access(struct kdbus_policy_db *db,
-				 struct kdbus_conn *conn_from,
 				 struct kdbus_conn *conn_to,
+				 struct kdbus_conn *conn_from,
 				 u8 type)
 {
 	if (conn_from->ep != conn_to->ep)
@@ -138,7 +138,7 @@ static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
 		break;
 	default:
 		ret = -EINVAL;
-		goto ret_free;
+		goto err_free;
 	}
 
 	e->access.type = pol->access.type;
@@ -149,7 +149,7 @@ static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
 
 	return 0;
 
-ret_free:
+err_free:
 	kfree(e);
 	return ret;
 }
