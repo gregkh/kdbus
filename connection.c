@@ -188,7 +188,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		mutex_lock(&conn->msg_lock);
 		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
 			struct kdbus_kmsg *kmsg = entry->kmsg;
-			kdbus_msg_reply_dead(conn, &kmsg->msg);
+			//kdbus_msg_reply_dead(conn, &kmsg->msg);
 			kdbus_kmsg_unref(kmsg);
 			list_del(&entry->list);
 			kfree(entry);
