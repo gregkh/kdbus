@@ -7,6 +7,8 @@ Message Buffering:
       copy_from_user() the data
     - at _RECV, copy the data from the second buffer, replacing the
       out-of-line data with inline data
+  - handle fds
+  - handle pointers to userspace data.
 
 Security:
   - let HELLO specify if fds or out-of-line memory are accepted to

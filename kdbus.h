@@ -52,7 +52,7 @@ enum {
 	/* Filled in by userspace */
 	KDBUS_MSG_PAYLOAD,		/* .data */
 	KDBUS_MSG_PAYLOAD_REF,		/* .data_ref */
-	KDBUS_MSG_UNIX_FDS,		/* int[] of file descriptors */
+	KDBUS_MSG_UNIX_FDS,		/* .data_fds of file descriptors */
 	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob */
 	KDBUS_MSG_DST_NAME,		/* destination's well-known name */
 
@@ -88,9 +88,10 @@ struct kdbus_msg_data {
 		__u8 data[0];
 		__u32 data_u32[0];
 		__u64 data_u64[0];
+		int data_fds[0];
 
 		struct {
-			__u64 address;
+			__u8 __user *address;
 			__u64 size;
 		} data_ref;
 

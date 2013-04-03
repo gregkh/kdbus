@@ -12,6 +12,9 @@
 #include <sys/ioctl.h>
 
 //#include "include/uapi/kdbus/kdbus.h"
+/* handle __user markings */
+#define __user
+
 #include "../kdbus.h"
 
 struct conn {
