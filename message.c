@@ -269,6 +269,12 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 	u64 now_ns = 0;
 	int ret = 0;
 
+	/*
+	 * FIXME: we need to lock some things here (connection names,
+	 * connection list, etc.), or properly implement reference counting for
+	 * the connections, and then drop the reference after using it.
+	 */
+
 	/* augment incoming message */
 	kmsg = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
 	kmsg = kdbus_kmsg_append_cred(kmsg);
@@ -317,15 +323,12 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 			kdbus_conn_scan_timeout(conn_dst);
 	} else {
 		/* broadcast */
-		struct kdbus_conn *tmp;
-
 		/* timeouts are not allowed for broadcasts */
 		if (msg->timeout)
 			return -EINVAL;
 
-		list_for_each_entry_safe(conn_dst, tmp,
-					 &ep->connection_list,
-					 connection_entry) {
+		list_for_each_entry(conn_dst, &ep->connection_list,
+				    connection_entry) {
 			if (conn_dst->type != KDBUS_CONN_EP)
 				continue;
 
