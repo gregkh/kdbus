@@ -30,6 +30,8 @@
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, data)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 
+static void kdbus_msg_dump(const struct kdbus_msg *msg);
+
 static void __kdbus_kmsg_free(struct kref *kref)
 {
 	struct kdbus_kmsg *kmsg = container_of(kref, struct kdbus_kmsg, kref);
@@ -68,26 +70,76 @@ static int kdbus_msg_validate_from_user(const struct kdbus_msg *msg)
 {
 	u64 size = msg->size - KDBUS_MSG_HEADER_SIZE;
 	const struct kdbus_msg_data *data = msg->data;
+	u64 data_size = 0;
+	u64 payload_size;
+	int num_fds;
+	bool payload = false;
+	bool fds = false;
+	bool bloom = false;
+	bool name = false;
 
 	if (msg->src_id == KDBUS_SRC_ID_KERNEL)
 		return -EINVAL;
 
 	while (size > 0 && size >= data->size) {
+		/* Ensure we actually have some data */
+		if (data->size <= KDBUS_MSG_DATA_SIZE(0))
+			return -EINVAL;
+		payload_size = data->size - KDBUS_MSG_DATA_SIZE(0);
+
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD:
+			payload = true;
+			data_size += payload_size;
+			break;
+
 		case KDBUS_MSG_PAYLOAD_REF:
+			payload = true;
+			data_size += data->data_ref.size;
+			break;
+
 		case KDBUS_MSG_UNIX_FDS:
+			/* FIXME: also need to check this is not multi-cast */
+			fds = true;
+			num_fds = payload_size / sizeof(__u32);
+			break;
+
 		case KDBUS_MSG_BLOOM:
+			/* FIXME: check payload size is correct */
+			bloom = true;
+			break;
+
 		case KDBUS_MSG_DST_NAME:
+			name = true;
+			data_size += payload_size;
 			break;
 		default:
 			return -EINVAL;
 		}
 
 		size -= data->size;
-		data = (struct kdbus_msg_data *) (((u8 *) data) + data->size);
+		data = (struct kdbus_msg_data *)(((u8 *)data) + data->size);
 	}
 
+	/* Can't combine a data message with any other type of message */
+	/* FIXME, look up better bit twiddling algo to reduce this to a simple
+	 * OR and compare */
+	if (payload) {
+		if (fds || bloom || name) {
+			return -EINVAL;
+		}
+	}
+	if (fds) {
+		if (bloom || name) {
+			return -EINVAL;
+		}
+	}
+	if (bloom && name)
+		return -EINVAL;
+
+	/* FIXME: do something real with data_size and num_fds, we need that for later */
+//	kdbus_msg_dump(msg);
+//	pr_info("%s: data_size=%llu\n", __func__, (unsigned long long)data_size);
 	return 0;
 }
 
