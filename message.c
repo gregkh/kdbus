@@ -66,13 +66,14 @@ int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m)
 	return 0;
 }
 
-static int kdbus_msg_validate_from_user(const struct kdbus_msg *msg)
+static int kdbus_msg_validate_and_size_from_user(const struct kdbus_msg *msg,
+						 u64 *_data_size)
 {
 	u64 size = msg->size - KDBUS_MSG_HEADER_SIZE;
 	const struct kdbus_msg_data *data = msg->data;
 	u64 data_size = 0;
 	u64 payload_size;
-	int num_fds;
+	int num_fds = 0;
 	bool payload = false;
 	bool fds = false;
 	bool bloom = false;
@@ -101,7 +102,7 @@ static int kdbus_msg_validate_from_user(const struct kdbus_msg *msg)
 		case KDBUS_MSG_UNIX_FDS:
 			/* FIXME: also need to check this is not multi-cast */
 			fds = true;
-			num_fds = payload_size / sizeof(__u32);
+			num_fds += payload_size / sizeof(__u32);
 			break;
 
 		case KDBUS_MSG_BLOOM:
@@ -137,16 +138,76 @@ static int kdbus_msg_validate_from_user(const struct kdbus_msg *msg)
 	if (bloom && name)
 		return -EINVAL;
 
-	/* FIXME: do something real with data_size and num_fds, we need that for later */
 //	kdbus_msg_dump(msg);
 //	pr_info("%s: data_size=%llu\n", __func__, (unsigned long long)data_size);
+
+	/* save off the size of the message */
+	*_data_size = data_size;
 	return 0;
 }
 
+static int kdbus_copy_user_data(struct kdbus_kmsg *kmsg,
+				const struct kdbus_msg_data *data)
+{
+	u64 size = kmsg->msg.size - KDBUS_MSG_HEADER_SIZE;
+	u64 data_size = 0;
+	u64 payload_size;
+
+	while (size > 0 && size >= data->size) {
+		payload_size = data->size - KDBUS_MSG_DATA_SIZE(0);
+
+		switch (data->type) {
+		case KDBUS_MSG_PAYLOAD:
+			data_size += payload_size;
+			break;
+
+		case KDBUS_MSG_PAYLOAD_REF:
+			data_size += data->data_ref.size;
+			break;
+		default:
+			/* should not get here! */
+			return -EINVAL;
+		}
+
+		size -= data->size;
+		data = (struct kdbus_msg_data *)(((u8 *)data) + data->size);
+	}
+	return 0;
+}
+
+static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
+			       const struct kdbus_msg_data *udata)
+{
+	return 0;
+}
+
+/*
+ * Get a message from userspace and convert it into our internal format so we
+ * can do something with it.  Right now, we accept data in lots of different
+ * formats, but only spit it back in one big chunk, just to make it a bit
+ * easier to manage the memory.  In the future, we should properly play with
+ * pages and the like to make this a bit "better".
+ *
+ * The steps involved are:
+ *  - verify size is sane
+ *  - verify the data is semi-sane by walking the data block(s)
+ *  - while walking the data blocks, get the size that the data is going to
+ *    take up
+ *  - allocate the new message + new size needed
+ *  - if data message:
+ *	- copy message headers, and data from userspace into our buffers
+ *  - if file descriptors (ouch)
+ *	- allocate a chunk of file * and map the "handles" to pointers,
+ *	  grabbing references to them so that they can't go away
+ *	- allocate the data space for the "handles" when we copy them to
+ *	  userspace, as it's easier to do so here.
+ */
 int kdbus_kmsg_new_from_user(void __user *buf, struct kdbus_kmsg **m)
 {
-	struct kdbus_kmsg *kmsg;
+	struct kdbus_kmsg *kmsg, *real_kmsg;
+	const struct kdbus_msg_data *data;
 	u64 size;
+	u64 data_size;
 	int ret;
 
 	if (kdbus_size_user(size, buf, struct kdbus_msg, size))
@@ -166,9 +227,41 @@ int kdbus_kmsg_new_from_user(void __user *buf, struct kdbus_kmsg **m)
 		goto out_ret;
 	}
 
-	ret = kdbus_msg_validate_from_user(&kmsg->msg);
+	ret = kdbus_msg_validate_and_size_from_user(&kmsg->msg, &data_size);
 	if (ret < 0)
 		goto out_ret;
+
+	/* FIXME - handle large allocations by using pages, not kmalloc */
+	real_kmsg = kmalloc(size + data_size, GFP_KERNEL);
+	if (!real_kmsg)
+		return -ENOMEM;
+
+	memcpy(&real_kmsg->msg, &kmsg->msg, KDBUS_MSG_HEADER_SIZE);
+
+	data = &kmsg->msg.data[0];
+	switch (data->type) {
+	case KDBUS_MSG_PAYLOAD:
+	case KDBUS_MSG_PAYLOAD_REF:
+		kdbus_copy_user_data(real_kmsg, data);
+		break;
+
+	case KDBUS_MSG_UNIX_FDS:
+		kdbus_copy_user_fds(real_kmsg, data);
+		break;
+
+	case KDBUS_MSG_BLOOM:
+		/* FIXME: what do we do here? */
+		break;
+
+	case KDBUS_MSG_DST_NAME:
+		/* FIXME: what do we do here? */
+		break;
+
+	}
+	kref_init(&real_kmsg->kref);
+
+	/* FIXME: doh */
+	kfree(real_kmsg);
 
 	kref_init(&kmsg->kref);
 
