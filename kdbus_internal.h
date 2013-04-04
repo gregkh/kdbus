@@ -196,9 +196,15 @@ struct kdbus_conn {
 	struct timer_list timer;
 };
 
+struct kdbus_fds {
+	int num_fds;
+	struct file *fp[0];
+};
+
 struct kdbus_kmsg {
 	struct kref kref;
 	u64 deadline;
+	struct kdbus_fds *kfds;
 	struct kdbus_msg msg;
 };
 
