@@ -190,7 +190,7 @@ struct kdbus_cmd_hello {
 				 * capabilities and more, kernel
 				 * returns its capabilites and
 				 * more. Kernel might refuse client's
-				 * capabilities by returning an retor
+				 * capabilities by returning an error
 				 * from KDBUS_CMD_HELLO */
 
 	/* userspace → kernel */

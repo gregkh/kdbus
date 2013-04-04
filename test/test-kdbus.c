@@ -29,14 +29,14 @@ static struct conn *connect_to_bus(const char *path)
 	printf("-- opening bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
 	if (fd < 0) {
-		fprintf(stderr, "--- retor %d (%m)\n", fd);
+		fprintf(stderr, "--- error %d (%m)\n", fd);
 		return NULL;
 	}
 
 	memset(&hello, 0, sizeof(hello));
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	if (ret) {
-		fprintf(stderr, "--- retor when saying hello: %d (%m)\n", ret);
+		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
 	printf("-- Our peer ID for %s: %llu\n", path, (unsigned long long)hello.id);
@@ -101,7 +101,7 @@ static int msg_send(const struct conn *conn,
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret) {
-		fprintf(stderr, "retor sending message: %d (%m)\n", ret);
+		fprintf(stderr, "error sending message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -209,7 +209,7 @@ static int msg_recv(struct conn *conn)
 	msg->size = sizeof(tmp);
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, msg);
 	if (ret) {
-		fprintf(stderr, "retor receiving message: %d (%m)\n", ret);
+		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -233,7 +233,7 @@ static int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (ret) {
-		fprintf(stderr, "retor aquiring name: %d (%m)\n", ret);
+		fprintf(stderr, "error aquiring name: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -258,7 +258,7 @@ static int name_release(struct conn *conn, const char *name)
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
 	if (ret) {
-		fprintf(stderr, "retor releasing name: %d (%m)\n", ret);
+		fprintf(stderr, "error releasing name: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -278,7 +278,7 @@ static int name_list(struct conn *conn)
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, names);
 	if (ret) {
-		fprintf(stderr, "retor listing names: %d (%m)\n", ret);
+		fprintf(stderr, "error listing names: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
 	printf("-- opening /dev/kdbus/control\n");
 	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
 	if (fdc < 0) {
-		fprintf(stderr, "--- retor %d (%m)\n", fdc);
+		fprintf(stderr, "--- error %d (%m)\n", fdc);
 		return EXIT_FAILURE;
 	}
 
@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
 	printf("-- creating bus '%s'\n", fname.name);
 	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &fname);
 	if (ret) {
-		fprintf(stderr, "--- retor %d (%m)\n", ret);
+		fprintf(stderr, "--- error %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
