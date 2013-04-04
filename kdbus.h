@@ -85,17 +85,19 @@ struct kdbus_msg_data {
 	__u64 size;
 	__u64 type;
 	union {
+		/* inline data */
 		__u8 data[0];
 		__u32 data_u32[0];
 		__u64 data_u64[0];
-		int data_fds[0];
 
+		/* out-of-line data */
 		struct {
 			__u64 address;
 			__u64 size;
 		} data_ref;
 
-		__u64 ts_ns;
+		int fds[0];				/* passed file descriptors */
+		__u64 ts_ns;				/* timestamp in nanoseconds */
 		struct kdbus_creds creds;
 		struct kdbus_manager_msg_name_change name_change;
 		struct kdbus_manager_msg_id_change id_change;
@@ -129,7 +131,7 @@ struct kdbus_msg {
 	__u64 flags;
 	__u64 dst_id;		/* connection, 0 == name in data, ~0 broadcast */
 	__u64 src_id;		/* connection, 0 == kernel */
-	__u64 payload_type;	/* 'DBUSVER1', 'GVARIANT', ... */
+	__u64 payload_type;	/* 'DBusVer1', 'GVariant', ... */
 	__u64 cookie;		/* userspace-supplied cookie */
 	union {
 		__u64 cookie_reply;	/* cookie we reply to */
