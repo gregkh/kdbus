@@ -96,7 +96,7 @@ struct kdbus_msg_data {
 			__u64 size;
 		} data_ref;
 
-		int fds[0];				/* passed file descriptors */
+		__u32 fds[0];				/* passed file descriptors */
 		__u64 ts_ns;				/* timestamp in nanoseconds */
 		struct kdbus_creds creds;
 		struct kdbus_manager_msg_name_change name_change;
