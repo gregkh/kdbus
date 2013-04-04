@@ -91,7 +91,7 @@ struct kdbus_msg_data {
 		int data_fds[0];
 
 		struct {
-			__u8 __user *address;
+			__u64 address;
 			__u64 size;
 		} data_ref;
 
