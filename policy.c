@@ -98,7 +98,7 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 	return db;
 }
 
-static
+static __maybe_unused
 int kdbus_policy_db_check_access(struct kdbus_policy_db *db,
 				 struct kdbus_conn *conn_to,
 				 struct kdbus_conn *conn_from,

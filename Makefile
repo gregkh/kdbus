@@ -1,12 +1,12 @@
 kdbus-y	:= \
-	bus.o		\
-	connection.o	\
-	ep.o		\
-	main.o		\
-	message.o	\
-	names.o		\
-	notify.o	\
-	ns.o		\
+	bus.o \
+	connection.o \
+	ep.o \
+	main.o \
+	message.o \
+	names.o \
+	notify.o \
+	ns.o \
 	policy.o
 
 # obj-$(CONFIG_KDBUS)	+= kdbus.o
@@ -14,12 +14,17 @@ obj-m += kdbus.o
 obj-m += portal.o
 
 # test programs
-hostprogs-y	:= test/test-kdbus test/portal_test
-always		:= $(hostprogs-y)
-HOST_EXTRACFLAGS += -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
+TEST_COMMON		:= test/kdbus-enum.o test/kdbus-util.o
+test-bus-daemon-objs	:= $(TEST_COMMON) test/test-bus-daemon.o
+test-kdbus-objs		:= $(TEST_COMMON) test/test-kdbus.o
+portal_test-objs	:= test/portal_test.o
 
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-PWD       := $(shell pwd)
+hostprogs-y		:= test-kdbus test-bus-daemon portal_test
+always			:= $(hostprogs-y)
+HOST_EXTRACFLAGS	+= -std=c99 -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
+
+KERNELDIR 		?= /lib/modules/$(shell uname -r)/build
+PWD			:= $(shell pwd)
 
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)

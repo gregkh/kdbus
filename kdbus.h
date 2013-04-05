@@ -110,6 +110,7 @@ enum {
 };
 
 enum {
+	KDBUS_PAYLOAD_NONE	= 0,
 	KDBUS_PAYLOAD_DBUS1	= 0x4442757356657231ULL, /* 'DBusVer1' */
 	KDBUS_PAYLOAD_GVARIANT	= 0x4756617269616e74ULL, /* 'GVariant' */
 };
@@ -337,5 +338,4 @@ enum kdbus_cmd {
 	/* kdbus ep node commands: require ep owner state */
 	KDBUS_CMD_EP_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_policy),
 };
-
 #endif
