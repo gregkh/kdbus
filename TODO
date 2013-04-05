@@ -20,6 +20,8 @@ Security:
     when the file content changes, like reflink
 
 Mesage Validation:
+  - enforce NULL termination on all strings. Do not rely on the size
+    headers.
   - validate all incoming data fields in the message, clear all values
     which are not suppoed to be set from a peer
   - always align data records to 8 byte boundaries, keep size correct,
