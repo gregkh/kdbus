@@ -419,6 +419,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 	kmsg = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
 	kmsg = kdbus_kmsg_append_cred(kmsg);
 
+	*_kmsg = kmsg;
 	msg = &kmsg->msg;
 //	kdbus_msg_dump(msg);
 
@@ -480,8 +481,6 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 				break;
 		}
 	}
-
-	*_kmsg = kmsg;
 
 	return ret;
 }
