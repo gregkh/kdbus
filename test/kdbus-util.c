@@ -1,3 +1,14 @@
+/*
+ * Copyright (C) 2013 Daniel Mack
+ * Copyright (C) 2013 Kay Sievers
+ *
+ * kdbus is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the
+ * Free Software Foundation; either version 2.1 of the License, or (at
+ * your option) any later version.
+ */
+
+#include <stdio.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -174,6 +185,10 @@ void msg_dump(struct kdbus_msg *msg)
 			printf("  +%s (%llu bytes) %llu\n",
 			       enum_MSG(data->type), (unsigned long long) data->size,
 			       (unsigned long long) data->data_u64[0]);
+			break;
+
+		default:
+			printf("  +%s (%llu bytes)\n", enum_MSG(data->type), data->size);
 			break;
 		}
 

@@ -78,10 +78,8 @@ int main(int argc, char *argv[])
 		if (ret <= 0)
 			break;
 
-		if (fds[0].revents & POLLIN) {
-
+		if (fds[0].revents & POLLIN)
 			msg_recv(conn);
-		}
 
 		/* stdin */
 		if (fds[1].revents & POLLIN)
