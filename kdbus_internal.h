@@ -226,15 +226,24 @@ struct kdbus_conn {
 	struct kdbus_match_db *match_db;
 };
 
+/* array of passed-in file descriptors */
 struct kdbus_fds {
-	int num_fds;
+	int count;
 	struct file *fp[0];
+};
+
+/* array of passed-in payload references */
+struct kdbus_payload {
+	int count;
+	u8 *data;
+	u64 size;
 };
 
 struct kdbus_kmsg {
 	struct kref kref;
 	u64 deadline;
-	struct kdbus_fds *kfds;
+	struct kdbus_fds *fds;
+	struct kdbus_payload *payloads;
 	struct kdbus_msg msg;
 };
 
@@ -245,7 +254,7 @@ struct kdbus_msg_list_entry {
 
 /* message */
 int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m);
-int kdbus_kmsg_new_from_user(void __user *argp, struct kdbus_kmsg **m);
+int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp, struct kdbus_kmsg **m);
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep,
 		    struct kdbus_conn *conn_src,
