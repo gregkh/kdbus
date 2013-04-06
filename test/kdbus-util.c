@@ -163,7 +163,7 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_NAME_REMOVE:
 		case KDBUS_MSG_NAME_CHANGE:
 			printf("  +%s (%llu bytes) '%s', old id=%lld, new id=%lld, flags=0x%llx\n",
-				enum_MSG(data->type), (unsigned long long) msg->size,
+				enum_MSG(data->type), (unsigned long long) data->size,
 				data->name_change.name, data->name_change.old_id,
 				data->name_change.new_id, data->name_change.flags);
 			break;
@@ -172,7 +172,7 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_ID_REMOVE:
 		case KDBUS_MSG_ID_CHANGE:
 			printf("  +%s (%llu bytes) %llu\n",
-			       enum_MSG(data->type), (unsigned long long) msg->size,
+			       enum_MSG(data->type), (unsigned long long) data->size,
 			       (unsigned long long) data->data_u64[0]);
 			break;
 		}
