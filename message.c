@@ -91,12 +91,10 @@ static int kdbus_msg_validate_and_size_from_user(const struct kdbus_msg *msg,
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD:
 			payload = true;
-			data_size += payload_size;
 			break;
 
 		case KDBUS_MSG_PAYLOAD_REF:
 			payload = true;
-			data_size += data->data_ref.size;
 			break;
 
 		case KDBUS_MSG_UNIX_FDS:
@@ -112,7 +110,6 @@ static int kdbus_msg_validate_and_size_from_user(const struct kdbus_msg *msg,
 
 		case KDBUS_MSG_DST_NAME:
 			name = true;
-			data_size += payload_size;
 			break;
 		default:
 			return -EINVAL;
