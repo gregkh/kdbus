@@ -50,13 +50,12 @@ static void __kdbus_policy_db_free(struct kref *kref)
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
 		struct kdbus_policy_db_entry_access *a, *tmp;
 
-		hash_del(&e->hentry);
-
 		list_for_each_entry_safe(a, tmp, &e->access_list, list) {
 			list_del(&a->list);
 			kfree(a);
 		}
 
+		hash_del(&e->hentry);
 		kfree(e->name);
 		kfree(e);
 	}
@@ -70,24 +69,13 @@ void kdbus_policy_db_unref(struct kdbus_policy_db *db)
 	kref_put(&db->kref, __kdbus_policy_db_free);
 }
 
-static u32 kdbus_name_make_name_hash(const char *name)
+static u32 kdbus_policy_make_name_hash(const char *name)
 {
 	unsigned int len = strlen(name);
 	u32 hash = init_name_hash();
 
 	while (len--)
 		hash = partial_name_hash(*name++, hash);
-
-	return end_name_hash(hash);
-}
-
-static u32 kdbus_name_make_access_hash(u64 type, u64 bits, u64 id)
-{
-	u32 hash = init_name_hash();
-
-	hash = partial_name_hash(type, hash);
-	hash = partial_name_hash(bits, hash);
-	hash = partial_name_hash(id, hash);
 
 	return end_name_hash(hash);
 }
@@ -104,26 +92,102 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 	hash_init(db->entries_hash);
 	mutex_init(&db->entries_lock);
 
+
 	return db;
 }
 
-static __maybe_unused
-int kdbus_policy_db_check_access(struct kdbus_policy_db *db,
-				 struct kdbus_conn *conn_a,
-				 struct kdbus_conn *conn_b,
-				 u8 type)
+static inline
+u64 accumulate_entry_accesses(struct kdbus_policy_db_entry *db_entry,
+			      struct kdbus_conn *conn)
 {
-	if (conn_a->ep != conn_b->ep)
-		return -EINVAL;
+	struct kdbus_policy_db_entry_access *a;
+	u64 access = 0;
 
-	switch (type) {
-	case KDBUS_POLICY_RECV:
-	case KDBUS_POLICY_SEND:
-	case KDBUS_POLICY_OWN:
-		break;
+	list_for_each_entry(a, &db_entry->access_list, list) {
+		switch (a->type) {
+		case KDBUS_POLICY_USER:
+			if (conn->creds.uid == a->id)
+				access |= a->bits;
+			break;
+		case KDBUS_POLICY_GROUP:
+			if (conn->creds.gid == a->id)
+				access |= a->bits;
+			break;
+		case KDBUS_POLICY_WORLD:
+			access |= a->bits;
+			break;
+		}
 	}
 
+	return access;
+}
+
+static
+int kdbus_policy_db_check_access(struct kdbus_policy_db *db,
+				 struct kdbus_conn *conn,
+				 u64 bits)
+{
+	struct kdbus_name_entry *name_entry;
+	int ret = -EPERM;
+
+	/* Walk the list of the names registered for a connection ... */
+	mutex_lock(&db->entries_lock);
+	list_for_each_entry(name_entry, &conn->names_list, conn_entry) {
+		struct kdbus_policy_db_entry *db_entry;
+		u32 hash = kdbus_policy_make_name_hash(name_entry->name);
+		/* ... and check each entry of our policy db that matches 
+		 * that name */
+		hash_for_each_possible(db->entries_hash, db_entry,
+				       hentry, hash) {
+			u64 access;
+
+			if (strcmp(db_entry->name, name_entry->name) != 0)
+				continue;
+
+			/* test whether the policy entry has an access entry
+			 * that fullfills the permission bits we're looking
+			 * for, and bail out if it does */
+			access = accumulate_entry_accesses(db_entry, conn);
+			if (access & bits) {
+				ret = 0;
+				goto exit_unlock;
+			}
+		}
+	}
+
+exit_unlock:
+	mutex_unlock(&db->entries_lock);
+
+	return ret;
+}
+
+int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
+				      struct kdbus_conn *conn_src,
+				      struct kdbus_conn *conn_dst)
+{
+	u64 access;
+
+	if (conn_src->ep != conn_dst->ep)
+		return -EINVAL;
+
+	/* send access is granted if either the source connection has a
+	 * matching SEND rule ...*/
+	access = kdbus_policy_db_check_access(db, conn_src, KDBUS_POLICY_SEND);
+	if (access == 0)
+		return 0;
+
+	/* ... or the receiver connection has a matching RECV rule. */
+	access = kdbus_policy_db_check_access(db, conn_dst, KDBUS_POLICY_RECV);
+	if (access == 0)
+		return 0;
+
 	return -EPERM;
+}
+
+int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
+				     struct kdbus_conn *conn)
+{
+	return kdbus_policy_db_check_access(db, conn, KDBUS_POLICY_OWN);
 }
 
 static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
@@ -140,9 +204,14 @@ static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
 		if (!e)
 			return -ENOMEM;
 
-		hash = kdbus_name_make_name_hash(pol->name);
+		hash = kdbus_policy_make_name_hash(pol->name);
 		e->name = kstrdup(pol->name, GFP_KERNEL);
+		INIT_LIST_HEAD(&e->access_list);
+
+		mutex_lock(&db->entries_lock);
 		hash_add(db->entries_hash, &e->hentry, hash);
+		mutex_unlock(&db->entries_lock);
+
 		current_entry = e;
 		break;
 	}
@@ -161,7 +230,9 @@ static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
 		a->id   = pol->access.id;
 		INIT_LIST_HEAD(&a->list);
 
+		mutex_lock(&db->entries_lock);
 		list_add_tail(&a->list, &current_entry->access_list);
+		mutex_unlock(&db->entries_lock);
 
 		break;
 	}
