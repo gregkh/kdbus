@@ -194,6 +194,8 @@ struct kdbus_conn {
 
 	struct work_struct work;
 	struct timer_list timer;
+
+	struct kdbus_creds creds;
 };
 
 struct kdbus_fds {

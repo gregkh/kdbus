@@ -142,6 +142,11 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	conn->timer.data = (unsigned long) conn;
 	add_timer(&conn->timer);
 
+	conn->creds.uid = current_uid();
+	conn->creds.gid = current_gid();
+	conn->creds.pid = current->pid;
+	conn->creds.tid = current->tgid;
+
 	pr_info("created endpoint bus connection %llu '%s/%s'\n",
 		(unsigned long long)conn->id, conn->ns->devpath,
 		conn->ep->bus->name);
