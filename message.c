@@ -460,7 +460,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
 		ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
 
 		if (msg->timeout)
-			kdbus_conn_scan_timeout(conn_dst);
+			kdbus_conn_schedule_timeout_scan(conn_dst);
 	} else {
 		/* broadcast */
 		/* timeouts are not allowed for broadcasts */

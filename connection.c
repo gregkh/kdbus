@@ -25,7 +25,7 @@
 
 #include "kdbus_internal.h"
 
-void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
+static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
 	struct kdbus_msg_list_entry *entry, *tmp;
 	u64 deadline = -1;
@@ -66,10 +66,15 @@ static void kdbus_conn_work(struct work_struct *work)
 	kdbus_conn_scan_timeout(conn);
 }
 
+void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn)
+{
+	schedule_work(&conn->work);
+}
+
 static void kdbus_conn_timer_func(unsigned long val)
 {
 	struct kdbus_conn *conn = (struct kdbus_conn *) val;
-	schedule_work(&conn->work);
+	kdbus_conn_schedule_timeout_scan(conn);
 }
 
 /* kdbus file operations */

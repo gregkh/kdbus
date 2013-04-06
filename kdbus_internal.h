@@ -275,6 +275,6 @@ int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 
 /* connection */
-void kdbus_conn_scan_timeout(struct kdbus_conn *conn);
+void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn);
 
 #endif
