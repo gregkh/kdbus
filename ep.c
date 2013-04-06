@@ -80,8 +80,9 @@ static void __kdbus_ep_free(struct kref *kref)
 	kdbus_ep_disconnect(ep);
 	pr_info("clean up endpoint %s/%s/%s\n",
 		ep->bus->ns->devpath, ep->bus->name, ep->name);
-	kdbus_bus_unref(ep->bus);
 	mutex_unlock(&ep->bus->lock);
+
+	kdbus_bus_unref(ep->bus);
 	kdbus_policy_db_unref(ep->policy_db);
 
 	kfree(ep->name);
