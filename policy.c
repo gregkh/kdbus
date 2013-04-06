@@ -122,33 +122,50 @@ u64 accumulate_entry_accesses(struct kdbus_policy_db_entry *db_entry,
 	return access;
 }
 
-static
-int kdbus_policy_db_check_access(struct kdbus_policy_db *db,
-				 struct kdbus_conn *conn,
-				 u64 bits)
+int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
+				      struct kdbus_conn *conn_src,
+				      struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
 	int ret = -EPERM;
+	u64 access;
 
 	/* Walk the list of the names registered for a connection ... */
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry(name_entry, &conn->names_list, conn_entry) {
+	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
 		struct kdbus_policy_db_entry *db_entry;
 		u32 hash = kdbus_policy_make_name_hash(name_entry->name);
-		/* ... and check each entry of our policy db that matches 
+		/* ... and check each entry of our policy db that matches
 		 * that name */
 		hash_for_each_possible(db->entries_hash, db_entry,
 				       hentry, hash) {
-			u64 access;
-
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
 
-			/* test whether the policy entry has an access entry
-			 * that fullfills the permission bits we're looking
-			 * for, and bail out if it does */
-			access = accumulate_entry_accesses(db_entry, conn);
-			if (access & bits) {
+			/* send access is granted if either the source
+			 * connection has a matching SEND rule ...*/
+			access = accumulate_entry_accesses(db_entry, conn_src);
+			if (access & KDBUS_POLICY_SEND) {
+				ret = 0;
+				goto exit_unlock;
+			}
+		}
+	}
+
+	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
+		struct kdbus_policy_db_entry *db_entry;
+		u32 hash = kdbus_policy_make_name_hash(name_entry->name);
+		/* ... and check each entry of our policy db that matches
+		 * that name */
+		hash_for_each_possible(db->entries_hash, db_entry,
+				       hentry, hash) {
+			if (strcmp(db_entry->name, name_entry->name) != 0)
+				continue;
+
+			/* ... or the receiver connection has a matching
+			 * RECV rule. */
+			access = accumulate_entry_accesses(db_entry, conn_dst);
+			if (access & KDBUS_POLICY_RECV) {
 				ret = 0;
 				goto exit_unlock;
 			}
@@ -161,33 +178,36 @@ exit_unlock:
 	return ret;
 }
 
-int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
-				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst)
-{
-	u64 access;
-
-	if (conn_src->ep != conn_dst->ep)
-		return -EINVAL;
-
-	/* send access is granted if either the source connection has a
-	 * matching SEND rule ...*/
-	access = kdbus_policy_db_check_access(db, conn_src, KDBUS_POLICY_SEND);
-	if (access == 0)
-		return 0;
-
-	/* ... or the receiver connection has a matching RECV rule. */
-	access = kdbus_policy_db_check_access(db, conn_dst, KDBUS_POLICY_RECV);
-	if (access == 0)
-		return 0;
-
-	return -EPERM;
-}
-
 int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
-				     struct kdbus_conn *conn)
+				     struct kdbus_conn *conn,
+				     const char *name)
 {
-	return kdbus_policy_db_check_access(db, conn, KDBUS_POLICY_OWN);
+	struct kdbus_policy_db_entry *db_entry;
+	int ret;
+	u32 hash = kdbus_policy_make_name_hash(name);
+
+	/* Walk the list of the names registered for a connection ... */
+	mutex_lock(&db->entries_lock);
+	hash_for_each_possible(db->entries_hash, db_entry,
+			       hentry, hash) {
+		u64 access;
+
+		if (strcmp(db_entry->name, name) != 0)
+			continue;
+
+		/* send access is granted if either the source
+		 * connection has a matching SEND rule ...*/
+		access = accumulate_entry_accesses(db_entry, conn);
+		if (access & KDBUS_POLICY_OWN) {
+			ret = 0;
+			goto exit_unlock;
+		}
+	}
+
+exit_unlock:
+	mutex_unlock(&db->entries_lock);
+
+	return ret;
 }
 
 static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,

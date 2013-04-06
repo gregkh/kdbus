@@ -70,7 +70,8 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_from,
 				      struct kdbus_conn *conn_to);
 int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
-				     struct kdbus_conn *conn);
+				     struct kdbus_conn *conn,
+				     const char *name);
 
 /* names registry */
 struct kdbus_name_registry {
