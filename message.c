@@ -213,9 +213,7 @@ int kdbus_kmsg_new_from_user(void __user *buf, struct kdbus_kmsg **m)
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
 
-	size += offsetof(struct kdbus_kmsg, msg);
-
-	kmsg = kmalloc(size, GFP_KERNEL);
+	kmsg = kmalloc(size + offsetof(struct kdbus_kmsg, msg), GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
 
