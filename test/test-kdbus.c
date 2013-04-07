@@ -90,6 +90,12 @@ static int upload_policy(int fd)
 	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_SEND, 0);
 	append_policy(cmd_policy, policy, size);
 
+	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_RECV, 0);
+	append_policy(cmd_policy, policy, sizeof(tmp));
+
+	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_SEND, 0);
+	append_policy(cmd_policy, policy, sizeof(tmp));
+
 	ret = ioctl(fd, KDBUS_CMD_EP_POLICY_SET, cmd_policy);
 	if (ret < 0)
 		fprintf(stderr, "--- error setting EP policy: %d (%m)\n", ret);
