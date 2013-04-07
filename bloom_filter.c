@@ -23,9 +23,9 @@
 #include "bloom_filter.h"
 
 struct bloom_crypto_alg {
-	char			*name;
 	u8			*data;
 	unsigned int		len;
+	int			hash_tfm_allocated:1;
 	struct crypto_hash	*hash_tfm;
 	struct list_head	entry;
 };
@@ -56,9 +56,9 @@ struct bloom_filter *bloom_filter_ref(struct bloom_filter *filter)
 
 static void bloom_crypto_alg_free(struct bloom_crypto_alg *alg)
 {
-	crypto_free_hash(alg->hash_tfm);
+	if (alg->hash_tfm_allocated)
+		crypto_free_hash(alg->hash_tfm);
 	list_del(&alg->entry);
-	kfree(alg->name);
 	kfree(alg->data);
 	kfree(alg);
 }
@@ -82,6 +82,38 @@ void bloom_filter_unref(struct bloom_filter *filter)
 	kref_put(&filter->kref, __bloom_filter_free);
 }
 
+int bloom_filter_add_crypto_hash(struct bloom_filter *filter,
+				 struct crypto_hash *hash_tfm)
+{
+	struct bloom_crypto_alg *alg;
+	int ret = 0;
+
+	alg = kzalloc(sizeof(*alg), GFP_KERNEL);
+	if (!alg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	alg->len = crypto_hash_digestsize(hash_tfm);
+	alg->data = kzalloc(alg->len, GFP_KERNEL);
+	if (!alg->data) {
+		ret = -ENOMEM;
+		goto exit_free_alg;
+	}
+
+	mutex_lock(&filter->lock);
+	list_add_tail(&alg->entry, &filter->alg_list);
+	mutex_unlock(&filter->lock);
+
+	return 0;
+
+exit_free_alg:
+	kfree(alg);
+
+exit:
+	return ret;
+}
+
 int bloom_filter_add_hash_alg(struct bloom_filter *filter,
 			      const char *name)
 {
@@ -100,6 +132,7 @@ int bloom_filter_add_hash_alg(struct bloom_filter *filter,
 		goto exit_free_alg;
 	}
 
+	alg->hash_tfm_allocated = true;
 	alg->len = crypto_hash_digestsize(alg->hash_tfm);
 	alg->data = kzalloc(alg->len, GFP_KERNEL);
 	if (!alg->data) {
@@ -107,20 +140,11 @@ int bloom_filter_add_hash_alg(struct bloom_filter *filter,
 		goto exit_free_hash;
 	}
 
-	alg->name = kstrdup(name, GFP_KERNEL);
-	if (!alg->name) {
-		ret = -ENOMEM;
-		goto exit_free_data;
-	}
-
 	mutex_lock(&filter->lock);
 	list_add_tail(&alg->entry, &filter->alg_list);
 	mutex_unlock(&filter->lock);
 
 	return 0;
-
-exit_free_data:
-	kfree(alg->name);
 
 exit_free_hash:
 	crypto_free_hash(alg->hash_tfm);
