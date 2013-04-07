@@ -145,10 +145,12 @@ void msg_dump(struct kdbus_msg *msg)
 
 	while (size > 0 && size >= data->size) {
 		switch (data->type) {
-			printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld\n",
+		case KDBUS_MSG_SRC_CREDS:
+			printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",
 				enum_MSG(data->type), data->size,
 				data->creds.uid, data->creds.gid,
-				data->creds.pid, data->creds.tid);
+				data->creds.pid, data->creds.tid,
+				data->creds.starttime);
 			break;
 
 		case KDBUS_MSG_SRC_CAPS:
