@@ -25,6 +25,12 @@
 
 #include "kdbus_internal.h"
 
+struct kdbus_policy_db_cache_entry {
+	struct kdbus_conn	*conn_a;
+	struct kdbus_conn	*conn_b;
+	struct hlist_node	hentry;
+};
+
 struct kdbus_policy_db_entry_access {
 	__u32			type;	/* USER, GROUP, WORLD */
 	__u32			bits;	/* RECV, SEND, OWN */
@@ -41,11 +47,13 @@ struct kdbus_policy_db_entry {
 static void __kdbus_policy_db_free(struct kref *kref)
 {
 	struct kdbus_policy_db_entry *e;
+	struct kdbus_policy_db_cache_entry *ce;
 	struct hlist_node *tmp;
 	struct kdbus_policy_db *db =
 		container_of(kref, struct kdbus_policy_db, kref);
 	int i;
 
+	/* purge entries */
 	mutex_lock(&db->entries_lock);
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
 		struct kdbus_policy_db_entry_access *a, *tmp;
@@ -60,6 +68,14 @@ static void __kdbus_policy_db_free(struct kref *kref)
 		kfree(e);
 	}
 	mutex_unlock(&db->entries_lock);
+
+	/* purge cache */
+	mutex_lock(&db->cache_lock);
+	hash_for_each_safe(db->send_access_hash, i, tmp, ce, hentry) {
+		hash_del(&ce->hentry);
+		kfree(ce);
+	}
+	mutex_unlock(&db->cache_lock);
 
 	kfree(db);
 }
@@ -90,8 +106,9 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 
 	kref_init(&db->kref);
 	hash_init(db->entries_hash);
+	hash_init(db->send_access_hash);
 	mutex_init(&db->entries_lock);
-
+	mutex_init(&db->cache_lock);
 
 	return db;
 }
@@ -122,13 +139,14 @@ u64 accumulate_entry_accesses(struct kdbus_policy_db_entry *db_entry,
 	return access;
 }
 
-int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
-				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst)
+static
+int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
+					struct kdbus_conn *conn_src,
+					struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
-	int ret = -EPERM;
 	u64 access;
+	u32 hash;
 
 	/*
 	 * send access is granted if either the source connection has a
@@ -137,43 +155,95 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	 * Hence, we walk the list of the names registered for each
 	 * connection.
 	 */
-	mutex_lock(&db->entries_lock);
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
 		struct kdbus_policy_db_entry *db_entry;
-		u32 hash = kdbus_policy_make_name_hash(name_entry->name);
 
+		hash = kdbus_policy_make_name_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
 
 			access = accumulate_entry_accesses(db_entry, conn_src);
-			if (access & KDBUS_POLICY_SEND) {
-				ret = 0;
-				goto exit_unlock;
-			}
+			if (access & KDBUS_POLICY_SEND)
+				return 0;
 		}
 	}
 
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		struct kdbus_policy_db_entry *db_entry;
-		u32 hash = kdbus_policy_make_name_hash(name_entry->name);
 
+		hash = kdbus_policy_make_name_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
 
 			access = accumulate_entry_accesses(db_entry, conn_dst);
-			if (access & KDBUS_POLICY_RECV) {
-				ret = 0;
-				goto exit_unlock;
-			}
+			if (access & KDBUS_POLICY_RECV)
+				return 0;
 		}
 	}
 
-exit_unlock:
+	return -EPERM;
+}
+
+int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
+				      struct kdbus_conn *conn_src,
+				      struct kdbus_conn *conn_dst)
+{
+	int ret = 0;
+	u32 hash = 0;
+	struct kdbus_policy_db_cache_entry *ce;
+
+	/* FIXME */
+	hash ^= hash_ptr(conn_src, sizeof(conn_src) * 8);
+	hash ^= hash_ptr(conn_dst, sizeof(conn_dst) * 8);
+
+	mutex_lock(&db->cache_lock);
+	hash_for_each_possible(db->send_access_hash, ce, hentry, hash)
+		if (ce->conn_a == conn_src && ce->conn_b == conn_dst) {
+			mutex_unlock(&db->cache_lock);
+			printk(" POLICY CACHE HIT!\n");
+			return 0;
+		}
+	mutex_unlock(&db->cache_lock);
+	printk(" POLICY CACHE MISS!\n");
+
+	mutex_lock(&db->entries_lock);
+	ret = __kdbus_policy_db_check_send_access(db, conn_src, conn_dst);
+	if (ret == 0) {
+		/* add to cache */
+
+		ce = kzalloc(sizeof(*ce), GFP_KERNEL);
+		if (!ce) {
+			ret = -ENOMEM;
+			goto exit_unlock_entries;
+		}
+
+		ce->conn_a = conn_src;
+		ce->conn_b = conn_dst;
+		hash_add(db->send_access_hash, &ce->hentry, hash);
+	}
+
+exit_unlock_entries:
 	mutex_unlock(&db->entries_lock);
 
 	return ret;
+}
+
+void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
+				 struct kdbus_conn *conn)
+{
+	struct kdbus_policy_db_cache_entry *ce;
+	struct hlist_node *tmp;
+	int i;
+
+	mutex_lock(&db->entries_lock);
+	hash_for_each_safe(db->send_access_hash, i, tmp, ce, hentry)
+		if (ce->conn_a == conn || ce->conn_b == conn) {
+			hash_del(&ce->hentry);
+			kfree(ce);
+		}
+	mutex_unlock(&db->entries_lock);
 }
 
 int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,

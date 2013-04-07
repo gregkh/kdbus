@@ -55,9 +55,11 @@ struct kdbus_ns {
 /* policy */
 
 struct kdbus_policy_db {
-	struct kref kref;
+	struct kref	kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
-	struct mutex		entries_lock;
+	DECLARE_HASHTABLE(send_access_hash, 6);
+	struct mutex	entries_lock;
+	struct mutex	cache_lock;
 };
 
 struct kdbus_conn;
@@ -72,6 +74,8 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 				     struct kdbus_conn *conn,
 				     const char *name);
+void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
+				 struct kdbus_conn *conn);
 
 /* names registry */
 struct kdbus_name_registry {
