@@ -130,13 +130,12 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	int ret = -EPERM;
 	u64 access;
 
-	/* Walk the list of the names registered for a connection ... */
+	/* Walk the list of the names registered for a connection */
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
 		struct kdbus_policy_db_entry *db_entry;
 		u32 hash = kdbus_policy_make_name_hash(name_entry->name);
-		/* ... and check each entry of our policy db that matches
-		 * that name */
+
 		hash_for_each_possible(db->entries_hash, db_entry,
 				       hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
@@ -155,8 +154,7 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		struct kdbus_policy_db_entry *db_entry;
 		u32 hash = kdbus_policy_make_name_hash(name_entry->name);
-		/* ... and check each entry of our policy db that matches
-		 * that name */
+
 		hash_for_each_possible(db->entries_hash, db_entry,
 				       hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
@@ -195,8 +193,6 @@ int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 		if (strcmp(db_entry->name, name) != 0)
 			continue;
 
-		/* send access is granted if either the source
-		 * connection has a matching SEND rule ...*/
 		access = accumulate_entry_accesses(db_entry, conn);
 		if (access & KDBUS_POLICY_OWN) {
 			ret = 0;
