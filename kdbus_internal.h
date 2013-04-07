@@ -15,6 +15,7 @@
 #include <uapi/linux/major.h>
 #include <linux/workqueue.h>
 #include <linux/hashtable.h>
+#include "bloom_filter.h"
 #include "kdbus.h"
 
 /* FIXME: move to uapi/linux/major.h */
@@ -224,6 +225,7 @@ struct kdbus_conn {
 
 	struct kdbus_creds creds;
 	struct kdbus_match_db *match_db;
+	struct bloom_filter *bloom;
 };
 
 /* array of passed-in file descriptors */
