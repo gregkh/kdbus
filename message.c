@@ -226,6 +226,7 @@ int kdbus_kmsg_new_from_user(void __user *buf, struct kdbus_kmsg **m)
 	if (ret < 0)
 		goto out_ret;
 
+#if 0
 	/* FIXME - handle large allocations by using pages, not kmalloc */
 	real_kmsg = kmalloc(size + data_size, GFP_KERNEL);
 	if (!real_kmsg)
@@ -257,6 +258,7 @@ int kdbus_kmsg_new_from_user(void __user *buf, struct kdbus_kmsg **m)
 
 	/* FIXME: doh */
 	kfree(real_kmsg);
+#endif
 
 	kref_init(&kmsg->kref);
 
@@ -457,7 +459,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 
 	if (conn_dst) {
 		/* check policy */
-		if (ep->policy_db) {
+		if (ep->policy_db && conn_src) {
 			ret = kdbus_policy_db_check_send_access(ep->policy_db,
 								conn_src,
 								conn_dst);
