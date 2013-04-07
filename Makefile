@@ -1,4 +1,5 @@
 kdbus-y	:= \
+	bloom_filter.o \
 	bus.o \
 	connection.o \
 	ep.o \
