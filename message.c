@@ -358,7 +358,8 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 }
 
 static struct kdbus_kmsg __must_check *
-kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg)
+kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
+		       const struct kdbus_creds *creds)
 {
 	struct kdbus_msg_data *data = NULL;
 	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(struct kdbus_creds));
@@ -369,10 +370,7 @@ kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg)
 
 	data->size = size;
 	data->type = KDBUS_MSG_SRC_CREDS;
-	data->creds.uid = current_uid();
-	data->creds.gid = current_gid();
-	data->creds.pid = current->pid;
-	data->creds.tid = current->tgid;
+	memcpy(&data->creds, creds, sizeof(*creds));
 
 	return kmsg;
 }
@@ -421,7 +419,9 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 
 	/* augment incoming message */
 	kmsg = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
-	kmsg = kdbus_kmsg_append_cred(kmsg);
+
+	if (conn_src)
+		kmsg = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
 
 	*_kmsg = kmsg;
 	msg = &kmsg->msg;
