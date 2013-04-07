@@ -45,6 +45,7 @@ struct kdbus_creds {
 
 #define KDBUS_SRC_ID_KERNEL		(0)
 #define KDBUS_DST_ID_WELL_KNOWN_NAME	(0)
+#define KDBUS_MATCH_SRC_ID_ANY		(~0ULL)
 #define KDBUS_DST_ID_BROADCAST		(~0ULL)
 
 /* Message Data Types */
@@ -289,7 +290,7 @@ struct kdbus_cmd_match_item {
 
 struct kdbus_cmd_match {
 	__u64 size;
-	__u64 id;		/* We allow registration/deregestration of matches for other peers */
+	__u64 id;	/* We allow registration/deregestration of matches for other peers */
 	__u64 cookie;	/* userspace supplied cookie; when removing; kernel deletes everything with same cookie */
 	__u64 src_id;	/* ~0: any. other: exact unique match */
 	struct kdbus_cmd_match_item items[0];
