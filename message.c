@@ -396,6 +396,36 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 }
 
 static struct kdbus_kmsg __must_check *
+kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
+			    struct kdbus_conn *conn)
+{
+	struct kdbus_name_entry *name_entry;
+	struct kdbus_msg_data *data = NULL;
+	u64 pos = 0, size, strsize = 0;
+
+	/* FIXME: add locking */
+	list_for_each_entry(name_entry, &conn->names_list, conn_entry)
+		strsize += strlen(name_entry->name) + 1;
+
+	/* no names? then don't do anything */
+	if (strsize == 0)
+		return kmsg;
+
+	size = strsize + KDBUS_MSG_DATA_SIZE(0);
+	kmsg = kdbus_kmsg_append_data(kmsg, size, &data);
+
+	data->size = size;
+	data->type = KDBUS_MSG_SRC_NAMES;
+
+	list_for_each_entry(name_entry, &conn->names_list, conn_entry) {
+		strcpy(data->data + pos, name_entry->name);
+		pos += strlen(name_entry->name) + 1;
+	}
+
+	return kmsg;
+}
+
+static struct kdbus_kmsg __must_check *
 kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
 		       const struct kdbus_creds *creds)
 {
@@ -458,8 +488,10 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 	/* augment incoming message */
 	kmsg = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
 
-	if (conn_src)
+	if (conn_src) {
+		kmsg = kdbus_kmsg_append_src_names(kmsg, conn_src);
 		kmsg = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
+	}
 
 	*_kmsg = kmsg;
 	msg = &kmsg->msg;
