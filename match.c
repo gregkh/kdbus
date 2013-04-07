@@ -61,11 +61,39 @@ struct kdbus_match_db *kdbus_match_db_new(void)
 int kdbus_match_db_add(struct kdbus_match_db *db,
 		       void __user *buf)
 {
-	return -ENOSYS;
+	struct kdbus_cmd_match *cmd_match;
+	u64 size;
+
+	if (kdbus_size_user(size, buf, struct kdbus_cmd_match, size))
+		return -EFAULT;
+
+	cmd_match = memdup_user(buf, size);
+	if (IS_ERR(cmd_match))
+		return PTR_ERR(cmd_match);
+
+	// ...
+
+	kfree(cmd_match);
+
+	return 0;
 }
 
 int kdbus_match_db_remove(struct kdbus_match_db *db,
 			  void __user *buf)
 {
-	return -ENOSYS;
+	struct kdbus_cmd_match *cmd_match;
+	u64 size;
+
+	if (kdbus_size_user(size, buf, struct kdbus_cmd_match, size))
+		return -EFAULT;
+
+	cmd_match = memdup_user(buf, size);
+	if (IS_ERR(cmd_match))
+		return PTR_ERR(cmd_match);
+
+	// ...
+
+	kfree(cmd_match);
+
+	return 0;
 }
