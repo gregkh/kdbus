@@ -202,11 +202,9 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	hash_for_each_possible(db->send_access_hash, ce, hentry, hash)
 		if (ce->conn_a == conn_src && ce->conn_b == conn_dst) {
 			mutex_unlock(&db->cache_lock);
-			printk(" POLICY CACHE HIT!\n");
 			return 0;
 		}
 	mutex_unlock(&db->cache_lock);
-	printk(" POLICY CACHE MISS!\n");
 
 	mutex_lock(&db->entries_lock);
 	ret = __kdbus_policy_db_check_send_access(db, conn_src, conn_dst);
