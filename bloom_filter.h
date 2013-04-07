@@ -1,8 +1,6 @@
 #ifndef _BLOOM_H_
 #define _BLOOM_H_
 
-#include <crypto/algapi.h>
-
 struct bloom_filter {
 	struct kref		kref;
 	struct mutex		lock;
@@ -15,8 +13,6 @@ struct bloom_filter *bloom_filter_new(int bit_size);
 struct bloom_filter *bloom_filter_ref(struct bloom_filter *filter);
 void bloom_filter_unref(struct bloom_filter *filter);
 
-int bloom_filter_add_crypto_hash(struct bloom_filter *filter,
-				 struct crypto_hash *hash_tfm);
 int bloom_filter_add_hash_alg(struct bloom_filter *filter,
 			      const char *name);
 

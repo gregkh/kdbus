@@ -25,10 +25,6 @@
 
 #include "kdbus_internal.h"
 
-static const char *bloom_hash_algs[] = {
-	"crc32c", "md5"
-};
-
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
 	struct kdbus_msg_list_entry *entry, *tmp;
@@ -87,7 +83,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	struct kdbus_conn *conn;
 	struct kdbus_ns *ns;
 	struct kdbus_ep *ep;
-	int i, ret;
+	int ret;
 
 	conn = kzalloc(sizeof(struct kdbus_conn), GFP_KERNEL);
 	if (!conn)
@@ -152,16 +148,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	add_timer(&conn->timer);
 
 	conn->match_db = kdbus_match_db_new();
-	conn->bloom = bloom_filter_new(4096);
-
-	/* FIXME: we should pre-allocate the hash algorithms and
-	 * just pass a reference to the user. */
-	for (i = 0; i < ARRAY_SIZE(bloom_hash_algs); i++) {
-		ret = bloom_filter_add_hash_alg(conn->bloom, bloom_hash_algs[i]);
-		if (ret < 0)
-			pr_err("Unable to add hash algorithm '%s'\n",
-				bloom_hash_algs[i]);
-	}
 
 	conn->creds.uid = current_uid();
 	conn->creds.gid = current_gid();
@@ -228,7 +214,6 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		kdbus_name_remove_by_conn(bus->name_registry, conn);
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 		kdbus_match_db_unref(conn->match_db);
-		bloom_filter_unref(conn->bloom);
 		kdbus_ep_unref(conn->ep);
 
 		break;
