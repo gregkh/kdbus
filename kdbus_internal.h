@@ -117,7 +117,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 /* match database */
 struct kdbus_match_db {
 	struct kref		kref;
-	DECLARE_HASHTABLE(entries_hash, 6);
+	struct list_head	entries;
 	struct mutex		entries_lock;
 };
 
