@@ -38,7 +38,7 @@
  * - closing the connection destroys the created namespace
  */
 struct kdbus_ns {
-	unsigned int ref;		/* reference count */
+	struct kref kref;		/* reference counter */
 	const char *name;		/* name of the namespace */
 	bool disconnected;		/* invalidated data */
 	struct kdbus_ns *parent;	/* parent namespace */
@@ -286,8 +286,8 @@ extern struct kdbus_ns *kdbus_ns_init;
 /* namespace */
 extern const struct file_operations kdbus_device_ops;
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
+void kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
-struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
 struct kdbus_ns *kdbus_ns_find(const char *name);
 

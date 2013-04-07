@@ -54,9 +54,7 @@ static struct device_type kdbus_devtype_control = {
 /* kdbus namespace */
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
 {
-	if (!ns)
-		return NULL;
-	ns->ref++;
+	kref_get(&ns->kref);
 	return ns;
 }
 
@@ -78,13 +76,9 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 	pr_info("closing namespace %s\n", ns->devpath);
 }
 
-struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
+static void __kdbus_ns_free(struct kref *kref)
 {
-	if (!ns)
-		return NULL;
-	ns->ref--;
-	if (ns->ref > 0)
-		return ns;
+	struct kdbus_ns *ns = container_of(kref, struct kdbus_ns, kref);
 
 	kdbus_ns_disconnect(ns);
 	pr_info("clean up namespace %s\n", ns->devpath);
@@ -92,7 +86,11 @@ struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
 	kfree(ns->name);
 	kfree(ns->devpath);
 	kfree(ns);
-	return NULL;
+}
+
+void kdbus_ns_unref(struct kdbus_ns *ns)
+{
+	kref_put(&ns->kref, __kdbus_ns_free);
 }
 
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
@@ -119,7 +117,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		}
 	}
 
-	n->ref = 1;
+	kref_init(&n->kref);
 	idr_init(&n->idr);
 	mutex_init(&n->lock);
 
