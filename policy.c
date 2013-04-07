@@ -235,13 +235,13 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
 	struct hlist_node *tmp;
 	int i;
 
-	mutex_lock(&db->entries_lock);
+	mutex_lock(&db->cache_lock);
 	hash_for_each_safe(db->send_access_hash, i, tmp, ce, hentry)
 		if (ce->conn_a == conn || ce->conn_b == conn) {
 			hash_del(&ce->hentry);
 			kfree(ce);
 		}
-	mutex_unlock(&db->entries_lock);
+	mutex_unlock(&db->cache_lock);
 }
 
 int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
