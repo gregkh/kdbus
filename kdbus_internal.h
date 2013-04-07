@@ -246,6 +246,7 @@ struct kdbus_payload {
 
 struct kdbus_kmsg {
 	struct kref kref;
+	u64 allocated_size;
 	u64 deadline;
 	struct kdbus_fds *fds;
 	struct kdbus_payload *payloads;

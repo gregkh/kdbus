@@ -29,6 +29,7 @@
 	ALIGN((s) + offsetof(struct kdbus_msg_data, data), sizeof(u64))
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, data)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
+#define KDBUS_KMSG_EXTRA_ALLOC 256
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg);
 
@@ -246,7 +247,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 {
 	struct kdbus_kmsg *kmsg;
 	const struct kdbus_msg_data *data;
-	u64 size;
+	u64 size, alloc_size;
 	int ret;
 
 	if (kdbus_size_user(size, buf, struct kdbus_msg, size))
@@ -255,11 +256,14 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
 
-	kmsg = kmalloc(size + KDBUS_KMSG_HEADER_SIZE, GFP_KERNEL);
+	alloc_size = size + KDBUS_KMSG_HEADER_SIZE + KDBUS_KMSG_EXTRA_ALLOC;
+
+	kmsg = kmalloc(alloc_size, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
 
 	memset(kmsg, 0, KDBUS_KMSG_HEADER_SIZE);
+	kmsg->allocated_size = alloc_size;
 
 	if (copy_from_user(&kmsg->msg, buf, size)) {
 		ret = -EFAULT;
@@ -357,11 +361,16 @@ kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 extra_size,
 	struct kdbus_msg *msg;
 	struct kdbus_msg_data *d;
 	u64 new_size = KDBUS_KMSG_HEADER_SIZE +
-			kmsg->msg.size + extra_size + 100;
+			kmsg->msg.size + extra_size;
 
-	kmsg = krealloc(kmsg, new_size, GFP_KERNEL);
-	if (!kmsg)
-		return NULL;
+	if (new_size > kmsg->allocated_size) {
+		new_size += KDBUS_KMSG_EXTRA_ALLOC;
+		kmsg = krealloc(kmsg, new_size, GFP_KERNEL);
+		if (!kmsg)
+			return NULL;
+
+		kmsg->allocated_size = new_size;
+	}
 
 	msg = &kmsg->msg;
 
