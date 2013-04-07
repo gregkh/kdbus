@@ -206,7 +206,7 @@ int bloom_filter_add(struct bloom_filter *filter,
 
 		ret = __bit_for_crypto_alg(alg, &sg, filter->bitmap_size, &bit);
 		if (ret < 0)
-			continue;
+			goto exit_unlock;
 
 		set_bit(bit, filter->bitmap);
 	}
@@ -240,10 +240,12 @@ int bloom_filter_check(struct bloom_filter *filter,
 
 		ret = __bit_for_crypto_alg(alg, &sg, filter->bitmap_size, &bit);
 		if (ret < 0)
-			continue;
+			goto exit_unlock;
 
-		if (!test_bit(bit, filter->bitmap))
+		if (!test_bit(bit, filter->bitmap)) {
 			*result = false;
+			break;
+		}
 	}
 
 exit_unlock:
