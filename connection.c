@@ -195,13 +195,11 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		mutex_lock(&conn->msg_lock);
 		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
 			struct kdbus_kmsg *kmsg = entry->kmsg;
-
-#if 0
 			struct kdbus_msg *msg = &kmsg->msg;
-			if (msg->dst_id != KDBUS_DST_ID_BROADCAST &&
+
+			if (msg->dst_id == conn->id &&
 			    msg->src_id != conn->id)
 				kdbus_notify_reply_dead(conn->ep, msg);
-#endif
 
 			kdbus_kmsg_unref(kmsg);
 			list_del(&entry->list);
