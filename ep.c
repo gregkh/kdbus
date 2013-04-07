@@ -165,10 +165,12 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		e->dev = NULL;
 	}
 
-	e->policy_db = kdbus_policy_db_new();
-	if (!e->policy_db) {
-		ret = -ENOMEM;
-		goto ret;
+	if (strcmp(name, "bus") == 0) {
+		e->policy_db = kdbus_policy_db_new();
+		if (!e->policy_db) {
+			ret = -ENOMEM;
+			goto ret;
+		}
 	}
 
 	init_waitqueue_head(&e->wait);
