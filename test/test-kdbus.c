@@ -26,7 +26,7 @@ static void append_policy(struct kdbus_cmd_policy *cmd_policy,
 	if (cmd_policy->size + policy->size > max_size)
 		return;
 
-	memcpy(dst, policy, cmd_policy->size);
+	memcpy(dst, policy, policy->size);
 	cmd_policy->size += policy->size;
 }
 
@@ -35,13 +35,14 @@ static struct kdbus_policy *make_policy_name(const char *name)
 	struct kdbus_policy *p;
 	__u64 size;
 
-	size = sizeof(*p) + strlen(name) + 1;
+	size = offsetof(struct kdbus_policy, name) + strlen(name) + 1;
 	p = malloc(size);
 	if (!p)
 		return NULL;
 
 	memset(p, 0, size);
 	p->size = size;
+	p->type = KDBUS_POLICY_NAME;
 	strcpy(p->name, name);
 
 	return p;
@@ -58,6 +59,7 @@ static struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id)
 
 	memset(p, 0, size);
 	p->size = size;
+	p->type = KDBUS_POLICY_ACCESS;
 	p->access.type = type;
 	p->access.bits = bits;
 	p->access.id = id;
@@ -66,19 +68,27 @@ static struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id)
 }
 static int upload_policy(int fd)
 {
-	char tmp[0xffff];
-	struct kdbus_cmd_policy *cmd_policy = (struct kdbus_cmd_policy *) tmp;
+	struct kdbus_cmd_policy *cmd_policy;
 	struct kdbus_policy *policy;
 	int ret;
+	int size = 0xffff;
+
+	cmd_policy = (struct kdbus_cmd_policy *) alloca(size);
 
 	policy = (struct kdbus_policy *) cmd_policy->buffer;
 	cmd_policy->size = offsetof(struct kdbus_cmd_policy, buffer);
 
 	policy = make_policy_name("foo.bar.baz");
-	append_policy(cmd_policy, policy, sizeof(tmp));
+	append_policy(cmd_policy, policy, size);
 
 	policy = make_policy_access(KDBUS_POLICY_USER, KDBUS_POLICY_OWN, 0);
-	append_policy(cmd_policy, policy, sizeof(tmp));
+	append_policy(cmd_policy, policy, size);
+
+	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_RECV, 0);
+	append_policy(cmd_policy, policy, size);
+
+	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_SEND, 0);
+	append_policy(cmd_policy, policy, size);
 
 	ret = ioctl(fd, KDBUS_CMD_EP_POLICY_SET, cmd_policy);
 	if (ret < 0)
