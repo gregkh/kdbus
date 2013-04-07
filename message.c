@@ -32,10 +32,8 @@
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg);
 
-static void __kdbus_kmsg_free(struct kref *kref)
+static void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
-	struct kdbus_kmsg *kmsg = container_of(kref, struct kdbus_kmsg, kref);
-
 	if (kmsg->fds) {
 		int i;
 
@@ -48,12 +46,19 @@ static void __kdbus_kmsg_free(struct kref *kref)
 		int i;
 
 		for (i = 0; i < kmsg->payloads->count; i++)
-			kfree(kmsg->payloads[i].data);
+			kfree(kmsg->payloads->ref[i].data);
 
 		kfree(kmsg->payloads);
 	}
 
 	kfree(kmsg);
+}
+
+static void __kdbus_kmsg_free(struct kref *kref)
+{
+	struct kdbus_kmsg *kmsg = container_of(kref, struct kdbus_kmsg, kref);
+
+	return kdbus_kmsg_free(kmsg);
 }
 
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg)
@@ -150,7 +155,7 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 		return -EINVAL;
 
 	/* allocate array for file descriptors */
-	if (num_fds > 128)
+	if (num_fds > 256)
 		return -EINVAL;
 
 	if (num_fds > 0) {
@@ -168,14 +173,14 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 	}
 
 	/* allocate array for payload references */
-	if (num_payloads > 128)
+	if (num_payloads > 256)
 		return -EINVAL;
 
 	if (num_payloads > 0) {
 		struct kdbus_payload *pls;
 
 		pls = kzalloc(sizeof(struct kdbus_payload) + (num_payloads *
-				sizeof(struct kdbus_payload)), GFP_KERNEL);
+				sizeof(struct kdbus_payload_ref)), GFP_KERNEL);
 		if (!pls) {
 			ret = -ENOMEM;
 			goto out_err;
@@ -204,6 +209,17 @@ out_err:
 static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 				const struct kdbus_msg_data *data)
 {
+	struct kdbus_payload_ref *pl;
+	void *d;
+
+	d = memdup_user((void *)data->data_ref.address, data->data_ref.size);
+	if (IS_ERR(d))
+		return PTR_ERR(d);
+
+	pl = &kmsg->payloads->ref[kmsg->payloads->count++];
+	pl->data = d;
+	pl->size = data->data_ref.size;
+
 	return 0;
 }
 
@@ -259,19 +275,23 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	kmsg->msg.src_id = conn->id;
 
 	/*
-	 * iterate over the receiced data records and prepare the type of data
-	 * we received only as a *reference* and not passed-in with the memory
+	 * iterate over the receiced data records and resolve *references*
+	 * to data, which are not part of the passed-in message
 	 */
 	data = kmsg->msg.data;
 	size = kmsg->msg.size - KDBUS_MSG_HEADER_SIZE;
 	while (size > 0 && size >= data->size) {
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD_REF:
-			kdbus_copy_user_payload(kmsg, data);
+			ret = kdbus_copy_user_payload(kmsg, data);
+			if (ret < 0)
+				goto out_err;
 			break;
 
 		case KDBUS_MSG_UNIX_FDS:
-			kdbus_copy_user_fds(kmsg, data);
+			ret = kdbus_copy_user_fds(kmsg, data);
+			if (ret < 0)
+				goto out_err;
 			break;
 		}
 
@@ -285,7 +305,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	return 0;
 
 out_err:
-	kfree(kmsg);
+	kdbus_kmsg_free(kmsg);
 	return ret;
 }
 
