@@ -3,6 +3,7 @@ kdbus-y	:= \
 	connection.o \
 	ep.o \
 	main.o \
+	match.o \
 	message.o \
 	names.o \
 	notify.o \

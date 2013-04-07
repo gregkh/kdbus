@@ -147,6 +147,8 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	conn->timer.data = (unsigned long) conn;
 	add_timer(&conn->timer);
 
+	conn->match_db = kdbus_match_db_new();
+
 	conn->creds.uid = current_uid();
 	conn->creds.gid = current_gid();
 	conn->creds.pid = current->pid;
@@ -213,6 +215,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		bus = conn->ep->bus;
 		kdbus_name_remove_by_conn(bus->name_registry, conn);
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
+		kdbus_match_db_unref(conn->match_db);
 		kdbus_ep_unref(conn->ep);
 
 		break;
@@ -464,19 +467,19 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
 		bus = conn->ep->bus;
-		ret =kdbus_name_query(bus->name_registry, conn, buf);
+		ret = kdbus_name_query(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
-		ret = -ENOSYS;
+		ret = kdbus_match_db_add(conn->match_db, buf);
 
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
-		ret = -ENOSYS;
+		ret = kdbus_match_db_remove(conn->match_db, buf);
 
 		break;
 

@@ -114,6 +114,20 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn);
 
+/* match database */
+struct kdbus_match_db {
+	struct kref		kref;
+	DECLARE_HASHTABLE(entries_hash, 6);
+	struct mutex		entries_lock;
+};
+
+struct kdbus_match_db *kdbus_match_db_new(void);
+void kdbus_match_db_unref(struct kdbus_match_db *db);
+int kdbus_match_db_add(struct kdbus_match_db *db,
+		       void __user *buf);
+int kdbus_match_db_remove(struct kdbus_match_db *db,
+			  void __user *buf);
+
 /*
  * kdbus bus
  * - provides a "bus" endpoint
@@ -209,6 +223,7 @@ struct kdbus_conn {
 	struct timer_list timer;
 
 	struct kdbus_creds creds;
+	struct kdbus_match_db *match_db;
 };
 
 struct kdbus_fds {
