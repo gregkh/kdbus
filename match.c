@@ -58,16 +58,26 @@ struct kdbus_match_db *kdbus_match_db_new(void)
 	return db;
 }
 
-int kdbus_match_db_add(struct kdbus_match_db *db,
-		       void __user *buf)
+static
+struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 {
 	struct kdbus_cmd_match *cmd_match;
 	u64 size;
 
 	if (kdbus_size_user(size, buf, struct kdbus_cmd_match, size))
-		return -EFAULT;
+		return ERR_PTR(-EFAULT);
 
-	cmd_match = memdup_user(buf, size);
+	if (size < sizeof(*cmd_match) || size > 0xffff)
+		return ERR_PTR(-EMSGSIZE);
+
+	return memdup_user(buf, size);
+}
+
+int kdbus_match_db_add(struct kdbus_match_db *db,
+		       void __user *buf)
+{
+	struct kdbus_cmd_match *cmd_match = cmd_match_from_user(buf);
+
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
@@ -81,13 +91,8 @@ int kdbus_match_db_add(struct kdbus_match_db *db,
 int kdbus_match_db_remove(struct kdbus_match_db *db,
 			  void __user *buf)
 {
-	struct kdbus_cmd_match *cmd_match;
-	u64 size;
+	struct kdbus_cmd_match *cmd_match = cmd_match_from_user(buf);
 
-	if (kdbus_size_user(size, buf, struct kdbus_cmd_match, size))
-		return -EFAULT;
-
-	cmd_match = memdup_user(buf, size);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
