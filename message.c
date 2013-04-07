@@ -456,6 +456,15 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (conn_dst) {
+		/* check policy */
+		if (ep->policy_db) {
+			ret = kdbus_policy_db_check_send_access(ep->policy_db,
+								conn_src,
+								conn_dst);
+			if (ret < 0)
+				return ret;
+		}
+
 		/* direct message */
 		if (msg->timeout)
 			kmsg->deadline = now_ns + msg->timeout;
