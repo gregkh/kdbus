@@ -154,6 +154,8 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	conn->match_db = kdbus_match_db_new();
 	conn->bloom = bloom_filter_new(4096);
 
+	/* FIXME: we should pre-allocate the hash algorithms and
+	 * just pass a reference to the user. */
 	for (i = 0; i < ARRAY_SIZE(bloom_hash_algs); i++) {
 		ret = bloom_filter_add_hash_alg(conn->bloom, bloom_hash_algs[i]);
 		if (ret < 0)
