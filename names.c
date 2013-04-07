@@ -235,6 +235,13 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	name->flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
 	hash = kdbus_name_make_hash(name->name);
 
+	if (conn->ep->policy_db) {
+		ret = kdbus_policy_db_check_own_access(conn->ep->policy_db,
+							conn, name->name);
+		if (ret < 0)
+			return ret;
+	}
+
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, name->name);
 	if (e) {
