@@ -255,7 +255,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
 		return -EMSGSIZE;
 
-	kmsg = kmalloc(size + offsetof(struct kdbus_kmsg, msg), GFP_KERNEL);
+	kmsg = kmalloc(size + KDBUS_KMSG_HEADER_SIZE, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
 
@@ -356,7 +356,7 @@ kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 extra_size,
 {
 	struct kdbus_msg *msg;
 	struct kdbus_msg_data *d;
-	u64 new_size = offsetof(struct kdbus_kmsg, msg) +
+	u64 new_size = KDBUS_KMSG_HEADER_SIZE +
 			kmsg->msg.size + extra_size + 100;
 
 	kmsg = krealloc(kmsg, new_size, GFP_KERNEL);
