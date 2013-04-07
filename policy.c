@@ -181,7 +181,7 @@ int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 				     const char *name)
 {
 	struct kdbus_policy_db_entry *db_entry;
-	int ret;
+	int ret = -EPERM;
 	u32 hash = kdbus_policy_make_name_hash(name);
 
 	/* Walk the list of the names registered for a connection ... */
@@ -206,54 +206,64 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_policy_db_add_one(struct kdbus_policy_db *db,
-				   const struct kdbus_policy *pol)
+static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
+				 const struct kdbus_cmd_policy *cmd,
+				 u64 size)
 {
+	struct kdbus_policy *pol;
 	struct kdbus_policy_db_entry *current_entry = NULL;
 
-	switch (pol->type) {
-	case KDBUS_POLICY_NAME: {
-		struct kdbus_policy_db_entry *e;
-		u32 hash;
+	size -= offsetof(struct kdbus_cmd_policy, buffer);
+	pol = (struct kdbus_policy *) cmd->buffer;
 
-		e = kzalloc(sizeof(*e), GFP_KERNEL);
-		if (!e)
-			return -ENOMEM;
+	while (size > 0) {
+		switch (pol->type) {
+		case KDBUS_POLICY_NAME: {
+			struct kdbus_policy_db_entry *e;
+			u32 hash;
 
-		hash = kdbus_policy_make_name_hash(pol->name);
-		e->name = kstrdup(pol->name, GFP_KERNEL);
-		INIT_LIST_HEAD(&e->access_list);
+			e = kzalloc(sizeof(*e), GFP_KERNEL);
+			if (!e)
+				return -ENOMEM;
 
-		mutex_lock(&db->entries_lock);
-		hash_add(db->entries_hash, &e->hentry, hash);
-		mutex_unlock(&db->entries_lock);
+			hash = kdbus_policy_make_name_hash(pol->name);
+			e->name = kstrdup(pol->name, GFP_KERNEL);
+			INIT_LIST_HEAD(&e->access_list);
 
-		current_entry = e;
-		break;
-	}
-	case KDBUS_POLICY_ACCESS: {
-		struct kdbus_policy_db_entry_access *a;
+			mutex_lock(&db->entries_lock);
+			hash_add(db->entries_hash, &e->hentry, hash);
+			mutex_unlock(&db->entries_lock);
 
-		if (!current_entry)
+			current_entry = e;
+			break;
+		}
+		case KDBUS_POLICY_ACCESS: {
+			struct kdbus_policy_db_entry_access *a;
+
+			if (!current_entry)
+				return -EINVAL;
+
+			a = kzalloc(sizeof(*a), GFP_KERNEL);
+			if (!a)
+				return -ENOMEM;
+
+			a->type = pol->access.type;
+			a->bits = pol->access.bits;
+			a->id   = pol->access.id;
+			INIT_LIST_HEAD(&a->list);
+
+			mutex_lock(&db->entries_lock);
+			list_add_tail(&a->list, &current_entry->access_list);
+			mutex_unlock(&db->entries_lock);
+
+			break;
+		}
+		default:
 			return -EINVAL;
+		}
 
-		a = kzalloc(sizeof(*a), GFP_KERNEL);
-		if (!a)
-			return -ENOMEM;
-
-		a->type = pol->access.type;
-		a->bits = pol->access.bits;
-		a->id   = pol->access.id;
-		INIT_LIST_HEAD(&a->list);
-
-		mutex_lock(&db->entries_lock);
-		list_add_tail(&a->list, &current_entry->access_list);
-		mutex_unlock(&db->entries_lock);
-
-		break;
-	}
-	default:
-		return -EINVAL;
+		size -= pol->size;
+		pol = (struct kdbus_policy *) ((u8 *) pol + pol->size);
 	}
 
 	return 0;
@@ -263,7 +273,6 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 			       void __user *buf)
 {
 	struct kdbus_cmd_policy *cmd;
-	struct kdbus_policy *pol;
 	u64 size;
 	int ret;
 
@@ -277,19 +286,8 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 	if (IS_ERR(cmd))
 		return PTR_ERR(cmd);
 
-	size -= offsetof(struct kdbus_cmd_policy, buffer);
-	pol = (struct kdbus_policy *) cmd->buffer;
-
-	while (size > 0) {
-		ret = kdbus_policy_db_add_one(db, pol);
-		if (ret < 0)
-			break;
-
-		size -= pol->size;
-		pol = (struct kdbus_policy *) ((u8 *) pol + pol->size);
-	}
-
+	ret = kdbus_policy_db_parse(db, cmd, size);
 	kfree(cmd);
 
-	return 0;
+	return ret;
 }
