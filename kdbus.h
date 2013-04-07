@@ -36,7 +36,7 @@ struct kdbus_creds {
 	__u64 tid;
 
 	/* The starttime of the process PID. This is useful to detect
-	PID ovretuns from the client side. i.e. if you use the PID to
+	PID overruns from the client side. i.e. if you use the PID to
 	look something up in /proc/$PID/ you can afterwards check the
 	starttime field of it to ensure you didn't run into a PID
 	ovretun. */
