@@ -211,6 +211,7 @@ struct kdbus_conn {
 	 * Premature optimization and all...
 	 */
 	struct mutex msg_lock;
+	struct mutex names_lock;
 	struct list_head msg_list;
 
 	struct hlist_node hentry;

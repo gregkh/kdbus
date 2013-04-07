@@ -129,6 +129,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
 
 	mutex_init(&conn->msg_lock);
+	mutex_init(&conn->names_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);

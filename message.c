@@ -403,13 +403,13 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 	struct kdbus_msg_data *data = NULL;
 	u64 pos = 0, size, strsize = 0;
 
-	/* FIXME: add locking */
+	mutex_lock(&conn->names_lock);
 	list_for_each_entry(name_entry, &conn->names_list, conn_entry)
 		strsize += strlen(name_entry->name) + 1;
 
 	/* no names? then don't do anything */
 	if (strsize == 0)
-		return kmsg;
+		goto exit_unlock;
 
 	size = strsize + KDBUS_MSG_DATA_SIZE(0);
 	kmsg = kdbus_kmsg_append_data(kmsg, size, &data);
@@ -421,6 +421,9 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 		strcpy(data->data + pos, name_entry->name);
 		pos += strlen(name_entry->name) + 1;
 	}
+
+exit_unlock:
+	mutex_unlock(&conn->names_lock);
 
 	return kmsg;
 }
