@@ -67,8 +67,8 @@ void kdbus_policy_db_unref(struct kdbus_policy_db *db);
 int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 			       void __user *buf);
 int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
-				      struct kdbus_conn *conn_from,
-				      struct kdbus_conn *conn_to);
+				      struct kdbus_conn *conn_src,
+				      struct kdbus_conn *conn_dst);
 int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 				     struct kdbus_conn *conn,
 				     const char *name);
