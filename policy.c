@@ -219,7 +219,9 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 
 		ce->conn_a = conn_src;
 		ce->conn_b = conn_dst;
+		mutex_lock(&db->cache_lock);
 		hash_add(db->send_access_hash, &ce->hentry, hash);
+		mutex_unlock(&db->cache_lock);
 	}
 
 exit_unlock_entries:
