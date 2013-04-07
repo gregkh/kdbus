@@ -401,7 +401,9 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
-int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_kmsg **_kmsg)
+int kdbus_kmsg_send(struct kdbus_ep *ep,
+		    struct kdbus_conn *conn_src,
+		    struct kdbus_kmsg **_kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_kmsg *kmsg = *_kmsg;

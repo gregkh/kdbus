@@ -489,7 +489,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_kmsg_send(conn->ep, &kmsg);
+		ret = kdbus_kmsg_send(conn->ep, conn, &kmsg);
 		kdbus_kmsg_unref(kmsg);
 
 		break;

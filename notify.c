@@ -50,7 +50,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 	data = kmsg->msg.data;
 	data->type = msg_type;
 
-	ret = kdbus_kmsg_send(ep, &kmsg);
+	ret = kdbus_kmsg_send(ep, NULL, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return ret;
@@ -101,7 +101,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	name_change->flags = flags;
 	strcpy(name_change->name, name);
 
-	ret = kdbus_kmsg_send(ep, &kmsg);
+	ret = kdbus_kmsg_send(ep, NULL, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return 0;
@@ -136,7 +136,7 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 
 	id_change->id = id;
 
-	ret = kdbus_kmsg_send(ep, &kmsg);
+	ret = kdbus_kmsg_send(ep, NULL, &kmsg);
 	kdbus_kmsg_unref(kmsg);
 
 	return 0;
