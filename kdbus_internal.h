@@ -187,6 +187,7 @@ struct kdbus_conn {
 	u64 id;		/* id of the connection on the bus */
 
 	bool active;	/* did the connection say hello yet? */
+	bool monitor;
 	bool starter;
 
 	/*

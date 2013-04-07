@@ -480,11 +480,17 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 		break;
 
-	case KDBUS_CMD_MONITOR:
+	case KDBUS_CMD_MONITOR: {
 		/* turn on/turn off monitor mode */
-		ret = -ENOSYS;
+		struct kdbus_cmd_monitor cmd_monitor;
+		ret = copy_from_user(&cmd_monitor, buf, sizeof(cmd_monitor));
+		if (ret < 0)
+			return -EFAULT;
+
+		conn->monitor = !!cmd_monitor.enabled;
 
 		break;
+	}
 
 	case KDBUS_CMD_MSG_SEND:
 		/* send a message */
