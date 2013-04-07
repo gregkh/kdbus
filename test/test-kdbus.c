@@ -17,6 +17,76 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
+static void append_policy(struct kdbus_cmd_policy *cmd_policy,
+			  struct kdbus_policy *policy,
+			  __u64 max_size)
+{
+	struct kdbus_policy *dst = (struct kdbus_policy *) ((char *) cmd_policy + cmd_policy->size);
+
+	if (cmd_policy->size + policy->size > max_size)
+		return;
+
+	memcpy(dst, policy, cmd_policy->size);
+	cmd_policy->size += policy->size;
+}
+
+static struct kdbus_policy *make_policy_name(const char *name)
+{
+	struct kdbus_policy *p;
+	__u64 size;
+
+	size = sizeof(*p) + strlen(name) + 1;
+	p = malloc(size);
+	if (!p)
+		return NULL;
+
+	memset(p, 0, size);
+	p->size = size;
+	strcpy(p->name, name);
+
+	return p;
+}
+
+static struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id)
+{
+	struct kdbus_policy *p;
+	__u64 size = sizeof(*p);
+
+	p = malloc(size);
+	if (!p)
+		return NULL;
+
+	memset(p, 0, size);
+	p->size = size;
+	p->access.type = type;
+	p->access.bits = bits;
+	p->access.id = id;
+
+	return p;
+}
+static int upload_policy(int fd)
+{
+	char tmp[0xffff];
+	struct kdbus_cmd_policy *cmd_policy = (struct kdbus_cmd_policy *) tmp;
+	struct kdbus_policy *policy;
+	int ret;
+
+	policy = (struct kdbus_policy *) cmd_policy->buffer;
+	cmd_policy->size = offsetof(struct kdbus_cmd_policy, buffer);
+
+	policy = make_policy_name("foo.bar.baz");
+	append_policy(cmd_policy, policy, sizeof(tmp));
+
+	policy = make_policy_access(KDBUS_POLICY_USER, KDBUS_POLICY_OWN, 0);
+	append_policy(cmd_policy, policy, sizeof(tmp));
+
+	ret = ioctl(fd, KDBUS_CMD_EP_POLICY_SET, cmd_policy);
+	if (ret < 0)
+		fprintf(stderr, "--- error setting EP policy: %d (%m)\n", ret);
+
+	return ret;
+}
+
 int main(int argc, char *argv[])
 {
 	struct {
@@ -55,6 +125,8 @@ int main(int argc, char *argv[])
 	conn_b = connect_to_bus(bus);
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
+
+	upload_policy(conn_a->fd);
 
 	name_acquire(conn_a, "foo.bar.baz", 0);
 	name_acquire(conn_b, "foo.bar.baz", KDBUS_CMD_NAME_QUEUE);
