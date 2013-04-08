@@ -211,9 +211,11 @@ static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 				const struct kdbus_msg_data *data)
 {
 	struct kdbus_payload_ref *pl;
+	void __user *user_data;
 	void *d;
 
-	d = memdup_user((void *)data->data_ref.address, data->data_ref.size);
+	user_data = (void __user *)data->data_ref.address;
+	d = memdup_user(user_data, data->data_ref.size);
 	if (IS_ERR(d))
 		return PTR_ERR(d);
 
