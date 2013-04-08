@@ -508,12 +508,6 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 	u64 now_ns = 0;
 	int ret;
 
-	/*
-	 * FIXME: we need to lock some things here (connection names,
-	 * connection list, etc.), or properly implement reference counting for
-	 * the connections, and then drop the reference after using it.
-	 */
-
 	/* augment incoming message */
 	ret = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
 	if (ret < 0)

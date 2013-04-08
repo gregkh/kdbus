@@ -210,12 +210,6 @@ struct kdbus_conn {
 	bool monitor;
 	bool starter;
 
-	/*
-	 * first, horrible cut at messages assigned to connections
-	 * odds are, this is going to be slow, but let's measure it first to
-	 * see what the real numbers are, and where the bottlenecks are.
-	 * Premature optimization and all...
-	 */
 	struct mutex msg_lock;
 	struct mutex names_lock;
 	struct list_head msg_list;
