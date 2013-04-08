@@ -141,7 +141,7 @@ void msg_dump(struct kdbus_msg *msg)
 		enum_PAYLOAD(msg->payload_type), (unsigned long long) msg->size,
 		(unsigned long long) msg->flags,
 		msg_id(msg->src_id, buf), msg_id(msg->dst_id, buf),
-		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout);
+		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout_ns);
 
 	while (size > 0 && size >= data->size) {
 		if (data->size == 0) {

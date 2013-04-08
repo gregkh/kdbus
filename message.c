@@ -342,7 +342,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 		(unsigned long long) msg->src_id,
 		(unsigned long long) msg->cookie,
 		(unsigned long long) msg->payload_type,
-		(unsigned long long) msg->timeout);
+		(unsigned long long) msg->timeout_ns);
 
 	while (size > 0 && size >= data->size) {
 		pr_info("`- msg_data size=%llu, type=0x%llx\n",
@@ -573,17 +573,17 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 		}
 
 		/* direct message */
-		if (msg->timeout)
-			kmsg->deadline = now_ns + msg->timeout;
+		if (msg->timeout_ns)
+			kmsg->deadline_ns = now_ns + msg->timeout_ns;
 
 		ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
 
-		if (msg->timeout)
+		if (msg->timeout_ns)
 			kdbus_conn_schedule_timeout_scan(conn_dst);
 	} else {
 		/* broadcast */
 		/* timeouts are not allowed for broadcasts */
-		if (msg->timeout)
+		if (msg->timeout_ns)
 			return -EINVAL;
 
 		list_for_each_entry(conn_dst, &ep->connection_list,

@@ -39,16 +39,16 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
 		struct kdbus_kmsg *kmsg = entry->kmsg;
 
-		if (kmsg->deadline == 0)
+		if (kmsg->deadline_ns == 0)
 			continue;
 
-		if (kmsg->deadline <= now) {
+		if (kmsg->deadline_ns <= now) {
 			kdbus_notify_reply_timeout(conn->ep, &kmsg->msg);
 			kdbus_kmsg_unref(entry->kmsg);
 			list_del(&entry->list);
 			kfree(entry);
-		} else if (kmsg->deadline < deadline) {
-			deadline = kmsg->deadline;
+		} else if (kmsg->deadline_ns < deadline) {
+			deadline = kmsg->deadline_ns;
 		}
 	}
 	mutex_unlock(&conn->msg_lock);

@@ -138,7 +138,7 @@ struct kdbus_msg {
 	__u64 cookie;		/* userspace-supplied cookie */
 	union {
 		__u64 cookie_reply;	/* cookie we reply to */
-		__u64 timeout;		/* timeout in nanoseconds to wait for reply */
+		__u64 timeout_ns;	/* timespan to wait for reply */
 	};
 	struct kdbus_msg_data data[0];
 };

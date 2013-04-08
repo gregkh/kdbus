@@ -258,7 +258,7 @@ struct kdbus_meta {
 
 struct kdbus_kmsg {
 	struct kref kref;
-	u64 deadline;
+	u64 deadline_ns;
 	struct kdbus_fds *fds;
 	struct kdbus_payload *payloads;
 	struct kdbus_meta *meta;
