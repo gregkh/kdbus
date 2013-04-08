@@ -33,7 +33,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	uint64_t now;
 
 	ktime_get_ts(&ts);
-	now = (ts.tv_sec * 1000000000ULL) + ts.tv_nsec;
+	now = (ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec;
 
 	mutex_lock(&conn->msg_lock);
 	list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
@@ -154,7 +154,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	conn->creds.gid = current_gid();
 	conn->creds.pid = current->pid;
 	conn->creds.tid = current->tgid;
-	conn->creds.starttime = current->start_time.tv_sec * 1000000000ULL
+	conn->creds.starttime = current->start_time.tv_sec * NSEC_PER_SEC
 			      + current->start_time.tv_nsec;
 
 	pr_info("created endpoint bus connection %llu '%s/%s'\n",

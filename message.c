@@ -412,7 +412,7 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 	ktime_get_ts(&ts);
 	data->type = KDBUS_MSG_TIMESTAMP;
 	data->size = size;
-	data->ts_ns = (ts.tv_sec * 1000000000ULL) + ts.tv_nsec;
+	data->ts_ns = (ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec;
 
 	if (now_ns)
 		*now_ns = data->ts_ns;
