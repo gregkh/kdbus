@@ -21,10 +21,16 @@
 #define KDBUS_CHAR_MAJOR	222
 
 /* copy the uint64_t "size" value from the userspace-supplied  structure */
-#define kdbus_size_user(_s, _b, _t, _m) \
+#define kdbus_size_get_user(_s, _b, _t) \
 ({ \
-	u64 __user *_sz = _b + offsetof(_t, _m); \
+	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
 	get_user(_s, _sz); \
+})
+
+#define kdbus_size_set_user(_s, _b, _t) \
+({ \
+	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
+	put_user(_s, _sz); \
 })
 
 /*
@@ -244,12 +250,18 @@ struct kdbus_payload {
 	struct kdbus_payload_ref ref[0];
 };
 
+struct kdbus_meta {
+	u64 size;
+	u64 allocated_size;
+	struct kdbus_msg_data data[0];
+};
+
 struct kdbus_kmsg {
 	struct kref kref;
-	u64 allocated_size;
 	u64 deadline;
 	struct kdbus_fds *fds;
 	struct kdbus_payload *payloads;
+	struct kdbus_meta *meta;
 	struct kdbus_msg msg;
 };
 
@@ -264,7 +276,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp, struct 
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep,
 		    struct kdbus_conn *conn_src,
-		    struct kdbus_kmsg **kmsg);
+		    struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
 
 /* kernel generated notifications */

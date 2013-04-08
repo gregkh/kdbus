@@ -30,6 +30,8 @@ Mesage Validation:
   - always align data records to 8 byte boundaries, keep size correct,
 
 External API:
+  - rename all timestamps/timeouts to *_ns
+  - check that enum values of 0 make sense, otherwise insert "*_NONE,"
   - add some "uint64_t reserved" in the basic structures?
 
 Kernel Core:

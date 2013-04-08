@@ -244,7 +244,7 @@ static int kdbus_fname_user(void __user *buf, struct kdbus_cmd_fname **fname)
 	u64 size;
 	struct kdbus_cmd_fname *fn;
 
-	if (kdbus_size_user(size, buf, struct kdbus_cmd_fname, size))
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_fname))
 		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_cmd_fname) + 2)
@@ -362,7 +362,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 		/* create a new endpoint for this bus, and turn this
 		 * fd into a reference to it */
-		if (kdbus_size_user(size, buf, struct kdbus_cmd_fname, size)) {
+		if (kdbus_size_get_user(size, buf, struct kdbus_cmd_fname)) {
 			ret = -EFAULT;
 			break;
 		}
@@ -500,7 +500,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_kmsg_send(conn->ep, conn, &kmsg);
+		ret = kdbus_kmsg_send(conn->ep, conn, kmsg);
 		kdbus_kmsg_unref(kmsg);
 
 		break;

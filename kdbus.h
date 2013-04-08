@@ -51,6 +51,7 @@ struct kdbus_creds {
 /* Message Data Types */
 enum {
 	/* Filled in by userspace */
+	KDBUS_MSG_NULL,			/* empty record */
 	KDBUS_MSG_PAYLOAD,		/* .data */
 	KDBUS_MSG_PAYLOAD_REF,		/* .data_ref */
 	KDBUS_MSG_UNIX_FDS,		/* .data_fds of file descriptors */
@@ -137,7 +138,7 @@ struct kdbus_msg {
 	__u64 cookie;		/* userspace-supplied cookie */
 	union {
 		__u64 cookie_reply;	/* cookie we reply to */
-		__u64 timeout;		/* reply */
+		__u64 timeout;		/* timeout in nanoseconds to wait for reply */
 	};
 	struct kdbus_msg_data data[0];
 };

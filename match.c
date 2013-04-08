@@ -115,7 +115,7 @@ struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 	struct kdbus_cmd_match *cmd_match;
 	u64 size;
 
-	if (kdbus_size_user(size, buf, struct kdbus_cmd_match, size))
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_match))
 		return ERR_PTR(-EFAULT);
 
 	if (size < sizeof(*cmd_match) || size > 0xffff)

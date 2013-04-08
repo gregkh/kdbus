@@ -346,7 +346,7 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 	u64 size;
 	int ret;
 
-	if (kdbus_size_user(size, buf, struct kdbus_cmd_policy, size))
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_policy))
 		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_msg) || size > 0xffff)

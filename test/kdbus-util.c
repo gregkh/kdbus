@@ -144,6 +144,11 @@ void msg_dump(struct kdbus_msg *msg)
 		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout);
 
 	while (size > 0 && size >= data->size) {
+		if (data->size == 0) {
+			printf("  +%s (%llu bytes) invalid data record\n", enum_MSG(data->type), data->size);
+			break;
+		}
+
 		switch (data->type) {
 		case KDBUS_MSG_SRC_CREDS:
 			printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",

@@ -225,7 +225,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	u32 hash;
 	int ret = 0;
 
-	if (kdbus_size_user(size, buf, struct kdbus_cmd_name, size))
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_cmd_name)||
@@ -315,7 +315,7 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 	u32 hash;
 	int ret = 0;
 
-	if (kdbus_size_user(size, buf, struct kdbus_cmd_name, size))
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_cmd_name)||
@@ -349,7 +349,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 	u64 user_size, size = 0, tmp;
 	int ret = 0;
 
-	if (kdbus_size_user(user_size, buf, struct kdbus_cmd_names, size))
+	if (kdbus_size_get_user(user_size, buf, struct kdbus_cmd_names))
 		return -EFAULT;
 
 	mutex_lock(&reg->entries_lock);
@@ -360,7 +360,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 		size += sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
 
 	if (size > user_size) {
-		ret = -ENOSPC;
+		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
 
