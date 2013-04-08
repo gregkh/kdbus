@@ -13,6 +13,8 @@
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
 #define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
+#define KDBUS_MSG_DATA_ALIGN(d) ((d) + ((-d) & (sizeof(uint64_t) - 1)));
+#define KDBUS_MSG_DATA_HEADER_SIZE offsetof(struct kdbus_msg_data, data)
 
 struct conn {
 	int fd;

@@ -1,27 +1,19 @@
 Message Buffering:
   - kmalloc is limited to < 128k
-  - replace inefficient realloc() with vmap/own pages allocation logic
-    http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/mm/util.c#n110
-  - convert all out-of-line memory to inline memory:
-    - at _SEND, allocate a second buffer in struct kdbus_kmsg to
-      copy_from_user() the data
-    - at _RECV, copy the data from the second buffer, replacing the
-      out-of-line data with inline data
   - handle fds
   - handle pointers to userspace data.
 
 Security:
-  - let HELLO specify if fds or out-of-line memory are accepted to
+  - let HELLO specify if fds or mmaps() are accepted to
     be received; refuse the message otherwise
-  - limit out-of-line memory and file descriptor passing to unicast,
-    do no try to broadcast them
-  - allow only anonymous mappings to be transfreted; or find a way to
+  - limit file descriptor passing to unicast, never try to broadcast them
+  - allow only anonymous mappings to be transferred; or find a way to
     ensure that file-based mappings can never change the content
-    when the file content changes, like reflink
+    when the file content changes (reflink)
 
 Mesage Validation:
   - enforce NULL termination on all strings. Do not rely on the size
-    headers.
+    headers
   - validate all incoming data fields in the message, clear all values
     which are not suppoed to be set from a peer
   - always align data records to 8 byte boundaries, keep size correct,
@@ -30,6 +22,8 @@ Mesage Validation:
   - always align data records to 8 byte boundaries, keep size correct,
 
 External API:
+  - size in data records includes the data header size? it already does
+    not include the padding
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
   - add some "uint64_t reserved" in the basic structures?
 

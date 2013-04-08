@@ -92,7 +92,7 @@ struct kdbus_msg_data {
 		__u32 data_u32[0];
 		__u64 data_u64[0];
 
-		/* out-of-line data */
+		/* data reference */
 		struct {
 			__u64 address;
 			__u64 size;

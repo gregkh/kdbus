@@ -234,14 +234,9 @@ struct kdbus_fds {
 };
 
 /* array of passed-in payload references */
-struct kdbus_payload_ref {
-	void *data;
-	u64 size;
-};
-
 struct kdbus_payload {
 	int count;
-	struct kdbus_payload_ref ref[0];
+	struct kdbus_msg_data *data[0];
 };
 
 struct kdbus_meta {

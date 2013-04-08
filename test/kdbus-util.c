@@ -68,12 +68,14 @@ int msg_send(const struct conn *conn,
 	struct kdbus_msg *msg;
 	uint64_t size, extra_size = 0;
 	void *extra = NULL;
+	const char ref[0x2000] = "REFERENCED";
+	struct kdbus_msg_data *data;
 	int ret;
 
 	if (name) {
 		struct kdbus_msg_data *name_data;
 
-		extra_size = sizeof(*name_data) + strlen(name) + 1;
+		extra_size += sizeof(*name_data) + strlen(name) + 1;
 
 		name_data = malloc(extra_size);
 		if (!name_data) {
@@ -90,7 +92,10 @@ int msg_send(const struct conn *conn,
 		extra = name_data;
 	}
 
-	size = sizeof(*msg) + extra_size;
+	size = sizeof(*msg);
+	size += KDBUS_MSG_DATA_HEADER_SIZE + 16;
+	size += KDBUS_MSG_DATA_HEADER_SIZE + sizeof("INLINE1");
+	size += extra_size;
 	msg = malloc(size);
 	if (!msg) {
 		fprintf(stderr, "unable to malloc()!?\n");
@@ -104,8 +109,21 @@ int msg_send(const struct conn *conn,
 	msg->cookie = cookie;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS1;
 
+	data = msg->data;
+
+	data->type = KDBUS_MSG_PAYLOAD_REF;
+	data->size = KDBUS_MSG_DATA_HEADER_SIZE + 16;
+	data->data_ref.address = (uint64_t)&ref;
+	data->data_ref.size = sizeof(ref);
+	data = (struct kdbus_msg_data *) ((char *)(data) + data->size);
+
+	data->type = KDBUS_MSG_PAYLOAD;
+	data->size = KDBUS_MSG_DATA_HEADER_SIZE + sizeof("INLINE1");
+	memcpy(data->data, "INLINE1", sizeof("INLINE1"));
+	data = (struct kdbus_msg_data *) ((char *)(data) + data->size);
+
 	if (extra)
-		memcpy(msg->data, extra, extra_size);
+		memcpy(data, extra, extra_size);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret) {
@@ -113,9 +131,7 @@ int msg_send(const struct conn *conn,
 		return EXIT_FAILURE;
 	}
 
-	if (extra)
-		free(extra);
-
+	free(extra);
 	free(msg);
 
 	return 0;
@@ -150,6 +166,11 @@ void msg_dump(struct kdbus_msg *msg)
 		}
 
 		switch (data->type) {
+		case KDBUS_MSG_PAYLOAD:
+			printf("  +%s (%llu bytes) '%s'\n",
+			       enum_MSG(data->type), data->size, data->data);
+			break;
+
 		case KDBUS_MSG_SRC_CREDS:
 			printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",
 				enum_MSG(data->type), data->size,
