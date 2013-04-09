@@ -91,7 +91,7 @@ struct kdbus_name_registry {
 };
 
 struct kdbus_name_entry {
-	char 			*name;
+	char			*name;
 	u64			flags;
 	struct list_head	queue_list;
 	struct list_head	conn_entry;

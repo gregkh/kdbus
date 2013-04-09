@@ -27,7 +27,7 @@
 #include "kdbus_internal.h"
 
 struct kdbus_name_queue_item {
-	struct kdbus_conn 	*conn;
+	struct kdbus_conn	*conn;
 	struct kdbus_name_entry	*entry;
 	u64			 flags;
 	struct list_head	 entry_entry;
@@ -228,8 +228,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_name)||
-	    size > sizeof(struct kdbus_cmd_name) + 256)
+	if ((size < sizeof(struct kdbus_cmd_name)) ||
+	    (size > (sizeof(struct kdbus_cmd_name) + 256)))
 		return -EMSGSIZE;
 
 	name = memdup_user(buf, size);
@@ -317,8 +317,8 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_name)||
-	    size > sizeof(struct kdbus_cmd_name) + 256)
+	if ((size < sizeof(struct kdbus_cmd_name)) ||
+	    (size > (sizeof(struct kdbus_cmd_name) + 256)))
 		return -EMSGSIZE;
 
 	name = memdup_user(buf, size);

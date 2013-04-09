@@ -637,7 +637,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			final_size += KDBUS_MSG_DATA_ALIGN(kmsg->payloads->data[i]->size);
 	}
 
-	if (size < final_size ) {
+	if (size < final_size) {
 		ret = -ENOBUFS;
 		goto out_unlock;
 	}
