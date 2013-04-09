@@ -83,9 +83,6 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	if (ret < 0)
 		return ret;
 
-	if (!kmsg)
-		return -ENOMEM;
-
 	msg = &kmsg->msg;
 	data = msg->data;
 	name_change = (struct kdbus_manager_msg_name_change *) data->data;
@@ -120,9 +117,6 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 	ret = kdbus_kmsg_new(extra_size, &kmsg);
 	if (ret < 0)
 		return ret;
-
-	if (!kmsg)
-		return -ENOMEM;
 
 	msg = &kmsg->msg;
 	data = msg->data;

@@ -488,7 +488,7 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	struct kdbus_msg_list_entry *entry;
 
 	if (!conn->active)
-		return -EAGAIN;
+		return -ENOTCONN;
 
 	/* TODO: implement filtering */
 
@@ -595,6 +595,9 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 				continue;
 
 			if (conn_dst->id == msg->src_id)
+				continue;
+
+			if (!conn_dst->active)
 				continue;
 
 			ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
