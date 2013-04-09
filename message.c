@@ -623,12 +623,12 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		return -EFAULT;
 
 	mutex_lock(&conn->msg_lock);
-	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, list);
-	if (!entry) {
+	if (list_empty(&conn->msg_list)) {
 		ret = -ENOENT;
 		goto out_unlock;
 	}
 
+	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, list);
 	kmsg = entry->kmsg;
 	msg = &kmsg->msg;
 
