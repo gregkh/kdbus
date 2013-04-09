@@ -1,7 +1,7 @@
 Message Buffering:
   - kmalloc is limited to < 128k
   - handle fds
-  - handle pointers to userspace data.
+  - pass along mappings of userspace data, instead of copying them
 
 Security:
   - let HELLO specify if fds or mmaps() are accepted to
@@ -15,17 +15,18 @@ Mesage Validation:
   - enforce NULL termination on all strings. Do not rely on the size
     headers
   - validate all incoming data fields in the message, clear all values
-    which are not suppoed to be set from a peer
+    which are not supposed to be set from a peer
   - always align data records to 8 byte boundaries, keep size correct,
     but start next record at proper offset
-  - validation:
-  - always align data records to 8 byte boundaries, keep size correct,
 
 External API:
-  - size in data records includes the data header size? it already does
+  - size in data records includes the data header size? it also does
     not include the padding
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
   - add some "uint64_t reserved" in the basic structures?
+  - make sure all (custom) clients must handle PAYLOAD_REF; they can
+    never rely on the sender format, or autmatic inlining --> when we
+    add mmap() at recv(), things must keep working
 
 Kernel Core:
   - use subsys_virtual_register() to avoid devices showing up directly

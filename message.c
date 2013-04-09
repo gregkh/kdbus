@@ -152,6 +152,9 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 			if (name)
 				return -EINVAL;
 			name = true;
+			/* enforce NUL-terminated strings */
+			if (data->data[data->size - KDBUS_MSG_DATA_HEADER_SIZE] != '\0')
+				return -EINVAL;
 			break;
 
 		default:
@@ -209,7 +212,7 @@ out_err:
 /*
  * Copy one data reference into our kmsg payload array; the
  * KDBUS_MSG_PAYLOAD_REF record is hereby converted into a
- * KDBUS_MSG_PAYLOAD record
+ * KDBUS_MSG_PAYLOAD record.
  */
 static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 				   const struct kdbus_msg_data *data)
@@ -251,8 +254,8 @@ static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
 
 /*
  * Check the validity of a message. The general layout of the received message
- * is not altered before it is delivered, a couple of data fields need to be
- * filled-in and updated though.
+ * is not altered before it is delivered.
+ *
  * Kernel-internal data is stored in the enclosing "kmsg" structure, which
  * contains the received userspace "msg".
  */
