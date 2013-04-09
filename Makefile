@@ -12,16 +12,14 @@ kdbus-y	:= \
 
 # obj-$(CONFIG_KDBUS)	+= kdbus.o
 obj-m += kdbus.o
-obj-m += portal.o
 
 # test programs
 TEST_COMMON		:= test/kdbus-enum.o test/kdbus-util.o
 test-bus-daemon-objs	:= $(TEST_COMMON) test/test-bus-daemon.o
 test-kdbus-objs		:= $(TEST_COMMON) test/test-kdbus.o
 test-kdbus-fuzz-objs	:= $(TEST_COMMON) test/test-kdbus-fuzz.o
-portal_test-objs	:= test/portal_test.o
 
-hostprogs-y		:= test-kdbus test-bus-daemon test-kdbus-fuzz portal_test
+hostprogs-y		:= test-kdbus test-bus-daemon test-kdbus-fuzz
 always			:= $(hostprogs-y)
 HOST_EXTRACFLAGS	+= -std=c99 -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
 
