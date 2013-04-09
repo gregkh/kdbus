@@ -165,10 +165,10 @@ int kdbus_match_db_add(struct kdbus_match_db *db,
 
 		switch (item->type) {
 		case KDBUS_CMD_MATCH_BLOOM:
-			ei->bloom = kmemdup(item->data,
-					    item->size -
-						offsetof(struct kdbus_cmd_match_item, data),
-					    GFP_KERNEL);;
+			ei->bloom =
+				kmemdup(item->data,
+					item->size - offsetof(struct kdbus_cmd_match_item, data),
+					GFP_KERNEL);
 			break;
 		case KDBUS_CMD_MATCH_SRC_NAME:
 		case KDBUS_CMD_MATCH_NAME_ADD:
@@ -186,7 +186,8 @@ int kdbus_match_db_add(struct kdbus_match_db *db,
 		list_add_tail(&ei->list_entry, &e->items_list);
 
 		size -= item->size;
-		item = (struct kdbus_cmd_match_item *) ((u8 *) item + item->size);
+		item = (struct kdbus_cmd_match_item *)
+			((u8 *) item + item->size);
 	}
 
 exit_unlock:

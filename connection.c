@@ -290,7 +290,8 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 			mode = 0660;
 
 		ret = kdbus_bus_new(conn->ns, fname->name, fname->flags,
-				    mode, current_fsuid(), current_fsgid(), &bus);
+				    mode, current_fsuid(), current_fsgid(),
+				    &bus);
 		if (ret < 0)
 			break;
 
@@ -521,19 +522,17 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	return ret;
 }
 
-static long kdbus_conn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long kdbus_conn_ioctl(struct file *file, unsigned int cmd,
+			     unsigned long arg)
 {
 	struct kdbus_conn *conn = file->private_data;
 	void __user *argp = (void __user *)arg;
 
-	//pr_info("%s, cmd=%d\n", __func__, cmd);
 	switch (conn->type) {
 	case KDBUS_CONN_CONTROL:
-		//pr_info("control ioctl\n");
 		return kdbus_conn_ioctl_control(file, cmd, argp);
 
 	case KDBUS_CONN_EP:
-		//pr_info("endpoint ioctl\n");
 		return kdbus_conn_ioctl_ep(file, cmd, argp);
 
 	default:
@@ -567,6 +566,6 @@ const struct file_operations kdbus_device_ops = {
 	.release =		kdbus_conn_release,
 	.unlocked_ioctl =	kdbus_conn_ioctl,
 	.compat_ioctl =		kdbus_conn_ioctl,
-	.poll = 		kdbus_conn_poll,
+	.poll =			kdbus_conn_poll,
 	.llseek =		noop_llseek,
 };
