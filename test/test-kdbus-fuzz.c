@@ -150,6 +150,7 @@ int main(int argc, char *argv[])
 		char buf[0xffff];
 		int fd = get_random_fd();
 		int cmd = ioctl_cmds[random() % ELEMENTSOF(ioctl_cmds)];
+		int ret;
 
 		if (random() % 1000 == 0)
 			make_bus();
@@ -160,8 +161,8 @@ int main(int argc, char *argv[])
 		for (i = 0; i < sizeof(buf); i++)
 			buf[i] = random();
 
-		printf(" calling ioctl(), cmd %016x, fd %d\n", cmd, fd);
 		ioctl(fd, cmd, buf);
+		ret = printf(" ioctl() with cmd %08x, on fd %d returned\t%d\t(%m)\n", cmd, fd, ret);
 	}
 
 	return EXIT_SUCCESS;
