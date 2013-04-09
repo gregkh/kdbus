@@ -643,9 +643,10 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	}
 
 	/* copy the message header */
-	ret = copy_to_user(buf, msg, KDBUS_MSG_HEADER_SIZE);
-	if (ret)
+	if (copy_to_user(buf, msg, KDBUS_MSG_HEADER_SIZE)) {
+		ret = -EFAULT;
 		goto out_unlock;
+	}
 
 	/* append the data records */
 	pos = KDBUS_MSG_HEADER_SIZE;
@@ -657,9 +658,10 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 			/* insert data passed-in by reference */
 			d = kmsg->payloads->data[payload_ref++];
-			ret = copy_to_user(buf + pos, d, d->size);
-			if (ret)
+			if (copy_to_user(buf + pos, d, d->size)) {
+				ret = -EFAULT;
 				goto out_unlock;
+			}
 
 			payload_ref++;
 			pos += KDBUS_MSG_DATA_ALIGN(d->size);
@@ -671,19 +673,21 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			break;
 
 		default:
-			ret = copy_to_user(buf + pos, data, data->size);
-			if (ret)
+			if (copy_to_user(buf + pos, data, data->size)) {
+				ret = -EFAULT;
 				goto out_unlock;
+			}
 			pos += KDBUS_MSG_DATA_ALIGN(data->size);
 		}
 	}
 
 	/* append metadata records */
 	if (kmsg->meta) {
-		ret = copy_to_user(buf + pos, kmsg->meta->data,
-				   kmsg->meta->size - offsetof(struct kdbus_meta, data));
-		if (ret)
+		if (copy_to_user(buf + pos, kmsg->meta->data,
+				 kmsg->meta->size - offsetof(struct kdbus_meta, data))) {
+			ret = -EFAULT;
 			goto out_unlock;
+		}
 	}
 
 	/* update the final returned data size in the message header */

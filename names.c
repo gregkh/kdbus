@@ -282,8 +282,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	kdbus_name_add_to_conn(e, conn);
 
 exit_copy:
-	ret = copy_to_user(buf, name, size);
-	if (ret < 0) {
+	if (copy_to_user(buf, name, size)) {
 		ret = -EFAULT;
 		goto err_unlock_free;
 	}
