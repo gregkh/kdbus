@@ -9,4 +9,4 @@ Module.symvers
 portal_test
 test-kdbus
 test-bus-daemon
-
+test-bus-fuzz
