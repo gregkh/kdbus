@@ -433,6 +433,7 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_msg_data *data;
 	u64 pos = 0, size, strsize = 0;
+	int ret = 0;
 
 	mutex_lock(&conn->names_lock);
 	list_for_each_entry(name_entry, &conn->names_list, conn_entry)
@@ -444,8 +445,10 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 
 	size = strsize + KDBUS_MSG_DATA_SIZE(0);
 	data = kdbus_kmsg_append_metadata(kmsg, size);
-	if (!data)
-		return -ENOMEM;
+	if (!data) {
+		ret = -ENOMEM;
+		goto exit_unlock;
+	}
 
 	data->type = KDBUS_MSG_SRC_NAMES;
 	data->size = size;
@@ -458,7 +461,7 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 exit_unlock:
 	mutex_unlock(&conn->names_lock);
 
-	return 0;
+	return ret;
 }
 
 static int __must_check

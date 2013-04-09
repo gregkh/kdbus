@@ -132,7 +132,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {
 		ret = -ENOMEM;
-		goto ret;
+		goto err_unlock;
 	}
 
 	/* register minor in our endpoint map */
@@ -169,7 +169,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		e->policy_db = kdbus_policy_db_new();
 		if (!e->policy_db) {
 			ret = -ENOMEM;
-			goto ret;
+			goto err_unlock;
 		}
 	}
 
@@ -190,7 +190,6 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 
 err_unlock:
 	mutex_unlock(&bus->ns->lock);
-ret:
 	kdbus_ep_unref(e);
 	return ret;
 }
