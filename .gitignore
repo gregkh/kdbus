@@ -7,5 +7,5 @@ Module.symvers
 *.swp
 .tmp_versions
 test-kdbus
-test-bus-daemon
-test-bus-fuzz
+test-kdbus-daemon
+test-kdbus-fuzz

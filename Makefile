@@ -15,11 +15,11 @@ obj-m += kdbus.o
 
 # test programs
 TEST_COMMON		:= test/kdbus-enum.o test/kdbus-util.o
-test-bus-daemon-objs	:= $(TEST_COMMON) test/test-bus-daemon.o
+test-kdbus-daemon-objs	:= $(TEST_COMMON) test/test-kdbus-daemon.o
 test-kdbus-objs		:= $(TEST_COMMON) test/test-kdbus.o
 test-kdbus-fuzz-objs	:= $(TEST_COMMON) test/test-kdbus-fuzz.o
 
-hostprogs-y		:= test-kdbus test-bus-daemon test-kdbus-fuzz
+hostprogs-y		:= test-kdbus test-kdbus-daemon test-kdbus-fuzz
 always			:= $(hostprogs-y)
 HOST_EXTRACFLAGS	+= -std=c99 -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
 
