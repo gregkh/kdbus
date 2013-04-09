@@ -161,6 +161,7 @@ int main(int argc, char *argv[])
 		for (i = 0; i < sizeof(buf); i++)
 			buf[i] = random();
 
+		errno = 0;
 		ret = ioctl(fd, cmd, buf);
 		printf(" ioctl() with cmd %08x, on fd %d returned\t%d\t(%m)\n", cmd, fd, ret);
 	}
