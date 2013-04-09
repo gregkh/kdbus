@@ -35,14 +35,28 @@ static unsigned int ioctl_cmds[] = {
 	KDBUS_CMD_EP_POLICY_SET,
 };
 
-int main(int argc, char *argv[])
+static int fd_table[100] = { -1 };
+
+static void add_fd(int fd)
+{
+	unsigned int i;
+
+	for (i = 0; i < ELEMENTSOF(fd_table); i++)
+		if (fd_table[i] == -1)  {
+			fd_table[i] = fd;
+			return;
+		}
+}
+
+static int make_bus(void)
 {
 	struct {
 		struct kdbus_cmd_fname head;
 		char name[64];
 	} fname;
+	char name[10];
 	char *bus;
-	struct conn *conn_a, *conn_b;
+	unsigned int i;
 	int ret, fdc;
 
 	printf("-- opening /dev/kdbus/control\n");
@@ -52,8 +66,15 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
+	add_fd(fdc);
+
+	memset(name, 0, sizeof(name));
+
+	for(i = 0; i < sizeof(name) - 1; i++)
+		name[i] =( random() % ('z' - 'a')) + 'a';
+
 	memset(&fname, 0, sizeof(fname));
-	snprintf(fname.name, sizeof(fname.name), "%u-testbus", getuid());
+	snprintf(fname.name, sizeof(fname.name), "%u-%s", getuid(), name);
 	fname.head.flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
 	fname.head.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
 
@@ -67,17 +88,74 @@ int main(int argc, char *argv[])
 	if (asprintf(&bus, "/dev/kdbus/%s/bus", fname.name) < 0)
 		return EXIT_FAILURE;
 
-	conn_a = connect_to_bus(bus);
-	conn_b = connect_to_bus(bus);
-	if (!conn_a || !conn_b)
-		return EXIT_FAILURE;
+	for (ret = 0; ret < random() % 20; ret++) {
+		struct conn *conn = connect_to_bus(bus);
+		if (conn)
+			add_fd(conn->fd);
+	}
+
+	return 0;
+}
+
+static int get_random_fd(void)
+{
+	unsigned int i, count = 0;
+
+	for (i = 0; i < ELEMENTSOF(fd_table); i++)
+		if (fd_table[i] != -1)
+			count++;
+
+	count = random() % count;
+
+	for (i = 0; i < ELEMENTSOF(fd_table); i++)
+		if (fd_table[i] != -1)
+			if (count-- == 0)
+				return fd_table[i];
+
+	return -1;
+}
+
+static void close_random_fd(void)
+{
+	unsigned int i, count = 0;
+
+	for (i = 0; i < ELEMENTSOF(fd_table); i++)
+		if (fd_table[i] != -1)
+			count++;
+
+	count = random() % count;
+
+	for (i = 0; i < ELEMENTSOF(fd_table); i++)
+		if (fd_table[i] != -1)
+			if (count-- == 0) {
+				close(fd_table[i]);
+				fd_table[i] = -1;
+				return;
+			}
+}
+
+int main(int argc, char *argv[])
+{
+	unsigned int i;
+
+	srandom(time(NULL));
+
+	for (i = 0; i < ELEMENTSOF(fd_table); i++)
+		fd_table[i] = -1;
+
+	make_bus();
+	make_bus();
 
 	while(1) {
-		int i;
 		char buf[0xffff];
-		int fds[] = { fdc, conn_a->fd, conn_b->fd };
-		int fd = fds[random() % ELEMENTSOF(fds)];
+		int fd = get_random_fd();
 		int cmd = ioctl_cmds[random() % ELEMENTSOF(ioctl_cmds)];
+
+		if (random() % 1000 == 0)
+			make_bus();
+
+		if (random() % 1000 == 0)
+			close_random_fd();
 
 		for (i = 0; i < sizeof(buf); i++)
 			buf[i] = random();
