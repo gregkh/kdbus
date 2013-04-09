@@ -104,7 +104,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_unref(kmsg);
 
-	return 0;
+	return ret;
 }
 
 int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
@@ -139,6 +139,6 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_unref(kmsg);
 
-	return 0;
+	return ret;
 }
 

@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/init.h>
+#include <linux/hashtable.h>
 
 //#include <uapi/kdbus/kdbus.h>
 
