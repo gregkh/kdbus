@@ -343,7 +343,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 		    struct kdbus_conn *conn,
 		    void __user *buf)
 {
-	struct kdbus_cmd_names *names;
+	struct kdbus_cmd_names *names = NULL;
 	struct kdbus_cmd_name *name;
 	struct kdbus_name_entry *e;
 	u64 user_size, size = 0, tmp;
@@ -388,6 +388,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
+	kfree(names);
 
 	return ret;
 }
