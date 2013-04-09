@@ -295,7 +295,7 @@ static unsigned int conn_poll(struct file *file, struct poll_table_struct *wait)
 		mask |= POLLIN | POLLRDNORM;
 	mutex_unlock(&conn->msg_lock);
 
-	return 0;
+	return mask;
 }
 
 static int conn_mmap(struct file *file, struct vm_area_struct *vma)
