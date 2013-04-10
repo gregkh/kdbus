@@ -694,44 +694,57 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			break;
 		}
 
-		case KDBUS_MSG_UNIX_FDS: {
-			/*
-			 * I think the ability to pass open file descriptors to
-			 * other processes is one of the most horrid UNIX
-			 * features, but some people really have embraced the
-			 * lunacy of them, and can't live without them.  So
-			 * pass the process the file handles that we have for
-			 * it, but please realize, the kernel is holding its
-			 * nose during this whole process.
-			 */
-			int new_fd, i;
-
-			if (kmsg->fds) {
-				for (i = 0; i < kmsg->fds->count; i++) {
-					new_fd = get_unused_fd();
-					if (new_fd < 0) {
-						ret = -EFAULT;
-						goto out_unlock;
-					}
-					fd_install(new_fd,
-						   get_file(kmsg->fds->fp[i]));
-					if (copy_to_user(buf + pos, &new_fd,
-							 sizeof(new_fd))) {
-						ret = -EFAULT;
-						goto out_unlock;
-					}
-					pos += sizeof(new_fd);
-				}
-			}
+		case KDBUS_MSG_UNIX_FDS:
+			/* skip these records here, we collected all file
+			 * descriptors already and append them in a single
+			 * data record later */
 			break;
-		}
 
 		default:
 			if (copy_to_user(buf + pos, data, data->size)) {
 				ret = -EFAULT;
 				goto out_unlock;
 			}
+
 			pos += KDBUS_MSG_DATA_ALIGN(data->size);
+		}
+	}
+
+	/*
+	 * I think the ability to pass open file descriptors to
+	 * other processes is one of the most horrid UNIX
+	 * features, but some people really have embraced the
+	 * lunacy of them, and can't live without them.  So
+	 * pass the process the file handles that we have for
+	 * it, but please realize, the kernel is holding its
+	 * nose during this whole process.
+	 *
+	 * I think the ability to pass file descriptors is a very useful
+	 * general UNIX facility and the foundation for many modern tools
+	 * we rely on, there would be no systemd, no wayland, no ... :)
+	 */
+
+	/* append array of file descriptors we collected from the incoming records */
+	if (kmsg->fds) {
+		int i;
+
+		for (i = 0; i < kmsg->fds->count; i++) {
+			int new_fd = get_unused_fd();
+
+			if (new_fd < 0) {
+				ret = -EFAULT;
+				goto out_unlock;
+			}
+
+			fd_install(new_fd, get_file(kmsg->fds->fp[i]));
+
+			if (copy_to_user(buf + pos, &new_fd,
+					 sizeof(new_fd))) {
+				ret = -EFAULT;
+				goto out_unlock;
+			}
+
+			pos += sizeof(new_fd);
 		}
 	}
 
@@ -742,6 +755,8 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			ret = -EFAULT;
 			goto out_unlock;
 		}
+
+		pos += KDBUS_MSG_DATA_ALIGN(kmsg->meta->size - offsetof(struct kdbus_meta, data));
 	}
 
 	/* update the final returned data size in the message header */
