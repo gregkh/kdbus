@@ -710,15 +710,19 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		}
 
 		case KDBUS_MSG_UNIX_FDS:
-			/* skip the records here, we collected all file
+			/*
+			 * Skip the records here, we collected all file
 			 * descriptors already when we received them, now
-			 * we pass them along in a single data record */
+			 * we pass them along in a single data record.
+			 */
 			break;
 
 		case KDBUS_MSG_DST_NAME:
 		case KDBUS_MSG_BLOOM:
-			/* records passed in by the sender, which are not
-			 * interesting for the receiver */
+			/*
+			 * Records passed in by the sender, which are not
+			 * interesting for the receiver.
+			 */
 			break;
 
 		default:
@@ -732,20 +736,9 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	}
 
 	/*
-	 * I think the ability to pass open file descriptors to
-	 * other processes is one of the most horrid UNIX
-	 * features, but some people really have embraced the
-	 * lunacy of them, and can't live without them.  So
-	 * pass the process the file handles that we have for
-	 * it, but please realize, the kernel is holding its
-	 * nose during this whole process.
-	 *
-	 * I think the ability to pass file descriptors is a very useful
-	 * general UNIX facility and the foundation for many modern tools
-	 * we rely on, there would be no systemd, no wayland, no ... :)
+	 * Append array of file descriptors we collected from the incoming
+	 * records.
 	 */
-
-	/* append array of file descriptors we collected from the incoming records */
 	if (kmsg->fds) {
 		int i;
 
