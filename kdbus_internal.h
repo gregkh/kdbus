@@ -55,7 +55,8 @@ struct kdbus_ns {
 	struct device *dev;		/* control device node, minor == 0 */
 	struct mutex lock;		/* ns data lock */
 	u64 bus_id_next;		/* next bus id sequence number */
-	struct list_head list_entry;
+	struct list_head ns_entry;
+	struct list_head bus_list;	/* list of all buses */
 };
 
 /* policy */
@@ -159,6 +160,7 @@ struct kdbus_bus {
 	struct list_head ep_list;	/* endpoints assigned to this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
 	struct kdbus_name_registry *name_registry;
+	struct list_head bus_entry;
 };
 
 /*
@@ -292,7 +294,6 @@ struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
-struct kdbus_ns *kdbus_ns_find(const char *name);
 
 /* bus */
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);

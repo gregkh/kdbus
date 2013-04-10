@@ -63,6 +63,7 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 	if (ns->disconnected)
 		return;
 	ns->disconnected = true;
+	list_del(&ns->ns_entry);
 
 	if (ns->dev) {
 		device_unregister(ns->dev);
@@ -82,7 +83,6 @@ static void __kdbus_ns_free(struct kref *kref)
 
 	kdbus_ns_disconnect(ns);
 	pr_info("clean up namespace %s\n", ns->devpath);
-	list_del(&ns->list_entry);
 	kfree(ns->name);
 	kfree(ns->devpath);
 	kfree(ns);
@@ -91,6 +91,26 @@ static void __kdbus_ns_free(struct kref *kref)
 void kdbus_ns_unref(struct kdbus_ns *ns)
 {
 	kref_put(&ns->kref, __kdbus_ns_free);
+}
+
+static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char *name)
+{
+	struct kdbus_ns *ns = NULL;
+	struct kdbus_ns *n;
+
+	mutex_lock(&kdbus_subsys_lock);
+	list_for_each_entry(n, &namespace_list, ns_entry) {
+		if (n->parent != parent)
+			continue;
+		if (strcmp(n->name, name))
+			continue;
+
+		ns = kdbus_ns_ref(n);
+		break;
+	}
+
+	mutex_unlock(&kdbus_subsys_lock);
+	return ns;
 }
 
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
@@ -105,6 +125,12 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
 
+	n = kdbus_ns_find(parent, name);
+	if (n) {
+		kdbus_ns_unref(n);
+		return -EEXIST;
+	}
+
 	n = kzalloc(sizeof(struct kdbus_ns), GFP_KERNEL);
 	if (!n)
 		return -ENOMEM;
@@ -117,6 +143,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		}
 	}
 
+	INIT_LIST_HEAD(&n->bus_list);
 	kref_init(&n->kref);
 	idr_init(&n->idr);
 	mutex_init(&n->lock);
@@ -181,8 +208,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		goto err_unlock;
 	}
 
-	/* Add to global list of namespaces so we can find it again */
-	list_add_tail(&n->list_entry, &namespace_list);
+	list_add_tail(&n->ns_entry, &namespace_list);
 
 	mutex_unlock(&kdbus_subsys_lock);
 
@@ -196,20 +222,4 @@ err_unlock:
 ret:
 	kdbus_ns_unref(n);
 	return ret;
-}
-
-struct kdbus_ns *kdbus_ns_find(const char *name)
-{
-	struct kdbus_ns *ns;
-
-	mutex_lock(&kdbus_subsys_lock);
-	list_for_each_entry(ns, &namespace_list, list_entry) {
-		if (!strcmp(ns->name, name))
-			goto exit;
-	}
-	/* namespace not found so return NULL */
-	ns = NULL;
-exit:
-	mutex_unlock(&kdbus_subsys_lock);
-	return ns;
 }

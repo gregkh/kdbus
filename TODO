@@ -1,7 +1,3 @@
-Bugs:
-  - check for duplicate bus names before registering:
-      kobject_add_internal failed for kdbus!0-xxxx!bus with EEXIST
-
 Message Buffering:
   - kmalloc is limited to < 128k
   - pass along mmap() of process data, instead of copying them

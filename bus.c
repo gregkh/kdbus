@@ -72,6 +72,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	if (bus->disconnected)
 		return;
 	bus->disconnected = true;
+	list_del(&bus->bus_entry);
 
 	/* remove any endpoints attached to this bus */
 	list_for_each_entry_safe(ep, tmp, &bus->ep_list, bus_entry) {
@@ -80,6 +81,24 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	}
 
 	pr_info("closing bus %s/%s\n", bus->ns->devpath, bus->name);
+}
+
+static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
+{
+	struct kdbus_bus *bus = NULL;
+	struct kdbus_bus *b;
+
+	mutex_lock(&ns->lock);
+	list_for_each_entry(b, &ns->bus_list, bus_entry) {
+		if (strcmp(b->name, name))
+			continue;
+
+		bus = kdbus_bus_ref(b);
+		break;
+	}
+
+	mutex_unlock(&ns->lock);
+	return bus;
 }
 
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
@@ -93,6 +112,12 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 	snprintf(prefix, sizeof(prefix), "%u-", uid);
 	if (strncmp(name, prefix, strlen(prefix) != 0))
 		return -EINVAL;
+
+	b = kdbus_bus_find(ns, name);
+	if (b) {
+		kdbus_bus_unref(b);
+		return -EEXIST;
+	}
 
 	b = kzalloc(sizeof(struct kdbus_bus), GFP_KERNEL);
 	if (!b)
@@ -124,6 +149,8 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 
 	mutex_lock(&ns->lock);
 	b->id = ns->bus_id_next++;
+
+	list_add_tail(&b->bus_entry, &ns->bus_list);
 	mutex_unlock(&ns->lock);
 
 	*bus = b;
