@@ -80,7 +80,7 @@ struct kdbus_name_registry *kdbus_name_registry_new(void)
 static u32 kdbus_name_make_hash(const char *name)
 {
 	unsigned int len = strlen(name);
-	u64 hash = init_name_hash();
+	u32 hash = init_name_hash();
 
 	while (len--)
 		hash = partial_name_hash(*name++, hash);
@@ -169,7 +169,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name, u64 flags)
 {
 	struct kdbus_name_entry *e = NULL;
-	u64 hash = kdbus_name_make_hash(name);
+	u32 hash = kdbus_name_make_hash(name);
 
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, name);
