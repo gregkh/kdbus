@@ -53,18 +53,24 @@ enum {
 	/* Filled in by userspace */
 	KDBUS_MSG_NULL,			/* empty record */
 	KDBUS_MSG_PAYLOAD,		/* .data */
-	KDBUS_MSG_PAYLOAD_REF,		/* .data_ref */
+	KDBUS_MSG_PAYLOAD_REF,		/* .data_ref, converted into _PAYLOAD at delivery */
+	KDBUS_MSG_MMAP,			/* .data_ref */
+	KDBUS_MSG_MMAP_DONATE,		/* .data_ref, unmap the memory from the sender */
 	KDBUS_MSG_UNIX_FDS,		/* .data_fds of file descriptors */
 	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob */
 	KDBUS_MSG_DST_NAME,		/* destination's well-known name */
 
 	/* Filled in by kernelspace */
-	KDBUS_MSG_SRC_CREDS	= 0x200,/* .creds */
+	KDBUS_MSG_SRC_NAMES	= 0x200,/* NUL separated string list with well-known names of source */
+	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
+	KDBUS_MSG_SRC_CREDS,		/* .creds */
+	KDBUS_MSG_SRC_COMM,		/* optional */
+	KDBUS_MSG_SRC_EXE,		/* optional */
+	KDBUS_MSG_SRC_CMDLINE,		/* optional */
+	KDBUS_MSG_SRC_CGROUP,		/* optional, specified which one */
 	KDBUS_MSG_SRC_CAPS,		/* caps data blob */
 	KDBUS_MSG_SRC_SECLABEL,		/* NUL terminated string */
 	KDBUS_MSG_SRC_AUDIT,		/* array of two uint64_t of audit loginuid + sessiond */
-	KDBUS_MSG_SRC_NAMES,		/* NUL separated string list with well-known names of source */
-	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
 
 	/* Special messages from kernel, consisting of one and only one of these data blocks */
 	KDBUS_MSG_NAME_ADD	= 0x400,/* .name_change */

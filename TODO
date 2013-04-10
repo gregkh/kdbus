@@ -1,3 +1,11 @@
+Recent:
+  - allow only anonymous or protected/busy memory to pass with map
+  - enforce page align of mmap memory
+  - one fd only per data record?
+  - coalesce fd data records into one single record at _recv()
+  - allow to coalesce memory records, but do not mix MMAP and PAYLOAD
+  - suppress _DST_NAME, _BLOOM records at _recv()
+
 Bugs:
   - check for duplicate bus names before registering:
       kobject_add_internal failed for kdbus!0-xxxx!bus with EEXIST
@@ -11,9 +19,6 @@ Security:
   - let HELLO specify if fds or mmaps() are accepted to
     be received; refuse the message otherwise
   - limit file descriptor passing to unicast, never try to broadcast them
-  - allow only anonymous mappings to be transferred; or find a way to
-    ensure that file-based mappings can never change the content
-    when the file content changes (reflink)
 
 Mesage Validation:
   - enforce NULL termination on all strings. Do not rely on the size
@@ -28,9 +33,6 @@ External API:
     not include the padding
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
   - add some "uint64_t reserved" in the basic structures?
-  - make sure all (custom) clients must handle PAYLOAD_REF; they can
-    never rely on the sender format, or autmatic inlining --> when we
-    add mmap() at recv(), things must keep working
 
 Kernel Core:
   - use subsys_virtual_register() to avoid devices showing up directly
