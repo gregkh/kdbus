@@ -53,9 +53,9 @@ enum {
 	/* Filled in by userspace */
 	KDBUS_MSG_NULL,			/* empty record */
 	KDBUS_MSG_PAYLOAD,		/* .data */
-	KDBUS_MSG_PAYLOAD_REF,		/* .data_ref, converted into _PAYLOAD at delivery */
-	KDBUS_MSG_MMAP,			/* .data_ref */
-	KDBUS_MSG_MMAP_DONATE,		/* .data_ref, unmap the memory from the sender */
+	KDBUS_MSG_PAYLOAD_VEC,		/* .data_vec, converted into _PAYLOAD at delivery */
+	KDBUS_MSG_MMAP,			/* .data_vec */
+	KDBUS_MSG_MMAP_DONATE,		/* .data_vec, unmap the memory from the sender */
 	KDBUS_MSG_UNIX_FDS,		/* .data_fds of file descriptors */
 	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob */
 	KDBUS_MSG_DST_NAME,		/* destination's well-known name */
@@ -83,6 +83,11 @@ enum {
 	KDBUS_MSG_REPLY_DEAD,		/* dito */
 };
 
+struct kdbus_vec {
+	__u64 address;
+	__u64 size;
+};
+
 /**
  * struct  kdbus_msg_data - chain of data blocks
  *
@@ -98,12 +103,10 @@ struct kdbus_msg_data {
 		__u32 data_u32[0];
 		__u64 data_u64[0];
 
-		/* data reference */
-		struct {
-			__u64 address;
-			__u64 size;
-		} data_ref;
+		/* data vector */
+		struct kdbus_vec vec;
 
+		/* specific fields */
 		int fds[0];				/* int array of file descriptors */
 		__u64 ts_ns;				/* timestamp in nanoseconds */
 		struct kdbus_creds creds;

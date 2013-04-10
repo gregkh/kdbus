@@ -123,7 +123,7 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 		case KDBUS_MSG_PAYLOAD_REF:
 			if (data->size != KDBUS_MSG_DATA_HEADER_SIZE + 16)
 				return -EINVAL;
-			if (data->data_ref.size > 0xffff)
+			if (data->vec.size > 0xffff)
 				return -EMSGSIZE;
 			num_payloads++;
 			break;
@@ -220,7 +220,7 @@ static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 	struct kdbus_msg_data *d;
 	void __user *user_addr;
 
-	size = KDBUS_MSG_DATA_HEADER_SIZE + data->data_ref.size;
+	size = KDBUS_MSG_DATA_HEADER_SIZE + data->vec.size;
 
 	d = kmalloc(size, GFP_KERNEL);
 	if (!d)
@@ -229,8 +229,8 @@ static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 	d->size = size;
 	d->type = KDBUS_MSG_PAYLOAD;
 
-	user_addr = (void __user *)data->data_ref.address;
-	if (copy_from_user(&d->data, user_addr, data->data_ref.size)) {
+	user_addr = (void __user *)data->vec.address;
+	if (copy_from_user(&d->data, user_addr, data->vec.size)) {
 		kfree(d);
 		return -ENOMEM;
 	}

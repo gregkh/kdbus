@@ -113,8 +113,8 @@ int msg_send(const struct conn *conn,
 
 	data->type = KDBUS_MSG_PAYLOAD_REF;
 	data->size = KDBUS_MSG_DATA_HEADER_SIZE + 16;
-	data->data_ref.address = (uint64_t)&ref;
-	data->data_ref.size = sizeof(ref);
+	data->vec.address = (uint64_t)&ref;
+	data->vec.size = sizeof(ref);
 	data = (struct kdbus_msg_data *) ((char *)(data) + data->size);
 
 	data->type = KDBUS_MSG_PAYLOAD;
