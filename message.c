@@ -21,6 +21,7 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
+#include <linux/file.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"
@@ -42,17 +43,15 @@ static void kdbus_msg_dump(const struct kdbus_msg *msg);
 
 static void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
-	if (kmsg->fds) {
-		int i;
+	int i;
 
+	if (kmsg->fds) {
 		for (i = 0; i < kmsg->fds->count; i++)
-			; //FIXME:
+			fput(kmsg->fds->fp[i]);
 		kfree(kmsg->fds);
 	}
 
 	if (kmsg->payloads) {
-		int i;
-
 		for (i = 0; i < kmsg->payloads->count; i++)
 			kfree(kmsg->payloads->data[i]);
 
@@ -249,7 +248,28 @@ static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
 			       const struct kdbus_msg_data *data)
 {
+	int i, j;
+	int num_fds;
+	int start_fds;
+	struct file *fp;
+
+	num_fds = data->size / sizeof(int);
+	start_fds = kmsg->fds->count;
+
+	for (i = 0; i < num_fds; ++i) {
+		fp = fget(data->fds[i]);
+		if (!fp)
+			goto unwind;
+		kmsg->fds->fp[start_fds + i] = fp;
+	}
+
+	kmsg->fds->count += num_fds;
 	return 0;
+
+unwind:
+	for (j = 0; j < i-1; ++j)
+		fput(kmsg->fds->fp[start_fds + j]);
+	return -EINVAL;
 }
 
 /*
@@ -674,9 +694,37 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			break;
 		}
 
-		case KDBUS_MSG_UNIX_FDS:
-			/* install passed-in file descritors into client process */
+		case KDBUS_MSG_UNIX_FDS: {
+			/*
+			 * I think the ability to pass open file descriptors to
+			 * other processes is one of the most horrid UNIX
+			 * features, but some people really have embraced the
+			 * lunacy of them, and can't live without them.  So
+			 * pass the process the file handles that we have for
+			 * it, but please realize, the kernel is holding its
+			 * nose during this whole process.
+			 */
+			int new_fd, i;
+
+			if (kmsg->fds) {
+				for (i = 0; i < kmsg->fds->count; i++) {
+					new_fd = get_unused_fd();
+					if (new_fd < 0) {
+						ret = -EFAULT;
+						goto out_unlock;
+					}
+					fd_install(new_fd,
+						   get_file(kmsg->fds->fp[i]));
+					if (copy_to_user(buf + pos, &new_fd,
+							 sizeof(new_fd))) {
+						ret = -EFAULT;
+						goto out_unlock;
+					}
+					pos += sizeof(new_fd);
+				}
+			}
 			break;
+		}
 
 		default:
 			if (copy_to_user(buf + pos, data, data->size)) {
