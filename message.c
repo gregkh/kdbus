@@ -120,7 +120,7 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 				return -EMSGSIZE;
 			break;
 
-		case KDBUS_MSG_PAYLOAD_REF:
+		case KDBUS_MSG_PAYLOAD_VEC:
 			if (data->size != KDBUS_MSG_DATA_HEADER_SIZE + 16)
 				return -EINVAL;
 			if (data->vec.size > 0xffff)
@@ -210,7 +210,7 @@ out_err:
 
 /*
  * Copy one data reference into our kmsg payload array; the
- * KDBUS_MSG_PAYLOAD_REF record is hereby converted into a
+ * KDBUS_MSG_PAYLOAD_VEC record is hereby converted into a
  * KDBUS_MSG_PAYLOAD record.
  */
 static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
@@ -327,7 +327,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	 */
 	KDBUS_MSG_DATA_FOREACH(&kmsg->msg, data, size) {
 		switch (data->type) {
-		case KDBUS_MSG_PAYLOAD_REF:
+		case KDBUS_MSG_PAYLOAD_VEC:
 			ret = kdbus_copy_user_payload(kmsg, data);
 			if (ret < 0)
 				goto out_err;
@@ -694,7 +694,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 	KDBUS_MSG_DATA_FOREACH(msg, data, size) {
 		switch (data->type) {
-		case KDBUS_MSG_PAYLOAD_REF: {
+		case KDBUS_MSG_PAYLOAD_VEC: {
 			struct kdbus_msg_data *d;
 
 			/* insert data passed-in by reference */
