@@ -32,9 +32,9 @@ struct kdbus_policy_db_cache_entry {
 };
 
 struct kdbus_policy_db_entry_access {
-	__u32			type;	/* USER, GROUP, WORLD */
-	__u32			bits;	/* RECV, SEND, OWN */
-	__u64			id;	/* uid, gid, 0 */
+	u8			type;	/* USER, GROUP, WORLD */
+	u8			bits;	/* RECV, SEND, OWN */
+	u64			id;	/* uid, gid, 0 */
 	struct list_head	list;
 };
 
@@ -145,6 +145,7 @@ int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 					struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
+	struct kdbus_policy_db_entry *db_entry;
 	u64 access;
 	u32 hash;
 
@@ -156,8 +157,6 @@ int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	 * connection.
 	 */
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
-		struct kdbus_policy_db_entry *db_entry;
-
 		hash = kdbus_policy_make_name_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
@@ -170,8 +169,6 @@ int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	}
 
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
-		struct kdbus_policy_db_entry *db_entry;
-
 		hash = kdbus_policy_make_name_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
