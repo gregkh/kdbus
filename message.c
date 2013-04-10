@@ -695,9 +695,15 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		}
 
 		case KDBUS_MSG_UNIX_FDS:
-			/* skip these records here, we collected all file
-			 * descriptors already and append them in a single
-			 * data record later */
+			/* skip the records here, we collected all file
+			 * descriptors already when we received them, now
+			 * we pass them along in a single data record */
+			break;
+
+		case KDBUS_MSG_DST_NAME:
+		case KDBUS_MSG_BLOOM:
+			/* records passed in by the sender, which are not
+			 * interesting for the receiver */
 			break;
 
 		default:
@@ -738,8 +744,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 			fd_install(new_fd, get_file(kmsg->fds->fp[i]));
 
-			if (copy_to_user(buf + pos, &new_fd,
-					 sizeof(new_fd))) {
+			if (copy_to_user(buf + pos, &new_fd, sizeof(new_fd))) {
 				ret = -EFAULT;
 				goto out_unlock;
 			}

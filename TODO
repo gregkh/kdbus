@@ -1,10 +1,7 @@
 Recent:
   - allow only anonymous or protected/busy memory to pass with map
-  - enforce page align of mmap memory
-  - one fd only per data record?
-  - coalesce fd data records into one single record at _recv()
-  - allow to coalesce memory records, but do not mix MMAP and PAYLOAD
-  - suppress _DST_NAME, _BLOOM records at _recv()
+  - enforce strict page alignement of mmap()ed memory
+  - allow to coalesce memory records, but never mix MMAP and PAYLOAD
 
 Bugs:
   - check for duplicate bus names before registering:
