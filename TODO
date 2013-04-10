@@ -5,7 +5,6 @@ Message Buffering:
 Security:
   - let HELLO specify if fds or mmaps() are accepted to
     be received; refuse the message otherwise
-  - limit file descriptor passing to unicast, never try to broadcast them
 
 Mesage Validation:
   - enforce NULL termination on all strings. Do not rely on the size
