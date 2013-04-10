@@ -29,6 +29,9 @@ PWD			:= $(shell pwd)
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)
 
+coccicheck:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) coccicheck
+
 clean:
 	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
 	rm -f Module.markers Module.symvers modules.order
