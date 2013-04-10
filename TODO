@@ -1,16 +1,10 @@
-Recent:
-  - allow only anonymous or protected/busy memory to pass with map
-  - enforce strict page alignement of mmap()ed memory
-  - allow to coalesce memory records, but never mix MMAP and PAYLOAD
-
 Bugs:
   - check for duplicate bus names before registering:
       kobject_add_internal failed for kdbus!0-xxxx!bus with EEXIST
 
 Message Buffering:
   - kmalloc is limited to < 128k
-  - handle fds
-  - pass along mappings of userspace data, instead of copying them
+  - pass along mmap() of process data, instead of copying them
 
 Security:
   - let HELLO specify if fds or mmaps() are accepted to
@@ -19,17 +13,21 @@ Security:
 
 Mesage Validation:
   - enforce NULL termination on all strings. Do not rely on the size
-    headers
+    headers only
   - validate all incoming data fields in the message, clear all values
     which are not supposed to be set from a peer
   - always align data records to 8 byte boundaries, keep size correct,
     but start next record at proper offset
+  - allow only anonymous or protected/busy memory to pass with mmap()
 
 External API:
   - size in data records includes the data header size? it also does
     not include the padding
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
-  - add some "uint64_t reserved" in the basic structures?
+  - enforce strict page alignement of mmap()ed memory in the API
+  - allow to coalesce memory records, but never mix MMAP and PAYLOAD
+  - support optional addition of cgroup, comm, exe, ... of the sender
+    process
 
 Kernel Core:
   - use subsys_virtual_register() to avoid devices showing up directly
