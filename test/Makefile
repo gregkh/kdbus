@@ -1,4 +1,4 @@
-CFLAGS		+= -std=c99 -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
+CFLAGS		+= -std=gnu99 -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
 TEST_COMMON	:= kdbus-enum.o kdbus-util.o
 CC		:= $(CROSS_COMPILE)gcc
 
