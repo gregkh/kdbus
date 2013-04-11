@@ -667,7 +667,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	const struct kdbus_msg *msg;
 	const struct kdbus_msg_data *data;
 	u64 size, pos, max_size;
-	int payload_ref = 0;
+	int payload_ind = 0;
 	int ret;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
@@ -714,13 +714,12 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			struct kdbus_msg_data *d;
 
 			/* insert data passed-in by reference */
-			d = kmsg->payloads->data[payload_ref++];
+			d = kmsg->payloads->data[payload_ind++];
 			if (copy_to_user(buf + pos, d, d->size)) {
 				ret = -EFAULT;
 				goto out_unlock;
 			}
 
-			payload_ref++;
 			pos += KDBUS_MSG_DATA_ALIGN(d->size);
 			break;
 		}

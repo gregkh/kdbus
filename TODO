@@ -1,7 +1,3 @@
-Misc:
-  - rename all _ref to _vec
-  - use size_t instead of u64 for internal variables where appropriate
-
 Message Buffering:
   - kmalloc is limited to < 128k
   - pass along mmap() of process data, instead of copying them
@@ -27,6 +23,9 @@ External API:
   - allow to coalesce memory records, but never mix MMAP and PAYLOAD
   - support optional addition of cgroup, comm, exe, ... of the sender
     process
+
+Internal API:
+  - use size_t instead of u64 for internal variables where appropriate?
 
 Kernel Core:
   - use subsys_virtual_register() to avoid devices showing up directly
