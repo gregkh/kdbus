@@ -12,7 +12,12 @@
 #ifndef _KDBUS_H_
 #define _KDBUS_H_
 
+#ifndef __KERNEL__
+#include <sys/ioctl.h>
+#include <sys/types.h>
 #include <linux/types.h>
+#endif
+
 #define KDBUS_IOC_MAGIC			0x95
 
 /* Message sent from kernel to userspace, when the owner or starter of
