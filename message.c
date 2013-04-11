@@ -527,6 +527,11 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 
 	/* TODO: implement filtering */
 
+	if (kmsg->fds && !(conn->flags & KDBUS_CMD_HELLO_ACCEPT_FD))
+		return -EINVAL;
+
+	/* fixme: check for mmap allowance */
+
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return -ENOMEM;
@@ -590,7 +595,8 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 		if (!conn_dst)
 			return -ENOENT;
 
-		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) && conn_dst->starter)
+		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
+		    (conn_dst->flags & KDBUS_CMD_HELLO_STARTER))
 			return -ENOENT;
 
 	} else if (msg->dst_id != KDBUS_DST_ID_BROADCAST) {

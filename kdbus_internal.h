@@ -208,9 +208,9 @@ struct kdbus_conn {
 	};
 	u64 id;		/* id of the connection on the bus */
 
+	u64 flags;
 	bool active;	/* did the connection say hello yet? */
 	bool monitor;
-	bool starter;
 
 	struct mutex msg_lock;
 	struct mutex names_lock;

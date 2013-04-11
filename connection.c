@@ -420,6 +420,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		conn->flags = hello.kernel_flags;
 		hello.bus_flags = 0; /* FIXME */
 		hello.id = conn->id;
 
@@ -429,7 +430,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		conn->active = true;
-		conn->starter = hello.kernel_flags & KDBUS_CMD_HELLO_STARTER;
 
 		break;
 	}

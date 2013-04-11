@@ -189,6 +189,8 @@ struct kdbus_cmd_policy {
 
 enum {
 	KDBUS_CMD_HELLO_STARTER		=  1,
+	KDBUS_CMD_HELLO_ACCEPT_FD	=  2,
+	KDBUS_CMD_HELLO_ACCEPT_MMAP	=  4,
 };
 
 enum {
