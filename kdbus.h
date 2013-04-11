@@ -238,7 +238,7 @@ struct kdbus_cmd_fname {
 				 * When creating a bus/ns/ep feature
 				 * kernel negotiation done the same
 				 * way as for KDBUS_CMD_BUS_MAKE. */
-	__u64 flags;		/* userspace → kernel
+	__u64 user_flags;	/* userspace → kernel
 				 * When a bus is created this value is
 				 * copied verbatim into the bus
 				 * structure and returned from

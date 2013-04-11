@@ -75,7 +75,7 @@ static int make_bus(void)
 
 	memset(&fname, 0, sizeof(fname));
 	snprintf(fname.name, sizeof(fname.name), "%u-%s", getuid(), name);
-	fname.head.flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
+	fname.head.kernel_flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
 	fname.head.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
 
 	printf("-- creating bus '%s'\n", fname.name);
