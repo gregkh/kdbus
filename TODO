@@ -1,3 +1,7 @@
+Misc:
+  - rename all _ref to _vec
+  - use size_t instead of u64 for internal variables where appropriate
+
 Message Buffering:
   - kmalloc is limited to < 128k
   - pass along mmap() of process data, instead of copying them

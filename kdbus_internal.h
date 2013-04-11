@@ -232,6 +232,7 @@ struct kdbus_conn {
 /* array of passed-in file descriptors */
 struct kdbus_fds {
 	int count;
+	struct kdbus_msg_data *data;
 	struct file *fp[0];
 };
 
