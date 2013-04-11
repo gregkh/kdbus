@@ -27,6 +27,10 @@ External API:
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
 
+Name database:
+  - look up name information, how are we supposed to get the data back to
+    userspace?
+
 Kernel Core:
   - use subsys_virtual_register() to avoid devices showing up directly
     in the root of /sys/devices/

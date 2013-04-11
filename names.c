@@ -396,8 +396,41 @@ int kdbus_name_query(struct kdbus_name_registry *reg,
 		     struct kdbus_conn *conn,
 		     void __user *buf)
 {
-	//struct kdbus_name_entry *e;
-	//struct kdbus_cmd_name_info name_info;
+	struct kdbus_name_entry *e;
+	struct kdbus_cmd_name_info *name_info;
+	u64 size;
+	u64 tmp;
+	int ret = 0;
 
-	return -ENOSYS;
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name_info))
+		return -EFAULT;
+
+	if ((size < sizeof(struct kdbus_cmd_name_info)) ||
+	    (size > (sizeof(struct kdbus_cmd_name_info) + 256)))
+		return -EMSGSIZE;
+
+	name_info = memdup_user(buf, size);
+	if (IS_ERR(name_info))
+		return PTR_ERR(name_info);
+
+	if (name_info->id == 0) {
+		// FIXME, look up by name, not id
+		kfree(name_info);
+		return -ENOSYS;
+	}
+
+	mutex_lock(&reg->entries_lock);
+	hash_for_each(reg->entries_hash, tmp, e, hentry) {
+		if (e->conn->id == name_info->id) {
+			/* found the id, but wait, how are we supposed to get
+			 * the data back to userspace? */
+			// FIXME
+			break;
+		}
+	}
+	mutex_unlock(&reg->entries_lock);
+
+	kfree(name_info);
+
+	return ret;
 }
