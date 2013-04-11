@@ -177,8 +177,8 @@ struct kdbus_ep {
 	unsigned int minor;		/* minor of this endpoint in the namespace major */
 	struct device *dev;		/* device node of this endpoint */
 	umode_t mode;			/* file mode of this endpoint device node */
-	uid_t uid;			/* uid owning this endpoint */
-	gid_t gid;			/* gid owning this endpoint */
+	kuid_t uid;			/* uid owning this endpoint */
+	kgid_t gid;			/* gid owning this endpoint */
 	struct list_head bus_entry;	/* list of endpoints for this bus */
 	struct list_head message_list;	/* messages in flight for this endpoint */
 	struct list_head connection_list;
@@ -301,7 +301,7 @@ struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
-		  umode_t mode, uid_t uid, gid_t gid, struct kdbus_bus **bus);
+		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus);
 void kdbus_bus_scan_timeout_list(struct kdbus_bus *bus);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
 
@@ -311,7 +311,7 @@ void kdbus_ep_unref(struct kdbus_ep *ep);
 
 struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name);
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
-		 uid_t uid, gid_t gid, struct kdbus_ep **ep);
+		 kuid_t uid, kgid_t gid, struct kdbus_ep **ep);
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 

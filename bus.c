@@ -102,14 +102,14 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 }
 
 int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
-		  umode_t mode, uid_t uid, gid_t gid, struct kdbus_bus **bus)
+		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus)
 {
 	char prefix[16];
 	struct kdbus_bus *b;
 	int ret;
 
 	/* enforce "$UID-" prefix */
-	snprintf(prefix, sizeof(prefix), "%u-", uid);
+	snprintf(prefix, sizeof(prefix), "%u-", from_kuid(current_user_ns(), uid));
 	if (strncmp(name, prefix, strlen(prefix) != 0))
 		return -EINVAL;
 

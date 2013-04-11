@@ -150,8 +150,8 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 
 	conn->match_db = kdbus_match_db_new();
 
-	conn->creds.uid = current_uid();
-	conn->creds.gid = current_gid();
+	conn->creds.uid = from_kuid_munged(current_user_ns(), current_uid());
+	conn->creds.gid = from_kgid_munged(current_user_ns(), current_gid());
 	conn->creds.pid = current->pid;
 	conn->creds.tid = current->tgid;
 	conn->creds.starttime = current->start_time.tv_sec * NSEC_PER_SEC

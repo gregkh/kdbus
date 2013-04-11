@@ -24,7 +24,7 @@
 /* endpoints are by default owned by the bus owner */
 static char *kdbus_devnode_ep(struct device *dev, umode_t *mode
 #ifdef DRIVER_CORE_DEVICE_TYPE_DEVNODE_UID
-		, uid_t *uid, gid_t *gid)
+		, kuid_t *uid, kgid_t *gid)
 #else
 		)
 #endif
@@ -113,7 +113,7 @@ exit:
 }
 
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
-		 uid_t uid, gid_t gid, struct kdbus_ep **ep)
+		 kuid_t uid, kgid_t gid, struct kdbus_ep **ep)
 {
 	struct kdbus_ep *e;
 	int ret;
