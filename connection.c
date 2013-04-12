@@ -276,6 +276,11 @@ static int kdbus_fname_user(void __user *buf, struct kdbus_cmd_fname **fname)
 	if (IS_ERR(fn))
 		return PTR_ERR(fn);
 
+	if (!kdbus_validate_nul(fn->name, size - sizeof(struct kdbus_cmd_fname))) {
+		kfree(fn);
+		return -EINVAL;
+	}
+
 	*fname = fn;
 
 	return 0;
