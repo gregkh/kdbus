@@ -34,6 +34,11 @@
 	put_user(_s, _sz); \
 })
 
+static inline bool kdbus_validate_nul(const char *s, size_t l)
+{
+	return l > 0 && memchr(s, '\0', l) == s + l -1;
+}
+
 /*
  * kdbus namespace
  * - provides a "control" node
