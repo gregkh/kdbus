@@ -70,6 +70,7 @@ enum {
 	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
 	KDBUS_MSG_SRC_CREDS,		/* .creds */
 	KDBUS_MSG_SRC_COMM,		/* optional */
+	KDBUS_MSG_SRC_THREAD_COMM,	/* optional */
 	KDBUS_MSG_SRC_EXE,		/* optional */
 	KDBUS_MSG_SRC_CMDLINE,		/* optional */
 	KDBUS_MSG_SRC_CGROUP,		/* optional, specified which one */
