@@ -95,19 +95,18 @@ void kdbus_ep_unref(struct kdbus_ep *ep)
 	kref_put(&ep->kref, __kdbus_ep_free);
 }
 
-/* Find the endpoint for a specific bus */
-struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
+static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 {
-	struct kdbus_ep *ep;
+	struct kdbus_ep *ep = NULL;
+	struct kdbus_ep *e;
 
 	mutex_lock(&bus->lock);
-	list_for_each_entry(ep, &bus->ep_list, bus_entry) {
-		if (!strcmp(ep->name, name))
-			goto exit;
+	list_for_each_entry(e, &bus->ep_list, bus_entry) {
+		if (strcmp(ep->name, name) != 0)
+			continue;
+
+		ep = kdbus_ep_ref(e);
 	}
-	/* Endpoint not found so return NULL */
-	ep = NULL;
-exit:
 	mutex_unlock(&bus->lock);
 
 	return ep;
@@ -119,6 +118,12 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	struct kdbus_ep *e;
 	int ret;
 	int i;
+
+	e = kdbus_ep_find(bus, name);
+	if (e) {
+		kdbus_ep_unref(e);
+		return -EEXIST;
+	}
 
 	e = kzalloc(sizeof(struct kdbus_ep), GFP_KERNEL);
 	if (!e)
