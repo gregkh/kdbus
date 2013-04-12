@@ -224,6 +224,9 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	if (IS_ERR(name))
 		return PTR_ERR(name);
 
+	if (!kdbus_name_is_valid(name->name))
+		return -EINVAL;
+
 	name->flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
 	hash = kdbus_name_make_hash(name->name);
 
@@ -313,6 +316,9 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 	name = memdup_user(buf, size);
 	if (IS_ERR(name))
 		return PTR_ERR(name);
+
+	if (!kdbus_name_is_valid(name->name))
+		return -EINVAL;
 
 	hash = kdbus_name_make_hash(name->name);
 
@@ -426,4 +432,43 @@ int kdbus_name_query(struct kdbus_name_registry *reg,
 	kfree(name_info);
 
 	return ret;
+}
+
+
+bool kdbus_name_is_valid(const char *p)
+{
+	const char *q;
+	bool dot, found_dot;
+
+	for (dot = true, q = p; *q; q++)
+		if (*q == '.') {
+			if (dot)
+				return false;
+
+			found_dot = dot = true;
+		} else {
+			bool good;
+
+			good =
+				(*q >= 'a' && *q <= 'z') ||
+				(*q >= 'A' && *q <= 'Z') ||
+				(!dot && *q >= '0' && *q <= '9') ||
+				*q == '_' || *q == '-';
+
+			if (!good)
+				return false;
+
+			dot = false;
+		}
+
+	if (q - p > 255)
+		return false;
+
+	if (dot)
+		return false;
+
+	if (!found_dot)
+		return false;
+
+	return true;
 }

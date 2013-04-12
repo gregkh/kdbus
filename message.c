@@ -154,8 +154,12 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 				return -EEXIST;
 			name = true;
 			/* enforce NUL-terminated strings */
-			if (data->data[data->size - KDBUS_MSG_DATA_HEADER_SIZE - 1] != '\0')
+			if (data->str[data->size - KDBUS_MSG_DATA_HEADER_SIZE - 1] != '\0')
 				return -EINVAL;
+
+			if (!kdbus_name_is_valid(data->str))
+				return -EINVAL;
+
 			break;
 
 		default:

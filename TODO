@@ -36,6 +36,8 @@ External API:
   - always put \0 in the padding bytes?
   - have some sort of kdbus kernel protocol negotiation. how do we deal
     with changes later on?
+  - need to check that all incoming strings are NUL terminated and
+    contain no NULs in the middle. strnlen()!
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
@@ -60,4 +62,3 @@ API Question:
   Yet client (C) comes along, sending a message with KDBUS_MSG_FLAGS_NO_AUTO_START
   NOT send in flags. That message will be rejected, even though client A already
   started the service.
-
