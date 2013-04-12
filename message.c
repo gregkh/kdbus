@@ -682,7 +682,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 	mutex_lock(&conn->msg_lock);
 	if (list_empty(&conn->msg_list)) {
-		ret = -ENOENT;
+		ret = -EAGAIN;
 		goto out_unlock;
 	}
 

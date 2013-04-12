@@ -144,7 +144,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 	}
 
 	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
-			   !(bus_flags & KDBUS_CMD_FNAME_POLICY_NONE));
+			   bus_flags & KDBUS_CMD_FNAME_POLICY_OPEN);
 	if (ret < 0)
 		goto ret;
 

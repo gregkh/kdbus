@@ -113,7 +113,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 }
 
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
-		 kuid_t uid, kgid_t gid, bool policy)
+		 kuid_t uid, kgid_t gid, bool policy_open)
 {
 	struct kdbus_ep *e;
 	int ret;
@@ -176,7 +176,8 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	list_add_tail(&e->bus_entry, &bus->ep_list);
 
 	/* install policy */
-	if (policy) {
+	e->policy_open = policy_open;
+	if (!policy_open) {
 		e->policy_db = kdbus_policy_db_new();
 		if (!e->policy_db) {
 			ret = -ENOMEM;

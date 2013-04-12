@@ -415,8 +415,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			mode = 0660;
 
 		ret = kdbus_ep_new(conn->ep->bus, fname->name, mode,
-				   current_fsuid(), current_fsgid(),
-				   !(fname->kernel_flags & KDBUS_CMD_FNAME_POLICY_NONE));
+			current_fsuid(), current_fsgid(),
+			fname->kernel_flags & KDBUS_CMD_FNAME_POLICY_OPEN);
 
 		break;
 	}

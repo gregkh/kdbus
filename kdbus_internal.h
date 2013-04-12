@@ -184,6 +184,7 @@ struct kdbus_ep {
 	struct list_head connection_list;
 	wait_queue_head_t wait;		/* wake up this endpoint */
 	struct kdbus_policy_db *policy_db;
+	bool policy_open:1;
 };
 
 /*
