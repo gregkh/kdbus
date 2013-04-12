@@ -189,6 +189,9 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 
 	case KDBUS_CONN_EP: {
 		struct kdbus_msg_list_entry *entry, *tmp;
+		struct list_head list;
+
+		INIT_LIST_HEAD(&list);
 
 		hash_del(&conn->hentry);
 		list_del(&conn->connection_entry);
@@ -198,15 +201,30 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			struct kdbus_kmsg *kmsg = entry->kmsg;
 			struct kdbus_msg *msg = &kmsg->msg;
 
-			if (msg->dst_id == conn->id &&
-			    msg->src_id != conn->id)
-				kdbus_notify_reply_dead(conn->ep, msg);
-
-			kdbus_kmsg_unref(kmsg);
 			list_del(&entry->list);
-			kfree(entry);
+
+			/*
+			 * calling kdbus_notify_reply_dead() with msg_lock held
+			 * causes a lockdep warning, so let's re-link those
+			 * messages into a temporary list and handle it later.
+			 */
+			if (msg->src_id != conn->id) {
+				list_add_tail(&entry->list, &list);
+			} else {
+				kdbus_kmsg_unref(kmsg);
+				kfree(entry);
+			}
 		}
 		mutex_unlock(&conn->msg_lock);
+
+		list_for_each_entry_safe(entry, tmp, &list, list) {
+			struct kdbus_kmsg *kmsg = entry->kmsg;
+			struct kdbus_msg *msg = &kmsg->msg;
+
+			kdbus_notify_reply_dead(conn->ep, msg);
+			kdbus_kmsg_unref(kmsg);
+			kfree(entry);
+		}
 
 		del_timer(&conn->timer);
 		cancel_work_sync(&conn->work);
