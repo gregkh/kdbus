@@ -83,7 +83,8 @@ static void __kdbus_ep_free(struct kref *kref)
 	mutex_unlock(&ep->bus->lock);
 
 	kdbus_bus_unref(ep->bus);
-	kdbus_policy_db_unref(ep->policy_db);
+	if (ep->policy_db)
+		kdbus_policy_db_unref(ep->policy_db);
 
 	kfree(ep->name);
 	kfree(ep);
@@ -165,7 +166,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		e->dev = NULL;
 	}
 
-	if (strcmp(name, "bus") == 0) {
+	if (strcmp(name, "bus") != 0) {
 		e->policy_db = kdbus_policy_db_new();
 		if (!e->policy_db) {
 			ret = -ENOMEM;

@@ -213,7 +213,8 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 
 		bus = conn->ep->bus;
 		kdbus_name_remove_by_conn(bus->name_registry, conn);
-		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
+		if (conn->ep->policy_db)
+			kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 		kdbus_match_db_unref(conn->match_db);
 		kdbus_ep_unref(conn->ep);
 

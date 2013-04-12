@@ -23,6 +23,7 @@ External API:
   - allow to coalesce memory records, but never mix MMAP and PAYLOAD
   - support optional addition of cgroup, comm, exe, ... of the sender
     process
+  - always put \0 in the padding bytes?
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
