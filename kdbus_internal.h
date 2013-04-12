@@ -23,13 +23,13 @@
 /* copy the uint64_t "size" value from the userspace-supplied  structure */
 #define kdbus_size_get_user(_s, _b, _t) \
 ({ \
-	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
+	size_t __user *_sz = _b + offsetof(typeof(_t), size); \
 	get_user(_s, _sz); \
 })
 
 #define kdbus_size_set_user(_s, _b, _t) \
 ({ \
-	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
+	size_t __user *_sz = _b + offsetof(typeof(_t), size); \
 	put_user(_s, _sz); \
 })
 
