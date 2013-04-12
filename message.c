@@ -319,7 +319,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	u64 size, alloc_size;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED8(buf))
+	if (!KDBUS_IS_ALIGNED8((void __force *)buf))
 		return -EFAULT;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
@@ -686,7 +686,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	int payload_ind = 0;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED8(buf))
+	if (!KDBUS_IS_ALIGNED8((void __force *)buf))
 		return -EFAULT;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
