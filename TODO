@@ -1,3 +1,9 @@
+Bugs:
+  - as we have u64 for sizes in the ioctl()-passed structs, we need a
+    way to deal with 32-bit architectures not providing the proper
+    put_user(), the current code cannot work as it is, it was changed
+    to work around this issue
+
 Message Buffering:
   - kmalloc is limited to < 128k
   - pass along mmap() of process data, instead of copying them
@@ -30,9 +36,6 @@ External API:
   - always put \0 in the padding bytes?
   - have some sort of kdbus kernel protocol negotiation. how do we deal
     with changes later on?
-  - as we have u64 for sizes in the ioctl()-passed structs, we need a
-    way to deal with 32-bit architectures. Passing an u64 to get_user()
-    results in an unresolved reference to __get_user_bad.
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?

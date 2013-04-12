@@ -21,6 +21,7 @@
 #define KDBUS_CHAR_MAJOR	222
 
 /* copy the uint64_t "size" value from the userspace-supplied  structure */
+//FIXME: intentionally broken to make ARM's missing get_user() work
 #define kdbus_size_get_user(_s, _b, _t) \
 ({ \
 	size_t __user *_sz = _b + offsetof(typeof(_t), size); \
