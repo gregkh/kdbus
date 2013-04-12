@@ -101,15 +101,6 @@ __kdbus_name_lookup(struct kdbus_name_registry *reg,
 	return NULL;
 }
 
-static void kdbus_name_add_to_conn(struct kdbus_name_entry *e,
-				   struct kdbus_conn *conn)
-{
-	e->conn = conn;
-	mutex_lock(&conn->names_lock);
-	list_add_tail(&e->conn_entry, &conn->names_list);
-	mutex_unlock(&conn->names_lock);
-}
-
 static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 {
 	list_del(&q->entry_entry);
@@ -135,8 +126,9 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 		q = list_first_entry(&e->queue_list,
 				     struct kdbus_name_queue_item,
 				     entry_entry);
-		kdbus_name_add_to_conn(e, q->conn);
+		e->conn = q->conn;
 		e->flags = q->flags;
+		list_add_tail(&e->conn_entry, &e->conn->names_list);
 		kdbus_name_queue_item_free(q);
 		ret = kdbus_notify_name_change(old_conn->ep, KDBUS_MSG_NAME_CHANGE,
 					       old_conn->id, e->conn->id, e->flags,
@@ -274,12 +266,13 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto err_unlock_free;
 	}
 
+	e->conn = conn;
 	e->flags = name->flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
 
 	hash_add(reg->entries_hash, &e->hentry, hash);
-	kdbus_name_add_to_conn(e, conn);
+	list_add_tail(&e->conn_entry, &conn->names_list);
 
 exit_copy:
 	if (copy_to_user(buf, name, size)) {
