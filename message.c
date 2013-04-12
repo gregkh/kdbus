@@ -144,14 +144,14 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 
 			/* do not allow multiple bloom filters */
 			if (bloom)
-				return -EINVAL;
+				return -EEXIST;
 			bloom = true;
 			break;
 
 		case KDBUS_MSG_DST_NAME:
 			/* do not allow multiple names */
 			if (name)
-				return -EINVAL;
+				return -EEXIST;
 			name = true;
 			/* enforce NUL-terminated strings */
 			if (data->data[data->size - KDBUS_MSG_DATA_HEADER_SIZE] != '\0')

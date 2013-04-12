@@ -108,10 +108,9 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 	kfree(q);
 }
 
-static int kdbus_name_entry_release(struct kdbus_name_entry *e)
+static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
-	int ret = 0;
 
 	list_del(&e->conn_entry);
 
@@ -130,12 +129,9 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 		e->flags = q->flags;
 		list_add_tail(&e->conn_entry, &e->conn->names_list);
 		kdbus_name_queue_item_free(q);
-		ret = kdbus_notify_name_change(old_conn->ep, KDBUS_MSG_NAME_CHANGE,
-					       old_conn->id, e->conn->id, e->flags,
-					       e->name);
+		kdbus_notify_name_change(old_conn->ep, KDBUS_MSG_NAME_CHANGE,
+				old_conn->id, e->conn->id, e->flags, e->name);
 	}
-
-	return ret;
 }
 
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
@@ -322,7 +318,11 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, name->name);
-	if (e && e->conn == conn)
+	if (!e)
+		ret = -ENXIO;
+	else if (e->conn != conn)
+		ret = -EPERM;
+	else
 		kdbus_name_entry_release(e);
 	mutex_unlock(&reg->entries_lock);
 
