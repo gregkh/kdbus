@@ -361,3 +361,11 @@ enum kdbus_cmd {
 	KDBUS_CMD_EP_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_policy),
 };
 #endif
+
+/* Think about:
+ *
+ * - allow HELLO to change unique names
+ * - allow HELLO without assigning a unique name at all
+ * - when receive fails due to too small buffer return real size
+ * - when receiving maybe allow read-only mmaping into reciving process memory space or so?
+ */
