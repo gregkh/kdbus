@@ -282,7 +282,7 @@ int name_release(struct conn *conn, const char *name)
 	strcpy(cmd_name->name, name);
 	cmd_name->size = size;
 
-	printf("conn %ld giving up name '%s'\n", conn->id, name);
+	printf("conn %lld giving up name '%s'\n", conn->id, name);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
 	if (ret) {
