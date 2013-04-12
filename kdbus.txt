@@ -10,7 +10,7 @@ please refer to:
   http://dbus.freedesktop.org/doc/dbus-specification.html
 
 For a kdbus specific client library implementation please refer to:
-  http://cgit.freedesktop.org/systemd/systemd/tree/src/libsystemd-bus/sd-bus.h
+  http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-bus.h
 
 ===============================================================================
 Terminology
