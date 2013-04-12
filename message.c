@@ -29,11 +29,12 @@
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, data)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 #define KDBUS_MSG_DATA_HEADER_SIZE offsetof(struct kdbus_msg_data, data)
-#define KDBUS_MSG_DATA_ALIGN(s) ALIGN((s), sizeof(u64))
+#define KDBUS_IS_ALIGNED(s) (((u64)(s) & 7) == 0)
+#define KDBUS_MSG_DATA_ALIGN(s) ALIGN((s), 8)
 #define KDBUS_MSG_DATA_SIZE(s) \
-	ALIGN((s) + KDBUS_MSG_DATA_HEADER_SIZE, sizeof(u64))
+	ALIGN((s) + KDBUS_MSG_DATA_HEADER_SIZE, 8)
 #define KDBUS_MSG_DATA_NEXT(_data) \
-	(struct kdbus_msg_data *)(((u8 *)_data) + (_data->size))
+	(struct kdbus_msg_data *)(((u8 *)_data) + KDBUS_MSG_DATA_ALIGN((_data)->size))
 #define KDBUS_MSG_DATA_FOREACH(_msg, _data, _size) \
 	for (_data = (_msg)->data, _size = (_msg)->size - KDBUS_MSG_HEADER_SIZE; \
 	     _size > 0 && _size >= (_data)->size; \
@@ -303,6 +304,9 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	const struct kdbus_msg_data *data;
 	u64 size, alloc_size;
 	int ret;
+
+	if (!KDBUS_IS_ALIGNED(buf))
+		return -EFAULT;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
 		return -EFAULT;
@@ -669,6 +673,9 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	u64 size, pos, max_size;
 	int payload_ind = 0;
 	int ret;
+
+	if (!KDBUS_IS_ALIGNED(buf))
+		return -EFAULT;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
 		return -EFAULT;

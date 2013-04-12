@@ -23,12 +23,11 @@ External API:
   - size in data records includes the data header size? it also does
     not include the padding
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
-  - enforce strict page alignement of mmap()ed memory in the API
+  - enforce strict page alignment of mmap()ed memory in the API
   - allow to coalesce memory records, but never mix MMAP and PAYLOAD
   - support optional addition of cgroup, comm, exe, ... of the sender
     process
   - always put \0 in the padding bytes?
-  - enforce 8-byte align of send/recv buffer
   - have some sort of kdbus kernel protocol negotiation. how do we deal
     with changes later on?
   - as we have u64 for sizes in the ioctl()-passed structs, we need a
@@ -37,6 +36,7 @@ External API:
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
+  - kmalloc internal structures at 8 byte boundaries
 
 Name database:
   - look up name information, how are we supposed to get the data back to
