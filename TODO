@@ -15,6 +15,10 @@ Mesage Validation:
     but start next record at proper offset
   - allow only anonymous or protected/busy memory to pass with mmap()
 
+Message augmentation:
+  - when do we append KDBUS_MSG_SRC_{COMM,EXE,CMDLINE,CGROUP}?
+  - define a payload type for kernel-gererated messages
+
 External API:
   - size in data records includes the data header size? it also does
     not include the padding
@@ -25,6 +29,11 @@ External API:
     process
   - always put \0 in the padding bytes?
   - enforce 8-byte align of send/recv buffer
+  - have some sort of kdbus kernel protocol negotiation. how do we deal
+    with changes later on?
+  - as we have u64 for sizes in the ioctl()-passed structs, we need a
+    way to deal with 32-bit architectures. Passing an u64 to get_user()
+    results in an unresolved reference to __get_user_bad.
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
