@@ -29,16 +29,16 @@
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, data)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 #define KDBUS_MSG_DATA_HEADER_SIZE offsetof(struct kdbus_msg_data, data)
-#define KDBUS_IS_ALIGNED(s) (((u64)(s) & 7) == 0)
-#define KDBUS_MSG_DATA_ALIGN(s) ALIGN((s), 8)
+#define KDBUS_IS_ALIGNED8(s) (((u64)(s) & 7) == 0)
+#define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_MSG_DATA_SIZE(s) \
-	ALIGN((s) + KDBUS_MSG_DATA_HEADER_SIZE, 8)
+	KDBUS_ALIGN8((s) + KDBUS_MSG_DATA_HEADER_SIZE)
 #define KDBUS_MSG_DATA_NEXT(_data) \
-	(struct kdbus_msg_data *)(((u8 *)_data) + KDBUS_MSG_DATA_ALIGN((_data)->size))
+	(struct kdbus_msg_data *)(((u8 *)_data) + KDBUS_ALIGN8((_data)->size))
 #define KDBUS_MSG_DATA_FOREACH(_msg, _data, _size) \
 	for (_data = (_msg)->data, _size = (_msg)->size - KDBUS_MSG_HEADER_SIZE; \
-	     _size > 0 && _size >= (_data)->size; \
-	     _size -= (_data)->size, _data = KDBUS_MSG_DATA_NEXT(_data))
+	     _size > KDBUS_MSG_DATA_HEADER_SIZE && _size >= (_data)->size; \
+	     _size -= KDBUS_ALIGN8((_data)->size), _data = KDBUS_MSG_DATA_NEXT(_data))
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg);
 
@@ -305,7 +305,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	u64 size, alloc_size;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED(buf))
+	if (!KDBUS_IS_ALIGNED8(buf))
 		return -EFAULT;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
@@ -416,7 +416,7 @@ kdbus_kmsg_append_metadata(struct kdbus_kmsg *kmsg, u64 extra_size)
 
 	/* get new metadata buffer, pre-allocate at least 256 bytes */
 	if (!kmsg->meta) {
-		size = roundup_pow_of_two(128 + KDBUS_MSG_DATA_ALIGN(extra_size));
+		size = roundup_pow_of_two(128 + KDBUS_ALIGN8(extra_size));
 		kmsg->meta = kzalloc(size, GFP_KERNEL);
 		if (!kmsg->meta)
 			return NULL;
@@ -426,7 +426,7 @@ kdbus_kmsg_append_metadata(struct kdbus_kmsg *kmsg, u64 extra_size)
 	}
 
 	/* double the pre-allocated buffer size if needed */
-	size = kmsg->meta->size + KDBUS_MSG_DATA_ALIGN(extra_size);
+	size = kmsg->meta->size + KDBUS_ALIGN8(extra_size);
 	if (size > kmsg->meta->allocated_size) {
 		struct kdbus_meta *meta;
 
@@ -448,7 +448,7 @@ kdbus_kmsg_append_metadata(struct kdbus_kmsg *kmsg, u64 extra_size)
 
 	/* insert new record */
 	data = (struct kdbus_msg_data *)((u8 *)kmsg->meta + kmsg->meta->size);
-	kmsg->meta->size += KDBUS_MSG_DATA_ALIGN(extra_size);
+	kmsg->meta->size += KDBUS_ALIGN8(extra_size);
 
 	return data;
 }
@@ -674,7 +674,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	int payload_ind = 0;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED(buf))
+	if (!KDBUS_IS_ALIGNED8(buf))
 		return -EFAULT;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
@@ -698,7 +698,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		int i;
 
 		for (i = 0; i < kmsg->payloads->count; i++)
-			max_size += KDBUS_MSG_DATA_ALIGN(kmsg->payloads->data[i]->size);
+			max_size += KDBUS_ALIGN8(kmsg->payloads->data[i]->size);
 	}
 
 	if (size < max_size) {
@@ -727,7 +727,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 				goto out_unlock;
 			}
 
-			pos += KDBUS_MSG_DATA_ALIGN(d->size);
+			pos += KDBUS_ALIGN8(d->size);
 			break;
 		}
 
@@ -753,7 +753,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 				goto out_unlock;
 			}
 
-			pos += KDBUS_MSG_DATA_ALIGN(data->size);
+			pos += KDBUS_ALIGN8(data->size);
 		}
 	}
 
@@ -787,7 +787,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			goto out_unlock_fds;
 		}
 
-		pos += KDBUS_MSG_DATA_ALIGN(size);
+		pos += KDBUS_ALIGN8(size);
 	}
 
 	/* append metadata records */
@@ -798,7 +798,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			goto out_unlock_fds;
 		}
 
-		pos += KDBUS_MSG_DATA_ALIGN(kmsg->meta->size - offsetof(struct kdbus_meta, data));
+		pos += KDBUS_ALIGN8(kmsg->meta->size - offsetof(struct kdbus_meta, data));
 	}
 
 	/* update the returned data size in the message header */
