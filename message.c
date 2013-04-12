@@ -35,10 +35,12 @@
 	KDBUS_ALIGN8((s) + KDBUS_MSG_DATA_HEADER_SIZE)
 #define KDBUS_MSG_DATA_NEXT(_data) \
 	(struct kdbus_msg_data *)(((u8 *)_data) + KDBUS_ALIGN8((_data)->size))
-#define KDBUS_MSG_DATA_FOREACH(_msg, _data, _size) \
-	for (_data = (_msg)->data, _size = (_msg)->size - KDBUS_MSG_HEADER_SIZE; \
-	     _size > KDBUS_MSG_DATA_HEADER_SIZE && _size >= (_data)->size; \
-	     _size -= KDBUS_ALIGN8((_data)->size), _data = KDBUS_MSG_DATA_NEXT(_data))
+
+#define KDBUS_MSG_DATA_FOREACH(msg, data)				\
+	for ((data) = (msg)->data;					\
+	     (char*) (data) + KDBUS_MSG_DATA_HEADER_SIZE <= (char*) (msg) + (msg)->size && \
+	     (char*) (data) + (data)->size <= (char*) (msg) + (msg)->size; \
+	     data = KDBUS_MSG_DATA_NEXT(data))
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg);
 
@@ -104,16 +106,15 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_msg_data *data;
-	u64 size;
 	int num_fds = 0;
 	int num_payloads = 0;
 	bool name = false;
 	bool bloom = false;
 	int ret;
 
-	KDBUS_MSG_DATA_FOREACH(msg, data, size) {
+	KDBUS_MSG_DATA_FOREACH(msg, data) {
 		/* Ensure we actually have some data */
-		if (data->size <= KDBUS_MSG_DATA_SIZE(0))
+		if (data->size <= KDBUS_MSG_DATA_HEADER_SIZE)
 			return -EINVAL;
 
 		switch (data->type) {
@@ -169,7 +170,7 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 	}
 
 	/* expect correct padding and size values */
-	if (size > 0)
+	if ((char*) data - ((char*) msg + msg->size) >= 8)
 		return -EINVAL;
 
 	/* broadcast messages require a bloom filter */
@@ -352,7 +353,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	 * iterate over the receiced data records and resolve external
 	 * references and store them in "struct kmsg"
 	 */
-	KDBUS_MSG_DATA_FOREACH(&kmsg->msg, data, size) {
+	KDBUS_MSG_DATA_FOREACH(&kmsg->msg, data) {
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD_VEC:
 			ret = kdbus_copy_user_payload(kmsg, data);
@@ -390,9 +391,8 @@ static const struct kdbus_msg_data *
 kdbus_msg_get_data(const struct kdbus_msg *msg, u64 type, int index)
 {
 	const struct kdbus_msg_data *data;
-	u64 size;
 
-	KDBUS_MSG_DATA_FOREACH(msg, data, size) {
+	KDBUS_MSG_DATA_FOREACH(msg, data) {
 		if (data->type == type && index-- == 0)
 			return data;
 	}
@@ -403,7 +403,6 @@ kdbus_msg_get_data(const struct kdbus_msg *msg, u64 type, int index)
 static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 {
 	const struct kdbus_msg_data *data;
-	u64 size;
 
 	pr_info("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
 		"cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
@@ -415,7 +414,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 		(unsigned long long) msg->payload_type,
 		(unsigned long long) msg->timeout_ns);
 
-	KDBUS_MSG_DATA_FOREACH(msg, data, size) {
+	KDBUS_MSG_DATA_FOREACH(msg, data) {
 		pr_info("`- msg_data size=%llu, type=0x%llx\n",
 			data->size, data->type);
 	}
@@ -728,7 +727,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	/* append the data records */
 	pos = KDBUS_MSG_HEADER_SIZE;
 
-	KDBUS_MSG_DATA_FOREACH(msg, data, size) {
+	KDBUS_MSG_DATA_FOREACH(msg, data) {
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD_VEC: {
 			struct kdbus_msg_data *d;
