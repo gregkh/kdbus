@@ -22,6 +22,7 @@
 #include <linux/init.h>
 #include <linux/hash.h>
 #include <linux/uaccess.h>
+#include <linux/ctype.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"
@@ -440,7 +441,10 @@ bool kdbus_name_is_valid(const char *p)
 	const char *q;
 	bool dot, found_dot;
 
-	for (dot = true, q = p; *q; q++)
+	for (dot = true, q = p; *q; q++) {
+		if (!isascii(*q))
+			return false;
+
 		if (*q == '.') {
 			if (dot)
 				return false;
@@ -449,10 +453,7 @@ bool kdbus_name_is_valid(const char *p)
 		} else {
 			bool good;
 
-			good =
-				(*q >= 'a' && *q <= 'z') ||
-				(*q >= 'A' && *q <= 'Z') ||
-				(!dot && *q >= '0' && *q <= '9') ||
+			good = isalpha(*q) || (!dot && isdigit(*q)) ||
 				*q == '_' || *q == '-';
 
 			if (!good)
@@ -460,6 +461,7 @@ bool kdbus_name_is_valid(const char *p)
 
 			dot = false;
 		}
+	}
 
 	if (q - p > 255)
 		return false;
