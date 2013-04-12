@@ -163,6 +163,14 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 		}
 	}
 
+	/* expect correct padding and size values */
+	if (size > 0)
+		return -EINVAL;
+
+	/* broadcast messages require a bloom filter */
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST && !bloom)
+		return -EINVAL;
+
 	/* bloom filters are for undirected messages only */
 	if (name && bloom)
 		return -EINVAL;
