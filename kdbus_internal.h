@@ -156,7 +156,6 @@ struct kdbus_bus {
 	u64 msg_id_next;		/* next message id sequence number */
 	struct idr conn_idr;		/* map of connection ids */
 	DECLARE_HASHTABLE(conn_hash, 6);
-	struct kdbus_ep *ep;		/* "bus" default endpoint */
 	struct list_head ep_list;	/* endpoints assigned to this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
 	struct kdbus_name_registry *name_registry;
@@ -309,8 +308,8 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 void kdbus_ep_unref(struct kdbus_ep *ep);
 
-int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
-		 kuid_t uid, kgid_t gid, struct kdbus_ep **ep);
+int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
+		 umode_t mode, kuid_t uid, kgid_t gid, bool policy);
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
 

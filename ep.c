@@ -113,7 +113,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 }
 
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
-		 kuid_t uid, kgid_t gid, struct kdbus_ep **ep)
+		 kuid_t uid, kgid_t gid, bool policy)
 {
 	struct kdbus_ep *e;
 	int ret;
@@ -171,7 +171,12 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		e->dev = NULL;
 	}
 
-	if (strcmp(name, "bus") != 0) {
+	/* Link this endpoint to the bus it is on */
+	e->bus = kdbus_bus_ref(bus);
+	list_add_tail(&e->bus_entry, &bus->ep_list);
+
+	/* install policy */
+	if (policy) {
 		e->policy_db = kdbus_policy_db_new();
 		if (!e->policy_db) {
 			ret = -ENOMEM;
@@ -182,14 +187,8 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	init_waitqueue_head(&e->wait);
 	INIT_LIST_HEAD(&e->connection_list);
 
-	/* Link this endpoint to the bus it is on */
-	e->bus = kdbus_bus_ref(bus);
-	list_add_tail(&e->bus_entry, &bus->ep_list);
-
 	mutex_unlock(&bus->ns->lock);
 
-	if (ep)
-		*ep = e;
 	pr_info("created endpoint %llu for bus '%s/%s/%s'\n",
 		(unsigned long long)e->id, bus->ns->devpath, bus->name, name);
 	return 0;

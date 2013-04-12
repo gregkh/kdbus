@@ -201,7 +201,7 @@ enum {
 enum {
 	KDBUS_CMD_FNAME_ACCESS_GROUP	=  1,
 	KDBUS_CMD_FNAME_ACCESS_WORLD	=  2,
-	KDBUS_CMD_FNAME_POLICY_ALLOW	=  4,
+	KDBUS_CMD_FNAME_POLICY_NONE	=  4,
 };
 
 struct kdbus_cmd_hello {

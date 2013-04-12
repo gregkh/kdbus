@@ -24,6 +24,7 @@ External API:
   - support optional addition of cgroup, comm, exe, ... of the sender
     process
   - always put \0 in the padding bytes?
+  - enforce 8-byte align of send/recv buffer
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
