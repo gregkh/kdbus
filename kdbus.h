@@ -48,6 +48,16 @@ struct kdbus_creds {
 	__u64 starttime;
 };
 
+struct kdbus_comm {
+	char pid_comm[TASK_COMM_LEN];
+	char tid_comm[TASK_COMM_LEN];
+};
+
+struct kdbus_audit {
+	__u64 sessionid;
+	__u64 loginuid;
+};
+
 #define KDBUS_SRC_ID_KERNEL		(0)
 #define KDBUS_DST_ID_WELL_KNOWN_NAME	(0)
 #define KDBUS_MATCH_SRC_ID_ANY		(~0ULL)
@@ -69,14 +79,13 @@ enum {
 	KDBUS_MSG_SRC_NAMES	= 0x200,/* NUL separated string list with well-known names of source */
 	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
 	KDBUS_MSG_SRC_CREDS,		/* .creds */
-	KDBUS_MSG_SRC_COMM,		/* optional */
-	KDBUS_MSG_SRC_THREAD_COMM,	/* optional */
+	KDBUS_MSG_SRC_COMM,		/* .comm */
 	KDBUS_MSG_SRC_EXE,		/* optional */
 	KDBUS_MSG_SRC_CMDLINE,		/* optional */
 	KDBUS_MSG_SRC_CGROUP,		/* optional, specified which one */
 	KDBUS_MSG_SRC_CAPS,		/* caps data blob */
 	KDBUS_MSG_SRC_SECLABEL,		/* NUL terminated string */
-	KDBUS_MSG_SRC_AUDIT,		/* array of two uint64_t of audit loginuid + sessiond */
+	KDBUS_MSG_SRC_AUDIT,		/* .audit */
 
 	/* Special messages from kernel, consisting of one and only one of these data blocks */
 	KDBUS_MSG_NAME_ADD	= 0x400,/* .name_change */
@@ -117,6 +126,8 @@ struct kdbus_msg_data {
 		int fds[0];				/* int array of file descriptors */
 		__u64 ts_ns;				/* timestamp in nanoseconds */
 		struct kdbus_creds creds;
+		struct kdbus_comm comm;
+		struct kdbus_audit audit;
 		struct kdbus_manager_msg_name_change name_change;
 		struct kdbus_manager_msg_id_change id_change;
 	};
@@ -191,13 +202,24 @@ struct kdbus_policy {
 
 struct kdbus_cmd_policy {
 	__u64 size;
-	__u8 buffer[0];	/* a series of KDBUS_POLICY_NAME plus one or more KDBUS_POLICY_ACCESS each. */
+	__u8 buffer[0];	/* a series of KDBUS_POLICY_NAME plus one or
+			 * more KDBUS_POLICY_ACCESS each. */
 };
 
 enum {
-	KDBUS_CMD_HELLO_STARTER		=  1,
-	KDBUS_CMD_HELLO_ACCEPT_FD	=  2,
-	KDBUS_CMD_HELLO_ACCEPT_MMAP	=  4,
+	KDBUS_CMD_HELLO_STARTER		=  1 <<  0,
+	KDBUS_CMD_HELLO_ACCEPT_FD	=  1 <<  1,
+	KDBUS_CMD_HELLO_ACCEPT_MMAP	=  1 <<  2,
+
+	/* The following have an effect on directed messages only --
+	 * not for broadcasts */
+	KDBUS_CMD_HELLO_ATTACH_COMM	=  1 << 10,
+	KDBUS_CMD_HELLO_ATTACH_EXE	=  1 << 11,
+	KDBUS_CMD_HELLO_ATTACH_CMDLINE	=  1 << 12,
+	KDBUS_CMD_HELLO_ATTACH_CGROUP	=  1 << 13,
+	KDBUS_CMD_HELLO_ATTACH_CAPS	=  1 << 14,
+	KDBUS_CMD_HELLO_ATTACH_SECLABEL	=  1 << 15,
+	KDBUS_CMD_HELLO_ATTACH_AUDIT	=  1 << 16,
 };
 
 enum {
@@ -208,7 +230,7 @@ enum {
 
 struct kdbus_cmd_hello {
 	/* userspace → kernel, kernel → userspace */
-	__u64 kernel_flags;	/* userspace specifies its
+	__u64 conn_flags;	/* userspace specifies its
 				 * capabilities and more, kernel
 				 * returns its capabilites and
 				 * more. Kernel might refuse client's
@@ -237,15 +259,19 @@ struct kdbus_cmd_hello {
 
 struct kdbus_cmd_fname {
 	__u64 size;
-	__u64 kernel_flags;	/* userspace → kernel, kernel → userspace
+	__u64 flags;		/* userspace → kernel, kernel → userspace
 				 * When creating a bus/ns/ep feature
 				 * kernel negotiation done the same
 				 * way as for KDBUS_CMD_BUS_MAKE. */
-	__u64 user_flags;	/* userspace → kernel
+	__u64 bus_flags;	/* userspace → kernel
 				 * When a bus is created this value is
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
+	__u64 cgroup_id;	/* the cgroup hierarchy ID for which
+				 * to attach cgroup membership paths
+				 * to messages. 0 if no cgroup data
+				 * shall be attached. */
 	char name[0];
 };
 
@@ -254,7 +280,6 @@ enum {
 	KDBUS_CMD_NAME_REPLACE_EXISTING		=  1,
 	KDBUS_CMD_NAME_QUEUE			=  2,
 	KDBUS_CMD_NAME_ALLOW_REPLACEMENT	=  4,
-	KDBUS_CMD_NAME_STEAL_MESSAGES		=  8,
 
 	/* kernel → userspace */
 	KDBUS_CMD_NAME_IN_QUEUE = 0x200,
@@ -262,8 +287,9 @@ enum {
 
 struct kdbus_cmd_name {
 	__u64 size;
-	__u64 flags;
+	__u64 name_flags;
 	__u64 id;		/* We allow registration/deregestration of names of other peers */
+	__u64 conn_flags;
 	char name[0];
 };
 
@@ -361,11 +387,3 @@ enum kdbus_cmd {
 	KDBUS_CMD_EP_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_policy),
 };
 #endif
-
-/* Think about:
- *
- * - allow HELLO to change unique names
- * - allow HELLO without assigning a unique name at all
- * - when receive fails due to too small buffer return real size
- * - when receiving maybe allow read-only mmaping into reciving process memory space or so?
- */

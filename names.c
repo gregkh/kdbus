@@ -228,7 +228,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	if (!kdbus_name_is_valid(name->name))
 		return -EINVAL;
 
-	name->flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
+	name->name_flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
 	hash = kdbus_name_make_hash(name->name);
 
 	if (conn->ep->policy_db) {
@@ -243,10 +243,10 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	if (e) {
 		if (e->conn == conn) {
 			/* just update flags */
-			e->flags = name->flags;
+			e->flags = name->name_flags;
 		} else {
 			ret = kdbus_name_handle_conflict(reg, conn, e,
-							 &name->flags);
+							 &name->name_flags);
 			if (ret < 0)
 				goto err_unlock;
 		}
@@ -267,7 +267,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	}
 
 	e->conn = conn;
-	e->flags = name->flags;
+	e->flags = name->name_flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
 
@@ -374,7 +374,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 
 	hash_for_each(reg->entries_hash, tmp, e, hentry) {
 		name->size = sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
-		name->flags = 0; /* FIXME */
+		name->name_flags = 0; /* FIXME */
 		name->id = e->conn->id;
 		strcpy(name->name, e->name);
 		name = (struct kdbus_cmd_name *) ((u8 *) name + name->size);

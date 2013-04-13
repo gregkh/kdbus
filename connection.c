@@ -303,17 +303,17 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!check_flags(fname->kernel_flags)) {
+		if (!check_flags(fname->flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (fname->kernel_flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
+		if (fname->flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
 			mode = 0666;
-		else if (fname->kernel_flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
+		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
 			mode = 0660;
 
-		ret = kdbus_bus_new(conn->ns, fname->name, fname->kernel_flags,
+		ret = kdbus_bus_new(conn->ns, fname->name, fname->flags,
 				    mode, current_fsuid(), current_fsgid(),
 				    &bus);
 		if (ret < 0)
@@ -330,12 +330,12 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!check_flags(fname->kernel_flags))
+		if (!check_flags(fname->flags))
 			return -ENOTSUPP;
 
-		if (fname->kernel_flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
+		if (fname->flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
 			mode = 0666;
-		else if (fname->kernel_flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
+		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
 			mode = 0660;
 
 		ret = kdbus_ns_new(kdbus_ns_init, fname->name, mode, &ns);
@@ -409,19 +409,19 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!check_flags(fname->kernel_flags)) {
+		if (!check_flags(fname->flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (fname->kernel_flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
+		if (fname->flags & KDBUS_CMD_FNAME_ACCESS_WORLD)
 			mode = 0666;
-		else if (fname->kernel_flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
+		else if (fname->flags & KDBUS_CMD_FNAME_ACCESS_GROUP)
 			mode = 0660;
 
 		ret = kdbus_ep_new(conn->ep->bus, fname->name, mode,
 			current_fsuid(), current_fsgid(),
-			fname->kernel_flags & KDBUS_CMD_FNAME_POLICY_OPEN);
+			fname->flags & KDBUS_CMD_FNAME_POLICY_OPEN);
 
 		break;
 	}
@@ -440,12 +440,12 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!check_flags(hello.kernel_flags)) {
+		if (!check_flags(hello.conn_flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		conn->flags = hello.kernel_flags;
+		conn->flags = hello.conn_flags;
 		hello.bus_flags = 0; /* FIXME */
 		hello.id = conn->id;
 
