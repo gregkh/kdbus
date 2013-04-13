@@ -660,6 +660,32 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		}
 	}
 
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CMDLINE) {
+		struct mm_struct *mm = current->mm;
+		char *tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+
+		if (!tmp)
+			return -ENOMEM;
+
+		if (mm && mm->arg_end) {
+			size_t len = mm->arg_end - mm->arg_start;
+
+			if (len > PAGE_SIZE)
+				len = PAGE_SIZE;
+
+			ret = copy_from_user(tmp, (const char __user *) mm->arg_start, len);
+			if (ret == 0) {
+				ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CMDLINE,
+							    tmp, len);
+			}
+		}
+
+		free_page((unsigned long) tmp);
+
+		if (ret < 0)
+			return ret;
+	}
+
 	return 0;
 }
 
