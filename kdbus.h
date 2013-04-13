@@ -217,10 +217,12 @@ enum {
 	KDBUS_CMD_HELLO_ATTACH_AUDIT	=  1 << 16,
 };
 
+/* Flags for kdbus_cmd_bus_make, kdbus_cmd_ep_make and
+ * kdbus_cmd_ns_make */
 enum {
-	KDBUS_CMD_FNAME_ACCESS_GROUP	=  1,
-	KDBUS_CMD_FNAME_ACCESS_WORLD	=  2,
-	KDBUS_CMD_FNAME_POLICY_OPEN	=  4,
+	KDBUS_ACCESS_GROUP	=  1,
+	KDBUS_ACCESS_WORLD	=  2,
+	KDBUS_POLICY_OPEN	=  4,
 };
 
 struct kdbus_cmd_hello {
@@ -252,12 +254,11 @@ struct kdbus_cmd_hello {
 	__u64 id;		/* peer id */
 };
 
-struct kdbus_cmd_fname {
+struct kdbus_cmd_bus_make {
 	__u64 size;
 	__u64 flags;		/* userspace → kernel, kernel → userspace
-				 * When creating a bus/ns/ep feature
-				 * kernel negotiation done the same
-				 * way as for KDBUS_CMD_BUS_MAKE. */
+				 * When creating a bus feature
+				 * kernel negotiation. */
 	__u64 bus_flags;	/* userspace → kernel
 				 * When a bus is created this value is
 				 * copied verbatim into the bus
@@ -267,6 +268,29 @@ struct kdbus_cmd_fname {
 				 * to attach cgroup membership paths
 				 * to messages. 0 if no cgroup data
 				 * shall be attached. */
+	__u64 bloom_size;	/* Size of the bloom filter for this bus. */
+	char name[0];
+};
+
+struct kdbus_cmd_ep_make {
+	__u64 size;
+	__u64 flags;		/* userspace → kernel, kernel → userspace
+				 * When creating an entry point
+				 * feature kernel negotiation done the
+				 * same way as for
+				 * KDBUS_CMD_BUS_MAKE. Unused for
+				 * now. */
+	char name[0];
+};
+
+struct kdbus_cmd_ns_make {
+	__u64 size;
+	__u64 flags;		/* userspace → kernel, kernel → userspace
+				 * When creating an entry point
+				 * feature kernel negotiation done the
+				 * same way as for
+				 * KDBUS_CMD_BUS_MAKE. Unused for
+				 * now. */
 	char name[0];
 };
 
@@ -355,14 +379,14 @@ struct kdbus_cmd_monitor {
  */
 enum kdbus_cmd {
 	/* kdbus control node commands: require unset state */
-	KDBUS_CMD_BUS_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x00, struct kdbus_cmd_fname),
-	KDBUS_CMD_NS_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x10, struct kdbus_cmd_fname),
+	KDBUS_CMD_BUS_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x00, struct kdbus_cmd_bus_make),
+	KDBUS_CMD_NS_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x10, struct kdbus_cmd_ns_make),
 
 	/* kdbus control node commands: require bus owner state */
 	KDBUS_CMD_BUS_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x20, struct kdbus_cmd_policy),
 
 	/* kdbus ep node commands: require unset state */
-	KDBUS_CMD_EP_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x30, struct kdbus_cmd_fname),
+	KDBUS_CMD_EP_MAKE =		_IOWR(KDBUS_IOC_MAGIC, 0x30, struct kdbus_cmd_ep_make),
 	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOC_MAGIC, 0x31, struct kdbus_cmd_hello),
 
 	/* kdbus ep node commands: require connected state */

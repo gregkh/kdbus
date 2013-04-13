@@ -19,6 +19,7 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/hashtable.h>
+#include <linux/uaccess.h>
 
 //#include <uapi/kdbus/kdbus.h>
 
@@ -144,7 +145,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 	}
 
 	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
-			   bus_flags & KDBUS_CMD_FNAME_POLICY_OPEN);
+			   bus_flags & KDBUS_POLICY_OPEN);
 	if (ret < 0)
 		goto ret;
 
@@ -161,4 +162,32 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 ret:
 	kdbus_bus_unref(b);
 	return ret;
+}
+
+int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_make **make)
+{
+	u64 size;
+	struct kdbus_cmd_bus_make *m;
+
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_bus_make))
+		return -EFAULT;
+
+	if (size < sizeof(struct kdbus_cmd_bus_make) + 2)
+		return -EINVAL;
+
+	if (size > sizeof(struct kdbus_cmd_bus_make) + 64)
+		return -ENAMETOOLONG;
+
+	m = memdup_user(buf, size);
+	if (IS_ERR(m))
+		return PTR_ERR(m);
+
+	if (!kdbus_validate_nul(m->name, size - sizeof(struct kdbus_cmd_bus_make))) {
+		kfree(m);
+		return -EINVAL;
+	}
+
+	*make = m;
+
+	return 0;
 }

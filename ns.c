@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/init.h>
+#include <linux/uaccess.h>
 
 #include "kdbus.h"
 
@@ -222,4 +223,32 @@ err_unlock:
 ret:
 	kdbus_ns_unref(n);
 	return ret;
+}
+
+int kdbus_ns_make_user(void __user *buf, struct kdbus_cmd_ns_make **make)
+{
+	u64 size;
+	struct kdbus_cmd_ns_make *m;
+
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ns_make))
+		return -EFAULT;
+
+	if (size < sizeof(struct kdbus_cmd_ns_make) + 2)
+		return -EINVAL;
+
+	if (size > sizeof(struct kdbus_cmd_ns_make) + 64)
+		return -ENAMETOOLONG;
+
+	m = memdup_user(buf, size);
+	if (IS_ERR(m))
+		return PTR_ERR(m);
+
+	if (!kdbus_validate_nul(m->name, size - sizeof(struct kdbus_cmd_ns_make))) {
+		kfree(m);
+		return -EINVAL;
+	}
+
+	*make = m;
+
+	return 0;
 }

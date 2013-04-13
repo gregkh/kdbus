@@ -303,6 +303,7 @@ struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
+int kdbus_ns_make_user(void __user *buf, struct kdbus_cmd_ns_make **make);
 
 /* bus */
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
@@ -312,6 +313,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus);
 void kdbus_bus_scan_timeout_list(struct kdbus_bus *bus);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
+int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_make **make);
 
 /* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
@@ -321,6 +323,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		 umode_t mode, kuid_t uid, kgid_t gid, bool policy);
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
+int kdbus_ep_make_user(void __user *buf, struct kdbus_cmd_ep_make **make);
 
 /* connection */
 void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn);

@@ -51,9 +51,9 @@ static void add_fd(int fd)
 static int make_bus(void)
 {
 	struct {
-		struct kdbus_cmd_fname head;
+		struct kdbus_cmd_bus_make head;
 		char name[64];
-	} fname;
+	} bus_make;
 	char name[10];
 	char *bus;
 	unsigned int i;
@@ -73,19 +73,19 @@ static int make_bus(void)
 	for(i = 0; i < sizeof(name) - 1; i++)
 		name[i] =( random() % ('z' - 'a')) + 'a';
 
-	memset(&fname, 0, sizeof(fname));
-	snprintf(fname.name, sizeof(fname.name), "%u-%s", getuid(), name);
-	fname.head.flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
-	fname.head.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
+	memset(&bus_make, 0, sizeof(bus_make));
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s", getuid(), name);
+	bus_make.head.flags = KDBUS_ACCESS_WORLD;
+	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
 
-	printf("-- creating bus '%s'\n", fname.name);
-	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &fname);
+	printf("-- creating bus '%s'\n", bus_make.name);
+	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &bus_make);
 	if (ret) {
 		fprintf(stderr, "--- error %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
-	if (asprintf(&bus, "/dev/kdbus/%s/bus", fname.name) < 0)
+	if (asprintf(&bus, "/dev/kdbus/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
 	for (ret = 0; ret < random() % 20; ret++) {

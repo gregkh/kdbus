@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/init.h>
+#include <linux/uaccess.h>
 
 #include "kdbus_internal.h"
 
@@ -210,5 +211,33 @@ int kdbus_ep_remove(struct kdbus_ep *ep)
 	kdbus_ep_unref(ep);
 	mutex_unlock(&bus->ns->lock);
 	kdbus_bus_unref(bus);
+	return 0;
+}
+
+int kdbus_ep_make_user(void __user *buf, struct kdbus_cmd_ep_make **make)
+{
+	u64 size;
+	struct kdbus_cmd_ep_make *m;
+
+	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ep_make))
+		return -EFAULT;
+
+	if (size < sizeof(struct kdbus_cmd_ep_make) + 2)
+		return -EINVAL;
+
+	if (size > sizeof(struct kdbus_cmd_ep_make) + 64)
+		return -ENAMETOOLONG;
+
+	m = memdup_user(buf, size);
+	if (IS_ERR(m))
+		return PTR_ERR(m);
+
+	if (!kdbus_validate_nul(m->name, size - sizeof(struct kdbus_cmd_ep_make))) {
+		kfree(m);
+		return -EINVAL;
+	}
+
+	*make = m;
+
 	return 0;
 }

@@ -20,9 +20,9 @@
 int main(int argc, char *argv[])
 {
 	struct {
-		struct kdbus_cmd_fname head;
+		struct kdbus_cmd_bus_make head;
 		char name[64];
-	} fname;
+	} bus_make;
 	int fd_owner;
 	char *bus;
 	struct conn *conn;
@@ -38,25 +38,25 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	memset(&fname, 0, sizeof(fname));
-	snprintf(fname.name, sizeof(fname.name), "%u-test", getuid());
-	fname.head.flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
-	fname.head.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
+	memset(&bus_make, 0, sizeof(bus_make));
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-test", getuid());
+	bus_make.head.flags = KDBUS_ACCESS_WORLD;
+	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
 
-	ret = ioctl(fd_owner, KDBUS_CMD_BUS_MAKE, &fname);
+	ret = ioctl(fd_owner, KDBUS_CMD_BUS_MAKE, &bus_make);
 	if (ret) {
 		fprintf(stderr, "KDBUS_CMD_BUS_MAKE: %m\n");
 		return EXIT_FAILURE;
 	}
-	printf("  Created bus '%s'\n", fname.name);
+	printf("  Created bus '%s'\n", bus_make.name);
 
-	if (asprintf(&bus, "/dev/kdbus/%s/bus", fname.name) < 0)
+	if (asprintf(&bus, "/dev/kdbus/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
 	conn = connect_to_bus(bus);
 	if (!conn)
 		return EXIT_FAILURE;
-	printf("  Created connection %llu on bus '%s'\n", (unsigned long long)conn->id, fname.name);
+	printf("  Created connection %llu on bus '%s'\n", (unsigned long long)conn->id, bus_make.name);
 
 	name_acquire(conn, "org.freedesktop.kdbus", 0);
 	printf("  Aquired name: org.freedesktop.kdbus\n");

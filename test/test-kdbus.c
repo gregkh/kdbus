@@ -100,9 +100,9 @@ static int upload_policy(int fd)
 int main(int argc, char *argv[])
 {
 	struct {
-		struct kdbus_cmd_fname head;
+		struct kdbus_cmd_bus_make head;
 		char name[64];
-	} fname;
+	} bus_make;
 	int fdc, ret, cookie;
 	char *bus;
 	struct conn *conn_a, *conn_b;
@@ -116,19 +116,19 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	memset(&fname, 0, sizeof(fname));
-	snprintf(fname.name, sizeof(fname.name), "%u-testbus", getuid());
-	fname.head.flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
-	fname.head.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
+	memset(&bus_make, 0, sizeof(bus_make));
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
+	bus_make.head.flags = KDBUS_ACCESS_WORLD;
+	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
 
-	printf("-- creating bus '%s'\n", fname.name);
-	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &fname);
+	printf("-- creating bus '%s'\n", bus_make.name);
+	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &bus_make);
 	if (ret) {
 		fprintf(stderr, "--- error %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
-	if (asprintf(&bus, "/dev/kdbus/%s/bus", fname.name) < 0)
+	if (asprintf(&bus, "/dev/kdbus/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
 	conn_a = connect_to_bus(bus);
