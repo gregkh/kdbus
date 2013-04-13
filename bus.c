@@ -102,7 +102,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 	return bus;
 }
 
-int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
+int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags, u64 bloom_size,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus)
 {
 	char prefix[16];
@@ -127,6 +127,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags,
 	kref_init(&b->kref);
 	b->ns = ns;
 	b->bus_flags = bus_flags;
+	b->bloom_size = bloom_size;
 	/* connection 0 == kernel */
 	b->conn_id_next = 1;
 	mutex_init(&b->lock);

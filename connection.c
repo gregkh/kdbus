@@ -287,6 +287,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 			mode = 0660;
 
 		ret = kdbus_bus_new(conn->ns, bus_make->name, bus_make->flags,
+				    bus_make->bloom_size,
 				    mode, current_fsuid(), current_fsgid(),
 				    &bus);
 		if (ret < 0)
@@ -420,7 +421,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		conn->flags = hello.conn_flags;
-		hello.bus_flags = 0; /* FIXME */
+		hello.bus_flags = conn->ep->bus->bus_flags;
+		hello.bloom_size = conn->ep->bus->bloom_size;
 		hello.id = conn->id;
 
 		if (copy_to_user(buf, &hello, sizeof(hello))) {
