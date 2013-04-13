@@ -48,11 +48,6 @@ struct kdbus_creds {
 	__u64 starttime;
 };
 
-struct kdbus_comm {
-	char pid_comm[TASK_COMM_LEN];
-	char tid_comm[TASK_COMM_LEN];
-};
-
 struct kdbus_audit {
 	__u64 sessionid;
 	__u64 loginuid;
@@ -72,19 +67,20 @@ enum {
 	KDBUS_MSG_MMAP,			/* .data_vec */
 	KDBUS_MSG_MMAP_DONATE,		/* .data_vec, unmap the memory from the sender */
 	KDBUS_MSG_UNIX_FDS,		/* .data_fds of file descriptors */
-	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob */
-	KDBUS_MSG_DST_NAME,		/* destination's well-known name */
+	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob in .data */
+	KDBUS_MSG_DST_NAME,		/* destination's well-known name, in .str */
 
 	/* Filled in by kernelspace */
 	KDBUS_MSG_SRC_NAMES	= 0x200,/* NUL separated string list with well-known names of source */
 	KDBUS_MSG_TIMESTAMP,		/* .ts_ns of CLOCK_MONOTONIC */
 	KDBUS_MSG_SRC_CREDS,		/* .creds */
-	KDBUS_MSG_SRC_COMM,		/* .comm */
-	KDBUS_MSG_SRC_EXE,		/* optional */
-	KDBUS_MSG_SRC_CMDLINE,		/* optional */
-	KDBUS_MSG_SRC_CGROUP,		/* optional, specified which one */
-	KDBUS_MSG_SRC_CAPS,		/* caps data blob */
-	KDBUS_MSG_SRC_SECLABEL,		/* NUL terminated string */
+	KDBUS_MSG_SRC_PID_COMM,		/* optional, in .str */
+	KDBUS_MSG_SRC_TID_COMM,		/* optional, in .str */
+	KDBUS_MSG_SRC_EXE,		/* optional, in .str */
+	KDBUS_MSG_SRC_CMDLINE,		/* optional, in .str (a chain of NUL str) */
+	KDBUS_MSG_SRC_CGROUP,		/* optional, in .str */
+	KDBUS_MSG_SRC_CAPS,		/* caps data blob, in .data */
+	KDBUS_MSG_SRC_SECLABEL,		/* NUL terminated string, in .str */
 	KDBUS_MSG_SRC_AUDIT,		/* .audit */
 
 	/* Special messages from kernel, consisting of one and only one of these data blocks */
@@ -126,7 +122,6 @@ struct kdbus_msg_data {
 		int fds[0];				/* int array of file descriptors */
 		__u64 ts_ns;				/* timestamp in nanoseconds */
 		struct kdbus_creds creds;
-		struct kdbus_comm comm;
 		struct kdbus_audit audit;
 		struct kdbus_manager_msg_name_change name_change;
 		struct kdbus_manager_msg_id_change id_change;
