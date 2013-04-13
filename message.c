@@ -306,13 +306,6 @@ unwind:
 	return -EBADF;
 }
 
-static int kdbus_copy_user_mmap(struct kdbus_kmsg *kmsg,
-				const struct kdbus_msg_data *data,
-				bool donate)
-{
-	return -ENOSYS;
-}
-
 /*
  * Check the validity of a message. The general layout of the received message
  * is not altered before it is delivered.
@@ -363,14 +356,6 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD_VEC:
 			ret = kdbus_copy_user_payload(kmsg, data);
-			if (ret < 0)
-				goto out_err;
-			break;
-
-		case KDBUS_MSG_MMAP:
-		case KDBUS_MSG_MMAP_DONATE:
-			ret = kdbus_copy_user_mmap(kmsg, data,
-					data->type == KDBUS_MSG_MMAP_DONATE);
 			if (ret < 0)
 				goto out_err;
 			break;
@@ -561,8 +546,6 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 
 	if (kmsg->fds && !(conn->flags & KDBUS_CMD_HELLO_ACCEPT_FD))
 		return -EINVAL;
-
-	/* fixme: check for mmap allowance */
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
