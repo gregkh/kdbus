@@ -120,6 +120,7 @@ int main(int argc, char *argv[])
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.head.flags = KDBUS_ACCESS_WORLD;
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
+	bus_make.head.bloom_size = 8;
 
 	printf("-- creating bus '%s'\n", bus_make.name);
 	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &bus_make);

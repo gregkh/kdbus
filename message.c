@@ -107,6 +107,7 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_msg_data *data;
+	int num_records = 0;
 	int num_payloads = 0;
 	int num_fds = 0;
 	bool has_fds = false;
@@ -118,6 +119,9 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		/* Ensure we actually have some data */
 		if (data->size <= KDBUS_MSG_DATA_HEADER_SIZE)
 			return -EINVAL;
+
+		if (++num_records > 512)
+			return -E2BIG;
 
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD:
@@ -136,13 +140,17 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		case KDBUS_MSG_UNIX_FDS:
 			/* do not allow to broadcast file descriptors */
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
-				return -EINVAL;
+				return -ENOTUNIQ;
 
 			/* do not allow multiple fd arrays */
 			if (has_fds)
 				return -EEXIST;
 			has_fds = true;
+
 			num_fds = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / sizeof(int);
+			if (num_fds > 256)
+				return -EMFILE;
+
 			break;
 
 		case KDBUS_MSG_BLOOM:
@@ -197,9 +205,6 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 	if (has_fds) {
 		struct kdbus_fds *fds;
 		int i;
-
-		if (num_fds > 256)
-			return -EINVAL;
 
 		fds = kzalloc(sizeof(struct kdbus_fds) +
 			      (num_fds * sizeof(struct file *)), GFP_KERNEL);
@@ -684,11 +689,8 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 		const struct kdbus_name_entry *name_entry;
 
 		name_data = kdbus_msg_get_data(msg, KDBUS_MSG_DST_NAME, 0);
-		if (!name_data) {
-			pr_err("message %llu does not contain KDBUS_MSG_DST_NAME\n",
-				(unsigned long long) msg->cookie);
-			return -EINVAL;
-		}
+		if (!name_data)
+			return -EDESTADDRREQ;
 
 		/* lookup and determine conn_dst ... */
 		name_entry = kdbus_name_lookup(ep->bus->name_registry,
