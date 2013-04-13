@@ -199,8 +199,10 @@ void msg_dump(struct kdbus_msg *msg)
 			break;
 
 		case KDBUS_MSG_TIMESTAMP:
-			printf("  +%s (%llu bytes) %llu ns\n",
-			       enum_MSG(data->type), data->size, (unsigned long long)data->ts_ns);
+			printf("  +%s (%llu bytes) realtime=%lluns monotonic=%lluns\n",
+			       enum_MSG(data->type), data->size,
+			       (unsigned long long)data->timestamp.realtime_ns,
+			       (unsigned long long)data->timestamp.monotonic_ns);
 			break;
 
 		case KDBUS_MSG_REPLY_TIMEOUT:
@@ -220,9 +222,10 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_ID_ADD:
 		case KDBUS_MSG_ID_REMOVE:
 		case KDBUS_MSG_ID_CHANGE:
-			printf("  +%s (%llu bytes) %llu\n",
+			printf("  +%s (%llu bytes) id=%llu flags=%llu\n",
 			       enum_MSG(data->type), (unsigned long long) data->size,
-			       (unsigned long long) data->data_u64[0]);
+			       (unsigned long long) data->id_change.id,
+			       (unsigned long long) data->id_change.flags);
 			break;
 
 		default:
