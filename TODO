@@ -41,6 +41,7 @@ External API:
     with changes later on?
   - need to check that all incoming strings are NUL terminated and
     contain no NULs in the middle, kdbus_validate_nul()!
+  - check used -E... error codes, keep -EINVAL at a minimum
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
