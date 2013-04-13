@@ -502,7 +502,7 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg,
 	if (len == 0)
 		return 0;
 
-	size = len + KDBUS_MSG_DATA_SIZE(0);
+	size = KDBUS_MSG_DATA_SIZE(len);
 	data = kdbus_kmsg_append_metadata(kmsg, size);
 	if (!data)
 		return -ENOMEM;
@@ -532,7 +532,7 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 	if (strsize == 0)
 		goto exit_unlock;
 
-	size = strsize + KDBUS_MSG_DATA_SIZE(0);
+	size = KDBUS_MSG_DATA_SIZE(strsize);
 	data = kdbus_kmsg_append_metadata(kmsg, size);
 	if (!data) {
 		ret = -ENOMEM;
