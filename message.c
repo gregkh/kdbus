@@ -103,7 +103,7 @@ int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m)
 	return 0;
 }
 
-static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
+static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_msg_data *data;
@@ -153,6 +153,11 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 			/* do not allow multiple bloom filters */
 			if (has_bloom)
 				return -EEXIST;
+
+			/* do not allow mismatching bloom filter sizes */
+			if (data->size - KDBUS_MSG_DATA_HEADER_SIZE != conn->ep->bus->bloom_size)
+				return -EDOM;
+
 			has_bloom = true;
 			break;
 
@@ -342,7 +347,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	}
 
 	/* check validity and prepare handling of reference data records */
-	ret = kdbus_msg_scan_data(kmsg);
+	ret = kdbus_msg_scan_data(conn, kmsg);
 	if (ret < 0)
 		goto out_err;
 
