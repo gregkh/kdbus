@@ -38,8 +38,8 @@
 
 #define KDBUS_MSG_DATA_FOREACH(msg, data)				\
 	for ((data) = (msg)->data;					\
-	     (char*) (data) + KDBUS_MSG_DATA_HEADER_SIZE <= (char*) (msg) + (msg)->size && \
-	     (char*) (data) + (data)->size <= (char*) (msg) + (msg)->size; \
+	     (char *)(data) + KDBUS_MSG_DATA_HEADER_SIZE <= (char *)(msg) + (msg)->size && \
+	     (char *)(data) + (data)->size <= (char *)(msg) + (msg)->size; \
 	     data = KDBUS_MSG_DATA_NEXT(data))
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg);
@@ -170,7 +170,7 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 	}
 
 	/* expect correct padding and size values */
-	if ((char*) data - ((char*) msg + msg->size) >= 8)
+	if ((char *)data - ((char *)msg + msg->size) >= 8)
 		return -EINVAL;
 
 	/* broadcast messages require a bloom filter */

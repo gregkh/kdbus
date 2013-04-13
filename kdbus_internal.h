@@ -36,7 +36,7 @@
 
 static inline bool kdbus_validate_nul(const char *s, size_t l)
 {
-	return l > 0 && memchr(s, '\0', l) == s + l -1;
+	return l > 0 && memchr(s, '\0', l) == s + l - 1;
 }
 
 /*
