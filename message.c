@@ -627,25 +627,27 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		struct path *exe_path = NULL;
 
 		if (mm) {
-			struct file *exe_file = NULL;
-
 			down_read(&mm->mmap_sem);
-			exe_file = mm->exe_file;
-			if (exe_file) {
-				path_get(&exe_file->f_path);
-				exe_path = &exe_file->f_path;
+			if (mm->exe_file) {
+				path_get(&mm->exe_file->f_path);
+				exe_path = &mm->exe_file->f_path;
 			}
 			up_read(&mm->mmap_sem);
 			mmput(mm);
 		}
 
 		if (exe_path) {
-			char *tmp = (char *) __get_free_page(GFP_TEMPORARY);
+			char *tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 			char *pathname = d_path(exe_path, tmp, PAGE_SIZE);
 			int len = PTR_ERR(pathname);
 
+			if (!tmp) {
+				path_put(exe_path);
+				return -ENOMEM;
+			}
+
 			if (!IS_ERR(pathname)) {
-				len = tmp + PAGE_SIZE - 1 - pathname;
+				len = tmp + PAGE_SIZE - pathname;
 				ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_EXE,
 							    pathname, len);
 			}
@@ -728,9 +730,12 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 				return ret;
 		}
 
-		ret = kdbus_msg_append_for_dst(kmsg, conn_src, conn_dst);
-		if (ret < 0)
-			return ret;
+		/* direct message */
+		if (conn_src) {
+			ret = kdbus_msg_append_for_dst(kmsg, conn_src, conn_dst);
+			if (ret < 0)
+				return ret;
+		}
 
 		if (msg->timeout_ns)
 			kmsg->deadline_ns = now_ns + msg->timeout_ns;
