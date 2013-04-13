@@ -45,6 +45,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 
 	kmsg->msg.dst_id = dst_id;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
+	kmsg->msg.payload_type = KDBUS_PAYLOAD_NONE;
 	kmsg->msg.cookie_reply = orig_msg->cookie;
 
 	data = kmsg->msg.data;
