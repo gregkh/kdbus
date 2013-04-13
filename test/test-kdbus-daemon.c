@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
 
 	memset(&fname, 0, sizeof(fname));
 	snprintf(fname.name, sizeof(fname.name), "%u-test", getuid());
-	fname.head.kernel_flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
+	fname.head.flags = KDBUS_CMD_FNAME_ACCESS_WORLD;
 	fname.head.size = sizeof(struct kdbus_cmd_fname) + strlen(fname.name) + 1;
 
 	ret = ioctl(fd_owner, KDBUS_CMD_BUS_MAKE, &fname);

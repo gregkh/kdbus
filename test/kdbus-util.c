@@ -257,7 +257,7 @@ int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 	memset(cmd_name, 0, size);
 	strcpy(cmd_name->name, name);
 	cmd_name->size = size;
-	cmd_name->flags = flags;
+	cmd_name->conn_flags = flags;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (ret) {
@@ -265,7 +265,7 @@ int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 		return EXIT_FAILURE;
 	}
 
-	printf("%s(): flags after call: 0x%llx\n", __func__, cmd_name->flags);
+	printf("%s(): flags after call: 0x%llx\n", __func__, cmd_name->conn_flags);
 
 	return 0;
 }
