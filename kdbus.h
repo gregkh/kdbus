@@ -250,6 +250,8 @@ struct kdbus_cmd_hello {
 				 * to do negotiation of features of
 				 * the payload that is transfreted. */
 	__u64 id;		/* peer id */
+	__u64 bloom_size;	/* The bloom filter size chosen by the
+				 * bus owner */
 };
 
 struct kdbus_cmd_bus_make {
