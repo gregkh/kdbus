@@ -359,6 +359,7 @@ int kdbus_name_list(struct kdbus_name_registry *reg,
 		size += sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
 
 	if (size > user_size) {
+		kdbus_size_set_user(size, buf, struct kdbus_cmd_names);
 		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
