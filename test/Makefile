@@ -6,7 +6,7 @@ TESTS=test-kdbus test-kdbus-daemon test-kdbus-fuzz
 
 all: $(TESTS)
 
-%.o: %.c
+%.o: %.c ../kdbus.h
 	@echo '  TARGET_CC $@'
 	@$(CC) $(CFLAGS) -c $< -o $@
 
