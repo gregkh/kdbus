@@ -9,6 +9,7 @@ Message Buffering:
     PAYLOAD_VEC can be larger, kmalloc is limited to < 128k, handle that
     with mmap or vmalloc().
   - pass along mmap() of process data, instead of copying them
+  - when recv fails due to too small user buffer return real size
 
 Security:
   - let HELLO specify if fds or mmaps() are accepted to
@@ -64,9 +65,3 @@ API Question:
   Yet client (C) comes along, sending a message with KDBUS_MSG_FLAGS_NO_AUTO_START
   NOT send in flags. That message will be rejected, even though client A already
   started the service.
-
-Ryan's ideas:
-  allow HELLO to change unique names
-  allow HELLO without assigning a unique name at all
-  when receive fails due to too small buffer return real size
-  when receiving maybe allow read-only mmaping into recieving process memory space or so?

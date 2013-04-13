@@ -63,9 +63,7 @@ enum {
 	/* Filled in by userspace */
 	KDBUS_MSG_NULL,			/* empty record */
 	KDBUS_MSG_PAYLOAD,		/* .data */
-	KDBUS_MSG_PAYLOAD_VEC,		/* .data_vec, converted into _PAYLOAD at delivery */
-	KDBUS_MSG_MMAP,			/* .data_vec */
-	KDBUS_MSG_MMAP_DONATE,		/* .data_vec, unmap the memory from the sender */
+	KDBUS_MSG_PAYLOAD_VEC,		/* .data_vec */
 	KDBUS_MSG_UNIX_FDS,		/* .data_fds of file descriptors */
 	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob in .data */
 	KDBUS_MSG_DST_NAME,		/* destination's well-known name, in .str */
