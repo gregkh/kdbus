@@ -471,7 +471,7 @@ static int __must_check
 kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 {
 	struct kdbus_msg_data *data;
-	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(u64));
+	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(struct kdbus_timestamp));
 	struct timespec ts;
 
 	data = kdbus_kmsg_append_metadata(kmsg, size);
