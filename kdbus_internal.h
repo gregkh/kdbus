@@ -24,13 +24,13 @@
 //FIXME: intentionally broken to make ARM's missing get_user() work
 #define kdbus_size_get_user(_s, _b, _t) \
 ({ \
-	size_t __user *_sz = _b + offsetof(typeof(_t), size); \
+	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
 	get_user(_s, _sz); \
 })
 
 #define kdbus_size_set_user(_s, _b, _t) \
 ({ \
-	size_t __user *_sz = _b + offsetof(typeof(_t), size); \
+	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
 	put_user(_s, _sz); \
 })
 
