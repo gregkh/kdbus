@@ -41,8 +41,11 @@ static char *kdbus_devnode_control(struct device *dev, umode_t *mode
 		)
 #endif
 {
+	struct kdbus_ns *ns = dev_get_drvdata(dev);
+
 	if (mode)
-		*mode = 0666;
+		*mode = ns->mode;
+
 	return NULL;
 }
 
@@ -146,6 +149,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 
 	INIT_LIST_HEAD(&n->bus_list);
 	kref_init(&n->kref);
+	n->mode = mode;
 	idr_init(&n->idr);
 	mutex_init(&n->lock);
 

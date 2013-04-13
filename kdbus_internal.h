@@ -57,6 +57,7 @@ struct kdbus_ns {
 	u64 id;				/* global id of this namespace */
 	const char *devpath;		/* /dev base directory path */
 	int major;			/* device major number for all nodes */
+	umode_t mode;			/* device node access mode */
 	struct idr idr;			/* map of endpoint minors to buses */
 	struct device *dev;		/* control device node, minor == 0 */
 	struct mutex lock;		/* ns data lock */

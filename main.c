@@ -44,7 +44,7 @@ static int __init kdbus_init(void)
 	if (ret < 0)
 		return ret;
 
-	ret = kdbus_ns_new(NULL, NULL, 0, &kdbus_ns_init);
+	ret = kdbus_ns_new(NULL, NULL, 0666, &kdbus_ns_init);
 	if (ret < 0) {
 		bus_unregister(&kdbus_subsys);
 		pr_err("failed to initialize ret=%i\n", ret);
