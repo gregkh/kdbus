@@ -5,7 +5,9 @@ Bugs:
     to work around this issue
 
 Message Buffering:
-  - kmalloc is limited to < 128k
+  - the maximum message size is 64k, which is fine. But references in
+    PAYLOAD_VEC can be larger, kmalloc is limited to < 128k, handle that
+    with mmap or vmalloc().
   - pass along mmap() of process data, instead of copying them
 
 Security:

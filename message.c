@@ -106,10 +106,11 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_msg_data *data;
-	int num_fds = 0;
 	int num_payloads = 0;
-	bool name = false;
-	bool bloom = false;
+	int num_fds = 0;
+	bool has_fds = false;
+	bool has_name = false;
+	bool has_bloom = false;
 	int ret;
 
 	KDBUS_MSG_DATA_FOREACH(msg, data) {
@@ -135,7 +136,12 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 			/* do not allow to broadcast file descriptors */
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -EINVAL;
-			num_fds += (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / sizeof(int);
+
+			/* do not allow multiple fd arrays */
+			if (has_fds)
+				return -EEXIST;
+			has_fds = true;
+			num_fds = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / sizeof(int);
 			break;
 
 		case KDBUS_MSG_BLOOM:
@@ -144,16 +150,16 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 				return -EINVAL;
 
 			/* do not allow multiple bloom filters */
-			if (bloom)
+			if (has_bloom)
 				return -EEXIST;
-			bloom = true;
+			has_bloom = true;
 			break;
 
 		case KDBUS_MSG_DST_NAME:
 			/* do not allow multiple names */
-			if (name)
+			if (has_name)
 				return -EEXIST;
-			name = true;
+			has_name = true;
 
 			/* enforce NUL-terminated strings */
 			if (!kdbus_validate_nul(data->str, data->size - KDBUS_MSG_DATA_HEADER_SIZE))
@@ -174,20 +180,20 @@ static int kdbus_msg_scan_data(struct kdbus_kmsg *kmsg)
 		return -EINVAL;
 
 	/* broadcast messages require a bloom filter */
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST && !bloom)
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST && !has_bloom)
 		return -EINVAL;
 
 	/* bloom filters are for undirected messages only */
-	if (name && bloom)
+	if (has_name && has_bloom)
 		return -EINVAL;
 
 	/* allocate array for file descriptors */
-	if (num_fds > 256)
-		return -EINVAL;
-
-	if (num_fds > 0) {
+	if (has_fds) {
 		struct kdbus_fds *fds;
 		int i;
+
+		if (num_fds > 256)
+			return -EINVAL;
 
 		fds = kzalloc(sizeof(struct kdbus_fds) +
 			      (num_fds * sizeof(struct file *)), GFP_KERNEL);
