@@ -195,11 +195,11 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 
 	/* broadcast messages require a bloom filter */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST && !has_bloom)
-		return -EINVAL;
+		return -EBADMSG;
 
 	/* bloom filters are for undirected messages only */
 	if (has_name && has_bloom)
-		return -EINVAL;
+		return -EBADMSG;
 
 	/* allocate array for file descriptors */
 	if (has_fds) {
@@ -228,7 +228,7 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 
 	/* allocate array for payload references */
 	if (num_payloads > 256)
-		return -EINVAL;
+		return -E2BIG;
 
 	if (num_payloads > 0) {
 		struct kdbus_payload *pls;
@@ -578,7 +578,7 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	/* TODO: implement filtering */
 
 	if (kmsg->fds && !(conn->flags & KDBUS_CMD_HELLO_ACCEPT_FD))
-		return -EINVAL;
+		return -ECOMM;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
@@ -713,6 +713,8 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (conn_dst) {
+		/* direct message */
+
 		/* check policy */
 		if (ep->policy_db && conn_src) {
 			ret = kdbus_policy_db_check_send_access(ep->policy_db,
@@ -721,8 +723,6 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 			if (ret < 0)
 				return ret;
 		}
-
-		/* direct message */
 
 		ret = kdbus_msg_append_for_dst(kmsg, conn_src, conn_dst);
 		if (ret < 0)
@@ -737,9 +737,10 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 			kdbus_conn_schedule_timeout_scan(conn_dst);
 	} else {
 		/* broadcast */
+
 		/* timeouts are not allowed for broadcasts */
 		if (msg->timeout_ns)
-			return -EINVAL;
+			return -ENOTUNIQ;
 
 		list_for_each_entry(conn_dst, &ep->connection_list,
 				    connection_entry) {

@@ -112,7 +112,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags, u64 bloo
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-", from_kuid(current_user_ns(), uid));
 	if (strncmp(name, prefix, strlen(prefix) != 0))
-		return -EINVAL;
+		return -EPERM;
 
 	b = kdbus_bus_find(ns, name);
 	if (b) {

@@ -353,7 +353,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	/* We need a connection before we can do anything with an ioctl */
 	if (!conn)
-		return -EINVAL;
+		return -ENOTCONN;
 
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
@@ -438,7 +438,9 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
 		if (!conn->ep->policy_db)
-			return -EINVAL;
+			conn->ep->policy_db = kdbus_policy_db_new();
+		if (!conn->ep->policy_db)
+			return -ENOMEM;
 
 		ret = kdbus_policy_set_from_user(conn->ep->policy_db, buf);
 
@@ -537,7 +539,7 @@ static long kdbus_conn_ioctl(struct file *file, unsigned int cmd,
 		return kdbus_conn_ioctl_ep(file, cmd, argp);
 
 	default:
-		return -EINVAL;
+		return -EBADFD;
 	}
 }
 
