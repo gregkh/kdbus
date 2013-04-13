@@ -22,6 +22,7 @@
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <linux/file.h>
+#include <linux/mm.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"
@@ -478,6 +479,28 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 	return 0;
 }
 
+static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg,
+				 u64 type, const char *str, size_t len)
+{
+	struct kdbus_msg_data *data;
+	u64 size;
+
+	if (len == 0)
+		return 0;
+
+	size = len + KDBUS_MSG_DATA_SIZE(0);
+	data = kdbus_kmsg_append_metadata(kmsg, size);
+	if (!data)
+		return -ENOMEM;
+
+	data->type = type;
+	data->size = size;
+
+	memcpy(data->str, str, len);
+
+	return 0;
+}
+
 static int __must_check
 kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 			    struct kdbus_conn *conn)
@@ -563,6 +586,67 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
+static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
+				    struct kdbus_conn *conn_src,
+				    struct kdbus_conn *conn_dst)
+{
+	int ret = 0;
+
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_COMM) {
+		char comm[TASK_COMM_LEN];
+
+		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_TID_COMM,
+					    get_task_comm(comm, current->group_leader),
+					    sizeof(comm));
+		if (ret < 0)
+			return ret;
+
+		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_PID_COMM,
+					    get_task_comm(comm, current),
+					    sizeof(comm));
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_EXE) {
+		struct mm_struct *mm = get_task_mm(current);
+		struct path *exe_path = NULL;
+
+		if (mm) {
+			struct file *exe_file = NULL;
+
+			down_read(&mm->mmap_sem);
+			exe_file = mm->exe_file;
+			if (exe_file) {
+				path_get(&exe_file->f_path);
+				exe_path = &exe_file->f_path;
+			}
+			up_read(&mm->mmap_sem);
+			mmput(mm);
+		}
+
+		if (exe_path) {
+			char *tmp = (char *) __get_free_page(GFP_TEMPORARY);
+			char *pathname = d_path(exe_path, tmp, PAGE_SIZE);
+			int len = PTR_ERR(pathname);
+
+			if (!IS_ERR(pathname)) {
+				len = tmp + PAGE_SIZE - 1 - pathname;
+				ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_EXE,
+							    pathname, len);
+			}
+
+			free_page((unsigned long) tmp);
+			path_put(exe_path);
+
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
 int kdbus_kmsg_send(struct kdbus_ep *ep,
 		    struct kdbus_conn *conn_src,
 		    struct kdbus_kmsg *kmsg)
@@ -632,6 +716,11 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 		}
 
 		/* direct message */
+
+		ret = kdbus_msg_append_for_dst(kmsg, conn_src, conn_dst);
+		if (ret < 0)
+			return ret;
+
 		if (msg->timeout_ns)
 			kmsg->deadline_ns = now_ns + msg->timeout_ns;
 

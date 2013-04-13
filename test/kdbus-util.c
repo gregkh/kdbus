@@ -42,6 +42,11 @@ struct conn *connect_to_bus(const char *path)
 	}
 
 	memset(&hello, 0, sizeof(hello));
+
+	hello.conn_flags = KDBUS_CMD_HELLO_ATTACH_COMM |
+			   KDBUS_CMD_HELLO_ATTACH_EXE  |
+			   KDBUS_CMD_HELLO_ATTACH_CMDLINE;
+
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	if (ret) {
 		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
@@ -179,6 +184,11 @@ void msg_dump(struct kdbus_msg *msg)
 				data->creds.starttime);
 			break;
 
+		case KDBUS_MSG_SRC_PID_COMM:
+		case KDBUS_MSG_SRC_TID_COMM:
+		case KDBUS_MSG_SRC_EXE:
+		case KDBUS_MSG_SRC_CMDLINE:
+		case KDBUS_MSG_SRC_CGROUP:
 		case KDBUS_MSG_SRC_CAPS:
 		case KDBUS_MSG_SRC_SECLABEL:
 		case KDBUS_MSG_SRC_AUDIT:
