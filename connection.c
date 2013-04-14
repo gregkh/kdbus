@@ -96,7 +96,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	if (!ns || ns->disconnected) {
 		kfree(conn);
 		mutex_unlock(&kdbus_subsys_lock);
-		return -ENOTCONN;
+		return -ESHUTDOWN;
 	}
 	conn->ns = kdbus_ns_ref(ns);
 	file->private_data = conn;
@@ -115,7 +115,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	mutex_lock(&conn->ns->lock);
 	ep = idr_find(&conn->ns->idr, MINOR(inode->i_rdev));
 	if (!ep || ep->disconnected) {
-		ret = -ENOTCONN;
+		ret = -ESHUTDOWN;
 		goto err_unlock;
 	}
 

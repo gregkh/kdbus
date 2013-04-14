@@ -395,7 +395,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
 	if (!e)
-		ret = -ENXIO;
+		ret = -ESRCH;
 	else if (e->conn != conn)
 		ret = -EPERM;
 	else

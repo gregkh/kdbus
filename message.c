@@ -194,6 +194,15 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 	if ((char *)data - ((char *)msg + msg->size) >= 8)
 		return -EINVAL;
 
+	/* name is needed for broadcast */
+	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME && !has_name)
+		return -EDESTADDRREQ;
+
+	/* name and ID should not be given at the same time */
+	if (msg->dst_id > KDBUS_DST_ID_WELL_KNOWN_NAME &&
+	    msg->dst_id < KDBUS_DST_ID_BROADCAST && has_name)
+		return -EBADMSG;
+
 	/* broadcast messages require a bloom filter */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST && !has_bloom)
 		return -EBADMSG;
@@ -783,21 +792,20 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 		/* lookup and determine conn_dst ... */
 		name_entry = kdbus_name_lookup(ep->bus->name_registry,
 					       name_data->data, 0);
-		if (name_entry)
-			conn_dst = name_entry->conn;
+		if (!name_entry)
+			return -ESRCH;
 
-		if (!conn_dst)
-			return -ENOENT;
+		conn_dst = name_entry->conn;
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
 		    (conn_dst->flags & KDBUS_CMD_HELLO_STARTER))
-			return -ENOENT;
+			return -EADDRNOTAVAIL;
 
 	} else if (msg->dst_id != KDBUS_DST_ID_BROADCAST) {
 		/* direct message */
 		conn_dst = kdbus_bus_find_conn_by_id(ep->bus, msg->dst_id);
 		if (!conn_dst)
-			return -ENOENT;
+			return -ENXIO;
 	}
 
 	if (conn_dst) {

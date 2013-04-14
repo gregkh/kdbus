@@ -37,7 +37,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 
 	dst_conn = kdbus_bus_find_conn_by_id(ep->bus, dst_id);
 	if (!dst_conn)
-		return -ENOENT;
+		return -ENXIO;
 
 	ret = kdbus_kmsg_new(0, &kmsg);
 	if (ret < 0)
