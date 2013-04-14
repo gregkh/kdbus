@@ -29,6 +29,8 @@ struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn	*conn_a;
 	struct kdbus_conn	*conn_b;
 	struct hlist_node	hentry;
+	u64			deadline_ns;
+	struct list_head	timeout_entry;
 };
 
 struct kdbus_policy_db_entry_access {
@@ -43,6 +45,53 @@ struct kdbus_policy_db_entry {
 	struct hlist_node	hentry;
 	struct list_head	access_list;
 };
+
+static void kdbus_policy_db_scan_timeout(struct kdbus_policy_db *db)
+{
+	struct kdbus_policy_db_cache_entry *ce, *tmp;
+	struct timespec ts;
+	u64 deadline = -1;
+	uint64_t now;
+
+	ktime_get_ts(&ts);
+	now = (ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec;
+
+	mutex_lock(&db->cache_lock);
+	list_for_each_entry_safe(ce, tmp, &db->timeout_list, timeout_entry) {
+		if (ce->deadline_ns <= now) {
+			list_del(&ce->timeout_entry);
+			hash_del(&ce->hentry);
+			kfree(ce);
+		} else if (ce->deadline_ns < deadline) {
+			deadline = ce->deadline_ns;
+		}
+	}
+	mutex_unlock(&db->cache_lock);
+
+	if (deadline != -1) {
+		u64 usecs = deadline - now;
+		do_div(usecs, 1000ULL);
+		mod_timer(&db->timer, jiffies + usecs_to_jiffies(usecs));
+	}
+}
+
+static void kdbus_policy_db_work(struct work_struct *work)
+{
+	struct kdbus_policy_db *db = container_of(work, struct kdbus_policy_db, work);
+	kdbus_policy_db_scan_timeout(db);
+}
+
+static
+void kdbus_policy_db_schedule_timeout_scan(struct kdbus_policy_db *db)
+{
+	schedule_work(&db->work);
+}
+
+static void kdbus_policy_db_timer_func(unsigned long val)
+{
+	struct kdbus_policy_db *db = (struct kdbus_policy_db *) val;
+	kdbus_policy_db_schedule_timeout_scan(db);
+}
 
 static void __kdbus_policy_db_free(struct kref *kref)
 {
@@ -107,8 +156,17 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 	kref_init(&db->kref);
 	hash_init(db->entries_hash);
 	hash_init(db->send_access_hash);
+	INIT_LIST_HEAD(&db->timeout_list);
 	mutex_init(&db->entries_lock);
 	mutex_init(&db->cache_lock);
+
+	INIT_WORK(&db->work, kdbus_policy_db_work);
+
+	init_timer(&db->timer);
+	db->timer.expires = 0;
+	db->timer.function = kdbus_policy_db_timer_func;
+	db->timer.data = (unsigned long) db;
+	add_timer(&db->timer);
 
 	return db;
 }
@@ -183,9 +241,27 @@ int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	return -EPERM;
 }
 
+static struct kdbus_policy_db_cache_entry *
+kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
+			     struct kdbus_conn *conn_b)
+{
+	struct kdbus_policy_db_cache_entry *ce;
+
+	ce = kzalloc(sizeof(*ce), GFP_KERNEL);
+	if (!ce)
+		return NULL;
+
+	ce->conn_a = conn_a;
+	ce->conn_b = conn_b;
+	INIT_LIST_HEAD(&ce->timeout_entry);
+
+	return ce;
+}
+
 int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst)
+				      struct kdbus_conn *conn_dst,
+				      u64 reply_deadline_ns)
 {
 	int ret = 0;
 	u32 hash = 0;
@@ -207,18 +283,33 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	ret = __kdbus_policy_db_check_send_access(db, conn_src, conn_dst);
 	if (ret == 0) {
 		/* add to cache */
-
-		ce = kzalloc(sizeof(*ce), GFP_KERNEL);
+		ce = kdbus_policy_cache_entry_new(conn_src, conn_dst);
 		if (!ce) {
 			ret = -ENOMEM;
 			goto exit_unlock_entries;
 		}
 
-		ce->conn_a = conn_src;
-		ce->conn_b = conn_dst;
 		mutex_lock(&db->cache_lock);
 		hash_add(db->send_access_hash, &ce->hentry, hash);
 		mutex_unlock(&db->cache_lock);
+
+		/* do we need a temporaty rule for replies? */
+		if (ce->deadline_ns) {
+			ce = kdbus_policy_cache_entry_new(conn_dst, conn_src);
+			if (!ce) {
+				ret = -ENOMEM;
+				goto exit_unlock_entries;
+			}
+
+			ce->deadline_ns = reply_deadline_ns;
+
+			mutex_lock(&db->cache_lock);
+			hash_add(db->send_access_hash, &ce->hentry, hash);
+			list_add_tail(&ce->timeout_entry, &db->timeout_list);
+			mutex_unlock(&db->cache_lock);
+
+			kdbus_policy_db_scan_timeout(db);
+		}
 	}
 
 exit_unlock_entries:

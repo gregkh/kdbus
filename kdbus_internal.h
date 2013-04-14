@@ -72,8 +72,12 @@ struct kdbus_policy_db {
 	struct kref	kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
 	DECLARE_HASHTABLE(send_access_hash, 6);
+	struct list_head timeout_list;
 	struct mutex	entries_lock;
 	struct mutex	cache_lock;
+
+	struct work_struct work;
+	struct timer_list timer;
 };
 
 struct kdbus_conn;
@@ -84,7 +88,8 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 			       void __user *buf);
 int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst);
+				      struct kdbus_conn *conn_dst,
+				      u64 reply_deadline_ns);
 int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 				     struct kdbus_conn *conn,
 				     const char *name);

@@ -803,11 +803,15 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 	if (conn_dst) {
 		/* direct message */
 
+		if (msg->timeout_ns)
+			kmsg->deadline_ns = now_ns + msg->timeout_ns;
+
 		/* check policy */
 		if (ep->policy_db && conn_src) {
 			ret = kdbus_policy_db_check_send_access(ep->policy_db,
 								conn_src,
-								conn_dst);
+								conn_dst,
+								kmsg->deadline_ns);
 			if (ret < 0)
 				return ret;
 		}
@@ -818,9 +822,6 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 			if (ret < 0)
 				return ret;
 		}
-
-		if (msg->timeout_ns)
-			kmsg->deadline_ns = now_ns + msg->timeout_ns;
 
 		ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
 
