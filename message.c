@@ -607,15 +607,15 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_COMM) {
 		char comm[TASK_COMM_LEN];
 
+		get_task_comm(comm, current->group_leader);
 		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_TID_COMM,
-					    get_task_comm(comm, current->group_leader),
-					    sizeof(comm));
+					    comm, strlen(comm)+1);
 		if (ret < 0)
 			return ret;
 
+		get_task_comm(comm, current);
 		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_PID_COMM,
-					    get_task_comm(comm, current),
-					    sizeof(comm));
+					    comm, strlen(comm)+1);
 		if (ret < 0)
 			return ret;
 	}

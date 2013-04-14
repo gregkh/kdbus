@@ -154,7 +154,6 @@ char *msg_id(uint64_t id, char *buf)
 
 void msg_dump(struct kdbus_msg *msg)
 {
-	uint64_t size = msg->size - offsetof(struct kdbus_msg, data);
 	const struct kdbus_msg_data *data = msg->data;
 	char buf[32];
 
@@ -164,8 +163,8 @@ void msg_dump(struct kdbus_msg *msg)
 		msg_id(msg->src_id, buf), msg_id(msg->dst_id, buf),
 		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout_ns);
 
-	while (size > 0 && size >= data->size) {
-		if (data->size == 0) {
+	KDBUS_MSG_FOREACH_DATA(msg, data) {
+		if (data->size <= KDBUS_MSG_DATA_HEADER_SIZE) {
 			printf("  +%s (%llu bytes) invalid data record\n", enum_MSG(data->type), data->size);
 			break;
 		}
@@ -194,8 +193,8 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_SRC_AUDIT:
 		case KDBUS_MSG_SRC_NAMES:
 		case KDBUS_MSG_DST_NAME:
-			printf("  +%s (%llu bytes) '%s'\n",
-			       enum_MSG(data->type), data->size, data->data);
+			printf("  +%s (%llu bytes) '%s' (%zu)\n",
+			       enum_MSG(data->type), data->size, data->str, strlen(data->str));
 			break;
 
 		case KDBUS_MSG_TIMESTAMP:
@@ -232,10 +231,10 @@ void msg_dump(struct kdbus_msg *msg)
 			printf("  +%s (%llu bytes)\n", enum_MSG(data->type), data->size);
 			break;
 		}
-
-		size -= data->size;
-		data = (struct kdbus_msg_data *) (((char *) data) + data->size);
 	}
+
+	if ((char *)data - ((char *)msg + msg->size) >= 8)
+		printf("invalid padding at end of message\n");
 
 	printf("\n");
 }
