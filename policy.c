@@ -427,8 +427,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 	return 0;
 }
 
-int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
-			       void __user *buf)
+int kdbus_cmd_policy_set_from_user(struct kdbus_policy_db *db, void __user *buf)
 {
 	struct kdbus_cmd_policy *cmd;
 	u64 size;

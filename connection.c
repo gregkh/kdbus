@@ -478,7 +478,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
-		ret = kdbus_cmd_match_db_add(conn->match_db, buf);
+		ret = kdbus_cmd_match_db_add(conn, buf);
 
 		break;
 

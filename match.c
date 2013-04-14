@@ -30,7 +30,7 @@ struct kdbus_match_db_entry_item {
 	u64 type;
 	union {
 		char	*name;
-		char	*bloom;
+		u8	*bloom;
 		u64	id;
 	};
 
@@ -52,12 +52,14 @@ kdbus_match_db_entry_item_free(struct kdbus_match_db_entry_item *item)
 	case KDBUS_CMD_MATCH_BLOOM:
 		kfree(item->bloom);
 		break;
+
 	case KDBUS_CMD_MATCH_SRC_NAME:
 	case KDBUS_CMD_MATCH_NAME_ADD:
 	case KDBUS_CMD_MATCH_NAME_REMOVE:
 	case KDBUS_CMD_MATCH_NAME_CHANGE:
 		kfree(item->name);
 		break;
+
 	case KDBUS_CMD_MATCH_ID_ADD:
 	case KDBUS_CMD_MATCH_ID_REMOVE:
 	case KDBUS_CMD_MATCH_ID_CHANGE:
@@ -128,15 +130,16 @@ struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 	return memdup_user(buf, size);
 }
 
-int kdbus_cmd_match_db_add(struct kdbus_match_db *db,
-			   void __user *buf)
+int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
-	struct kdbus_cmd_match *cmd_match = cmd_match_from_user(buf);
+	struct kdbus_match_db *db = conn->match_db;
+	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_cmd_match_item *item;
 	struct kdbus_match_db_entry *e;
 	u64 size;
 	int ret = 0;
 
+	cmd_match = cmd_match_from_user(buf);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
@@ -153,15 +156,15 @@ int kdbus_cmd_match_db_add(struct kdbus_match_db *db,
 	e->id = cmd_match->id;
 	e->src_id = cmd_match->src_id;
 	e->cookie = cmd_match->cookie;
-	list_add_tail(&e->list_entry, &db->entries);
 
 	while (size > 0) {
 		struct kdbus_match_db_entry_item *ei;
+		size_t sz;
 
 		ei = kzalloc(sizeof(*ei), GFP_KERNEL);
 		if (!ei) {
 			ret = -ENOMEM;
-			goto exit_unlock;
+			break;
 		}
 
 		ei->type = item->type;
@@ -169,21 +172,27 @@ int kdbus_cmd_match_db_add(struct kdbus_match_db *db,
 
 		switch (item->type) {
 		case KDBUS_CMD_MATCH_BLOOM:
-			ei->bloom =
-				kmemdup(item->data,
-					item->size - offsetof(struct kdbus_cmd_match_item, data),
+			sz = item->size - offsetof(struct kdbus_cmd_match_item, data);
+			if (sz != conn->ep->bus->bloom_size) {
+				ret = -EBADMSG;
+				break;
+			}
+
+			ei->bloom = kmemdup(item->data, item->size - offsetof(struct kdbus_cmd_match_item, data),
 					GFP_KERNEL);
 			break;
+
 		case KDBUS_CMD_MATCH_SRC_NAME:
 		case KDBUS_CMD_MATCH_NAME_ADD:
 		case KDBUS_CMD_MATCH_NAME_REMOVE:
 		case KDBUS_CMD_MATCH_NAME_CHANGE:
-			ei->name = kstrdup(item->data, GFP_KERNEL);
+			ei->name = kstrdup(item->str, GFP_KERNEL);
 			break;
+
 		case KDBUS_CMD_MATCH_ID_ADD:
 		case KDBUS_CMD_MATCH_ID_REMOVE:
 		case KDBUS_CMD_MATCH_ID_CHANGE:
-			ei->id = *(u64 *) item->data;
+			ei->id = item->id;
 			break;
 		}
 
@@ -194,19 +203,25 @@ int kdbus_cmd_match_db_add(struct kdbus_match_db *db,
 			((u8 *) item + item->size);
 	}
 
-exit_unlock:
+	if (ret >= 0)
+		list_add_tail(&e->list_entry, &db->entries);
+	else {
+		kdbus_match_db_entry_free(e);
+		kfree(e);
+	}
+
 	mutex_unlock(&db->entries_lock);
 	kfree(cmd_match);
 
 	return ret;
 }
 
-int kdbus_cmd_match_db_remove(struct kdbus_match_db *db,
-			      void __user *buf)
+int kdbus_cmd_match_db_remove(struct kdbus_match_db *db, void __user *buf)
 {
-	struct kdbus_cmd_match *cmd_match = cmd_match_from_user(buf);
+	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_match_db_entry *e, *tmp;
 
+	cmd_match = cmd_match_from_user(buf);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 

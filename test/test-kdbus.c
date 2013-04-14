@@ -121,6 +121,7 @@ int main(int argc, char *argv[])
 	bus_make.head.flags = KDBUS_ACCESS_WORLD;
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
 	bus_make.head.bloom_size = 8;
+	bus_make.head.cgroup_id = 1;
 
 	printf("-- creating bus '%s'\n", bus_make.name);
 	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &bus_make);
