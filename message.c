@@ -507,7 +507,7 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg,
 		return -ENOMEM;
 
 	data->type = type;
-	data->size = KDBUS_MSG_DATA_HEADER_SIZE + len + 1;
+	data->size = KDBUS_MSG_DATA_HEADER_SIZE + len;
 	memcpy(data->str, str, len);
 
 	return 0;
