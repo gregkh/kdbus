@@ -300,3 +300,101 @@ message has to suppply a buffer large enough to receive a complete message.
   | | ...                                                                 | |
   | +---------------------------------------------------------------------+ |
   +-------------------------------------------------------------------------+
+
+===============================================================================
+Kernel API error codes
+===============================================================================
+E2BIG
+  A message contains to many records or items.
+
+EADDRNOTAVAIL
+  A message flagged not to activate a service addressed a service which is
+  not running.
+
+EAGAIN
+  No messages are queued at the moment.
+
+EBADF
+  File descriptors passed with the message are not valid.
+
+EBADFD
+  A bus connection is in a corrupted state.
+
+EBADMSG
+  Passed data contains a combination of conflicting or inconsistent types.
+
+EBUSY
+  A name is already taken by another connection.
+
+ECOMM
+  A peer does not accept the file descriptors addressed to it.
+
+EDESTADDRREQ
+  The well-known name is missing to address the receiver.
+
+EDOM
+  The size of data does not match the expectations. Used for the
+  size of the bloom filter bit field.
+
+  A specific data type, which is only expected once, is provided multiple
+  times.
+
+EEXIST
+  A requested namespace, bus or endpoint with the same name already
+  exists.
+
+EFAULT
+  The supplied memory could not be accessed, or the buffer is not properly
+  aligned.
+
+EINVAL
+  The provided data does not match its type or other expectations, like a
+  string that it not NUL terminated, or  string length that points behind
+  the first NUL byte.
+
+EISCON
+  A control connection is already active.
+
+EMFILE
+  Too many file descriptors have been supplied with a message.
+
+EMSGSIZE
+  The supplied data does not match the expected size.
+
+ENAMETOOLONG
+  The requested name is larger than its maximum size.
+
+ENOBUFS
+  The requested data does not fit into the supplied buffer.
+
+ENOMEM
+  Out of memory.
+
+ENOSYS
+  The requested functionality is not available.
+
+ENOTCONN
+  The addressed peer is not active connection.
+
+ENOTSUPP
+  The feature negotiation failed, a not supported feature was requested.
+
+ENOTTY
+  An unknown ioctl command was received.
+
+ENOTUNIQ
+  A specific data type was addressed to a broadcast address, but
+  only direct addresses support this kind of data.
+
+ENXIO
+  A unique address does not exist.
+
+EPERM
+  The policy prevented an operation. The requested resource is owned by
+  another entity.
+
+ESHUTDOWN
+  The connect is currently shutting down, no further operations are possible.
+
+ESRCH
+  A requested well-known name is not found.

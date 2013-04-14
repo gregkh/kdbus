@@ -353,10 +353,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	struct kdbus_bus *bus;
 	long ret = 0;
 
-	/* We need a connection before we can do anything with an ioctl */
-	if (!conn)
-		return -ENOTCONN;
-
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
 		u64 size;
@@ -408,7 +404,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_hello hello;
 
 		if (conn->active) {
-			ret = -EBUSY;
+			ret = -EISCONN;
 			break;
 		}
 

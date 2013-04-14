@@ -157,11 +157,15 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 		case KDBUS_MSG_BLOOM:
 			/* bloom filters are for broadcast messages */
 			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
-				return -EINVAL;
+				return -EBADMSG;
 
 			/* do not allow multiple bloom filters */
 			if (has_bloom)
 				return -EEXIST;
+
+			/* allow only a multiple of 64bit */
+			if ((data->size - KDBUS_MSG_DATA_HEADER_SIZE) & 7)
+				return -EINVAL;
 
 			/* do not allow mismatching bloom filter sizes */
 			if (data->size - KDBUS_MSG_DATA_HEADER_SIZE != conn->ep->bus->bloom_size)

@@ -192,7 +192,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_make **make)
 
 	if (m->bloom_size < 8 || m->bloom_size > 16*1024) {
 		kfree(m);
-		return -EOVERFLOW;
+		return -EMSGSIZE;
 	}
 
 	*make = m;
