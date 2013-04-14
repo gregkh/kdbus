@@ -444,7 +444,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (!conn->ep->policy_db)
 			return -ENOMEM;
 
-		ret = kdbus_policy_set_from_user(conn->ep->policy_db, buf);
+		ret = kdbus_cmd_policy_set_from_user(conn->ep->policy_db, buf);
 
 		break;
 
@@ -478,13 +478,13 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
-		ret = kdbus_match_db_add(conn->match_db, buf);
+		ret = kdbus_cmd_match_db_add(conn->match_db, buf);
 
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
-		ret = kdbus_match_db_remove(conn->match_db, buf);
+		ret = kdbus_cmd_match_db_remove(conn->match_db, buf);
 
 		break;
 

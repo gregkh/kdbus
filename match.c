@@ -128,8 +128,8 @@ struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 	return memdup_user(buf, size);
 }
 
-int kdbus_match_db_add(struct kdbus_match_db *db,
-		       void __user *buf)
+int kdbus_cmd_match_db_add(struct kdbus_match_db *db,
+			   void __user *buf)
 {
 	struct kdbus_cmd_match *cmd_match = cmd_match_from_user(buf);
 	struct kdbus_cmd_match_item *item;
@@ -201,8 +201,8 @@ exit_unlock:
 	return ret;
 }
 
-int kdbus_match_db_remove(struct kdbus_match_db *db,
-			  void __user *buf)
+int kdbus_cmd_match_db_remove(struct kdbus_match_db *db,
+			      void __user *buf)
 {
 	struct kdbus_cmd_match *cmd_match = cmd_match_from_user(buf);
 	struct kdbus_match_db_entry *e, *tmp;
