@@ -102,7 +102,8 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 	return bus;
 }
 
-int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags, u64 bloom_size,
+int kdbus_bus_new(struct kdbus_ns *ns, const char *name,
+		  u64 bus_flags, u64 bloom_size, u64 cgroup_id,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus)
 {
 	char prefix[16];
@@ -128,11 +129,12 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags, u64 bloo
 	b->ns = ns;
 	b->bus_flags = bus_flags;
 	b->bloom_size = bloom_size;
-	/* connection 0 == kernel */
-	b->conn_id_next = 1;
+	b->cgroup_id = cgroup_id;
+	b->conn_id_next = 1; /* connection 0 == kernel */
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
+
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;

@@ -639,6 +639,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 				    struct kdbus_conn *conn_src,
 				    struct kdbus_conn *conn_dst)
 {
+	struct kdbus_bus *bus = conn_dst->ep->bus;
 	int ret = 0;
 
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_COMM) {
@@ -723,14 +724,14 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			return ret;
 	}
 
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CGROUP) {
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CGROUP && bus->cgroup_id > 0) {
 		char *tmp;
 
 		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 		if (!tmp)
 			return -ENOMEM;
 
-		ret = cgroup_path_from_task(current, 1, tmp, PAGE_SIZE);
+		ret = cgroup_path_from_task(current, bus->cgroup_id, tmp, PAGE_SIZE);
 		if (ret >= 0)
 			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP,
 						    tmp, strlen(tmp)+1);

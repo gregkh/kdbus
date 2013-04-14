@@ -168,6 +168,7 @@ struct kdbus_bus {
 	struct list_head ep_list;	/* endpoints assigned to this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
 	u64 bloom_size;			/* bloom filter size */
+	u64 cgroup_id;			/* the cgroup superblock we attach information from */
 	struct kdbus_name_registry *name_registry;
 	struct list_head bus_entry;
 };
@@ -311,7 +312,8 @@ int kdbus_ns_make_user(void __user *buf, struct kdbus_cmd_ns_make **make);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
-int kdbus_bus_new(struct kdbus_ns *ns, const char *name, u64 bus_flags, u64 bloom_size,
+int kdbus_bus_new(struct kdbus_ns *ns, const char *name,
+		  u64 bus_flags, u64 bloom_size, u64 cgroup_id,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus);
 void kdbus_bus_scan_timeout_list(struct kdbus_bus *bus);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
