@@ -608,9 +608,14 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
-/* FIXME: dirty, illegal, unsafe hack; get proper API in cgroup.c */
-int cgroup_path_from_task(struct task_struct *t, int hierarchy,
-			  char *buf, size_t size)
+/*
+ * FIXME: dirty and unsafe version of:
+ * http://git.kernel.org/cgit/linux/kernel/git/tj/cgroup.git/
+ *   commit/?h=review-task_cgroup_path_from_hierarchy&id=8f2d788f3210ffed073bc57568befd9d757a15ef
+ * remove it when the above is upstream.
+ */
+int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,
+				    char *buf, size_t buflen)
 {
 	struct cg_cgroup_link {
 		struct list_head cgrp_link_list;
@@ -633,10 +638,10 @@ int cgroup_path_from_task(struct task_struct *t, int hierarchy,
 		struct cgroup* cg = link->cgrp;
 		struct cgroupfs_root *root = (struct cgroupfs_root *)cg->root;
 
-		if (root->hierarchy_id != hierarchy)
+		if (root->hierarchy_id != hierarchy_id)
 			continue;
 
-		ret = cgroup_path(cg, buf, PAGE_SIZE);
+		ret = cgroup_path(cg, buf, buflen);
 		break;
 	}
 	cgroup_unlock();
@@ -740,7 +745,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		if (!tmp)
 			return -ENOMEM;
 
-		ret = cgroup_path_from_task(current, bus->cgroup_id, tmp, PAGE_SIZE);
+		ret = task_cgroup_path_from_hierarchy(current, bus->cgroup_id, tmp, PAGE_SIZE);
 		if (ret >= 0)
 			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP,
 						    tmp, strlen(tmp)+1);

@@ -34,8 +34,6 @@ External API:
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
   - enforce strict page alignment of mmap()ed memory in the API
   - allow to coalesce memory records, but never mix MMAP and PAYLOAD
-  - support optional addition of cgroup, comm, exe, ... of the sender
-    process
   - always put \0 in the padding bytes?
   - have some sort of kdbus kernel protocol negotiation. how do we deal
     with changes later on?
@@ -52,7 +50,7 @@ Name database:
     userspace?
 
 Kernel Core:
-  - get cgroup_path_from_task() with EXPORT_SYMBOL_GPL()
+  - remove our own task_cgroup_path_from_hierarchy() as soon as it's available
   - use subsys_virtual_register() to avoid devices showing up directly
     in the root of /sys/devices/
       https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
