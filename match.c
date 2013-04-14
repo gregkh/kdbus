@@ -68,6 +68,17 @@ kdbus_match_db_entry_item_free(struct kdbus_match_db_entry_item *item)
 	kfree(item);
 }
 
+static void kdbus_match_db_entry_free(struct kdbus_match_db_entry *e)
+{
+	struct kdbus_match_db_entry_item *ei, *ei_tmp;
+
+	list_for_each_entry_safe(ei, ei_tmp, &e->items_list, list_entry)
+		kdbus_match_db_entry_item_free(ei);
+
+	list_del(&e->list_entry);
+	kfree(e);
+}
+
 static void __kdbus_match_db_free(struct kref *kref)
 {
 	struct kdbus_match_db_entry *e, *tmp;
@@ -75,15 +86,8 @@ static void __kdbus_match_db_free(struct kref *kref)
 		container_of(kref, struct kdbus_match_db, kref);
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry_safe(e, tmp, &db->entries, list_entry) {
-		struct kdbus_match_db_entry_item *ei, *ei_tmp;
-
-		list_for_each_entry_safe(ei, ei_tmp, &e->items_list, list_entry)
-			kdbus_match_db_entry_item_free(ei);
-
-		list_del(&e->list_entry);
-		kfree(e);
-	}
+	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
+		kdbus_match_db_entry_free(e);
 	mutex_unlock(&db->entries_lock);
 
 	kfree(db);
@@ -201,11 +205,17 @@ int kdbus_match_db_remove(struct kdbus_match_db *db,
 			  void __user *buf)
 {
 	struct kdbus_cmd_match *cmd_match = cmd_match_from_user(buf);
+	struct kdbus_match_db_entry *e, *tmp;
 
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
-	// ...
+	mutex_lock(&db->entries_lock);
+	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
+		if (e->cookie == cmd_match->cookie &&
+		    e->id == cmd_match->id)
+			kdbus_match_db_entry_free(e);
+	mutex_unlock(&db->entries_lock);
 
 	kfree(cmd_match);
 
