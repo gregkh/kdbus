@@ -43,7 +43,8 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			continue;
 
 		if (kmsg->deadline_ns <= now) {
-			kdbus_notify_reply_timeout(conn->ep, &kmsg->msg);
+			if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
+				kdbus_notify_reply_timeout(conn->ep, &kmsg->msg);
 			kdbus_kmsg_unref(entry->kmsg);
 			list_del(&entry->list);
 			kfree(entry);
@@ -208,7 +209,8 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			 * causes a lockdep warning, so let's re-link those
 			 * messages into a temporary list and handle it later.
 			 */
-			if (msg->src_id != conn->id) {
+			if (msg->src_id != conn->id &&
+			    msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
 				list_add_tail(&entry->list, &list);
 			} else {
 				kdbus_kmsg_unref(kmsg);
