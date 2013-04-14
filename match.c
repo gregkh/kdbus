@@ -136,7 +136,7 @@ bool kdbus_match_db_test_src_names(const char *haystack,
 {
 	size_t i;
 
-	for (i = 0; haystack_size; i += strlen(haystack) + 1)
+	for (i = 0; i < haystack_size; i += strlen(haystack) + 1)
 		if (strcmp(haystack + i, needle) == 0)
 			return true;
 
