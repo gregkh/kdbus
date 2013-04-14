@@ -28,9 +28,7 @@
 
 #include "kdbus_internal.h"
 
-#define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, data)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
-#define KDBUS_MSG_DATA_HEADER_SIZE offsetof(struct kdbus_msg_data, data)
 #define KDBUS_IS_ALIGNED8(s) (((u64)(s) & 7) == 0)
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_MSG_DATA_SIZE(s) \
@@ -403,7 +401,7 @@ out_err:
 	return ret;
 }
 
-static const struct kdbus_msg_data *
+const struct kdbus_msg_data *
 kdbus_msg_get_data(const struct kdbus_msg *msg, u64 type, int index)
 {
 	const struct kdbus_msg_data *data;
@@ -590,8 +588,6 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 
 	if (!conn->active)
 		return -ENOTCONN;
-
-	/* TODO: implement filtering */
 
 	if (kmsg->fds && !(conn->flags & KDBUS_CMD_HELLO_ACCEPT_FD))
 		return -ECOMM;
@@ -841,10 +837,11 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 			kdbus_conn_schedule_timeout_scan(conn_dst);
 	} else {
 		/* broadcast */
-
 		/* timeouts are not allowed for broadcasts */
 		if (msg->timeout_ns)
 			return -ENOTUNIQ;
+
+		ret = 0;
 
 		list_for_each_entry(conn_dst, &ep->connection_list,
 				    connection_entry) {
@@ -855,6 +852,10 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 				continue;
 
 			if (!conn_dst->active)
+				continue;
+
+			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
+						       conn_dst, kmsg))
 				continue;
 
 			ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);

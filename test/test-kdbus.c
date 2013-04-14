@@ -66,6 +66,7 @@ static struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id)
 
 	return p;
 }
+
 static int upload_policy(int fd)
 {
 	struct kdbus_cmd_policy *cmd_policy;
@@ -95,6 +96,21 @@ static int upload_policy(int fd)
 		fprintf(stderr, "--- error setting EP policy: %d (%m)\n", ret);
 
 	return ret;
+}
+
+static void add_match_empty(int fd)
+{
+	struct kdbus_cmd_match cmd_match;
+	int ret;
+
+	memset(&cmd_match, 0, sizeof(cmd_match));
+
+	cmd_match.size = sizeof(cmd_match);
+	cmd_match.src_id = KDBUS_MATCH_SRC_ID_ANY;
+
+	ret = ioctl(fd, KDBUS_CMD_MATCH_ADD, &cmd_match);
+	if (ret < 0)
+		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
 }
 
 int main(int argc, char *argv[])
@@ -139,13 +155,15 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 
 	upload_policy(conn_a->fd);
+	add_match_empty(conn_a->fd);
+	add_match_empty(conn_b->fd);
 
 	name_acquire(conn_a, "foo.bar.baz", 0);
 	name_acquire(conn_b, "foo.bar.baz", KDBUS_CMD_NAME_QUEUE);
 	name_list(conn_b);
 
 	cookie = 0;
-	msg_send(conn_b, "foo.bar.baz", 0xc0000000 | cookie, ~0ULL);
+	msg_send(conn_b, "foo.bar.baz", 0xc0000000 | cookie, KDBUS_DST_ID_BROADCAST);
 
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;

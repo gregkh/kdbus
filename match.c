@@ -30,7 +30,7 @@ struct kdbus_match_db_entry_item {
 	u64 type;
 	union {
 		char	*name;
-		u8	*bloom;
+		u64	*bloom;
 		u64	id;
 	};
 
@@ -115,6 +115,83 @@ struct kdbus_match_db *kdbus_match_db_new(void)
 	return db;
 }
 
+static inline
+bool kdbus_match_db_test_bloom(const u64 *filter,
+			       const u64 *mask,
+			       size_t len)
+{
+	size_t i;
+
+	for (i = 0; i < len; i++)
+		if ((filter[i] & mask[i]) != mask[i])
+			return false;
+
+	return true;
+}
+
+static inline
+bool kdbus_match_db_test_src_names(const char *haystack,
+				   size_t haystack_size,
+				   const char *needle)
+{
+	size_t i;
+
+	for (i = 0; haystack_size; i += strlen(haystack) + 1)
+		if (strcmp(haystack + i, needle) == 0)
+			return true;
+
+	return false;
+}
+
+bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
+			       struct kdbus_conn *conn_dst,
+			       struct kdbus_kmsg *kmsg)
+{
+	const struct kdbus_msg_data *bloom =
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_BLOOM, 0);
+	const struct kdbus_msg_data *src_names =
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_SRC_NAMES, 0);
+	struct kdbus_match_db_entry *e;
+	size_t bloom_size = conn_dst->ep->bus->bloom_size / sizeof(u64);
+	bool matched = false;
+
+	mutex_lock(&db->entries_lock);
+	list_for_each_entry(e, &db->entries, list_entry) {
+		struct kdbus_match_db_entry_item *ei;
+
+		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
+		    e->src_id != conn_dst->id)
+			continue;
+
+		matched = true;
+
+		list_for_each_entry(ei, &e->items_list, list_entry) {
+			if (bloom && ei->type == KDBUS_CMD_MATCH_BLOOM)
+				if (!kdbus_match_db_test_bloom(bloom->data64,
+							       ei->bloom,
+							       bloom_size)) {
+					matched = false;
+					break;
+				}
+
+			if (src_names && ei->type == KDBUS_CMD_MATCH_SRC_NAME) {
+				size_t nlen = src_names->size - KDBUS_MSG_DATA_HEADER_SIZE;
+				if (!kdbus_match_db_test_src_names(src_names->str,
+								   nlen, ei->name)) {
+					matched = false;
+					break;
+				}
+			}
+		}
+
+		if (matched)
+			break;
+	}
+	mutex_unlock(&db->entries_lock);
+
+	return matched;
+}
+
 static
 struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 {
@@ -143,7 +220,7 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
-	size = cmd_match->size;
+	size = cmd_match->size - offsetof(struct kdbus_cmd_match, items);
 	item = cmd_match->items;
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
@@ -160,6 +237,11 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	while (size > 0) {
 		struct kdbus_match_db_entry_item *ei;
 		size_t sz;
+
+		if (item->size < sizeof(*item)) {
+			ret = -EBADMSG;
+			break;
+		}
 
 		ei = kzalloc(sizeof(*ei), GFP_KERNEL);
 		if (!ei) {
@@ -203,9 +285,9 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 			((u8 *) item + item->size);
 	}
 
-	if (ret >= 0)
+	if (ret >= 0) {
 		list_add_tail(&e->list_entry, &db->entries);
-	else {
+	} else {
 		kdbus_match_db_entry_free(e);
 		kfree(e);
 	}

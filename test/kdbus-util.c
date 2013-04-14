@@ -133,7 +133,7 @@ int msg_send(const struct conn *conn,
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret) {
-		fprintf(stderr, "error sending message: %d (%m)\n", ret);
+		fprintf(stderr, "error sending message: %d err %d (%m)\n", ret, errno);
 		return EXIT_FAILURE;
 	}
 

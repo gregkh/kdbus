@@ -108,12 +108,17 @@ struct kdbus_vec {
  * size: overall data record size
  * type: kdbus_msg_data_type of data
  */
+
+#define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, data)
+#define KDBUS_MSG_DATA_HEADER_SIZE offsetof(struct kdbus_msg_data, data)
+
 struct kdbus_msg_data {
 	__u64 size;
 	__u64 type;
 	union {
 		/* inline data */
 		__u8 data[0];
+		__u64 data64[0];
 		char str[0];
 
 		/* data vector */

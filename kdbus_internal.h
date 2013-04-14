@@ -143,10 +143,15 @@ struct kdbus_match_db {
 	struct mutex		entries_lock;
 };
 
+struct kdbus_kmsg;
+
 struct kdbus_match_db *kdbus_match_db_new(void);
 void kdbus_match_db_unref(struct kdbus_match_db *db);
 int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf);
 int kdbus_cmd_match_db_remove(struct kdbus_match_db *db, void __user *buf);
+bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
+			       struct kdbus_conn *conn_dst,
+			       struct kdbus_kmsg *kmsg);
 
 /*
  * kdbus bus
@@ -280,6 +285,7 @@ struct kdbus_msg_list_entry {
 /* message */
 int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp, struct kdbus_kmsg **m);
+const struct kdbus_msg_data *kdbus_msg_get_data(const struct kdbus_msg *msg, u64 type, int index);
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep,
 		    struct kdbus_conn *conn_src,
