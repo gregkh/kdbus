@@ -190,6 +190,9 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_make **make)
 		return -EINVAL;
 	}
 
+	if (!IS_ALIGNED(m->bloom_size, sizeof(u64)))
+		return -EINVAL;
+
 	if (m->bloom_size < 8 || m->bloom_size > 16*1024) {
 		kfree(m);
 		return -EMSGSIZE;
