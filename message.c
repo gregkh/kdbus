@@ -906,6 +906,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	}
 
 	if (size < max_size) {
+		kdbus_size_set_user(max_size, buf, struct kdbus_msg);
 		ret = -ENOBUFS;
 		goto out_unlock;
 	}
