@@ -202,6 +202,44 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	return -EEXIST;
 }
 
+bool kdbus_name_is_valid(const char *p)
+{
+	const char *q;
+	bool dot, found_dot;
+
+	for (dot = true, q = p; *q; q++) {
+		if (!isascii(*q))
+			return false;
+
+		if (*q == '.') {
+			if (dot)
+				return false;
+
+			found_dot = dot = true;
+		} else {
+			bool good;
+
+			good = isalpha(*q) || (!dot && isdigit(*q)) ||
+				*q == '_' || *q == '-';
+
+			if (!good)
+				return false;
+
+			dot = false;
+		}
+	}
+
+	if (q - p > 255)
+		return false;
+
+	if (dot)
+		return false;
+
+	if (!found_dot)
+		return false;
+
+	return true;
+}
 /* IOCTL interface */
 
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
@@ -436,42 +474,3 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	return ret;
 }
 
-
-bool kdbus_name_is_valid(const char *p)
-{
-	const char *q;
-	bool dot, found_dot;
-
-	for (dot = true, q = p; *q; q++) {
-		if (!isascii(*q))
-			return false;
-
-		if (*q == '.') {
-			if (dot)
-				return false;
-
-			found_dot = dot = true;
-		} else {
-			bool good;
-
-			good = isalpha(*q) || (!dot && isdigit(*q)) ||
-				*q == '_' || *q == '-';
-
-			if (!good)
-				return false;
-
-			dot = false;
-		}
-	}
-
-	if (q - p > 255)
-		return false;
-
-	if (dot)
-		return false;
-
-	if (!found_dot)
-		return false;
-
-	return true;
-}
