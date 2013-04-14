@@ -588,10 +588,10 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 		return -ENOMEM;
 
 	entry->kmsg = kdbus_kmsg_ref(kmsg);
-	INIT_LIST_HEAD(&entry->list);
+	INIT_LIST_HEAD(&entry->entry);
 
 	mutex_lock(&conn->msg_lock);
-	list_add_tail(&entry->list, &conn->msg_list);
+	list_add_tail(&entry->entry, &conn->msg_list);
 	mutex_unlock(&conn->msg_lock);
 
 	wake_up_interruptible(&conn->ep->wait);
@@ -876,7 +876,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		goto out_unlock;
 	}
 
-	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, list);
+	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, entry);
 	kmsg = entry->kmsg;
 	msg = &kmsg->msg;
 
@@ -996,7 +996,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	if (ret)
 		goto out_unlock_fds;
 
-	list_del(&entry->list);
+	list_del(&entry->entry);
 	kdbus_kmsg_unref(entry->kmsg);
 	kfree(entry);
 	mutex_unlock(&conn->msg_lock);

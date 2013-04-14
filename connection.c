@@ -36,7 +36,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	now = (ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec;
 
 	mutex_lock(&conn->msg_lock);
-	list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
+	list_for_each_entry_safe(entry, tmp, &conn->msg_list, entry) {
 		struct kdbus_kmsg *kmsg = entry->kmsg;
 
 		if (kmsg->deadline_ns == 0)
@@ -46,7 +46,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
 				kdbus_notify_reply_timeout(conn->ep, &kmsg->msg);
 			kdbus_kmsg_unref(entry->kmsg);
-			list_del(&entry->list);
+			list_del(&entry->entry);
 			kfree(entry);
 		} else if (kmsg->deadline_ns < deadline) {
 			deadline = kmsg->deadline_ns;
@@ -198,11 +198,11 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		list_del(&conn->connection_entry);
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->msg_lock);
-		list_for_each_entry_safe(entry, tmp, &conn->msg_list, list) {
+		list_for_each_entry_safe(entry, tmp, &conn->msg_list, entry) {
 			struct kdbus_kmsg *kmsg = entry->kmsg;
 			struct kdbus_msg *msg = &kmsg->msg;
 
-			list_del(&entry->list);
+			list_del(&entry->entry);
 
 			/*
 			 * calling kdbus_notify_reply_dead() with msg_lock held
@@ -211,7 +211,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			 */
 			if (msg->src_id != conn->id &&
 			    msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
-				list_add_tail(&entry->list, &list);
+				list_add_tail(&entry->entry, &list);
 			} else {
 				kdbus_kmsg_unref(kmsg);
 				kfree(entry);
@@ -219,7 +219,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		}
 		mutex_unlock(&conn->msg_lock);
 
-		list_for_each_entry_safe(entry, tmp, &list, list) {
+		list_for_each_entry_safe(entry, tmp, &list, entry) {
 			struct kdbus_kmsg *kmsg = entry->kmsg;
 			struct kdbus_msg *msg = &kmsg->msg;
 
