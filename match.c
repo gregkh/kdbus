@@ -143,9 +143,11 @@ bool kdbus_match_db_test_src_names(const char *haystack,
 	return false;
 }
 
-bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
-			       struct kdbus_conn *conn_dst,
-			       struct kdbus_kmsg *kmsg)
+static
+bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
+				   struct kdbus_conn *conn_src,
+				   struct kdbus_conn *conn_dst,
+				   struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg_data *bloom =
 		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_BLOOM, 0);
@@ -160,7 +162,7 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 		struct kdbus_match_db_entry_item *ei;
 
 		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
-		    e->src_id != conn_dst->id)
+		    e->src_id != conn_src->id)
 			continue;
 
 		matched = true;
@@ -190,6 +192,87 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 	mutex_unlock(&db->entries_lock);
 
 	return matched;
+}
+
+static
+bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
+				      struct kdbus_conn *conn_dst,
+				      struct kdbus_kmsg *kmsg)
+{
+	const struct kdbus_msg_data *id_add =
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_ID_ADD, 0);
+	const struct kdbus_msg_data *id_change =
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_ID_CHANGE, 0);
+	const struct kdbus_msg_data *id_remove=
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_ID_REMOVE, 0);
+	const struct kdbus_msg_data *name_add =
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_NAME_ADD, 0);
+	const struct kdbus_msg_data *name_change =
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_NAME_CHANGE, 0);
+	const struct kdbus_msg_data *name_remove=
+		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_NAME_REMOVE, 0);
+	struct kdbus_match_db_entry *e;
+	bool matched = false;
+
+	mutex_lock(&db->entries_lock);
+	list_for_each_entry(e, &db->entries, list_entry) {
+		struct kdbus_match_db_entry_item *ei;
+
+		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
+		    e->src_id != 0)
+			continue;
+
+		matched = true;
+
+		list_for_each_entry(ei, &e->items_list, list_entry) {
+			if (ei->type == KDBUS_CMD_MATCH_ID_ADD && !id_add) {
+				matched = false;
+				break;
+			}
+
+			if (ei->type == KDBUS_CMD_MATCH_ID_CHANGE && !id_change) {
+				matched = false;
+				break;
+			}
+
+			if (ei->type == KDBUS_CMD_MATCH_ID_REMOVE && !id_remove) {
+				matched = false;
+				break;
+			}
+
+			if (ei->type == KDBUS_CMD_MATCH_NAME_ADD && !name_add) {
+				matched = false;
+				break;
+			}
+
+			if (ei->type == KDBUS_CMD_MATCH_NAME_CHANGE && !name_change) {
+				matched = false;
+				break;
+			}
+
+			if (ei->type == KDBUS_CMD_MATCH_NAME_REMOVE && !name_remove) {
+				matched = false;
+				break;
+			}
+		}
+
+		if (matched)
+			break;
+	}
+	mutex_unlock(&db->entries_lock);
+
+	return matched;
+}
+
+bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
+			       struct kdbus_conn *conn_src,
+			       struct kdbus_conn *conn_dst,
+			       struct kdbus_kmsg *kmsg)
+{
+	if (conn_src)
+		return kdbus_match_db_match_with_src(db, conn_src, conn_dst, kmsg);
+	else
+		return kdbus_match_db_match_from_kernel(db, conn_dst, kmsg);
 }
 
 static

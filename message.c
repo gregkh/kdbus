@@ -855,7 +855,8 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 				continue;
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
-						       conn_dst, kmsg))
+						       conn_src, conn_dst,
+						       kmsg))
 				continue;
 
 			ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
