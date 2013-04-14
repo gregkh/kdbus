@@ -39,9 +39,16 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 	if (!dst_conn)
 		return -ENXIO;
 
-	ret = kdbus_kmsg_new(0, &kmsg);
+	ret = kdbus_kmsg_new(sizeof(struct kdbus_msg_data), &kmsg);
 	if (ret < 0)
 		return ret;
+
+	/*
+	 * a kernel-generated notification can only contain one
+	 * struct kdbus_msg_data, so make a shortcut here for
+	 * faster lookup in the match db.
+	 */
+	kmsg->notification_type = msg_type;
 
 	kmsg->msg.dst_id = dst_id;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;

@@ -199,18 +199,7 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 				      struct kdbus_conn *conn_dst,
 				      struct kdbus_kmsg *kmsg)
 {
-	const struct kdbus_msg_data *id_add =
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_ID_ADD, 0);
-	const struct kdbus_msg_data *id_change =
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_ID_CHANGE, 0);
-	const struct kdbus_msg_data *id_remove=
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_ID_REMOVE, 0);
-	const struct kdbus_msg_data *name_add =
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_NAME_ADD, 0);
-	const struct kdbus_msg_data *name_change =
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_NAME_CHANGE, 0);
-	const struct kdbus_msg_data *name_remove=
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_NAME_REMOVE, 0);
+	u64 type = kmsg->notification_type;
 	struct kdbus_match_db_entry *e;
 	bool matched = false;
 
@@ -225,32 +214,38 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 		matched = true;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
-			if (ei->type == KDBUS_CMD_MATCH_ID_ADD && !id_add) {
+			if (ei->type == KDBUS_CMD_MATCH_ID_ADD &&
+			    type != KDBUS_MSG_ID_ADD) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_ID_CHANGE && !id_change) {
+			if (ei->type == KDBUS_CMD_MATCH_ID_CHANGE &&
+			    type != KDBUS_MSG_ID_CHANGE) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_ID_REMOVE && !id_remove) {
+			if (ei->type == KDBUS_CMD_MATCH_ID_REMOVE &&
+			    type != KDBUS_MSG_ID_REMOVE) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_NAME_ADD && !name_add) {
+			if (ei->type == KDBUS_CMD_MATCH_NAME_ADD &&
+			    type != KDBUS_MSG_NAME_ADD) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_NAME_CHANGE && !name_change) {
+			if (ei->type == KDBUS_CMD_MATCH_NAME_CHANGE &&
+			    type != KDBUS_MSG_NAME_CHANGE) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_NAME_REMOVE && !name_remove) {
+			if (ei->type == KDBUS_CMD_MATCH_NAME_REMOVE &&
+			    type != KDBUS_MSG_NAME_REMOVE) {
 				matched = false;
 				break;
 			}

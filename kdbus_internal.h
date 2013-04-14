@@ -272,7 +272,10 @@ struct kdbus_meta {
 struct kdbus_kmsg {
 	struct kref kref;
 	u64 deadline_ns;
-	struct kdbus_fds *fds;
+	union {
+		struct kdbus_fds *fds;
+		u64 notification_type; /* short-hand for faster match db lookup. */
+	};
 	struct kdbus_payload *payloads;
 	struct kdbus_meta *meta;
 	struct kdbus_msg msg;
