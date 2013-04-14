@@ -72,36 +72,21 @@ int msg_send(const struct conn *conn,
 		    uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
-	uint64_t size, extra_size = 0;
-	void *extra = NULL;
 	const char ref[0x2000] = "REFERENCED";
 	struct kdbus_msg_data *data;
+	uint64_t size;
 	int ret;
-
-	if (name) {
-		struct kdbus_msg_data *name_data;
-
-		extra_size += sizeof(*name_data) + strlen(name) + 1;
-
-		name_data = malloc(extra_size);
-		if (!name_data) {
-			fprintf(stderr, "unable to malloc()!?\n");
-			return EXIT_FAILURE;
-		}
-
-		memset(name_data, 0, extra_size);
-
-		name_data->size = extra_size;
-		name_data->type = KDBUS_MSG_DST_NAME;
-
-		memcpy(name_data->data, name, strlen(name));
-		extra = name_data;
-	}
 
 	size = sizeof(*msg);
 	size += KDBUS_MSG_DATA_HEADER_SIZE + 16;
 	size += KDBUS_MSG_DATA_HEADER_SIZE + sizeof("INLINE1");
-	size += extra_size;
+	
+	if (dst_id == KDBUS_DST_ID_BROADCAST)
+		size += KDBUS_MSG_DATA_HEADER_SIZE + 64;
+	
+	if (name)
+		size += KDBUS_MSG_DATA_HEADER_SIZE + strlen(name) + 1;
+
 	msg = malloc(size);
 	if (!msg) {
 		fprintf(stderr, "unable to malloc()!?\n");
@@ -117,19 +102,29 @@ int msg_send(const struct conn *conn,
 
 	data = msg->data;
 
+	if (name) {
+		data->type = KDBUS_MSG_DST_NAME;
+		data->size = KDBUS_MSG_DATA_HEADER_SIZE + strlen(name) + 1;
+		strcpy(data->str, name);
+		data = (struct kdbus_msg_data *) ((char *)(data) + ALIGN8(data->size));
+	}
+
 	data->type = KDBUS_MSG_PAYLOAD_VEC;
 	data->size = KDBUS_MSG_DATA_HEADER_SIZE + 16;
 	data->vec.address = (uint64_t)&ref;
 	data->vec.size = sizeof(ref);
-	data = (struct kdbus_msg_data *) ((char *)(data) + data->size);
+	data = (struct kdbus_msg_data *) ((char *)(data) + ALIGN8(data->size));
 
 	data->type = KDBUS_MSG_PAYLOAD;
 	data->size = KDBUS_MSG_DATA_HEADER_SIZE + sizeof("INLINE1");
 	memcpy(data->data, "INLINE1", sizeof("INLINE1"));
-	data = (struct kdbus_msg_data *) ((char *)(data) + data->size);
+	data = (struct kdbus_msg_data *) ((char *)(data) + ALIGN8(data->size));
 
-	if (extra)
-		memcpy(data, extra, extra_size);
+	if (dst_id == KDBUS_DST_ID_BROADCAST) {
+		data->type = KDBUS_MSG_BLOOM;
+		data->size = KDBUS_MSG_DATA_HEADER_SIZE + 64;
+		data = (struct kdbus_msg_data *) ((char *)(data) + ALIGN8(data->size));
+	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret) {
@@ -137,7 +132,6 @@ int msg_send(const struct conn *conn,
 		return EXIT_FAILURE;
 	}
 
-	free(extra);
 	free(msg);
 
 	return 0;

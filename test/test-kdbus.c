@@ -155,12 +155,13 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 
 	upload_policy(conn_a->fd);
-	add_match_empty(conn_a->fd);
-	add_match_empty(conn_b->fd);
 
 	name_acquire(conn_a, "foo.bar.baz", 0);
 	name_acquire(conn_b, "foo.bar.baz", KDBUS_CMD_NAME_QUEUE);
 	name_list(conn_b);
+
+	add_match_empty(conn_a->fd);
+	add_match_empty(conn_b->fd);
 
 	cookie = 0;
 	msg_send(conn_b, "foo.bar.baz", 0xc0000000 | cookie, KDBUS_DST_ID_BROADCAST);
