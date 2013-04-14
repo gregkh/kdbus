@@ -346,8 +346,11 @@ int kdbus_policy_set_from_user(struct kdbus_policy_db *db,
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_policy))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
+	if (size < sizeof(struct kdbus_msg) || size > 0xffff) {
+		kdbus_size_set_user(sizeof(struct kdbus_msg),
+				    buf, struct kdbus_cmd_policy);
 		return -EMSGSIZE;
+	}
 
 	cmd = memdup_user(buf, size);
 	if (IS_ERR(cmd))
