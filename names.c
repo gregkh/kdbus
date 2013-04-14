@@ -247,7 +247,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   void __user *buf)
 {
 	struct kdbus_name_entry *e = NULL;
-	struct kdbus_cmd_name *name;
+	struct kdbus_cmd_name *cmd_name;
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -259,32 +259,32 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	    (size > (sizeof(struct kdbus_cmd_name) + 256)))
 		return -EMSGSIZE;
 
-	name = memdup_user(buf, size);
-	if (IS_ERR(name))
-		return PTR_ERR(name);
+	cmd_name = memdup_user(buf, size);
+	if (IS_ERR(cmd_name))
+		return PTR_ERR(cmd_name);
 
-	if (!kdbus_name_is_valid(name->name))
+	if (!kdbus_name_is_valid(cmd_name->name))
 		return -EINVAL;
 
-	name->name_flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
-	hash = kdbus_name_make_hash(name->name);
+	cmd_name->name_flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
+	hash = kdbus_name_make_hash(cmd_name->name);
 
 	if (conn->ep->policy_db) {
 		ret = kdbus_policy_db_check_own_access(conn->ep->policy_db,
-							conn, name->name);
+						       conn, cmd_name->name);
 		if (ret < 0)
 			return ret;
 	}
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name->name);
+	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
 	if (e) {
 		if (e->conn == conn) {
 			/* just update flags */
-			e->flags = name->name_flags;
+			e->flags = cmd_name->name_flags;
 		} else {
 			ret = kdbus_name_handle_conflict(reg, conn, e,
-							 &name->name_flags);
+							 &cmd_name->name_flags);
 			if (ret < 0)
 				goto err_unlock;
 		}
@@ -298,14 +298,14 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto err_unlock_free;
 	}
 
-	e->name = kstrdup(name->name, GFP_KERNEL);
+	e->name = kstrdup(cmd_name->name, GFP_KERNEL);
 	if (!e->name) {
 		ret = -ENOMEM;
 		goto err_unlock_free;
 	}
 
 	e->conn = conn;
-	e->flags = name->name_flags;
+	e->flags = cmd_name->name_flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
 
@@ -313,7 +313,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	list_add_tail(&e->conn_entry, &conn->names_list);
 
 exit_copy:
-	if (copy_to_user(buf, name, size)) {
+	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
 		goto err_unlock_free;
 	}
@@ -321,12 +321,12 @@ exit_copy:
 	kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_ADD, 0,
 				 e->conn->id, e->flags, e->name);
 
-	kfree(name);
+	kfree(cmd_name);
 	mutex_unlock(&reg->entries_lock);
 	return 0;
 
 err_unlock_free:
-	kfree(name);
+	kfree(cmd_name);
 	kdbus_name_entry_release(e);
 
 err_unlock:
@@ -340,7 +340,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   void __user *buf)
 {
 	struct kdbus_name_entry *e;
-	struct kdbus_cmd_name *name;
+	struct kdbus_cmd_name *cmd_name;
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -352,17 +352,17 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	    (size > (sizeof(struct kdbus_cmd_name) + 256)))
 		return -EMSGSIZE;
 
-	name = memdup_user(buf, size);
-	if (IS_ERR(name))
-		return PTR_ERR(name);
+	cmd_name = memdup_user(buf, size);
+	if (IS_ERR(cmd_name))
+		return PTR_ERR(cmd_name);
 
-	if (!kdbus_name_is_valid(name->name))
+	if (!kdbus_name_is_valid(cmd_name->name))
 		return -EINVAL;
 
-	hash = kdbus_name_make_hash(name->name);
+	hash = kdbus_name_make_hash(cmd_name->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name->name);
+	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
 	if (!e)
 		ret = -ENXIO;
 	else if (e->conn != conn)
@@ -371,7 +371,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 		kdbus_name_entry_release(e);
 	mutex_unlock(&reg->entries_lock);
 
-	kfree(name);
+	kfree(cmd_name);
 
 	return ret;
 }
@@ -380,8 +380,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			void __user *buf)
 {
-	struct kdbus_cmd_names *names = NULL;
-	struct kdbus_cmd_name *name;
+	struct kdbus_cmd_names *cmd_names = NULL;
+	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_name_entry *e;
 	u64 user_size, size = 0, tmp;
 	int ret = 0;
@@ -402,31 +402,31 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	names = kzalloc(size, GFP_KERNEL);
-	if (!names) {
+	cmd_names = kzalloc(size, GFP_KERNEL);
+	if (!cmd_names) {
 		ret = -ENOMEM;
 		goto exit_unlock;
 	}
 
-	names->size = size;
-	name = names->names;
+	cmd_names->size = size;
+	cmd_name = cmd_names->names;
 
 	hash_for_each(reg->entries_hash, tmp, e, hentry) {
-		name->size = sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
-		name->name_flags = 0; /* FIXME */
-		name->id = e->conn->id;
-		strcpy(name->name, e->name);
-		name = (struct kdbus_cmd_name *) ((u8 *) name + name->size);
+		cmd_name->size = sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
+		cmd_name->name_flags = 0; /* FIXME */
+		cmd_name->id = e->conn->id;
+		strcpy(cmd_name->name, e->name);
+		cmd_name = (struct kdbus_cmd_name *) ((u8 *) cmd_name + cmd_name->size);
 	}
 
-	if (copy_to_user(buf, names, size)) {
+	if (copy_to_user(buf, cmd_names, size)) {
 		ret = -EFAULT;
 		goto exit_unlock;
 	}
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
-	kfree(names);
+	kfree(cmd_names);
 
 	return ret;
 }
@@ -436,7 +436,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 			 void __user *buf)
 {
 	struct kdbus_name_entry *e;
-	struct kdbus_cmd_name_info *name_info;
+	struct kdbus_cmd_name_info *cmd_name_info;
 	u64 size;
 	u64 tmp;
 	int ret = 0;
@@ -448,19 +448,19 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	    (size > (sizeof(struct kdbus_cmd_name_info) + 256)))
 		return -EMSGSIZE;
 
-	name_info = memdup_user(buf, size);
-	if (IS_ERR(name_info))
-		return PTR_ERR(name_info);
+	cmd_name_info = memdup_user(buf, size);
+	if (IS_ERR(cmd_name_info))
+		return PTR_ERR(cmd_name_info);
 
-	if (name_info->id == 0) {
+	if (cmd_name_info->id == 0) {
 		// FIXME, look up by name, not id
-		kfree(name_info);
+		kfree(cmd_name_info);
 		return -ENOSYS;
 	}
 
 	mutex_lock(&reg->entries_lock);
 	hash_for_each(reg->entries_hash, tmp, e, hentry) {
-		if (e->conn->id == name_info->id) {
+		if (e->conn->id == cmd_name_info->id) {
 			/* found the id, but wait, how are we supposed to get
 			 * the data back to userspace? */
 			// FIXME
@@ -469,7 +469,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	}
 	mutex_unlock(&reg->entries_lock);
 
-	kfree(name_info);
+	kfree(cmd_name_info);
 
 	return ret;
 }
