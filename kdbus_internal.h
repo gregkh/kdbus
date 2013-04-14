@@ -105,23 +105,24 @@ struct kdbus_name_entry {
 	struct list_head	conn_entry;
 	struct hlist_node	hentry;
 	struct kdbus_conn	*conn;
+	struct kdbus_conn	*starter;
 };
 
 struct kdbus_name_registry *kdbus_name_registry_new(void);
 void kdbus_name_registry_unref(struct kdbus_name_registry *reg);
 
-int kdbus_name_acquire(struct kdbus_name_registry *reg,
-		       struct kdbus_conn *conn,
-		       void __user *buf);
-int kdbus_name_release(struct kdbus_name_registry *reg,
-		       struct kdbus_conn *conn,
-		       void __user *buf);
-int kdbus_name_list(struct kdbus_name_registry *reg,
-		    struct kdbus_conn *conn,
-		    void __user *buf);
-int kdbus_name_query(struct kdbus_name_registry *reg,
-		     struct kdbus_conn *conn,
-		     void __user *buf);
+int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
+			   struct kdbus_conn *conn,
+			   void __user *buf);
+int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
+			   struct kdbus_conn *conn,
+			   void __user *buf);
+int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
+			struct kdbus_conn *conn,
+			void __user *buf);
+int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
+			 struct kdbus_conn *conn,
+			 void __user *buf);
 
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name, u64 type);

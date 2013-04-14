@@ -204,9 +204,9 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 /* IOCTL interface */
 
-int kdbus_name_acquire(struct kdbus_name_registry *reg,
-		       struct kdbus_conn *conn,
-		       void __user *buf)
+int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
+			   struct kdbus_conn *conn,
+			   void __user *buf)
 {
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name *name;
@@ -297,9 +297,9 @@ err_unlock:
 	return ret;
 }
 
-int kdbus_name_release(struct kdbus_name_registry *reg,
-		       struct kdbus_conn *conn,
-		       void __user *buf)
+int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
+			   struct kdbus_conn *conn,
+			   void __user *buf)
 {
 	struct kdbus_name_entry *e;
 	struct kdbus_cmd_name *name;
@@ -338,9 +338,9 @@ int kdbus_name_release(struct kdbus_name_registry *reg,
 	return ret;
 }
 
-int kdbus_name_list(struct kdbus_name_registry *reg,
-		    struct kdbus_conn *conn,
-		    void __user *buf)
+int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
+			struct kdbus_conn *conn,
+			void __user *buf)
 {
 	struct kdbus_cmd_names *names = NULL;
 	struct kdbus_cmd_name *name;
@@ -393,9 +393,9 @@ exit_unlock:
 	return ret;
 }
 
-int kdbus_name_query(struct kdbus_name_registry *reg,
-		     struct kdbus_conn *conn,
-		     void __user *buf)
+int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
+			 struct kdbus_conn *conn,
+			 void __user *buf)
 {
 	struct kdbus_name_entry *e;
 	struct kdbus_cmd_name_info *name_info;

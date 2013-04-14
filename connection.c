@@ -451,28 +451,28 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
 		bus = conn->ep->bus;
-		ret = kdbus_name_acquire(bus->name_registry, conn, buf);
+		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
 		bus = conn->ep->bus;
-		ret = kdbus_name_release(bus->name_registry, conn, buf);
+		ret = kdbus_cmd_name_release(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_LIST:
 		/* return all current well-known names */
 		bus = conn->ep->bus;
-		ret = kdbus_name_list(bus->name_registry, conn, buf);
+		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
 		bus = conn->ep->bus;
-		ret = kdbus_name_query(bus->name_registry, conn, buf);
+		ret = kdbus_cmd_name_query(bus->name_registry, conn, buf);
 
 		break;
 
