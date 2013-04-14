@@ -52,6 +52,7 @@ Name database:
     userspace?
 
 Kernel Core:
+  - get cgroup_path_from_task() with EXPORT_SYMBOL_GPL()
   - use subsys_virtual_register() to avoid devices showing up directly
     in the root of /sys/devices/
       https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register

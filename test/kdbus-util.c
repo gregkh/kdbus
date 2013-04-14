@@ -44,8 +44,9 @@ struct conn *connect_to_bus(const char *path)
 	memset(&hello, 0, sizeof(hello));
 
 	hello.conn_flags = KDBUS_CMD_HELLO_ATTACH_COMM |
-			   KDBUS_CMD_HELLO_ATTACH_EXE  |
-			   KDBUS_CMD_HELLO_ATTACH_CMDLINE;
+			   KDBUS_CMD_HELLO_ATTACH_EXE |
+			   KDBUS_CMD_HELLO_ATTACH_CMDLINE |
+			   KDBUS_CMD_HELLO_ATTACH_CGROUP;
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	if (ret) {

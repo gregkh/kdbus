@@ -23,6 +23,7 @@
 #include <linux/poll.h>
 #include <linux/file.h>
 #include <linux/mm.h>
+#include <linux/cgroup.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"
@@ -598,6 +599,42 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	return 0;
 }
 
+/* FIXME: dirty, illegal, unsafe hack; get proper API in cgroup.c */
+int cgroup_path_from_task(struct task_struct *t, int hierarchy,
+			  char *buf, size_t size)
+{
+	struct cg_cgroup_link {
+		struct list_head cgrp_link_list;
+		struct cgroup *cgrp;
+		struct list_head cg_link_list;
+		struct css_set *cg;
+	};
+
+	struct cgroupfs_root {
+		struct super_block *sb;
+		unsigned long subsys_mask;
+		int hierarchy_id;
+	};
+
+	struct cg_cgroup_link *link;
+	int ret = -ENOENT;
+
+	cgroup_lock();
+	list_for_each_entry(link, &current->cgroups->cg_links, cg_link_list) {
+		struct cgroup* cg = link->cgrp;
+		struct cgroupfs_root *root = (struct cgroupfs_root *)cg->root;
+
+		if (root->hierarchy_id != hierarchy)
+			continue;
+
+		ret = cgroup_path(cg, buf, PAGE_SIZE);
+		break;
+	}
+	cgroup_unlock();
+
+	return ret;
+}
+
 static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 				    struct kdbus_conn *conn_src,
 				    struct kdbus_conn *conn_dst)
@@ -679,6 +716,24 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 				ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CMDLINE,
 							    tmp, len);
 		}
+
+		free_page((unsigned long) tmp);
+
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CGROUP) {
+		char *tmp;
+
+		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+		if (!tmp)
+			return -ENOMEM;
+
+		ret = cgroup_path_from_task(current, 1, tmp, PAGE_SIZE);
+		if (ret >= 0)
+			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP,
+						    tmp, strlen(tmp)+1);
 
 		free_page((unsigned long) tmp);
 
