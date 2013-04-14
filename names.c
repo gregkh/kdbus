@@ -109,26 +109,43 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 	kfree(q);
 }
 
+static void kdbus_name_entry_detach(struct kdbus_name_entry *e)
+{
+	list_del(&e->conn_entry);
+}
+
+static void kdbus_name_entry_attach(struct kdbus_name_entry *e,
+				    struct kdbus_conn *conn)
+{
+	e->conn = conn;
+	list_add_tail(&e->conn_entry, &e->conn->names_list);
+}
+
 static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
 
-	list_del(&e->conn_entry);
+	kdbus_name_entry_detach(e);
 
 	if (list_empty(&e->queue_list)) {
-		kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_REMOVE,
-					 e->conn->id, 0, e->flags, e->name);
-
-		kdbus_name_entry_free(e);
+		if (e->starter) {
+			kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_CHANGE,
+						 e->conn->id, e->starter->id,
+						 e->flags, e->name);
+			e->conn = e->starter;
+		} else {
+			kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_REMOVE,
+						 e->conn->id, 0, e->flags, e->name);
+			kdbus_name_entry_free(e);
+		}
 	} else {
 		struct kdbus_conn *old_conn = e->conn;
 
 		q = list_first_entry(&e->queue_list,
 				     struct kdbus_name_queue_item,
 				     entry_entry);
-		e->conn = q->conn;
 		e->flags = q->flags;
-		list_add_tail(&e->conn_entry, &e->conn->names_list);
+		kdbus_name_entry_attach(e, q->conn);
 		kdbus_name_queue_item_free(q);
 		kdbus_notify_name_change(old_conn->ep, KDBUS_MSG_NAME_CHANGE,
 				old_conn->id, e->conn->id, e->flags, e->name);
@@ -173,9 +190,21 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
 				      struct kdbus_name_entry *e, u64 *flags)
 {
-	if ((*flags   & KDBUS_CMD_NAME_REPLACE_EXISTING) &&
-	    (e->flags & KDBUS_CMD_NAME_ALLOW_REPLACEMENT)) {
-		/* ... */
+	if (conn->flags & KDBUS_CMD_HELLO_STARTER) {
+		if (e->starter == NULL) {
+			e->starter = conn;
+			return 0;
+		} else {
+			return -EBUSY;
+		}
+	}
+
+	if (((*flags   & KDBUS_CMD_NAME_REPLACE_EXISTING) &&
+	     (e->flags & KDBUS_CMD_NAME_ALLOW_REPLACEMENT)) ||
+	     (e->starter && e->starter != conn)) {
+		kdbus_name_entry_detach(e);
+		kdbus_name_entry_attach(e, conn);
+
 		return kdbus_notify_name_change(conn->ep, KDBUS_MSG_NAME_CHANGE,
 						e->conn->id, conn->id, *flags,
 						e->name);
@@ -304,13 +333,15 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto err_unlock_free;
 	}
 
-	e->conn = conn;
+	if (conn->flags & KDBUS_CMD_HELLO_STARTER)
+		e->starter = conn;
+
 	e->flags = cmd_name->name_flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
 
 	hash_add(reg->entries_hash, &e->hentry, hash);
-	list_add_tail(&e->conn_entry, &conn->names_list);
+	kdbus_name_entry_attach(e, conn);
 
 exit_copy:
 	if (copy_to_user(buf, cmd_name, size)) {
