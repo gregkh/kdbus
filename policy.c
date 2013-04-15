@@ -54,7 +54,7 @@ static void kdbus_policy_db_scan_timeout(struct kdbus_policy_db *db)
 	uint64_t now;
 
 	ktime_get_ts(&ts);
-	now = (ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec;
+	now = timespec_to_ns(&ts);
 
 	mutex_lock(&db->cache_lock);
 	list_for_each_entry_safe(ce, tmp, &db->timeout_list, timeout_entry) {

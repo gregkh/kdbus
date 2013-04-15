@@ -489,10 +489,10 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 	data->size = size;
 
 	ktime_get_ts(&ts);
-	data->timestamp.monotonic_ns = (ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec;
+	data->timestamp.monotonic_ns = timespec_to_ns(&ts);
 
 	ktime_get_real_ts(&ts);
-	data->timestamp.realtime_ns = (ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec;
+	data->timestamp.realtime_ns = timespec_to_ns(&ts);
 
 	if (now_ns)
 		*now_ns = data->timestamp.monotonic_ns;
