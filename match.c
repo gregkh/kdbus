@@ -31,8 +31,8 @@
 	(struct kdbus_cmd_match_item *)(((u8 *)item) + KDBUS_ALIGN8((item)->size))
 #define KDBUS_MATCH_ITEM_FOREACH(match, item)				\
 	for ((item) = (match)->items;					\
-	     (char *)(item) + KDBUS_MATCH_ITEM_HEADER_SIZE <= (char *)(match) + (match)->size && \
-	     (char *)(item) + (item)->size <= (char *)(match) + (match)->size; \
+	     (u8 *)(item) + KDBUS_MATCH_ITEM_HEADER_SIZE <= (u8 *)(match) + (match)->size && \
+	     (u8 *)(item) + (item)->size <= (u8 *)(match) + (match)->size; \
 	     item = KDBUS_MATCH_ITEM_NEXT(item))
 
 struct kdbus_match_db_entry_item {

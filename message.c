@@ -35,8 +35,8 @@
 	(struct kdbus_msg_data *)(((u8 *)data) + KDBUS_ALIGN8((data)->size))
 #define KDBUS_MSG_DATA_FOREACH(msg, data)				\
 	for ((data) = (msg)->data;					\
-	     (char *)(data) + KDBUS_MSG_DATA_HEADER_SIZE <= (char *)(msg) + (msg)->size && \
-	     (char *)(data) + (data)->size <= (char *)(msg) + (msg)->size; \
+	     (u8 *)(data) + KDBUS_MSG_DATA_HEADER_SIZE <= (u8 *)(msg) + (msg)->size && \
+	     (u8 *)(data) + (data)->size <= (u8 *)(msg) + (msg)->size; \
 	     data = KDBUS_MSG_DATA_NEXT(data))
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg);
