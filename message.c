@@ -763,7 +763,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CAPS,
 					    (u8 *) cap_effective.cap,
-					    _KERNEL_CAPABILITY_U32S);
+					    sizeof(__u32) * _KERNEL_CAPABILITY_U32S);
 		if (ret < 0)
 			return ret;
 	}
