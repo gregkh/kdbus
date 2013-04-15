@@ -47,7 +47,8 @@ struct conn *connect_to_bus(const char *path)
 			   KDBUS_CMD_HELLO_ATTACH_EXE |
 			   KDBUS_CMD_HELLO_ATTACH_CMDLINE |
 			   KDBUS_CMD_HELLO_ATTACH_CAPS |
-			   KDBUS_CMD_HELLO_ATTACH_CGROUP;
+			   KDBUS_CMD_HELLO_ATTACH_CGROUP |
+			   KDBUS_CMD_HELLO_ATTACH_AUDIT;
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	if (ret) {
@@ -185,11 +186,17 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_SRC_CMDLINE:
 		case KDBUS_MSG_SRC_CGROUP:
 		case KDBUS_MSG_SRC_SECLABEL:
-		case KDBUS_MSG_SRC_AUDIT:
 		case KDBUS_MSG_SRC_NAMES:
 		case KDBUS_MSG_DST_NAME:
 			printf("  +%s (%llu bytes) '%s' (%zu)\n",
 			       enum_MSG(data->type), data->size, data->str, strlen(data->str));
+			break;
+
+		case KDBUS_MSG_SRC_AUDIT:
+			printf("  +%s (%llu bytes) loginuid=%llu sessionid=%llu\n",
+			       enum_MSG(data->type), data->size,
+			       (unsigned long long)data->data64[0],
+			       (unsigned long long)data->data64[1]);
 			break;
 
 		case KDBUS_MSG_SRC_CAPS: {
@@ -201,7 +208,7 @@ void msg_dump(struct kdbus_msg *msg)
 			       enum_MSG(data->type), data->size,
 			       (unsigned long long)data->size - KDBUS_MSG_DATA_HEADER_SIZE);
 
-			cap = (uint32_t *) data->data;
+			cap = data->data32;
 			n = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / 4 / sizeof(uint32_t);
 
 			printf("    CapInh: ");

@@ -26,6 +26,7 @@
 #include <linux/cgroup.h>
 #include <linux/cred.h>
 #include <linux/capability.h>
+#include <linux/audit.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"
@@ -752,6 +753,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			return ret;
 	}
 
+	/* attach the path of the one group hierarchy specified for the bus */
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CGROUP && bus->cgroup_id > 0) {
 		char *tmp;
 
@@ -773,7 +775,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CAPS) {
 		const struct cred *cred;
 		struct caps {
-			__u32 cap[_KERNEL_CAPABILITY_U32S];
+			u32 cap[_KERNEL_CAPABILITY_U32S];
 		} cap[4];
 		int i;
 
@@ -794,6 +796,18 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 		ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_CAPS,
 					     cap, sizeof(cap));
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_AUDIT) {
+		u64 ids[2];
+
+		ids[0] = audit_get_loginuid(current);
+		ids[1] = audit_get_sessionid(current);
+
+		ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_AUDIT,
+					     ids, sizeof(ids));
 		if (ret < 0)
 			return ret;
 	}
