@@ -305,11 +305,11 @@ message has to suppply a buffer large enough to receive a complete message.
 Kernel API error codes
 ===============================================================================
 E2BIG
-  A message contains to many records or items.
+  A message contains too many records or items.
 
 EADDRNOTAVAIL
-  A message flagged not to activate a service addressed a service which is
-  not running.
+  A message flagged not to activate a service, addressed a service which is
+  not currently running.
 
 EAGAIN
   No messages are queued at the moment.
@@ -330,7 +330,7 @@ ECOMM
   A peer does not accept the file descriptors addressed to it.
 
 EDESTADDRREQ
-  The well-known name is missing to address the receiver.
+  The well-known bus name is missing, to address the destination.
 
 EDOM
   The size of data does not match the expectations. Used for the
@@ -349,11 +349,11 @@ EFAULT
 
 EINVAL
   The provided data does not match its type or other expectations, like a
-  string that it not NUL terminated, or  string length that points behind
-  the first NUL byte.
+  string which is not NUL terminated, or a string length that points behind
+  the first NUL byte in the string.
 
 EISCON
-  A control connection is already active.
+  A control connection is already activated.
 
 EMFILE
   Too many file descriptors have been supplied with a message.
@@ -374,7 +374,7 @@ ENOSYS
   The requested functionality is not available.
 
 ENOTCONN
-  The addressed peer is not active connection.
+  The addressed peer is not an active connection.
 
 ENOTSUPP
   The feature negotiation failed, a not supported feature was requested.
@@ -394,7 +394,8 @@ EPERM
   another entity.
 
 ESHUTDOWN
-  The connect is currently shutting down, no further operations are possible.
+  The connection is currently shutting down, no further operations are
+  possible.
 
 ESRCH
-  A requested well-known name is not found.
+  A requested well-known bus name is not found.
