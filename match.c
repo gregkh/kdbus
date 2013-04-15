@@ -155,7 +155,6 @@ bool kdbus_match_db_test_src_names(const char *haystack,
 static
 bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 				   struct kdbus_conn *conn_src,
-				   struct kdbus_conn *conn_dst,
 				   struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg_data *bloom =
@@ -163,7 +162,7 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 	const struct kdbus_msg_data *src_names =
 		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_SRC_NAMES, 0);
 	struct kdbus_match_db_entry *e;
-	size_t bloom_size = conn_dst->ep->bus->bloom_size / sizeof(u64);
+	size_t bloom_size = conn_src->ep->bus->bloom_size / sizeof(u64);
 	bool matched = false;
 
 	mutex_lock(&db->entries_lock);
@@ -274,7 +273,7 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_kmsg *kmsg)
 {
 	if (conn_src)
-		return kdbus_match_db_match_with_src(db, conn_src, conn_dst, kmsg);
+		return kdbus_match_db_match_with_src(db, conn_src, kmsg);
 	else
 		return kdbus_match_db_match_from_kernel(db, conn_dst, kmsg);
 }
