@@ -24,6 +24,8 @@
 #include <linux/file.h>
 #include <linux/mm.h>
 #include <linux/cgroup.h>
+#include <linux/cred.h>
+#include <linux/capability.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"
@@ -746,6 +748,22 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 		free_page((unsigned long) tmp);
 
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CAPS) {
+		const struct cred *cred;
+		kernel_cap_t cap_effective;
+
+		rcu_read_lock();
+		cred = __task_cred(current);
+		cap_effective = cred->cap_effective;
+		rcu_read_unlock();
+
+		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CAPS,
+					    (u8 *) cap_effective.cap,
+					    _KERNEL_CAPABILITY_U32S);
 		if (ret < 0)
 			return ret;
 	}

@@ -46,6 +46,7 @@ struct conn *connect_to_bus(const char *path)
 	hello.conn_flags = KDBUS_CMD_HELLO_ATTACH_COMM |
 			   KDBUS_CMD_HELLO_ATTACH_EXE |
 			   KDBUS_CMD_HELLO_ATTACH_CMDLINE |
+			   KDBUS_CMD_HELLO_ATTACH_CAPS |
 			   KDBUS_CMD_HELLO_ATTACH_CGROUP;
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
@@ -166,6 +167,7 @@ void msg_dump(struct kdbus_msg *msg)
 
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD:
+		case KDBUS_MSG_SRC_CAPS:
 			printf("  +%s (%llu bytes) '%s'\n",
 			       enum_MSG(data->type), data->size, data->data);
 			break;
@@ -183,7 +185,6 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_SRC_EXE:
 		case KDBUS_MSG_SRC_CMDLINE:
 		case KDBUS_MSG_SRC_CGROUP:
-		case KDBUS_MSG_SRC_CAPS:
 		case KDBUS_MSG_SRC_SECLABEL:
 		case KDBUS_MSG_SRC_AUDIT:
 		case KDBUS_MSG_SRC_NAMES:
