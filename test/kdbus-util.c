@@ -48,6 +48,7 @@ struct conn *connect_to_bus(const char *path)
 			   KDBUS_CMD_HELLO_ATTACH_CMDLINE |
 			   KDBUS_CMD_HELLO_ATTACH_CAPS |
 			   KDBUS_CMD_HELLO_ATTACH_CGROUP |
+			   KDBUS_CMD_HELLO_ATTACH_SECLABEL |
 			   KDBUS_CMD_HELLO_ATTACH_AUDIT;
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);

@@ -27,6 +27,7 @@
 #include <linux/cred.h>
 #include <linux/capability.h>
 #include <linux/audit.h>
+#include <linux/security.h>
 #include "kdbus.h"
 
 #include "kdbus_internal.h"
@@ -753,24 +754,6 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			return ret;
 	}
 
-	/* attach the path of the one group hierarchy specified for the bus */
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CGROUP && bus->cgroup_id > 0) {
-		char *tmp;
-
-		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
-		if (!tmp)
-			return -ENOMEM;
-
-		ret = task_cgroup_path_from_hierarchy(current, bus->cgroup_id, tmp, PAGE_SIZE);
-		if (ret >= 0)
-			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP, tmp);
-
-		free_page((unsigned long) tmp);
-
-		if (ret < 0)
-			return ret;
-	}
-
 	/* we always return a 4 elements, the element size is 1/4  */
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CAPS) {
 		const struct cred *cred;
@@ -800,10 +783,38 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			return ret;
 	}
 
+#ifdef CONFIG_CGROUPS
+	/* attach the path of the one group hierarchy specified for the bus */
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CGROUP && bus->cgroup_id > 0) {
+		char *tmp;
+
+		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+		if (!tmp)
+			return -ENOMEM;
+
+		ret = task_cgroup_path_from_hierarchy(current, bus->cgroup_id, tmp, PAGE_SIZE);
+		if (ret >= 0)
+			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP, tmp);
+
+		free_page((unsigned long) tmp);
+
+		if (ret < 0)
+			return ret;
+	}
+#endif
+
+#ifdef CONFIG_AUDITSYSCALL
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_AUDIT) {
+		const struct cred *cred;
+		uid_t uid;
 		u64 ids[2];
 
-		ids[0] = audit_get_loginuid(current);
+		rcu_read_lock();
+		cred = __task_cred(current);
+		uid = from_kuid(cred->user_ns, audit_get_loginuid(current));
+		rcu_read_unlock();
+
+		ids[0] = uid;
 		ids[1] = audit_get_sessionid(current);
 
 		ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_AUDIT,
@@ -811,6 +822,27 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		if (ret < 0)
 			return ret;
 	}
+#endif
+
+#ifdef CONFIG_SECURITY
+	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_SECLABEL) {
+		u32 sid;
+		char *label = NULL;
+		int err;
+		u32 len = 0;
+
+		security_task_getsecid(current, &sid);
+		err = security_secid_to_secctx(sid, &label, &len);
+		if (err >= 0 && len > 0)
+			ret = kdbus_kmsg_append_data(kmsg,
+					KDBUS_MSG_SRC_SECLABEL, label, len);
+
+		kfree(label);
+
+		if (ret < 0)
+			return ret;
+	}
+#endif
 
 	return 0;
 }
