@@ -212,19 +212,19 @@ void msg_dump(struct kdbus_msg *msg)
 			cap = data->data32;
 			n = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / 4 / sizeof(uint32_t);
 
-			printf("    CapInh: ");
+			printf("    CapInh=");
 			for (i = 0; i < n; i++)
 				printf("%08x", cap[(0 * n) + (n - i - 1)]);
 
-			printf("\n    CapPrm: ");
+			printf(" CapPrm=");
 			for (i = 0; i < n; i++)
 				printf("%08x", cap[(1 * n) + (n - i - 1)]);
 
-			printf("\n    CapEff: ");
+			printf(" CapEff=");
 			for (i = 0; i < n; i++)
 				printf("%08x", cap[(2 * n) + (n - i - 1)]);
 
-			printf("\n    CapInh: ");
+			printf(" CapInh=");
 			for (i = 0; i < n; i++)
 				printf("%08x", cap[(3 * n) + (n - i - 1)]);
 			printf("\n");
