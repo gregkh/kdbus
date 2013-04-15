@@ -31,7 +31,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 {
 	struct kdbus_conn *dst_conn;
 	struct kdbus_kmsg *kmsg;
-	struct kdbus_msg_data *data;
+	struct kdbus_msg_item *item;
 	u64 dst_id = orig_msg->src_id;
 	int ret;
 
@@ -39,13 +39,13 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 	if (!dst_conn)
 		return -ENXIO;
 
-	ret = kdbus_kmsg_new(sizeof(struct kdbus_msg_data), &kmsg);
+	ret = kdbus_kmsg_new(sizeof(struct kdbus_msg_item), &kmsg);
 	if (ret < 0)
 		return ret;
 
 	/*
 	 * a kernel-generated notification can only contain one
-	 * struct kdbus_msg_data, so make a shortcut here for
+	 * struct kdbus_msg_item, so make a shortcut here for
 	 * faster lookup in the match db.
 	 */
 	kmsg->notification_type = msg_type;
@@ -55,8 +55,8 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_NONE;
 	kmsg->msg.cookie_reply = orig_msg->cookie;
 
-	data = kmsg->msg.items;
-	data->type = msg_type;
+	item = kmsg->msg.items;
+	item->type = msg_type;
 
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_unref(kmsg);
@@ -82,7 +82,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 {
 	struct kdbus_manager_msg_name_change *name_change;
 	struct kdbus_kmsg *kmsg = NULL;
-	struct kdbus_msg_data *data;
+	struct kdbus_msg_item *data;
 	struct kdbus_msg *msg;
 	u64 extra_size = sizeof(*name_change) + strlen(name);
 	int ret;
@@ -117,7 +117,7 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 {
 	struct kdbus_manager_msg_id_change *id_change;
 	struct kdbus_kmsg *kmsg = NULL;
-	struct kdbus_msg_data *data;
+	struct kdbus_msg_item *item;
 	struct kdbus_msg *msg;
 	u64 extra_size = sizeof(*id_change);
 	int ret;
@@ -127,14 +127,14 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 		return ret;
 
 	msg = &kmsg->msg;
-	data = msg->items;
-	id_change = (struct kdbus_manager_msg_id_change *) data->data;
+	item = msg->items;
+	id_change = (struct kdbus_manager_msg_id_change *) item->data;
 
 	/* FIXME */
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
 	msg->src_id = KDBUS_SRC_ID_KERNEL;
 
-	data->type = type;
+	item->type = type;
 
 	id_change->id = id;
 

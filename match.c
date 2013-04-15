@@ -148,10 +148,10 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_kmsg *kmsg)
 {
-	const struct kdbus_msg_data *bloom =
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_BLOOM, 0);
-	const struct kdbus_msg_data *src_names =
-		kdbus_msg_get_data(&kmsg->msg, KDBUS_MSG_SRC_NAMES, 0);
+	const struct kdbus_msg_item *bloom =
+		kdbus_msg_get_item(&kmsg->msg, KDBUS_MSG_BLOOM, 0);
+	const struct kdbus_msg_item *src_names =
+		kdbus_msg_get_item(&kmsg->msg, KDBUS_MSG_SRC_NAMES, 0);
 	struct kdbus_match_db_entry *e;
 	size_t bloom_size = conn_src->ep->bus->bloom_size / sizeof(u64);
 	bool matched = false;

@@ -24,8 +24,8 @@
 
 #define KDBUS_ITEM_HEADER_SIZE offsetof(union kdbus_item, data)
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
-#define KDBUS_ITEM_NEXT(data) \
-	(typeof(data))(((u8 *)data) + KDBUS_ALIGN8((data)->size))
+#define KDBUS_ITEM_NEXT(item) \
+	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head)						\
 	for (item = (head)->items;						\
 	     (u8 *)(item) + KDBUS_ITEM_HEADER_SIZE <= (u8 *)(head) + (head)->size && \
@@ -52,7 +52,7 @@ union kdbus_item {
 		__u64 type;
 		u8 data[0];
 	};
-	struct kdbus_msg_data msg_data;
+	struct kdbus_msg_item msg_item;
 	struct kdbus_cmd_match_item cmd_match_item;
 };
 
@@ -275,20 +275,20 @@ struct kdbus_conn {
 /* array of passed-in file descriptors */
 struct kdbus_fds {
 	int count;
-	struct kdbus_msg_data *data;
+	struct kdbus_msg_item *items;
 	struct file *fp[0];
 };
 
 /* array of passed-in payload references */
 struct kdbus_payload {
 	int count;
-	struct kdbus_msg_data *data[0];
+	struct kdbus_msg_item *items[0];
 };
 
 struct kdbus_meta {
 	u64 size;
 	u64 allocated_size;
-	struct kdbus_msg_data data[0];
+	struct kdbus_msg_item items[0];
 };
 
 struct kdbus_kmsg {
@@ -311,7 +311,7 @@ struct kdbus_msg_list_entry {
 /* message */
 int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp, struct kdbus_kmsg **m);
-const struct kdbus_msg_data *kdbus_msg_get_data(const struct kdbus_msg *msg, u64 type, int index);
+const struct kdbus_msg_item *kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, int index);
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep,
 		    struct kdbus_conn *conn_src,
