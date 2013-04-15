@@ -167,7 +167,6 @@ void msg_dump(struct kdbus_msg *msg)
 
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD:
-		case KDBUS_MSG_SRC_CAPS:
 			printf("  +%s (%llu bytes) '%s'\n",
 			       enum_MSG(data->type), data->size, data->data);
 			break;
@@ -191,6 +190,12 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_DST_NAME:
 			printf("  +%s (%llu bytes) '%s' (%zu)\n",
 			       enum_MSG(data->type), data->size, data->str, strlen(data->str));
+			break;
+
+		case KDBUS_MSG_SRC_CAPS:
+			printf("  +%s (%llu bytes) len=%llu bytes)\n",
+			       enum_MSG(data->type), data->size,
+			       (unsigned long long)data->size - KDBUS_MSG_DATA_HEADER_SIZE);
 			break;
 
 		case KDBUS_MSG_TIMESTAMP:
