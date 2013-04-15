@@ -336,12 +336,12 @@ EDOM
   The size of data does not match the expectations. Used for the
   size of the bloom filter bit field.
 
-  A specific data type, which is only expected once, is provided multiple
-  times.
-
 EEXIST
   A requested namespace, bus or endpoint with the same name already
   exists.
+
+  A specific data type, which is only expected once, is provided multiple
+  times.
 
 EFAULT
   The supplied memory could not be accessed, or the buffer is not properly

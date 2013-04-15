@@ -35,7 +35,6 @@
 	KDBUS_ALIGN8((s) + KDBUS_MSG_DATA_HEADER_SIZE)
 #define KDBUS_MSG_DATA_NEXT(_data) \
 	(struct kdbus_msg_data *)(((u8 *)_data) + KDBUS_ALIGN8((_data)->size))
-
 #define KDBUS_MSG_DATA_FOREACH(msg, data)				\
 	for ((data) = (msg)->data;					\
 	     (char *)(data) + KDBUS_MSG_DATA_HEADER_SIZE <= (char *)(msg) + (msg)->size && \
@@ -115,7 +114,7 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 	int ret;
 
 	KDBUS_MSG_DATA_FOREACH(msg, data) {
-		/* Ensure we actually have some data */
+		/* empty data records are invalid */
 		if (data->size <= KDBUS_MSG_DATA_HEADER_SIZE)
 			return -EINVAL;
 
@@ -137,39 +136,37 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 			break;
 
 		case KDBUS_MSG_UNIX_FDS:
-			/* do not allow to broadcast file descriptors */
-			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
-				return -ENOTUNIQ;
-
 			/* do not allow multiple fd arrays */
 			if (has_fds)
 				return -EEXIST;
 			has_fds = true;
 
+			/* do not allow to broadcast file descriptors */
+			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
+				return -ENOTUNIQ;
+
 			num_fds = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / sizeof(int);
 			if (num_fds > 256)
 				return -EMFILE;
-
 			break;
 
 		case KDBUS_MSG_BLOOM:
-			/* bloom filters are for broadcast messages */
-			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
-				return -EBADMSG;
-
 			/* do not allow multiple bloom filters */
 			if (has_bloom)
 				return -EEXIST;
+			has_bloom = true;
 
-			/* allow only a multiple of 64bit */
-			if ((data->size - KDBUS_MSG_DATA_HEADER_SIZE) & 7)
+			/* bloom filters are only for broadcast messages */
+			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
+				return -EBADMSG;
+
+			/* allow only bloom sizes of a multiple of 64bit */
+			if (!KDBUS_IS_ALIGNED8(data->size - KDBUS_MSG_DATA_HEADER_SIZE))
 				return -EINVAL;
 
 			/* do not allow mismatching bloom filter sizes */
 			if (data->size - KDBUS_MSG_DATA_HEADER_SIZE != conn->ep->bus->bloom_size)
 				return -EDOM;
-
-			has_bloom = true;
 			break;
 
 		case KDBUS_MSG_DST_NAME:
@@ -184,7 +181,6 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 
 			if (!kdbus_name_is_valid(data->str))
 				return -EINVAL;
-
 			break;
 
 		default:
