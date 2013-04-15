@@ -150,7 +150,7 @@ char *msg_id(uint64_t id, char *buf)
 
 void msg_dump(struct kdbus_msg *msg)
 {
-	const struct kdbus_msg_data *data = msg->data;
+	struct kdbus_msg_data *data = msg->data;
 	char buf[32];
 
 	printf("MESSAGE: %s (%llu bytes) flags=0x%llx, %s → %s, cookie=%llu, timeout=%llu\n",
@@ -192,11 +192,36 @@ void msg_dump(struct kdbus_msg *msg)
 			       enum_MSG(data->type), data->size, data->str, strlen(data->str));
 			break;
 
-		case KDBUS_MSG_SRC_CAPS:
+		case KDBUS_MSG_SRC_CAPS: {
+			int n;
+			uint32_t *cap;
+			int i;
+
 			printf("  +%s (%llu bytes) len=%llu bytes)\n",
 			       enum_MSG(data->type), data->size,
 			       (unsigned long long)data->size - KDBUS_MSG_DATA_HEADER_SIZE);
+
+			cap = (uint32_t *) data->data;
+			n = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / 4 / sizeof(uint32_t);
+
+			printf("    CapInh: ");
+			for (i = 0; i < n; i++)
+				printf("%08x", cap[(0 * n) + (n - i - 1)]);
+
+			printf("\n    CapPrm: ");
+			for (i = 0; i < n; i++)
+				printf("%08x", cap[(1 * n) + (n - i - 1)]);
+
+			printf("\n    CapEff: ");
+			for (i = 0; i < n; i++)
+				printf("%08x", cap[(2 * n) + (n - i - 1)]);
+
+			printf("\n    CapInh: ");
+			for (i = 0; i < n; i++)
+				printf("%08x", cap[(3 * n) + (n - i - 1)]);
+			printf("\n");
 			break;
+		}
 
 		case KDBUS_MSG_TIMESTAMP:
 			printf("  +%s (%llu bytes) realtime=%lluns monotonic=%lluns\n",

@@ -82,7 +82,7 @@ static int upload_policy(int fd)
 	policy = make_policy_name("foo.bar.baz");
 	append_policy(cmd_policy, policy, size);
 
-	policy = make_policy_access(KDBUS_POLICY_USER, KDBUS_POLICY_OWN, 0);
+	policy = make_policy_access(KDBUS_POLICY_USER, KDBUS_POLICY_OWN, getuid());
 	append_policy(cmd_policy, policy, size);
 
 	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_RECV, 0);

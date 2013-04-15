@@ -431,7 +431,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 }
 
 static struct kdbus_msg_data __must_check *
-kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 extra_size)
+kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 {
 	struct kdbus_msg_data *data;
 	u64 size;
@@ -453,7 +453,7 @@ kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 extra_size)
 		struct kdbus_meta *meta;
 
 		size = roundup_pow_of_two(size);
-		pr_info("kdbus_kmsg_append_data: grow to size=%llu\n", size);
+		pr_info("kdbus_kmsg_append: grow to size=%llu\n", size);
 		meta = kmalloc(size, GFP_KERNEL);
 		if (!meta)
 			return NULL;
@@ -481,7 +481,7 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(struct kdbus_timestamp));
 	struct timespec ts;
 
-	data = kdbus_kmsg_append_data(kmsg, size);
+	data = kdbus_kmsg_append(kmsg, size);
 	if (!data)
 		return -ENOMEM;
 
@@ -500,8 +500,8 @@ kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 	return 0;
 }
 
-static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg,
-				 u64 type, const char *str, size_t len)
+static int kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 type,
+				  const void *buf, size_t len)
 {
 	struct kdbus_msg_data *data;
 	u64 size;
@@ -510,13 +510,33 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg,
 		return 0;
 
 	size = KDBUS_MSG_DATA_SIZE(len);
-	data = kdbus_kmsg_append_data(kmsg, size);
+	data = kdbus_kmsg_append(kmsg, size);
 	if (!data)
 		return -ENOMEM;
 
 	data->type = type;
 	data->size = KDBUS_MSG_DATA_HEADER_SIZE + len;
-	memcpy(data->str, str, len);
+	memcpy(data->str, buf, len);
+
+	return 0;
+}
+
+static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
+				 const char *str)
+{
+	u64 len;
+	u64 size;
+	struct kdbus_msg_data *data;
+
+	len = strlen(str);
+	size = KDBUS_MSG_DATA_SIZE(len);
+	data = kdbus_kmsg_append(kmsg, size);
+	if (!data)
+		return -ENOMEM;
+
+	data->type = type;
+	data->size = KDBUS_MSG_DATA_HEADER_SIZE + len;
+	memcpy(data->str, str, len + 1);
 
 	return 0;
 }
@@ -539,7 +559,7 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 		goto exit_unlock;
 
 	size = KDBUS_MSG_DATA_SIZE(strsize);
-	data = kdbus_kmsg_append_data(kmsg, size);
+	data = kdbus_kmsg_append(kmsg, size);
 	if (!data) {
 		ret = -ENOMEM;
 		goto exit_unlock;
@@ -566,7 +586,7 @@ kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
 	struct kdbus_msg_data *data;
 	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(struct kdbus_creds));
 
-	data = kdbus_kmsg_append_data(kmsg, size);
+	data = kdbus_kmsg_append(kmsg, size);
 	if (!data)
 		return -ENOMEM;
 
@@ -656,14 +676,12 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		char comm[TASK_COMM_LEN];
 
 		get_task_comm(comm, current->group_leader);
-		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_TID_COMM,
-					    comm, strlen(comm)+1);
+		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_TID_COMM, comm);
 		if (ret < 0)
 			return ret;
 
 		get_task_comm(comm, current);
-		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_PID_COMM,
-					    comm, strlen(comm)+1);
+		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_PID_COMM, comm);
 		if (ret < 0)
 			return ret;
 	}
@@ -696,8 +714,8 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			pathname = d_path(exe_path, tmp, PAGE_SIZE);
 			if (!IS_ERR(pathname)) {
 				len = tmp + PAGE_SIZE - pathname;
-				ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_EXE,
-							    pathname, len);
+				ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_EXE,
+							     pathname, len);
 			}
 
 			free_page((unsigned long) tmp);
@@ -724,8 +742,8 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 			ret = copy_from_user(tmp, (const char __user *) mm->arg_start, len);
 			if (ret == 0)
-				ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CMDLINE,
-							    tmp, len);
+				ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_CMDLINE,
+							     tmp, len);
 		}
 
 		free_page((unsigned long) tmp);
@@ -743,8 +761,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 		ret = task_cgroup_path_from_hierarchy(current, bus->cgroup_id, tmp, PAGE_SIZE);
 		if (ret >= 0)
-			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP,
-						    tmp, strlen(tmp)+1);
+			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP, tmp);
 
 		free_page((unsigned long) tmp);
 
@@ -752,18 +769,31 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			return ret;
 	}
 
+	/* we always return a 4 elements, the element size is 1/4  */
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CAPS) {
 		const struct cred *cred;
-		kernel_cap_t cap_effective;
+		struct caps {
+			__u32 cap[_KERNEL_CAPABILITY_U32S];
+		} cap[4];
+		int i;
 
 		rcu_read_lock();
 		cred = __task_cred(current);
-		cap_effective = cred->cap_effective;
+		for (i = 0; i < _KERNEL_CAPABILITY_U32S; i++) {
+			cap[0].cap[i] = cred->cap_inheritable.cap[i];
+			cap[1].cap[i] = cred->cap_permitted.cap[i];
+			cap[2].cap[i] = cred->cap_effective.cap[i];
+			cap[3].cap[i] = cred->cap_bset.cap[i];
+		}
 		rcu_read_unlock();
 
-		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CAPS,
-					    (u8 *) cap_effective.cap,
-					    sizeof(__u32) * _KERNEL_CAPABILITY_U32S);
+		/* clear unused bits */
+		for (i = 0; i < 4; i++)
+			cap[i].cap[CAP_TO_INDEX(CAP_LAST_CAP)] &=
+				CAP_TO_MASK(CAP_LAST_CAP + 1) - 1;
+
+		ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_CAPS,
+					     cap, sizeof(cap));
 		if (ret < 0)
 			return ret;
 	}
