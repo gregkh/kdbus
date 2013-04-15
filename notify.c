@@ -55,7 +55,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_NONE;
 	kmsg->msg.cookie_reply = orig_msg->cookie;
 
-	data = kmsg->msg.data;
+	data = kmsg->msg.items;
 	data->type = msg_type;
 
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
@@ -92,7 +92,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 		return ret;
 
 	msg = &kmsg->msg;
-	data = msg->data;
+	data = msg->items;
 	name_change = (struct kdbus_manager_msg_name_change *) data->data;
 
 	/* FIXME */
@@ -127,7 +127,7 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 		return ret;
 
 	msg = &kmsg->msg;
-	data = msg->data;
+	data = msg->items;
 	id_change = (struct kdbus_manager_msg_id_change *) data->data;
 
 	/* FIXME */

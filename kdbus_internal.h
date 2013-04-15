@@ -17,11 +17,20 @@
 #include <linux/hashtable.h>
 #include "kdbus.h"
 
-/* FIXME: move to uapi/linux/major.h */
-#define KDBUS_CHAR_MAJOR	222
+#define KDBUS_CHAR_MAJOR	222		/* FIXME: move to uapi/linux/major.h */
 
 #define KDBUS_IS_ALIGNED8(s) (((u64)(s) & 7) == 0)
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
+
+#define KDBUS_ITEM_HEADER_SIZE offsetof(union kdbus_item, data)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
+#define KDBUS_ITEM_NEXT(data) \
+	(typeof(data))(((u8 *)data) + KDBUS_ALIGN8((data)->size))
+#define KDBUS_ITEM_FOREACH(item, head)						\
+	for (item = (head)->items;						\
+	     (u8 *)(item) + KDBUS_ITEM_HEADER_SIZE <= (u8 *)(head) + (head)->size && \
+	     (u8 *)(item) + (item)->size <= (u8 *)(head) + (head)->size; \
+	     item = KDBUS_ITEM_NEXT(item))
 
 /* copy the uint64_t "size" value from the userspace-supplied  structure */
 //FIXME: intentionally broken to make ARM's missing get_user() work
@@ -36,6 +45,16 @@
 	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
 	put_user(_s, _sz); \
 })
+
+union kdbus_item {
+	struct {
+		__u64 size;
+		__u64 type;
+		u8 data[0];
+	};
+	struct kdbus_msg_data msg_data;
+	struct kdbus_cmd_match_item cmd_match_item;
+};
 
 static inline bool kdbus_validate_nul(const char *s, size_t l)
 {

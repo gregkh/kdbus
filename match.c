@@ -26,15 +26,6 @@
 
 #include "kdbus_internal.h"
 
-#define KDBUS_MATCH_ITEM_HEADER_SIZE offsetof(struct kdbus_cmd_match, items)
-#define KDBUS_MATCH_ITEM_NEXT(item) \
-	(struct kdbus_cmd_match_item *)(((u8 *)item) + KDBUS_ALIGN8((item)->size))
-#define KDBUS_MATCH_ITEM_FOREACH(match, item)				\
-	for ((item) = (match)->items;					\
-	     (u8 *)(item) + KDBUS_MATCH_ITEM_HEADER_SIZE <= (u8 *)(match) + (match)->size && \
-	     (u8 *)(item) + (item)->size <= (u8 *)(match) + (match)->size; \
-	     item = KDBUS_MATCH_ITEM_NEXT(item))
-
 struct kdbus_match_db_entry_item {
 	u64 type;
 	union {
@@ -185,7 +176,8 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 				}
 
 			if (src_names && ei->type == KDBUS_CMD_MATCH_SRC_NAME) {
-				size_t nlen = src_names->size - KDBUS_MSG_DATA_HEADER_SIZE;
+				size_t nlen = src_names->size - KDBUS_ITEM_HEADER_SIZE;
+
 				if (!kdbus_match_db_test_src_names(src_names->str,
 								   nlen, ei->name)) {
 					matched = false;
@@ -316,7 +308,7 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	e->src_id = cmd_match->src_id;
 	e->cookie = cmd_match->cookie;
 
-	KDBUS_MATCH_ITEM_FOREACH(cmd_match, item) {
+	KDBUS_ITEM_FOREACH(item, cmd_match) {
 		struct kdbus_match_db_entry_item *ei;
 		size_t size;
 

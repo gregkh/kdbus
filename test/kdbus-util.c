@@ -103,7 +103,7 @@ int msg_send(const struct conn *conn,
 	msg->cookie = cookie;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS1;
 
-	data = msg->data;
+	data = msg->items;
 
 	if (name) {
 		data->type = KDBUS_MSG_DST_NAME;
@@ -152,7 +152,7 @@ char *msg_id(uint64_t id, char *buf)
 
 void msg_dump(struct kdbus_msg *msg)
 {
-	struct kdbus_msg_data *data = msg->data;
+	struct kdbus_msg_data *data = msg->items;
 	char buf[32];
 
 	printf("MESSAGE: %s (%llu bytes) flags=0x%llx, %s → %s, cookie=%llu, timeout=%llu\n",

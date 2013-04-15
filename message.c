@@ -32,16 +32,8 @@
 
 #include "kdbus_internal.h"
 
+#define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
-#define KDBUS_MSG_DATA_SIZE(s) \
-	KDBUS_ALIGN8((s) + KDBUS_MSG_DATA_HEADER_SIZE)
-#define KDBUS_MSG_DATA_NEXT(data) \
-	(struct kdbus_msg_data *)(((u8 *)data) + KDBUS_ALIGN8((data)->size))
-#define KDBUS_MSG_DATA_FOREACH(msg, data)				\
-	for ((data) = (msg)->data;					\
-	     (u8 *)(data) + KDBUS_MSG_DATA_HEADER_SIZE <= (u8 *)(msg) + (msg)->size && \
-	     (u8 *)(data) + (data)->size <= (u8 *)(msg) + (msg)->size; \
-	     data = KDBUS_MSG_DATA_NEXT(data))
 
 static void kdbus_msg_dump(const struct kdbus_msg *msg);
 
@@ -87,7 +79,7 @@ static struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg)
 
 int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m)
 {
-	u64 size = sizeof(struct kdbus_kmsg) + KDBUS_MSG_DATA_SIZE(extra_size);
+	u64 size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	struct kdbus_kmsg *kmsg;
 
 	kmsg = kzalloc(size, GFP_KERNEL);
@@ -97,7 +89,7 @@ int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m)
 	kref_init(&kmsg->kref);
 
 	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
-	kmsg->msg.data[0].size = KDBUS_MSG_DATA_SIZE(extra_size);
+	kmsg->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
 	*m = kmsg;
 	return 0;
@@ -115,9 +107,9 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 	bool has_bloom = false;
 	int ret;
 
-	KDBUS_MSG_DATA_FOREACH(msg, data) {
+	KDBUS_ITEM_FOREACH(data, msg) {
 		/* empty data records are invalid */
-		if (data->size <= KDBUS_MSG_DATA_HEADER_SIZE)
+		if (data->size <= KDBUS_ITEM_HEADER_SIZE)
 			return -EINVAL;
 
 		if (++num_records > 512)
@@ -130,7 +122,7 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 			break;
 
 		case KDBUS_MSG_PAYLOAD_VEC:
-			if (data->size != KDBUS_MSG_DATA_HEADER_SIZE + 16)
+			if (data->size != KDBUS_ITEM_HEADER_SIZE + 16)
 				return -EINVAL;
 			if (data->vec.size > 0xffff)
 				return -EMSGSIZE;
@@ -147,7 +139,7 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			num_fds = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / sizeof(int);
+			num_fds = (data->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
 			if (num_fds > 256)
 				return -EMFILE;
 			break;
@@ -163,11 +155,11 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 				return -EBADMSG;
 
 			/* allow only bloom sizes of a multiple of 64bit */
-			if (!KDBUS_IS_ALIGNED8(data->size - KDBUS_MSG_DATA_HEADER_SIZE))
+			if (!KDBUS_IS_ALIGNED8(data->size - KDBUS_ITEM_HEADER_SIZE))
 				return -EINVAL;
 
 			/* do not allow mismatching bloom filter sizes */
-			if (data->size - KDBUS_MSG_DATA_HEADER_SIZE != conn->ep->bus->bloom_size)
+			if (data->size - KDBUS_ITEM_HEADER_SIZE != conn->ep->bus->bloom_size)
 				return -EDOM;
 			break;
 
@@ -178,7 +170,7 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 			has_name = true;
 
 			/* enforce NUL-terminated strings */
-			if (!kdbus_validate_nul(data->str, data->size - KDBUS_MSG_DATA_HEADER_SIZE))
+			if (!kdbus_validate_nul(data->str, data->size - KDBUS_ITEM_HEADER_SIZE))
 				return -EINVAL;
 
 			if (!kdbus_name_is_valid(data->str))
@@ -223,7 +215,7 @@ static int kdbus_msg_scan_data(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 			goto out_err;
 		}
 
-		fds->data = kmalloc(KDBUS_MSG_DATA_HEADER_SIZE +
+		fds->data = kmalloc(KDBUS_ITEM_HEADER_SIZE +
 				(sizeof(int) * num_fds), GFP_KERNEL);
 		if (!fds->data) {
 			ret = -ENOMEM;
@@ -274,7 +266,7 @@ static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 	struct kdbus_msg_data *d;
 	void __user *user_addr;
 
-	size = KDBUS_MSG_DATA_HEADER_SIZE + data->vec.size;
+	size = KDBUS_ITEM_HEADER_SIZE + data->vec.size;
 
 	d = kmalloc(size, GFP_KERNEL);
 	if (!d)
@@ -304,7 +296,7 @@ static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
 	int i;
 	int count;
 
-	count = (data->size - KDBUS_MSG_DATA_HEADER_SIZE) / sizeof(int);
+	count = (data->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
 	for (i = 0; i < count; i++) {
 		struct file *fp;
 
@@ -373,7 +365,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	 * iterate over the receiced data records and resolve external
 	 * references and store them in "struct kmsg"
 	 */
-	KDBUS_MSG_DATA_FOREACH(&kmsg->msg, data) {
+	KDBUS_ITEM_FOREACH(data, &kmsg->msg) {
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD_VEC:
 			ret = kdbus_copy_user_payload(kmsg, data);
@@ -404,7 +396,7 @@ kdbus_msg_get_data(const struct kdbus_msg *msg, u64 type, int index)
 {
 	const struct kdbus_msg_data *data;
 
-	KDBUS_MSG_DATA_FOREACH(msg, data) {
+	KDBUS_ITEM_FOREACH(data, msg) {
 		if (data->type == type && index-- == 0)
 			return data;
 	}
@@ -426,7 +418,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 		(unsigned long long) msg->payload_type,
 		(unsigned long long) msg->timeout_ns);
 
-	KDBUS_MSG_DATA_FOREACH(msg, data) {
+	KDBUS_ITEM_FOREACH(data, msg) {
 		pr_info("`- msg_data size=%llu, type=0x%llx\n",
 			data->size, data->type);
 	}
@@ -480,7 +472,7 @@ static int __must_check
 kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 {
 	struct kdbus_msg_data *data;
-	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(struct kdbus_timestamp));
+	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
 	struct timespec ts;
 
 	data = kdbus_kmsg_append(kmsg, size);
@@ -511,13 +503,13 @@ static int kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 type,
 	if (len == 0)
 		return 0;
 
-	size = KDBUS_MSG_DATA_SIZE(len);
+	size = KDBUS_ITEM_SIZE(len);
 	data = kdbus_kmsg_append(kmsg, size);
 	if (!data)
 		return -ENOMEM;
 
 	data->type = type;
-	data->size = KDBUS_MSG_DATA_HEADER_SIZE + len;
+	data->size = KDBUS_ITEM_HEADER_SIZE + len;
 	memcpy(data->str, buf, len);
 
 	return 0;
@@ -531,13 +523,13 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 	struct kdbus_msg_data *data;
 
 	len = strlen(str);
-	size = KDBUS_MSG_DATA_SIZE(len);
+	size = KDBUS_ITEM_SIZE(len);
 	data = kdbus_kmsg_append(kmsg, size);
 	if (!data)
 		return -ENOMEM;
 
 	data->type = type;
-	data->size = KDBUS_MSG_DATA_HEADER_SIZE + len;
+	data->size = KDBUS_ITEM_HEADER_SIZE + len;
 	memcpy(data->str, str, len + 1);
 
 	return 0;
@@ -560,7 +552,7 @@ kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 	if (strsize == 0)
 		goto exit_unlock;
 
-	size = KDBUS_MSG_DATA_SIZE(strsize);
+	size = KDBUS_ITEM_SIZE(strsize);
 	data = kdbus_kmsg_append(kmsg, size);
 	if (!data) {
 		ret = -ENOMEM;
@@ -586,7 +578,7 @@ kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
 		       const struct kdbus_creds *creds)
 {
 	struct kdbus_msg_data *data;
-	u64 size = KDBUS_MSG_DATA_SIZE(sizeof(struct kdbus_creds));
+	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
 
 	data = kdbus_kmsg_append(kmsg, size);
 	if (!data)
@@ -1013,7 +1005,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	/* append the data records */
 	pos = KDBUS_MSG_HEADER_SIZE;
 
-	KDBUS_MSG_DATA_FOREACH(msg, data) {
+	KDBUS_ITEM_FOREACH(data, msg) {
 		switch (data->type) {
 		case KDBUS_MSG_PAYLOAD_VEC: {
 			struct kdbus_msg_data *d;
@@ -1074,7 +1066,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			kmsg->fds->data->fds[i] = fd;
 		}
 
-		size = KDBUS_MSG_DATA_HEADER_SIZE +
+		size = KDBUS_ITEM_HEADER_SIZE +
 				(sizeof(int) * kmsg->fds->count);
 		d = kmsg->fds->data;
 		d->size = size;
