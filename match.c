@@ -178,8 +178,8 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
 			if (bloom && ei->type == KDBUS_CMD_MATCH_BLOOM)
-				if (!kdbus_match_db_test_bloom(bloom->data64,
-							       ei->bloom,
+				if (!kdbus_match_db_test_bloom(ei->bloom,
+							       bloom->data64,
 							       bloom_size)) {
 					matched = false;
 					break;
