@@ -29,12 +29,10 @@
 #include "kdbus_internal.h"
 
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
-#define KDBUS_IS_ALIGNED8(s) (((u64)(s) & 7) == 0)
-#define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_MSG_DATA_SIZE(s) \
 	KDBUS_ALIGN8((s) + KDBUS_MSG_DATA_HEADER_SIZE)
-#define KDBUS_MSG_DATA_NEXT(_data) \
-	(struct kdbus_msg_data *)(((u8 *)_data) + KDBUS_ALIGN8((_data)->size))
+#define KDBUS_MSG_DATA_NEXT(data) \
+	(struct kdbus_msg_data *)(((u8 *)data) + KDBUS_ALIGN8((data)->size))
 #define KDBUS_MSG_DATA_FOREACH(msg, data)				\
 	for ((data) = (msg)->data;					\
 	     (char *)(data) + KDBUS_MSG_DATA_HEADER_SIZE <= (char *)(msg) + (msg)->size && \

@@ -26,6 +26,15 @@
 
 #include "kdbus_internal.h"
 
+#define KDBUS_MATCH_ITEM_HEADER_SIZE offsetof(struct kdbus_cmd_match, items)
+#define KDBUS_MATCH_ITEM_NEXT(item) \
+	(struct kdbus_cmd_match_item *)(((u8 *)item) + KDBUS_ALIGN8((item)->size))
+#define KDBUS_MATCH_ITEM_FOREACH(match, item)				\
+	for ((item) = (match)->items;					\
+	     (char *)(item) + KDBUS_MATCH_ITEM_HEADER_SIZE <= (char *)(match) + (match)->size && \
+	     (char *)(item) + (item)->size <= (char *)(match) + (match)->size; \
+	     item = KDBUS_MATCH_ITEM_NEXT(item))
+
 struct kdbus_match_db_entry_item {
 	u64 type;
 	union {
@@ -291,15 +300,11 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_cmd_match_item *item;
 	struct kdbus_match_db_entry *e;
-	u64 size;
 	int ret = 0;
 
 	cmd_match = cmd_match_from_user(buf);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
-
-	size = cmd_match->size - offsetof(struct kdbus_cmd_match, items);
-	item = cmd_match->items;
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e)
@@ -312,9 +317,9 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	e->src_id = cmd_match->src_id;
 	e->cookie = cmd_match->cookie;
 
-	while (size > 0) {
+	KDBUS_MATCH_ITEM_FOREACH(cmd_match, item) {
 		struct kdbus_match_db_entry_item *ei;
-		size_t sz;
+		size_t size;
 
 		if (item->size < sizeof(*item)) {
 			ret = -EBADMSG;
@@ -332,8 +337,8 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 		switch (item->type) {
 		case KDBUS_CMD_MATCH_BLOOM:
-			sz = item->size - offsetof(struct kdbus_cmd_match_item, data);
-			if (sz != conn->ep->bus->bloom_size) {
+			size = item->size - offsetof(struct kdbus_cmd_match_item, data);
+			if (size != conn->ep->bus->bloom_size) {
 				ret = -EBADMSG;
 				break;
 			}
@@ -347,6 +352,8 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		case KDBUS_CMD_MATCH_NAME_REMOVE:
 		case KDBUS_CMD_MATCH_NAME_CHANGE:
 			ei->name = kstrdup(item->str, GFP_KERNEL);
+			if (!ei->name)
+				ret = -ENOMEM;
 			break;
 
 		case KDBUS_CMD_MATCH_ID_ADD:
@@ -357,10 +364,6 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		}
 
 		list_add_tail(&ei->list_entry, &e->items_list);
-
-		size -= item->size;
-		item = (struct kdbus_cmd_match_item *)
-			((u8 *) item + item->size);
 	}
 
 	if (ret >= 0) {

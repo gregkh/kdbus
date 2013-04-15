@@ -20,6 +20,9 @@
 /* FIXME: move to uapi/linux/major.h */
 #define KDBUS_CHAR_MAJOR	222
 
+#define KDBUS_IS_ALIGNED8(s) (((u64)(s) & 7) == 0)
+#define KDBUS_ALIGN8(s) ALIGN((s), 8)
+
 /* copy the uint64_t "size" value from the userspace-supplied  structure */
 //FIXME: intentionally broken to make ARM's missing get_user() work
 #define kdbus_size_get_user(_s, _b, _t) \

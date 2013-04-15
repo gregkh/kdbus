@@ -324,7 +324,7 @@ EBADMSG
   Passed data contains a combination of conflicting or inconsistent types.
 
 EBUSY
-  A name is already taken by another connection.
+  A well-know bus name is already taken by another connection.
 
 ECOMM
   A peer does not accept the file descriptors addressed to it.
