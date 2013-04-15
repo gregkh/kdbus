@@ -81,14 +81,14 @@ int msg_send(const struct conn *conn,
 	int ret;
 
 	size = sizeof(*msg);
-	size += KDBUS_MSG_DATA_HEADER_SIZE + 16;
-	size += KDBUS_MSG_DATA_HEADER_SIZE + sizeof("INLINE1");
+	size += KDBUS_ITEM_HEADER_SIZE + 16;
+	size += KDBUS_ITEM_HEADER_SIZE + sizeof("INLINE1");
 	
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
-		size += KDBUS_MSG_DATA_HEADER_SIZE + 64;
+		size += KDBUS_ITEM_HEADER_SIZE + 64;
 	
 	if (name)
-		size += KDBUS_MSG_DATA_HEADER_SIZE + strlen(name) + 1;
+		size += KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
 
 	msg = malloc(size);
 	if (!msg) {
@@ -107,26 +107,26 @@ int msg_send(const struct conn *conn,
 
 	if (name) {
 		item->type = KDBUS_MSG_DST_NAME;
-		item->size = KDBUS_MSG_DATA_HEADER_SIZE + strlen(name) + 1;
+		item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
 		strcpy(item->str, name);
-		item = (struct kdbus_msg_item *) ((char *)(item) + ALIGN8(item->size));
+		item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
 	}
 
 	item->type = KDBUS_MSG_PAYLOAD_VEC;
-	item->size = KDBUS_MSG_DATA_HEADER_SIZE + 16;
+	item->size = KDBUS_ITEM_HEADER_SIZE + 16;
 	item->vec.address = (uint64_t)&ref;
 	item->vec.size = sizeof(ref);
-	item = (struct kdbus_msg_item *) ((char *)(item) + ALIGN8(item->size));
+	item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
 
 	item->type = KDBUS_MSG_PAYLOAD;
-	item->size = KDBUS_MSG_DATA_HEADER_SIZE + sizeof("INLINE1");
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof("INLINE1");
 	memcpy(item->data, "INLINE1", sizeof("INLINE1"));
-	item = (struct kdbus_msg_item *) ((char *)(item) + ALIGN8(item->size));
+	item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
 		item->type = KDBUS_MSG_BLOOM;
-		item->size = KDBUS_MSG_DATA_HEADER_SIZE + 64;
-		item = (struct kdbus_msg_item *) ((char *)(item) + ALIGN8(item->size));
+		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
+		item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
 	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
@@ -161,8 +161,8 @@ void msg_dump(struct kdbus_msg *msg)
 		msg_id(msg->src_id, buf), msg_id(msg->dst_id, buf),
 		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout_ns);
 
-	KDBUS_MSG_FOREACH_DATA(msg, item) {
-		if (item->size <= KDBUS_MSG_DATA_HEADER_SIZE) {
+	KDBUS_ITEM_FOREACH(item, msg) {
+		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			printf("  +%s (%llu bytes) invalid data record\n", enum_MSG(item->type), item->size);
 			break;
 		}
@@ -207,10 +207,10 @@ void msg_dump(struct kdbus_msg *msg)
 
 			printf("  +%s (%llu bytes) len=%llu bytes)\n",
 			       enum_MSG(item->type), item->size,
-			       (unsigned long long)item->size - KDBUS_MSG_DATA_HEADER_SIZE);
+			       (unsigned long long)item->size - KDBUS_ITEM_HEADER_SIZE);
 
 			cap = item->data32;
-			n = (item->size - KDBUS_MSG_DATA_HEADER_SIZE) / 4 / sizeof(uint32_t);
+			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / 4 / sizeof(uint32_t);
 
 			printf("    CapInh=");
 			for (i = 0; i < n; i++)

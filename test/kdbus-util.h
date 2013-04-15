@@ -13,13 +13,15 @@
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
 #define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
-#define KDBUS_MSG_DATA_ALIGN(d) ((d) + ((-d) & (sizeof(uint64_t) - 1)));
-#define KDBUS_MSG_DATA_HEADER_SIZE offsetof(struct kdbus_msg_item, data)
-#define ALIGN8(l) (((l) + 7) & ~7)
-#define KDBUS_MSG_FOREACH_DATA(m, d)					\
-	for ((d) = (m)->items;						\
-	(uint8_t*) (d) < (uint8_t*) (m) + (m)->size;			\
-	(d) = (struct kdbus_msg_item *) ((uint8_t*) (d) + ALIGN8((d)->size)))
+
+#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_msg_item, data)
+#define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
+#define KDBUS_ITEM_NEXT(item) \
+	(typeof(item))(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
+#define KDBUS_ITEM_FOREACH(item, head)						\
+	for (item = (head)->items;						\
+	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;		\
+	     item = KDBUS_ITEM_NEXT(item))
 
 struct conn {
 	int fd;
