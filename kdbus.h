@@ -261,7 +261,7 @@ struct kdbus_cmd_hello {
 				 * from KDBUS_CMD_HELLO */
 
 	/* userspace → kernel */
-	__u64 pid;		/* To allow translator services which
+	__u64 pid;		/* to allow translator services which //FIXME
 				 * connect to the bus on behalf of
 				 * somebody else, allow specifiying
 				 * the PID of the client to connect on
@@ -278,7 +278,7 @@ struct kdbus_cmd_hello {
 				 * to do negotiation of features of
 				 * the payload that is transfreted. */
 	__u64 id;		/* peer id */
-	__u64 bloom_size;	/* The bloom filter size chosen by the
+	__u64 bloom_size;	/* The bloom filter size chosen by the //FIXME
 				 * bus owner */
 	struct kdbus_cmd_make_item items[0];
 };
@@ -293,7 +293,7 @@ struct kdbus_cmd_bus_make {
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
-	__u64 bloom_size;	/* Size of the bloom filter for this bus. */ //FIXME
+	__u64 bloom_size;	/* size of the bloom filter for this bus */
 	struct kdbus_cmd_make_item items[0];
 
 };
