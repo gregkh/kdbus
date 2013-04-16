@@ -472,8 +472,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 	return item;
 }
 
-static int __must_check
-kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
+static int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 {
 	struct kdbus_msg_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
@@ -539,9 +538,8 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 	return 0;
 }
 
-static int __must_check
-kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
-			    struct kdbus_conn *conn)
+static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
+				       struct kdbus_conn *conn)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_msg_item *item;
@@ -577,9 +575,8 @@ exit_unlock:
 	return ret;
 }
 
-static int __must_check
-kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
-		       const struct kdbus_creds *creds)
+static int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
+				  const struct kdbus_creds *creds)
 {
 	struct kdbus_msg_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
