@@ -428,7 +428,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 	}
 }
 
-static struct kdbus_msg_item __must_check *
+static struct kdbus_msg_item *
 kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 {
 	struct kdbus_msg_item *item;
@@ -439,7 +439,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 		size = roundup_pow_of_two(256 + KDBUS_ALIGN8(extra_size));
 		kmsg->meta = kzalloc(size, GFP_KERNEL);
 		if (!kmsg->meta)
-			return NULL;
+			return ERR_PTR(-ENOMEM);
 
 		kmsg->meta->size = offsetof(struct kdbus_meta, items);
 		kmsg->meta->allocated_size = size;
@@ -454,7 +454,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 		pr_info("kdbus_kmsg_append: grow to size=%llu\n", size);
 		meta = kmalloc(size, GFP_KERNEL);
 		if (!meta)
-			return NULL;
+			return ERR_PTR(-ENOMEM);
 
 		memcpy(meta, kmsg->meta, kmsg->meta->size);
 		memset((u8 *)meta + kmsg->meta->allocated_size, 0,
@@ -479,8 +479,8 @@ static int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 	struct timespec ts;
 
 	item = kdbus_kmsg_append(kmsg, size);
-	if (!item)
-		return -ENOMEM;
+	if (IS_ERR(item))
+		return PTR_ERR(item);
 
 	item->type = KDBUS_MSG_TIMESTAMP;
 	item->size = size;
@@ -508,8 +508,8 @@ static int kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 type,
 
 	size = KDBUS_ITEM_SIZE(len);
 	item = kdbus_kmsg_append(kmsg, size);
-	if (!item)
-		return -ENOMEM;
+	if (IS_ERR(item))
+		return PTR_ERR(item);
 
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
@@ -528,8 +528,8 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 	len = strlen(str);
 	size = KDBUS_ITEM_SIZE(len);
 	item = kdbus_kmsg_append(kmsg, size);
-	if (!item)
-		return -ENOMEM;
+	if (IS_ERR(item))
+		return PTR_ERR(item);
 
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
@@ -556,8 +556,8 @@ static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 
 	size = KDBUS_ITEM_SIZE(strsize);
 	item = kdbus_kmsg_append(kmsg, size);
-	if (!item) {
-		ret = -ENOMEM;
+	if (IS_ERR(item)) {
+		ret = PTR_ERR(item);
 		goto exit_unlock;
 	}
 
@@ -582,8 +582,8 @@ static int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
 
 	item = kdbus_kmsg_append(kmsg, size);
-	if (!item)
-		return -ENOMEM;
+	if (IS_ERR(item))
+		return PTR_ERR(item);
 
 	item->type = KDBUS_MSG_SRC_CREDS;
 	item->size = size;
