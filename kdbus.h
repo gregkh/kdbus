@@ -235,6 +235,8 @@ enum {
 enum {
 	KDBUS_CMD_MAKE_NONE,
 	KDBUS_CMD_MAKE_NAME,
+	KDBUS_CMD_MAKE_CGROUP,	/* the cgroup hierarchy ID for which to attach
+				 * cgroup membership paths * to messages. */
 };
 
 struct kdbus_cmd_make_item {
@@ -291,10 +293,6 @@ struct kdbus_cmd_bus_make {
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
-	__u64 cgroup_id;	/* the cgroup hierarchy ID for which //FIXME
-				 * to attach cgroup membership paths
-				 * to messages. 0 if no cgroup data
-				 * shall be attached. */
 	__u64 bloom_size;	/* Size of the bloom filter for this bus. */ //FIXME
 	struct kdbus_cmd_make_item items[0];
 

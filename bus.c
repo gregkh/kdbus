@@ -206,13 +206,12 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 				goto out_err;
 			}
 
-			if (size < sizeof(struct kdbus_cmd_bus_make) + 2) {
+			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
 				ret = -EINVAL;
-				ret = -EACCES;
 				goto out_err;
 			}
 
-			if (size > sizeof(struct kdbus_cmd_bus_make) + 64) {
+			if (item->size > KDBUS_ITEM_HEADER_SIZE + 64) {
 				ret = -ENAMETOOLONG;
 				goto out_err;
 			}
@@ -220,11 +219,19 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 			if (!kdbus_validate_nul(item->str,
 					item->size - KDBUS_ITEM_HEADER_SIZE)) {
 				ret = -EINVAL;
-				ret = -EDOM;
 				goto out_err;
 			}
 
 			km->name = item->str;
+			continue;
+
+		case KDBUS_CMD_MAKE_CGROUP:
+			if (km->cgroup_id) {
+				ret = -EEXIST;
+				goto out_err;
+			}
+
+			km->cgroup_id = item->data64[0];
 			continue;
 
 		default:
@@ -232,6 +239,10 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 			goto out_err;
 		}
 	}
+
+	/* expect correct padding and size values */
+	if ((char *)item - ((char *)&km->make + km->make.size) >= 8)
+		return EINVAL;
 
 	if (!km->name) {
 		ret = -EBADMSG;
@@ -243,7 +254,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 		goto out_err;
 	}
 
-	if (km->make.bloom_size < 8 || km->make.bloom_size > 16*1024) {
+	if (km->make.bloom_size < 8 || km->make.bloom_size > 16 * 1024) {
 		ret = -EINVAL;
 		goto out_err;
 	}
