@@ -40,6 +40,7 @@ External API:
   - need to check that all incoming strings are NUL terminated and
     contain no NULs in the middle, kdbus_validate_nul()!
   - check used -E... error codes, keep -EINVAL at a minimum
+  - move alignment and iteration macros to kdbus.h?
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
@@ -55,6 +56,11 @@ Kernel Core:
     in the root of /sys/devices/
       https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
 
+Missing implementations:
+
+  - KDBUS_MSG_ID_CHANGE
+  - We allow registration/deregestration of names of other peers
+  - per-connection accounting
 
 API Question:
   What if a client (A) acquires a name with KDBUS_CMD_NAME_STARTER set in flags.
