@@ -356,53 +356,32 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 				void __user *buf)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_ep_make *make = NULL;
+	struct kdbus_cmd_ep_kmake *kmake = NULL;
 	struct kdbus_kmsg *kmsg;
 	struct kdbus_bus *bus;
 	long ret = 0;
 
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
-		u64 size;
 		umode_t mode = 0;
 
-		/* create a new endpoint for this bus, and turn this
-		 * fd into a reference to it */
-		if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ep_make)) {
-			ret = -EFAULT;
+		ret = kdbus_ep_kmake_user(buf, &kmake);
+		if (ret < 0)
 			break;
-		}
 
-		if (size < sizeof(struct kdbus_cmd_ep_make) + 2) {
-			ret = -EINVAL;
-			break;
-		}
-
-		if (size > sizeof(struct kdbus_cmd_ep_make) + 64) {
-			ret = -ENAMETOOLONG;
-			break;
-		}
-
-		make = memdup_user(buf, size);
-		if (IS_ERR(make)) {
-			ret = PTR_ERR(make);
-			make = NULL;
-			break;
-		}
-
-		if (!check_flags(make->flags)) {
+		if (!check_flags(kmake->make.flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (make->flags & KDBUS_ACCESS_WORLD)
+		if (kmake->make.flags & KDBUS_ACCESS_WORLD)
 			mode = 0666;
-		else if (make->flags & KDBUS_ACCESS_GROUP)
+		else if (kmake->make.flags & KDBUS_ACCESS_GROUP)
 			mode = 0660;
 
-		ret = kdbus_ep_new(conn->ep->bus, make->name, mode,
+		ret = kdbus_ep_new(conn->ep->bus, kmake->name, mode,
 			current_fsuid(), current_fsgid(),
-			make->flags & KDBUS_POLICY_OPEN);
+			kmake->make.flags & KDBUS_POLICY_OPEN);
 
 		break;
 	}
@@ -526,7 +505,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kfree(make);
+	kfree(kmake);
 
 	return ret;
 }

@@ -38,7 +38,11 @@ struct kdbus_ep {
 	bool policy_open:1;
 };
 
-/* endpoint */
+struct kdbus_cmd_ep_kmake {
+	const char *name;
+	struct kdbus_cmd_ep_make make;
+};
+
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 void kdbus_ep_unref(struct kdbus_ep *ep);
 
@@ -46,5 +50,5 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		 umode_t mode, kuid_t uid, kgid_t gid, bool policy);
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
-int kdbus_ep_make_user(void __user *buf, struct kdbus_cmd_ep_make **make);
+int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake);
 #endif
