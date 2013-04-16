@@ -318,7 +318,6 @@ struct kdbus_cmd_ns_make {
 				 * KDBUS_CMD_BUS_MAKE. Unused for
 				 * now. */
 	struct kdbus_cmd_make_item items[0];
-	char name[0]; //FIXME
 };
 
 enum {

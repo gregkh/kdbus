@@ -41,9 +41,14 @@ struct kdbus_ns {
 	struct list_head bus_list;	/* list of all buses */
 };
 
+struct kdbus_cmd_ns_kmake {
+	const char *name;
+	struct kdbus_cmd_ns_make make;
+};
+
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
-int kdbus_ns_make_user(void __user *buf, struct kdbus_cmd_ns_make **make);
+int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake);
 #endif

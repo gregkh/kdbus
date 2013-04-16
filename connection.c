@@ -274,7 +274,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 {
 	struct kdbus_conn *conn = file->private_data;
 	struct kdbus_cmd_bus_kmake *bus_kmake = NULL;
-	struct kdbus_cmd_ns_make *ns_make = NULL;
+	struct kdbus_cmd_ns_kmake *ns_kmake = NULL;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
 	umode_t mode = 0;
@@ -310,24 +310,21 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_NS_MAKE:
-		ret = kdbus_ns_make_user(buf, &ns_make);
+		ret = kdbus_ns_kmake_user(buf, &ns_kmake);
 		if (ret < 0)
 			break;
 
-		if (!check_flags(ns_make->flags))
+		if (!check_flags(ns_kmake->make.flags))
 			return -ENOTSUPP;
 
-		if (ns_make->flags & KDBUS_ACCESS_WORLD)
+		if (ns_kmake->make.flags & KDBUS_ACCESS_WORLD)
 			mode = 0666;
-		else if (ns_make->flags & KDBUS_ACCESS_GROUP)
+		else if (ns_kmake->make.flags & KDBUS_ACCESS_GROUP)
 			mode = 0660;
 
-		ret = kdbus_ns_new(kdbus_ns_init, ns_make->name, mode, &ns);
-		if (ret < 0) {
-			pr_err("failed to create namespace %s, ret=%i\n",
-			       ns_make->name, ret);
+		ret = kdbus_ns_new(kdbus_ns_init, ns_kmake->name, mode, &ns);
+		if (ret < 0)
 			return ret;
-		}
 
 		/* turn the control fd into a new ns owner device */
 		conn->type = KDBUS_CONN_NS_OWNER;
@@ -347,7 +344,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 	}
 
 	kfree(bus_kmake);
-	kfree(ns_make);
+	kfree(ns_kmake);
 	return ret;
 }
 
