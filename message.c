@@ -940,7 +940,8 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 			if (!conn_dst->active)
 				continue;
 
-			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
+			if (!conn_dst->monitor &&
+			    !kdbus_match_db_match_kmsg(conn_dst->match_db,
 						       conn_src, conn_dst,
 						       kmsg))
 				continue;
