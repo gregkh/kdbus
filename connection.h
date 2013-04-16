@@ -46,6 +46,7 @@ struct kdbus_conn {
 
 	struct mutex msg_lock;
 	struct mutex names_lock;
+	struct mutex accounting_lock;
 	struct list_head msg_list;
 
 	struct hlist_node hentry;

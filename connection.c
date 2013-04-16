@@ -37,18 +37,19 @@
 
 int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, u64 size)
 {
-printk(KERN_ERR " %s() :%d conn %p size = %lld\n", __func__, __LINE__, conn, size);
+	int ret = 0;
+
 	if (!conn)
 		return 0;
 
-printk(KERN_ERR " %s() :%d conn %p size = %lld\n", __func__, __LINE__, conn, size);
+	mutex_lock(&conn->accounting_lock);
 	if (conn->allocated_size + size > KDBUS_CONN_MAX_ALLOCATED_BYTES)
-		return -EOVERFLOW;
+		ret = -EOVERFLOW;
+	else
+		conn->allocated_size += size;
+	mutex_unlock(&conn->accounting_lock);
 
-printk(KERN_ERR " %s() :%d conn %p size = %lld\n", __func__, __LINE__, conn, size);
-	conn->allocated_size += size;
-
-	return 0;
+	return ret;
 }
 
 void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, u64 size)
@@ -56,7 +57,9 @@ void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, u64 size)
 	if (!conn)
 		return;
 
+	mutex_lock(&conn->accounting_lock);
 	conn->allocated_size -= size;
+	mutex_unlock(&conn->accounting_lock);
 }
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
@@ -165,6 +168,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 
 	mutex_init(&conn->msg_lock);
 	mutex_init(&conn->names_lock);
+	mutex_init(&conn->accounting_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
