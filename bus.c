@@ -167,38 +167,88 @@ ret:
 	return ret;
 }
 
-int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_make **make)
+int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 {
 	u64 size;
-	struct kdbus_cmd_bus_make *m;
+	struct kdbus_cmd_bus_kmake *km;
+	const struct kdbus_cmd_make_item *item;
+	int ret;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_bus_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_bus_make) + 2)
-		return -EINVAL;
-
-	if (size > sizeof(struct kdbus_cmd_bus_make) + 64)
-		return -ENAMETOOLONG;
-
-	m = memdup_user(buf, size);
-	if (IS_ERR(m))
-		return PTR_ERR(m);
-
-	if (!kdbus_validate_nul(m->name, size - sizeof(struct kdbus_cmd_bus_make))) {
-		kfree(m);
-		return -EINVAL;
-	}
-
-	if (!KDBUS_IS_ALIGNED8(m->bloom_size))
-		return -EINVAL;
-
-	if (m->bloom_size < 8 || m->bloom_size > 16*1024) {
-		kfree(m);
+	if (size < sizeof(struct kdbus_cmd_bus_make) || size > 0xffff)
 		return -EMSGSIZE;
+
+	km = kmalloc(sizeof(struct kdbus_cmd_bus_kmake) + size, GFP_KERNEL);
+	if (!km)
+		return -ENOMEM;
+
+	memset(km, 0, offsetof(struct kdbus_cmd_bus_kmake, make));
+	if (copy_from_user(&km->make, buf, size)) {
+		ret = -EFAULT;
+		goto out_err;
 	}
 
-	*make = m;
+	KDBUS_ITEM_FOREACH(item, &km->make) {
+		/* empty data records are invalid */
+		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
+			ret = -EINVAL;
+			goto out_err;
+		}
 
+		switch (item->type) {
+		case KDBUS_CMD_MAKE_NAME:
+			if (km->name) {
+				ret = -EEXIST;
+				goto out_err;
+			}
+
+			if (size < sizeof(struct kdbus_cmd_bus_make) + 2) {
+				ret = -EINVAL;
+				ret = -EACCES;
+				goto out_err;
+			}
+
+			if (size > sizeof(struct kdbus_cmd_bus_make) + 64) {
+				ret = -ENAMETOOLONG;
+				goto out_err;
+			}
+
+			if (!kdbus_validate_nul(item->str,
+					item->size - KDBUS_ITEM_HEADER_SIZE)) {
+				ret = -EINVAL;
+				ret = -EDOM;
+				goto out_err;
+			}
+
+			km->name = item->str;
+			continue;
+
+		default:
+			ret = -ENOTSUPP;
+			goto out_err;
+		}
+	}
+
+	if (!km->name) {
+		ret = -EBADMSG;
+		goto out_err;
+	}
+
+	if (!KDBUS_IS_ALIGNED8(km->make.bloom_size)) {
+		return -EINVAL;
+		goto out_err;
+	}
+
+	if (km->make.bloom_size < 8 || km->make.bloom_size > 16*1024) {
+		ret = -EINVAL;
+		goto out_err;
+	}
+
+	*kmake = km;
 	return 0;
+
+out_err:
+	return ret;
 }

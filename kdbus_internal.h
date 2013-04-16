@@ -89,7 +89,6 @@ struct kdbus_ns {
 };
 
 /* policy */
-
 struct kdbus_policy_db {
 	struct kref	kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
@@ -345,6 +344,11 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 int kdbus_ns_make_user(void __user *buf, struct kdbus_cmd_ns_make **make);
 
 /* bus */
+struct kdbus_cmd_bus_kmake {
+	const char *name;
+	struct kdbus_cmd_bus_make make;
+};
+
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
@@ -353,7 +357,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus);
 void kdbus_bus_scan_timeout_list(struct kdbus_bus *bus);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
-int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_make **make);
+int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake);
 
 /* endpoint */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);

@@ -227,7 +227,27 @@ enum {
 	KDBUS_POLICY_OPEN	=  4,
 };
 
+/* Items to append to kdbus_cmd_bus_make, kdbus_cmd_ep_make and
+ * kdbus_cmd_ns_make */
+
+enum {
+	KDBUS_CMD_MAKE_NONE,
+	KDBUS_CMD_MAKE_NAME,
+};
+
+struct kdbus_cmd_make_item {
+	__u64 size;
+	__u64 type;
+	union {
+		__u8 data[0];
+		__u64 data64[0];
+		char str[0];
+	};
+};
+
 struct kdbus_cmd_hello {
+	__u64 size;
+
 	/* userspace → kernel, kernel → userspace */
 	__u64 conn_flags;	/* userspace specifies its
 				 * capabilities and more, kernel
@@ -256,6 +276,7 @@ struct kdbus_cmd_hello {
 	__u64 id;		/* peer id */
 	__u64 bloom_size;	/* The bloom filter size chosen by the
 				 * bus owner */
+	struct kdbus_cmd_make_item items[0];
 };
 
 struct kdbus_cmd_bus_make {
@@ -268,12 +289,13 @@ struct kdbus_cmd_bus_make {
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
-	__u64 cgroup_id;	/* the cgroup hierarchy ID for which
+	__u64 cgroup_id;	/* the cgroup hierarchy ID for which //FIXME
 				 * to attach cgroup membership paths
 				 * to messages. 0 if no cgroup data
 				 * shall be attached. */
-	__u64 bloom_size;	/* Size of the bloom filter for this bus. */
-	char name[0];
+	__u64 bloom_size;	/* Size of the bloom filter for this bus. */ //FIXME
+	struct kdbus_cmd_make_item items[0];
+
 };
 
 struct kdbus_cmd_ep_make {
@@ -284,7 +306,8 @@ struct kdbus_cmd_ep_make {
 				 * same way as for
 				 * KDBUS_CMD_BUS_MAKE. Unused for
 				 * now. */
-	char name[0];
+	struct kdbus_cmd_make_item items[0];
+	char name[0]; //FIXME
 };
 
 struct kdbus_cmd_ns_make {
@@ -295,7 +318,8 @@ struct kdbus_cmd_ns_make {
 				 * same way as for
 				 * KDBUS_CMD_BUS_MAKE. Unused for
 				 * now. */
-	char name[0];
+	struct kdbus_cmd_make_item items[0];
+	char name[0]; //FIXME
 };
 
 enum {

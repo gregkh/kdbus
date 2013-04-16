@@ -264,7 +264,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 				     void __user *buf)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_bus_make *bus_make = NULL;
+	struct kdbus_cmd_bus_kmake *bus_kmake = NULL;
 	struct kdbus_cmd_ns_make *ns_make = NULL;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
@@ -273,22 +273,22 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE:
-		ret = kdbus_bus_make_user(buf, &bus_make);
+		ret = kdbus_bus_make_user(buf, &bus_kmake);
 		if (ret < 0)
 			break;
 
-		if (!check_flags(bus_make->flags)) {
+		if (!check_flags(bus_kmake->make.flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (bus_make->flags & KDBUS_ACCESS_WORLD)
+		if (bus_kmake->make.flags & KDBUS_ACCESS_WORLD)
 			mode = 0666;
-		else if (bus_make->flags & KDBUS_ACCESS_GROUP)
+		else if (bus_kmake->make.flags & KDBUS_ACCESS_GROUP)
 			mode = 0660;
 
-		ret = kdbus_bus_new(conn->ns, bus_make->name, bus_make->flags,
-				    bus_make->bloom_size, bus_make->cgroup_id,
+		ret = kdbus_bus_new(conn->ns, bus_kmake->name, bus_kmake->make.flags,
+				    bus_kmake->make.bloom_size, bus_kmake->make.cgroup_id,
 				    mode, current_fsuid(), current_fsgid(),
 				    &bus);
 		if (ret < 0)
@@ -337,7 +337,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kfree(bus_make);
+	kfree(bus_kmake);
 	kfree(ns_make);
 	return ret;
 }
