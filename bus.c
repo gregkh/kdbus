@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2013 Kay Sievers
  * Copyright (C) 2013 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+ * Copyright (C) 2013 Daniel Mack
  * Copyright (C) 2013 Linux Foundation
  *
  * kdbus is free software; you can redistribute it and/or modify it under
@@ -32,7 +33,13 @@ void kdbus_release(struct device *dev)
 	kfree(dev);
 }
 
-
+/**
+ * kdbus_bus_unref() - increase the reference counter of a kdbus_bus
+ * @bus:	The bus to unref
+ *
+ * Every user of a bus, except for its creator, must add a reference to the
+ * kdbus_bus using this function.
+ */
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
 {
 	kref_get(&bus->kref);
@@ -52,6 +59,12 @@ static void __kdbus_bus_free(struct kref *kref)
 	kfree(bus);
 }
 
+/**
+ * kdbus_bus_unref() - decrease the reference counter of a kdbus_bus
+ * @bus:	The bus to unref
+ *
+ * Give up a retain. If the reference count drops to 0, the bus will be freed.
+ */
 void kdbus_bus_unref(struct kdbus_bus *bus)
 {
 	kref_put(&bus->kref, __kdbus_bus_free);
@@ -68,6 +81,13 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 	return NULL;
 }
 
+/**
+ * kdbus_bus_disconnect() - disconnect a kdbus_bus
+ * @bus:	The kdbus reference
+ *
+ * The passed bus will be disconnected and the associated endpoint will be
+ * unref'ed.
+ */
 void kdbus_bus_disconnect(struct kdbus_bus *bus)
 {
 	struct kdbus_ep *ep, *tmp;
@@ -104,6 +124,21 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 	return bus;
 }
 
+/**
+ * kdbus_bus_new() - create a new struct kdbus_bus
+ * @ns:		The namespace to work on
+ * @bus_kmake:	Pointer to a struct kdbus_cmd_bus_kmake containing the
+ * 		details for the bus creation
+ * @mode:	The access mode for the device node
+ * @uid:	The uid of the device node
+ * @gid:	The gid of the device node
+ * @bus:	Pointer to a reference where the new bus is stored
+ *
+ * This function will allocate a new kdbus_bus and link it to the given
+ * namespace.
+ *
+ * Return: 0 on success, < 0 on failure
+ */
 int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus)
 {
@@ -168,6 +203,16 @@ ret:
 	return ret;
 }
 
+/**
+ * kdbus_bus_make_user() - create a kdbus_cmd_bus_kmake from user-supplied data
+ * @buf:	The user supplied buffer from the ioctl() call
+ * @kmage:	Reference to the location where to store the result.
+ *
+ * This function is part of the connection ioctl() interface and will parse
+ * the user-supplied data.
+ *
+ * Return: 0 on success, < 0 on failure
+ */
 int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 {
 	u64 size;
