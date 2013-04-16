@@ -20,10 +20,18 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
+#include <linux/hashtable.h>
 #include <uapi/linux/major.h>
-#include "kdbus.h"
 
-#include "kdbus_internal.h"
+#include "connection.h"
+#include "message.h"
+#include "notify.h"
+#include "ns.h"
+#include "ep.h"
+#include "bus.h"
+#include "match.h"
+#include "names.h"
+#include "policy.h"
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {

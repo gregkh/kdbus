@@ -21,9 +21,11 @@
 #include <linux/hashtable.h>
 #include <linux/uaccess.h>
 
-//#include <uapi/kdbus/kdbus.h>
-
-#include "kdbus_internal.h"
+#include "bus.h"
+#include "connection.h"
+#include "names.h"
+#include "ep.h"
+#include "ns.h"
 
 void kdbus_release(struct device *dev)
 {

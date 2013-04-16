@@ -21,9 +21,9 @@
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <uapi/linux/major.h>
-#include "kdbus.h"
 
-#include "kdbus_internal.h"
+#include "internal.h"
+#include "ns.h"
 
 /* kdbus sysfs subsystem */
 struct bus_type kdbus_subsys = {

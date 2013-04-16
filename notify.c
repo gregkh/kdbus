@@ -21,9 +21,11 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
-#include "kdbus.h"
 
-#include "kdbus_internal.h"
+#include "notify.h"
+#include "bus.h"
+#include "ep.h"
+#include "message.h"
 
 static int kdbus_notify_reply(struct kdbus_ep *ep,
 			      const struct kdbus_msg *orig_msg,

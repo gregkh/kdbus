@@ -23,9 +23,12 @@
 #include <linux/hash.h>
 #include <linux/uaccess.h>
 #include <linux/ctype.h>
-#include "kdbus.h"
 
-#include "kdbus_internal.h"
+#include "names.h"
+#include "connection.h"
+#include "notify.h"
+#include "policy.h"
+#include "ep.h"
 
 struct kdbus_name_queue_item {
 	struct kdbus_conn	*conn;

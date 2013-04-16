@@ -21,9 +21,10 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
-#include "kdbus.h"
 
-#include "kdbus_internal.h"
+#include "policy.h"
+#include "connection.h"
+#include "names.h"
 
 struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn	*conn_a;

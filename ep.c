@@ -19,8 +19,12 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/uaccess.h>
+#include <linux/hashtable.h>
 
-#include "kdbus_internal.h"
+#include "ep.h"
+#include "bus.h"
+#include "policy.h"
+#include "ns.h"
 
 /* endpoints are by default owned by the bus owner */
 static char *kdbus_devnode_ep(struct device *dev, umode_t *mode

@@ -19,10 +19,9 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/uaccess.h>
+#include <uapi/linux/major.h>
 
-#include "kdbus.h"
-
-#include "kdbus_internal.h"
+#include "ns.h"
 
 /* global list of all namespaces */
 static LIST_HEAD(namespace_list);

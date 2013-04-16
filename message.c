@@ -28,9 +28,14 @@
 #include <linux/capability.h>
 #include <linux/audit.h>
 #include <linux/security.h>
-#include "kdbus.h"
 
-#include "kdbus_internal.h"
+#include "message.h"
+#include "connection.h"
+#include "bus.h"
+#include "ep.h"
+#include "policy.h"
+#include "names.h"
+#include "match.h"
 
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
