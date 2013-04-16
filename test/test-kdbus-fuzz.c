@@ -106,7 +106,8 @@ static int get_random_fd(void)
 		if (fd_table[i] != -1)
 			count++;
 
-	count = random() % count;
+	if (count > 0)
+		count = random() % count;
 
 	for (i = 0; i < ELEMENTSOF(fd_table); i++)
 		if (fd_table[i] != -1)
@@ -124,7 +125,8 @@ static void close_random_fd(void)
 		if (fd_table[i] != -1)
 			count++;
 
-	count = random() % count;
+	if (count > 0)
+		count = random() % count;
 
 	for (i = 0; i < ELEMENTSOF(fd_table); i++)
 		if (fd_table[i] != -1)
