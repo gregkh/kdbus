@@ -296,10 +296,8 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		else if (bus_kmake->make.flags & KDBUS_ACCESS_GROUP)
 			mode = 0660;
 
-		ret = kdbus_bus_new(conn->ns, bus_kmake->name, bus_kmake->make.flags,
-				    bus_kmake->make.bloom_size, bus_kmake->cgroup_id,
-				    mode, current_fsuid(), current_fsgid(),
-				    &bus);
+		ret = kdbus_bus_new(conn->ns, bus_kmake, mode, current_fsuid(),
+				    current_fsgid(), &bus);
 		if (ret < 0)
 			break;
 

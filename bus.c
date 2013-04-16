@@ -104,8 +104,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 	return bus;
 }
 
-int kdbus_bus_new(struct kdbus_ns *ns, const char *name,
-		  u64 bus_flags, u64 bloom_size, u64 cgroup_id,
+int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus)
 {
 	char prefix[16];
@@ -114,10 +113,10 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name,
 
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-", from_kuid(current_user_ns(), uid));
-	if (strncmp(name, prefix, strlen(prefix) != 0))
+	if (strncmp(bus_kmake->name, prefix, strlen(prefix) != 0))
 		return -EPERM;
 
-	b = kdbus_bus_find(ns, name);
+	b = kdbus_bus_find(ns, bus_kmake->name);
 	if (b) {
 		kdbus_bus_unref(b);
 		return -EEXIST;
@@ -129,15 +128,15 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name,
 
 	kref_init(&b->kref);
 	b->ns = ns;
-	b->bus_flags = bus_flags;
-	b->bloom_size = bloom_size;
-	b->cgroup_id = cgroup_id;
+	b->bus_flags = bus_kmake->make.flags;
+	b->bloom_size = bus_kmake->make.bloom_size;
+	b->cgroup_id = bus_kmake->cgroup_id;
 	b->conn_id_next = 1; /* connection 0 == kernel */
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
 
-	b->name = kstrdup(name, GFP_KERNEL);
+	b->name = kstrdup(bus_kmake->name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;
 		goto ret;
@@ -150,7 +149,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, const char *name,
 	}
 
 	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
-			   bus_flags & KDBUS_POLICY_OPEN);
+			   b->bus_flags & KDBUS_POLICY_OPEN);
 	if (ret < 0)
 		goto ret;
 
