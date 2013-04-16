@@ -42,6 +42,7 @@ struct kdbus_kmsg {
 	};
 	struct kdbus_payload *payloads;
 	struct kdbus_meta *meta;
+	struct kdbus_conn *conn_src;
 	struct kdbus_msg msg;
 };
 

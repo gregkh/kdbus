@@ -60,7 +60,12 @@ static void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 		kfree(kmsg->payloads);
 	}
 
-	kfree(kmsg->meta);
+	if (kmsg->meta) {
+		kdbus_conn_sub_size_allocation(kmsg->conn_src,
+					       kmsg->meta->allocated_size);
+		kfree(kmsg->meta);
+	}
+
 	kfree(kmsg);
 }
 
@@ -366,6 +371,9 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	/* fill in sender ID */
 	kmsg->msg.src_id = conn->id;
 
+	/* keep a reference to the source connection, for accounting */
+	kmsg->conn_src = conn;
+
 	/*
 	 * iterate over the receiced data records and resolve external
 	 * references and store them in "struct kmsg"
@@ -433,10 +441,15 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 {
 	struct kdbus_msg_item *item;
 	u64 size;
+	int ret;
 
 	/* get new metadata buffer, pre-allocate at least 512 bytes */
 	if (!kmsg->meta) {
 		size = roundup_pow_of_two(256 + KDBUS_ALIGN8(extra_size));
+		ret = kdbus_conn_add_size_allocation(kmsg->conn_src, size);
+		if (ret < 0)
+			return ERR_PTR(ret);
+
 		kmsg->meta = kzalloc(size, GFP_KERNEL);
 		if (!kmsg->meta)
 			return ERR_PTR(-ENOMEM);
@@ -449,16 +462,22 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 	size = kmsg->meta->size + KDBUS_ALIGN8(extra_size);
 	if (size > kmsg->meta->allocated_size) {
 		struct kdbus_meta *meta;
+		size_t size_diff;
 
 		size = roundup_pow_of_two(size);
+		size_diff = size - kmsg->meta->allocated_size;
+
+		ret = kdbus_conn_add_size_allocation(kmsg->conn_src, size_diff);
+		if (ret < 0)
+			return ERR_PTR(ret);
+
 		pr_info("kdbus_kmsg_append: grow to size=%llu\n", size);
 		meta = kmalloc(size, GFP_KERNEL);
 		if (!meta)
 			return ERR_PTR(-ENOMEM);
 
 		memcpy(meta, kmsg->meta, kmsg->meta->size);
-		memset((u8 *)meta + kmsg->meta->allocated_size, 0,
-		       size - kmsg->meta->allocated_size);
+		memset((u8 *)meta + kmsg->meta->allocated_size, 0, size_diff);
 		meta->allocated_size = size;
 
 		kfree(kmsg->meta);
@@ -596,6 +615,7 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 				   struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_msg_list_entry *entry;
+	int ret = 0;
 
 	if (!conn->active)
 		return -ENOTCONN;
@@ -611,12 +631,17 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	INIT_LIST_HEAD(&entry->entry);
 
 	mutex_lock(&conn->msg_lock);
-	list_add_tail(&entry->entry, &conn->msg_list);
+	if (conn->msg_count > KDBUS_CONN_MAX_MSGS) {
+		ret = -EOVERFLOW;
+	} else {
+		list_add_tail(&entry->entry, &conn->msg_list);
+		conn->msg_count++;
+	}
 	mutex_unlock(&conn->msg_lock);
 
 	wake_up_interruptible(&conn->ep->wait);
 
-	return 0;
+	return ret;
 }
 
 /*
@@ -972,7 +997,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		return -EFAULT;
 
 	mutex_lock(&conn->msg_lock);
-	if (list_empty(&conn->msg_list)) {
+	if (conn->msg_count == 0) {
 		ret = -EAGAIN;
 		goto out_unlock;
 	}
@@ -1098,6 +1123,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	if (ret)
 		goto out_unlock_fds;
 
+	conn->msg_count--;
 	list_del(&entry->entry);
 	kdbus_kmsg_unref(entry->kmsg);
 	kfree(entry);

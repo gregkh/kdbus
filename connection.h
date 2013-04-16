@@ -15,6 +15,9 @@
 
 #include "internal.h"
 
+#define KDBUS_CONN_MAX_MSGS		50
+#define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K
+
 /*
  * kdbus connection
  * - connection to a control node or an endpoint
@@ -56,7 +59,13 @@ struct kdbus_conn {
 
 	struct kdbus_creds creds;
 	struct kdbus_match_db *match_db;
+
+	int msg_count;
+	int allocated_size;
 };
 
 void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn);
+int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, u64 size);
+void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, u64 size);
+
 #endif

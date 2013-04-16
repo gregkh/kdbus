@@ -17,6 +17,7 @@
 #include <linux/idr.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/sizes.h>
 #include <linux/sched.h>
 #include <linux/mutex.h>
 #include <linux/init.h>
@@ -33,6 +34,30 @@
 #include "match.h"
 #include "names.h"
 #include "policy.h"
+
+int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, u64 size)
+{
+printk(KERN_ERR " %s() :%d conn %p size = %lld\n", __func__, __LINE__, conn, size);
+	if (!conn)
+		return 0;
+
+printk(KERN_ERR " %s() :%d conn %p size = %lld\n", __func__, __LINE__, conn, size);
+	if (conn->allocated_size + size > KDBUS_CONN_MAX_ALLOCATED_BYTES)
+		return -EOVERFLOW;
+
+printk(KERN_ERR " %s() :%d conn %p size = %lld\n", __func__, __LINE__, conn, size);
+	conn->allocated_size += size;
+
+	return 0;
+}
+
+void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, u64 size)
+{
+	if (!conn)
+		return;
+
+	conn->allocated_size -= size;
+}
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
