@@ -2,6 +2,7 @@
  * Copyright (C) 2013 Kay Sievers
  * Copyright (C) 2013 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
  * Copyright (C) 2013 Linux Foundation
+ * Copyright (C) 2013 Daniel Mack <daniel@zonque.org>
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
