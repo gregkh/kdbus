@@ -49,7 +49,7 @@ static char *kdbus_devnode_ep(struct device *dev, umode_t *mode
 
 static struct device_type kdbus_devtype_ep = {
 	.name		= "ep",
-	.release	= kdbus_release,
+	.release	= kdbus_dev_release,
 	.devnode	= kdbus_devnode_ep,
 };
 
@@ -165,6 +165,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		ret = -ENOMEM;
 		goto err_unlock;
 	}
+
 	dev_set_name(e->dev, "%s/%s/%s", bus->ns->devpath, bus->name, name);
 	e->dev->bus = &kdbus_subsys;
 	e->dev->type = &kdbus_devtype_ep;

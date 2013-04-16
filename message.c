@@ -646,8 +646,7 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 
 /*
  * FIXME: dirty and unsafe version of:
- * http://git.kernel.org/cgit/linux/kernel/git/tj/cgroup.git/
- *   commit/?h=review-task_cgroup_path_from_hierarchy&id=8f2d788f3210ffed073bc57568befd9d757a15ef
+ *   http://git.kernel.org/cgit/linux/kernel/git/tj/cgroup.git/commit/?h=review-task_cgroup_path_from_hierarchy
  * remove it when the above is upstream.
  */
 int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,

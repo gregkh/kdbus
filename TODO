@@ -2,14 +2,13 @@ Bugs:
   - as we have u64 for sizes in the ioctl()-passed structs, we need a
     way to deal with 32-bit architectures not providing the proper
     put_user(), the current code cannot work as it is, it was changed
-    to work around this issue
+    just to work around this issue
 
 Message Buffering:
-  - the maximum message size is 64k, which is fine. But references in
-    PAYLOAD_VEC can be larger, kmalloc is limited to < 128k, handle that
+  - the maximum message buffer size is 64k, which is fine. But references
+    in PAYLOAD_VEC can be larger, kmalloc is limited to < 128k, handle that
     with mmap or vmalloc().
   - pass along mmap() of process data, instead of copying them
-  - when recv fails due to too small user buffer return real size
 
 Security:
   - let HELLO specify if fds or mmaps() are accepted to
@@ -24,40 +23,30 @@ Mesage Validation:
     but start next record at proper offset
   - allow only anonymous or protected/busy memory to pass with mmap()
 
-Message augmentation:
-  - when do we append KDBUS_MSG_SRC_{COMM,EXE,CMDLINE,CGROUP}?
-  - define a payload type for kernel-gererated messages
-
 External API:
-  - size in data records includes the data header size? it also does
-    not include the padding
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
   - enforce strict page alignment of mmap()ed memory in the API
-  - allow to coalesce memory records, but never mix MMAP and PAYLOAD
-  - always put \0 in the padding bytes?
-  - have some sort of kdbus kernel protocol negotiation. how do we deal
-    with changes later on?
+  - always zero-out, put \0 in the padding bytes?
   - need to check that all incoming strings are NUL terminated and
     contain no NULs in the middle, kdbus_validate_nul()!
-  - check used -E... error codes, keep -EINVAL at a minimum
   - move alignment and iteration macros to kdbus.h?
 
 Internal API:
   - use size_t instead of u64 for internal variables where appropriate?
-  - kmalloc internal structures at 8 byte boundaries
+  - always kmalloc internal structures at 8 byte boundaries
 
 Name database:
   - look up name information, how are we supposed to get the data back to
     userspace?
 
 Kernel Core:
-  - remove our own task_cgroup_path_from_hierarchy() as soon as it's available
+  - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:
+      http://git.kernel.org/cgit/linux/kernel/git/tj/cgroup.git/commit/?h=review-task_cgroup_path_from_hierarchy
   - use subsys_virtual_register() to avoid devices showing up directly
     in the root of /sys/devices/
       https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
 
 Missing implementations:
-
   - KDBUS_MSG_ID_CHANGE
   - We allow registration/deregestration of names of other peers
   - per-connection accounting

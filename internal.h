@@ -61,7 +61,7 @@ static inline bool kdbus_validate_nul(const char *s, size_t l)
 
 extern const struct file_operations kdbus_device_ops;
 extern struct bus_type kdbus_subsys;
-void kdbus_release(struct device *dev);
+void kdbus_dev_release(struct device *dev);
 extern struct mutex kdbus_subsys_lock;
 extern struct idr kdbus_ns_major_idr;
 extern struct kdbus_ns *kdbus_ns_init;

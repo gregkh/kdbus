@@ -50,7 +50,7 @@ static char *kdbus_devnode_control(struct device *dev, umode_t *mode
 
 static struct device_type kdbus_devtype_control = {
 	.name		= "control",
-	.release	= kdbus_release,
+	.release	= kdbus_dev_release,
 	.devnode	= kdbus_devnode_control,
 };
 

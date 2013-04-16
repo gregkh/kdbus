@@ -2,8 +2,8 @@ D-Bus is a system for low-latency, low-overhead, easy to use interprocess
 communication (IPC).
 
 The focus of this document is the low-level, native kernel D-Bus protocol
-transport called kdbus. Kdbus in the kernel acts similar to a device driver
-and all communication takes places over special device nodes.
+transport called kdbus. Kdbus in the kernel acts similar to a device driver,
+all communication between processes takes places over special device nodes.
 
 For the general D-Bus protocol specification, the message payload formatting,
 please refer to:
@@ -98,7 +98,7 @@ Note:
   use should be limited for the same reason.
 
 ===============================================================================
-Objects
+Data Structures
 ===============================================================================
   +-------------------------------------------------------------------------+
   | Namespace (Init Namespace)                                              |
