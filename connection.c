@@ -23,6 +23,8 @@
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <linux/hashtable.h>
+#include <linux/audit.h>
+#include <linux/security.h>
 #include <uapi/linux/major.h>
 
 #include "connection.h"
@@ -115,6 +117,36 @@ static void kdbus_conn_timer_func(unsigned long val)
 	kdbus_conn_schedule_timeout_scan(conn);
 }
 
+#ifdef CONFIG_AUDITSYSCALL
+static void kdbus_conn_set_audit(struct kdbus_conn *conn)
+{
+	const struct cred *cred;
+	uid_t uid;
+
+	rcu_read_lock();
+	cred = __task_cred(current);
+	uid = from_kuid(cred->user_ns, audit_get_loginuid(current));
+	rcu_read_unlock();
+
+	conn->audit_ids[0] = uid;
+	conn->audit_ids[1] = audit_get_sessionid(current);
+}
+#else
+static inline void kdbus_conn_set_audit(struct kdbus_conn *conn) {}
+#endif
+
+#ifdef CONFIG_SECURITY
+static void kdbus_conn_set_seclabel(struct kdbus_conn *conn)
+{
+	u32 sid;
+
+	security_task_getsecid(current, &sid);
+	security_secid_to_secctx(sid, &conn->sec_label, &conn->sec_label_len);
+}
+#else
+static inline void kdbus_conn_set_seclabel(struct kdbus_conn *conn) {}
+#endif
+
 /* kdbus file operations */
 static int kdbus_conn_open(struct inode *inode, struct file *file)
 {
@@ -195,6 +227,9 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	conn->creds.tid = current->tgid;
 	conn->creds.starttime = timespec_to_ns(&current->start_time);
 
+	kdbus_conn_set_audit(conn);
+	kdbus_conn_set_seclabel(conn);
+
 	pr_info("created endpoint bus connection %llu '%s/%s'\n",
 		(unsigned long long)conn->id, conn->ns->devpath,
 		conn->ep->bus->name);
@@ -267,6 +302,10 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 
 		del_timer(&conn->timer);
 		cancel_work_sync(&conn->work);
+
+#ifdef CONFIG_SECURITY
+		kfree(conn->sec_label);
+#endif
 
 		bus = conn->ep->bus;
 		kdbus_name_remove_by_conn(bus->name_registry, conn);

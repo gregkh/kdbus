@@ -26,8 +26,6 @@
 #include <linux/cgroup.h>
 #include <linux/cred.h>
 #include <linux/capability.h>
-#include <linux/audit.h>
-#include <linux/security.h>
 #include <linux/sizes.h>
 
 #include "message.h"
@@ -827,20 +825,9 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 #ifdef CONFIG_AUDITSYSCALL
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_AUDIT) {
-		const struct cred *cred;
-		uid_t uid;
-		u64 ids[2];
-
-		rcu_read_lock();
-		cred = __task_cred(current);
-		uid = from_kuid(cred->user_ns, audit_get_loginuid(current));
-		rcu_read_unlock();
-
-		ids[0] = uid;
-		ids[1] = audit_get_sessionid(current);
-
 		ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_AUDIT,
-					     ids, sizeof(ids));
+					     conn_src->audit_ids,
+					     sizeof(conn_src->audit_ids));
 		if (ret < 0)
 			return ret;
 	}
@@ -848,21 +835,14 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 #ifdef CONFIG_SECURITY
 	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_SECLABEL) {
-		u32 sid;
-		char *label = NULL;
-		int err;
-		u32 len = 0;
-
-		security_task_getsecid(current, &sid);
-		err = security_secid_to_secctx(sid, &label, &len);
-		if (err >= 0 && len > 0)
+		if (conn_src->sec_label_len > 0) {
 			ret = kdbus_kmsg_append_data(kmsg,
-					KDBUS_MSG_SRC_SECLABEL, label, len);
-
-		kfree(label);
-
-		if (ret < 0)
-			return ret;
+						     KDBUS_MSG_SRC_SECLABEL,
+						     conn_src->sec_label,
+						     conn_src->sec_label_len);
+			if (ret < 0)
+				return ret;
+		}
 	}
 #endif
 

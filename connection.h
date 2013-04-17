@@ -61,6 +61,15 @@ struct kdbus_conn {
 	struct kdbus_creds creds;
 	struct kdbus_match_db *match_db;
 
+#ifdef CONFIG_AUDITSYSCALL
+	u64 audit_ids[2];
+#endif
+
+#ifdef CONFIG_SECURITY
+	char *sec_label;
+	u32 sec_label_len;
+#endif
+
 	int msg_count;
 	int allocated_size;
 };
