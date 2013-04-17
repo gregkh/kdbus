@@ -580,7 +580,7 @@ static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 	}
 
 	item->type = KDBUS_MSG_SRC_NAMES;
-	item->size = size;
+	item->size = KDBUS_ITEM_HEADER_SIZE + strsize;
 
 	list_for_each_entry(name_entry, &conn->names_list, conn_entry) {
 		strcpy(item->data + pos, name_entry->name);
