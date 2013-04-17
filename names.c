@@ -435,7 +435,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	hash_for_each(reg->entries_hash, tmp, e, hentry) {
 		cmd_name->size = sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
-		cmd_name->name_flags = 0; /* FIXME */
+		cmd_name->name_flags = e->flags;
 		cmd_name->id = e->conn->id;
 		strcpy(cmd_name->name, e->name);
 		cmd_name = (struct kdbus_cmd_name *) ((u8 *) cmd_name + cmd_name->size);
