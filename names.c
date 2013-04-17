@@ -468,13 +468,55 @@ exit_unlock:
 	return ret;
 }
 
+static int
+kdbus_name_fill_info_items(struct kdbus_conn *conn,
+			   struct kdbus_cmd_name_info_item *item,
+			   size_t *size)
+{
+	int ret = 0;
+	size_t size_req = 0;
+	size_t size_avail = *size;
+
+	*size = size_req;
+
+#ifdef CONFIG_AUDITSYSCALL
+	size_req += sizeof(*item) + sizeof(conn->audit_ids);
+#endif
+
+#ifdef CONFIG_SECURITY
+	size_req += sizeof(*item) + conn->sec_label_len + 1;
+#endif
+
+	*size = size_req;
+	if (size_avail < size_req)
+		return -EMSGSIZE;
+
+#ifdef CONFIG_AUDITSYSCALL
+	item->size = sizeof(*item) + sizeof(conn->audit_ids);
+	item->type = KDBUS_CMD_NAME_INFO_ITEM_AUDIT;
+	memcpy(item->data, conn->audit_ids, sizeof(conn->audit_ids));
+	item = (struct kdbus_cmd_name_info_item *) (u8 *) item + item->size;
+#endif
+
+#ifdef CONFIG_SECURITY
+	item->size = sizeof(*item) + conn->sec_label_len + 1;
+	item->type = KDBUS_CMD_NAME_INFO_ITEM_AUDIT;
+	memcpy(item->data, conn->sec_label, conn->sec_label_len);
+	item = (struct kdbus_cmd_name_info_item *) (u8 *) item + item->size;
+#endif
+
+	return ret;
+}
+
 int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 			 struct kdbus_conn *conn,
 			 void __user *buf)
 {
-	struct kdbus_name_entry *e;
+	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name_info *cmd_name_info;
 	struct kdbus_cmd_name_info_item *info_item;
+	struct kdbus_conn *owner_conn;
+	size_t extra_size;
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -492,33 +534,49 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		return PTR_ERR(cmd_name_info);
 
 	if (cmd_name_info->id != 0) {
-		// FIXME
-		kfree(cmd_name_info);
-		return -ENOSYS;
+		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
+						       cmd_name_info->id);
+	} else {
+		KDBUS_ITEM_FOREACH(info_item, cmd_name_info)
+			if (info_item->type == KDBUS_CMD_NAME_INFO_ITEM_NAME)
+				name = info_item->data;
+
+		if (!name)
+			return -EINVAL;
+
+		hash = kdbus_str_hash(name);
 	}
 
-	KDBUS_ITEM_FOREACH(info_item, cmd_name_info)
-		if (info_item->type == KDBUS_CMD_NAME_INFO_ITEM_NAME)
-			name = info_item->data;
-
-	if (!name)
-		return -EINVAL;
-
-	hash = kdbus_str_hash(name);
-
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, name);
-	if (!e) {
+	if (name) {
+		e = __kdbus_name_lookup(reg, hash, name);
+		if (!e) {
+			ret = -ENOENT;
+			goto exit_unlock;
+		}
+
+		owner_conn = e->conn;
+	}
+
+	if (!owner_conn) {
 		ret = -ENOENT;
 		goto exit_unlock;
 	}
 
-	size = sizeof(*cmd_name_info);
+	extra_size = size - offsetof(struct kdbus_cmd_name_info, items);
+
+	ret = kdbus_name_fill_info_items(owner_conn, cmd_name_info->items, &extra_size);
+	size = sizeof(*cmd_name_info) + extra_size;
+	if (ret < 0) {
+		kdbus_size_set_user(size, buf, struct kdbus_cmd_name_info);
+		goto exit_unlock;
+	}
 
 	cmd_name_info->size = size;
-	cmd_name_info->id = e->conn->id;
-	cmd_name_info->flags = e->flags;
-	memcpy(&cmd_name_info->creds, &e->conn->creds,
+	cmd_name_info->id = owner_conn->id;
+	if (e)
+		cmd_name_info->flags = e->flags;
+	memcpy(&cmd_name_info->creds, &owner_conn->creds,
 	       sizeof(cmd_name_info->creds));
 
 	ret = copy_to_user(buf, cmd_name_info, size);

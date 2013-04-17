@@ -339,9 +339,9 @@ struct kdbus_cmd_names {
 };
 
 enum {
-	KDBUS_CMD_NAME_INFO_ITEM_NAME,
-	KDBUS_CMD_NAME_INFO_ITEM_SECLABEL,
-	KDBUS_CMD_NAME_INFO_ITEM_AUDIT,
+	KDBUS_CMD_NAME_INFO_ITEM_NAME,		/* userspace → kernel */
+	KDBUS_CMD_NAME_INFO_ITEM_SECLABEL,	/* kernel → userspace */
+	KDBUS_CMD_NAME_INFO_ITEM_AUDIT,		/* kernel → userspace */
 };
 
 struct kdbus_cmd_name_info_item {
