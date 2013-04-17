@@ -19,6 +19,7 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/uaccess.h>
+#include <linux/sizes.h>
 #include <uapi/linux/major.h>
 
 #include "ns.h"
@@ -238,7 +239,7 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ns_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_ns_make) || size > 0xffff)
+	if (size < sizeof(struct kdbus_cmd_ns_make) || size > SZ_64K)
 		return -EMSGSIZE;
 
 	km = kmalloc(sizeof(struct kdbus_cmd_ns_kmake) + size, GFP_KERNEL);

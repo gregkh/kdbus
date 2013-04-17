@@ -28,6 +28,7 @@
 #include <linux/capability.h>
 #include <linux/audit.h>
 #include <linux/security.h>
+#include <linux/sizes.h>
 
 #include "message.h"
 #include "connection.h"
@@ -127,14 +128,14 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD:
-			if (item->size > 0xffff)
+			if (item->size > SZ_64K)
 				return -EMSGSIZE;
 			break;
 
 		case KDBUS_MSG_PAYLOAD_VEC:
 			if (item->size != KDBUS_ITEM_HEADER_SIZE + 16)
 				return -EINVAL;
-			if (item->vec.size > 0xffff)
+			if (item->vec.size > SZ_64K)
 				return -EMSGSIZE;
 			num_payloads++;
 			break;
@@ -347,7 +348,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > 0xffff)
+	if (size < sizeof(struct kdbus_msg) || size > SZ_64K)
 		return -EMSGSIZE;
 
 	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;

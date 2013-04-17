@@ -21,6 +21,7 @@
 #include <linux/init.h>
 #include <linux/hashtable.h>
 #include <linux/uaccess.h>
+#include <linux/sizes.h>
 
 #include "bus.h"
 #include "connection.h"
@@ -223,7 +224,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_bus_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_bus_make) || size > 0xffff)
+	if (size < sizeof(struct kdbus_cmd_bus_make) || size > SZ_64K)
 		return -EMSGSIZE;
 
 	km = kmalloc(sizeof(struct kdbus_cmd_bus_kmake) + size, GFP_KERNEL);

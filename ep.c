@@ -20,6 +20,7 @@
 #include <linux/init.h>
 #include <linux/uaccess.h>
 #include <linux/hashtable.h>
+#include <linux/sizes.h>
 
 #include "ep.h"
 #include "bus.h"
@@ -229,7 +230,7 @@ int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ep_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_ep_make) || size > 0xffff)
+	if (size < sizeof(struct kdbus_cmd_ep_make) || size > SZ_64K)
 		return -EMSGSIZE;
 
 	km = kmalloc(sizeof(struct kdbus_cmd_ep_kmake) + size, GFP_KERNEL);

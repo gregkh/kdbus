@@ -19,6 +19,7 @@
 #include <linux/init.h>
 #include <linux/hash.h>
 #include <linux/uaccess.h>
+#include <linux/sizes.h>
 
 #include "match.h"
 #include "connection.h"
@@ -279,7 +280,7 @@ struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_match))
 		return ERR_PTR(-EFAULT);
 
-	if (size < sizeof(*cmd_match) || size > 0xffff)
+	if (size < sizeof(*cmd_match) || size > SZ_64K)
 		return ERR_PTR(-EMSGSIZE);
 
 	return memdup_user(buf, size);
