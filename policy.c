@@ -424,7 +424,7 @@ int kdbus_cmd_policy_set_from_user(struct kdbus_policy_db *db, void __user *buf)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_policy))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > SZ_64K) {
+	if (size < sizeof(struct kdbus_msg) || size > KDBUS_CMD_MAXSIZE) {
 		kdbus_size_set_user(sizeof(struct kdbus_msg),
 				    buf, struct kdbus_cmd_policy);
 		return -EMSGSIZE;

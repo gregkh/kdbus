@@ -219,7 +219,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_bus_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_bus_make) || size > SZ_64K)
+	if (size < sizeof(struct kdbus_cmd_bus_make) || size > KDBUS_CMD_MAXSIZE)
 		return -EMSGSIZE;
 
 	km = kmalloc(sizeof(struct kdbus_cmd_bus_kmake) + size, GFP_KERNEL);

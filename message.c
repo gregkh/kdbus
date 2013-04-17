@@ -348,7 +348,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > SZ_64K)
+	if (size < sizeof(struct kdbus_msg) || size > KDBUS_CMD_MAXSIZE)
 		return -EMSGSIZE;
 
 	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;

@@ -44,6 +44,8 @@
 	put_user(_s, _sz); \
 })
 
+#define KDBUS_CMD_MAXSIZE	SZ_64K
+
 union kdbus_item {
 	struct {
 		__u64 size;
