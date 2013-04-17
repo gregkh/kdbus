@@ -81,17 +81,6 @@ struct kdbus_name_registry *kdbus_name_registry_new(void)
 	return reg;
 }
 
-static u32 kdbus_name_make_hash(const char *name)
-{
-	unsigned int len = strlen(name);
-	u32 hash = init_name_hash();
-
-	while (len--)
-		hash = partial_name_hash(*name++, hash);
-
-	return end_name_hash(hash);
-}
-
 static struct kdbus_name_entry *
 __kdbus_name_lookup(struct kdbus_name_registry *reg,
 		    u32 hash, const char *name)
@@ -178,7 +167,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name, u64 flags)
 {
 	struct kdbus_name_entry *e = NULL;
-	u32 hash = kdbus_name_make_hash(name);
+	u32 hash = kdbus_str_hash(name);
 
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, name);
@@ -186,7 +175,6 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 
 	return e;
 }
-
 
 /* called with entries_lock held! */
 static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
@@ -299,7 +287,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		return -EINVAL;
 
 	cmd_name->name_flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
-	hash = kdbus_name_make_hash(cmd_name->name);
+	hash = kdbus_str_hash(cmd_name->name);
 
 	if (conn->ep->policy_db) {
 		ret = kdbus_policy_db_check_own_access(conn->ep->policy_db,
@@ -393,7 +381,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	if (!kdbus_name_is_valid(cmd_name->name))
 		return -EINVAL;
 
-	hash = kdbus_name_make_hash(cmd_name->name);
+	hash = kdbus_str_hash(cmd_name->name);
 
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, cmd_name->name);

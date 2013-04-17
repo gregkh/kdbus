@@ -135,17 +135,6 @@ void kdbus_policy_db_unref(struct kdbus_policy_db *db)
 	kref_put(&db->kref, __kdbus_policy_db_free);
 }
 
-static u32 kdbus_policy_make_name_hash(const char *name)
-{
-	unsigned int len = strlen(name);
-	u32 hash = init_name_hash();
-
-	while (len--)
-		hash = partial_name_hash(*name++, hash);
-
-	return end_name_hash(hash);
-}
-
 struct kdbus_policy_db *kdbus_policy_db_new(void)
 {
 	struct kdbus_policy_db *db;
@@ -214,7 +203,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	 * connection.
 	 */
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
-		hash = kdbus_policy_make_name_hash(name_entry->name);
+		hash = kdbus_str_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
@@ -226,7 +215,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	}
 
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
-		hash = kdbus_policy_make_name_hash(name_entry->name);
+		hash = kdbus_str_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
@@ -339,7 +328,7 @@ int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 {
 	struct kdbus_policy_db_entry *db_entry;
 	int ret = -EPERM;
-	u32 hash = kdbus_policy_make_name_hash(name);
+	u32 hash = kdbus_str_hash(name);
 
 	/* Walk the list of the names registered for a connection ... */
 	mutex_lock(&db->entries_lock);
@@ -383,7 +372,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 			if (!e)
 				return -ENOMEM;
 
-			hash = kdbus_policy_make_name_hash(pol->name);
+			hash = kdbus_str_hash(pol->name);
 			e->name = kstrdup(pol->name, GFP_KERNEL);
 			INIT_LIST_HEAD(&e->access_list);
 

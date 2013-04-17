@@ -59,6 +59,11 @@ static inline bool kdbus_validate_nul(const char *s, size_t l)
 	return l > 0 && memchr(s, '\0', l) == s + l - 1;
 }
 
+static inline unsigned int kdbus_str_hash(const char *str)
+{
+	return full_name_hash(str, strlen(str));
+}
+
 extern const struct file_operations kdbus_device_ops;
 extern struct bus_type kdbus_subsys;
 void kdbus_dev_release(struct device *dev);
