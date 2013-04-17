@@ -906,7 +906,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 
 		/* lookup and determine conn_dst ... */
 		name_entry = kdbus_name_lookup(ep->bus->name_registry,
-					       name_item->data, 0);
+					       name_item->data);
 		if (!name_entry)
 			return -ESRCH;
 

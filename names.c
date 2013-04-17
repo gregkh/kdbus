@@ -165,7 +165,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 }
 
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
-					   const char *name, u64 flags)
+					   const char *name)
 {
 	struct kdbus_name_entry *e = NULL;
 	u32 hash = kdbus_str_hash(name);

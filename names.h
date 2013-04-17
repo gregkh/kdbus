@@ -49,7 +49,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 			 void __user *buf);
 
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
-					   const char *name, u64 type);
+					   const char *name);
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn);
 
