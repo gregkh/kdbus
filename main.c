@@ -36,6 +36,11 @@ struct kdbus_ns *kdbus_ns_init;
 /* map of majors to namespaces */
 DEFINE_IDR(kdbus_ns_major_idr);
 
+void kdbus_dev_release(struct device *dev)
+{
+	kfree(dev);
+}
+
 static int __init kdbus_init(void)
 {
 	int ret;

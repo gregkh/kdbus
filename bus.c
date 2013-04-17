@@ -29,11 +29,6 @@
 #include "ep.h"
 #include "ns.h"
 
-void kdbus_release(struct device *dev)
-{
-	kfree(dev);
-}
-
 /**
  * kdbus_bus_unref() - increase the reference counter of a kdbus_bus
  * @bus:	The bus to unref
