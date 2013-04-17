@@ -621,6 +621,9 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	if (!conn->active)
 		return -ENOTCONN;
 
+	if (kmsg->payloads && !(conn->flags & KDBUS_CMD_HELLO_ACCEPT_MMAP))
+		return -ECOMM;
+
 	if (kmsg->fds && !(conn->flags & KDBUS_CMD_HELLO_ACCEPT_FD))
 		return -ECOMM;
 

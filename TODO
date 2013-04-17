@@ -10,10 +10,6 @@ Message Buffering:
     with mmap or vmalloc().
   - pass along mmap() of process data, instead of copying them
 
-Security:
-  - let HELLO specify if fds or mmaps() are accepted to
-    be received; refuse the message otherwise
-
 Mesage Validation:
   - enforce NULL termination on all strings. Do not rely on the size
     headers only
