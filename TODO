@@ -27,7 +27,6 @@ External API:
   - move alignment and iteration macros to kdbus.h?
 
 Internal API:
-  - use size_t instead of u64 for internal variables where appropriate?
   - always kmalloc internal structures at 8 byte boundaries
 
 Kernel Core:
