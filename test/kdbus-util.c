@@ -207,7 +207,7 @@ void msg_dump(struct kdbus_msg *msg)
 				count++;
 			}
 
-			printf("(%d strings)\n", count);
+			printf("(%d string%s)\n", count, (count == 1) ? "" : "s");
 			break;
 		}
 
