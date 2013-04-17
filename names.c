@@ -28,6 +28,7 @@
 #include "connection.h"
 #include "notify.h"
 #include "policy.h"
+#include "bus.h"
 #include "ep.h"
 
 struct kdbus_name_queue_item {
@@ -285,6 +286,20 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 
 	if (!kdbus_name_is_valid(cmd_name->name))
 		return -EINVAL;
+
+	if (cmd_name->id) {
+		struct kdbus_conn *new_conn;
+
+		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
+		if (!new_conn)
+			return -ENOENT;
+
+		if (!capable(CAP_SYS_ADMIN) &&
+		    conn->creds.uid != new_conn->creds.uid)	/* FIXME: also allow bus-owner */
+			return -EPERM;
+
+		conn = new_conn;
+	}
 
 	cmd_name->name_flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
 	hash = kdbus_str_hash(cmd_name->name);
