@@ -498,7 +498,7 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 
 #ifdef CONFIG_SECURITY
 	item->size = sizeof(*item) + conn->sec_label_len + 1;
-	item->type = KDBUS_CMD_NAME_INFO_ITEM_AUDIT;
+	item->type = KDBUS_CMD_NAME_INFO_ITEM_SECLABEL;
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
 	item = (struct kdbus_cmd_name_info_item *) (u8 *) item + item->size;
 #endif
