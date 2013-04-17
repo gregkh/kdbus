@@ -533,9 +533,12 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_name_info))
 		return PTR_ERR(cmd_name_info);
 
+	/* The API offers to look up a connection by ID or by name */
 	if (cmd_name_info->id != 0) {
 		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
 						       cmd_name_info->id);
+		if (!owner_conn)
+			return -ENOENT;
 	} else {
 		KDBUS_ITEM_FOREACH(info_item, cmd_name_info)
 			if (info_item->type == KDBUS_CMD_NAME_INFO_ITEM_NAME)
@@ -548,6 +551,11 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	}
 
 	mutex_lock(&reg->entries_lock);
+	/*
+	 * If a lookup by name was requested, set owner_conn to the
+	 * matching entry's connection pointer. Otherwise, owner_conn
+	 * was already set above.
+	 */
 	if (name) {
 		e = __kdbus_name_lookup(reg, hash, name);
 		if (!e) {
@@ -558,16 +566,12 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		owner_conn = e->conn;
 	}
 
-	if (!owner_conn) {
-		ret = -ENOENT;
-		goto exit_unlock;
-	}
-
 	extra_size = size - offsetof(struct kdbus_cmd_name_info, items);
 
 	ret = kdbus_name_fill_info_items(owner_conn, cmd_name_info->items, &extra_size);
-	size = sizeof(*cmd_name_info) + extra_size;
+	size = offsetof(struct kdbus_cmd_name_info, items) + extra_size;
 	if (ret < 0) {
+		/* let the user know how much space we require */
 		kdbus_size_set_user(size, buf, struct kdbus_cmd_name_info);
 		goto exit_unlock;
 	}
