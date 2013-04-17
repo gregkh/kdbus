@@ -83,8 +83,7 @@ static void kdbus_policy_db_work(struct work_struct *work)
 	kdbus_policy_db_scan_timeout(db);
 }
 
-static
-void kdbus_policy_db_schedule_timeout_scan(struct kdbus_policy_db *db)
+static void kdbus_policy_db_schedule_timeout_scan(struct kdbus_policy_db *db)
 {
 	schedule_work(&db->work);
 }
@@ -173,9 +172,8 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 	return db;
 }
 
-static inline
-u64 accumulate_entry_accesses(struct kdbus_policy_db_entry *db_entry,
-			      struct kdbus_conn *conn)
+static inline u64 collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
+					 struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_entry_access *a;
 	u64 access = 0;
@@ -199,10 +197,9 @@ u64 accumulate_entry_accesses(struct kdbus_policy_db_entry *db_entry,
 	return access;
 }
 
-static
-int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
-					struct kdbus_conn *conn_src,
-					struct kdbus_conn *conn_dst)
+static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
+					       struct kdbus_conn *conn_src,
+					       struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_policy_db_entry *db_entry;
@@ -222,7 +219,7 @@ int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
 
-			access = accumulate_entry_accesses(db_entry, conn_src);
+			access = collect_entry_accesses(db_entry, conn_src);
 			if (access & KDBUS_POLICY_SEND)
 				return 0;
 		}
@@ -234,7 +231,7 @@ int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
 
-			access = accumulate_entry_accesses(db_entry, conn_dst);
+			access = collect_entry_accesses(db_entry, conn_dst);
 			if (access & KDBUS_POLICY_RECV)
 				return 0;
 		}
@@ -353,7 +350,7 @@ int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 		if (strcmp(db_entry->name, name) != 0)
 			continue;
 
-		access = accumulate_entry_accesses(db_entry, conn);
+		access = collect_entry_accesses(db_entry, conn);
 		if (access & KDBUS_POLICY_OWN) {
 			ret = 0;
 			goto exit_unlock;
