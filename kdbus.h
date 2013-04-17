@@ -94,7 +94,6 @@ enum {
 	KDBUS_MSG_NAME_CHANGE,		/* .name_change */
 	KDBUS_MSG_ID_ADD,		/* .id_change */
 	KDBUS_MSG_ID_REMOVE,		/* .id_change */
-	KDBUS_MSG_ID_CHANGE,		/* .id_change */
 	KDBUS_MSG_REPLY_TIMEOUT,	/* empty, but .reply_cookie in .kdbus_msg is filled in */
 	KDBUS_MSG_REPLY_DEAD,		/* dito */
 };
@@ -366,7 +365,6 @@ enum {
 	KDBUS_CMD_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_MSG_NAME_CHANGE */
 	KDBUS_CMD_MATCH_ID_ADD,		/* Matches an ID against KDBUS_MSG_ID_ADD */
 	KDBUS_CMD_MATCH_ID_REMOVE,	/* Matches an ID against KDBUS_MSG_ID_REMOVE */
-	KDBUS_CMD_MATCH_ID_CHANGE,	/* Matches an ID against KDBUS_MSG_ID_CHANGE */
 };
 
 struct kdbus_cmd_match_item {

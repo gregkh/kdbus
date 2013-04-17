@@ -256,7 +256,6 @@ void msg_dump(struct kdbus_msg *msg)
 
 		case KDBUS_MSG_ID_ADD:
 		case KDBUS_MSG_ID_REMOVE:
-		case KDBUS_MSG_ID_CHANGE:
 			printf("  +%s (%llu bytes) id=%llu flags=%llu\n",
 			       enum_MSG(item->type), (unsigned long long) item->size,
 			       (unsigned long long) item->id_change.id,

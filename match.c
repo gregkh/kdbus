@@ -63,7 +63,6 @@ kdbus_match_db_entry_item_free(struct kdbus_match_db_entry_item *item)
 
 	case KDBUS_CMD_MATCH_ID_ADD:
 	case KDBUS_CMD_MATCH_ID_REMOVE:
-	case KDBUS_CMD_MATCH_ID_CHANGE:
 		break;
 	}
 
@@ -221,12 +220,6 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_ID_CHANGE &&
-			    type != KDBUS_MSG_ID_CHANGE) {
-				matched = false;
-				break;
-			}
-
 			if (ei->type == KDBUS_CMD_MATCH_ID_REMOVE &&
 			    type != KDBUS_MSG_ID_REMOVE) {
 				matched = false;
@@ -350,7 +343,6 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 		case KDBUS_CMD_MATCH_ID_ADD:
 		case KDBUS_CMD_MATCH_ID_REMOVE:
-		case KDBUS_CMD_MATCH_ID_CHANGE:
 			ei->id = item->id;
 			break;
 		}

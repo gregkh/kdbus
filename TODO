@@ -36,6 +36,3 @@ Kernel Core:
     in the root of /sys/devices/
       https://git.kernel.org/cgit/linux/kernel/git/tj/wq.git/commit/?h=for-3.10-subsys_virtual_register
 
-Missing implementations:
-  - KDBUS_MSG_ID_CHANGE
-  - We allow registration/deregestration of names of other peers
