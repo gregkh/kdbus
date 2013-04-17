@@ -474,9 +474,11 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e;
 	struct kdbus_cmd_name_info *cmd_name_info;
+	struct kdbus_cmd_name_info_item *info_item;
 	u64 size;
-	u64 tmp;
+	u32 hash;
 	int ret = 0;
+	char *name = NULL;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name_info))
 		return -EFAULT;
@@ -489,21 +491,39 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_name_info))
 		return PTR_ERR(cmd_name_info);
 
-	if (cmd_name_info->id == 0) {
-		// FIXME, look up by name, not id
+	if (cmd_name_info->id != 0) {
+		// FIXME
 		kfree(cmd_name_info);
 		return -ENOSYS;
 	}
 
+	KDBUS_ITEM_FOREACH(info_item, cmd_name_info)
+		if (info_item->type == KDBUS_CMD_NAME_INFO_ITEM_NAME)
+			name = info_item->data;
+
+	if (!name)
+		return -EINVAL;
+
+	hash = kdbus_str_hash(name);
+
 	mutex_lock(&reg->entries_lock);
-	hash_for_each(reg->entries_hash, tmp, e, hentry) {
-		if (e->conn->id == cmd_name_info->id) {
-			/* found the id, but wait, how are we supposed to get
-			 * the data back to userspace? */
-			// FIXME
-			break;
-		}
+	e = __kdbus_name_lookup(reg, hash, name);
+	if (!e) {
+		ret = -ENOENT;
+		goto exit_unlock;
 	}
+
+	size = sizeof(*cmd_name_info);
+
+	cmd_name_info->size = size;
+	cmd_name_info->id = e->conn->id;
+	cmd_name_info->flags = e->flags;
+	memcpy(&cmd_name_info->creds, &e->conn->creds,
+	       sizeof(cmd_name_info->creds));
+
+	ret = copy_to_user(buf, cmd_name_info, size);
+
+exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
 	kfree(cmd_name_info);
