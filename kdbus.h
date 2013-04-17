@@ -237,6 +237,12 @@ enum {
 	KDBUS_CMD_MAKE_NAME,
 	KDBUS_CMD_MAKE_CGROUP,	/* the cgroup hierarchy ID for which to attach
 				 * cgroup membership paths * to messages. */
+	KDBUS_CMD_MAKE_CRED,	/* allow translator services which connect
+				 * to the bus on behalf of somebody else,
+				 * allow specifiying the credentials of the
+				 * client to connect on behalf on. Needs
+				 * privileges */
+
 };
 
 struct kdbus_cmd_make_item {
@@ -260,25 +266,14 @@ struct kdbus_cmd_hello {
 				 * capabilities by returning an error
 				 * from KDBUS_CMD_HELLO */
 
-	/* userspace → kernel */
-	__u64 pid;		/* to allow translator services which	//FIXME
-				 * connect to the bus on behalf of
-				 * somebody else, allow specifiying
-				 * the PID of the client to connect on
-				 * behalf on. Normal clients should
-				 * pass this as 0 (i.e. to do things
-				 * under their own PID). Priviliged
-				 * clients can pass != 0, to operate
-				 * on behalf of somebody else. */
-
 	/* kernel → userspace */
 	__u64 bus_flags;	/* this is .flags copied verbatim from
 				 * from original KDBUS_CMD_BUS_MAKE
 				 * ioctl. It's intended to be useful
 				 * to do negotiation of features of
 				 * the payload that is transfreted. */
-	__u64 id;		/* peer id */				//FIXME?
-	__u64 bloom_size;	/* The bloom filter size chosen by the	//FIXME?
+	__u64 id;		/* id assigned to this connection */
+	__u64 bloom_size;	/* The bloom filter size chosen by the
 				 * bus owner */
 	struct kdbus_cmd_make_item items[0];
 };
@@ -293,7 +288,7 @@ struct kdbus_cmd_bus_make {
 				 * copied verbatim into the bus
 				 * structure and returned from
 				 * KDBUS_CMD_HELLO, later */
-	__u64 bloom_size;	/* size of the bloom filter for this bus */ //FIXME?
+	__u64 bloom_size;	/* size of the bloom filter for this bus */
 	struct kdbus_cmd_make_item items[0];
 
 };

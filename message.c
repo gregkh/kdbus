@@ -133,7 +133,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			break;
 
 		case KDBUS_MSG_PAYLOAD_VEC:
-			if (item->size != KDBUS_ITEM_HEADER_SIZE + sizeof(kdbus_vec))
+			if (item->size != KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec))
 				return -EINVAL;
 			if (item->vec.size > SZ_64K)
 				return -EMSGSIZE;
