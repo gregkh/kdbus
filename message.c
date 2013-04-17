@@ -640,7 +640,8 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	}
 	mutex_unlock(&conn->msg_lock);
 
-	wake_up_interruptible(&conn->ep->wait);
+	if (ret == 0)
+		wake_up_interruptible(&conn->ep->wait);
 
 	return ret;
 }
