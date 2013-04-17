@@ -477,8 +477,6 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 	size_t size_req = 0;
 	size_t size_avail = *size;
 
-	*size = size_req;
-
 #ifdef CONFIG_AUDITSYSCALL
 	size_req += sizeof(*item) + sizeof(conn->audit_ids);
 #endif
