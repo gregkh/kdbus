@@ -186,14 +186,30 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_SRC_PID_COMM:
 		case KDBUS_MSG_SRC_TID_COMM:
 		case KDBUS_MSG_SRC_EXE:
-		case KDBUS_MSG_SRC_CMDLINE:
 		case KDBUS_MSG_SRC_CGROUP:
 		case KDBUS_MSG_SRC_SECLABEL:
-		case KDBUS_MSG_SRC_NAMES:
 		case KDBUS_MSG_DST_NAME:
 			printf("  +%s (%llu bytes) '%s' (%zu)\n",
 			       enum_MSG(item->type), item->size, item->str, strlen(item->str));
 			break;
+
+		case KDBUS_MSG_SRC_CMDLINE:
+		case KDBUS_MSG_SRC_NAMES: {
+			size_t size = item->size - KDBUS_ITEM_HEADER_SIZE;
+			char *str = item->str;
+			int count = 0;
+
+			printf("  +%s (%llu bytes) ", enum_MSG(item->type), item->size);
+			while (size) {
+				printf("'%s' ", str);
+				size -= strlen(str) + 1;
+				str += strlen(str) + 1;
+				count++;
+			}
+
+			printf("(%d strings)\n", count);
+			break;
+		}
 
 		case KDBUS_MSG_SRC_AUDIT:
 			printf("  +%s (%llu bytes) loginuid=%llu sessionid=%llu\n",
