@@ -1,8 +1,7 @@
 Bugs:
   - as we have u64 for sizes in the ioctl()-passed structs, we need a
     way to deal with 32-bit architectures not providing the proper
-    put_user(), the current code cannot work as it is, it was changed
-    just to work around this issue
+    get_user()
 
 Message Buffering:
   - the maximum message buffer size is 64k, which is fine. But references
@@ -45,4 +44,3 @@ Kernel Core:
 Missing implementations:
   - KDBUS_MSG_ID_CHANGE
   - We allow registration/deregestration of names of other peers
-  - per-connection accounting
