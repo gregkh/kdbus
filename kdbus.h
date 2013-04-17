@@ -347,7 +347,7 @@ enum {
 struct kdbus_cmd_name_info_item {
 	__u64 size;
 	__u64 type;
-	__u8 items[0];
+	__u8 data[0];
 };
 
 struct kdbus_cmd_name_info {
@@ -355,7 +355,7 @@ struct kdbus_cmd_name_info {
 	__u64 flags;
 	__u64 id;			/* either ID, or 0 and _ITEM_NAME follows */
 	struct kdbus_creds creds;
-	struct kdbus_cmd_name_info_item item[0]; /* list of item records */
+	struct kdbus_cmd_name_info_item items[0]; /* list of item records */
 };
 
 enum {
