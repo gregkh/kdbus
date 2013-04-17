@@ -40,7 +40,7 @@ struct kdbus_bus {
 	DECLARE_HASHTABLE(conn_hash, 6);
 	struct list_head ep_list;	/* endpoints assigned to this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
-	u64 bloom_size;			/* bloom filter size */
+	size_t bloom_size;		/* bloom filter size */
 	u64 cgroup_id;			/* the cgroup superblock we attach information from */
 	struct kdbus_name_registry *name_registry;
 	struct list_head bus_entry;

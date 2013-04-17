@@ -37,7 +37,7 @@
 #include "names.h"
 #include "policy.h"
 
-int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, u64 size)
+int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, size_t size)
 {
 	int ret = 0;
 
@@ -54,7 +54,7 @@ int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, u64 size)
 	return ret;
 }
 
-void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, u64 size)
+void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, size_t size)
 {
 	if (!conn)
 		return;

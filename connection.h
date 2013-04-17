@@ -70,12 +70,12 @@ struct kdbus_conn {
 	u32 sec_label_len;
 #endif
 
-	int msg_count;
-	int allocated_size;
+	unsigned int msg_count;
+	size_t allocated_size;
 };
 
 void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn);
-int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, u64 size);
-void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, u64 size);
+int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, size_t size);
+void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, size_t size);
 
 #endif

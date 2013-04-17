@@ -28,8 +28,8 @@ struct kdbus_payload {
 };
 
 struct kdbus_meta {
-	u64 size;
-	u64 allocated_size;
+	size_t size;
+	size_t allocated_size;
 	struct kdbus_msg_item items[0];
 };
 
@@ -54,7 +54,7 @@ struct kdbus_msg_list_entry {
 struct kdbus_ep;
 struct kdbus_conn;
 
-int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m);
+int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp, struct kdbus_kmsg **m);
 const struct kdbus_msg_item *kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, int index);
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);

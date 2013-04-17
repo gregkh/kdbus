@@ -86,9 +86,9 @@ static struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg)
 	return kmsg;
 }
 
-int kdbus_kmsg_new(u64 extra_size, struct kdbus_kmsg **m)
+int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 {
-	u64 size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
+	size_t size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	struct kdbus_kmsg *kmsg;
 
 	kmsg = kzalloc(size, GFP_KERNEL);
