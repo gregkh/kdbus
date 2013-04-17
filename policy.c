@@ -246,6 +246,32 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 	return ce;
 }
 
+static int add_reverse_cache_entry(struct kdbus_policy_db *db,
+				   struct kdbus_policy_db_cache_entry *ce,
+				   u64 reply_deadline_ns)
+{
+	struct kdbus_policy_db_cache_entry *new;
+	u32 hash = 0;
+
+	/* note that the entries are given in reverse order (b, a) */
+	new = kdbus_policy_cache_entry_new(ce->conn_b, ce->conn_a);
+	if (!new)
+		return -ENOMEM;
+
+	hash ^= hash_ptr(ce->conn_a, sizeof(ce->conn_b) * 8);
+	hash ^= hash_ptr(ce->conn_b, sizeof(ce->conn_a) * 8);
+	new->deadline_ns = reply_deadline_ns;
+
+	mutex_lock(&db->cache_lock);
+	hash_add(db->send_access_hash, &new->hentry, hash);
+	list_add_tail(&new->timeout_entry, &db->timeout_list);
+	mutex_unlock(&db->cache_lock);
+
+	kdbus_policy_db_scan_timeout(db);
+
+	return 0;
+}
+
 int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_src,
 				      struct kdbus_conn *conn_dst,
@@ -263,7 +289,10 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	hash_for_each_possible(db->send_access_hash, ce, hentry, hash)
 		if (ce->conn_a == conn_src && ce->conn_b == conn_dst) {
 			mutex_unlock(&db->cache_lock);
-			return 0;
+			/* do we need a temporaty rule for replies? */
+			if (reply_deadline_ns)
+				ret = add_reverse_cache_entry(db, ce, reply_deadline_ns);
+			return ret;
 		}
 	mutex_unlock(&db->cache_lock);
 
@@ -282,22 +311,8 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 		mutex_unlock(&db->cache_lock);
 
 		/* do we need a temporaty rule for replies? */
-		if (ce->deadline_ns) {
-			ce = kdbus_policy_cache_entry_new(conn_dst, conn_src);
-			if (!ce) {
-				ret = -ENOMEM;
-				goto exit_unlock_entries;
-			}
-
-			ce->deadline_ns = reply_deadline_ns;
-
-			mutex_lock(&db->cache_lock);
-			hash_add(db->send_access_hash, &ce->hentry, hash);
-			list_add_tail(&ce->timeout_entry, &db->timeout_list);
-			mutex_unlock(&db->cache_lock);
-
-			kdbus_policy_db_scan_timeout(db);
-		}
+		if (reply_deadline_ns)
+			ret = add_reverse_cache_entry(db, ce, reply_deadline_ns);
 	}
 
 exit_unlock_entries:
