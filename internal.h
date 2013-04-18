@@ -17,7 +17,7 @@
 
 #define KDBUS_CHAR_MAJOR	222		/* FIXME: move to uapi/linux/major.h */
 
-#define KDBUS_IS_ALIGNED8(s) (((u64)(s) & 7) == 0)
+#define KDBUS_IS_ALIGNED8(s) (((unsigned long)(s) & 7) == 0)
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 
 #define KDBUS_ITEM_HEADER_SIZE offsetof(union kdbus_item, data)
