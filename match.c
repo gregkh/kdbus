@@ -17,6 +17,7 @@
 #include <linux/sched.h>
 #include <linux/mutex.h>
 #include <linux/init.h>
+#include <linux/device.h>
 #include <linux/hash.h>
 #include <linux/uaccess.h>
 #include <linux/sizes.h>
