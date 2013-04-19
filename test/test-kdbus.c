@@ -113,6 +113,34 @@ static void add_match_empty(int fd)
 		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
 }
 
+static unsigned int cgroup_systemd(void)
+{
+	char line[256];
+	FILE *f;
+	unsigned int id = 0;
+
+	f = fopen("/proc/self/cgroup", "re");
+	if (!f)
+		return 0;
+
+	while (fgets(line, sizeof(line), f)) {
+		unsigned int i;
+
+		if (strstr(line, ":name=systemd:") == NULL)
+			continue;
+
+		if (sscanf(line, "%u:", &i) != 1)
+			continue;
+
+		id = i;
+		break;
+	}
+	fclose(f);
+
+	return id;
+}
+
+
 int main(int argc, char *argv[])
 {
 	struct {
@@ -139,7 +167,7 @@ int main(int argc, char *argv[])
 	bus_make.head.flags = KDBUS_ACCESS_WORLD;
 	bus_make.head.bloom_size = 8;
 
-	bus_make.cgroup_id = 1;
+	bus_make.cgroup_id = cgroup_systemd();
 	bus_make.c.type = KDBUS_CMD_MAKE_CGROUP;
 	bus_make.c.size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
 
