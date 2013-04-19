@@ -813,13 +813,15 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			return -ENOMEM;
 
 		ret = task_cgroup_path_from_hierarchy(current, bus->cgroup_id, tmp, PAGE_SIZE);
-		if (ret >= 0)
+		if (ret >= 0) {
 			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP, tmp);
+			if (ret < 0) {
+				free_page((unsigned long) tmp);
+				return ret;
+			}
+		}
 
 		free_page((unsigned long) tmp);
-
-		if (ret < 0)
-			return ret;
 	}
 #endif
 
