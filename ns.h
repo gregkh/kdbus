@@ -27,7 +27,6 @@
 struct kdbus_ns {
 	struct kref kref;		/* reference counter */
 	const char *name;		/* name of the namespace */
-	bool disconnected;		/* invalidated data */
 	struct kdbus_ns *parent;	/* parent namespace */
 	u64 id;				/* global id of this namespace */
 	const char *devpath;		/* /dev base directory path */
@@ -51,4 +50,5 @@ void kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
 int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake);
+struct kdbus_ns *kdbus_ns_find_by_major(int major);
 #endif

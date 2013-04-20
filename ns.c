@@ -64,9 +64,7 @@ struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
 
 void kdbus_ns_disconnect(struct kdbus_ns *ns)
 {
-	if (ns->disconnected)
-		return;
-	ns->disconnected = true;
+	mutex_lock(&kdbus_subsys_lock);
 	list_del(&ns->ns_entry);
 
 	if (ns->dev) {
@@ -78,6 +76,7 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 		unregister_chrdev(ns->major, "kdbus");
 		ns->major = 0;
 	}
+	mutex_unlock(&kdbus_subsys_lock);
 	pr_info("closing namespace %s\n", ns->devpath);
 }
 
@@ -114,6 +113,17 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
 	}
 
 	mutex_unlock(&kdbus_subsys_lock);
+	return ns;
+}
+
+struct kdbus_ns *kdbus_ns_find_by_major(int major)
+{
+	struct kdbus_ns *ns;
+
+	mutex_lock(&kdbus_subsys_lock);
+	ns = idr_find(&kdbus_ns_major_idr, major);
+	mutex_unlock(&kdbus_subsys_lock);
+
 	return ns;
 }
 

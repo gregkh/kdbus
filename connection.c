@@ -160,16 +160,13 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 
 	/* find and reference namespace */
-	mutex_lock(&kdbus_subsys_lock);
 	ns = idr_find(&kdbus_ns_major_idr, MAJOR(inode->i_rdev));
-	if (!ns || ns->disconnected) {
+	if (!ns) {
 		kfree(conn);
-		mutex_unlock(&kdbus_subsys_lock);
 		return -ESHUTDOWN;
 	}
 	conn->ns = kdbus_ns_ref(ns);
 	file->private_data = conn;
-	mutex_unlock(&kdbus_subsys_lock);
 
 	/* control device node */
 	if (MINOR(inode->i_rdev) == 0) {
