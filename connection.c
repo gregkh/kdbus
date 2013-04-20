@@ -318,9 +318,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		break;
 	}
 
-	mutex_lock(&conn->ns->lock);
 	kdbus_ns_unref(conn->ns);
-	mutex_unlock(&conn->ns->lock);
 	kfree(conn);
 	return 0;
 }
