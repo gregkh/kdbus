@@ -251,15 +251,15 @@ static int add_reverse_cache_entry(struct kdbus_policy_db *db,
 				   u64 reply_deadline_ns)
 {
 	struct kdbus_policy_db_cache_entry *new;
-	u32 hash = 0;
+	unsigned int hash = 0;
 
 	/* note that the entries are given in reverse order (b, a) */
 	new = kdbus_policy_cache_entry_new(ce->conn_b, ce->conn_a);
 	if (!new)
 		return -ENOMEM;
 
-	hash ^= hash_ptr(ce->conn_a, sizeof(ce->conn_b) * 8);
-	hash ^= hash_ptr(ce->conn_b, sizeof(ce->conn_a) * 8);
+	hash ^= hash_ptr(ce->conn_b, sizeof(ce->conn_b) * 8);
+	hash ^= hash_ptr(ce->conn_a, sizeof(ce->conn_a) * 8);
 	new->deadline_ns = reply_deadline_ns;
 
 	mutex_lock(&db->cache_lock);
@@ -278,7 +278,7 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      u64 reply_deadline_ns)
 {
 	int ret = 0;
-	u32 hash = 0;
+	unsigned int hash = 0;
 	struct kdbus_policy_db_cache_entry *ce;
 
 	/* FIXME */
