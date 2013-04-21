@@ -319,9 +319,10 @@ static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
 	return 0;
 
 unwind:
-	for (i = 0; i < kmsg->fds->count; i++) {
+	while (i >= 0) {
 		fput(kmsg->fds->fp[i]);
 		kmsg->fds->fp[i] = NULL;
+		i--;
 	}
 
 	kmsg->fds->count = 0;
