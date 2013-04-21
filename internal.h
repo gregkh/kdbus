@@ -17,17 +17,19 @@
 
 #define KDBUS_CHAR_MAJOR	222		/* FIXME: move to uapi/linux/major.h */
 
-#define KDBUS_IS_ALIGNED8(s) (((unsigned long)(s) & 7) == 0)
+#define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 
-#define KDBUS_ITEM_HEADER_SIZE offsetof(union kdbus_item, data)
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 #define KDBUS_ITEM_NEXT(item) \
 	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head)						\
 	for (item = (head)->items;						\
 	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;		\
 	     item = KDBUS_ITEM_NEXT(item))
+
+/* same iterator with more consistency checks, to be used with incoming data */
+#define KDBUS_ITEM_HEADER_SIZE offsetof(union kdbus_item, data)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 #define KDBUS_ITEM_FOREACH_VALIDATE(item, head)					\
 	for (item = (head)->items;						\
 	     (u8 *)(item) + KDBUS_ITEM_HEADER_SIZE <= (u8 *)(head) + (head)->size && \
