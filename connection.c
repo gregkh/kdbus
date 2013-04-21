@@ -393,11 +393,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 
 		break;
 
-	case KDBUS_CMD_BUS_POLICY_SET:
-		ret = -ENOSYS;
-
-		break;
-
 	default:
 		ret = -ENOTTY;
 

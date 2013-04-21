@@ -312,10 +312,6 @@ ioctl API
   KDBUS_CMD_NS_MAKE
    Similar to KDBUS_CMD_BUS_MAKE, but it creates a new kdbus namespace.
 
-  KDBUS_CMD_BUS_POLICY_SET
-   Uploads specific global policy to a bus, which defines which user is
-   allowed to own which well-known bus name, and who can talk to each other.
-
   KDBUS_CMD_EP_MAKE
    Creates a new named special endpoint to talk to the bus. Such endpoints
    usually carry a more restictive policy and grant restricted access to

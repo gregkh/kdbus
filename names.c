@@ -261,7 +261,6 @@ bool kdbus_name_is_valid(const char *p)
 
 	return true;
 }
-/* IOCTL interface */
 
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
