@@ -160,7 +160,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 
 	/* find and reference namespace */
-	ns = idr_find(&kdbus_ns_major_idr, MAJOR(inode->i_rdev));
+	ns = kdbus_ns_find_by_major(MAJOR(inode->i_rdev));
 	if (!ns) {
 		kfree(conn);
 		return -ESHUTDOWN;
