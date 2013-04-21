@@ -231,7 +231,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 		(unsigned long long)conn->id, conn->ns->devpath,
 		conn->ep->bus->name);
 
-	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, 0);
+	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
 	if (ret < 0)
 		return ret;
 

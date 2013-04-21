@@ -132,13 +132,13 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 	item = msg->items;
 	id_change = (struct kdbus_manager_msg_id_change *) item->data;
 
-	/* FIXME */
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
 	msg->src_id = KDBUS_SRC_ID_KERNEL;
 
 	item->type = type;
 
 	id_change->id = id;
+	id_change->flags = flags;
 
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_unref(kmsg);
