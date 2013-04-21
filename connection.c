@@ -415,9 +415,12 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 {
 	struct kdbus_conn *conn = file->private_data;
 	struct kdbus_cmd_ep_kmake *kmake = NULL;
+	struct kdbus_bus *bus = NULL;
 	struct kdbus_kmsg *kmsg;
-	struct kdbus_bus *bus;
 	long ret = 0;
+
+	if (conn && conn->ep)
+		bus = conn->ep->bus;
 
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
@@ -464,8 +467,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		conn->flags = hello.conn_flags;
-		hello.bus_flags = conn->ep->bus->bus_flags;
-		hello.bloom_size = conn->ep->bus->bloom_size;
+		hello.bus_flags = bus->bus_flags;
+		hello.bloom_size = bus->bloom_size;
 		hello.id = conn->id;
 
 		if (copy_to_user(buf, &hello, sizeof(hello))) {
@@ -491,28 +494,24 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
-		bus = conn->ep->bus;
 		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
-		bus = conn->ep->bus;
 		ret = kdbus_cmd_name_release(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_LIST:
 		/* return all current well-known names */
-		bus = conn->ep->bus;
 		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
 
 		break;
 
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
-		bus = conn->ep->bus;
 		ret = kdbus_cmd_name_query(bus->name_registry, conn, buf);
 
 		break;
