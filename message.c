@@ -221,14 +221,14 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			      (num_fds * sizeof(struct file *)), GFP_KERNEL);
 		if (!fds) {
 			ret = -ENOMEM;
-			goto out_err;
+			goto exit_free;
 		}
 
 		fds->items = kmalloc(KDBUS_ITEM_HEADER_SIZE +
 				(sizeof(int) * num_fds), GFP_KERNEL);
 		if (!fds->items) {
 			ret = -ENOMEM;
-			goto out_err;
+			goto exit_free;
 		}
 
 		for (i = 0; i < num_fds; i++)
@@ -248,7 +248,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				sizeof(struct kdbus_msg_item *)), GFP_KERNEL);
 		if (!pls) {
 			ret = -ENOMEM;
-			goto out_err;
+			goto exit_free;
 		}
 
 		kmsg->payloads = pls;
@@ -256,7 +256,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 
 	return 0;
 
-out_err:
+exit_free:
 	kfree(kmsg->fds);
 	kfree(kmsg->payloads);
 
@@ -359,13 +359,13 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 
 	if (copy_from_user(&kmsg->msg, buf, size)) {
 		ret = -EFAULT;
-		goto out_err;
+		goto exit_free;
 	}
 
 	/* check validity and prepare handling of reference data records */
 	ret = kdbus_msg_scan_items(conn, kmsg);
 	if (ret < 0)
-		goto out_err;
+		goto exit_free;
 
 	/* fill in sender ID */
 	kmsg->msg.src_id = conn->id;
@@ -382,13 +382,13 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 		case KDBUS_MSG_PAYLOAD_VEC:
 			ret = kdbus_copy_user_payload(kmsg, item);
 			if (ret < 0)
-				goto out_err;
+				goto exit_free;
 			break;
 
 		case KDBUS_MSG_UNIX_FDS:
 			ret = kdbus_copy_user_fds(kmsg, item);
 			if (ret < 0)
-				goto out_err;
+				goto exit_free;
 			break;
 		}
 	}
@@ -398,7 +398,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	*m = kmsg;
 	return 0;
 
-out_err:
+exit_free:
 	kdbus_kmsg_free(kmsg);
 	return ret;
 }
@@ -983,7 +983,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	mutex_lock(&conn->msg_lock);
 	if (conn->msg_count == 0) {
 		ret = -EAGAIN;
-		goto out_unlock;
+		goto exit_unlock;
 	}
 
 	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, entry);
@@ -1004,13 +1004,13 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	if (size < max_size) {
 		kdbus_size_set_user(max_size, buf, struct kdbus_msg);
 		ret = -ENOBUFS;
-		goto out_unlock;
+		goto exit_unlock;
 	}
 
 	/* copy the message header */
 	if (copy_to_user(buf, msg, KDBUS_MSG_HEADER_SIZE)) {
 		ret = -EFAULT;
-		goto out_unlock;
+		goto exit_unlock;
 	}
 
 	/* append the data records */
@@ -1025,7 +1025,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			d = kmsg->payloads->items[payload_ind++];
 			if (copy_to_user(buf + pos, d, d->size)) {
 				ret = -EFAULT;
-				goto out_unlock;
+				goto exit_unlock;
 			}
 
 			pos += KDBUS_ALIGN8(d->size);
@@ -1051,7 +1051,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		default:
 			if (copy_to_user(buf + pos, item, item->size)) {
 				ret = -EFAULT;
-				goto out_unlock;
+				goto exit_unlock;
 			}
 
 			pos += KDBUS_ALIGN8(item->size);
@@ -1070,7 +1070,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 			fd = get_unused_fd();
 			if (fd < 0) {
 				ret = fd;
-				goto out_unlock_fds;
+				goto exit_unlock_fds;
 			}
 
 			fd_install(fd, get_file(kmsg->fds->fp[i]));
@@ -1085,7 +1085,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 		if (copy_to_user(buf + pos, d, size)) {
 			ret = -EFAULT;
-			goto out_unlock_fds;
+			goto exit_unlock_fds;
 		}
 
 		pos += KDBUS_ALIGN8(size);
@@ -1096,7 +1096,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		if (copy_to_user(buf + pos, kmsg->meta->items,
 				 kmsg->meta->size - offsetof(struct kdbus_meta, items))) {
 			ret = -EFAULT;
-			goto out_unlock_fds;
+			goto exit_unlock_fds;
 		}
 
 		pos += KDBUS_ALIGN8(kmsg->meta->size - offsetof(struct kdbus_meta, items));
@@ -1105,7 +1105,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	/* update the returned data size in the message header */
 	ret = kdbus_size_set_user(pos, buf, struct kdbus_msg);
 	if (ret)
-		goto out_unlock_fds;
+		goto exit_unlock_fds;
 
 	conn->msg_count--;
 	list_del(&entry->entry);
@@ -1115,7 +1115,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 	return 0;
 
-out_unlock_fds:
+exit_unlock_fds:
 	/* cleanup installed file descriptors */
 	if (kmsg->fds) {
 		int i;
@@ -1130,7 +1130,7 @@ out_unlock_fds:
 		}
 	}
 
-out_unlock:
+exit_unlock:
 	mutex_unlock(&conn->msg_lock);
 
 	return ret;

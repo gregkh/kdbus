@@ -321,7 +321,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			ret = kdbus_name_handle_conflict(reg, conn, e,
 							 &cmd_name->name_flags);
 			if (ret < 0)
-				goto err_unlock;
+				goto exit_unlock;
 		}
 
 		goto exit_copy;
@@ -330,13 +330,13 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e) {
 		ret = -ENOMEM;
-		goto err_unlock_free;
+		goto exit_unlock_free;
 	}
 
 	e->name = kstrdup(cmd_name->name, GFP_KERNEL);
 	if (!e->name) {
 		ret = -ENOMEM;
-		goto err_unlock_free;
+		goto exit_unlock_free;
 	}
 
 	if (conn->flags & KDBUS_CMD_HELLO_STARTER)
@@ -352,7 +352,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 exit_copy:
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
-		goto err_unlock_free;
+		goto exit_unlock_free;
 	}
 
 	kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_ADD, 0,
@@ -362,11 +362,11 @@ exit_copy:
 	mutex_unlock(&reg->entries_lock);
 	return 0;
 
-err_unlock_free:
+exit_unlock_free:
 	kfree(cmd_name);
 	kdbus_name_entry_release(e);
 
-err_unlock:
+exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
 	return ret;

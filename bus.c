@@ -229,37 +229,37 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	memset(km, 0, offsetof(struct kdbus_cmd_bus_kmake, make));
 	if (copy_from_user(&km->make, buf, size)) {
 		ret = -EFAULT;
-		goto out_err;
+		goto exit;
 	}
 
 	KDBUS_ITEM_FOREACH(item, &km->make) {
 		/* empty data records are invalid */
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			ret = -EINVAL;
-			goto out_err;
+			goto exit;
 		}
 
 		switch (item->type) {
 		case KDBUS_CMD_MAKE_NAME:
 			if (km->name) {
 				ret = -EEXIST;
-				goto out_err;
+				goto exit;
 			}
 
 			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
 				ret = -EINVAL;
-				goto out_err;
+				goto exit;
 			}
 
 			if (item->size > KDBUS_ITEM_HEADER_SIZE + 64) {
 				ret = -ENAMETOOLONG;
-				goto out_err;
+				goto exit;
 			}
 
 			if (!kdbus_validate_nul(item->str,
 					item->size - KDBUS_ITEM_HEADER_SIZE)) {
 				ret = -EINVAL;
-				goto out_err;
+				goto exit;
 			}
 
 			km->name = item->str;
@@ -268,7 +268,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 		case KDBUS_CMD_MAKE_CGROUP:
 			if (km->cgroup_id) {
 				ret = -EEXIST;
-				goto out_err;
+				goto exit;
 			}
 
 			km->cgroup_id = item->data64[0];
@@ -276,7 +276,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 
 		default:
 			ret = -ENOTSUPP;
-			goto out_err;
+			goto exit;
 		}
 	}
 
@@ -286,22 +286,22 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 
 	if (!km->name) {
 		ret = -EBADMSG;
-		goto out_err;
+		goto exit;
 	}
 
 	if (!KDBUS_IS_ALIGNED8(km->make.bloom_size)) {
 		return -EINVAL;
-		goto out_err;
+		goto exit;
 	}
 
 	if (km->make.bloom_size < 8 || km->make.bloom_size > 16 * 1024) {
 		ret = -EINVAL;
-		goto out_err;
+		goto exit;
 	}
 
 	*kmake = km;
 	return 0;
 
-out_err:
+exit:
 	return ret;
 }

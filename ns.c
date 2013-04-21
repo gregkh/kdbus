@@ -201,7 +201,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	i = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
 	if (i <= 0) {
 		ret = -EEXIST;
-		goto err_unlock;
+		goto exit_unlock;
 	}
 
 	/* get id for this namespace */
@@ -210,7 +210,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	/* register control device for this namespace */
 	n->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	if (!n->dev)
-		goto err_unlock;
+		goto exit_unlock;
 	dev_set_name(n->dev, "%s/%s", n->devpath, "control");
 	n->dev->bus = &kdbus_subsys;
 	n->dev->type = &kdbus_devtype_control;
@@ -220,7 +220,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	if (ret < 0) {
 		put_device(n->dev);
 		n->dev = NULL;
-		goto err_unlock;
+		goto exit_unlock;
 	}
 
 	list_add_tail(&n->ns_entry, &namespace_list);
@@ -232,7 +232,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		(unsigned long long)n->id, n->devpath);
 	return 0;
 
-err_unlock:
+exit_unlock:
 	mutex_unlock(&kdbus_subsys_lock);
 ret:
 	kdbus_ns_unref(n);
@@ -259,37 +259,37 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 	memset(km, 0, offsetof(struct kdbus_cmd_ns_kmake, make));
 	if (copy_from_user(&km->make, buf, size)) {
 		ret = -EFAULT;
-		goto out_err;
+		goto exit;
 	}
 
 	KDBUS_ITEM_FOREACH(item, &km->make) {
 		/* empty data records are invalid */
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			ret = -EINVAL;
-			goto out_err;
+			goto exit;
 		}
 
 		switch (item->type) {
 		case KDBUS_CMD_MAKE_NAME:
 			if (km->name) {
 				ret = -EEXIST;
-				goto out_err;
+				goto exit;
 			}
 
 			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
 				ret = -EINVAL;
-				goto out_err;
+				goto exit;
 			}
 
 			if (item->size > KDBUS_ITEM_HEADER_SIZE + 64) {
 				ret = -ENAMETOOLONG;
-				goto out_err;
+				goto exit;
 			}
 
 			if (!kdbus_validate_nul(item->str,
 					item->size - KDBUS_ITEM_HEADER_SIZE)) {
 				ret = -EINVAL;
-				goto out_err;
+				goto exit;
 			}
 
 			km->name = item->str;
@@ -297,7 +297,7 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 
 		default:
 			ret = -ENOTSUPP;
-			goto out_err;
+			goto exit;
 		}
 	}
 
@@ -307,12 +307,12 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 
 	if (!km->name) {
 		ret = -EBADMSG;
-		goto out_err;
+		goto exit;
 	}
 
 	*kmake = km;
 	return 0;
 
-out_err:
+exit:
 	return ret;
 }
