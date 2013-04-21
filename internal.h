@@ -24,7 +24,7 @@
 	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head)						\
 	for (item = (head)->items;						\
-	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;		\
+	     (u8 *)(item) < (u8 *)(head) + (head)->size;			\
 	     item = KDBUS_ITEM_NEXT(item))
 
 /* same iterator with more consistency checks, to be used with incoming data */
