@@ -303,7 +303,7 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	e->src_id = cmd_match->src_id;
 	e->cookie = cmd_match->cookie;
 
-	KDBUS_ITEM_FOREACH(item, cmd_match) {
+	KDBUS_ITEM_FOREACH_VALIDATE(item, cmd_match) {
 		struct kdbus_match_db_entry_item *ei;
 		size_t size;
 

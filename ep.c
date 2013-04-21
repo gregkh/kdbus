@@ -243,7 +243,7 @@ int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake)
 		goto exit;
 	}
 
-	KDBUS_ITEM_FOREACH(item, &km->make) {
+	KDBUS_ITEM_FOREACH_VALIDATE(item, &km->make) {
 		/* empty data records are invalid */
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			ret = -EINVAL;

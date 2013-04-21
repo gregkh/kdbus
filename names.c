@@ -538,7 +538,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		if (!owner_conn)
 			return -ENOENT;
 	} else {
-		KDBUS_ITEM_FOREACH(info_item, cmd_name_info)
+		KDBUS_ITEM_FOREACH_VALIDATE(info_item, cmd_name_info)
 			if (info_item->type == KDBUS_CMD_NAME_INFO_ITEM_NAME)
 				name = info_item->data;
 

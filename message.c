@@ -116,7 +116,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	bool has_bloom = false;
 	int ret;
 
-	KDBUS_ITEM_FOREACH(item, msg) {
+	KDBUS_ITEM_FOREACH_VALIDATE(item, msg) {
 		/* empty data records are invalid */
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE)
 			return -EINVAL;
