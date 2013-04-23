@@ -540,21 +540,7 @@ static int kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 type,
 static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 				 const char *str)
 {
-	u64 len;
-	u64 size;
-	struct kdbus_msg_item *item;
-
-	len = strlen(str);
-	size = KDBUS_ITEM_SIZE(len);
-	item = kdbus_kmsg_append(kmsg, size);
-	if (IS_ERR(item))
-		return PTR_ERR(item);
-
-	item->type = type;
-	item->size = KDBUS_ITEM_HEADER_SIZE + len;
-	memcpy(item->str, str, len + 1);
-
-	return 0;
+	return kdbus_kmsg_append_data(kmsg, type, str, strlen(str) + 1);
 }
 
 static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
