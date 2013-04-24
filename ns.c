@@ -116,7 +116,7 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
 	return ns;
 }
 
-struct kdbus_ns *kdbus_ns_find_by_major(int major)
+struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 {
 	struct kdbus_ns *ns;
 

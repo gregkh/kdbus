@@ -43,7 +43,7 @@ static void kdbus_msg_dump(const struct kdbus_msg *msg);
 
 static void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
-	int i;
+	unsigned int i;
 
 	if (kmsg->fds) {
 		for (i = 0; i < kmsg->fds->count; i++)
@@ -108,9 +108,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_msg_item *item;
-	int num_items = 0;
-	int num_payloads = 0;
-	int num_fds = 0;
+	unsigned int num_items = 0;
+	unsigned int num_payloads = 0;
+	unsigned int num_fds = 0;
 	bool has_fds = false;
 	bool has_name = false;
 	bool has_bloom = false;
@@ -217,7 +217,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	/* allocate array for file descriptors */
 	if (has_fds) {
 		struct kdbus_fds *fds;
-		int i;
+		unsigned int i;
 
 		fds = kzalloc(sizeof(struct kdbus_fds) +
 			      (num_fds * sizeof(struct file *)), GFP_KERNEL);
@@ -301,8 +301,8 @@ static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
 			       const struct kdbus_msg_item *item)
 {
-	int i;
-	int count;
+	unsigned int i;
+	unsigned int count;
 
 	count = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
 	for (i = 0; i < count; i++) {
@@ -404,7 +404,7 @@ exit_free:
 }
 
 const struct kdbus_msg_item *
-kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, int index)
+kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, unsigned int index)
 {
 	const struct kdbus_msg_item *item;
 
@@ -711,7 +711,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		if (exe_path) {
 			char *tmp;
 			char *pathname;
-			int len;
+			size_t len;
 
 			tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 			if (!tmp) {
@@ -766,7 +766,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		struct caps {
 			u32 cap[_KERNEL_CAPABILITY_U32S];
 		} cap[4];
-		int i;
+		unsigned int i;
 
 		rcu_read_lock();
 		cred = __task_cred(current);
@@ -957,7 +957,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	const struct kdbus_msg *msg;
 	const struct kdbus_msg_item *item;
 	u64 size, pos, max_size;
-	int payload_ind = 0;
+	unsigned int payload_ind = 0;
 	int ret;
 
 	if (!KDBUS_IS_ALIGNED8((unsigned long)buf))
@@ -981,7 +981,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 		max_size += kmsg->meta->size - offsetof(struct kdbus_meta, items);
 
 	if (kmsg->payloads) {
-		int i;
+		unsigned int i;
 
 		for (i = 0; i < kmsg->payloads->count; i++)
 			max_size += KDBUS_ALIGN8(kmsg->payloads->items[i]->size);
@@ -1046,7 +1046,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 
 	/* install file descriptors */
 	if (kmsg->fds) {
-		int i;
+		unsigned int i;
 		struct kdbus_msg_item *d;
 		size_t size;
 
@@ -1104,7 +1104,7 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 exit_unlock_fds:
 	/* cleanup installed file descriptors */
 	if (kmsg->fds) {
-		int i;
+		unsigned int i;
 
 		for (i = 0; i < kmsg->fds->count; i++) {
 			if (kmsg->fds->items->fds[i] < 0)

@@ -16,14 +16,14 @@
 
 /* array of passed-in file descriptors */
 struct kdbus_fds {
-	int count;
+	unsigned int count;
 	struct kdbus_msg_item *items;
 	struct file *fp[0];
 };
 
 /* array of passed-in payload references */
 struct kdbus_payload {
-	int count;
+	unsigned int count;
 	struct kdbus_msg_item *items[0];
 };
 
@@ -56,7 +56,7 @@ struct kdbus_conn;
 
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp, struct kdbus_kmsg **m);
-const struct kdbus_msg_item *kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, int index);
+const struct kdbus_msg_item *kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, unsigned int index);
 void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 int kdbus_kmsg_send(struct kdbus_ep *ep,
 		    struct kdbus_conn *conn_src,

@@ -101,7 +101,7 @@ static void __kdbus_policy_db_free(struct kref *kref)
 	struct hlist_node *tmp;
 	struct kdbus_policy_db *db =
 		container_of(kref, struct kdbus_policy_db, kref);
-	int i;
+	unsigned int i;
 
 	/* purge entries */
 	mutex_lock(&db->entries_lock);
