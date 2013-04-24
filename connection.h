@@ -15,9 +15,6 @@
 
 #include "internal.h"
 
-#define KDBUS_CONN_MAX_MSGS		50
-#define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K
-
 /*
  * kdbus connection
  * - connection to a control node or an endpoint

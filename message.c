@@ -108,7 +108,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_msg_item *item;
-	int num_records = 0;
+	int num_items = 0;
 	int num_payloads = 0;
 	int num_fds = 0;
 	bool has_fds = false;
@@ -121,21 +121,23 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE)
 			return -EINVAL;
 
-		if (++num_records > 512)
+		if (++num_items > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD:
-			if (item->size > SZ_64K)
-				return -EMSGSIZE;
 			break;
 
 		case KDBUS_MSG_PAYLOAD_VEC:
 			if (item->size != KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec))
 				return -EINVAL;
+
+			/* arbitrary limit for now, as long as we do not support mmap */
 			if (item->vec.size > SZ_64K)
 				return -EMSGSIZE;
-			num_payloads++;
+
+			if (++num_payloads > KDBUS_MSG_MAX_PAYLOAD_VECS)
+				return -E2BIG;
 			break;
 
 		case KDBUS_MSG_UNIX_FDS:
@@ -149,7 +151,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				return -ENOTUNIQ;
 
 			num_fds = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
-			if (num_fds > 256)
+			if (num_fds > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 			break;
 
@@ -191,7 +193,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 		}
 	}
 
-	/* expect correct padding and size values */
+	/* validate correct padding and size values to match the overall size */
 	if ((char *)item - ((char *)msg + msg->size) >= 8)
 		return -EINVAL;
 
@@ -238,9 +240,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	}
 
 	/* allocate array for payload references */
-	if (num_payloads > 256)
-		return -E2BIG;
-
 	if (num_payloads > 0) {
 		struct kdbus_payload *pls;
 
@@ -347,7 +346,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > KDBUS_CMD_MAXSIZE)
+	if (size < sizeof(struct kdbus_msg) || size > KDBUS_CMD_MAX_SIZE)
 		return -EMSGSIZE;
 
 	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;

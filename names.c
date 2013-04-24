@@ -229,9 +229,6 @@ bool kdbus_name_is_valid(const char *p)
 	bool dot, found_dot;
 
 	for (dot = true, q = p; *q; q++) {
-		if (!isascii(*q))
-			return false;
-
 		if (*q == '.') {
 			if (dot)
 				return false;
@@ -250,7 +247,7 @@ bool kdbus_name_is_valid(const char *p)
 		}
 	}
 
-	if (q - p > 255)
+	if (q - p > KDBUS_NAME_MAX_LEN)
 		return false;
 
 	if (dot)
@@ -276,7 +273,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		return -EFAULT;
 
 	if ((size < sizeof(struct kdbus_cmd_name)) ||
-	    (size > (sizeof(struct kdbus_cmd_name) + 256)))
+	    (size > (sizeof(struct kdbus_cmd_name) + KDBUS_NAME_MAX_LEN + 1)))
 		return -EMSGSIZE;
 
 	cmd_name = memdup_user(buf, size);
@@ -385,7 +382,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 		return -EFAULT;
 
 	if ((size < sizeof(struct kdbus_cmd_name)) ||
-	    (size > (sizeof(struct kdbus_cmd_name) + 256)))
+	    (size > (sizeof(struct kdbus_cmd_name) + KDBUS_NAME_MAX_LEN + 1)))
 		return -EMSGSIZE;
 
 	cmd_name = memdup_user(buf, size);
@@ -523,7 +520,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		return -EFAULT;
 
 	if ((size < sizeof(struct kdbus_cmd_name_info)) ||
-	    (size > (sizeof(struct kdbus_cmd_name_info) + 256)))
+	    (size > (sizeof(struct kdbus_cmd_name_info) + KDBUS_NAME_MAX_LEN + 1)))
 		return -EMSGSIZE;
 
 	cmd_name_info = memdup_user(buf, size);

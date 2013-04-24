@@ -15,7 +15,20 @@
 //#include <uapi/kdbus/kdbus.h>
 #include "kdbus.h"
 
-#define KDBUS_CHAR_MAJOR	222		/* FIXME: move to uapi/linux/major.h */
+#define KDBUS_MAKE_MAX_LEN		63	/* maximum length of bus, ns, ep name */
+#define KDBUS_CMD_MAX_SIZE		SZ_64K  /* maximum size of command buffer */
+
+#define KDBUS_MSG_MAX_SIZE		SZ_64K	/* maximum size of message header and items */
+#define KDBUS_MSG_MAX_ITEMS		128	/* maximum number of message items */
+#define KDBUS_MSG_MAX_FDS		256	/* maximum muber of passed file descriptors */
+#define KDBUS_MSG_MAX_PAYLOAD_VECS	64	/* maximum number of payload references */
+
+#define KDBUS_NAME_MAX_LEN		255	/* mximum length of well-known bus name */
+
+#define KDBUS_CONN_MAX_MSGS		64	/* maximum number of queued messages on the bus */
+#define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K	/* maximum number of allocated bytes on the bus */
+
+#define KDBUS_CHAR_MAJOR		222	/* FIXME: move to uapi/linux/major.h */
 
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
@@ -38,7 +51,6 @@
 
 /* some architectures miss get_user_8(); copy only the lower 32bit */
 #ifdef CONFIG_64BIT
-
 #define kdbus_size_get_user(_s, _b, _t) \
 ({ \
 	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
@@ -65,8 +77,6 @@
 	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
 	put_user(_s, _sz); \
 })
-
-#define KDBUS_CMD_MAXSIZE	SZ_64K
 
 union kdbus_item {
 	struct {

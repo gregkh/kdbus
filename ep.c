@@ -230,7 +230,7 @@ int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ep_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_ep_make) || size > KDBUS_CMD_MAXSIZE)
+	if (size < sizeof(struct kdbus_cmd_ep_make) || size > KDBUS_CMD_MAX_SIZE)
 		return -EMSGSIZE;
 
 	km = kmalloc(sizeof(struct kdbus_cmd_ep_kmake) + size, GFP_KERNEL);
@@ -262,7 +262,7 @@ int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake)
 				goto exit;
 			}
 
-			if (item->size > KDBUS_ITEM_HEADER_SIZE + 64) {
+			if (item->size > KDBUS_ITEM_HEADER_SIZE + KDBUS_MAKE_MAX_LEN + 1) {
 				ret = -ENAMETOOLONG;
 				goto exit;
 			}

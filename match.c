@@ -274,7 +274,7 @@ struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_match))
 		return ERR_PTR(-EFAULT);
 
-	if (size < sizeof(*cmd_match) || size > KDBUS_CMD_MAXSIZE)
+	if (size < sizeof(*cmd_match) || size > KDBUS_CMD_MAX_SIZE)
 		return ERR_PTR(-EMSGSIZE);
 
 	return memdup_user(buf, size);
