@@ -34,6 +34,42 @@ static unsigned int ioctl_cmds[] = {
 	KDBUS_CMD_EP_POLICY_SET,
 };
 
+static const char *ioctl_name(unsigned int ioctl)
+{
+	switch(ioctl) {
+	case KDBUS_CMD_BUS_MAKE:
+		return "BUS_MAKE";
+	case KDBUS_CMD_NS_MAKE:
+		return "NS_MAKE";
+	case KDBUS_CMD_EP_MAKE:
+		return "EP_MAKE";
+	case KDBUS_CMD_HELLO:
+		return "HELLO";
+	case KDBUS_CMD_MSG_SEND:
+		return "MSG_SEND";
+	case KDBUS_CMD_MSG_RECV:
+		return "MSG_RECV";
+	case KDBUS_CMD_NAME_ACQUIRE:
+		return "NAME_ACQUIRE";
+	case KDBUS_CMD_NAME_RELEASE:
+		return "NAME_RELEASE";
+	case KDBUS_CMD_NAME_LIST:
+		return "NAME_LIST";
+	case KDBUS_CMD_NAME_QUERY:
+		return "NAME_QUERY";
+	case KDBUS_CMD_MATCH_ADD:
+		return "MATCH_ADD";
+	case KDBUS_CMD_MATCH_REMOVE:
+		return "MATCH_REMOVE";
+	case KDBUS_CMD_MONITOR:
+		return "MONITOR";
+	case KDBUS_CMD_EP_POLICY_SET:
+		return "EP_POLICY_SET";
+	default:
+		return "unknown";
+	}
+}
+
 static int fd_table[100] = { -1 };
 
 static void add_fd(int fd)
@@ -165,7 +201,8 @@ int main(int argc, char *argv[])
 
 		errno = 0;
 		ret = ioctl(fd, cmd, buf);
-		printf(" ioctl() with cmd %08x, on fd %d returned\t%d\t(%m)\n", cmd, fd, ret);
+		printf(" ioctl(%13s) on fd %d returned\t%d\t(%m)\n",
+			ioctl_name(cmd), fd, ret);
 	}
 
 	return EXIT_SUCCESS;
