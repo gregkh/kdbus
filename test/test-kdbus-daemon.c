@@ -17,10 +17,41 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
+static unsigned int cgroup_systemd(void)
+{
+	char line[256];
+	FILE *f;
+	unsigned int id = 0;
+
+	f = fopen("/proc/self/cgroup", "re");
+	if (!f)
+		return 0;
+
+	while (fgets(line, sizeof(line), f)) {
+		unsigned int i;
+
+		if (strstr(line, ":name=systemd:") == NULL)
+			continue;
+
+		if (sscanf(line, "%u:", &i) != 1)
+			continue;
+
+		id = i;
+		break;
+	}
+	fclose(f);
+
+	return id;
+}
+
+
 int main(int argc, char *argv[])
 {
 	struct {
 		struct kdbus_cmd_bus_make head;
+		struct kdbus_cmd_make_item c;
+		uint64_t cgroup_id;
+		struct kdbus_cmd_make_item n;
 		char name[64];
 	} bus_make;
 	int fd_owner;
@@ -39,11 +70,20 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	snprintf(bus_make.name, sizeof(bus_make.name), "%u-test", getuid());
 	bus_make.head.flags = KDBUS_ACCESS_WORLD;
-	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
 	bus_make.head.bloom_size = 8;
 
+	bus_make.cgroup_id = cgroup_systemd();
+	bus_make.c.type = KDBUS_CMD_MAKE_CGROUP;
+	bus_make.c.size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
+
+	snprintf(bus_make.n.str, sizeof(bus_make.name), "%u-testbus", getuid());
+	bus_make.n.type = KDBUS_CMD_MAKE_NAME;
+	bus_make.n.size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.n.str) + 1;
+
+	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
+			     bus_make.c.size +
+			     bus_make.n.size;
 	ret = ioctl(fd_owner, KDBUS_CMD_BUS_MAKE, &bus_make);
 	if (ret) {
 		fprintf(stderr, "KDBUS_CMD_BUS_MAKE: %m\n");
