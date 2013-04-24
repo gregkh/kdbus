@@ -30,7 +30,7 @@ struct kdbus_ns {
 	struct kdbus_ns *parent;	/* parent namespace */
 	u64 id;				/* global id of this namespace */
 	const char *devpath;		/* /dev base directory path */
-	int major;			/* device major number for all nodes */
+	unsigned int major;		/* device major number for all nodes */
 	umode_t mode;			/* device node access mode */
 	struct idr idr;			/* map of endpoint minors to buses */
 	struct device *dev;		/* control device node, minor == 0 */
@@ -50,5 +50,5 @@ void kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
 int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake);
-struct kdbus_ns *kdbus_ns_find_by_major(int major);
+struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major);
 #endif

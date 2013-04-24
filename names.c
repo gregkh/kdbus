@@ -52,7 +52,7 @@ static void __kdbus_name_registry_free(struct kref *kref)
 	struct hlist_node *tmp;
 	struct kdbus_name_registry *reg =
 		container_of(kref, struct kdbus_name_registry, kref);
-	int i;
+	unsigned int i;
 
 	mutex_lock(&reg->entries_lock);
 	hash_for_each_safe(reg->entries_hash, i, tmp, e, hentry)
