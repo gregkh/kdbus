@@ -419,20 +419,19 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 {
 	const struct kdbus_msg_item *item;
 
-	pr_info("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
-		"cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
-		(unsigned long long) msg->size,
-		(unsigned long long) msg->flags,
-		(unsigned long long) msg->dst_id,
-		(unsigned long long) msg->src_id,
-		(unsigned long long) msg->cookie,
-		(unsigned long long) msg->payload_type,
-		(unsigned long long) msg->timeout_ns);
+	pr_debug("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
+		 "cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
+		 (unsigned long long) msg->size,
+		 (unsigned long long) msg->flags,
+		 (unsigned long long) msg->dst_id,
+		 (unsigned long long) msg->src_id,
+		 (unsigned long long) msg->cookie,
+		 (unsigned long long) msg->payload_type,
+		 (unsigned long long) msg->timeout_ns);
 
-	KDBUS_ITEM_FOREACH(item, msg) {
-		pr_info("`- msg_item size=%llu, type=0x%llx\n",
-			item->size, item->type);
-	}
+	KDBUS_ITEM_FOREACH(item, msg)
+		pr_debug("`- msg_item size=%llu, type=0x%llx\n",
+			 item->size, item->type);
 }
 
 static struct kdbus_msg_item *
@@ -470,7 +469,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, u64 extra_size)
 		if (ret < 0)
 			return ERR_PTR(ret);
 
-		pr_info("kdbus_kmsg_append: grow to size=%llu\n", size);
+		pr_debug("kdbus_kmsg_append: grow to size=%llu\n", size);
 		meta = kmalloc(size, GFP_KERNEL);
 		if (!meta)
 			return ERR_PTR(-ENOMEM);

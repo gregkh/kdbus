@@ -74,8 +74,8 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 		idr_remove(&ep->bus->ns->idr, ep->minor);
 		ep->minor = 0;
 	}
-	pr_info("closing endpoint %s/%s/%s\n",
-		ep->bus->ns->devpath, ep->bus->name, ep->name);
+	pr_debug("closing endpoint %s/%s/%s\n",
+		 ep->bus->ns->devpath, ep->bus->name, ep->name);
 }
 
 static void __kdbus_ep_free(struct kref *kref)
@@ -84,8 +84,8 @@ static void __kdbus_ep_free(struct kref *kref)
 
 	mutex_lock(&ep->bus->lock);
 	kdbus_ep_disconnect(ep);
-	pr_info("clean up endpoint %s/%s/%s\n",
-		ep->bus->ns->devpath, ep->bus->name, ep->name);
+	pr_debug("clean up endpoint %s/%s/%s\n",
+		 ep->bus->ns->devpath, ep->bus->name, ep->name);
 	mutex_unlock(&ep->bus->lock);
 
 	kdbus_bus_unref(ep->bus);
@@ -197,8 +197,8 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 
 	mutex_unlock(&bus->ns->lock);
 
-	pr_info("created endpoint %llu for bus '%s/%s/%s'\n",
-		(unsigned long long)e->id, bus->ns->devpath, bus->name, name);
+	pr_debug("created endpoint %llu for bus '%s/%s/%s'\n",
+		 (unsigned long long)e->id, bus->ns->devpath, bus->name, name);
 	return 0;
 
 exit_unlock:

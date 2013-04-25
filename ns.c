@@ -77,7 +77,7 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 		ns->major = 0;
 	}
 	mutex_unlock(&kdbus_subsys_lock);
-	pr_info("closing namespace %s\n", ns->devpath);
+	pr_debug("closing namespace %s\n", ns->devpath);
 }
 
 static void __kdbus_ns_free(struct kref *kref)
@@ -85,7 +85,7 @@ static void __kdbus_ns_free(struct kref *kref)
 	struct kdbus_ns *ns = container_of(kref, struct kdbus_ns, kref);
 
 	kdbus_ns_disconnect(ns);
-	pr_info("clean up namespace %s\n", ns->devpath);
+	pr_debug("clean up namespace %s\n", ns->devpath);
 	kfree(ns->name);
 	kfree(ns->devpath);
 	kfree(ns);
@@ -133,8 +133,6 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	const char *ns_name = NULL;
 	int i;
 	int ret;
-
-	pr_info("%s: %s\n", __func__, name ? name : "init");
 
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
@@ -228,8 +226,8 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	mutex_unlock(&kdbus_subsys_lock);
 
 	*ns = n;
-	pr_info("created namespace %llu '%s/'\n",
-		(unsigned long long)n->id, n->devpath);
+	pr_debug("created namespace %llu '%s/'\n",
+		 (unsigned long long)n->id, n->devpath);
 	return 0;
 
 exit_unlock:

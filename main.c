@@ -64,7 +64,6 @@ static void __exit kdbus_exit(void)
 {
 	kdbus_ns_unref(kdbus_ns_init);
 	bus_unregister(&kdbus_subsys);
-	pr_info("unloaded\n");
 }
 
 module_init(kdbus_init);

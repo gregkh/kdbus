@@ -172,8 +172,8 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	if (MINOR(inode->i_rdev) == 0) {
 		conn->type = KDBUS_CONN_CONTROL;
 		file->private_data = conn;
-		pr_info("opened control device '%s/control'\n",
-			conn->ns->devpath);
+		pr_debug("opened control device '%s/control'\n",
+			 conn->ns->devpath);
 		return 0;
 	}
 
@@ -227,9 +227,9 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	kdbus_conn_set_audit(conn);
 	kdbus_conn_set_seclabel(conn);
 
-	pr_info("created endpoint bus connection %llu '%s/%s'\n",
-		(unsigned long long)conn->id, conn->ns->devpath,
-		conn->ep->bus->name);
+	pr_debug("created endpoint bus connection %llu '%s/%s'\n",
+		 (unsigned long long)conn->id, conn->ns->devpath,
+		 conn->ep->bus->name);
 
 	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
 	if (ret < 0)
