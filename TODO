@@ -1,33 +1,13 @@
-Bugs:
-  - as we have u64 for sizes in the ioctl()-passed structs, we need a
-    way to deal with 32-bit architectures not providing the proper
-    get_user()
-
-Message Buffering:
-  - the maximum message buffer size is 64k, which is fine. But references
-    in PAYLOAD_VEC can be larger, kmalloc is limited to < 128k, handle that
-    with mmap or vmalloc().
-  - pass along mmap() of process data, instead of copying them
-
-Mesage Validation:
-  - enforce NULL termination on all strings. Do not rely on the size
-    headers only
-  - validate all incoming data fields in the message, clear all values
-    which are not supposed to be set from a peer
-  - always align data records to 8 byte boundaries, keep size correct,
-    but start next record at proper offset
-  - allow only anonymous or protected/busy memory to pass with mmap()
+Message buffering/passing:
+  - PAYLOAD_VEC: pass along mmap() of process data, instead of copying it;
+    allows larger chunks than the current 64k
+  - allow only anonymous memory to pass with mmap()
+  - enforce strict page alignment of mmap()ed memory in the API
 
 External API:
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
-  - enforce strict page alignment of mmap()ed memory in the API
   - always zero-out, put \0 in the padding bytes?
-  - need to check that all incoming strings are NUL terminated and
-    contain no NULs in the middle, kdbus_validate_nul()!
   - move alignment and iteration macros to kdbus.h?
-
-Internal API:
-  - always kmalloc internal structures at 8 byte boundaries
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:
