@@ -283,7 +283,7 @@ static int kdbus_copy_user_payload(struct kdbus_kmsg *kmsg,
 	d->size = size;
 	d->type = KDBUS_MSG_PAYLOAD;
 
-	user_addr = (void __user *)item->vec.address;
+	user_addr = (void __user *)(uintptr_t)item->vec.address;
 	if (copy_from_user(&d->data, user_addr, item->vec.size)) {
 		kfree(d);
 		return -EFAULT;
