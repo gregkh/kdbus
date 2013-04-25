@@ -17,33 +17,6 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-static unsigned int cgroup_systemd(void)
-{
-	char line[256];
-	FILE *f;
-	unsigned int id = 0;
-
-	f = fopen("/proc/self/cgroup", "re");
-	if (!f)
-		return 0;
-
-	while (fgets(line, sizeof(line), f)) {
-		unsigned int i;
-
-		if (strstr(line, ":name=systemd:") == NULL)
-			continue;
-
-		if (sscanf(line, "%u:", &i) != 1)
-			continue;
-
-		id = i;
-		break;
-	}
-	fclose(f);
-
-	return id;
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -99,7 +72,9 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	printf("  Created connection %llu on bus '%s'\n", (unsigned long long)conn->id, bus_make.name);
 
+	upload_policy(conn->fd);
 	name_acquire(conn, "org.freedesktop.kdbus", 0);
+	//name_acquire(conn, "foo.bar.baz", 0);
 	printf("  Aquired name: org.freedesktop.kdbus\n");
 
 	fds[0].fd = conn->fd;

@@ -17,87 +17,6 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-static void append_policy(struct kdbus_cmd_policy *cmd_policy,
-			  struct kdbus_policy *policy,
-			  __u64 max_size)
-{
-	struct kdbus_policy *dst = (struct kdbus_policy *) ((char *) cmd_policy + cmd_policy->size);
-
-	if (cmd_policy->size + policy->size > max_size)
-		return;
-
-	memcpy(dst, policy, policy->size);
-	cmd_policy->size += policy->size;
-}
-
-static struct kdbus_policy *make_policy_name(const char *name)
-{
-	struct kdbus_policy *p;
-	__u64 size;
-
-	size = offsetof(struct kdbus_policy, name) + strlen(name) + 1;
-	p = malloc(size);
-	if (!p)
-		return NULL;
-
-	memset(p, 0, size);
-	p->size = size;
-	p->type = KDBUS_POLICY_NAME;
-	strcpy(p->name, name);
-
-	return p;
-}
-
-static struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id)
-{
-	struct kdbus_policy *p;
-	__u64 size = sizeof(*p);
-
-	p = malloc(size);
-	if (!p)
-		return NULL;
-
-	memset(p, 0, size);
-	p->size = size;
-	p->type = KDBUS_POLICY_ACCESS;
-	p->access.type = type;
-	p->access.bits = bits;
-	p->access.id = id;
-
-	return p;
-}
-
-static int upload_policy(int fd)
-{
-	struct kdbus_cmd_policy *cmd_policy;
-	struct kdbus_policy *policy;
-	int ret;
-	int size = 0xffff;
-
-	cmd_policy = (struct kdbus_cmd_policy *) alloca(size);
-
-	policy = (struct kdbus_policy *) cmd_policy->buffer;
-	cmd_policy->size = offsetof(struct kdbus_cmd_policy, buffer);
-
-	policy = make_policy_name("foo.bar.baz");
-	append_policy(cmd_policy, policy, size);
-
-	policy = make_policy_access(KDBUS_POLICY_USER, KDBUS_POLICY_OWN, getuid());
-	append_policy(cmd_policy, policy, size);
-
-	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_RECV, 0);
-	append_policy(cmd_policy, policy, size);
-
-	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_SEND, 0);
-	append_policy(cmd_policy, policy, size);
-
-	ret = ioctl(fd, KDBUS_CMD_EP_POLICY_SET, cmd_policy);
-	if (ret < 0)
-		fprintf(stderr, "--- error setting EP policy: %d (%m)\n", ret);
-
-	return ret;
-}
-
 static void add_match_empty(int fd)
 {
 	struct kdbus_cmd_match cmd_match;
@@ -112,34 +31,6 @@ static void add_match_empty(int fd)
 	if (ret < 0)
 		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
 }
-
-static unsigned int cgroup_systemd(void)
-{
-	char line[256];
-	FILE *f;
-	unsigned int id = 0;
-
-	f = fopen("/proc/self/cgroup", "re");
-	if (!f)
-		return 0;
-
-	while (fgets(line, sizeof(line), f)) {
-		unsigned int i;
-
-		if (strstr(line, ":name=systemd:") == NULL)
-			continue;
-
-		if (sscanf(line, "%u:", &i) != 1)
-			continue;
-
-		id = i;
-		break;
-	}
-	fclose(f);
-
-	return id;
-}
-
 
 int main(int argc, char *argv[])
 {
