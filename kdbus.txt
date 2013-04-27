@@ -327,6 +327,10 @@ ioctl API
   KDBUS_CMD_MSG_RECV
    Receive a message and data from the kernel.
 
+  KDBUS_CMD_MSG_PAYLOAD_UNREF
+   Clean up a KDBUS_MSG_PAYLOAD_VEC memory range which we received with
+   a message.
+
   KDBUS_CMD_NAME_ACQUIRE
    Request a well-know bus name to associate with the connection. Well-known
    names are used to address a peer on the bus.
