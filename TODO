@@ -1,13 +1,14 @@
 Message buffering/passing:
-  - PAYLOAD_VEC: pass along mmap() of process data, instead of copying it;
-    allows larger chunks than the current 64k
-  - allow only anonymous memory to pass with mmap()
-  - enforce strict page alignment of mmap()ed memory in the API
+  - PAYLOAD_VEC: pass along mmap() of process data, instead of copying it
+  - enforce page alignment of mmap()ed memory in the API, or do leader
+    trailer pages?
 
 External API:
   - check that enum values of 0 make sense, otherwise insert "*_NONE,"
   - always zero-out, put \0 in the padding bytes?
   - move alignment and iteration macros to kdbus.h?
+  - allow to specify an address hint for where mmap()s should be placed
+  - PAYLOAD_VEC needs to be cleaned up with KDBUS_CMD_MSG_PAYLOAD_UNREF
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:
