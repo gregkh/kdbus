@@ -44,7 +44,6 @@ struct conn *connect_to_bus(const char *path)
 	memset(&hello, 0, sizeof(hello));
 
 	hello.conn_flags = KDBUS_CMD_HELLO_ACCEPT_FD |
-			   KDBUS_CMD_HELLO_ACCEPT_MMAP |
 			   KDBUS_CMD_HELLO_ATTACH_COMM |
 			   KDBUS_CMD_HELLO_ATTACH_EXE |
 			   KDBUS_CMD_HELLO_ATTACH_CMDLINE |
@@ -77,13 +76,13 @@ int msg_send(const struct conn *conn,
 		    uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
-	const char ref[0x2000] = "REFERENCED";
+	const char ref[2048] = "REFERENCED";
 	struct kdbus_msg_item *item;
 	uint64_t size;
 	int ret;
 
 	size = sizeof(*msg);
-	size += KDBUS_ITEM_HEADER_SIZE + 16;
+	size += KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	size += KDBUS_ITEM_HEADER_SIZE + sizeof("INLINE1");
 	
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
@@ -111,24 +110,24 @@ int msg_send(const struct conn *conn,
 		item->type = KDBUS_MSG_DST_NAME;
 		item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
 		strcpy(item->str, name);
-		item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
+		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	item->type = KDBUS_MSG_PAYLOAD_VEC;
-	item->size = KDBUS_ITEM_HEADER_SIZE + 16;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref;
 	item->vec.size = sizeof(ref);
-	item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
+	item = KDBUS_ITEM_NEXT(item);
 
 	item->type = KDBUS_MSG_PAYLOAD;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof("INLINE1");
 	memcpy(item->data, "INLINE1", sizeof("INLINE1"));
-	item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
+	item = KDBUS_ITEM_NEXT(item);
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
 		item->type = KDBUS_MSG_BLOOM;
 		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
-		item = (struct kdbus_msg_item *) ((char *)(item) + KDBUS_ALIGN8(item->size));
+		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
@@ -173,6 +172,13 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_PAYLOAD:
 			printf("  +%s (%llu bytes) '%s'\n",
 			       enum_MSG(item->type), item->size, item->data);
+			break;
+
+		case KDBUS_MSG_PAYLOAD_VEC:
+			printf("  +%s (%llu bytes) addr=%p size=%llu flags=0x%llx '%s'\n",
+			       enum_MSG(item->type), item->size, (void *)(uintptr_t)item->vec.address,
+			       (unsigned long long)item->vec.size, (unsigned long long)item->vec.flags,
+			       (char *)(uintptr_t)item->vec.address);
 			break;
 
 		case KDBUS_MSG_SRC_CREDS:
@@ -480,13 +486,13 @@ int upload_policy(int fd)
 	policy = make_policy_name("foo.bar.baz");
 	append_policy(cmd_policy, policy, size);
 
-	policy = make_policy_access(KDBUS_POLICY_USER, KDBUS_POLICY_OWN, getuid());
+	policy = make_policy_access(KDBUS_POLICY_ACCESS_USER, KDBUS_POLICY_OWN, getuid());
 	append_policy(cmd_policy, policy, size);
 
-	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_RECV, 0);
+	policy = make_policy_access(KDBUS_POLICY_ACCESS_WORLD, KDBUS_POLICY_RECV, 0);
 	append_policy(cmd_policy, policy, size);
 
-	policy = make_policy_access(KDBUS_POLICY_WORLD, KDBUS_POLICY_SEND, 0);
+	policy = make_policy_access(KDBUS_POLICY_ACCESS_WORLD, KDBUS_POLICY_SEND, 0);
 	append_policy(cmd_policy, policy, size);
 
 	ret = ioctl(fd, KDBUS_CMD_EP_POLICY_SET, cmd_policy);

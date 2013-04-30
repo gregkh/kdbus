@@ -15,23 +15,27 @@
 //#include <uapi/kdbus/kdbus.h>
 #include "kdbus.h"
 
-#define KDBUS_MAKE_MAX_LEN		63	/* maximum length of bus, ns, ep name */
-#define KDBUS_CMD_MAX_SIZE		SZ_64K  /* maximum size of command buffer */
+#define KDBUS_MSG_MAX_SIZE		PAGE_SIZE	/* maximum size of message header and items */
+#define KDBUS_MSG_MAX_ITEMS		128		/* maximum number of message items */
+#define KDBUS_MSG_MAX_FDS		256		/* maximum number of passed file descriptors */
+#define KDBUS_MSG_MAX_PAYLOAD_VECS	64		/* maximum number of payload references */
+#define KDBUS_MSG_MAX_PAYLOAD_SIZE	SZ_128M		/* maximum message payload size */
+#define KDBUS_MSG_MAX_INLINE_SIZE	2 * PAGE_SIZE	/* threshold when to use the external buffer */
 
-#define KDBUS_MSG_MAX_SIZE		SZ_64K	/* maximum size of message header and items */
-#define KDBUS_MSG_MAX_ITEMS		128	/* maximum number of message items */
-#define KDBUS_MSG_MAX_FDS		256	/* maximum muber of passed file descriptors */
-#define KDBUS_MSG_MAX_PAYLOAD_VECS	64	/* maximum number of payload references */
+#define KDBUS_NAME_MAX_LEN		255		/* maximum length of well-known bus name */
 
-#define KDBUS_NAME_MAX_LEN		255	/* mximum length of well-known bus name */
+#define KDBUS_MAKE_MAX_LEN		63		/* maximum length of bus, ns, ep name */
+#define KDBUS_CMD_MAX_SIZE		SZ_32K		/* maximum size of command buffer */
 
-#define KDBUS_CONN_MAX_MSGS		64	/* maximum number of queued messages on the bus */
-#define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K	/* maximum number of allocated bytes on the bus */
+#define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages on the bus */
+#define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K		/* maximum number of allocated bytes on the bus */
 
-#define KDBUS_CHAR_MAJOR		222	/* FIXME: move to uapi/linux/major.h */
+#define KDBUS_CHAR_MAJOR		222		/* FIXME: move to uapi/linux/major.h */
 
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
+#define KDBUS_IS_ALIGNED_PAGE(s) (IS_ALIGNED(s, PAGE_SIZE))
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
+#define KDBUS_ALIGN_PAGE(s) ALIGN((s), PAGE_SIZE)
 
 #define KDBUS_ITEM_NEXT(item) \
 	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))

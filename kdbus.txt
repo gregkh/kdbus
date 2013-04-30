@@ -457,3 +457,6 @@ ESHUTDOWN
 
 ESRCH
   A requested well-known bus name is not found.
+
+EXFULL
+  Buffer limites are reached, no more data is excepted.

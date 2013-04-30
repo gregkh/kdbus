@@ -169,15 +169,15 @@ static inline u64 collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
 
 	list_for_each_entry(a, &db_entry->access_list, list) {
 		switch (a->type) {
-		case KDBUS_POLICY_USER:
+		case KDBUS_POLICY_ACCESS_USER:
 			if (conn->creds.uid == a->id)
 				access |= a->bits;
 			break;
-		case KDBUS_POLICY_GROUP:
+		case KDBUS_POLICY_ACCESS_GROUP:
 			if (conn->creds.gid == a->id)
 				access |= a->bits;
 			break;
-		case KDBUS_POLICY_WORLD:
+		case KDBUS_POLICY_ACCESS_WORLD:
 			access |= a->bits;
 			break;
 		}

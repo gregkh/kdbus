@@ -14,34 +14,27 @@
 
 #include "internal.h"
 
-/* array of passed-in file descriptors */
-struct kdbus_fds {
-	unsigned int count;
-	struct kdbus_msg_item *items;
-	struct file *fp[0];
-};
-
-/* array of passed-in payload references */
-struct kdbus_payload {
-	unsigned int count;
-	struct kdbus_msg_item *items[0];
-};
-
-struct kdbus_meta {
-	size_t size;
-	size_t allocated_size;
-	struct kdbus_msg_item items[0];
-};
-
 struct kdbus_kmsg {
 	struct kref kref;
 	u64 deadline_ns;
-	union {
-		struct kdbus_fds *fds;
-		u64 notification_type; /* short-hand for faster match db lookup. */
-	};
-	struct kdbus_payload *payloads;
-	struct kdbus_meta *meta;
+
+	/* short-hand for faster match db lookup. */
+	u64 notification_type;
+
+	/* appended SCM-like metadata */
+	struct kdbus_msg_item *meta;
+	size_t meta_size;
+	size_t meta_allocated_size;
+
+	/* inlined PAYLOAD_VECs */
+	struct kdbus_msg_item *vecs;
+	size_t vecs_size;
+
+	/* passed file descriptors */
+	struct kdbus_msg_item *fds;
+	struct file **fds_fp;
+	unsigned int fds_count;
+
 	struct kdbus_conn *conn_src;
 	struct kdbus_msg msg;
 };

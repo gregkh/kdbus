@@ -46,7 +46,7 @@ int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, size_t size)
 
 	mutex_lock(&conn->accounting_lock);
 	if (conn->allocated_size + size > KDBUS_CONN_MAX_ALLOCATED_BYTES)
-		ret = -EOVERFLOW;
+		ret = -EXFULL;
 	else
 		conn->allocated_size += size;
 	mutex_unlock(&conn->accounting_lock);
