@@ -27,17 +27,15 @@
 #include "ep.h"
 #include "message.h"
 
-static int kdbus_notify_reply(struct kdbus_ep *ep,
-			      const struct kdbus_msg *orig_msg,
-			      u64 msg_type)
+static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
+			      u64 cookie, u64 msg_type)
 {
 	struct kdbus_conn *dst_conn;
 	struct kdbus_kmsg *kmsg;
 	struct kdbus_item *item;
-	u64 dst_id = orig_msg->src_id;
 	int ret;
 
-	dst_conn = kdbus_bus_find_conn_by_id(ep->bus, dst_id);
+	dst_conn = kdbus_bus_find_conn_by_id(ep->bus, src_id);
 	if (!dst_conn)
 		return -ENXIO;
 
@@ -52,30 +50,28 @@ static int kdbus_notify_reply(struct kdbus_ep *ep,
 	 */
 	kmsg->notification_type = msg_type;
 
-	kmsg->msg.dst_id = dst_id;
+	kmsg->msg.dst_id = src_id;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_NULL;
-	kmsg->msg.cookie_reply = orig_msg->cookie;
+	kmsg->msg.cookie_reply = cookie;
 
 	item = kmsg->msg.items;
 	item->type = msg_type;
 
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
-	kdbus_kmsg_unref(kmsg);
+	kdbus_kmsg_free(kmsg);
 
 	return ret;
 }
 
-int kdbus_notify_reply_timeout(struct kdbus_ep *ep,
-			       const struct kdbus_msg *orig_msg)
+int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 {
-	return kdbus_notify_reply(ep, orig_msg, KDBUS_MSG_REPLY_TIMEOUT);
+	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_MSG_REPLY_TIMEOUT);
 }
 
-int kdbus_notify_reply_dead(struct kdbus_ep *ep,
-			    const struct kdbus_msg *orig_msg)
+int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 {
-	return kdbus_notify_reply(ep, orig_msg, KDBUS_MSG_REPLY_DEAD);
+	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_MSG_REPLY_DEAD);
 }
 
 int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
@@ -109,7 +105,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	strcpy(name_change->name, name);
 
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
-	kdbus_kmsg_unref(kmsg);
+	kdbus_kmsg_free(kmsg);
 
 	return ret;
 }
@@ -141,7 +137,7 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 	id_change->flags = flags;
 
 	ret = kdbus_kmsg_send(ep, NULL, kmsg);
-	kdbus_kmsg_unref(kmsg);
+	kdbus_kmsg_free(kmsg);
 
 	return ret;
 }

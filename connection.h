@@ -14,6 +14,7 @@
 #define __KDBUS_CONNECTION_H
 
 #include "internal.h"
+#include "buffer.h"
 
 /*
  * kdbus connection
@@ -41,7 +42,7 @@ struct kdbus_conn {
 	bool active;	/* did the connection say hello yet? */
 	bool monitor;
 
-	struct mutex msg_lock;
+	struct mutex lock;
 	struct mutex names_lock;
 	struct mutex accounting_lock;
 	struct list_head msg_list;
@@ -67,12 +68,43 @@ struct kdbus_conn {
 	u32 sec_label_len;
 #endif
 
+	/* reference to the taks owning the connection */
+	struct task_struct *task;
+
+	/* connection accounting */
 	unsigned int msg_count;
 	size_t allocated_size;
+
+	/* userspace-supplied buffer to fill with message data */
+	struct kdbus_buffer buffer;
 };
 
-void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn);
-int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, size_t size);
-void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, size_t size);
+struct kdbus_conn_queue {
+	struct list_head entry;
 
+	/* pointer to message placed in the receiver's buffer */
+	struct __user kdbus_msg *msg;
+
+	/* passed file descriptors */
+	int __user *fds;
+	struct file **fds_fp;
+	unsigned int fds_count;
+
+	/* timeout in the queue */
+	u64 deadline_ns;
+	u64 src_id;
+	u64 cookie;
+	bool expect_reply;
+};
+
+struct kdbus_kmsg;
+
+void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn);
+
+int kdbus_conn_accounting_add_size(struct kdbus_conn *conn, size_t size);
+void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size);
+
+void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue);
+int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
+			    u64 deadline_ns);
 #endif

@@ -1,7 +1,14 @@
 External API:
-  - check that enum values of 0 make sense, otherwise insert "*_NONE,"
-  - always zero-out, put \0 in the padding bytes?
-  - merge dst_id and src_ id into a union?
+
+Internal:
+  - chunk get_user_pages() while writing to the internal buffer api
+  - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate
+    kernel memory anymore
+  - add real allocator to kdbus_conn_buffer_alloc()
+  - BUG: connections are currently listed in the endpoint not the bus, so
+    broadcasting will never see the other endpoints on the same bus
+  - BUG: the sender needs to ref the receiver when looking it up to protect
+    against the receiver going away while its ressources are accessed
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:

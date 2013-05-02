@@ -1,6 +1,7 @@
 kdbus-y	:= \
 	bus.o \
 	connection.o \
+	buffer.o \
 	ep.o \
 	main.o \
 	match.o \

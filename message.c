@@ -15,13 +15,12 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/idr.h>
-#include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/file.h>
 #include <linux/sched.h>
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
-#include <linux/file.h>
 #include <linux/cgroup.h>
 #include <linux/cred.h>
 #include <linux/capability.h>
@@ -35,61 +34,32 @@
 #include "names.h"
 #include "match.h"
 
-#define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 
-static void kdbus_msg_dump(const struct kdbus_msg *msg);
-
-static void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
+static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 {
-	size_t size = 0;
+	const struct kdbus_item *item;
 
-	if (kmsg->fds_fp) {
-		unsigned int i;
+	pr_debug("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
+		 "cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
+		 (unsigned long long) msg->size,
+		 (unsigned long long) msg->flags,
+		 (unsigned long long) msg->dst_id,
+		 (unsigned long long) msg->src_id,
+		 (unsigned long long) msg->cookie,
+		 (unsigned long long) msg->payload_type,
+		 (unsigned long long) msg->timeout_ns);
 
-		for (i = 0; i < kmsg->fds_count; i++)
-			fput(kmsg->fds_fp[i]);
-		size += kmsg->fds_count * sizeof(struct file *);
-		kfree(kmsg->fds_fp);
-	}
+	KDBUS_ITEM_FOREACH(item, msg)
+		pr_debug("`- msg_item size=%llu, type=0x%llx\n",
+			 item->size, item->type);
+}
 
-	if (kmsg->fds) {
-		size += KDBUS_ITEM_HEADER_SIZE + (kmsg->fds_count * sizeof(int));
-		kfree(kmsg->fds);
-	}
-
-	if (kmsg->meta) {
-		size += kmsg->meta_allocated_size;
+void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
+{
+	if (kmsg->meta)
 		kfree(kmsg->meta);
-	}
-
-	if (kmsg->vecs) {
-		size += kmsg->vecs_size;
-		kfree(kmsg->vecs);
-	}
-
-	size += kmsg->msg.size + KDBUS_KMSG_HEADER_SIZE;
-	kdbus_conn_sub_size_allocation(kmsg->conn_src, size);
-
 	kfree(kmsg);
-}
-
-static void __kdbus_kmsg_free(struct kref *kref)
-{
-	struct kdbus_kmsg *kmsg = container_of(kref, struct kdbus_kmsg, kref);
-
-	return kdbus_kmsg_free(kmsg);
-}
-
-void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg)
-{
-	kref_put(&kmsg->kref, __kdbus_kmsg_free);
-}
-
-static struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg)
-{
-	kref_get(&kmsg->kref);
-	return kmsg;
 }
 
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
@@ -116,9 +86,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	const struct kdbus_item *item;
 	unsigned int num_items = 0;
 	unsigned int num_vecs = 0;
-	unsigned int num_fds = 0;
+	unsigned int fds_count = 0;
 	size_t vecs_size = 0;
-	bool needs_vec = false;
 	bool has_fds = false;
 	bool has_name = false;
 	bool has_bloom = false;
@@ -132,9 +101,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			return -E2BIG;
 
 		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD:
-			break;
-
 		case KDBUS_MSG_PAYLOAD_VEC:
 			if (item->size != KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec))
 				return -EINVAL;
@@ -142,22 +108,12 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (++num_vecs > KDBUS_MSG_MAX_PAYLOAD_VECS)
 				return -E2BIG;
 
-			if (item->vec.flags & KDBUS_VEC_ALIGNED) {
-				/* enforce page alignment and page granularity */
-				if (!KDBUS_IS_ALIGNED_PAGE(item->vec.address) ||
-				    !KDBUS_IS_ALIGNED_PAGE(item->vec.size))
-					return -EFAULT;
-
-				/* we always deliver aligned data as PAYLOAD_VEC */
-				needs_vec = true;
-			}
-
-			vecs_size += KDBUS_ALIGN8(item->vec.size);
+			vecs_size += item->vec.size;
 			if (vecs_size > KDBUS_MSG_MAX_PAYLOAD_SIZE)
 				return -EMSGSIZE;
 			break;
 
-		case KDBUS_MSG_UNIX_FDS:
+		case KDBUS_MSG_FDS:
 			/* do not allow multiple fd arrays */
 			if (has_fds)
 				return -EEXIST;
@@ -167,9 +123,12 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			num_fds = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
-			if (num_fds > KDBUS_MSG_MAX_FDS)
+			fds_count = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
+			if (fds_count > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
+
+			kmsg->fds = item->fds;
+			kmsg->fds_count = fds_count;
 			break;
 
 		case KDBUS_MSG_BLOOM:
@@ -189,6 +148,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			/* do not allow mismatching bloom filter sizes */
 			if (item->size - KDBUS_ITEM_HEADER_SIZE != conn->ep->bus->bloom_size)
 				return -EDOM;
+
+			kmsg->bloom = item->data64;
 			break;
 
 		case KDBUS_MSG_DST_NAME:
@@ -203,6 +164,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 
 			if (!kdbus_name_is_valid(item->str))
 				return -EINVAL;
+
+			kmsg->dst_name = item->str;
 			break;
 
 		default:
@@ -214,7 +177,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	if ((char *)item - ((char *)msg + msg->size) >= 8)
 		return -EINVAL;
 
-	/* name is needed for broadcast */
+	/* name is needed if no ID is given */
 	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME && !has_name)
 		return -EDESTADDRREQ;
 
@@ -223,128 +186,36 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	    msg->dst_id < KDBUS_DST_ID_BROADCAST && has_name)
 		return -EBADMSG;
 
-	/* broadcast messages require a bloom filter */
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST && !has_bloom)
-		return -EBADMSG;
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
+		/* broadcast messages require a bloom filter */
+		if (!has_bloom)
+			return -EBADMSG;
+
+		/* timeouts are not allowed for broadcasts */
+		if (msg->timeout_ns)
+			return -ENOTUNIQ;
+	}
 
 	/* bloom filters are for undirected messages only */
 	if (has_name && has_bloom)
 		return -EBADMSG;
 
-	/* allocate array for file descriptors */
-	if (has_fds) {
-		size_t size;
-		unsigned int i;
-		int ret;
-
-		size = num_fds * sizeof(struct file *);
-		ret = kdbus_conn_add_size_allocation(conn, size);
-		if (ret < 0)
-			return ret;
-
-		kmsg->fds_fp = kzalloc(size, GFP_KERNEL);
-		if (!kmsg->fds_fp)
-			return -ENOMEM;
-
-		size = KDBUS_ITEM_HEADER_SIZE + (num_fds * sizeof(int));
-		ret = kdbus_conn_add_size_allocation(conn, size);
-		if (ret < 0)
-			return ret;
-
-		kmsg->fds = kmalloc(size, GFP_KERNEL);
-		if (!kmsg->fds)
-			return -ENOMEM;
-		for (i = 0; i < num_fds; i++)
-			kmsg->fds->fds[i] = -1;
-	}
-
-	/* if we have only very small PAYLOAD_VECs, they get inlined */
-	if (num_vecs > 0 && !needs_vec &&
-	    msg->size + vecs_size < KDBUS_MSG_MAX_INLINE_SIZE) {
-		size_t size;
-		int ret;
-
-		size = (num_vecs * KDBUS_ITEM_HEADER_SIZE) + vecs_size;
-		ret = kdbus_conn_add_size_allocation(conn, size);
-		if (ret < 0)
-			return ret;
-
-		kmsg->vecs = kzalloc(size, GFP_KERNEL);
-		if (!kmsg->vecs)
-			return -ENOMEM;
-		kmsg->vecs_size = size;
-	}
-
+	kmsg->vecs_size = vecs_size;
 	return 0;
 }
 
-static int kdbus_inline_user_vec(struct kdbus_kmsg *kmsg,
-				 struct kdbus_item *next,
-				 const struct kdbus_item *item)
-{
-	void __user *user_addr;
-
-	user_addr = (void __user *)(uintptr_t)item->vec.address;
-	if (copy_from_user(next->data, user_addr, item->vec.size))
-		return -EFAULT;
-
-	next->type = KDBUS_MSG_PAYLOAD;
-	next->size = KDBUS_ITEM_HEADER_SIZE + item->vec.size;
-
-	return 0;
-}
-
-/*
- * Grab and keep references to passed files descriptors, to install
- * them in the receiving process at message delivery.
- */
-static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
-			       const struct kdbus_item *item)
-{
-	unsigned int i;
-	unsigned int count;
-
-	count = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
-	for (i = 0; i < count; i++) {
-		struct file *fp;
-
-		fp = fget(item->fds[i]);
-		if (!fp)
-			goto unwind;
-
-		kmsg->fds_fp[kmsg->fds_count++] = fp;
-	}
-
-	return 0;
-
-unwind:
-	while (i >= 0) {
-		fput(kmsg->fds_fp[i]);
-		kmsg->fds_fp[i] = NULL;
-		i--;
-	}
-
-	kmsg->fds_count = 0;
-	return -EBADF;
-}
-
-/*
- * Check the validity of a message. The general layout of the received message
- * is not altered before it is delivered.
- */
-int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
+int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
+			     struct kdbus_msg __user *msg,
 			     struct kdbus_kmsg **m)
 {
 	struct kdbus_kmsg *kmsg;
-	const struct kdbus_item *item;
-	struct kdbus_item *vecs_next;
 	u64 size, alloc_size;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED8((unsigned long)buf))
+	if (!KDBUS_IS_ALIGNED8((unsigned long)msg))
 		return -EFAULT;
 
-	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
+	if (kdbus_size_get_user(size, msg, struct kdbus_msg))
 		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_msg) || size > KDBUS_MSG_MAX_SIZE)
@@ -357,61 +228,20 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 		return -ENOMEM;
 	memset(kmsg, 0, KDBUS_KMSG_HEADER_SIZE);
 
-	ret = kdbus_conn_add_size_allocation(conn, alloc_size);
-	if (ret < 0) {
-		kfree(kmsg);
-		return ret;
-	}
-
-	if (copy_from_user(&kmsg->msg, buf, size)) {
+	if (copy_from_user(&kmsg->msg, msg, size)) {
 		ret = -EFAULT;
 		goto exit_free;
 	}
 
-	/* check validity and prepare handling of data records */
+	/* check validity and gather some values for processing */
 	ret = kdbus_msg_scan_items(conn, kmsg);
 	if (ret < 0)
 		goto exit_free;
 
-	/* fill in sender ID */
+	/* patch-in the source of this message */
 	kmsg->msg.src_id = conn->id;
 
-	/* keep a reference to the source connection, for accounting */
-	kmsg->conn_src = conn;
-
-	/* Iterate over the items, resolve external references to data
-	 * we need to pass to the receiver; ignore all items used by
-	 * the sender only. */
-	vecs_next = kmsg->vecs;
-	KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
-		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD_VEC:
-			if (!kmsg->vecs) {
-				ret = -ENOSYS;
-				goto exit_free;
-			}
-
-			/* convert PAYLOAD_VEC to PAYLOAD */
-			ret = kdbus_inline_user_vec(kmsg, vecs_next, item);
-			if (ret < 0)
-				goto exit_free;
-			vecs_next = KDBUS_ITEM_NEXT(vecs_next);
-			break;
-
-		case KDBUS_MSG_UNIX_FDS:
-			ret = kdbus_copy_user_fds(kmsg, item);
-			if (ret < 0)
-				goto exit_free;
-			break;
-
-		case KDBUS_MSG_BLOOM:
-			//FIXME: store in kmsg
-			break;
-		}
-	}
-
 	kref_init(&kmsg->kref);
-
 	*m = kmsg;
 	return 0;
 
@@ -420,51 +250,15 @@ exit_free:
 	return ret;
 }
 
-const struct kdbus_item *
-kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, unsigned int index)
-{
-	const struct kdbus_item *item;
-
-	KDBUS_ITEM_FOREACH(item, msg)
-		if (item->type == type && index-- == 0)
-			return item;
-
-	return NULL;
-}
-
-static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
-{
-	const struct kdbus_item *item;
-
-	pr_debug("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
-		 "cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
-		 (unsigned long long) msg->size,
-		 (unsigned long long) msg->flags,
-		 (unsigned long long) msg->dst_id,
-		 (unsigned long long) msg->src_id,
-		 (unsigned long long) msg->cookie,
-		 (unsigned long long) msg->payload_type,
-		 (unsigned long long) msg->timeout_ns);
-
-	KDBUS_ITEM_FOREACH(item, msg)
-		pr_debug("`- msg_item size=%llu, type=0x%llx\n",
-			 item->size, item->type);
-}
-
 static struct kdbus_item *
 kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 {
 	struct kdbus_item *item;
 	size_t size;
-	int ret;
 
 	/* get new metadata buffer, pre-allocate at least 512 bytes */
 	if (!kmsg->meta) {
 		size = roundup_pow_of_two(256 + KDBUS_ALIGN8(extra_size));
-		ret = kdbus_conn_add_size_allocation(kmsg->conn_src, size);
-		if (ret < 0)
-			return ERR_PTR(ret);
-
 		kmsg->meta = kzalloc(size, GFP_KERNEL);
 		if (!kmsg->meta)
 			return ERR_PTR(-ENOMEM);
@@ -480,11 +274,6 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 
 		size = roundup_pow_of_two(size);
 		size_diff = size - kmsg->meta_allocated_size;
-
-		ret = kdbus_conn_add_size_allocation(kmsg->conn_src, size_diff);
-		if (ret < 0)
-			return ERR_PTR(ret);
-
 		pr_debug("%s: grow to size=%zu\n", __func__, size);
 		meta = kmalloc(size, GFP_KERNEL);
 		if (!meta)
@@ -589,6 +378,9 @@ static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 		pos += strlen(name_entry->name) + 1;
 	}
 
+	kmsg->src_names = item->data;
+	kmsg->src_names_len = pos;
+
 exit_unlock:
 	mutex_unlock(&conn->names_lock);
 
@@ -610,40 +402,6 @@ static int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
 	memcpy(&item->creds, creds, sizeof(*creds));
 
 	return 0;
-}
-
-static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
-				   struct kdbus_kmsg *kmsg)
-{
-	struct kdbus_msg_list_entry *entry;
-	int ret = 0;
-
-	if (!conn->active)
-		return -ENOTCONN;
-
-	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
-		return -ECOMM;
-
-	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
-	if (!entry)
-		return -ENOMEM;
-
-	entry->kmsg = kdbus_kmsg_ref(kmsg);
-	INIT_LIST_HEAD(&entry->entry);
-
-	mutex_lock(&conn->msg_lock);
-	if (conn->msg_count > KDBUS_CONN_MAX_MSGS) {
-		ret = -EXFULL;
-	} else {
-		list_add_tail(&entry->entry, &conn->msg_list);
-		conn->msg_count++;
-	}
-	mutex_unlock(&conn->msg_lock);
-
-	if (ret == 0)
-		wake_up_interruptible(&conn->ep->wait);
-
-	return ret;
 }
 
 /*
@@ -686,7 +444,7 @@ int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,
 	return ret;
 }
 
-static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
+static int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 				    struct kdbus_conn *conn_src,
 				    struct kdbus_conn *conn_dst)
 {
@@ -855,6 +613,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn *conn_dst = NULL;
 	const struct kdbus_msg *msg;
 	u64 now_ns = 0;
+	u64 deadline_ns = 0;
 	int ret;
 
 	/* augment incoming message */
@@ -873,70 +632,9 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	msg = &kmsg->msg;
-//	kdbus_msg_dump(msg);
 
-	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME) {
-		const struct kdbus_item *name_item;
-		const struct kdbus_name_entry *name_entry;
-
-		name_item = kdbus_msg_get_item(msg, KDBUS_MSG_DST_NAME, 0);
-		if (!name_item)
-			return -EDESTADDRREQ;
-
-		/* lookup and determine conn_dst ... */
-		name_entry = kdbus_name_lookup(ep->bus->name_registry,
-					       name_item->data);
-		if (!name_entry)
-			return -ESRCH;
-
-		conn_dst = name_entry->conn;
-
-		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (conn_dst->flags & KDBUS_HELLO_STARTER))
-			return -EADDRNOTAVAIL;
-
-	} else if (msg->dst_id != KDBUS_DST_ID_BROADCAST) {
-		/* direct message */
-		conn_dst = kdbus_bus_find_conn_by_id(ep->bus, msg->dst_id);
-		if (!conn_dst)
-			return -ENXIO;
-	}
-
-	if (conn_dst) {
-		/* direct message */
-
-		if (msg->timeout_ns)
-			kmsg->deadline_ns = now_ns + msg->timeout_ns;
-
-		/* check policy */
-		if (ep->policy_db && conn_src) {
-			ret = kdbus_policy_db_check_send_access(ep->policy_db,
-								conn_src,
-								conn_dst,
-								kmsg->deadline_ns);
-			if (ret < 0)
-				return ret;
-		}
-
-		/* direct message */
-		if (conn_src) {
-			ret = kdbus_msg_append_for_dst(kmsg, conn_src, conn_dst);
-			if (ret < 0)
-				return ret;
-		}
-
-		ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
-
-		if (msg->timeout_ns)
-			kdbus_conn_schedule_timeout_scan(conn_dst);
-	} else {
-		/* broadcast */
-		/* timeouts are not allowed for broadcasts */
-		if (msg->timeout_ns)
-			return -ENOTUNIQ;
-
-		ret = 0;
-
+	/* broadcast message */
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		list_for_each_entry(conn_dst, &ep->connection_list,
 				    connection_entry) {
 			if (conn_dst->type != KDBUS_CONN_EP)
@@ -954,170 +652,56 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 						       kmsg))
 				continue;
 
-			ret = kdbus_conn_enqueue_kmsg(conn_dst, kmsg);
+			ret = kdbus_conn_queue_insert(conn_dst, kmsg, 0);
 			if (ret < 0)
 				break;
 		}
+
+		return ret;
 	}
 
-	return ret;
-}
+	/* direct message */
+	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME) {
+		const struct kdbus_name_entry *name_entry;
 
-int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
-{
-	struct kdbus_msg_list_entry *entry;
-	const struct kdbus_kmsg *kmsg = NULL;
-	const struct kdbus_msg *msg;
-	const struct kdbus_item *item;
-	const struct kdbus_item *vecs_next;
-	u64 size, pos, max_size;
-	int ret;
+		name_entry = kdbus_name_lookup(ep->bus->name_registry,
+					       kmsg->dst_name);
+		if (!name_entry)
+			return -ESRCH;
+		conn_dst = name_entry->conn;
 
-	if (!KDBUS_IS_ALIGNED8((unsigned long)buf))
-		return -EFAULT;
+		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
+		    (conn_dst->flags & KDBUS_HELLO_STARTER))
+			return -EADDRNOTAVAIL;
 
-	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
-		return -EFAULT;
-
-	mutex_lock(&conn->msg_lock);
-	if (conn->msg_count == 0) {
-		ret = -EAGAIN;
-		goto exit_unlock;
+	} else {
+		conn_dst = kdbus_bus_find_conn_by_id(ep->bus, msg->dst_id);
+		if (!conn_dst)
+			return -ENXIO;
 	}
 
-	entry = list_first_entry(&conn->msg_list, struct kdbus_msg_list_entry, entry);
-	kmsg = entry->kmsg;
-	msg = &kmsg->msg;
+	if (msg->timeout_ns)
+		deadline_ns = now_ns + msg->timeout_ns;
 
-	max_size = msg->size;
-
-	if (kmsg->meta)
-		max_size += kmsg->meta->size;
-
-	if (kmsg->vecs)
-		max_size += kmsg->vecs_size;
-
-	/* reuturn needed buffer size to the receiver */
-	if (size < max_size) {
-		kdbus_size_set_user(max_size, buf, struct kdbus_msg);
-		ret = -ENOBUFS;
-		goto exit_unlock;
+	if (ep->policy_db && conn_src) {
+		ret = kdbus_policy_db_check_send_access(ep->policy_db,
+							conn_src,
+							conn_dst,
+							deadline_ns);
+		if (ret < 0)
+			return ret;
 	}
 
-	/* copy the message header */
-	if (copy_to_user(buf, msg, KDBUS_MSG_HEADER_SIZE)) {
-		ret = -EFAULT;
-		goto exit_unlock;
+	if (conn_src) {
+		ret = kdbus_kmsg_append_for_dst(kmsg, conn_src, conn_dst);
+		if (ret < 0)
+			return ret;
 	}
 
-	pos = KDBUS_MSG_HEADER_SIZE;
+	ret = kdbus_conn_queue_insert(conn_dst, kmsg, deadline_ns);
 
-	/* The order and sequence of PAYLOAD and PAYLOAD_VEC is always
-	 * preserved, it might have meaning in the sender/receiver contract;
-	 * one type is freely concerted to the other though, depending
-	 * on the actual copying strategy */
-	vecs_next = kmsg->vecs;
-	KDBUS_ITEM_FOREACH(item, msg) {
-		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD:
-			if (copy_to_user(buf + pos, item, item->size)) {
-				ret = -EFAULT;
-				goto exit_unlock;
-			}
-
-			pos += KDBUS_ALIGN8(item->size);
-			break;
-
-		case KDBUS_MSG_PAYLOAD_VEC:
-			if (!kmsg->vecs) {
-				/* copy PAYLOAD_VEC from the sender to the receiver */
-				ret = -ENOSYS;
-				goto exit_unlock;
-				break;
-			}
-
-			/* copy PAYLOAD_VEC we converted to PAYLOAD */
-			if (copy_to_user(buf + pos, vecs_next, vecs_next->size)) {
-				ret = -EFAULT;
-				goto exit_unlock;
-			}
-
-			pos += KDBUS_ALIGN8(vecs_next->size);
-			vecs_next = KDBUS_ITEM_NEXT(vecs_next);
-			break;
-		}
-	}
-
-	/* install file descriptors */
-	if (kmsg->fds) {
-		unsigned int i;
-		size_t size;
-
-		for (i = 0; i < kmsg->fds_count; i++) {
-			int fd;
-
-			fd = get_unused_fd();
-			if (fd < 0) {
-				ret = fd;
-				goto exit_unlock_fds;
-			}
-
-			fd_install(fd, get_file(kmsg->fds_fp[i]));
-			kmsg->fds->fds[i] = fd;
-		}
-
-		size = KDBUS_ITEM_HEADER_SIZE + (sizeof(int) * kmsg->fds_count);
-		kmsg->fds->size = size;
-		kmsg->fds->type = KDBUS_MSG_UNIX_FDS;
-
-		if (copy_to_user(buf + pos, kmsg->fds, size)) {
-			ret = -EFAULT;
-			goto exit_unlock_fds;
-		}
-
-		pos += KDBUS_ALIGN8(size);
-	}
-
-	/* append metadata records */
-	if (kmsg->meta) {
-		if (copy_to_user(buf + pos, kmsg->meta, kmsg->meta_size)) {
-			ret = -EFAULT;
-			goto exit_unlock_fds;
-		}
-
-		pos += KDBUS_ALIGN8(kmsg->meta_size);
-	}
-
-	/* update the returned data size in the message header */
-	ret = kdbus_size_set_user(pos, buf, struct kdbus_msg);
-	if (ret)
-		goto exit_unlock_fds;
-
-	conn->msg_count--;
-	list_del(&entry->entry);
-	kdbus_kmsg_unref(entry->kmsg);
-	kfree(entry);
-	mutex_unlock(&conn->msg_lock);
-
-	return 0;
-
-exit_unlock_fds:
-	/* cleanup installed file descriptors */
-	if (kmsg->fds) {
-		unsigned int i;
-
-		for (i = 0; i < kmsg->fds_count; i++) {
-			if (kmsg->fds->fds[i] < 0)
-				continue;
-
-			fput(kmsg->fds_fp[i]);
-			put_unused_fd(kmsg->fds->fds[i]);
-			kmsg->fds->fds[i] = -1;
-		}
-	}
-
-exit_unlock:
-	mutex_unlock(&conn->msg_lock);
+	if (msg->timeout_ns)
+		kdbus_conn_timeout_schedule_scan(conn_dst);
 
 	return ret;
 }

@@ -21,8 +21,6 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     const char *name);
 int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 			   u64 id, u64 flags);
-int kdbus_notify_reply_timeout(struct kdbus_ep *ep,
-			       const struct kdbus_msg *orig_msg);
-int kdbus_notify_reply_dead(struct kdbus_ep *ep,
-			    const struct kdbus_msg *orig_msg);
+int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 src_id, u64 cookie);
+int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie);
 #endif

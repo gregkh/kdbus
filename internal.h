@@ -20,15 +20,14 @@
 #define KDBUS_MSG_MAX_FDS		256		/* maximum number of passed file descriptors */
 #define KDBUS_MSG_MAX_PAYLOAD_VECS	64		/* maximum number of payload references */
 #define KDBUS_MSG_MAX_PAYLOAD_SIZE	SZ_128M		/* maximum message payload size */
-#define KDBUS_MSG_MAX_INLINE_SIZE	2 * PAGE_SIZE	/* threshold when to use the external buffer */
 
 #define KDBUS_NAME_MAX_LEN		255		/* maximum length of well-known bus name */
 
 #define KDBUS_MAKE_MAX_LEN		63		/* maximum length of bus, ns, ep name */
 #define KDBUS_MAKE_MAX_SIZE		SZ_32K		/* maximum size of make buffer */
 
+#define KDBUS_HELLO_MAX_SIZE		SZ_32K		/* maximum size of hello buffer */
 #define KDBUS_MATCH_MAX_SIZE		SZ_32K		/* maximum size of match buffer */
-
 #define KDBUS_POLICY_MAX_SIZE		SZ_32K		/* maximum size of policy buffer */
 
 #define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages on the bus */
@@ -36,45 +35,45 @@
 
 #define KDBUS_CHAR_MAJOR		222		/* FIXME: move to uapi/linux/major.h */
 
+#define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 #define KDBUS_IS_ALIGNED_PAGE(s) (IS_ALIGNED(s, PAGE_SIZE))
-#define KDBUS_ALIGN8(s) ALIGN((s), 8)
-#define KDBUS_ALIGN_PAGE(s) ALIGN((s), PAGE_SIZE)
 
+#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 #define KDBUS_ITEM_NEXT(item) \
 	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head)						\
 	for (item = (head)->items;						\
 	     (u8 *)(item) < (u8 *)(head) + (head)->size;			\
 	     item = KDBUS_ITEM_NEXT(item))
-
 /* same iterator with more consistency checks, to be used with incoming data */
-#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 #define KDBUS_ITEM_FOREACH_VALIDATE(item, head)					\
 	for (item = (head)->items;						\
 	     (u8 *)(item) + KDBUS_ITEM_HEADER_SIZE <= (u8 *)(head) + (head)->size && \
 	     (u8 *)(item) + (item)->size <= (u8 *)(head) + (head)->size; \
 	     item = KDBUS_ITEM_NEXT(item))
 
+#define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
+
 /* some architectures miss get_user_8(); copy only the lower 32bit */
 #ifdef CONFIG_64BIT
 #define kdbus_size_get_user(_s, _b, _t) \
 ({ \
-	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
+	u64 __user *_sz = (void *)(_b) + offsetof(typeof(_t), size); \
 	get_user(_s, _sz); \
 })
 #else
 	#ifdef __LITTLE_ENDIAN__
 	#define kdbus_size_get_user(_s, _b, _t) \
 	({ \
-		u32 __user *_sz = _b + offsetof(typeof(_t), size); \
+		u32 __user *_sz = (void *)(_b) + offsetof(typeof(_t), size); \
 		get_user(_s, _sz); \
 	})
 	#else
 	#define kdbus_size_get_user(_s, _b, _t) \
 	({ \
-		u32 __user *_sz = _b + sizeof(u32) + offsetof(typeof(_t), size); \
+		u32 __user *_sz = (void *)(_b) + sizeof(u32) + offsetof(typeof(_t), size); \
 		get_user(_s, _sz); \
 	})
 	#endif

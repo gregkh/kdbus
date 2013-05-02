@@ -16,43 +16,33 @@
 
 struct kdbus_kmsg {
 	struct kref kref;
-	u64 deadline_ns;
 
-	/* short-hand for faster match db lookup. */
+	/* short-cuts for faster lookup */
 	u64 notification_type;
+	const char *dst_name;
+	const char *src_names;
+	size_t src_names_len;
+	const u64 *bloom;
+	unsigned int bloom_size;
+	const int *fds;
+	unsigned int fds_count;
 
 	/* appended SCM-like metadata */
 	struct kdbus_item *meta;
 	size_t meta_size;
 	size_t meta_allocated_size;
 
-	/* inlined PAYLOAD_VECs */
-	struct kdbus_item *vecs;
+	/* size of PAYLOAD_VECs data */
 	size_t vecs_size;
 
-	/* passed file descriptors */
-	struct kdbus_item *fds;
-	struct file **fds_fp;
-	unsigned int fds_count;
-
-	struct kdbus_conn *conn_src;
 	struct kdbus_msg msg;
-};
-
-struct kdbus_msg_list_entry {
-	struct kdbus_kmsg *kmsg;
-	struct list_head entry;
 };
 
 struct kdbus_ep;
 struct kdbus_conn;
 
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m);
-int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *argp, struct kdbus_kmsg **m);
-const struct kdbus_item *kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, unsigned int index);
-void kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
-int kdbus_kmsg_send(struct kdbus_ep *ep,
-		    struct kdbus_conn *conn_src,
-		    struct kdbus_kmsg *kmsg);
-int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf);
+int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, struct kdbus_msg __user *msg, struct kdbus_kmsg **m);
+int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_conn *conn_src, struct kdbus_kmsg *kmsg);
+void kdbus_kmsg_free(struct kdbus_kmsg *kmsg);
 #endif

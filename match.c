@@ -149,12 +149,7 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_kmsg *kmsg)
 {
-	const struct kdbus_item *bloom =
-		kdbus_msg_get_item(&kmsg->msg, KDBUS_MSG_BLOOM, 0);
-	const struct kdbus_item *src_names =
-		kdbus_msg_get_item(&kmsg->msg, KDBUS_MSG_SRC_NAMES, 0);
 	struct kdbus_match_db_entry *e;
-	size_t bloom_size = conn_src->ep->bus->bloom_size / sizeof(u64);
 	bool matched = false;
 
 	mutex_lock(&db->entries_lock);
@@ -168,19 +163,22 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 		matched = true;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
-			if (bloom && ei->type == KDBUS_MATCH_BLOOM)
+			if (kmsg->bloom) {
+				size_t bloom_size =
+					conn_src->ep->bus->bloom_size / sizeof(u64);
+
 				if (!kdbus_match_db_test_bloom(ei->bloom,
-							       bloom->data64,
+							       kmsg->bloom,
 							       bloom_size)) {
 					matched = false;
 					break;
 				}
+			}
 
-			if (src_names && ei->type == KDBUS_MATCH_SRC_NAME) {
-				size_t nlen = src_names->size - KDBUS_ITEM_HEADER_SIZE;
-
-				if (!kdbus_match_db_test_src_names(src_names->str,
-								   nlen, ei->name)) {
+			if (kmsg->src_names) {
+				if (!kdbus_match_db_test_src_names(kmsg->src_names,
+								   kmsg->src_names_len,
+								   ei->name)) {
 					matched = false;
 					break;
 				}

@@ -22,12 +22,16 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
+#include <linux/file.h>
 #include <linux/hashtable.h>
 #include <linux/audit.h>
 #include <linux/security.h>
+#include <linux/mm.h>
+#include <linux/highmem.h>
 #include <uapi/linux/major.h>
 
 #include "connection.h"
+#include "buffer.h"
 #include "message.h"
 #include "notify.h"
 #include "ns.h"
@@ -37,7 +41,309 @@
 #include "names.h"
 #include "policy.h"
 
-int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, size_t size)
+static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
+{
+	unsigned int i;
+
+	if (!queue->fds_fp)
+		return;
+
+	for (i = 0; i < queue->fds_count; i++) {
+		if (!queue->fds_fp[i])
+			break;
+
+		fput(queue->fds_fp[i]);
+	}
+
+	kfree(queue->fds_fp);
+	queue->fds_fp = NULL;
+}
+
+/* grab references of passed-in FDS for in-flight messages */
+static int kdbus_conn_fds_ref(struct kdbus_conn_queue *queue,
+			 const int *fds, unsigned int fds_count)
+{
+	unsigned int i;
+
+	queue->fds_fp = kmalloc(fds_count * sizeof(struct file *), GFP_KERNEL);
+	if (!queue->fds_fp)
+		return -ENOMEM;
+
+	for (i = 0; i < fds_count; i++) {
+		queue->fds_fp[i] = fget(fds[i]);
+		if (!queue->fds_fp[i]) {
+			kdbus_conn_fds_unref(queue);
+			return -EBADF;
+		}
+	}
+
+	return 0;
+}
+
+void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
+{
+	kdbus_conn_fds_unref(queue);
+	kfree(queue);
+}
+
+/* enqueue a message into the receiver's connection */
+int kdbus_conn_queue_insert(struct kdbus_conn *conn,
+			    struct kdbus_kmsg *kmsg,
+			    u64 deadline_ns)
+{
+	struct kdbus_conn_queue *queue;
+	const struct kdbus_item *item;
+	void __user *buf;
+	u64 msg_size;
+	size_t vec = 0;
+	size_t fds = 0;
+	size_t meta = 0;
+	size_t vec_data;
+	struct kdbus_buffer buffer;
+	int ret = 0;
+
+	if (!conn->active)
+		return -ENOTCONN;
+
+	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
+		return -ECOMM;
+
+	queue = kzalloc(sizeof(struct kdbus_conn_queue), GFP_KERNEL);
+	if (!queue)
+		return -ENOMEM;
+
+	INIT_LIST_HEAD(&queue->entry);
+
+	/* copy message properies we need for the queue management */
+	queue->deadline_ns = deadline_ns;
+	queue->src_id = kmsg->msg.src_id;
+	queue->cookie = kmsg->msg.cookie;
+	if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
+		queue->expect_reply = true;
+
+	/* space for message header */
+	msg_size = KDBUS_MSG_HEADER_SIZE;
+
+	/* space for PAYLOAD_VEC item */
+	if (kmsg->vecs_size > 0) {
+		vec = msg_size;
+		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	}
+
+	/* space for FDS item */
+	if (kmsg->fds_count > 0) {
+		fds = msg_size;
+		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
+	}
+
+	/* space for metadata/credential items */
+	if (kmsg->meta_size > 0) {
+		meta = msg_size;
+		msg_size += kmsg->meta_size;
+	}
+
+	/* data starts after the message */
+	vec_data = KDBUS_ALIGN8(msg_size);
+
+	/* allocate the buffer from the receiver */
+	mutex_lock(&conn->lock);
+	if (conn->msg_count > KDBUS_CONN_MAX_MSGS) {
+		ret = -EXFULL;
+		goto exit_unlock;
+	}
+
+	buf = kdbus_buffer_alloc(&conn->buffer, vec_data + kmsg->vecs_size);
+	if (!buf) {
+		ret = -EXFULL;
+		goto exit_unlock;
+	}
+	mutex_unlock(&conn->lock);
+
+	/* update and copy the message header */
+	if (copy_to_user(buf, &kmsg->msg, KDBUS_MSG_HEADER_SIZE)) {
+		ret = -EFAULT;
+		goto exit;
+	}
+
+	/* update the size */
+	if (kdbus_size_set_user(msg_size, buf, struct kdbus_msg)) {
+		ret = -EFAULT;
+		goto exit;
+	}
+
+	/* add a PAYLOAD_VEC item */
+	if (kmsg->vecs_size > 0) {
+		size_t size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+		char tmp[size];
+		struct kdbus_item *it = (struct kdbus_item *)tmp;
+
+		it->type = KDBUS_MSG_PAYLOAD_VEC;
+		it->size = size;
+		it->vec.address = (u64)buf + vec_data;
+		it->vec.size = kmsg->vecs_size;
+		if (copy_to_user(buf + vec, it, size)) {
+			ret = -EFAULT;
+			goto exit;
+		}
+	}
+
+	/* add a FDS item; the array content will be updated at RECV time */
+	if (kmsg->fds_count > 0) {
+		size_t size = KDBUS_ITEM_HEADER_SIZE;
+		char tmp[size];
+		struct kdbus_item *it = (struct kdbus_item *)tmp;
+
+		it->type = KDBUS_MSG_FDS;
+		it->size = size + (kmsg->fds_count * sizeof(int));
+		if (copy_to_user(buf + fds, it, size)) {
+			ret = -EFAULT;
+			goto exit;
+		}
+
+		queue->fds = it->fds;
+
+		ret = kdbus_conn_fds_ref(queue, kmsg->fds, kmsg->fds_count);
+		if (ret < 0)
+			goto exit;
+	}
+
+	/* append message metadata/credential items */
+	if (kmsg->meta_size > 0) {
+		if (copy_to_user(buf + meta, kmsg->meta, kmsg->meta_size)) {
+			ret = -EFAULT;
+			goto exit;
+		}
+	}
+
+	/* copy all payload data */
+	if (kmsg->vecs_size > 0) {
+		kdbus_buffer_map_open(&buffer, conn->task,
+				       buf + vec_data, kmsg->vecs_size);
+		KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
+			if (item->type != KDBUS_MSG_PAYLOAD_VEC)
+				continue;
+
+			ret = kdbus_buffer_map_write(&buffer,
+					(void *)(uintptr_t)item->vec.address,
+					item->vec.size);
+			if (ret < 0)
+				break;
+
+			vec_data += item->vec.size;
+		}
+		kdbus_buffer_map_close(&buffer);
+		if (ret < 0)
+			goto exit;
+	}
+
+	/* remember the pointer to the message */
+	queue->msg = buf;
+
+	/* link the message into the receiver's queue */
+	mutex_lock(&conn->lock);
+	list_add_tail(&queue->entry, &conn->msg_list);
+	conn->msg_count++;
+	mutex_unlock(&conn->lock);
+
+	/* wake up poll() */
+	wake_up_interruptible(&conn->ep->wait);
+	return 0;
+
+exit_unlock:
+	mutex_unlock(&conn->lock);
+exit:
+	kdbus_conn_queue_cleanup(queue);
+	return ret;
+}
+
+static int kdbus_conn_fds_install(struct kdbus_conn_queue *queue)
+{
+	unsigned int i;
+	int *fds;
+	size_t size;
+	int ret = 0;
+
+	/* get array of file descriptors */
+	size = queue->fds_count * sizeof(int);
+	fds = kmalloc(size, GFP_KERNEL);
+	if (!fds)
+		return -ENOMEM;
+
+	/* allocate new file descriptors in the receiver's process */
+	for (i = 0; i < queue->fds_count; i++) {
+		fds[i] = get_unused_fd();
+		if (fds[i] < 0) {
+			ret = fds[i];
+			goto remove_unused;
+		}
+	}
+
+	/* copy the array into the message item */
+	if (copy_to_user(queue->fds, fds, size)) {
+		ret = -EFAULT;
+		goto remove_unused;
+	}
+
+	/* install files in the receiver's process */
+	for (i = 0; i < queue->fds_count; i++)
+		fd_install(fds[i], get_file(queue->fds_fp[i]));
+
+	kfree(fds);
+	return 0;
+
+remove_unused:
+	for (i = 0; i < queue->fds_count; i++) {
+		if (fds[i] < 0)
+			break;
+		put_unused_fd(fds[i]);
+	}
+
+	kfree(fds);
+	return ret;
+}
+
+static int
+kdbus_conn_recv_msg(struct kdbus_conn *conn, struct kdbus_msg __user **msg_ptr)
+{
+	struct kdbus_conn_queue *queue;
+	int ret;
+
+	if (!KDBUS_IS_ALIGNED8((unsigned long)msg_ptr))
+		return -EFAULT;
+
+	mutex_lock(&conn->lock);
+	if (conn->msg_count == 0) {
+		ret = -EAGAIN;
+		goto exit_unlock;
+	}
+
+	/* return the address of the next message in the buffer */
+	queue = list_first_entry(&conn->msg_list,
+				 struct kdbus_conn_queue, entry);
+	if (put_user(queue->msg, msg_ptr)) {
+		ret = -EFAULT;
+		goto exit_unlock;
+	}
+
+	if (queue->fds_count) {
+		ret = kdbus_conn_fds_install(queue);
+		if (ret < 0)
+			goto exit_unlock;
+	}
+
+	conn->msg_count--;
+	list_del(&queue->entry);
+	mutex_unlock(&conn->lock);
+
+	kdbus_conn_queue_cleanup(queue);
+	return 0;
+
+exit_unlock:
+	mutex_unlock(&conn->lock);
+	return ret;
+}
+
+int kdbus_conn_accounting_add_size(struct kdbus_conn *conn, size_t size)
 {
 	int ret = 0;
 
@@ -54,7 +360,7 @@ int kdbus_conn_add_size_allocation(struct kdbus_conn *conn, size_t size)
 	return ret;
 }
 
-void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, size_t size)
+void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size)
 {
 	if (!conn)
 		return;
@@ -66,7 +372,7 @@ void kdbus_conn_sub_size_allocation(struct kdbus_conn *conn, size_t size)
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
-	struct kdbus_msg_list_entry *entry, *tmp;
+	struct kdbus_conn_queue *queue, *tmp;
 	u64 deadline = -1;
 	struct timespec ts;
 	uint64_t now;
@@ -74,24 +380,23 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	ktime_get_ts(&ts);
 	now = timespec_to_ns(&ts);
 
-	mutex_lock(&conn->msg_lock);
-	list_for_each_entry_safe(entry, tmp, &conn->msg_list, entry) {
-		struct kdbus_kmsg *kmsg = entry->kmsg;
-
-		if (kmsg->deadline_ns == 0)
+	mutex_lock(&conn->lock);
+	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
+		if (queue->deadline_ns == 0)
 			continue;
 
-		if (kmsg->deadline_ns <= now) {
-			if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
-				kdbus_notify_reply_timeout(conn->ep, &kmsg->msg);
-			kdbus_kmsg_unref(entry->kmsg);
-			list_del(&entry->entry);
-			kfree(entry);
-		} else if (kmsg->deadline_ns < deadline) {
-			deadline = kmsg->deadline_ns;
+		if (queue->deadline_ns <= now) {
+			if (queue->expect_reply)
+				kdbus_notify_reply_timeout(conn->ep,
+					queue->src_id, queue->cookie);
+			kdbus_buffer_free(&conn->buffer, queue->msg);
+			list_del(&queue->entry);
+			kdbus_conn_queue_cleanup(queue);
+		} else if (queue->deadline_ns < deadline) {
+			deadline = queue->deadline_ns;
 		}
 	}
-	mutex_unlock(&conn->msg_lock);
+	mutex_unlock(&conn->lock);
 
 	if (deadline != -1) {
 		u64 usecs = deadline - now;
@@ -106,7 +411,7 @@ static void kdbus_conn_work(struct work_struct *work)
 	kdbus_conn_scan_timeout(conn);
 }
 
-void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn)
+void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
 {
 	schedule_work(&conn->work);
 }
@@ -114,7 +419,7 @@ void kdbus_conn_schedule_timeout_scan(struct kdbus_conn *conn)
 static void kdbus_conn_timer_func(unsigned long val)
 {
 	struct kdbus_conn *conn = (struct kdbus_conn *) val;
-	kdbus_conn_schedule_timeout_scan(conn);
+	kdbus_conn_timeout_schedule_scan(conn);
 }
 
 #ifdef CONFIG_AUDITSYSCALL
@@ -171,7 +476,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	/* control device node */
 	if (MINOR(inode->i_rdev) == 0) {
 		conn->type = KDBUS_CONN_CONTROL;
-		file->private_data = conn;
 		pr_debug("opened control device '%s/control'\n",
 			 conn->ns->devpath);
 		return 0;
@@ -195,7 +499,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	/* add this connection to hash table */
 	hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
 
-	mutex_init(&conn->msg_lock);
+	mutex_init(&conn->lock);
 	mutex_init(&conn->names_lock);
 	mutex_init(&conn->accounting_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
@@ -231,10 +535,14 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 		 (unsigned long long)conn->id, conn->ns->devpath,
 		 conn->ep->bus->name);
 
+	//FIXME: cleanup here!
 	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
 	if (ret < 0)
 		return ret;
 
+	/* pin and store the task, so a sender can copy to the receiver */
+	get_task_struct(current);
+	conn->task = current;
 	return 0;
 
 exit_unlock:
@@ -258,43 +566,39 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_CONN_EP: {
-		struct kdbus_msg_list_entry *entry, *tmp;
+		struct kdbus_conn_queue *queue, *tmp;
 		struct list_head list;
 
 		INIT_LIST_HEAD(&list);
 
 		hash_del(&conn->hentry);
 		list_del(&conn->connection_entry);
+
 		/* clean up any messages still left on this endpoint */
-		mutex_lock(&conn->msg_lock);
-		list_for_each_entry_safe(entry, tmp, &conn->msg_list, entry) {
-			struct kdbus_kmsg *kmsg = entry->kmsg;
-			struct kdbus_msg *msg = &kmsg->msg;
+		mutex_lock(&conn->lock);
+		list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
+			list_del(&queue->entry);
 
-			list_del(&entry->entry);
-
-			/*
-			 * calling kdbus_notify_reply_dead() with msg_lock held
-			 * causes a lockdep warning, so let's re-link those
-			 * messages into a temporary list and handle it later.
-			 */
-			if (msg->src_id != conn->id &&
-			    msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
-				list_add_tail(&entry->entry, &list);
+			/* we cannot hold "lock" and enqueue new messages with
+			 * kdbus_notify_reply_dead(); move these messages
+			 * into a temporary list and handle them below */
+			if (queue->src_id != conn->id && queue->expect_reply) {
+				list_add_tail(&queue->entry, &list);
 			} else {
-				kdbus_kmsg_unref(kmsg);
-				kfree(entry);
+				kdbus_buffer_free(&conn->buffer, queue->msg);
+				kdbus_conn_queue_cleanup(queue);
 			}
 		}
-		mutex_unlock(&conn->msg_lock);
+		mutex_unlock(&conn->lock);
 
-		list_for_each_entry_safe(entry, tmp, &list, entry) {
-			struct kdbus_kmsg *kmsg = entry->kmsg;
-			struct kdbus_msg *msg = &kmsg->msg;
-
-			kdbus_notify_reply_dead(conn->ep, msg);
-			kdbus_kmsg_unref(kmsg);
-			kfree(entry);
+		list_for_each_entry_safe(queue, tmp, &list, entry) {
+			kdbus_notify_reply_dead(conn->ep, queue->src_id,
+						queue->cookie);
+			mutex_lock(&conn->lock);
+			kdbus_buffer_free(&conn->buffer, queue->msg);
+			mutex_unlock(&conn->lock);
+			kdbus_conn_queue_cleanup(queue);
+			list_del(&queue->entry);
 		}
 
 		del_timer(&conn->timer);
@@ -311,6 +615,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		kdbus_match_db_unref(conn->match_db);
 		kdbus_ep_unref(conn->ep);
 
+		put_task_struct(current);
 		break;
 	}
 
@@ -410,8 +715,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 {
 	struct kdbus_conn *conn = file->private_data;
 	struct kdbus_cmd_ep_kmake *kmake = NULL;
+	struct kdbus_cmd_hello *hello = NULL;
 	struct kdbus_bus *bus = NULL;
-	struct kdbus_kmsg *kmsg;
 	long ret = 0;
 
 	if (conn && conn->ep)
@@ -444,33 +749,72 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_HELLO: {
 		/* turn this fd into a connection. */
-		struct kdbus_cmd_hello hello;
+		const struct kdbus_item *item;
+		size_t size;
+		void *v;
 
 		if (conn->active) {
 			ret = -EISCONN;
 			break;
 		}
 
-		if (copy_from_user(&hello, buf, sizeof(hello))) {
+		if (kdbus_size_get_user(size, buf, struct kdbus_cmd_hello)) {
 			ret = -EFAULT;
 			break;
 		}
 
-		if (!check_flags(hello.conn_flags)) {
+		if (size < sizeof(struct kdbus_cmd_hello) || size > KDBUS_HELLO_MAX_SIZE) {
+			ret = -EMSGSIZE;
+			break;
+		}
+
+		v = memdup_user(buf, size);
+		if (IS_ERR(v)) {
+			ret = PTR_ERR(v);
+			break;
+		}
+		hello = v;
+
+		if (!check_flags(hello->conn_flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		conn->flags = hello.conn_flags;
-		hello.bus_flags = bus->bus_flags;
-		hello.bloom_size = bus->bloom_size;
-		hello.id = conn->id;
+		KDBUS_ITEM_FOREACH_VALIDATE(item, hello) {
+			/* empty data records are invalid */
+			if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
+				ret = -EINVAL;
+				break;
+			}
 
-		if (copy_to_user(buf, &hello, sizeof(hello))) {
+			switch (item->type) {
+			case KDBUS_HELLO_BUFFER:
+				/* enforce page alignment and page granularity */
+				if (!KDBUS_IS_ALIGNED_PAGE(item->vec.address) ||
+				    !KDBUS_IS_ALIGNED_PAGE(item->vec.size)) {
+					ret = -EFAULT;
+					break;
+				}
+
+				conn->buffer.buf = (void *)(uintptr_t)item->vec.address;
+				conn->buffer.size = item->vec.size;
+				break;
+
+			default:
+				ret = -ENOTSUPP;
+			}
+		}
+
+		/* return properties of this connection to the caller */
+		hello->bus_flags = bus->bus_flags;
+		hello->bloom_size = bus->bloom_size;
+		hello->id = conn->id;
+		if (copy_to_user(buf, hello, sizeof(struct kdbus_cmd_hello))) {
 			ret = -EFAULT;
 			break;
 		}
 
+		conn->flags = hello->conn_flags;
 		conn->active = true;
 
 		break;
@@ -484,43 +828,36 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			return -ENOMEM;
 
 		ret = kdbus_cmd_policy_set_from_user(conn->ep->policy_db, buf);
-
 		break;
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
 		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, buf);
-
 		break;
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
 		ret = kdbus_cmd_name_release(bus->name_registry, conn, buf);
-
 		break;
 
 	case KDBUS_CMD_NAME_LIST:
 		/* return all current well-known names */
 		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
-
 		break;
 
 	case KDBUS_CMD_NAME_QUERY:
 		/* return details about a specific well-known name */
 		ret = kdbus_cmd_name_query(bus->name_registry, conn, buf);
-
 		break;
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
 		ret = kdbus_cmd_match_db_add(conn, buf);
-
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
 		ret = kdbus_cmd_match_db_remove(conn->match_db, buf);
-
 		break;
 
 	case KDBUS_CMD_MONITOR: {
@@ -530,34 +867,42 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			return -EFAULT;
 
 		conn->monitor = !!cmd_monitor.enabled;
-
 		break;
 	}
 
-	case KDBUS_CMD_MSG_SEND:
-		/* send a message */
+	case KDBUS_CMD_MSG_SEND: {
+		struct kdbus_kmsg *kmsg;
+
+		/* submit a message which will be queued in the receiver */
 		ret = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
 		if (ret < 0)
 			break;
 
 		ret = kdbus_kmsg_send(conn->ep, conn, kmsg);
-		kdbus_kmsg_unref(kmsg);
-
+		kdbus_kmsg_free(kmsg);
 		break;
+	}
 
 	case KDBUS_CMD_MSG_RECV:
-		/* receive a message */
-		ret = kdbus_kmsg_recv(conn, buf);
-
+		/* receive a pointer to a queued message */
+		ret = kdbus_conn_recv_msg(conn, buf);
 		break;
+
+	case KDBUS_CMD_MSG_FREE: {
+		/* cleanup the memory used in the receiver's buffer */
+		mutex_lock(&conn->lock);
+		kdbus_buffer_free(&conn->buffer, buf);
+		mutex_unlock(&conn->lock);
+		break;
+	}
 
 	default:
 		ret = -ENOTTY;
-
 		break;
 	}
 
 	kfree(kmake);
+	kfree(hello);
 
 	return ret;
 }
@@ -592,10 +937,10 @@ static unsigned int kdbus_conn_poll(struct file *file,
 
 	poll_wait(file, &conn->ep->wait, wait);
 
-	mutex_lock(&conn->msg_lock);
+	mutex_lock(&conn->lock);
 	if (!list_empty(&conn->msg_list))
 		mask |= POLLIN | POLLRDNORM;
-	mutex_unlock(&conn->msg_lock);
+	mutex_unlock(&conn->lock);
 
 	return mask;
 }
