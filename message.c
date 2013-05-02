@@ -347,7 +347,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 	if (kdbus_size_get_user(size, buf, struct kdbus_msg))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > KDBUS_CMD_MAX_SIZE)
+	if (size < sizeof(struct kdbus_msg) || size > KDBUS_MSG_MAX_SIZE)
 		return -EMSGSIZE;
 
 	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;
@@ -621,7 +621,7 @@ static int kdbus_conn_enqueue_kmsg(struct kdbus_conn *conn,
 	if (!conn->active)
 		return -ENOTCONN;
 
-	if (kmsg->fds && !(conn->flags & KDBUS_CMD_HELLO_ACCEPT_FD))
+	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
 		return -ECOMM;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -693,7 +693,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 	struct kdbus_bus *bus = conn_dst->ep->bus;
 	int ret = 0;
 
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_COMM) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_COMM) {
 		char comm[TASK_COMM_LEN];
 
 		get_task_comm(comm, current->group_leader);
@@ -707,7 +707,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 			return ret;
 	}
 
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_EXE) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_EXE) {
 		struct mm_struct *mm = get_task_mm(current);
 		struct path *exe_path = NULL;
 
@@ -747,7 +747,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 		}
 	}
 
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CMDLINE) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CMDLINE) {
 		struct mm_struct *mm = current->mm;
 		char *tmp;
 
@@ -774,7 +774,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 	}
 
 	/* we always return a 4 elements, the element size is 1/4  */
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CAPS) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CAPS) {
 		const struct cred *cred;
 		struct caps {
 			u32 cap[_KERNEL_CAPABILITY_U32S];
@@ -804,7 +804,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 #ifdef CONFIG_CGROUPS
 	/* attach the path of the one group hierarchy specified for the bus */
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_CGROUP && bus->cgroup_id > 0) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CGROUP && bus->cgroup_id > 0) {
 		char *tmp;
 
 		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
@@ -823,7 +823,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 #endif
 
 #ifdef CONFIG_AUDITSYSCALL
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_AUDIT) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_AUDIT) {
 		ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_AUDIT,
 					     conn_src->audit_ids,
 					     sizeof(conn_src->audit_ids));
@@ -833,7 +833,7 @@ static int kdbus_msg_append_for_dst(struct kdbus_kmsg *kmsg,
 #endif
 
 #ifdef CONFIG_SECURITY
-	if (conn_dst->flags & KDBUS_CMD_HELLO_ATTACH_SECLABEL) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_SECLABEL) {
 		if (conn_src->sec_label_len > 0) {
 			ret = kdbus_kmsg_append_data(kmsg,
 						     KDBUS_MSG_SRC_SECLABEL,
@@ -892,7 +892,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 		conn_dst = name_entry->conn;
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (conn_dst->flags & KDBUS_CMD_HELLO_STARTER))
+		    (conn_dst->flags & KDBUS_HELLO_STARTER))
 			return -EADDRNOTAVAIL;
 
 	} else if (msg->dst_id != KDBUS_DST_ID_BROADCAST) {

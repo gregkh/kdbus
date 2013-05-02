@@ -25,7 +25,11 @@
 #define KDBUS_NAME_MAX_LEN		255		/* maximum length of well-known bus name */
 
 #define KDBUS_MAKE_MAX_LEN		63		/* maximum length of bus, ns, ep name */
-#define KDBUS_CMD_MAX_SIZE		SZ_32K		/* maximum size of command buffer */
+#define KDBUS_MAKE_MAX_SIZE		SZ_32K		/* maximum size of make buffer */
+
+#define KDBUS_MATCH_MAX_SIZE		SZ_32K		/* maximum size of match buffer */
+
+#define KDBUS_POLICY_MAX_SIZE		SZ_32K		/* maximum size of policy buffer */
 
 #define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages on the bus */
 #define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K		/* maximum number of allocated bytes on the bus */

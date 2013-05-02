@@ -179,7 +179,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	}
 
 	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
-			   b->bus_flags & KDBUS_POLICY_OPEN);
+			   b->bus_flags & KDBUS_MAKE_POLICY_OPEN);
 	if (ret < 0)
 		goto ret;
 
@@ -218,7 +218,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_bus_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_bus_make) || size > KDBUS_CMD_MAX_SIZE)
+	if (size < sizeof(struct kdbus_cmd_bus_make) || size > KDBUS_MAKE_MAX_SIZE)
 		return -EMSGSIZE;
 
 	km = kmalloc(sizeof(struct kdbus_cmd_bus_kmake) + size, GFP_KERNEL);
@@ -239,7 +239,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 		}
 
 		switch (item->type) {
-		case KDBUS_CMD_MAKE_NAME:
+		case KDBUS_MAKE_NAME:
 			if (km->name) {
 				ret = -EEXIST;
 				goto exit;
@@ -264,7 +264,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 			km->name = item->str;
 			continue;
 
-		case KDBUS_CMD_MAKE_CGROUP:
+		case KDBUS_MAKE_CGROUP:
 			if (km->cgroup_id) {
 				ret = -EEXIST;
 				goto exit;

@@ -354,9 +354,9 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (bus_kmake->make.flags & KDBUS_ACCESS_WORLD)
+		if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
-		else if (bus_kmake->make.flags & KDBUS_ACCESS_GROUP)
+		else if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP)
 			mode = 0660;
 
 		ret = kdbus_bus_new(conn->ns, bus_kmake, mode, current_fsuid(),
@@ -378,9 +378,9 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (!check_flags(ns_kmake->make.flags))
 			return -ENOTSUPP;
 
-		if (ns_kmake->make.flags & KDBUS_ACCESS_WORLD)
+		if (ns_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
-		else if (ns_kmake->make.flags & KDBUS_ACCESS_GROUP)
+		else if (ns_kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP)
 			mode = 0660;
 
 		ret = kdbus_ns_new(kdbus_ns_init, ns_kmake->name, mode, &ns);
@@ -430,14 +430,14 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (kmake->make.flags & KDBUS_ACCESS_WORLD)
+		if (kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
-		else if (kmake->make.flags & KDBUS_ACCESS_GROUP)
+		else if (kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP)
 			mode = 0660;
 
 		ret = kdbus_ep_new(conn->ep->bus, kmake->name, mode,
 			current_fsuid(), current_fsgid(),
-			kmake->make.flags & KDBUS_POLICY_OPEN);
+			kmake->make.flags & KDBUS_MAKE_POLICY_OPEN);
 
 		break;
 	}

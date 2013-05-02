@@ -55,15 +55,15 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.head.flags = KDBUS_ACCESS_WORLD;
+	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
 	bus_make.head.bloom_size = 8;
 
 	bus_make.cgroup_id = cgroup_systemd();
-	bus_make.c.type = KDBUS_CMD_MAKE_CGROUP;
+	bus_make.c.type = KDBUS_MAKE_CGROUP;
 	bus_make.c.size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
 
 	snprintf(bus_make.n.str, sizeof(bus_make.name), "%u-testbus", getuid());
-	bus_make.n.type = KDBUS_CMD_MAKE_NAME;
+	bus_make.n.type = KDBUS_MAKE_NAME;
 	bus_make.n.size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.n.str) + 1;
 
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 	upload_policy(conn_a->fd);
 
 	name_acquire(conn_a, "foo.bar.baz", 0);
-	name_acquire(conn_b, "foo.bar.baz", KDBUS_CMD_NAME_QUEUE);
+	name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
 	name_list(conn_b);
 
 	add_match_empty(conn_a->fd);

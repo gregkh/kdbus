@@ -51,19 +51,19 @@ static void
 kdbus_match_db_entry_item_free(struct kdbus_match_db_entry_item *item)
 {
 	switch (item->type) {
-	case KDBUS_CMD_MATCH_BLOOM:
+	case KDBUS_MATCH_BLOOM:
 		kfree(item->bloom);
 		break;
 
-	case KDBUS_CMD_MATCH_SRC_NAME:
-	case KDBUS_CMD_MATCH_NAME_ADD:
-	case KDBUS_CMD_MATCH_NAME_REMOVE:
-	case KDBUS_CMD_MATCH_NAME_CHANGE:
+	case KDBUS_MATCH_SRC_NAME:
+	case KDBUS_MATCH_NAME_ADD:
+	case KDBUS_MATCH_NAME_REMOVE:
+	case KDBUS_MATCH_NAME_CHANGE:
 		kfree(item->name);
 		break;
 
-	case KDBUS_CMD_MATCH_ID_ADD:
-	case KDBUS_CMD_MATCH_ID_REMOVE:
+	case KDBUS_MATCH_ID_ADD:
+	case KDBUS_MATCH_ID_REMOVE:
 		break;
 	}
 
@@ -168,7 +168,7 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 		matched = true;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
-			if (bloom && ei->type == KDBUS_CMD_MATCH_BLOOM)
+			if (bloom && ei->type == KDBUS_MATCH_BLOOM)
 				if (!kdbus_match_db_test_bloom(ei->bloom,
 							       bloom->data64,
 							       bloom_size)) {
@@ -176,7 +176,7 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 					break;
 				}
 
-			if (src_names && ei->type == KDBUS_CMD_MATCH_SRC_NAME) {
+			if (src_names && ei->type == KDBUS_MATCH_SRC_NAME) {
 				size_t nlen = src_names->size - KDBUS_ITEM_HEADER_SIZE;
 
 				if (!kdbus_match_db_test_src_names(src_names->str,
@@ -215,31 +215,31 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 		matched = true;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
-			if (ei->type == KDBUS_CMD_MATCH_ID_ADD &&
+			if (ei->type == KDBUS_MATCH_ID_ADD &&
 			    type != KDBUS_MSG_ID_ADD) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_ID_REMOVE &&
+			if (ei->type == KDBUS_MATCH_ID_REMOVE &&
 			    type != KDBUS_MSG_ID_REMOVE) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_NAME_ADD &&
+			if (ei->type == KDBUS_MATCH_NAME_ADD &&
 			    type != KDBUS_MSG_NAME_ADD) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_NAME_CHANGE &&
+			if (ei->type == KDBUS_MATCH_NAME_CHANGE &&
 			    type != KDBUS_MSG_NAME_CHANGE) {
 				matched = false;
 				break;
 			}
 
-			if (ei->type == KDBUS_CMD_MATCH_NAME_REMOVE &&
+			if (ei->type == KDBUS_MATCH_NAME_REMOVE &&
 			    type != KDBUS_MSG_NAME_REMOVE) {
 				matched = false;
 				break;
@@ -274,7 +274,7 @@ struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_match))
 		return ERR_PTR(-EFAULT);
 
-	if (size < sizeof(*cmd_match) || size > KDBUS_CMD_MAX_SIZE)
+	if (size < sizeof(*cmd_match) || size > KDBUS_MATCH_MAX_SIZE)
 		return ERR_PTR(-EMSGSIZE);
 
 	return memdup_user(buf, size);
@@ -322,7 +322,7 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		INIT_LIST_HEAD(&ei->list_entry);
 
 		switch (item->type) {
-		case KDBUS_CMD_MATCH_BLOOM:
+		case KDBUS_MATCH_BLOOM:
 			size = item->size - offsetof(struct kdbus_cmd_match_item, data);
 			if (size != conn->ep->bus->bloom_size) {
 				ret = -EBADMSG;
@@ -333,17 +333,17 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 					GFP_KERNEL);
 			break;
 
-		case KDBUS_CMD_MATCH_SRC_NAME:
-		case KDBUS_CMD_MATCH_NAME_ADD:
-		case KDBUS_CMD_MATCH_NAME_REMOVE:
-		case KDBUS_CMD_MATCH_NAME_CHANGE:
+		case KDBUS_MATCH_SRC_NAME:
+		case KDBUS_MATCH_NAME_ADD:
+		case KDBUS_MATCH_NAME_REMOVE:
+		case KDBUS_MATCH_NAME_CHANGE:
 			ei->name = kstrdup(item->str, GFP_KERNEL);
 			if (!ei->name)
 				ret = -ENOMEM;
 			break;
 
-		case KDBUS_CMD_MATCH_ID_ADD:
-		case KDBUS_CMD_MATCH_ID_REMOVE:
+		case KDBUS_MATCH_ID_ADD:
+		case KDBUS_MATCH_ID_REMOVE:
 			ei->id = item->id;
 			break;
 		}

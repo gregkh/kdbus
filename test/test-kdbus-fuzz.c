@@ -110,7 +110,7 @@ static int make_bus(void)
 
 	memset(&bus_make, 0, sizeof(bus_make));
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s", getuid(), name);
-	bus_make.head.flags = KDBUS_ACCESS_WORLD;
+	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
 	bus_make.head.bloom_size = 8;
 

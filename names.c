@@ -182,7 +182,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
 				      struct kdbus_name_entry *e, u64 *flags)
 {
-	if (conn->flags & KDBUS_CMD_HELLO_STARTER) {
+	if (conn->flags & KDBUS_HELLO_STARTER) {
 		if (e->starter == NULL) {
 			e->starter = conn;
 			return 0;
@@ -191,8 +191,8 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 		}
 	}
 
-	if (((*flags   & KDBUS_CMD_NAME_REPLACE_EXISTING) &&
-	     (e->flags & KDBUS_CMD_NAME_ALLOW_REPLACEMENT)) ||
+	if (((*flags   & KDBUS_NAME_REPLACE_EXISTING) &&
+	     (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) ||
 	     (e->starter && e->starter != conn)) {
 		kdbus_name_entry_detach(e);
 		kdbus_name_entry_attach(e, conn);
@@ -202,7 +202,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 						e->name);
 	}
 
-	if (*flags & KDBUS_CMD_NAME_QUEUE) {
+	if (*flags & KDBUS_NAME_QUEUE) {
 		struct kdbus_name_queue_item *q;
 
 		q = kzalloc(sizeof(*q), GFP_KERNEL);
@@ -215,7 +215,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 		list_add_tail(&q->entry_entry, &e->queue_list);
 		list_add_tail(&q->conn_entry, &conn->names_queue_list);
-		*flags |= KDBUS_CMD_NAME_IN_QUEUE;
+		*flags |= KDBUS_NAME_IN_QUEUE;
 
 		return 0;
 	}
@@ -297,7 +297,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		conn = new_conn;
 	}
 
-	cmd_name->name_flags &= ~KDBUS_CMD_NAME_IN_QUEUE;
+	cmd_name->name_flags &= ~KDBUS_NAME_IN_QUEUE;
 	hash = kdbus_str_hash(cmd_name->name);
 
 	if (conn->ep->policy_db) {
@@ -335,7 +335,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock_free;
 	}
 
-	if (conn->flags & KDBUS_CMD_HELLO_STARTER)
+	if (conn->flags & KDBUS_HELLO_STARTER)
 		e->starter = conn;
 
 	e->flags = cmd_name->name_flags;
@@ -487,14 +487,14 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 
 #ifdef CONFIG_AUDITSYSCALL
 	item->size = sizeof(*item) + sizeof(conn->audit_ids);
-	item->type = KDBUS_CMD_NAME_INFO_ITEM_AUDIT;
+	item->type = KDBUS_NAME_INFO_ITEM_AUDIT;
 	memcpy(item->data, conn->audit_ids, sizeof(conn->audit_ids));
 	item = (struct kdbus_cmd_name_info_item *) (u8 *) item + item->size;
 #endif
 
 #ifdef CONFIG_SECURITY
 	item->size = sizeof(*item) + conn->sec_label_len + 1;
-	item->type = KDBUS_CMD_NAME_INFO_ITEM_SECLABEL;
+	item->type = KDBUS_NAME_INFO_ITEM_SECLABEL;
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
 	item = (struct kdbus_cmd_name_info_item *) (u8 *) item + item->size;
 #endif
@@ -535,7 +535,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 			return -ENOENT;
 	} else {
 		KDBUS_ITEM_FOREACH_VALIDATE(info_item, cmd_name_info)
-			if (info_item->type == KDBUS_CMD_NAME_INFO_ITEM_NAME)
+			if (info_item->type == KDBUS_NAME_INFO_ITEM_NAME)
 				name = info_item->data;
 
 		if (!name)
