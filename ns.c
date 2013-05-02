@@ -241,7 +241,7 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 {
 	u64 size;
 	struct kdbus_cmd_ns_kmake *km;
-	const struct kdbus_cmd_make_item *item;
+	const struct kdbus_item *item;
 	int ret;
 
 	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ns_make))

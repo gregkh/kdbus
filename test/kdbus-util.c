@@ -77,7 +77,7 @@ int msg_send(const struct conn *conn,
 {
 	struct kdbus_msg *msg;
 	const char ref[2048] = "REFERENCED";
-	struct kdbus_msg_item *item;
+	struct kdbus_item *item;
 	uint64_t size;
 	int ret;
 
@@ -153,7 +153,7 @@ char *msg_id(uint64_t id, char *buf)
 
 void msg_dump(struct kdbus_msg *msg)
 {
-	struct kdbus_msg_item *item = msg->items;
+	struct kdbus_item *item = msg->items;
 	char buf[32];
 
 	printf("MESSAGE: %s (%llu bytes) flags=0x%llx, %s → %s, cookie=%llu, timeout=%llu\n",

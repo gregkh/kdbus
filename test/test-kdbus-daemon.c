@@ -22,9 +22,9 @@ int main(int argc, char *argv[])
 {
 	struct {
 		struct kdbus_cmd_bus_make head;
-		struct kdbus_cmd_make_item c;
+		struct kdbus_item c;
 		uint64_t cgroup_id;
-		struct kdbus_cmd_make_item n;
+		struct kdbus_item n;
 		char name[64];
 	} bus_make;
 	int fd_owner;

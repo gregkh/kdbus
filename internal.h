@@ -49,7 +49,7 @@
 	     item = KDBUS_ITEM_NEXT(item))
 
 /* same iterator with more consistency checks, to be used with incoming data */
-#define KDBUS_ITEM_HEADER_SIZE offsetof(union kdbus_item, data)
+#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 #define KDBUS_ITEM_FOREACH_VALIDATE(item, head)					\
 	for (item = (head)->items;						\
@@ -85,16 +85,6 @@
 	u64 __user *_sz = _b + offsetof(typeof(_t), size); \
 	put_user(_s, _sz); \
 })
-
-union kdbus_item {
-	struct {
-		__u64 size;
-		__u64 type;
-		u8 data[0];
-	};
-	struct kdbus_msg_item msg_item;
-	struct kdbus_cmd_match_item cmd_match_item;
-};
 
 static inline bool kdbus_validate_nul(const char *s, size_t l)
 {

@@ -466,7 +466,7 @@ exit_unlock:
 
 static int
 kdbus_name_fill_info_items(struct kdbus_conn *conn,
-			   struct kdbus_cmd_name_info_item *item,
+			   struct kdbus_item *item,
 			   size_t *size)
 {
 	int ret = 0;
@@ -489,14 +489,14 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 	item->size = sizeof(*item) + sizeof(conn->audit_ids);
 	item->type = KDBUS_NAME_INFO_ITEM_AUDIT;
 	memcpy(item->data, conn->audit_ids, sizeof(conn->audit_ids));
-	item = (struct kdbus_cmd_name_info_item *) (u8 *) item + item->size;
+	item = (struct kdbus_item *) (u8 *) item + item->size;
 #endif
 
 #ifdef CONFIG_SECURITY
 	item->size = sizeof(*item) + conn->sec_label_len + 1;
 	item->type = KDBUS_NAME_INFO_ITEM_SECLABEL;
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
-	item = (struct kdbus_cmd_name_info_item *) (u8 *) item + item->size;
+	item = (struct kdbus_item *) (u8 *) item + item->size;
 #endif
 
 	return ret;
@@ -508,7 +508,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name_info *cmd_name_info;
-	struct kdbus_cmd_name_info_item *info_item;
+	struct kdbus_item *info_item;
 	struct kdbus_conn *owner_conn;
 	size_t extra_size;
 	u64 size;

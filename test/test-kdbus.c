@@ -36,9 +36,15 @@ int main(int argc, char *argv[])
 {
 	struct {
 		struct kdbus_cmd_bus_make head;
-		struct kdbus_cmd_make_item c;
+
+		/* cgroup item */
+		uint64_t c_size;
+		uint64_t c_type;
 		uint64_t cgroup_id;
-		struct kdbus_cmd_make_item n;
+
+		/* name item */
+		uint64_t n_size;
+		uint64_t n_type;
 		char name[64];
 	} bus_make;
 	int fdc, ret, cookie;
@@ -59,16 +65,16 @@ int main(int argc, char *argv[])
 	bus_make.head.bloom_size = 8;
 
 	bus_make.cgroup_id = cgroup_systemd();
-	bus_make.c.type = KDBUS_MAKE_CGROUP;
-	bus_make.c.size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
+	bus_make.c_type = KDBUS_MAKE_CGROUP;
+	bus_make.c_size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
 
-	snprintf(bus_make.n.str, sizeof(bus_make.name), "%u-testbus", getuid());
-	bus_make.n.type = KDBUS_MAKE_NAME;
-	bus_make.n.size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.n.str) + 1;
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
+	bus_make.n_type = KDBUS_MAKE_NAME;
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
-			     bus_make.c.size +
-			     bus_make.n.size;
+			     bus_make.c_size +
+			     bus_make.n_size;
 
 	printf("-- creating bus '%s'\n", bus_make.name);
 	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &bus_make);

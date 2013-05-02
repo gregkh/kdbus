@@ -113,7 +113,7 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
-	const struct kdbus_msg_item *item;
+	const struct kdbus_item *item;
 	unsigned int num_items = 0;
 	unsigned int num_vecs = 0;
 	unsigned int num_fds = 0;
@@ -279,8 +279,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 }
 
 static int kdbus_inline_user_vec(struct kdbus_kmsg *kmsg,
-				 struct kdbus_msg_item *next,
-				 const struct kdbus_msg_item *item)
+				 struct kdbus_item *next,
+				 const struct kdbus_item *item)
 {
 	void __user *user_addr;
 
@@ -299,7 +299,7 @@ static int kdbus_inline_user_vec(struct kdbus_kmsg *kmsg,
  * them in the receiving process at message delivery.
  */
 static int kdbus_copy_user_fds(struct kdbus_kmsg *kmsg,
-			       const struct kdbus_msg_item *item)
+			       const struct kdbus_item *item)
 {
 	unsigned int i;
 	unsigned int count;
@@ -336,8 +336,8 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, void __user *buf,
 			     struct kdbus_kmsg **m)
 {
 	struct kdbus_kmsg *kmsg;
-	const struct kdbus_msg_item *item;
-	struct kdbus_msg_item *vecs_next;
+	const struct kdbus_item *item;
+	struct kdbus_item *vecs_next;
 	u64 size, alloc_size;
 	int ret;
 
@@ -420,10 +420,10 @@ exit_free:
 	return ret;
 }
 
-const struct kdbus_msg_item *
+const struct kdbus_item *
 kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, unsigned int index)
 {
-	const struct kdbus_msg_item *item;
+	const struct kdbus_item *item;
 
 	KDBUS_ITEM_FOREACH(item, msg)
 		if (item->type == type && index-- == 0)
@@ -434,7 +434,7 @@ kdbus_msg_get_item(const struct kdbus_msg *msg, u64 type, unsigned int index)
 
 static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 {
-	const struct kdbus_msg_item *item;
+	const struct kdbus_item *item;
 
 	pr_debug("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
 		 "cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
@@ -451,10 +451,10 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 			 item->size, item->type);
 }
 
-static struct kdbus_msg_item *
+static struct kdbus_item *
 kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 {
-	struct kdbus_msg_item *item;
+	struct kdbus_item *item;
 	size_t size;
 	int ret;
 
@@ -476,7 +476,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 	size = kmsg->meta_size + KDBUS_ALIGN8(extra_size);
 	if (size > kmsg->meta_allocated_size) {
 		size_t size_diff;
-		struct kdbus_msg_item *meta;
+		struct kdbus_item *meta;
 
 		size = roundup_pow_of_two(size);
 		size_diff = size - kmsg->meta_allocated_size;
@@ -500,7 +500,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 	}
 
 	/* insert new record */
-	item = (struct kdbus_msg_item *)((u8 *)kmsg->meta + kmsg->meta_size);
+	item = (struct kdbus_item *)((u8 *)kmsg->meta + kmsg->meta_size);
 	kmsg->meta_size += KDBUS_ALIGN8(extra_size);
 
 	return item;
@@ -508,7 +508,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 
 static int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 {
-	struct kdbus_msg_item *item;
+	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
 	struct timespec ts;
 
@@ -534,7 +534,7 @@ static int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 static int kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 type,
 				  const void *buf, size_t len)
 {
-	struct kdbus_msg_item *item;
+	struct kdbus_item *item;
 	u64 size;
 
 	if (len == 0)
@@ -562,7 +562,7 @@ static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 				       struct kdbus_conn *conn)
 {
 	struct kdbus_name_entry *name_entry;
-	struct kdbus_msg_item *item;
+	struct kdbus_item *item;
 	u64 pos = 0, size, strsize = 0;
 	int ret = 0;
 
@@ -598,7 +598,7 @@ exit_unlock:
 static int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
 				  const struct kdbus_creds *creds)
 {
-	struct kdbus_msg_item *item;
+	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
 
 	item = kdbus_kmsg_append(kmsg, size);
@@ -876,7 +876,7 @@ int kdbus_kmsg_send(struct kdbus_ep *ep,
 //	kdbus_msg_dump(msg);
 
 	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME) {
-		const struct kdbus_msg_item *name_item;
+		const struct kdbus_item *name_item;
 		const struct kdbus_name_entry *name_entry;
 
 		name_item = kdbus_msg_get_item(msg, KDBUS_MSG_DST_NAME, 0);
@@ -968,8 +968,8 @@ int kdbus_kmsg_recv(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_msg_list_entry *entry;
 	const struct kdbus_kmsg *kmsg = NULL;
 	const struct kdbus_msg *msg;
-	const struct kdbus_msg_item *item;
-	const struct kdbus_msg_item *vecs_next;
+	const struct kdbus_item *item;
+	const struct kdbus_item *vecs_next;
 	u64 size, pos, max_size;
 	int ret;
 

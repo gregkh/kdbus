@@ -14,10 +14,10 @@
 #define STRINGIFY(x) _STRINGIFY(x)
 #define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
 
-#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_msg_item, data)
+#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
 #define KDBUS_ITEM_NEXT(item) \
-	(typeof(item))(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
+	(struct kdbus_item *)(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head)						\
 	for (item = (head)->items;						\
 	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;		\

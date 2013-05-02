@@ -149,9 +149,9 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_kmsg *kmsg)
 {
-	const struct kdbus_msg_item *bloom =
+	const struct kdbus_item *bloom =
 		kdbus_msg_get_item(&kmsg->msg, KDBUS_MSG_BLOOM, 0);
-	const struct kdbus_msg_item *src_names =
+	const struct kdbus_item *src_names =
 		kdbus_msg_get_item(&kmsg->msg, KDBUS_MSG_SRC_NAMES, 0);
 	struct kdbus_match_db_entry *e;
 	size_t bloom_size = conn_src->ep->bus->bloom_size / sizeof(u64);
@@ -284,7 +284,7 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
 	struct kdbus_match_db *db = conn->match_db;
 	struct kdbus_cmd_match *cmd_match;
-	struct kdbus_cmd_match_item *item;
+	struct kdbus_item *item;
 	struct kdbus_match_db_entry *e;
 	int ret = 0;
 
@@ -323,13 +323,13 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 		switch (item->type) {
 		case KDBUS_MATCH_BLOOM:
-			size = item->size - offsetof(struct kdbus_cmd_match_item, data);
+			size = item->size - offsetof(struct kdbus_item, data);
 			if (size != conn->ep->bus->bloom_size) {
 				ret = -EBADMSG;
 				break;
 			}
 
-			ei->bloom = kmemdup(item->data, item->size - offsetof(struct kdbus_cmd_match_item, data),
+			ei->bloom = kmemdup(item->data, item->size - offsetof(struct kdbus_item, data),
 					GFP_KERNEL);
 			break;
 
