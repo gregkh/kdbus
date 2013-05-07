@@ -428,7 +428,7 @@ int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,
 	struct cg_cgroup_link *link;
 	int ret = -ENOENT;
 
-	cgroup_lock();
+//	cgroup_lock();
 	list_for_each_entry(link, &current->cgroups->cg_links, cg_link_list) {
 		struct cgroup* cg = link->cgrp;
 		struct cgroupfs_root *root = (struct cgroupfs_root *)cg->root;
@@ -439,7 +439,7 @@ int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,
 		ret = cgroup_path(cg, buf, buflen);
 		break;
 	}
-	cgroup_unlock();
+//	cgroup_unlock();
 
 	return ret;
 }
