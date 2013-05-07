@@ -26,8 +26,8 @@
 #include "bus.h"
 #include "connection.h"
 #include "names.h"
-#include "ep.h"
-#include "ns.h"
+#include "endpoint.h"
+#include "namespace.h"
 
 /**
  * kdbus_bus_unref() - increase the reference counter of a kdbus_bus

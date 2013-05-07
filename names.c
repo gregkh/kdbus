@@ -29,7 +29,7 @@
 #include "notify.h"
 #include "policy.h"
 #include "bus.h"
-#include "ep.h"
+#include "endpoint.h"
 
 struct kdbus_name_queue_item {
 	struct kdbus_conn	*conn;

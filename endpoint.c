@@ -22,10 +22,10 @@
 #include <linux/hashtable.h>
 #include <linux/sizes.h>
 
-#include "ep.h"
+#include "endpoint.h"
 #include "bus.h"
 #include "policy.h"
-#include "ns.h"
+#include "namespace.h"
 
 /* endpoints are by default owned by the bus owner */
 static char *kdbus_devnode_ep(struct device *dev, umode_t *mode

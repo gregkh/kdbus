@@ -24,7 +24,7 @@
 
 #include "notify.h"
 #include "bus.h"
-#include "ep.h"
+#include "endpoint.h"
 #include "message.h"
 
 static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,

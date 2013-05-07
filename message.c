@@ -29,7 +29,7 @@
 #include "message.h"
 #include "connection.h"
 #include "bus.h"
-#include "ep.h"
+#include "endpoint.h"
 #include "policy.h"
 #include "names.h"
 #include "match.h"

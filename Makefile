@@ -2,13 +2,13 @@ kdbus-y	:= \
 	bus.o \
 	connection.o \
 	buffer.o \
-	ep.o \
+	endpoint.o \
 	main.o \
 	match.o \
 	message.o \
 	names.o \
 	notify.o \
-	ns.o \
+	namespace.o \
 	policy.o
 
 # obj-$(CONFIG_KDBUS)	+= kdbus.o

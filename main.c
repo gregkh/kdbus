@@ -23,7 +23,7 @@
 #include <uapi/linux/major.h>
 
 #include "internal.h"
-#include "ns.h"
+#include "namespace.h"
 
 /* kdbus sysfs subsystem */
 struct bus_type kdbus_subsys = {

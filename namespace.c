@@ -22,7 +22,7 @@
 #include <linux/sizes.h>
 #include <uapi/linux/major.h>
 
-#include "ns.h"
+#include "namespace.h"
 
 /* global list of all namespaces */
 static LIST_HEAD(namespace_list);

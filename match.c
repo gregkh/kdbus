@@ -24,7 +24,7 @@
 
 #include "match.h"
 #include "connection.h"
-#include "ep.h"
+#include "endpoint.h"
 #include "message.h"
 #include "bus.h"
 
