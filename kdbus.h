@@ -71,7 +71,7 @@ enum {
 
 	/* Filled in by userspace */
 	KDBUS_MSG_PAYLOAD_VEC,		/* .data_vec, reference to memory area */
-	KDBUS_MSG_PAYLOAD_FD,		/* .data_fd, reference to a data file descriptor */
+	KDBUS_MSG_PAYLOAD_MEMFD,	/* file descriptor of a special data file */
 	KDBUS_MSG_FDS,			/* .data_fds of file descriptors */
 	KDBUS_MSG_BLOOM,		/* for broadcasts, carries bloom filter blob in .data */
 	KDBUS_MSG_DST_NAME,		/* destination's well-known name, in .str */
@@ -105,6 +105,11 @@ struct kdbus_vec {
 	__u64 size;
 };
 
+struct kdbus_memfd {
+	__u64 size;
+	int fd;
+};
+
 /**
  * struct  kdbus_item - chain of data blocks
  *
@@ -133,6 +138,7 @@ struct kdbus_item {
 		struct kdbus_timestamp timestamp;
 
 		/* specific fields */
+		int fd;
 		int fds[0];
 		struct kdbus_manager_msg_name_change name_change;
 		struct kdbus_manager_msg_id_change id_change;
@@ -413,5 +419,13 @@ enum kdbus_cmd {
 
 	/* kdbus ep node commands: require ep owner state */
 	KDBUS_CMD_EP_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_policy),
+
+	/* kdbus ep node commands: */
+	KDBUS_CMD_MEMFD_NEW =		_IOWR(KDBUS_IOC_MAGIC, 0x80, int *),
+
+	/* kdbus memfd commands: */
+	KDBUS_CMD_MEMFD_SIZE_GET =	_IOWR(KDBUS_IOC_MAGIC, 0x81, __u64 *),
+	KDBUS_CMD_MEMFD_SEAL_GET =	_IOWR(KDBUS_IOC_MAGIC, 0x82, int *),
+	KDBUS_CMD_MEMFD_SEAL_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x83, int),
 };
 #endif

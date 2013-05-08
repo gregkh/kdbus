@@ -33,6 +33,7 @@
 #include "connection.h"
 #include "buffer.h"
 #include "message.h"
+#include "memfd.h"
 #include "notify.h"
 #include "namespace.h"
 #include "endpoint.h"
@@ -698,6 +699,19 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 
 		break;
 
+	case KDBUS_CMD_MEMFD_NEW: {
+		int fd;
+		int __user *addr = buf;
+
+		ret = kdbus_memfd_new(&fd);
+		if (ret < 0)
+			break;
+
+		if (put_user(fd, addr))
+			ret = -EFAULT;
+		break;
+	}
+
 	default:
 		ret = -ENOTTY;
 
@@ -896,6 +910,19 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		break;
 	}
 
+	case KDBUS_CMD_MEMFD_NEW: {
+		int fd;
+		int __user *addr = buf;
+
+		ret = kdbus_memfd_new(&fd);
+		if (ret < 0)
+			break;
+
+		if (put_user(fd, addr))
+			ret = -EFAULT;
+		break;
+	}
+
 	default:
 		ret = -ENOTTY;
 		break;
@@ -949,8 +976,10 @@ const struct file_operations kdbus_device_ops = {
 	.owner =		THIS_MODULE,
 	.open =			kdbus_conn_open,
 	.release =		kdbus_conn_release,
-	.unlocked_ioctl =	kdbus_conn_ioctl,
-	.compat_ioctl =		kdbus_conn_ioctl,
 	.poll =			kdbus_conn_poll,
 	.llseek =		noop_llseek,
+	.unlocked_ioctl =	kdbus_conn_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl =		kdbus_conn_ioctl,
+#endif
 };

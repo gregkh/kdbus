@@ -84,10 +84,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
-	unsigned int num_items = 0;
-	unsigned int num_vecs = 0;
-	unsigned int fds_count = 0;
-	size_t vecs_size = 0;
+	unsigned int items_count = 0;
+	u64 last = KDBUS_MSG_NULL;
 	bool has_fds = false;
 	bool has_name = false;
 	bool has_bloom = false;
@@ -97,23 +95,46 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE)
 			return -EINVAL;
 
-		if (++num_items > KDBUS_MSG_MAX_ITEMS)
+		if (++items_count > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD_VEC:
-			if (item->size != KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec))
+			if (item->size != KDBUS_ITEM_HEADER_SIZE +
+					  sizeof(struct kdbus_vec))
 				return -EINVAL;
 
-			if (++num_vecs > KDBUS_MSG_MAX_PAYLOAD_VECS)
-				return -E2BIG;
-
-			vecs_size += item->vec.size;
-			if (vecs_size > KDBUS_MSG_MAX_PAYLOAD_SIZE)
+			kmsg->vecs_size += item->vec.size;
+			if (kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_SIZE)
 				return -EMSGSIZE;
+
+			/* Every time we see another type than VEC in the chain
+			 * of payload items, we need a new outgoing VEC. VECs
+			 * directly following another VEC will be merged into
+			 * one outgoing VEC. */
+			if (last != KDBUS_MSG_PAYLOAD_VEC)
+				kmsg->vecs_needed++;
+			else
+				last = KDBUS_MSG_PAYLOAD_VEC;
 			break;
 
-		case KDBUS_MSG_FDS:
+		case KDBUS_MSG_PAYLOAD_MEMFD:
+			if (item->size != KDBUS_ITEM_HEADER_SIZE +
+					  sizeof(struct kdbus_memfd))
+				return -EINVAL;
+
+			/* do not allow to broadcast file descriptors */
+			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
+				return -ENOTUNIQ;
+
+			kmsg->memfds_count++;
+
+			last = KDBUS_MSG_PAYLOAD_MEMFD;
+			break;
+
+		case KDBUS_MSG_FDS: {
+			unsigned int n;
+
 			/* do not allow multiple fd arrays */
 			if (has_fds)
 				return -EEXIST;
@@ -123,13 +144,14 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			fds_count = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
-			if (fds_count > KDBUS_MSG_MAX_FDS)
+			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
+			if (n > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
 			kmsg->fds = item->fds;
-			kmsg->fds_count = fds_count;
+			kmsg->fds_count = n;
 			break;
+		}
 
 		case KDBUS_MSG_BLOOM:
 			/* do not allow multiple bloom filters */
@@ -200,7 +222,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	if (has_name && has_bloom)
 		return -EBADMSG;
 
-	kmsg->vecs_size = vecs_size;
 	return 0;
 }
 

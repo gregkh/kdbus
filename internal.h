@@ -18,7 +18,6 @@
 #define KDBUS_MSG_MAX_SIZE		PAGE_SIZE	/* maximum size of message header and items */
 #define KDBUS_MSG_MAX_ITEMS		128		/* maximum number of message items */
 #define KDBUS_MSG_MAX_FDS		256		/* maximum number of passed file descriptors */
-#define KDBUS_MSG_MAX_PAYLOAD_VECS	64		/* maximum number of payload references */
 #define KDBUS_MSG_MAX_PAYLOAD_SIZE	SZ_128M		/* maximum message payload size */
 
 #define KDBUS_NAME_MAX_LEN		255		/* maximum length of well-known bus name */
