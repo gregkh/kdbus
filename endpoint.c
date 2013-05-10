@@ -28,23 +28,18 @@
 #include "namespace.h"
 
 /* endpoints are by default owned by the bus owner */
-static char *kdbus_devnode_ep(struct device *dev, umode_t *mode
-#ifdef DRIVER_CORE_DEVICE_TYPE_DEVNODE_UID
-		, kuid_t *uid, kgid_t *gid)
-#else
-		)
-#endif
+static char *kdbus_devnode_ep(struct device *dev, umode_t *mode,
+			      kuid_t *uid, kgid_t *gid)
 {
 	struct kdbus_ep *ep = dev_get_drvdata(dev);
 
 	if (mode)
 		*mode = ep->mode;
-#ifdef DRIVER_CORE_DEVICE_TYPE_DEVNODE_UID
 	if (uid)
 		*uid = ep->uid;
 	if (gid)
 		*gid = ep->gid;
-#endif
+
 	return NULL;
 }
 
