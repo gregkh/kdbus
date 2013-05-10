@@ -46,6 +46,7 @@ static int __init kdbus_init(void)
 	int ret;
 
 	ret = bus_register(&kdbus_subsys);
+	//ret = subsys_virtual_register(&kdbus_subsys, NULL);
 	if (ret < 0)
 		return ret;
 
