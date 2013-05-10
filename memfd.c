@@ -225,6 +225,15 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto exit;
 			}
 
+			/* deny a writable access to a sealed file */
+			if (mf->sealed) {
+				if (size == i_size_read(file_inode(mf->fp)))
+					ret = -EALREADY;
+				else
+					ret = -EPERM;
+				goto exit;
+			}
+
 			if (size != i_size_read(file_inode(mf->fp)))
 				ret = vfs_truncate(&mf->fp->f_path, size);
 			break;
@@ -247,7 +256,10 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			 * any other possibly writable references to the file.
 			 */
 			if (file_count(mf->fp) != 1) {
-				ret = -EBUSY;
+				if (mf->sealed == !!argp)
+					ret = -EALREADY;
+				else
+					ret = -EPERM;
 				goto exit;
 			}
 
