@@ -55,7 +55,7 @@ struct conn *connect_to_bus(const char *path)
 		fprintf(stderr, "--- error mmap (%m)\n");
 		return NULL;
 	}
-	h.v_type = KDBUS_HELLO_BUFFER;
+	h.v_type = KDBUS_HELLO_POOL;
 	h.v_size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	h.vec.address = (uint64_t)buf;
 	h.vec.size = 128 * 1024 * 1024;

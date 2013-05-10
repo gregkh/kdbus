@@ -804,7 +804,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			}
 
 			switch (item->type) {
-			case KDBUS_HELLO_BUFFER:
+			case KDBUS_HELLO_POOL:
 				/* enforce page alignment and page granularity */
 				if (!KDBUS_IS_ALIGNED_PAGE(item->vec.address) ||
 				    !KDBUS_IS_ALIGNED_PAGE(item->vec.size)) {
