@@ -216,6 +216,20 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
+		case KDBUS_CMD_MEMFD_SIZE_SET: {
+			int __user *addr = argp;
+			u64 size;
+
+			if (get_user(size, addr)) {
+				ret = -EFAULT;
+				goto exit;
+			}
+
+			if (size != i_size_read(file_inode(mf->fp)))
+				ret = vfs_truncate(&mf->fp->f_path, size);
+			break;
+		}
+
 		case KDBUS_CMD_MEMFD_SEAL_GET: {
 			int __user *addr = argp;
 
