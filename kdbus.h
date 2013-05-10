@@ -138,7 +138,6 @@ struct kdbus_item {
 		struct kdbus_timestamp timestamp;
 
 		/* specific fields */
-		int fd;
 		int fds[0];
 		struct kdbus_manager_msg_name_change name_change;
 		struct kdbus_manager_msg_id_change id_change;

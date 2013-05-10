@@ -201,11 +201,13 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 			goto exit;
 		}
 
-		queue->fds = it->fds;
-
 		ret = kdbus_conn_fds_ref(queue, kmsg->fds, kmsg->fds_count);
 		if (ret < 0)
 			goto exit;
+
+		/* remember the array to update at RECV */
+		queue->fds = buf + fds + KDBUS_ITEM_HEADER_SIZE;
+		queue->fds_count = kmsg->fds_count;
 	}
 
 	/* append message metadata/credential items */
