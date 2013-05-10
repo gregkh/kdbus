@@ -241,14 +241,6 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 
 		case KDBUS_CMD_MEMFD_SEAL_SET: {
-			int __user *addr = argp;
-			int sealed;
-
-			if (get_user(sealed, addr)) {
-				ret = -EFAULT;
-				goto exit;
-			}
-
 			/*
 			 * Make sure we have only one single user of the file
 			 * before we seal, we rely on the fact there is no
@@ -259,7 +251,7 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto exit;
 			}
 
-			mf->sealed = !!sealed;
+			mf->sealed = !!argp;
 			break;
 		}
 
