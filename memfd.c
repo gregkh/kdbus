@@ -20,6 +20,7 @@
 #include <linux/init.h>
 #include <linux/file.h>
 #include <linux/mman.h>
+#include <linux/aio.h>
 #include <linux/shmem_fs.h>
 #include <linux/anon_inodes.h>
 
