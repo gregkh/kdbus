@@ -154,7 +154,7 @@ kdbus_memfd_writev(struct kiocb *iocb, const struct iovec *iv,
 	if (ret < 0)
 		goto exit;
 
-	iocb->ki_filp->f_pos = mf->fp->f_pos;
+	mf->fp->f_pos = iocb->ki_pos;
 
 exit:
 	mutex_unlock(&mf->lock);
