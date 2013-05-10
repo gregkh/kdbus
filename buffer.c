@@ -32,7 +32,7 @@
  * into the buffer.
  *
  * The internally allocated memory needs to be freed by the receiver with
- * KDBUS_CMD_MSG_FREE.
+ * KDBUS_CMD_MSG_RELEASE.
  */
 struct kdbus_buffer {
 	void __user *buf;	/* receiver-supplied buffer */

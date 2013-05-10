@@ -902,7 +902,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		ret = kdbus_conn_recv_msg(conn, buf);
 		break;
 
-	case KDBUS_CMD_MSG_FREE: {
+	case KDBUS_CMD_MSG_RELEASE: {
 		/* cleanup the memory used in the receiver's buffer */
 		mutex_lock(&conn->lock);
 		kdbus_buffer_free(&conn->buffer, buf);

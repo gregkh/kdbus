@@ -406,7 +406,7 @@ enum kdbus_cmd {
 	/* kdbus ep node commands: require connected state */
 	KDBUS_CMD_MSG_SEND =		_IOWR(KDBUS_IOC_MAGIC, 0x40, struct kdbus_msg),
 	KDBUS_CMD_MSG_RECV =		_IOWR(KDBUS_IOC_MAGIC, 0x41, struct kdbus_msg *),
-	KDBUS_CMD_MSG_FREE =		_IOWR(KDBUS_IOC_MAGIC, 0x42, struct kdbus_msg),
+	KDBUS_CMD_MSG_RELEASE =		_IOWR(KDBUS_IOC_MAGIC, 0x42, struct kdbus_msg),
 
 	KDBUS_CMD_NAME_ACQUIRE =	_IOWR(KDBUS_IOC_MAGIC, 0x50, struct kdbus_cmd_name),
 	KDBUS_CMD_NAME_RELEASE =	_IOWR(KDBUS_IOC_MAGIC, 0x51, struct kdbus_cmd_name),

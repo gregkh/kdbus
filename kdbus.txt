@@ -325,7 +325,11 @@ ioctl API
    Send a message and pass buffers of data from userspace to the kernel.
 
   KDBUS_CMD_MSG_RECV
-   Receive a message and data from the kernel.
+   Receive a message from the kernel which is placed in the receiver-supplied
+   buffer.
+
+  KDBUS_CMD_MSG_RELEASE
+   Release the memory a message occupies and free the area in the buffer.
 
   KDBUS_CMD_MSG_PAYLOAD_UNREF
    Clean up a KDBUS_MSG_PAYLOAD_VEC memory range which we received with

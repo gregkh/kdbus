@@ -328,7 +328,7 @@ int msg_recv(struct conn *conn)
 
 	msg_dump(msg);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_FREE, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, msg);
 	if (ret < 0) {
 		fprintf(stderr, "error free message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
