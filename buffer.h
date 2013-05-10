@@ -43,10 +43,10 @@ struct kdbus_buffer_map {
 
 struct kdbus_msg __user *kdbus_buffer_alloc(struct kdbus_buffer *buf, size_t len);
 void kdbus_buffer_free(struct kdbus_buffer *buf, struct kdbus_msg __user *msg);
-void kdbus_buffer_map_close(struct kdbus_buffer *buf);
-int kdbus_buffer_map_open(struct kdbus_buffer *buf,
+void kdbus_buffer_map_close(struct kdbus_buffer_map *map);
+int kdbus_buffer_map_open(struct kdbus_buffer_map *map,
 			  struct task_struct *task,
 			  void __user *to, size_t len);
-int kdbus_buffer_map_write(struct kdbus_buffer *buf,
+int kdbus_buffer_map_write(struct kdbus_buffer_map *map,
 			   void __user *from, size_t len);
 #endif

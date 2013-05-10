@@ -22,24 +22,8 @@
 #include <linux/mm.h>
 #include <linux/highmem.h>
 
+#include "buffer.h"
 #include "message.h"
-
-/*
- * At KDBUS_CMD_MSG_SEND, messages are placed direcly into the buffer the
- * receiver has registered with KDBUS_HELLO_BUFFER.
- *
- * To receive a message, KDBUS_CMD_MSG_RECV is called, which returns a pointer
- * into the buffer.
- *
- * The internally allocated memory needs to be freed by the receiver with
- * KDBUS_CMD_MSG_RELEASE.
- */
-struct kdbus_buffer {
-	void __user *buf;	/* receiver-supplied buffer */
-	size_t size;		/* size of buffer  */
-	size_t pos;		/* current wrire position */
-	unsigned int users;
-};
 
 /* allocate a slot on the given size in the receiver's buffer */
 struct kdbus_msg __user *
@@ -71,25 +55,14 @@ void kdbus_buffer_free(struct kdbus_buffer *buf, struct kdbus_msg __user *msg)
 		buf->pos = 0;
 }
 
-/*
- * Temporarily map a range of the receiver's buffer to write chunks of data from
- * the sender into it.
- */
-struct kdbus_buffer_map {
-	struct page **pages;	/* array of pages representign the buffer */
-	unsigned int n;		/* number pf pages in the array */
-	unsigned long cur;	/* current page we write to */
-	unsigned long pos;	/* position in current page we write to*/
-};
-
 /* unpin the receiver's pages */
-void kdbus_buffer_map_close(struct kdbus_buffer_map *buf)
+void kdbus_buffer_map_close(struct kdbus_buffer_map *map)
 {
 	unsigned int i;
 
-	for (i = 0; i < buf->n; i++)
-		put_page(buf->pages[i]);
-	kfree(buf->pages);
+	for (i = 0; i < map->n; i++)
+		put_page(map->pages[i]);
+	kfree(map->pages);
 }
 
 /* pin the receiver's memory range/pages */

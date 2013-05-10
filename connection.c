@@ -100,7 +100,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	size_t fds = 0;
 	size_t meta = 0;
 	size_t vec_data;
-	struct kdbus_buffer buffer;
+	struct kdbus_buffer_map buffer_map;
 	int ret = 0;
 
 	if (!conn->active)
@@ -220,13 +220,13 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 	/* copy all payload data */
 	if (kmsg->vecs_size > 0) {
-		kdbus_buffer_map_open(&buffer, conn->task,
+		kdbus_buffer_map_open(&buffer_map, conn->task,
 				       buf + vec_data, kmsg->vecs_size);
 		KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
 			if (item->type != KDBUS_MSG_PAYLOAD_VEC)
 				continue;
 
-			ret = kdbus_buffer_map_write(&buffer,
+			ret = kdbus_buffer_map_write(&buffer_map,
 					(void *)(uintptr_t)item->vec.address,
 					item->vec.size);
 			if (ret < 0)
@@ -234,7 +234,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 			vec_data += item->vec.size;
 		}
-		kdbus_buffer_map_close(&buffer);
+		kdbus_buffer_map_close(&buffer_map);
 		if (ret < 0)
 			goto exit;
 	}
