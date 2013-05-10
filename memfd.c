@@ -18,6 +18,8 @@
 #include <linux/sched.h>
 #include <linux/mutex.h>
 #include <linux/init.h>
+#include <linux/aio.h>
+#include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/mman.h>
 #include <linux/shmem_fs.h>
