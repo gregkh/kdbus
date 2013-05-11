@@ -1,10 +1,10 @@
 External API:
 
 Internal:
-  - chunk get_user_pages() while writing to the internal buffer api
+  - chunk get_user_pages() while writing to the internal pool api
   - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate
     kernel memory anymore
-  - add real allocator to kdbus_conn_buffer_alloc()
+  - add real allocator to kdbus_conn_pool_alloc()
   - BUG: connections are currently listed in the endpoint not the bus, so
     broadcasting will never see the other endpoints on the same bus
   - BUG: the sender needs to ref the receiver when looking it up to protect

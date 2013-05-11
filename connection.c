@@ -31,7 +31,6 @@
 #include <uapi/linux/major.h>
 
 #include "connection.h"
-#include "buffer.h"
 #include "message.h"
 #include "memfd.h"
 #include "notify.h"
@@ -100,7 +99,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	size_t fds = 0;
 	size_t meta = 0;
 	size_t vec_data;
-	struct kdbus_buffer_map buffer_map;
+	struct kdbus_pool_map pool_map;
 	int ret = 0;
 
 	if (!conn->active)
@@ -146,14 +145,14 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	/* data starts after the message */
 	vec_data = KDBUS_ALIGN8(msg_size);
 
-	/* allocate the buffer from the receiver */
+	/* allocate the nneded space in the pool of the receiver */
 	mutex_lock(&conn->lock);
 	if (conn->msg_count > KDBUS_CONN_MAX_MSGS) {
 		ret = -EXFULL;
 		goto exit_unlock;
 	}
 
-	buf = kdbus_buffer_alloc(&conn->buffer, vec_data + kmsg->vecs_size);
+	buf = kdbus_pool_alloc(&conn->pool, vec_data + kmsg->vecs_size);
 	if (!buf) {
 		ret = -EXFULL;
 		goto exit_unlock;
@@ -220,13 +219,13 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 	/* copy all payload data */
 	if (kmsg->vecs_size > 0) {
-		kdbus_buffer_map_open(&buffer_map, conn->task,
+		kdbus_pool_map_open(&pool_map, conn->task,
 				       buf + vec_data, kmsg->vecs_size);
 		KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
 			if (item->type != KDBUS_MSG_PAYLOAD_VEC)
 				continue;
 
-			ret = kdbus_buffer_map_write(&buffer_map,
+			ret = kdbus_pool_map_write(&pool_map,
 					(void *)(uintptr_t)item->vec.address,
 					item->vec.size);
 			if (ret < 0)
@@ -234,7 +233,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 			vec_data += item->vec.size;
 		}
-		kdbus_buffer_map_close(&buffer_map);
+		kdbus_pool_map_close(&pool_map);
 		if (ret < 0)
 			goto exit;
 	}
@@ -320,7 +319,7 @@ kdbus_conn_recv_msg(struct kdbus_conn *conn, struct kdbus_msg __user **msg_ptr)
 		goto exit_unlock;
 	}
 
-	/* return the address of the next message in the buffer */
+	/* return the address of the next message in the pool */
 	queue = list_first_entry(&conn->msg_list,
 				 struct kdbus_conn_queue, entry);
 	if (put_user(queue->msg, msg_ptr)) {
@@ -392,7 +391,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			if (queue->expect_reply)
 				kdbus_notify_reply_timeout(conn->ep,
 					queue->src_id, queue->cookie);
-			kdbus_buffer_free(&conn->buffer, queue->msg);
+			kdbus_pool_free(&conn->pool, queue->msg);
 			list_del(&queue->entry);
 			kdbus_conn_queue_cleanup(queue);
 		} else if (queue->deadline_ns < deadline) {
@@ -588,7 +587,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			if (queue->src_id != conn->id && queue->expect_reply) {
 				list_add_tail(&queue->entry, &list);
 			} else {
-				kdbus_buffer_free(&conn->buffer, queue->msg);
+				kdbus_pool_free(&conn->pool, queue->msg);
 				kdbus_conn_queue_cleanup(queue);
 			}
 		}
@@ -598,7 +597,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			kdbus_notify_reply_dead(conn->ep, queue->src_id,
 						queue->cookie);
 			mutex_lock(&conn->lock);
-			kdbus_buffer_free(&conn->buffer, queue->msg);
+			kdbus_pool_free(&conn->pool, queue->msg);
 			mutex_unlock(&conn->lock);
 			kdbus_conn_queue_cleanup(queue);
 			list_del(&queue->entry);
@@ -812,8 +811,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 					break;
 				}
 
-				conn->buffer.buf = (void *)(uintptr_t)item->vec.address;
-				conn->buffer.size = item->vec.size;
+				conn->pool.buf = (void *)(uintptr_t)item->vec.address;
+				conn->pool.size = item->vec.size;
 				break;
 
 			default:
@@ -905,9 +904,9 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_MSG_RELEASE: {
-		/* cleanup the memory used in the receiver's buffer */
+		/* cleanup the memory used in the receiver's pool */
 		mutex_lock(&conn->lock);
-		kdbus_buffer_free(&conn->buffer, buf);
+		kdbus_pool_free(&conn->pool, buf);
 		mutex_unlock(&conn->lock);
 		break;
 	}

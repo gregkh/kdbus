@@ -1,7 +1,7 @@
 kdbus-y	:= \
 	bus.o \
 	connection.o \
-	buffer.o \
+	pool.o \
 	memfd.o \
 	endpoint.o \
 	main.o \

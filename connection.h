@@ -14,7 +14,7 @@
 #define __KDBUS_CONNECTION_H
 
 #include "internal.h"
-#include "buffer.h"
+#include "pool.h"
 
 /*
  * kdbus connection
@@ -76,7 +76,7 @@ struct kdbus_conn {
 	size_t allocated_size;
 
 	/* userspace-supplied buffer to fill with message data */
-	struct kdbus_buffer buffer;
+	struct kdbus_pool pool;
 };
 
 struct kdbus_conn_queue {

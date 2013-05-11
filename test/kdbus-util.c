@@ -502,8 +502,8 @@ int upload_policy(int fd)
 
 	cmd_policy = (struct kdbus_cmd_policy *) alloca(size);
 
-	policy = (struct kdbus_policy *) cmd_policy->buffer;
-	cmd_policy->size = offsetof(struct kdbus_cmd_policy, buffer);
+	policy = (struct kdbus_policy *) cmd_policy->data;
+	cmd_policy->size = offsetof(struct kdbus_cmd_policy, data);
 
 	policy = make_policy_name("foo.bar.baz");
 	append_policy(cmd_policy, policy, size);

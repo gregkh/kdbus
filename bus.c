@@ -200,7 +200,7 @@ ret:
 
 /**
  * kdbus_bus_make_user() - create a kdbus_cmd_bus_kmake from user-supplied data
- * @buf:	The user supplied buffer from the ioctl() call
+ * @buf:	The user supplied data from the ioctl() call
  * @kmage:	Reference to the location where to store the result.
  *
  * This function is part of the connection ioctl() interface and will parse

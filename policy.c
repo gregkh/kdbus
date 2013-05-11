@@ -374,8 +374,8 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 	struct kdbus_policy *pol;
 	struct kdbus_policy_db_entry *current_entry = NULL;
 
-	size -= offsetof(struct kdbus_cmd_policy, buffer);
-	pol = (struct kdbus_policy *) cmd->buffer;
+	size -= offsetof(struct kdbus_cmd_policy, data);
+	pol = (struct kdbus_policy *) cmd->data;
 
 	while (size > 0) {
 		switch (pol->type) {

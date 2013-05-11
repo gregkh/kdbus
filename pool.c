@@ -22,12 +22,12 @@
 #include <linux/mm.h>
 #include <linux/highmem.h>
 
-#include "buffer.h"
+#include "pool.h"
 #include "message.h"
 
-/* allocate a slot on the given size in the receiver's buffer */
+/* allocate a slot on the given size in the receiver's pool */
 struct kdbus_msg __user *
-kdbus_buffer_alloc(struct kdbus_buffer *buf, size_t len)
+kdbus_pool_alloc(struct kdbus_pool *buf, size_t len)
 {
 	size_t pos;
 
@@ -42,21 +42,21 @@ kdbus_buffer_alloc(struct kdbus_buffer *buf, size_t len)
 }
 
 /* free the allocated slot */
-void kdbus_buffer_free(struct kdbus_buffer *buf, struct kdbus_msg __user *msg)
+void kdbus_pool_free(struct kdbus_pool *buf, struct kdbus_msg __user *msg)
 {
 	if (!msg)
 		return;
 
 	BUG_ON(buf->users == 0);
 
-	/* FIXME: dumbest possible version of an allocator: just reset the buffer
+	/* FIXME: dumbest possible version of an allocator: just reset the pool
 	 * when it is empty; replace with rbtree/slice/list allocator */
 	if (--buf->users == 0)
 		buf->pos = 0;
 }
 
 /* unpin the receiver's pages */
-void kdbus_buffer_map_close(struct kdbus_buffer_map *map)
+void kdbus_pool_map_close(struct kdbus_pool_map *map)
 {
 	unsigned int i;
 
@@ -66,9 +66,9 @@ void kdbus_buffer_map_close(struct kdbus_buffer_map *map)
 }
 
 /* pin the receiver's memory range/pages */
-int kdbus_buffer_map_open(struct kdbus_buffer_map *map,
-			  struct task_struct *task,
-			  void __user *to, size_t len)
+int kdbus_pool_map_open(struct kdbus_pool_map *map,
+			struct task_struct *task,
+			void __user *to, size_t len)
 {
 	unsigned int n;
 	int have;
@@ -76,7 +76,7 @@ int kdbus_buffer_map_open(struct kdbus_buffer_map *map,
 	unsigned long addr;
 	struct mm_struct *mm;
 
-	memset(map, 0, sizeof(struct kdbus_buffer));
+	memset(map, 0, sizeof(struct kdbus_pool));
 
 	/* calculate the number of pages involved in the range */
 	addr = (unsigned long)to;
@@ -90,11 +90,11 @@ int kdbus_buffer_map_open(struct kdbus_buffer_map *map,
 	base = addr & PAGE_MASK;
 	map->pos = addr - base;
 
-	/* pin the receiver's buffer page(s); the task
+	/* pin the receiver's pool page(s); the task
 	 * is pinned as long as the connection is open */
 	mm = get_task_mm(task);
 	if (!mm) {
-		kdbus_buffer_map_close(map);
+		kdbus_pool_map_close(map);
 		return -ESHUTDOWN;
 	}
 	down_read(&mm->mmap_sem);
@@ -104,7 +104,7 @@ int kdbus_buffer_map_open(struct kdbus_buffer_map *map,
 	mmput(mm);
 
 	if (have < 0) {
-		kdbus_buffer_map_close(map);
+		kdbus_pool_map_close(map);
 		return have;
 	}
 
@@ -112,7 +112,7 @@ int kdbus_buffer_map_open(struct kdbus_buffer_map *map,
 
 	/* fewer pages than requested */
 	if (map->n < n) {
-		kdbus_buffer_map_close(map);
+		kdbus_pool_map_close(map);
 		return -EFAULT;
 	}
 
@@ -120,9 +120,9 @@ int kdbus_buffer_map_open(struct kdbus_buffer_map *map,
 }
 
 /* copy a memory range from the current user process page by
- * page into the pinned receiver's buffer */
-int kdbus_buffer_map_write(struct kdbus_buffer_map *map,
-			   void __user *from, size_t len)
+ * page into the pinned receiver's pool */
+int kdbus_pool_map_write(struct kdbus_pool_map *map,
+			 void __user *from, size_t len)
 {
 	int ret = 0;
 

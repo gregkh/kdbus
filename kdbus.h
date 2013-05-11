@@ -214,7 +214,7 @@ struct kdbus_policy {
 
 struct kdbus_cmd_policy {
 	__u64 size;
-	__u8 buffer[0];		/* a series of KDBUS_POLICY_NAME plus one or
+	__u8 data[0];		/* a series of KDBUS_POLICY_NAME plus one or
 				 * more KDBUS_POLICY_ACCESS each. */
 };
 
@@ -237,7 +237,7 @@ enum {
 /* Items to append to struct kdbus_cmd_hello */
 enum {
 	KDBUS_HELLO_NULL,
-	KDBUS_HELLO_POOL,	/* kdbus_vec, userspace supplied buffer to
+	KDBUS_HELLO_POOL,	/* kdbus_vec, userspace supplied pool to
 				 * place received messages */
 };
 

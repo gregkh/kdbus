@@ -266,7 +266,7 @@ Messages are always queued in the destination connection.
 Messages are received by the client with the ioctl KDBUS_CMD_MSG_RECV. The
 endpoint device node of the bus supports poll() to wake up the receiving
 process when new messages are queued up to be received. The receiver of the
-message has to suppply a buffer large enough to receive a complete message.
+message has to suppply a pool large enough to receive a complete message.
 
   +-------------------------------------------------------------------------+
   | Message                                                                 |
@@ -322,14 +322,14 @@ ioctl API
    the opened connection becomes an active peer on the bus.
 
   KDBUS_CMD_MSG_SEND
-   Send a message and pass buffers of data from userspace to the kernel.
+   Send a message and pass data from userspace to the kernel.
 
   KDBUS_CMD_MSG_RECV
    Receive a message from the kernel which is placed in the receiver-supplied
-   buffer.
+   pool.
 
   KDBUS_CMD_MSG_RELEASE
-   Release the memory a message occupies and free the area in the buffer.
+   Release the memory a message occupies and free the area in the pool.
 
   KDBUS_CMD_MSG_PAYLOAD_UNREF
    Clean up a KDBUS_MSG_PAYLOAD_VEC memory range which we received with
@@ -406,7 +406,7 @@ EEXIST
   times.
 
 EFAULT
-  The supplied memory could not be accessed, or the buffer is not properly
+  The supplied memory could not be accessed, or the data is not properly
   aligned.
 
 EINVAL
@@ -427,7 +427,8 @@ ENAMETOOLONG
   The requested name is larger than its maximum size.
 
 ENOBUFS
-  The requested data does not fit into the supplied buffer.
+  There is no space left for the submitted data to fit into the receiver's
+  pool.
 
 ENOMEM
   Out of memory.
