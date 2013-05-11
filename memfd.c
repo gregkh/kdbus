@@ -99,8 +99,7 @@ static int kdbus_memfd_release(struct inode *ignored, struct file *file)
 	return 0;
 }
 
-static loff_t
-kdbus_memfd_llseek(struct file *file, loff_t offset, int whence)
+static loff_t kdbus_memfd_llseek(struct file *file, loff_t offset, int whence)
 {
 	struct kdbus_memfile *mf = file->private_data;
 	loff_t ret;
@@ -110,6 +109,7 @@ kdbus_memfd_llseek(struct file *file, loff_t offset, int whence)
 	if (ret < 0)
 		goto exit;
 
+	/* update the anonymous file */
 	file->f_pos = mf->fp->f_pos;
 
 exit:
@@ -117,27 +117,28 @@ exit:
 	return ret;
 }
 
-static ssize_t kdbus_memfd_read(struct file *file, char __user *buf,
-				    size_t count, loff_t *pos)
+static ssize_t kdbus_memfd_readv(struct kiocb *iocb, const struct iovec *iov,
+				 unsigned long iov_count, loff_t pos)
 {
-	struct kdbus_memfile *mf = file->private_data;
+	struct kdbus_memfile *mf = iocb->ki_filp->private_data;
 	ssize_t ret;
 
 	mutex_lock(&mf->lock);
-	ret = mf->fp->f_op->read(mf->fp, buf, count, pos);
+	iocb->ki_filp = mf->fp;
+	ret = mf->fp->f_op->aio_read(iocb, iov, iov_count, pos);
 	if (ret < 0)
 		goto exit;
 
-	file->f_pos = mf->fp->f_pos;
+	/* update the shmem file */
+	mf->fp->f_pos = iocb->ki_pos;
 
 exit:
 	mutex_unlock(&mf->lock);
 	return ret;
 }
 
-static ssize_t
-kdbus_memfd_writev(struct kiocb *iocb, const struct iovec *iv,
-		   unsigned long count, loff_t pos)
+static ssize_t kdbus_memfd_writev(struct kiocb *iocb, const struct iovec *iov,
+				  unsigned long iov_count, loff_t pos)
 {
 	struct kdbus_memfile *mf = iocb->ki_filp->private_data;
 	ssize_t ret;
@@ -150,10 +151,12 @@ kdbus_memfd_writev(struct kiocb *iocb, const struct iovec *iv,
 		goto exit;
 	}
 
-	ret = mf->fp->f_op->aio_write(iocb, iv, count, pos);
+	iocb->ki_filp = mf->fp;
+	ret = mf->fp->f_op->aio_write(iocb, iov, iov_count, pos);
 	if (ret < 0)
 		goto exit;
 
+	/* update the shmem file */
 	mf->fp->f_pos = iocb->ki_pos;
 
 exit:
@@ -282,7 +285,7 @@ exit:
 static const struct file_operations kdbus_memfd_fops = {
 	.owner =		THIS_MODULE,
 	.release =		kdbus_memfd_release,
-	.read =			kdbus_memfd_read,
+	.aio_read =		kdbus_memfd_readv,
 	.aio_write =		kdbus_memfd_writev,
 	.llseek =		kdbus_memfd_llseek,
 	.mmap =			kdbus_memfd_mmap,
