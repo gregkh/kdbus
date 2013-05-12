@@ -28,6 +28,7 @@
 #include <linux/security.h>
 #include <linux/mm.h>
 #include <linux/highmem.h>
+#include <linux/syscalls.h>
 #include <uapi/linux/major.h>
 
 #include "connection.h"
@@ -57,6 +58,8 @@ static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
 
 	kfree(queue->fds_fp);
 	queue->fds_fp = NULL;
+
+	queue->fds_count = 0;
 }
 
 /* grab references of passed-in FDS for the queued message */
@@ -80,20 +83,66 @@ static int kdbus_conn_fds_ref(struct kdbus_conn_queue *queue,
 	return 0;
 }
 
-void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
+static void kdbus_conn_memfds_unref(struct kdbus_conn_queue *queue)
 {
-	kdbus_conn_fds_unref(queue);
-	kfree(queue);
+	unsigned int i;
+
+	if (!queue->memfds_fp)
+		return;
+
+	for (i = 0; i < queue->memfds_count; i++) {
+		if (!queue->memfds_fp[i])
+			break;
+
+		fput(queue->memfds_fp[i]);
+	}
+
+	kfree(queue->memfds_fp);
+	queue->memfds_fp = NULL;
+
+	kfree(queue->memfds);
+	queue->memfds = NULL;
+
+	queue->memfds_count = 0;
 }
 
-/* grab reference of passed-in PAYLOAD_FD for the queued message */
-static int kdbus_conn_memfd_ref(struct kdbus_conn_queue *queue,
-				const struct kdbus_kmsg *kmsg,
-				const struct kdbus_item *item,
-				struct kdbus_item __user **items)
+/* Validate the state of the incoming PAYLOAD_MEMFD, and grab a reference
+ * to put it into the receiver's queue. */
+static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
+				struct file **file)
 {
-	int ret = 0;
+	struct file *fp;
+	int ret;
 
+	fp = fget(item->memfd.fd);
+	if (!fp)
+		return -EBADF;
+
+	/* We only accept kdbus_memfd files as payload, other files need to
+	 * be passed with KDBUS_MSG_FDS. */
+	if (!is_kdbus_memfd(fp)) {
+		ret = -EBADF;
+		goto exit_unref;
+	}
+
+	/* We only accept a sealed memfd file whose content cannot be altered
+	 * by the sender or anybody else while it is shared or in-flight. */
+	if (!is_kdbus_memfd_sealed(fp)) {
+		ret = -EBADF;
+		goto exit_unref;
+	}
+
+	/* The specified size in the item cannot be larger than the file. */
+	if (item->memfd.size > kdbus_memfd_size(fp)) {
+		return -EBADF;
+		goto exit_unref;
+	}
+
+	*file = fp;
+	return 0;
+
+exit_unref:
+	fput(fp);
 	return ret;
 }
 
@@ -105,6 +154,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 {
 	struct kdbus_pool_map pool_map;
 	const struct kdbus_item *item;
+	unsigned int memfd = 0;
 	int ret;
 
 	if (kmsg->vecs_count > 0) {
@@ -113,6 +163,20 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 					  kmsg->vecs_size);
 		if (ret < 0)
 			return ret;
+	}
+
+	if (kmsg->memfds_count > 0) {
+		size_t size;
+
+		size = kmsg->memfds_count * sizeof(int);
+		queue->memfds = kmalloc(size, GFP_KERNEL);
+		if (!queue->memfds)
+			return -ENOMEM;
+
+		size = kmsg->memfds_count * sizeof(struct file *);
+		queue->memfds_fp = kzalloc(size, GFP_KERNEL);
+		if (!queue->memfds_fp)
+			return -ENOMEM;
 	}
 
 	KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
@@ -143,10 +207,35 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 			break;
 		}
 
-		case KDBUS_MSG_PAYLOAD_MEMFD:
-			ret = kdbus_conn_memfd_ref(queue, kmsg, item, &items);
+		case KDBUS_MSG_PAYLOAD_MEMFD: {
+			/* Add item, grab reference of passed-in PAYLOAD_FD,
+			 * remember the location of the fd number which will
+			 * be updated at RECV time */
+			size_t size = KDBUS_ITEM_HEADER_SIZE +
+				      sizeof(struct kdbus_memfd);
+			char tmp[size];
+			struct kdbus_item *it = (struct kdbus_item *)tmp;
+			struct file *fp;
+
+			it->type = KDBUS_MSG_PAYLOAD_MEMFD;
+			it->size = size;
+			it->memfd.size = item->memfd.size;
+			it->memfd.fd = -1;
+			if (copy_to_user(items, it, size))
+				return -EFAULT;
+
+			ret = kdbus_conn_memfd_ref(item, &fp);
 			if (ret < 0)
 				return ret;
+
+			queue->memfds[memfd] = &items->memfd.fd;
+			queue->memfds_fp[memfd] = fp;
+			memfd++;
+			items = KDBUS_ITEM_NEXT(items);
+			break;
+		}
+
+		default:
 			break;
 		}
 	}
@@ -155,6 +244,13 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 		kdbus_pool_map_close(&pool_map);
 
 	return 0;
+}
+
+void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
+{
+	kdbus_conn_memfds_unref(queue);
+	kdbus_conn_fds_unref(queue);
+	kfree(queue);
 }
 
 /* enqueue a message into the receiver's connection */
@@ -339,6 +435,7 @@ remove_unused:
 	for (i = 0; i < queue->fds_count; i++) {
 		if (fds[i] < 0)
 			break;
+
 		put_unused_fd(fds[i]);
 	}
 
@@ -346,10 +443,62 @@ remove_unused:
 	return ret;
 }
 
+static int kdbus_conn_memfds_install(struct kdbus_conn_queue *queue, int **memfds)
+{
+	size_t size;
+	int *fds;
+	unsigned int i;
+	int ret = 0;
+
+	size = queue->memfds_count * sizeof(int);
+	fds = kmalloc(size, GFP_KERNEL);
+	if (!fds)
+		return -ENOMEM;
+
+	/* allocate new file descriptors in the receiver's process */
+	for (i = 0; i < queue->memfds_count; i++) {
+		fds[i] = get_unused_fd();
+		if (fds[i] < 0) {
+			ret = fds[i];
+			goto remove_unused;
+		}
+	}
+
+	/* Update the file descriptor number in the items. We remembered
+	 * the locations of the values in the buffer. */
+	for (i = 0; i < queue->memfds_count; i++) {
+		if (put_user(fds[i], queue->memfds[i])) {
+			ret = -EFAULT;
+			goto remove_unused;
+		}
+	}
+
+	/* install files in the receiver's process */
+	for (i = 0; i < queue->memfds_count; i++)
+		fd_install(fds[i], get_file(queue->memfds_fp[i]));
+
+	*memfds = fds;
+	return 0;
+
+remove_unused:
+	for (i = 0; i < queue->memfds_count; i++) {
+		if (fds[i] < 0)
+			break;
+
+		put_unused_fd(fds[i]);
+	}
+
+	kfree(fds);
+	*memfds = NULL;
+	return ret;
+}
+
 static int
 kdbus_conn_recv_msg(struct kdbus_conn *conn, struct kdbus_msg __user **msg_ptr)
 {
 	struct kdbus_conn_queue *queue;
+	int *memfds = NULL;
+	unsigned int i;
 	int ret;
 
 	if (!KDBUS_IS_ALIGNED8((unsigned long)msg_ptr))
@@ -369,11 +518,22 @@ kdbus_conn_recv_msg(struct kdbus_conn *conn, struct kdbus_msg __user **msg_ptr)
 		goto exit_unlock;
 	}
 
-	if (queue->fds_count) {
-		ret = kdbus_conn_fds_install(queue);
+	/* Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
+	 * the list of file descriptors to be able to cleanup on error. */
+	if (queue->memfds_count) {
+		ret = kdbus_conn_memfds_install(queue, &memfds);
 		if (ret < 0)
 			goto exit_unlock;
 	}
+
+	/* install KDBUS_MSG_FDS file descriptors */
+	if (queue->fds_count) {
+		ret = kdbus_conn_fds_install(queue);
+		if (ret < 0)
+			goto exit_rewind;
+	}
+
+	kfree(memfds);
 
 	conn->msg_count--;
 	list_del(&queue->entry);
@@ -381,6 +541,11 @@ kdbus_conn_recv_msg(struct kdbus_conn *conn, struct kdbus_msg __user **msg_ptr)
 
 	kdbus_conn_queue_cleanup(queue);
 	return 0;
+
+exit_rewind:
+	for (i = 0; i < queue->memfds_count; i++)
+		sys_close(memfds[i]);
+	kfree(memfds);
 
 exit_unlock:
 	mutex_unlock(&conn->lock);

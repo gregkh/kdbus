@@ -2,6 +2,9 @@ External API:
   - _IOWR() vs. _IOR()/_IOW()?
   - struct kdbus_item cannot be included in structs, the unions are too
     large --> kind of annoying that things cannot be statically initialized
+  - return all larger data in the pool, not by expecting the caller to
+    provide a buffer large enough --> just fill out a kdbus_vec in the
+    caller's message, which points to the memory in the pool
 
 Internal:
   - chunk get_user_pages() while writing to the internal pool api

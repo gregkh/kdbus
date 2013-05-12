@@ -35,6 +35,35 @@ struct kdbus_memfile {
 	struct file *fp;
 };
 
+bool is_kdbus_memfd(const struct file *fp)
+{
+	return fp->f_op == &kdbus_memfd_fops;
+}
+
+bool is_kdbus_memfd_sealed(const struct file *fp)
+{
+	struct kdbus_memfile *mf = fp->private_data;
+	bool sealed;
+
+	mutex_lock(&mf->lock);
+	sealed = mf->sealed;
+	mutex_unlock(&mf->lock);
+
+	return sealed;
+}
+
+u64 kdbus_memfd_size(const struct file *fp)
+{
+	struct kdbus_memfile *mf = fp->private_data;
+	u64 size;
+
+	mutex_lock(&mf->lock);
+	size = i_size_read(file_inode(mf->fp));
+	mutex_unlock(&mf->lock);
+
+	return size;
+}
+
 /* create file and install a new file descriptor */
 int kdbus_memfd_new(int *fd)
 {

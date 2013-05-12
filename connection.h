@@ -85,7 +85,12 @@ struct kdbus_conn_queue {
 	/* pointer to message placed in the receiver's buffer */
 	struct __user kdbus_msg *msg;
 
-	/* passed file descriptors */
+	/* passed KDBUS_MSG_PAYLOAD_MEMFD */
+	int __user **memfds;
+	struct file **memfds_fp;
+	unsigned int memfds_count;
+
+	/* passed KDBUS_MSG_FDS */
 	int __user *fds;
 	struct file **fds_fp;
 	unsigned int fds_count;

@@ -103,6 +103,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 					  sizeof(struct kdbus_vec))
 				return -EINVAL;
 
+			if (item->vec.size == 0)
+				return -EINVAL;
+
 			kmsg->vecs_size += item->vec.size;
 			if (kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_SIZE)
 				return -EMSGSIZE;
@@ -118,6 +121,12 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			/* do not allow to broadcast file descriptors */
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
+
+			if (item->memfd.fd < 0)
+				return -EBADF;
+
+			if (item->memfd.size == 0)
+				return -EINVAL;
 
 			kmsg->memfds_count++;
 			break;

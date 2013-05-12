@@ -15,5 +15,8 @@
 
 #include "internal.h"
 
+bool is_kdbus_memfd(const struct file *fp);
+bool is_kdbus_memfd_sealed(const struct file *fp);
+u64 kdbus_memfd_size(const struct file *fp);
 int kdbus_memfd_new(int *fd);
 #endif
