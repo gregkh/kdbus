@@ -192,12 +192,9 @@ void msg_dump(struct kdbus_msg *msg)
 
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD_VEC:
-			printf("  +%s (%llu bytes) addr=%p size=%llu\n",
-			       enum_MSG(item->type), item->size, (void *)(uintptr_t)item->vec.address,
-			       (unsigned long long)item->vec.size);
-			printf("    '%s' ... '%s'\n",
-			       (char *)(uintptr_t)item->vec.address,
-			       (char *)(uintptr_t)item->vec.address + item->vec.size - 12);
+			printf("  +%s (%llu bytes) addr=%p size=%llu '%s'\n",
+			       enum_MSG(item->type), item->size, KDBUS_VEC_PTR(&item->vec),
+			       (unsigned long long)item->vec.size, (char *)KDBUS_VEC_PTR(&item->vec));
 			break;
 
 		case KDBUS_MSG_SRC_CREDS:

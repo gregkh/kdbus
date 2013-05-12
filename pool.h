@@ -45,8 +45,8 @@ struct kdbus_msg __user *kdbus_pool_alloc(struct kdbus_pool *buf, size_t len);
 void kdbus_pool_free(struct kdbus_pool *buf, struct kdbus_msg __user *msg);
 void kdbus_pool_map_close(struct kdbus_pool_map *map);
 int kdbus_pool_map_open(struct kdbus_pool_map *map,
-			  struct task_struct *task,
-			  void __user *to, size_t len);
+			struct task_struct *task,
+			void __user *to, size_t len);
 int kdbus_pool_map_write(struct kdbus_pool_map *map,
 			   void __user *from, size_t len);
 #endif

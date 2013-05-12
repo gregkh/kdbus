@@ -34,6 +34,8 @@
 
 #define KDBUS_CHAR_MAJOR		222		/* FIXME: move to uapi/linux/major.h */
 
+#define KDBUS_VEC_PTR(vec) ((void *)(uintptr_t)(vec)->address)
+
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 #define KDBUS_IS_ALIGNED_PAGE(s) (IS_ALIGNED(s, PAGE_SIZE))
@@ -41,7 +43,7 @@
 #define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 #define KDBUS_ITEM_NEXT(item) \
-	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))
+	(struct kdbus_item *)((u8 *)item + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head)						\
 	for (item = (head)->items;						\
 	     (u8 *)(item) < (u8 *)(head) + (head)->size;			\

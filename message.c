@@ -85,7 +85,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
 	unsigned int items_count = 0;
-	u64 last = KDBUS_MSG_NULL;
 	bool has_fds = false;
 	bool has_name = false;
 	bool has_bloom = false;
@@ -108,14 +107,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_SIZE)
 				return -EMSGSIZE;
 
-			/* Every time we see another type than VEC in the chain
-			 * of payload items, we need a new outgoing VEC. VECs
-			 * directly following another VEC will be merged into
-			 * one outgoing VEC. */
-			if (last != KDBUS_MSG_PAYLOAD_VEC)
-				kmsg->vecs_needed++;
-			else
-				last = KDBUS_MSG_PAYLOAD_VEC;
+			kmsg->vecs_count++;
 			break;
 
 		case KDBUS_MSG_PAYLOAD_MEMFD:
@@ -128,8 +120,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				return -ENOTUNIQ;
 
 			kmsg->memfds_count++;
-
-			last = KDBUS_MSG_PAYLOAD_MEMFD;
 			break;
 
 		case KDBUS_MSG_FDS: {

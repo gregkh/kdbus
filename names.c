@@ -449,6 +449,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		cmd_name->name_flags = e->flags;
 		cmd_name->id = e->conn->id;
 		strcpy(cmd_name->name, e->name);
+		//FIXME: alignment for next record? convert records to items maybe?
 		cmd_name = (struct kdbus_cmd_name *) ((u8 *) cmd_name + cmd_name->size);
 	}
 
@@ -489,6 +490,7 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 	item->size = sizeof(*item) + sizeof(conn->audit_ids);
 	item->type = KDBUS_NAME_INFO_ITEM_AUDIT;
 	memcpy(item->data, conn->audit_ids, sizeof(conn->audit_ids));
+	//FIXME: use KDBUS_ITEM_NEXT()?
 	item = (struct kdbus_item *) (u8 *) item + item->size;
 #endif
 
@@ -496,6 +498,7 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 	item->size = sizeof(*item) + conn->sec_label_len + 1;
 	item->type = KDBUS_NAME_INFO_ITEM_SECLABEL;
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
+	//FIXME: use KDBUS_ITEM_NEXT()?
 	item = (struct kdbus_item *) (u8 *) item + item->size;
 #endif
 

@@ -1,4 +1,7 @@
 External API:
+  - _IOWR() vs. _IOR()/_IOW()?
+  - struct kdbus_item cannot be included in structs, the unions are too
+    large --> kind of annoying that things cannot be statically initialized
 
 Internal:
   - chunk get_user_pages() while writing to the internal pool api
@@ -9,6 +12,8 @@ Internal:
     broadcasting will never see the other endpoints on the same bus
   - BUG: the sender needs to ref the receiver when looking it up to protect
     against the receiver going away while its ressources are accessed
+  - BUG: kdbus_name_fill_info_items() needs to align the next record,
+    convert to items?
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:

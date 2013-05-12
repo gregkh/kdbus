@@ -59,7 +59,7 @@ static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
 	queue->fds_fp = NULL;
 }
 
-/* grab references of passed-in FDS for in-flight messages */
+/* grab references of passed-in FDS for the queued message */
 static int kdbus_conn_fds_ref(struct kdbus_conn_queue *queue,
 			 const int *fds, unsigned int fds_count)
 {
@@ -86,20 +86,88 @@ void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 	kfree(queue);
 }
 
+/* grab reference of passed-in PAYLOAD_FD for the queued message */
+static int kdbus_conn_memfd_ref(struct kdbus_conn_queue *queue,
+				const struct kdbus_kmsg *kmsg,
+				const struct kdbus_item *item,
+				struct kdbus_item __user **items)
+{
+	int ret = 0;
+
+	return ret;
+}
+
+static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
+				  const struct kdbus_kmsg *kmsg,
+				  struct task_struct *task,
+				  struct kdbus_item __user *items,
+				  void __user *vec_data)
+{
+	struct kdbus_pool_map pool_map;
+	const struct kdbus_item *item;
+	int ret;
+
+	if (kmsg->vecs_count > 0) {
+		ret = kdbus_pool_map_open(&pool_map, task,
+					  vec_data,
+					  kmsg->vecs_size);
+		if (ret < 0)
+			return ret;
+	}
+
+	KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
+		switch (item->type) {
+		case KDBUS_MSG_PAYLOAD_VEC: {
+			/* Add item, and copy data from the sender into the
+			 * receiver's pool. */
+			size_t size = KDBUS_ITEM_HEADER_SIZE +
+				      sizeof(struct kdbus_vec);
+			char tmp[size];
+			struct kdbus_item *it = (struct kdbus_item *)tmp;
+
+			it->type = KDBUS_MSG_PAYLOAD_VEC;
+			it->size = size;
+			it->vec.address = (u64)vec_data;
+			it->vec.size = item->vec.size;
+			if (copy_to_user(items, it, size))
+				return -EFAULT;
+
+			ret = kdbus_pool_map_write(&pool_map,
+						   KDBUS_VEC_PTR(&item->vec),
+						   item->vec.size);
+			if (ret < 0)
+				return ret;
+
+			items = KDBUS_ITEM_NEXT(items);
+			vec_data += item->vec.size;
+			break;
+		}
+
+		case KDBUS_MSG_PAYLOAD_MEMFD:
+			ret = kdbus_conn_memfd_ref(queue, kmsg, item, &items);
+			if (ret < 0)
+				return ret;
+			break;
+		}
+	}
+
+	if (kmsg->vecs_count > 0)
+		kdbus_pool_map_close(&pool_map);
+
+	return 0;
+}
+
 /* enqueue a message into the receiver's connection */
-int kdbus_conn_queue_insert(struct kdbus_conn *conn,
-			    struct kdbus_kmsg *kmsg,
+int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 			    u64 deadline_ns)
 {
 	struct kdbus_conn_queue *queue;
-	const struct kdbus_item *item;
 	void __user *buf;
 	u64 msg_size;
-	size_t vec = 0;
+	size_t payloads = 0;
 	size_t fds = 0;
 	size_t meta = 0;
 	size_t vec_data;
-	struct kdbus_pool_map pool_map;
 	int ret = 0;
 
 	if (!conn->active)
@@ -124,10 +192,13 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	/* space for message header */
 	msg_size = KDBUS_MSG_HEADER_SIZE;
 
-	/* space for PAYLOAD_VEC item */
-	if (kmsg->vecs_size > 0) {
-		vec = msg_size;
-		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	/* space for PAYLOAD items */
+	if (kmsg->vecs_count + kmsg->memfds_count > 0) {
+		payloads = msg_size;
+		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec)) *
+			    kmsg->vecs_count;
+		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd)) *
+			    kmsg->memfds_count;
 	}
 
 	/* space for FDS item */
@@ -145,7 +216,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	/* data starts after the message */
 	vec_data = KDBUS_ALIGN8(msg_size);
 
-	/* allocate the nneded space in the pool of the receiver */
+	/* allocate the needed space in the pool of the receiver */
 	mutex_lock(&conn->lock);
 	if (conn->msg_count > KDBUS_CONN_MAX_MSGS) {
 		ret = -EXFULL;
@@ -171,20 +242,12 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	/* add a PAYLOAD_VEC item */
-	if (kmsg->vecs_size > 0) {
-		size_t size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
-		char tmp[size];
-		struct kdbus_item *it = (struct kdbus_item *)tmp;
-
-		it->type = KDBUS_MSG_PAYLOAD_VEC;
-		it->size = size;
-		it->vec.address = (u64)buf + vec_data;
-		it->vec.size = kmsg->vecs_size;
-		if (copy_to_user(buf + vec, it, size)) {
-			ret = -EFAULT;
+	/* add PAYLOAD items */
+	if (kmsg->vecs_count + kmsg->memfds_count > 0) {
+		ret = kdbus_conn_payload_add(queue, kmsg, conn->task,
+					     buf + payloads, buf + vec_data);
+		if (ret < 0)
 			goto exit;
-		}
 	}
 
 	/* add a FDS item; the array content will be updated at RECV time */
@@ -217,27 +280,6 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		}
 	}
 
-	/* copy all payload data */
-	if (kmsg->vecs_size > 0) {
-		kdbus_pool_map_open(&pool_map, conn->task,
-				       buf + vec_data, kmsg->vecs_size);
-		KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
-			if (item->type != KDBUS_MSG_PAYLOAD_VEC)
-				continue;
-
-			ret = kdbus_pool_map_write(&pool_map,
-					(void *)(uintptr_t)item->vec.address,
-					item->vec.size);
-			if (ret < 0)
-				break;
-
-			vec_data += item->vec.size;
-		}
-		kdbus_pool_map_close(&pool_map);
-		if (ret < 0)
-			goto exit;
-	}
-
 	/* remember the pointer to the message */
 	queue->msg = buf;
 
@@ -260,9 +302,9 @@ exit:
 
 static int kdbus_conn_fds_install(struct kdbus_conn_queue *queue)
 {
+	size_t size;
 	unsigned int i;
 	int *fds;
-	size_t size;
 	int ret = 0;
 
 	/* get array of file descriptors */
@@ -377,7 +419,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	struct kdbus_conn_queue *queue, *tmp;
 	u64 deadline = -1;
 	struct timespec ts;
-	uint64_t now;
+	u64 now;
 
 	ktime_get_ts(&ts);
 	now = timespec_to_ns(&ts);
@@ -811,7 +853,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 					break;
 				}
 
-				conn->pool.buf = (void *)(uintptr_t)item->vec.address;
+				conn->pool.buf = KDBUS_VEC_PTR(&item->vec);
 				conn->pool.size = item->vec.size;
 				break;
 

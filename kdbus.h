@@ -419,10 +419,8 @@ enum kdbus_cmd {
 	/* kdbus ep node commands: require ep owner state */
 	KDBUS_CMD_EP_POLICY_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_policy),
 
-	/* kdbus ep node commands: */
-	KDBUS_CMD_MEMFD_NEW =		_IOWR(KDBUS_IOC_MAGIC, 0x80, int *),
-
 	/* kdbus memfd commands: */
+	KDBUS_CMD_MEMFD_NEW =		_IOWR(KDBUS_IOC_MAGIC, 0x80, int *),
 	KDBUS_CMD_MEMFD_SIZE_GET =	_IOWR(KDBUS_IOC_MAGIC, 0x81, __u64 *),
 	KDBUS_CMD_MEMFD_SIZE_SET =	_IOWR(KDBUS_IOC_MAGIC, 0x82, __u64 *),
 	KDBUS_CMD_MEMFD_SEAL_GET =	_IOWR(KDBUS_IOC_MAGIC, 0x83, int *),

@@ -61,7 +61,6 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
 	bus_make.head.bloom_size = 8;
 
 	bus_make.cgroup_id = cgroup_systemd();

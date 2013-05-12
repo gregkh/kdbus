@@ -34,7 +34,7 @@ struct kdbus_kmsg {
 
 	/* size of PAYLOAD data */
 	size_t vecs_size;
-	unsigned int vecs_needed;
+	unsigned int vecs_count;
 	unsigned int memfds_count;
 
 	struct kdbus_msg msg;

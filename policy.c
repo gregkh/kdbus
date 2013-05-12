@@ -53,7 +53,7 @@ static void kdbus_policy_db_scan_timeout(struct kdbus_policy_db *db)
 	struct kdbus_policy_db_cache_entry *ce, *tmp;
 	struct timespec ts;
 	u64 deadline = -1;
-	uint64_t now;
+	u64 now;
 
 	ktime_get_ts(&ts);
 	now = timespec_to_ns(&ts);
