@@ -293,7 +293,7 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				if (mf->sealed == !!argp)
 					ret = -EALREADY;
 				else
-					ret = -EPERM;
+					ret = -ETXTBSY;
 				goto exit;
 			}
 

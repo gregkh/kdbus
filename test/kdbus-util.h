@@ -24,6 +24,7 @@
 	for (item = (head)->items;						\
 	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;		\
 	     item = KDBUS_ITEM_NEXT(item))
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 
 struct conn {
 	int fd;

@@ -21,6 +21,8 @@ Internal:
   - shmem accounting when passing memfds: the creator of the file content
     accounts against its budget, security_vm_enough_memory_mm())?
   - how to limit memfd memory?
+  - memfd's file pos is shared, which can be confusing, disallow read() for
+    sealed files?
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:

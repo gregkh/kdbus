@@ -464,6 +464,10 @@ EINVAL
 EISCON
   A control connection is already activated.
 
+EMEDIUMTYPE
+  A file descriptor which is not a kdbus memfd was refused to send
+  as KDBUS_MSG_PAYLOAD_MEMFD.
+
 EMFILE
   Too many file descriptors have been supplied with a message.
 
@@ -509,6 +513,10 @@ ESHUTDOWN
 
 ESRCH
   A requested well-known bus name is not found.
+
+ETXTBSY
+  A kdbus memfd cannot be sealed because it is shared with other processes
+  or still mmap()ed.
 
 EXFULL
   Buffer limites are reached, no more data is excepted.

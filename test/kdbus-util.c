@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
 #include <poll.h>
@@ -100,11 +101,30 @@ int msg_send(const struct conn *conn,
 	const char ref2[] = "0123456789_1";
 	struct kdbus_item *item;
 	uint64_t size;
+	int memfd;
 	int ret;
 
+	ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
+	if (ret < 0) {
+		fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
+		return EXIT_FAILURE;
+	}
+
+	if (write(memfd, "kdbus memfd 1234567", 19) != 19) {
+		fprintf(stderr, "writing to memfd failed: %m\n");
+		return EXIT_FAILURE;
+	}
+
+	ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, true);
+	if (ret < 0) {
+		fprintf(stderr, "memfd sealing failed: %m\n");
+		return EXIT_FAILURE;
+	}
+
 	size = sizeof(struct kdbus_msg);
-	size += KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
-	size += KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_ITEM_HEADER_SIZE + 64;
@@ -146,6 +166,12 @@ int msg_send(const struct conn *conn,
 	item->vec.size = sizeof(ref2);
 	item = KDBUS_ITEM_NEXT(item);
 
+	item->type = KDBUS_MSG_PAYLOAD_MEMFD;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
+	item->memfd.size = 16;
+	item->memfd.fd = memfd;
+	item = KDBUS_ITEM_NEXT(item);
+
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
 		item->type = KDBUS_MSG_BLOOM;
 		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
@@ -158,6 +184,7 @@ int msg_send(const struct conn *conn,
 		return EXIT_FAILURE;
 	}
 
+	close(memfd);
 	free(msg);
 
 	return 0;
@@ -196,6 +223,27 @@ void msg_dump(struct kdbus_msg *msg)
 			       enum_MSG(item->type), item->size, KDBUS_VEC_PTR(&item->vec),
 			       (unsigned long long)item->vec.size, (char *)KDBUS_VEC_PTR(&item->vec));
 			break;
+
+		case KDBUS_MSG_PAYLOAD_MEMFD: {
+			char *buf;
+			uint64_t size;
+
+			buf = mmap(NULL, item->memfd.size, PROT_READ, MAP_SHARED, item->memfd.fd, 0);
+			if (buf == MAP_FAILED) {
+				printf("mmap() fd=%i failed:%m", item->memfd.fd);
+				break;
+			}
+
+			if (ioctl(item->memfd.fd, KDBUS_CMD_MEMFD_SIZE_GET, &size) < 0) {
+				fprintf(stderr, "KDBUS_CMD_MEMFD_SIZE_GET failed: %m\n");
+				break;
+			}
+
+			printf("  +%s (%llu bytes) fd=%i size=%llu filesize=%llu '%s'\n",
+			       enum_MSG(item->type), item->size, item->memfd.fd,
+			       (unsigned long long)item->memfd.size, (unsigned long long)size, buf);
+			break;
+		}
 
 		case KDBUS_MSG_SRC_CREDS:
 			printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",

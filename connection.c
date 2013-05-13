@@ -121,14 +121,14 @@ static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
 	/* We only accept kdbus_memfd files as payload, other files need to
 	 * be passed with KDBUS_MSG_FDS. */
 	if (!is_kdbus_memfd(fp)) {
-		ret = -EBADF;
+		ret = -EMEDIUMTYPE;
 		goto exit_unref;
 	}
 
 	/* We only accept a sealed memfd file whose content cannot be altered
 	 * by the sender or anybody else while it is shared or in-flight. */
 	if (!is_kdbus_memfd_sealed(fp)) {
-		ret = -EBADF;
+		ret = -ETXTBSY;
 		goto exit_unref;
 	}
 
@@ -154,7 +154,6 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 {
 	struct kdbus_pool_map pool_map;
 	const struct kdbus_item *item;
-	unsigned int memfd = 0;
 	int ret;
 
 	if (kmsg->vecs_count > 0) {
@@ -228,9 +227,10 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 			if (ret < 0)
 				return ret;
 
-			queue->memfds[memfd] = &items->memfd.fd;
-			queue->memfds_fp[memfd] = fp;
-			memfd++;
+			queue->memfds[queue->memfds_count] = &items->memfd.fd;
+			queue->memfds_fp[queue->memfds_count] = fp;
+			queue->memfds_count++;
+
 			items = KDBUS_ITEM_NEXT(items);
 			break;
 		}
