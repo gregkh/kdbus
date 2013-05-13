@@ -854,11 +854,13 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 	struct kdbus_cmd_ns_kmake *ns_kmake = NULL;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
-	umode_t mode = 0;
+	umode_t mode = 0600;
 	int ret;
 
 	switch (cmd) {
-	case KDBUS_CMD_BUS_MAKE:
+	case KDBUS_CMD_BUS_MAKE: {
+		gid_t gid = 0;
+
 		ret = kdbus_bus_make_user(buf, &bus_kmake);
 		if (ret < 0)
 			break;
@@ -868,21 +870,23 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
+		if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD) {
 			mode = 0666;
-		else if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP)
+		} else if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP) {
 			mode = 0660;
+			gid = current_fsgid();
+		}
 
 		ret = kdbus_bus_new(conn->ns, bus_kmake, mode, current_fsuid(),
-				    current_fsgid(), &bus);
+				    gid, &bus);
 		if (ret < 0)
 			break;
 
 		/* turn the control fd into a new bus owner device */
 		conn->type = KDBUS_CONN_BUS_OWNER;
 		conn->bus_owner = bus;
-
 		break;
+	}
 
 	case KDBUS_CMD_NS_MAKE:
 		ret = kdbus_ns_kmake_user(buf, &ns_kmake);
@@ -894,8 +898,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 
 		if (ns_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
-		else if (ns_kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP)
-			mode = 0660;
 
 		ret = kdbus_ns_new(kdbus_ns_init, ns_kmake->name, mode, &ns);
 		if (ret < 0)
@@ -904,7 +906,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		/* turn the control fd into a new ns owner device */
 		conn->type = KDBUS_CONN_NS_OWNER;
 		conn->ns_owner = ns;
-
 		break;
 
 	case KDBUS_CMD_MEMFD_NEW: {
@@ -922,7 +923,6 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 
 	default:
 		ret = -ENOTTY;
-
 		break;
 	}
 
@@ -947,6 +947,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
 		umode_t mode = 0;
+		gid_t gid = 0;
 
 		ret = kdbus_ep_kmake_user(buf, &kmake);
 		if (ret < 0)
@@ -957,13 +958,15 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
+		if (kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD) {
 			mode = 0666;
-		else if (kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP)
+		} else if (kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP) {
 			mode = 0660;
+			gid = current_fsgid();
+		}
 
 		ret = kdbus_ep_new(conn->ep->bus, kmake->name, mode,
-			current_fsuid(), current_fsgid(),
+			current_fsuid(), gid,
 			kmake->make.flags & KDBUS_MAKE_POLICY_OPEN);
 
 		break;
