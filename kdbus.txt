@@ -1,16 +1,18 @@
 D-Bus is a system for low-latency, low-overhead, easy to use interprocess
 communication (IPC).
 
-The focus of this document is the low-level, native kernel D-Bus protocol
+The focus of this document is an overview of the low-level, native kernel D-Bus
 transport called kdbus. Kdbus in the kernel acts similar to a device driver,
-all communication between processes takes places over special device nodes.
+all communication between processes take place over special device nodes in
+/dev/kdbus/.
 
-For the general D-Bus protocol specification, the message payload formatting,
-please refer to:
+For the general D-Bus protocol specification, the payload format, the
+marshalling, the communication semantics, please refer to:
   http://dbus.freedesktop.org/doc/dbus-specification.html
 
-For a kdbus specific client library implementation please refer to:
+For a kdbus specific userspace library implementation please refer to:
   http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-bus.h
+  http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-memfd.h
 
 ===============================================================================
 Terminology
@@ -59,7 +61,7 @@ Terminology
     associated with that address.
 
 ===============================================================================
-Device node layout
+Device Node Layout
 ===============================================================================
   /sys/bus/kdbus
   `-- devices
@@ -159,7 +161,7 @@ Data Structures
   +-------------------------------------------------------------------------+
 
 ===============================================================================
-Creation of new namespaces and buses
+Creation of new Namespaces and Buses
 ===============================================================================
 The inital kdbus namespace is unconditionally created by the kernel module. A
 namespace contains a "control" device node which allows to create a new bus or
@@ -250,7 +252,7 @@ which owns that well-known name.
   +-------------------------------------------------------------------------+
 
 ===============================================================================
-Message format, content, exchange
+Message Format, Content, Exchange
 ===============================================================================
 Messages consist of fixed-size header followed directly be a list of
 variable-sized data records. The overall message size is specified in the
@@ -300,7 +302,7 @@ process when new messages are queued up to be received.
   +-------------------------------------------------------------------------+
 
 ===============================================================================
-passing of payload data
+Passing of Payload Data
 ===============================================================================
 When connectiong to the bus, receivers have to register a memory pool, large
 enough to carry all backlog of data enqueued for the connection. The pool is
@@ -326,7 +328,7 @@ The sealing of a kdbus_memfd can be removed again by the sender or the
 receiver, as soon as the kdbus_memfd is not shared anymore.
 
 ===============================================================================
-ioctl API
+Ioctl API
 ===============================================================================
   KDBUS_CMD_BUS_MAKE
     After opening the "control" device node, this commands creates a new bus
@@ -408,7 +410,7 @@ ioctl API
    other processes and which are currently not mapped can be sealed.
 
 ===============================================================================
-API error codes
+API Error Codes
 ===============================================================================
 E2BIG
   A message contains too many records or items.
