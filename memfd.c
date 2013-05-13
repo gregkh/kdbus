@@ -103,7 +103,7 @@ int kdbus_memfd_new(int *fd)
 		goto exit_fd;
 	}
 
-	fp->f_mode |= FMODE_LSEEK;
+	fp->f_mode |= FMODE_LSEEK|FMODE_PREAD|FMODE_PWRITE;
 	fp->f_mapping = shmemfp->f_mapping;
 	fd_install(f, fp);
 
