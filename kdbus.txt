@@ -255,8 +255,7 @@ Message format, content, exchange
 Messages consist of fixed-size header followed directly be a list of
 variable-sized data records. The overall message size is specified in the
 header of the message. The chain of data records can contain well-defined
-message metadata fields, raw data, references to data (mmap), or file
-descriptors.
+message metadata fields, raw data, references to data, or file descriptors.
 
 Messages are passed to the kernel with the ioctl KDBUS_CMD_MSG_SEND. Depending
 on the the destination address of the message, the kernel delivers the message
@@ -265,8 +264,7 @@ Messages are always queued in the destination connection.
 
 Messages are received by the client with the ioctl KDBUS_CMD_MSG_RECV. The
 endpoint device node of the bus supports poll() to wake up the receiving
-process when new messages are queued up to be received. The receiver of the
-message has to suppply a pool large enough to receive a complete message.
+process when new messages are queued up to be received.
 
   +-------------------------------------------------------------------------+
   | Message                                                                 |
@@ -281,7 +279,7 @@ message has to suppply a pool large enough to receive a complete message.
   | | Data Record                                                         | |
   | | size: overall record size (without padding)                         | |
   | | type: type of data                                                  | |
-  | | data: variable sized inlined data, or reference to data             | |
+  | | data: reference to data (address or file descriptor)                | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | padding bytes to the next 8 byte alignment                          | |
@@ -300,6 +298,32 @@ message has to suppply a pool large enough to receive a complete message.
   | | ...                                                                 | |
   | +---------------------------------------------------------------------+ |
   +-------------------------------------------------------------------------+
+
+===============================================================================
+passing of payload data
+===============================================================================
+When connectiong to the bus, receivers have to register a memory pool, large
+enough to carry all backlog of data enqueued for the connection. The pool is
+usually an MAP_ANONYMOUS area created upfront with mmap().
+
+KDBUS_MSG_PAYLOAD_VEC:
+Messages are directly copied by the sending process into the receiver's pool,
+that way two peers can exchange data by effectively doing a single-copy from
+one process to another, the kernel will not buffer the data anywhere else.
+
+KDBUS_MSG_PAYLOAD_MEMFD:
+Messages can reference kdbus_memfd special files which contain the data.
+Kdbus_memfd files have special semantics, which allow a to seal-down the
+content of the file before sending the file. Only sealed files are accepted
+for payload data, which enforces secure passing of data; the receiver can be
+sure that the sender and nobody else can alter the data after the message is
+sent.
+
+Apart from the sender filling in the content into the kdbus_memfd file, the
+data will be transported as zero-copy from one process to another.
+
+The sealing of a kdbus_memfd can be removed again by the sender or the
+receiver, as soon as the kdbus_memfd is not shared anymore.
 
 ===============================================================================
 ioctl API
@@ -331,10 +355,6 @@ ioctl API
   KDBUS_CMD_MSG_RELEASE
    Release the memory a message occupies and free the area in the pool.
 
-  KDBUS_CMD_MSG_PAYLOAD_UNREF
-   Clean up a KDBUS_MSG_PAYLOAD_VEC memory range which we received with
-   a message.
-
   KDBUS_CMD_NAME_ACQUIRE
    Request a well-know bus name to associate with the connection. Well-known
    names are used to address a peer on the bus.
@@ -362,6 +382,30 @@ ioctl API
   KDBUS_CMD_EP_POLICY_SET
    Set the polic of an endpoint. It is used to restrict the access for
    endpoints created with KDBUS_CMD_EP_MAKE.
+
+  KDBUS_CMD_MEMFD_NEW
+   Return a new file descriptor which provides an anonymous shared memory
+   file and which can be used to pass around larger chunks of data. The
+   returned file exposes only very limited operations, it can be mmap()ed,
+   seek()ed, read and written to; no other common file operations are
+   implemented and return errors.
+   The file can be sealed-down, if the current process is the one and single
+   owner. Secure sealing allows the receiver to trust the data which it
+   has received in the file, the sender cannot change its content after it
+   send.
+
+  KDBUS_CMD_MEMFD_SIZE_GET
+   Return the size of the underlying file, which changes with write().
+
+  KDBUS_CMD_MEMFD_SIZE_SET
+   Truncate the underlying file to the specified size.
+
+  KDBUS_CMD_MEMFD_SEAL_GET
+   Return the state of the file sealing.
+
+  KDBUS_CMD_MEMFD_SEAL_SET
+   Seal or break a seal of the file. Only files which are not shared with
+   other processes and which are currently not mapped can be sealed.
 
 ===============================================================================
 API error codes
