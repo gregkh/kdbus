@@ -388,14 +388,16 @@ Ioctl API
 
   KDBUS_CMD_MEMFD_NEW
    Return a new file descriptor which provides an anonymous shared memory
-   file and which can be used to pass around larger chunks of data. The
-   returned file exposes only very limited operations, it can be mmap()ed,
-   seek()ed, read and written to; no other common file operations are
-   implemented and return errors.
-   The file can be sealed-down, if the current process is the one and single
-   owner. Secure sealing allows the receiver to trust the data which it
-   has received in the file, the sender cannot change its content after it
-   send.
+   file and which can be used to pass around larger chunks of data. Kdbus
+   memfd files can be sealed, which allows the receiver to trust the data
+   it has received.
+
+   Kdbus memfd file expose only very limited operations, they can be
+   mmap()ed, seek()ed, (p)read(v)() and (p)write(v)(); most other common
+   file operations are not implemented. Special caution needs to be taken
+   with read(v)()/write(v)() on a shared file; the underlying file position
+   is always shared between all users of the file and race against each
+   other, pread(v)()/pwrite(v)() avoid these issues.
 
   KDBUS_CMD_MEMFD_SIZE_GET
    Return the size of the underlying file, which changes with write().
@@ -408,7 +410,9 @@ Ioctl API
 
   KDBUS_CMD_MEMFD_SEAL_SET
    Seal or break a seal of the file. Only files which are not shared with
-   other processes and which are currently not mapped can be sealed.
+   other processes and which are currently not mapped can be sealed. The
+   current process needs to be the one and single owner of the file, the
+   sealing cannot be changed als long as the file is shared
 
 ===============================================================================
 API Error Codes
