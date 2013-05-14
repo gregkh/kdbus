@@ -97,7 +97,7 @@ int msg_send(const struct conn *conn,
 		    uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
-	const char ref1[1024 * 1024] = "0123456789_0";
+	const char ref1[1024 * 1024 + 3] = "0123456789_0";
 	const char ref2[] = "0123456789_1";
 	struct kdbus_item *item;
 	uint64_t size;
@@ -122,6 +122,7 @@ int msg_send(const struct conn *conn,
 	}
 
 	size = sizeof(struct kdbus_msg);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
@@ -158,6 +159,13 @@ int msg_send(const struct conn *conn,
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref1;
 	item->vec.size = sizeof(ref1);
+	item = KDBUS_ITEM_NEXT(item);
+
+	/* data padding for ref1 */
+	item->type = KDBUS_MSG_PAYLOAD_VEC;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->vec.address = (uint64_t)NULL;
+	item->vec.size =  KDBUS_ALIGN8(sizeof(ref1)) - sizeof(ref1);
 	item = KDBUS_ITEM_NEXT(item);
 
 	item->type = KDBUS_MSG_PAYLOAD_VEC;
@@ -218,11 +226,17 @@ void msg_dump(struct kdbus_msg *msg)
 		}
 
 		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD_VEC:
+		case KDBUS_MSG_PAYLOAD_VEC: {
+			char *s = (char *)KDBUS_VEC_PTR(&item->vec);
+
+			if (!s)
+				s = "[padding bytes]";
+
 			printf("  +%s (%llu bytes) addr=%p size=%llu '%s'\n",
 			       enum_MSG(item->type), item->size, KDBUS_VEC_PTR(&item->vec),
-			       (unsigned long long)item->vec.size, (char *)KDBUS_VEC_PTR(&item->vec));
+			       (unsigned long long)item->vec.size, s);
 			break;
+		}
 
 		case KDBUS_MSG_PAYLOAD_MEMFD: {
 			char *buf;

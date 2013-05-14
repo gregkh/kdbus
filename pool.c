@@ -130,13 +130,20 @@ int kdbus_pool_map_write(struct kdbus_pool_map *map,
 		void *addr;
 		size_t bytes;
 
-		/* bytes copy to remaining space of current page */
+		/* bytes to copy to remaining space of current page */
 		bytes = min(PAGE_SIZE - map->pos, len);
 
 		/* map, fill, unmap current page */
 		addr = kmap(map->pages[map->cur]) + map->pos;
-		if (copy_from_user(addr, from, bytes))
-			ret = -EFAULT;
+
+		/* a NULL from address just adds padding bytes for alignement */
+		if (!from) {
+			memset(addr, 0, bytes);
+		} else {
+			if (copy_from_user(addr, from, bytes))
+				ret = -EFAULT;
+		}
+
 		kunmap(map->pages[map->cur]);
 		if (ret < 0)
 			break;

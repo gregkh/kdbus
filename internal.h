@@ -35,6 +35,7 @@
 #define KDBUS_CHAR_MAJOR		222		/* FIXME: move to uapi/linux/major.h */
 
 #define KDBUS_VEC_PTR(vec) ((void *)(uintptr_t)(vec)->address)
+#define KDBUS_VEC_ADDR(ptr) ((u64)(ptr))
 
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))

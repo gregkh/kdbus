@@ -90,7 +90,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	bool has_bloom = false;
 
 	KDBUS_ITEM_FOREACH_VALIDATE(item, msg) {
-		/* empty data records are invalid */
+		/* empty items are invalid */
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE)
 			return -EINVAL;
 
@@ -103,7 +103,12 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 					  sizeof(struct kdbus_vec))
 				return -EINVAL;
 
+			/* empty payload is invalid */
 			if (item->vec.size == 0)
+				return -EINVAL;
+
+			/* padding vecs must be smaller than the alignment */
+			if (!KDBUS_VEC_PTR(&item->vec) && item->vec.size > 7)
 				return -EINVAL;
 
 			kmsg->vecs_size += item->vec.size;
@@ -125,6 +130,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (item->memfd.fd < 0)
 				return -EBADF;
 
+			/* empty payload is invalid */
 			if (item->memfd.size == 0)
 				return -EINVAL;
 

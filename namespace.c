@@ -257,7 +257,7 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 	}
 
 	KDBUS_ITEM_FOREACH_VALIDATE(item, &km->make) {
-		/* empty data records are invalid */
+		/* empty items are invalid */
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			ret = -EINVAL;
 			goto exit;

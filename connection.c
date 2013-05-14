@@ -190,7 +190,12 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 
 			it->type = KDBUS_MSG_PAYLOAD_VEC;
 			it->size = size;
-			it->vec.address = (u64)vec_data;
+
+			/* A NULL address is a "padding vec" for alignement */
+			if (KDBUS_VEC_PTR(&item->vec))
+				it->vec.address = KDBUS_VEC_ADDR(vec_data);
+			else
+				it->vec.address = KDBUS_VEC_ADDR(NULL);
 			it->vec.size = item->vec.size;
 			if (copy_to_user(items, it, size))
 				return -EFAULT;
@@ -230,7 +235,6 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 			queue->memfds[queue->memfds_count] = &items->memfd.fd;
 			queue->memfds_fp[queue->memfds_count] = fp;
 			queue->memfds_count++;
-
 			items = KDBUS_ITEM_NEXT(items);
 			break;
 		}
@@ -1006,7 +1010,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		KDBUS_ITEM_FOREACH_VALIDATE(item, hello) {
-			/* empty data records are invalid */
+			/* empty items are invalid */
 			if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 				ret = -EINVAL;
 				break;
@@ -1014,6 +1018,12 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 			switch (item->type) {
 			case KDBUS_HELLO_POOL:
+				if (!KDBUS_VEC_PTR(&item->vec) ||
+				    item->vec.size == 0) {
+					ret = -EINVAL;
+					break;
+				}
+
 				/* enforce page alignment and page granularity */
 				if (!KDBUS_IS_ALIGNED_PAGE(item->vec.address) ||
 				    !KDBUS_IS_ALIGNED_PAGE(item->vec.size)) {

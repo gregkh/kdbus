@@ -232,7 +232,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	}
 
 	KDBUS_ITEM_FOREACH_VALIDATE(item, &km->make) {
-		/* empty data records are invalid */
+		/* empty items are invalid */
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			ret = -EINVAL;
 			goto exit;
