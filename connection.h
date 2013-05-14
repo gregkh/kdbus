@@ -79,30 +79,8 @@ struct kdbus_conn {
 	struct kdbus_pool pool;
 };
 
-struct kdbus_conn_queue {
-	struct list_head entry;
-
-	/* pointer to message placed in the receiver's buffer */
-	struct __user kdbus_msg *msg;
-
-	/* passed KDBUS_MSG_PAYLOAD_MEMFD */
-	int __user **memfds;
-	struct file **memfds_fp;
-	unsigned int memfds_count;
-
-	/* passed KDBUS_MSG_FDS */
-	int __user *fds;
-	struct file **fds_fp;
-	unsigned int fds_count;
-
-	/* timeout in the queue */
-	u64 deadline_ns;
-	u64 src_id;
-	u64 cookie;
-	bool expect_reply;
-};
-
 struct kdbus_kmsg;
+struct kdbus_conn_queue;
 
 void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn);
 

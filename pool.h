@@ -25,7 +25,7 @@
  */
 struct kdbus_pool {
 	void __user *buf;	/* receiver-supplied pool */
-	size_t size;		/* size of pool  */
+	size_t size;		/* size of pool */
 	size_t pos;		/* current write position */
 	unsigned int users;
 };
