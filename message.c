@@ -107,10 +107,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (item->vec.size == 0)
 				return -EINVAL;
 
-			/* padding vecs must be smaller than the alignment */
-			if (!KDBUS_VEC_PTR(&item->vec) && item->vec.size > 7)
-				return -EINVAL;
-
 			kmsg->vecs_size += item->vec.size;
 			if (kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_SIZE)
 				return -EMSGSIZE;
