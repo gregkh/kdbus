@@ -25,24 +25,6 @@
 #include "pool.h"
 #include "message.h"
 
-/* The pool has one or more slices, always spanning the entire size of the
- * pool.
- *
- * Every slice is an element in a list sorted by the buffer address, to
- * provide access to the next neighbor slice.
- *
- * Every slice is member in either the busy or the free tree. The free
- * tree is organized by slice size, the busy tree organized by buffer
- * address. */
-struct kdbus_slice {
-	void __user *buf;		/* address of slice */
-	size_t size;			/* size of slice */
-
-	struct list_head entry;
-	struct rb_node rb_node;
-	bool free;
-};
-
 static void __maybe_unused kdbus_pool_slices_dump(struct kdbus_pool *pool,
 						  const char *str)
 {
@@ -62,7 +44,7 @@ static struct kdbus_slice *kdbus_pool_slice_new(void *__user *buf, size_t size)
 {
 	struct kdbus_slice *slice;
 
-	slice = kmalloc(sizeof(struct kdbus_slice), GFP_KERNEL);
+	slice = kzalloc(sizeof(struct kdbus_slice), GFP_KERNEL);
 	if (!slice)
 		return NULL;
 
@@ -266,26 +248,28 @@ void kdbus_pool_cleanup(struct kdbus_pool *pool)
 }
 
 /* allocate a message of the given size in the receiver's pool */
-struct kdbus_msg __user *kdbus_pool_alloc(struct kdbus_pool *pool, size_t size)
+void __user *kdbus_pool_alloc(struct kdbus_pool *pool, size_t size,
+			     struct kdbus_slice **slice)
 {
-	struct kdbus_slice *slice;
+	struct kdbus_slice *s;
 
-	slice = kdbus_pool_alloc_slice(pool, size);
-	if (!slice)
+	s = kdbus_pool_alloc_slice(pool, size);
+	if (!s)
 		return NULL;
 
-	return slice->buf;
+	*slice = s;
+	return s->buf;
 }
 
 /* free the allocated message */
-int kdbus_pool_free(struct kdbus_pool *pool, struct kdbus_msg __user *msg)
+int kdbus_pool_free(struct kdbus_pool *pool, void __user *buf)
 {
 	struct kdbus_slice *slice;
 
-	if (!msg)
+	if (!buf)
 		return 0;
 
-	slice = kdbus_pool_find_slice(pool, msg);
+	slice = kdbus_pool_find_slice(pool, buf);
 	if (!slice)
 		return -ENXIO;
 
@@ -294,19 +278,26 @@ int kdbus_pool_free(struct kdbus_pool *pool, struct kdbus_msg __user *msg)
 }
 
 /* unpin the receiver's pages */
-void kdbus_pool_map_close(struct kdbus_pool_map *map)
+void kdbus_pool_slice_unmap(struct kdbus_slice *slice)
 {
 	unsigned int i;
 
-	for (i = 0; i < map->n; i++)
-		put_page(map->pages[i]);
-	kfree(map->pages);
+	if (!slice)
+		return;
+
+	vunmap(slice->vbuf);
+	slice->vbuf = NULL;
+
+	for (i = 0; i < slice->n; i++)
+		put_page(slice->pages[i]);
+	kfree(slice->pages);
+
+	slice->n = 0;
+	slice->pages = NULL;
 }
 
 /* pin the receiver's memory range/pages */
-int kdbus_pool_map_open(struct kdbus_pool_map *map,
-			struct task_struct *task,
-			void __user *to, size_t len)
+int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task)
 {
 	unsigned int n;
 	int have;
@@ -314,87 +305,74 @@ int kdbus_pool_map_open(struct kdbus_pool_map *map,
 	unsigned long addr;
 	struct mm_struct *mm;
 
-	memset(map, 0, sizeof(struct kdbus_pool_map));
-
 	/* calculate the number of pages involved in the range */
-	addr = (unsigned long)to;
-	n = (addr + len - 1) / PAGE_SIZE - addr / PAGE_SIZE + 1;
+	addr = (unsigned long)slice->buf;
+	n = (addr + slice->size - 1) / PAGE_SIZE - addr / PAGE_SIZE + 1;
 
-	map->pages = kmalloc(n * sizeof(struct page *), GFP_KERNEL);
-	if (!map->pages)
+	slice->pages = kmalloc(n * sizeof(struct page *), GFP_KERNEL);
+	if (!slice->pages)
 		return -ENOMEM;
 
 	/* start address in our first page */
 	base = addr & PAGE_MASK;
-	map->pos = addr - base;
+	slice->off = addr - base;
 
 	/* pin the receiver's pool page(s); the task
 	 * is pinned as long as the connection is open */
 	mm = get_task_mm(task);
 	if (!mm) {
-		kdbus_pool_map_close(map);
+		kdbus_pool_slice_unmap(slice);
 		return -ESHUTDOWN;
 	}
 	down_read(&mm->mmap_sem);
 	have = get_user_pages(task, mm, base, n,
-			      true, false, map->pages, NULL);
+			      true, false, slice->pages, NULL);
 	up_read(&mm->mmap_sem);
 	mmput(mm);
 
 	if (have < 0) {
-		kdbus_pool_map_close(map);
+		kdbus_pool_slice_unmap(slice);
 		return have;
 	}
 
-	map->n = have;
+	slice->n = have;
 
 	/* fewer pages than requested */
-	if (map->n < n) {
-		kdbus_pool_map_close(map);
+	if (slice->n < n) {
+		kdbus_pool_slice_unmap(slice);
+		return -EFAULT;
+	}
+
+	/* map the slice so we can access it */
+	slice->vbuf = vmap(slice->pages, slice->n, 0, PAGE_KERNEL);
+	if (!slice->vbuf) {
+		kdbus_pool_slice_unmap(slice);
 		return -EFAULT;
 	}
 
 	return 0;
 }
 
-/* copy a memory range from the current user process page by
- * page into the pinned receiver's pool */
-int kdbus_pool_map_write(struct kdbus_pool_map *map,
-			 void __user *from, size_t len)
+/* copy a memory range to a slice in the receiver's pool */
+int kdbus_pool_slice_copy(struct kdbus_slice *slice, size_t off,
+			  void *buf, size_t size)
 {
-	int ret = 0;
+	memcpy(slice->vbuf + slice->off + off, buf, size);
+	return 0;
+}
 
-	while (len > 0) {
-		void *addr;
-		size_t bytes;
-
-		/* bytes to copy to remaining space of current page */
-		bytes = min(PAGE_SIZE - map->pos, len);
-
-		/* map, fill, unmap current page */
-		addr = kmap(map->pages[map->cur]) + map->pos;
-
-		/* a NULL from address just adds padding bytes for alignement */
-		if (!from) {
-			memset(addr, 0, bytes);
-		} else {
-			if (copy_from_user(addr, from, bytes))
-				ret = -EFAULT;
-		}
-
-		kunmap(map->pages[map->cur]);
-		if (ret < 0)
-			break;
-
-		/* add to pos, or move to next page */
-		map->pos += bytes;
-		if (map->pos == PAGE_SIZE) {
-			map->pos = 0;
-			map->cur++;
-		}
-
-		len -= bytes;
+/* copy a user memory range to a slice in the receiver's pool */
+int kdbus_pool_slice_copy_user(struct kdbus_slice *slice, size_t off,
+			       void __user *buf, size_t size)
+{
+	/* a NULL from address just adds padding bytes for alignement */
+	if (!buf) {
+		memset(slice->vbuf + slice->off + off, 0, size);
+		return 0;
 	}
 
-	return ret;
+	if (copy_from_user(slice->vbuf + slice->off + off, buf, size))
+		return -EFAULT;
+
+	return 0;
 }

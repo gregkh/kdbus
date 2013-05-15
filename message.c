@@ -105,7 +105,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				return -EINVAL;
 
 			kmsg->vecs_size += item->vec.size;
-			if (kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_SIZE)
+			if (kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
 
 			kmsg->vecs_count++;

@@ -171,21 +171,11 @@ exit_unref:
 
 static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 				  const struct kdbus_kmsg *kmsg,
-				  struct task_struct *task,
-				  struct kdbus_item __user *items,
-				  void __user *vec_data)
+				  struct kdbus_slice *slice,
+				  size_t items, size_t vec_data)
 {
-	struct kdbus_pool_map pool_map;
 	const struct kdbus_item *item;
 	int ret;
-
-	if (kmsg->vecs_count > 0) {
-		ret = kdbus_pool_map_open(&pool_map, task,
-					  vec_data,
-					  kmsg->vecs_size);
-		if (ret < 0)
-			return ret;
-	}
 
 	if (kmsg->memfds_count > 0) {
 		size_t size;
@@ -204,61 +194,68 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 	KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD_VEC: {
-			/* Add item, and copy data from the sender into the
-			 * receiver's pool. */
 			size_t size = KDBUS_ITEM_HEADER_SIZE +
 				      sizeof(struct kdbus_vec);
 			char tmp[size];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
+			void *addr = NULL;
 
+			/* add item */
 			it->type = KDBUS_MSG_PAYLOAD_VEC;
 			it->size = size;
 
 			/* A NULL address is a "padding vec" for alignement */
 			if (KDBUS_VEC_PTR(&item->vec))
-				it->vec.address = KDBUS_VEC_ADDR(vec_data);
-			else
-				it->vec.address = KDBUS_VEC_ADDR(NULL);
+				addr = slice->buf + vec_data;
+			it->vec.address = KDBUS_VEC_ADDR(addr);
 			it->vec.size = item->vec.size;
-			if (copy_to_user(items, it, size))
-				return -EFAULT;
-
-			ret = kdbus_pool_map_write(&pool_map,
-						   KDBUS_VEC_PTR(&item->vec),
-						   item->vec.size);
+			ret = kdbus_pool_slice_copy(slice, items, it, size);
 			if (ret < 0)
 				return ret;
 
-			items = KDBUS_ITEM_NEXT(items);
+			/* copy kdbus_vec data directly from sender */
+			ret = kdbus_pool_slice_copy_user(slice, vec_data,
+							 KDBUS_VEC_PTR(&item->vec),
+							 item->vec.size);
+			if (ret < 0)
+				return ret;
+
+			items += KDBUS_ALIGN8((it)->size);
 			vec_data += item->vec.size;
 			break;
 		}
 
 		case KDBUS_MSG_PAYLOAD_MEMFD: {
-			/* Add item, grab reference of passed-in PAYLOAD_FD,
-			 * remember the location of the fd number which will
-			 * be updated at RECV time */
 			size_t size = KDBUS_ITEM_HEADER_SIZE +
 				      sizeof(struct kdbus_memfd);
 			char tmp[size];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
 			struct file *fp;
+			int __user *memfd;
 
+			/* add item */
 			it->type = KDBUS_MSG_PAYLOAD_MEMFD;
 			it->size = size;
 			it->memfd.size = item->memfd.size;
 			it->memfd.fd = -1;
-			if (copy_to_user(items, it, size))
-				return -EFAULT;
+			ret = kdbus_pool_slice_copy(slice, items, it, size);
+			if (ret < 0)
+				return ret;
 
+			/* grab reference of incoming file */
 			ret = kdbus_conn_memfd_ref(item, &fp);
 			if (ret < 0)
 				return ret;
 
-			queue->memfds[queue->memfds_count] = &items->memfd.fd;
+			/* remember the file and the location of the fd number
+			 * which will be updated at RECV time */
+			memfd = slice->buf + items +
+				offsetof(struct kdbus_item, memfd.fd);
+			queue->memfds[queue->memfds_count] = memfd;
 			queue->memfds_fp[queue->memfds_count] = fp;
 			queue->memfds_count++;
-			items = KDBUS_ITEM_NEXT(items);
+
+			items += KDBUS_ALIGN8((it)->size);
 			break;
 		}
 
@@ -266,9 +263,6 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 			break;
 		}
 	}
-
-	if (kmsg->vecs_count > 0)
-		kdbus_pool_map_close(&pool_map);
 
 	return 0;
 }
@@ -286,6 +280,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 {
 	struct kdbus_conn_queue *queue;
 	void __user *buf;
+	struct kdbus_slice *slice = NULL;
 	u64 msg_size;
 	size_t payloads = 0;
 	size_t fds = 0;
@@ -346,29 +341,32 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 		goto exit_unlock;
 	}
 
-	buf = kdbus_pool_alloc(&conn->pool, vec_data + kmsg->vecs_size);
+	buf = kdbus_pool_alloc(&conn->pool, vec_data + kmsg->vecs_size,
+			       &slice);
 	if (!buf) {
 		ret = -EXFULL;
 		goto exit_unlock;
 	}
 	mutex_unlock(&conn->lock);
 
-	/* update and copy the message header */
-	if (copy_to_user(buf, &kmsg->msg, KDBUS_MSG_HEADER_SIZE)) {
-		ret = -EFAULT;
+	ret = kdbus_pool_slice_map(slice, conn->task);
+	if (ret < 0)
 		goto exit;
-	}
+
+	/* update and copy the message header */
+	ret = kdbus_pool_slice_copy(slice, 0, &kmsg->msg, KDBUS_MSG_HEADER_SIZE);
+	if (ret < 0)
+		goto exit;
 
 	/* update the size */
-	if (kdbus_size_set_user(msg_size, buf, struct kdbus_msg)) {
-		ret = -EFAULT;
+	ret = kdbus_pool_slice_copy(slice, 0, &msg_size, sizeof(kmsg->msg.size));
+	if (ret < 0)
 		goto exit;
-	}
 
 	/* add PAYLOAD items */
 	if (kmsg->vecs_count + kmsg->memfds_count > 0) {
-		ret = kdbus_conn_payload_add(queue, kmsg, conn->task,
-					     buf + payloads, buf + vec_data);
+		ret = kdbus_conn_payload_add(queue, kmsg,
+					     slice, payloads, vec_data);
 		if (ret < 0)
 			goto exit;
 	}
@@ -381,27 +379,27 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 
 		it->type = KDBUS_MSG_FDS;
 		it->size = size + (kmsg->fds_count * sizeof(int));
-		if (copy_to_user(buf + fds, it, size)) {
-			ret = -EFAULT;
+		ret = kdbus_pool_slice_copy(slice, fds, it, size);
+		if (ret < 0)
 			goto exit;
-		}
 
 		ret = kdbus_conn_fds_ref(queue, kmsg->fds, kmsg->fds_count);
 		if (ret < 0)
 			goto exit;
 
 		/* remember the array to update at RECV */
-		queue->fds = buf + fds + KDBUS_ITEM_HEADER_SIZE;
+		queue->fds = buf + fds + offsetof(struct kdbus_item, fds);
 		queue->fds_count = kmsg->fds_count;
 	}
 
 	/* append message metadata/credential items */
 	if (kmsg->meta_size > 0) {
-		if (copy_to_user(buf + meta, kmsg->meta, kmsg->meta_size)) {
-			ret = -EFAULT;
+		ret = kdbus_pool_slice_copy(slice, meta, kmsg->meta, kmsg->meta_size);
+		if (ret < 0)
 			goto exit;
-		}
 	}
+
+	kdbus_pool_slice_unmap(slice);
 
 	/* remember the pointer to the message */
 	queue->msg = buf;
@@ -420,6 +418,7 @@ exit_unlock:
 	mutex_unlock(&conn->lock);
 exit:
 	kdbus_conn_queue_cleanup(queue);
+	kdbus_pool_slice_unmap(slice);
 	return ret;
 }
 

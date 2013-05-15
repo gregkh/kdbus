@@ -2,16 +2,12 @@ External API:
   - _IOWR() vs. _IOR()/_IOW()?
   - struct kdbus_item cannot be included in structs, the unions are too
     large --> kind of annoying that things cannot be statically initialized
-  - return all larger data in the pool, not by expecting the caller to
-    provide a buffer large enough --> just fill out a kdbus_vec in the
-    caller's message, which points to the memory in the pool
-      KDBUS_CMD_MSG_RELEASE --> KDBUS_CMD_POOL_RELEASE
 
 Internal:
-  - chunk get_user_pages() while writing to the internal pool api
+  - chunk get_user_pages(), replace vmap() for writing to the slice in
+    the receiver's pool
   - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate
     kernel memory anymore
-  - add real allocator to kdbus_conn_pool_alloc()
   - BUG: connections are currently listed in the endpoint not the bus, so
     broadcasting will never see the other endpoints on the same bus
   - BUG: the sender needs to ref the receiver when looking it up to protect
@@ -21,8 +17,7 @@ Internal:
   - shmem accounting when passing memfds: the creator of the file content
     accounts against its budget, security_vm_enough_memory_mm())?
   - how to limit memfd memory?
-  - memfd's file pos is shared, which can be confusing, disallow read() for
-    sealed files?
+  - memfd's file pos is shared, which can be confusing, document pread/pwrite
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:

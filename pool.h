@@ -36,25 +36,41 @@ struct kdbus_pool {
 	struct rb_root slices_free;	/* tree of free slices */
 };
 
-/* State of a mapped range on the pool while writing chunks of data
- * to it from the sender.  */
-struct kdbus_pool_map {
-	struct page **pages;	/* array of pages representign the pool */
-	unsigned int n;		/* number pf pages in the array */
-	unsigned long cur;	/* current page we write to */
-	unsigned long pos;	/* position in current page we write to */
+/* The pool has one or more slices, always spanning the entire size of the
+ * pool.
+ *
+ * Every slice is an element in a list sorted by the buffer address, to
+ * provide access to the next neighbor slice.
+ *
+ * Every slice is member in either the busy or the free tree. The free
+ * tree is organized by slice size, the busy tree organized by buffer
+ * address. */
+struct kdbus_slice {
+	void __user *buf;		/* address of slice */
+	size_t size;			/* size of slice */
+
+	struct list_head entry;
+	struct rb_node rb_node;
+	bool free;
+
+	struct page **pages;		/* pages mapped by the slice */
+	unsigned int n;			/* number of pages */
+	size_t off;			/* offset into the first page */
+	void *vbuf;			/* kernel address of mapped pages */
 };
 
 int kdbus_pool_init(struct kdbus_pool *pool, void __user *buf, size_t size);
 void kdbus_pool_cleanup(struct kdbus_pool *pool);
 
-struct kdbus_msg __user *kdbus_pool_alloc(struct kdbus_pool *pool, size_t size);
-int kdbus_pool_free(struct kdbus_pool *pool, struct kdbus_msg __user *msg);
+void __user *kdbus_pool_alloc(struct kdbus_pool *pool, size_t size,
+			      struct kdbus_slice **slice);
+int kdbus_pool_free(struct kdbus_pool *pool, void __user *buf);
 
-void kdbus_pool_map_close(struct kdbus_pool_map *map);
-int kdbus_pool_map_open(struct kdbus_pool_map *map,
-			struct task_struct *task,
-			void __user *to, size_t len);
-int kdbus_pool_map_write(struct kdbus_pool_map *map,
-			   void __user *from, size_t len);
+int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task);
+void kdbus_pool_slice_unmap(struct kdbus_slice *slice);
+
+int kdbus_pool_slice_copy(struct kdbus_slice *slice, size_t off,
+			  void *buf, size_t size);
+int kdbus_pool_slice_copy_user(struct kdbus_slice *slice, size_t off,
+			       void __user *buf, size_t size);
 #endif
