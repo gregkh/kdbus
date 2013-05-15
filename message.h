@@ -15,8 +15,6 @@
 #include "internal.h"
 
 struct kdbus_kmsg {
-	struct kref kref;
-
 	/* short-cuts for faster lookup */
 	u64 notification_type;
 	const char *dst_name;

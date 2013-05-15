@@ -57,8 +57,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
-	if (kmsg->meta)
-		kfree(kmsg->meta);
+	kfree(kmsg->meta);
 	kfree(kmsg);
 }
 
@@ -70,8 +69,6 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 	kmsg = kzalloc(size, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
-
-	kref_init(&kmsg->kref);
 
 	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	kmsg->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
@@ -263,7 +260,6 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	/* patch-in the source of this message */
 	kmsg->msg.src_id = conn->id;
 
-	kref_init(&kmsg->kref);
 	*m = kmsg;
 	return 0;
 

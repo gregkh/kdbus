@@ -17,42 +17,280 @@
 #include <linux/slab.h>
 #include <linux/sizes.h>
 #include <linux/sched.h>
-#include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/highmem.h>
+#include <linux/rbtree.h>
 
 #include "pool.h"
 #include "message.h"
 
-/* allocate a slot on the given size in the receiver's pool */
-struct kdbus_msg __user *
-kdbus_pool_alloc(struct kdbus_pool *buf, size_t len)
+/* The pool has one or more slices, always spanning the entire size of the
+ * pool.
+ *
+ * Every slice is an element in a list sorted by the buffer address, to
+ * provide access to the next neighbor slice.
+ *
+ * Every slice is member in either the busy or the free tree. The free
+ * tree is organized by slice size, the busy tree organized by buffer
+ * address. */
+struct kdbus_slice {
+	void __user *buf;		/* address of slice */
+	size_t size;			/* size of slice */
+
+	struct list_head entry;
+	struct rb_node rb_node;
+	bool free;
+};
+
+static void __maybe_unused kdbus_pool_slices_dump(struct kdbus_pool *pool,
+						  const char *str)
 {
-	size_t pos;
+	struct kdbus_slice *s;
 
-	pos = KDBUS_ALIGN8(buf->pos);
-	if (pos + len > buf->size)
-		return NULL;
+	printk("=== dump start '%s' pool=%p buf=%p size=%zu ===\n",
+	       str, pool, pool->buf, pool->size);
 
-	buf->pos = pos + len;
-	buf->users++;
+	list_for_each_entry(s, &pool->slices, entry)
+		printk("  slice=%p free=%u, buf=%p size=%zu\n",
+		       s, s->free, s->buf, s->size);
 
-	return buf->buf + pos;
+	printk("=== dump end '%s' pool=%p ===\n", str, pool);
 }
 
-/* free the allocated slot */
-void kdbus_pool_free(struct kdbus_pool *buf, struct kdbus_msg __user *msg)
+static struct kdbus_slice *kdbus_pool_slice_new(void *__user *buf, size_t size)
 {
+	struct kdbus_slice *slice;
+
+	slice = kmalloc(sizeof(struct kdbus_slice), GFP_KERNEL);
+	if (!slice)
+		return NULL;
+
+	slice->buf = buf;
+	slice->size = size;
+	slice->free = true;
+	return slice;
+}
+
+/* insert a slice into the free tree */
+static void kdbus_pool_add_free_slice(struct kdbus_pool *pool,
+				      struct kdbus_slice *slice)
+{
+	struct rb_node **n;
+	struct rb_node *pn = NULL;
+
+	n = &pool->slices_free.rb_node;
+	while (*n) {
+		struct kdbus_slice *pslice;
+
+		pn = *n;
+		pslice = rb_entry(pn, struct kdbus_slice, rb_node);
+		if (slice->size < pslice->size)
+			n = &pn->rb_left;
+		else
+			n = &pn->rb_right;
+	}
+
+	rb_link_node(&slice->rb_node, pn, n);
+	rb_insert_color(&slice->rb_node, &pool->slices_free);
+}
+
+/* insert a slice into the busy tree */
+static void kdbus_pool_add_busy_slice(struct kdbus_pool *pool,
+				      struct kdbus_slice *slice)
+{
+	struct rb_node **n;
+	struct rb_node *pn = NULL;
+
+	n = &pool->slices_busy.rb_node;
+	while (*n) {
+		struct kdbus_slice *pslice;
+
+		pn = *n;
+		pslice = rb_entry(pn, struct kdbus_slice, rb_node);
+		if (slice->buf < pslice->buf)
+			n = &pn->rb_left;
+		else if (slice->buf > pslice->buf)
+			n = &pn->rb_right;
+	}
+
+	rb_link_node(&slice->rb_node, pn, n);
+	rb_insert_color(&slice->rb_node, &pool->slices_busy);
+}
+
+/* find a slice by its pool buffer address */
+static struct kdbus_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
+						 void __user *buf)
+{
+	struct rb_node *n;
+
+	n = pool->slices_busy.rb_node;
+	while (n) {
+		struct kdbus_slice *s;
+
+		s = rb_entry(n, struct kdbus_slice, rb_node);
+		if (buf < s->buf)
+			n = n->rb_left;
+		else if (buf > s->buf)
+			n = n->rb_right;
+		else
+			return s;
+	}
+
+	return NULL;
+}
+
+/* allocate a slice from the pool with the given size */
+static struct kdbus_slice *kdbus_pool_alloc_slice(struct kdbus_pool *pool,
+						  size_t size)
+{
+	size_t slice_size = KDBUS_ALIGN8(size);
+	struct rb_node *n;
+	struct kdbus_slice *slice;
+	struct rb_node *found = NULL;
+
+	/* search a free slice with the closest matching size */
+	n = pool->slices_free.rb_node;
+	while (n) {
+		slice = rb_entry(n, struct kdbus_slice, rb_node);
+		if (slice_size < slice->size) {
+			found = n;
+			n = n->rb_left;
+		} else if (slice_size > slice->size)
+			n = n->rb_right;
+		else {
+			found = n;
+			break;
+		}
+	}
+
+	/* no slice with the minimum size found in the pool */
+	if (!found)
+		return NULL;
+
+	/* no exact match, use the closest one */
+	if (!n)
+		slice = rb_entry(found, struct kdbus_slice, rb_node);
+
+	/* move slice from free to the busy tree */
+	rb_erase(found, &pool->slices_free);
+	kdbus_pool_add_busy_slice(pool, slice);
+
+	/* we got a slice larger than what we asked for? */
+	if (slice->size > slice_size) {
+		struct kdbus_slice *s;
+
+		/* split-off the remainder of the size to its own slice */
+		s = kdbus_pool_slice_new(slice->buf + slice_size,
+					 slice->size - slice_size);
+		if (!s)
+			return NULL;
+
+		list_add(&s->entry, &slice->entry);
+		kdbus_pool_add_free_slice(pool, s);
+
+		/* adjust our size now that we split-off another slice */
+		slice->size = slice_size;
+	}
+
+	slice->free = false;
+	return slice;
+}
+
+/* return an allocated slice back to the pool */
+static void kdbus_pool_free_slice(struct kdbus_pool *pool,
+				  struct kdbus_slice *slice)
+{
+	rb_erase(&slice->rb_node, &pool->slices_busy);
+
+	/* merge with the next free slice */
+	if (!list_is_last(&slice->entry, &pool->slices)) {
+		struct kdbus_slice *s;
+
+		s = list_entry(slice->entry.next, struct kdbus_slice, entry);
+		if (s->free) {
+			rb_erase(&s->rb_node, &pool->slices_free);
+			list_del(&s->entry);
+			slice->size += s->size;
+			kfree(s);
+		}
+	}
+
+	/* merge with previous free slice */
+	if (pool->slices.next != &slice->entry) {
+		struct kdbus_slice *s;
+
+		s = list_entry(slice->entry.prev, struct kdbus_slice, entry);
+		if (s->free) {
+			rb_erase(&s->rb_node, &pool->slices_free);
+			list_del(&slice->entry);
+			s->size += slice->size;
+			kfree(slice);
+			slice = s;
+		}
+	}
+
+	slice->free = true;
+	kdbus_pool_add_free_slice(pool, slice);
+}
+
+int kdbus_pool_init(struct kdbus_pool *pool, void __user *buf, size_t size)
+{
+	struct kdbus_slice *s;
+
+	pool->buf = buf;
+	pool->size = size;
+	pool->slices_free = RB_ROOT;
+	pool->slices_busy = RB_ROOT;
+
+	/* allocate first slice spanning the entire pool */
+	s = kdbus_pool_slice_new(buf, size);
+	if (!s)
+		return -ENOMEM;
+
+	INIT_LIST_HEAD(&pool->slices);
+	list_add(&s->entry, &pool->slices);
+
+	kdbus_pool_add_free_slice(pool, s);
+	return 0;
+}
+
+void kdbus_pool_cleanup(struct kdbus_pool *pool)
+{
+	struct kdbus_slice *s, *tmp;
+
+	list_for_each_entry_safe(s, tmp, &pool->slices, entry) {
+		list_del(&s->entry);
+		kfree(s);
+	}
+}
+
+/* allocate a message of the given size in the receiver's pool */
+struct kdbus_msg __user *kdbus_pool_alloc(struct kdbus_pool *pool, size_t size)
+{
+	struct kdbus_slice *slice;
+
+	slice = kdbus_pool_alloc_slice(pool, size);
+	if (!slice)
+		return NULL;
+
+	return slice->buf;
+}
+
+/* free the allocated message */
+int kdbus_pool_free(struct kdbus_pool *pool, struct kdbus_msg __user *msg)
+{
+	struct kdbus_slice *slice;
+
 	if (!msg)
-		return;
+		return 0;
 
-	BUG_ON(buf->users == 0);
+	slice = kdbus_pool_find_slice(pool, msg);
+	if (!slice)
+		return -ENXIO;
 
-	/* FIXME: dumbest possible version of an allocator: just reset the pool
-	 * when it is empty; replace with rbtree/slice/list allocator */
-	if (--buf->users == 0)
-		buf->pos = 0;
+	kdbus_pool_free_slice(pool, slice);
+	return 0;
 }
 
 /* unpin the receiver's pages */
@@ -76,7 +314,7 @@ int kdbus_pool_map_open(struct kdbus_pool_map *map,
 	unsigned long addr;
 	struct mm_struct *mm;
 
-	memset(map, 0, sizeof(struct kdbus_pool));
+	memset(map, 0, sizeof(struct kdbus_pool_map));
 
 	/* calculate the number of pages involved in the range */
 	addr = (unsigned long)to;

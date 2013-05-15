@@ -851,6 +851,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		kdbus_match_db_unref(conn->match_db);
 		kdbus_ep_unref(conn->ep);
 
+		kdbus_pool_cleanup(&conn->pool);
 		put_task_struct(current);
 		break;
 	}
@@ -1054,8 +1055,9 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 					break;
 				}
 
-				conn->pool.buf = KDBUS_VEC_PTR(&item->vec);
-				conn->pool.size = item->vec.size;
+				ret = kdbus_pool_init(&conn->pool,
+						      KDBUS_VEC_PTR(&item->vec),
+						      item->vec.size);
 				break;
 
 			default:
