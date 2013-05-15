@@ -15,7 +15,7 @@
 //#include <uapi/kdbus/kdbus.h>
 #include "kdbus.h"
 
-#define KDBUS_MSG_MAX_SIZE		PAGE_SIZE	/* maximum size of message header and items */
+#define KDBUS_MSG_MAX_SIZE		SZ_8K		/* maximum size of message header and items */
 #define KDBUS_MSG_MAX_ITEMS		128		/* maximum number of message items */
 #define KDBUS_MSG_MAX_FDS		256		/* maximum number of passed file descriptors */
 #define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_2M		/* maximum message payload size */

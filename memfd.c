@@ -212,7 +212,7 @@ static int kdbus_memfd_mmap(struct file *file, struct vm_area_struct *vma)
 		/* extend the size of the shmem file to the size of the mapping */
 		size = (vma->vm_end - vma->vm_start) +
 		       (vma->vm_pgoff << PAGE_SHIFT);
-		if (size > i_size_read(file_inode(mf->fp))) {
+		if (size > PAGE_ALIGN(i_size_read(file_inode(mf->fp)))) {
 			ret = vfs_truncate(&mf->fp->f_path, size);
 			if (ret < 0)
 				return ret;
