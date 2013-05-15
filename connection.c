@@ -833,7 +833,6 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 			kdbus_pool_free(&conn->pool, queue->msg);
 			mutex_unlock(&conn->lock);
 			kdbus_conn_queue_cleanup(queue);
-			list_del(&queue->entry);
 		}
 
 		del_timer(&conn->timer);
