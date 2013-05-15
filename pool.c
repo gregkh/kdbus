@@ -30,14 +30,14 @@ static void __maybe_unused kdbus_pool_slices_dump(struct kdbus_pool *pool,
 {
 	struct kdbus_slice *s;
 
-	printk("=== dump start '%s' pool=%p buf=%p size=%zu ===\n",
-	       str, pool, pool->buf, pool->size);
+	pr_info("=== dump start '%s' pool=%p buf=%p size=%zu ===\n",
+		str, pool, pool->buf, pool->size);
 
 	list_for_each_entry(s, &pool->slices, entry)
-		printk("  slice=%p free=%u, buf=%p size=%zu\n",
-		       s, s->free, s->buf, s->size);
+		pr_info("  slice=%p free=%u, buf=%p size=%zu\n",
+		        s, s->free, s->buf, s->size);
 
-	printk("=== dump end '%s' pool=%p ===\n", str, pool);
+	pr_info("=== dump end '%s' pool=%p ===\n", str, pool);
 }
 
 static struct kdbus_slice *kdbus_pool_slice_new(void *__user *buf, size_t size)
