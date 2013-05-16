@@ -62,20 +62,20 @@
 #ifdef CONFIG_64BIT
 #define kdbus_size_get_user(_s, _b, _t) \
 ({ \
-	u64 __user *_sz = (void *)(_b) + offsetof(typeof(_t), size); \
+	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size); \
 	get_user(_s, _sz); \
 })
 #else
 	#ifdef __LITTLE_ENDIAN__
 	#define kdbus_size_get_user(_s, _b, _t) \
 	({ \
-		u32 __user *_sz = (void *)(_b) + offsetof(typeof(_t), size); \
+		u32 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size); \
 		get_user(_s, _sz); \
 	})
 	#else
 	#define kdbus_size_get_user(_s, _b, _t) \
 	({ \
-		u32 __user *_sz = (void *)(_b) + sizeof(u32) + offsetof(typeof(_t), size); \
+		u32 __user *_sz = (void __user *)(_b) + sizeof(u32) + offsetof(typeof(_t), size); \
 		get_user(_s, _sz); \
 	})
 	#endif
