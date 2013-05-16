@@ -180,7 +180,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 	if (kmsg->memfds_count > 0) {
 		size_t size;
 
-		size = kmsg->memfds_count * sizeof(int);
+		size = kmsg->memfds_count * sizeof(int *);
 		queue->memfds = kmalloc(size, GFP_KERNEL);
 		if (!queue->memfds)
 			return -ENOMEM;
@@ -419,6 +419,7 @@ exit_unlock:
 exit:
 	kdbus_conn_queue_cleanup(queue);
 	kdbus_pool_slice_unmap(slice);
+	kdbus_pool_free(&conn->pool, buf);
 	return ret;
 }
 

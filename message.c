@@ -40,7 +40,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 {
 	const struct kdbus_item *item;
 
-	pr_info("msg size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
+	pr_info("MSG size=%llu, flags=0x%llx, dst_id=%llu, src_id=%llu, "
 		"cookie=0x%llx payload_type=0x%llx, timeout=%llu\n",
 		(unsigned long long) msg->size,
 		(unsigned long long) msg->flags,
@@ -51,12 +51,23 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 		(unsigned long long) msg->timeout_ns);
 
 	KDBUS_ITEM_FOREACH(item, msg) {
-		pr_info("+ msg_item size=%llu, type=0x%llx\n",
-			item->size, item->type);
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD_VEC:
-			pr_info("   KDBUS_MSG_PAYLOAD_VEC address=%p size=%zu\n",
-				KDBUS_VEC_PTR(&item->vec), (size_t)item->vec.size);
+			pr_info("+KDBUS_MSG_PAYLOAD_VEC (%zu bytes) address=%p size=%zu\n",
+				(size_t)item->size, KDBUS_VEC_PTR(&item->vec),
+				(size_t)item->vec.size);
+			break;
+
+		case KDBUS_MSG_PAYLOAD_MEMFD:
+			pr_info("+KDBUS_MSG_PAYLOAD_MEMFD (%zu bytes) size=%zu fd=%i\n",
+				(size_t)item->size, (size_t)item->memfd.size,
+				item->memfd.fd);
+			break;
+
+		default:
+			pr_info("+UNKNOWN type=%llu (%zu bytes)\n",
+				(unsigned long long)item->type,
+				(size_t)item->size);
 			break;
 		}
 	}
