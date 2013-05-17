@@ -241,6 +241,9 @@ void kdbus_pool_cleanup(struct kdbus_pool *pool)
 {
 	struct kdbus_slice *s, *tmp;
 
+	if (!pool->buf)
+		return;
+
 	list_for_each_entry_safe(s, tmp, &pool->slices, entry) {
 		list_del(&s->entry);
 		kfree(s);
