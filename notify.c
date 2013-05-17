@@ -26,6 +26,7 @@
 #include "bus.h"
 #include "endpoint.h"
 #include "message.h"
+#include "connection.h"
 
 static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
 			      u64 cookie, u64 msg_type)
@@ -58,7 +59,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
 	item = kmsg->msg.items;
 	item->type = msg_type;
 
-	ret = kdbus_kmsg_send(ep, NULL, kmsg);
+	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_free(kmsg);
 
 	return ret;
@@ -104,7 +105,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	name_change->flags = flags;
 	strcpy(name_change->name, name);
 
-	ret = kdbus_kmsg_send(ep, NULL, kmsg);
+	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_free(kmsg);
 
 	return ret;
@@ -136,7 +137,7 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 	id_change->id = id;
 	id_change->flags = flags;
 
-	ret = kdbus_kmsg_send(ep, NULL, kmsg);
+	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_free(kmsg);
 
 	return ret;

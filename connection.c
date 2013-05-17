@@ -430,6 +430,158 @@ exit:
 	return ret;
 }
 
+static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
+{
+	struct kdbus_conn_queue *queue, *tmp;
+	u64 deadline = -1;
+	struct timespec ts;
+	u64 now;
+
+	ktime_get_ts(&ts);
+	now = timespec_to_ns(&ts);
+
+	mutex_lock(&conn->lock);
+	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
+		if (queue->deadline_ns == 0)
+			continue;
+
+		if (queue->deadline_ns <= now) {
+			if (queue->expect_reply)
+				kdbus_notify_reply_timeout(conn->ep,
+					queue->src_id, queue->cookie);
+			kdbus_pool_free(&conn->pool, queue->msg);
+			list_del(&queue->entry);
+			kdbus_conn_queue_cleanup(queue);
+		} else if (queue->deadline_ns < deadline) {
+			deadline = queue->deadline_ns;
+		}
+	}
+	mutex_unlock(&conn->lock);
+
+	if (deadline != -1) {
+		u64 usecs = deadline - now;
+		do_div(usecs, 1000ULL);
+		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
+	}
+}
+
+static void kdbus_conn_work(struct work_struct *work)
+{
+	struct kdbus_conn *conn = container_of(work, struct kdbus_conn, work);
+	kdbus_conn_scan_timeout(conn);
+}
+
+void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
+{
+	schedule_work(&conn->work);
+}
+
+static void kdbus_conn_timer_func(unsigned long val)
+{
+	struct kdbus_conn *conn = (struct kdbus_conn *) val;
+	kdbus_conn_timeout_schedule_scan(conn);
+}
+
+int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
+			 struct kdbus_conn *conn_src,
+			 struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_conn *conn_dst = NULL;
+	const struct kdbus_msg *msg;
+	u64 now_ns = 0;
+	u64 deadline_ns = 0;
+	int ret;
+
+	/* augment incoming message */
+	ret = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
+	if (ret < 0)
+		return ret;
+
+	if (conn_src) {
+		ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
+		if (ret < 0)
+			return ret;
+
+		ret = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
+		if (ret < 0)
+			return ret;
+	}
+
+	msg = &kmsg->msg;
+
+	/* broadcast message */
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
+		list_for_each_entry(conn_dst, &ep->connection_list,
+				    connection_entry) {
+			if (conn_dst->type != KDBUS_CONN_EP)
+				continue;
+
+			if (conn_dst->id == msg->src_id)
+				continue;
+
+			if (!conn_dst->active)
+				continue;
+
+			if (!conn_dst->monitor &&
+			    !kdbus_match_db_match_kmsg(conn_dst->match_db,
+						       conn_src, conn_dst,
+						       kmsg))
+				continue;
+
+			ret = kdbus_conn_queue_insert(conn_dst, kmsg, 0);
+			if (ret < 0)
+				break;
+		}
+
+		return ret;
+	}
+
+	/* direct message */
+	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME) {
+		const struct kdbus_name_entry *name_entry;
+
+		name_entry = kdbus_name_lookup(ep->bus->name_registry,
+					       kmsg->dst_name);
+		if (!name_entry)
+			return -ESRCH;
+		conn_dst = name_entry->conn;
+
+		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
+		    (conn_dst->flags & KDBUS_HELLO_STARTER))
+			return -EADDRNOTAVAIL;
+
+	} else {
+		conn_dst = kdbus_bus_find_conn_by_id(ep->bus, msg->dst_id);
+		if (!conn_dst)
+			return -ENXIO;
+	}
+
+	if (msg->timeout_ns)
+		deadline_ns = now_ns + msg->timeout_ns;
+
+	if (ep->policy_db && conn_src) {
+		ret = kdbus_policy_db_check_send_access(ep->policy_db,
+							conn_src,
+							conn_dst,
+							deadline_ns);
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn_src) {
+		ret = kdbus_kmsg_append_for_dst(kmsg, conn_src, conn_dst);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = kdbus_conn_queue_insert(conn_dst, kmsg, deadline_ns);
+
+	if (msg->timeout_ns)
+		kdbus_conn_timeout_schedule_scan(conn_dst);
+
+	return ret;
+}
+
 static int kdbus_conn_fds_install(struct kdbus_conn_queue *queue)
 {
 	size_t size;
@@ -611,58 +763,6 @@ void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size)
 	mutex_lock(&conn->accounting_lock);
 	conn->allocated_size -= size;
 	mutex_unlock(&conn->accounting_lock);
-}
-
-static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
-{
-	struct kdbus_conn_queue *queue, *tmp;
-	u64 deadline = -1;
-	struct timespec ts;
-	u64 now;
-
-	ktime_get_ts(&ts);
-	now = timespec_to_ns(&ts);
-
-	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
-		if (queue->deadline_ns == 0)
-			continue;
-
-		if (queue->deadline_ns <= now) {
-			if (queue->expect_reply)
-				kdbus_notify_reply_timeout(conn->ep,
-					queue->src_id, queue->cookie);
-			kdbus_pool_free(&conn->pool, queue->msg);
-			list_del(&queue->entry);
-			kdbus_conn_queue_cleanup(queue);
-		} else if (queue->deadline_ns < deadline) {
-			deadline = queue->deadline_ns;
-		}
-	}
-	mutex_unlock(&conn->lock);
-
-	if (deadline != -1) {
-		u64 usecs = deadline - now;
-		do_div(usecs, 1000ULL);
-		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
-	}
-}
-
-static void kdbus_conn_work(struct work_struct *work)
-{
-	struct kdbus_conn *conn = container_of(work, struct kdbus_conn, work);
-	kdbus_conn_scan_timeout(conn);
-}
-
-void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
-{
-	schedule_work(&conn->work);
-}
-
-static void kdbus_conn_timer_func(unsigned long val)
-{
-	struct kdbus_conn *conn = (struct kdbus_conn *) val;
-	kdbus_conn_timeout_schedule_scan(conn);
 }
 
 #ifdef CONFIG_AUDITSYSCALL
@@ -1144,7 +1244,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_kmsg_send(conn->ep, conn, kmsg);
+		ret = kdbus_conn_kmsg_send(conn->ep, conn, kmsg);
 		kdbus_kmsg_free(kmsg);
 		break;
 	}

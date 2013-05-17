@@ -82,12 +82,13 @@ struct kdbus_conn {
 struct kdbus_kmsg;
 struct kdbus_conn_queue;
 
-void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn);
-
-int kdbus_conn_accounting_add_size(struct kdbus_conn *conn, size_t size);
-void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size);
-
+int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
+			 struct kdbus_conn *conn_src,
+			 struct kdbus_kmsg *kmsg);
 void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue);
 int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 			    u64 deadline_ns);
+
+int kdbus_conn_accounting_add_size(struct kdbus_conn *conn, size_t size);
+void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size);
 #endif

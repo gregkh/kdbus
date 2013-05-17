@@ -43,6 +43,14 @@ struct kdbus_conn;
 
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, struct kdbus_msg __user *msg, struct kdbus_kmsg **m);
-int kdbus_kmsg_send(struct kdbus_ep *ep, struct kdbus_conn *conn_src, struct kdbus_kmsg *kmsg);
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg);
+
+int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns);
+int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
+				struct kdbus_conn *conn);
+int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
+			   const struct kdbus_creds *creds);
+int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
+			      struct kdbus_conn *conn_src,
+			      struct kdbus_conn *conn_dst);
 #endif

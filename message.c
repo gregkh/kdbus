@@ -331,7 +331,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 	return item;
 }
 
-static int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
+int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 {
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
@@ -383,8 +383,8 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 	return kdbus_kmsg_append_data(kmsg, type, str, strlen(str) + 1);
 }
 
-static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
-				       struct kdbus_conn *conn)
+int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
+				struct kdbus_conn *conn)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_item *item;
@@ -423,8 +423,8 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
-				  const struct kdbus_creds *creds)
+int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
+			   const struct kdbus_creds *creds)
 {
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
@@ -480,9 +480,9 @@ int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,
 	return ret;
 }
 
-static int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
-				    struct kdbus_conn *conn_src,
-				    struct kdbus_conn *conn_dst)
+int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
+			      struct kdbus_conn *conn_src,
+			      struct kdbus_conn *conn_dst)
 {
 	struct kdbus_bus *bus = conn_dst->ep->bus;
 	int ret = 0;
@@ -640,104 +640,4 @@ static int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 #endif
 
 	return 0;
-}
-
-int kdbus_kmsg_send(struct kdbus_ep *ep,
-		    struct kdbus_conn *conn_src,
-		    struct kdbus_kmsg *kmsg)
-{
-	struct kdbus_conn *conn_dst = NULL;
-	const struct kdbus_msg *msg;
-	u64 now_ns = 0;
-	u64 deadline_ns = 0;
-	int ret;
-
-	/* augment incoming message */
-	ret = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
-	if (ret < 0)
-		return ret;
-
-	if (conn_src) {
-		ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
-		if (ret < 0)
-			return ret;
-
-		ret = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
-		if (ret < 0)
-			return ret;
-	}
-
-	msg = &kmsg->msg;
-
-	/* broadcast message */
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		list_for_each_entry(conn_dst, &ep->connection_list,
-				    connection_entry) {
-			if (conn_dst->type != KDBUS_CONN_EP)
-				continue;
-
-			if (conn_dst->id == msg->src_id)
-				continue;
-
-			if (!conn_dst->active)
-				continue;
-
-			if (!conn_dst->monitor &&
-			    !kdbus_match_db_match_kmsg(conn_dst->match_db,
-						       conn_src, conn_dst,
-						       kmsg))
-				continue;
-
-			ret = kdbus_conn_queue_insert(conn_dst, kmsg, 0);
-			if (ret < 0)
-				break;
-		}
-
-		return ret;
-	}
-
-	/* direct message */
-	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME) {
-		const struct kdbus_name_entry *name_entry;
-
-		name_entry = kdbus_name_lookup(ep->bus->name_registry,
-					       kmsg->dst_name);
-		if (!name_entry)
-			return -ESRCH;
-		conn_dst = name_entry->conn;
-
-		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (conn_dst->flags & KDBUS_HELLO_STARTER))
-			return -EADDRNOTAVAIL;
-
-	} else {
-		conn_dst = kdbus_bus_find_conn_by_id(ep->bus, msg->dst_id);
-		if (!conn_dst)
-			return -ENXIO;
-	}
-
-	if (msg->timeout_ns)
-		deadline_ns = now_ns + msg->timeout_ns;
-
-	if (ep->policy_db && conn_src) {
-		ret = kdbus_policy_db_check_send_access(ep->policy_db,
-							conn_src,
-							conn_dst,
-							deadline_ns);
-		if (ret < 0)
-			return ret;
-	}
-
-	if (conn_src) {
-		ret = kdbus_kmsg_append_for_dst(kmsg, conn_src, conn_dst);
-		if (ret < 0)
-			return ret;
-	}
-
-	ret = kdbus_conn_queue_insert(conn_dst, kmsg, deadline_ns);
-
-	if (msg->timeout_ns)
-		kdbus_conn_timeout_schedule_scan(conn_dst);
-
-	return ret;
 }
