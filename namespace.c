@@ -240,7 +240,7 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 	const struct kdbus_item *item;
 	int ret;
 
-	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_ns_make))
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_ns_make))
 		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_cmd_ns_make) || size > KDBUS_MAKE_MAX_SIZE)

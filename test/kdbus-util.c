@@ -227,13 +227,13 @@ void msg_dump(struct kdbus_msg *msg)
 
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD_VEC: {
-			char *s = (char *)KDBUS_VEC_PTR(&item->vec);
+			char *s = (char *)KDBUS_PTR(item->vec.address);
 
 			if (!s)
 				s = "[padding bytes]";
 
 			printf("  +%s (%llu bytes) addr=%p size=%llu '%s'\n",
-			       enum_MSG(item->type), item->size, KDBUS_VEC_PTR(&item->vec),
+			       enum_MSG(item->type), item->size, KDBUS_PTR(item->vec.address),
 			       (unsigned long long)item->vec.size, s);
 			break;
 		}
@@ -376,15 +376,17 @@ void msg_dump(struct kdbus_msg *msg)
 
 int msg_recv(struct conn *conn)
 {
+	uint64_t addr;
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &addr);
 	if (ret < 0) {
 		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
+	msg = KDBUS_PTR(addr);
 	msg_dump(msg);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, msg);

@@ -205,9 +205,9 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 			it->size = size;
 
 			/* A NULL address is a "padding vec" for alignement */
-			if (KDBUS_VEC_PTR(&item->vec))
+			if (KDBUS_PTR(item->vec.address))
 				addr = slice->buf + vec_data;
-			it->vec.address = KDBUS_VEC_ADDR(addr);
+			it->vec.address = KDBUS_ADDR(addr);
 			it->vec.size = item->vec.size;
 			ret = kdbus_pool_slice_copy(slice, items, it, size);
 			if (ret < 0)
@@ -215,8 +215,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 
 			/* copy kdbus_vec data directly from sender */
 			ret = kdbus_pool_slice_copy_user(slice, vec_data,
-							 KDBUS_VEC_PTR(&item->vec),
-							 item->vec.size);
+				KDBUS_PTR(item->vec.address), item->vec.size);
 			if (ret < 0)
 				return ret;
 
@@ -680,14 +679,15 @@ remove_unused:
 }
 
 static int
-kdbus_conn_recv_msg(struct kdbus_conn *conn, struct kdbus_msg __user **msg_ptr)
+kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *address)
 {
 	struct kdbus_conn_queue *queue;
+	u64 addr;
 	int *memfds = NULL;
 	unsigned int i;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED8((unsigned long)msg_ptr))
+	if (!KDBUS_IS_ALIGNED8((unsigned long)address))
 		return -EFAULT;
 
 	mutex_lock(&conn->lock);
@@ -699,7 +699,8 @@ kdbus_conn_recv_msg(struct kdbus_conn *conn, struct kdbus_msg __user **msg_ptr)
 	/* return the address of the next message in the pool */
 	queue = list_first_entry(&conn->msg_list,
 				 struct kdbus_conn_queue, entry);
-	if (put_user(queue->msg, msg_ptr)) {
+	addr = KDBUS_ADDR(queue->msg);
+	if (copy_to_user(address, &addr, sizeof(__u64))) {
 		ret = -EFAULT;
 		goto exit_unlock;
 	}
@@ -1117,7 +1118,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (kdbus_size_get_user(size, buf, struct kdbus_cmd_hello)) {
+		if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_hello)) {
 			ret = -EFAULT;
 			break;
 		}
@@ -1147,8 +1148,10 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			}
 
 			switch (item->type) {
-			case KDBUS_HELLO_POOL:
-				if (!KDBUS_VEC_PTR(&item->vec) ||
+			case KDBUS_HELLO_POOL: {
+				void *p;
+
+				if (!KDBUS_PTR(item->vec.address) ||
 				    item->vec.size == 0) {
 					ret = -EINVAL;
 					break;
@@ -1161,10 +1164,11 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 					break;
 				}
 
+				p = KDBUS_PTR(item->vec.address);
 				ret = kdbus_pool_init(&conn->pool,
-						      KDBUS_VEC_PTR(&item->vec),
-						      item->vec.size);
+						      p, item->vec.size);
 				break;
+			}
 
 			default:
 				ret = -ENOTSUPP;

@@ -14,7 +14,7 @@
 #define STRINGIFY(x) _STRINGIFY(x)
 #define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
 
-#define KDBUS_VEC_PTR(vec) ((void *)(uintptr_t)(vec)->address)
+#define KDBUS_PTR(addr) ((void *)(uintptr_t)(addr))
 
 #define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_ALIGN8(l) (((l) + 7) & ~7)

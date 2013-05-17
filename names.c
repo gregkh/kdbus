@@ -269,7 +269,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	u32 hash;
 	int ret = 0;
 
-	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name))
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
 
 	if ((size < sizeof(struct kdbus_cmd_name)) ||
@@ -378,7 +378,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	u32 hash;
 	int ret = 0;
 
-	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name))
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
 
 	if ((size < sizeof(struct kdbus_cmd_name)) ||
@@ -419,7 +419,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	u64 user_size, size = 0, tmp;
 	int ret = 0;
 
-	if (kdbus_size_get_user(user_size, buf, struct kdbus_cmd_names))
+	if (kdbus_size_get_user(&user_size, buf, struct kdbus_cmd_names))
 		return -EFAULT;
 
 	mutex_lock(&reg->entries_lock);
@@ -519,7 +519,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	int ret = 0;
 	char *name = NULL;
 
-	if (kdbus_size_get_user(size, buf, struct kdbus_cmd_name_info))
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name_info))
 		return -EFAULT;
 
 	if ((size < sizeof(struct kdbus_cmd_name_info)) ||

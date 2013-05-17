@@ -241,9 +241,8 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 		case KDBUS_CMD_MEMFD_SIZE_GET: {
 			u64 size = i_size_read(file_inode(mf->fp));
-			u64 __user *addr = argp;
 
-			if (put_user(size, addr)) {
+			if (copy_to_user(argp, &size, sizeof(__u64))) {
 				ret = -EFAULT;
 				goto exit;
 			}
@@ -251,10 +250,9 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 
 		case KDBUS_CMD_MEMFD_SIZE_SET: {
-			int __user *addr = argp;
 			u64 size;
 
-			if (get_user(size, addr)) {
+			if (copy_from_user(&size, argp, sizeof(__u64))) {
 				ret = -EFAULT;
 				goto exit;
 			}

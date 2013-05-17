@@ -54,7 +54,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD_VEC:
 			pr_info("+KDBUS_MSG_PAYLOAD_VEC (%zu bytes) address=%p size=%zu\n",
-				(size_t)item->size, KDBUS_VEC_PTR(&item->vec),
+				(size_t)item->size, KDBUS_PTR(item->vec.address),
 				(size_t)item->vec.size);
 			break;
 
@@ -252,7 +252,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	if (!KDBUS_IS_ALIGNED8((unsigned long)msg))
 		return -EFAULT;
 
-	if (kdbus_size_get_user(size, msg, struct kdbus_msg))
+	if (kdbus_size_get_user(&size, msg, struct kdbus_msg))
 		return -EFAULT;
 
 	if (size < sizeof(struct kdbus_msg) || size > KDBUS_MSG_MAX_SIZE)
