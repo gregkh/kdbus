@@ -39,7 +39,6 @@
 
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
-#define KDBUS_IS_ALIGNED_PAGE(s) (IS_ALIGNED(s, PAGE_SIZE))
 
 #define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)

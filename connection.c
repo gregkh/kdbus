@@ -1155,8 +1155,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 				}
 
 				/* enforce page alignment and page granularity */
-				if (!KDBUS_IS_ALIGNED_PAGE(item->vec.address) ||
-				    !KDBUS_IS_ALIGNED_PAGE(item->vec.size)) {
+				if (!IS_ALIGNED(item->vec.address, PAGE_SIZE) ||
+				    !IS_ALIGNED(item->vec.size, PAGE_SIZE)) {
 					ret = -EFAULT;
 					break;
 				}
