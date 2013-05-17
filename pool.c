@@ -288,15 +288,15 @@ void kdbus_pool_slice_unmap(struct kdbus_slice *slice)
 	if (!slice)
 		return;
 
-	vunmap(slice->vbuf);
-	slice->vbuf = NULL;
+	vunmap(slice->pg_buf);
+	slice->pg_buf = NULL;
 
-	for (i = 0; i < slice->n; i++)
-		put_page(slice->pages[i]);
-	kfree(slice->pages);
+	for (i = 0; i < slice->pg_n; i++)
+		put_page(slice->pg[i]);
+	kfree(slice->pg);
 
-	slice->n = 0;
-	slice->pages = NULL;
+	slice->pg_n = 0;
+	slice->pg = NULL;
 }
 
 /* pin the receiver's memory range/pages */
@@ -312,13 +312,13 @@ int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task)
 	addr = (unsigned long)slice->buf;
 	n = (addr + slice->size - 1) / PAGE_SIZE - addr / PAGE_SIZE + 1;
 
-	slice->pages = kmalloc(n * sizeof(struct page *), GFP_KERNEL);
-	if (!slice->pages)
+	slice->pg = kmalloc(n * sizeof(struct page *), GFP_KERNEL);
+	if (!slice->pg)
 		return -ENOMEM;
 
 	/* start address in our first page */
 	base = addr & PAGE_MASK;
-	slice->off = addr - base;
+	slice->pg_off = addr - base;
 
 	/* pin the receiver's pool page(s); the task
 	 * is pinned as long as the connection is open */
@@ -329,7 +329,7 @@ int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task)
 	}
 	down_read(&mm->mmap_sem);
 	have = get_user_pages(task, mm, base, n,
-			      true, false, slice->pages, NULL);
+			      true, false, slice->pg, NULL);
 	up_read(&mm->mmap_sem);
 	mmput(mm);
 
@@ -338,17 +338,17 @@ int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task)
 		return have;
 	}
 
-	slice->n = have;
+	slice->pg_n = have;
 
 	/* fewer pages than requested */
-	if (slice->n < n) {
+	if (slice->pg_n < n) {
 		kdbus_pool_slice_unmap(slice);
 		return -EFAULT;
 	}
 
 	/* map the slice so we can access it */
-	slice->vbuf = vmap(slice->pages, slice->n, 0, PAGE_KERNEL);
-	if (!slice->vbuf) {
+	slice->pg_buf = vmap(slice->pg, slice->pg_n, 0, PAGE_KERNEL);
+	if (!slice->pg_buf) {
 		kdbus_pool_slice_unmap(slice);
 		return -EFAULT;
 	}
@@ -360,7 +360,7 @@ int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task)
 int kdbus_pool_slice_copy(struct kdbus_slice *slice, size_t off,
 			  void *buf, size_t size)
 {
-	memcpy(slice->vbuf + slice->off + off, buf, size);
+	memcpy(slice->pg_buf + slice->pg_off + off, buf, size);
 	return 0;
 }
 
@@ -370,11 +370,11 @@ int kdbus_pool_slice_copy_user(struct kdbus_slice *slice, size_t off,
 {
 	/* a NULL from address just adds padding bytes for alignement */
 	if (!buf) {
-		memset(slice->vbuf + slice->off + off, 0, size);
+		memset(slice->pg_buf + slice->pg_off + off, 0, size);
 		return 0;
 	}
 
-	if (copy_from_user(slice->vbuf + slice->off + off, buf, size))
+	if (copy_from_user(slice->pg_buf + slice->pg_off + off, buf, size))
 		return -EFAULT;
 
 	return 0;

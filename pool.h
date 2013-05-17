@@ -53,10 +53,10 @@ struct kdbus_slice {
 	struct rb_node rb_node;
 	bool free;
 
-	struct page **pages;		/* pages mapped by the slice */
-	unsigned int n;			/* number of pages */
-	size_t off;			/* offset into the first page */
-	void *vbuf;			/* kernel address of mapped pages */
+	struct page **pg;		/* pages mapped by the slice */
+	unsigned int pg_n;		/* number of pages */
+	size_t pg_off;			/* offset into the first page */
+	void *pg_buf;			/* kernel address of mapped pages */
 };
 
 int kdbus_pool_init(struct kdbus_pool *pool, void __user *buf, size_t size);
