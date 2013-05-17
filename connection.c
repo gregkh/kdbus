@@ -286,6 +286,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 	size_t fds = 0;
 	size_t meta = 0;
 	size_t vec_data;
+	size_t size;
 	int ret = 0;
 
 	if (!conn->active)
@@ -337,14 +338,20 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 	/* allocate the needed space in the pool of the receiver */
 	mutex_lock(&conn->lock);
 	if (conn->msg_count > KDBUS_CONN_MAX_MSGS) {
+		ret = -ENOBUFS;
+		goto exit_unlock;
+	}
+
+	/* do not give out more than half of the remaining space */
+	size = vec_data + kmsg->vecs_size;
+	if (size > (conn->pool.size - conn->pool.busy) / 2) {
 		ret = -EXFULL;
 		goto exit_unlock;
 	}
 
-	buf = kdbus_pool_alloc(&conn->pool, vec_data + kmsg->vecs_size,
-			       &slice);
+	buf = kdbus_pool_alloc(&conn->pool, size, &slice);
 	if (!buf) {
-		ret = -EXFULL;
+		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
 	mutex_unlock(&conn->lock);

@@ -51,7 +51,7 @@ struct conn *connect_to_bus(const char *path)
 		return NULL;
 	}
 
-	buf = mmap(NULL, 128 * 1024 * 1024, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+	buf = mmap(NULL, 16 * 1024 * 1024, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 	if (buf == MAP_FAILED) {
 		fprintf(stderr, "--- error mmap (%m)\n");
 		return NULL;
@@ -59,7 +59,7 @@ struct conn *connect_to_bus(const char *path)
 	h.v_type = KDBUS_HELLO_POOL;
 	h.v_size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	h.vec.address = (uint64_t)buf;
-	h.vec.size = 128 * 1024 * 1024;
+	h.vec.size = 16 * 1024 * 1024;
 
 	h.hello.conn_flags = KDBUS_HELLO_ACCEPT_FD |
 			     KDBUS_HELLO_ATTACH_COMM |

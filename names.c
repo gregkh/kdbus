@@ -484,7 +484,7 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 
 	*size = size_req;
 	if (size_avail < size_req)
-		return -EMSGSIZE;
+		return -ENOBUFS;
 
 #ifdef CONFIG_AUDITSYSCALL
 	item->size = sizeof(*item) + sizeof(conn->audit_ids);

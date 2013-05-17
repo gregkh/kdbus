@@ -29,7 +29,8 @@
  * slices containing the queued messages. */
 struct kdbus_pool {
 	void __user *buf;		/* receiver-supplied buffer */
-	size_t size;			/* size of buffer  */
+	size_t size;			/* size of buffer */
+	size_t busy;			/* allocated size */
 
 	struct list_head slices;	/* all slices sorted by address */
 	struct rb_root slices_busy;	/* tree of allocated slices */

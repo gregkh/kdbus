@@ -176,6 +176,7 @@ static struct kdbus_slice *kdbus_pool_alloc_slice(struct kdbus_pool *pool,
 	}
 
 	slice->free = false;
+	pool->busy += slice->size;
 	return slice;
 }
 
@@ -184,6 +185,7 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
 				  struct kdbus_slice *slice)
 {
 	rb_erase(&slice->rb_node, &pool->slices_busy);
+	pool->busy -= slice->size;
 
 	/* merge with the next free slice */
 	if (!list_is_last(&slice->entry, &pool->slices)) {
@@ -222,6 +224,7 @@ int kdbus_pool_init(struct kdbus_pool *pool, void __user *buf, size_t size)
 
 	pool->buf = buf;
 	pool->size = size;
+	pool->busy = 0;
 	pool->slices_free = RB_ROOT;
 	pool->slices_busy = RB_ROOT;
 

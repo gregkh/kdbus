@@ -476,7 +476,7 @@ EMFILE
   Too many file descriptors have been supplied with a message.
 
 EMSGSIZE
-  The supplied data does not match the expected size.
+  The supplied data is larger than the maximum size.
 
 ENAMETOOLONG
   The requested name is larger than its maximum size.
@@ -523,4 +523,5 @@ ETXTBSY
   shared with other processes or still mmap()ed.
 
 EXFULL
-  Buffer limites are reached, no more data is excepted.
+  The size limits in the pool are reached, no data of that size can
+  be accepted.
