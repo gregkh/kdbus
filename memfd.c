@@ -242,6 +242,11 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		case KDBUS_CMD_MEMFD_SIZE_GET: {
 			u64 size = i_size_read(file_inode(mf->fp));
 
+			if (!KDBUS_IS_ALIGNED8(arg)) {
+				ret = -EFAULT;
+				goto exit;
+			}
+
 			if (copy_to_user(argp, &size, sizeof(__u64))) {
 				ret = -EFAULT;
 				goto exit;
@@ -251,6 +256,11 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		case KDBUS_CMD_MEMFD_SIZE_SET: {
 			u64 size;
+
+			if (!KDBUS_IS_ALIGNED8(arg)) {
+				ret = -EFAULT;
+				goto exit;
+			}
 
 			if (copy_from_user(&size, argp, sizeof(__u64))) {
 				ret = -EFAULT;
