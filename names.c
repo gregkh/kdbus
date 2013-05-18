@@ -430,7 +430,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		size += sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
 
 	if (size > user_size) {
-		kdbus_size_set_user(size, buf, struct kdbus_cmd_names);
+		kdbus_size_set_user(&size, buf, struct kdbus_cmd_names);
 		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
@@ -569,7 +569,7 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	size = offsetof(struct kdbus_cmd_name_info, items) + extra_size;
 	if (ret < 0) {
 		/* let the user know how much space we require */
-		kdbus_size_set_user(size, buf, struct kdbus_cmd_name_info);
+		kdbus_size_set_user(&size, buf, struct kdbus_cmd_name_info);
 		goto exit_unlock;
 	}
 

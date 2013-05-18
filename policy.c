@@ -439,11 +439,11 @@ int kdbus_cmd_policy_set_from_user(struct kdbus_policy_db *db, void __user *buf)
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_policy))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > KDBUS_POLICY_MAX_SIZE) {
-		kdbus_size_set_user(sizeof(struct kdbus_msg),
-				    buf, struct kdbus_cmd_policy);
+	if (size <= sizeof(struct kdbus_cmd_policy))
+		return -EINVAL;
+
+	if (size > KDBUS_POLICY_MAX_SIZE)
 		return -EMSGSIZE;
-	}
 
 	cmd = memdup_user(buf, size);
 	if (IS_ERR(cmd))

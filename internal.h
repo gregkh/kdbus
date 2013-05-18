@@ -34,9 +34,11 @@
 
 #define KDBUS_CHAR_MAJOR		222		/* FIXME: move to uapi/linux/major.h */
 
+/* all exported addresses are 64bit */
 #define KDBUS_PTR(addr) ((void *)(uintptr_t)(addr))
 #define KDBUS_ADDR(ptr) ((u64)(ptr))
 
+/* all exported sizes are 64bit and data aligned to 64 bit */
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
@@ -57,16 +59,18 @@
 
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
 
+/* read 64bit .size from struct */
 #define kdbus_size_get_user(_s, _b, _t)						\
 ({										\
 	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size);	\
 	copy_from_user(_s, _sz, sizeof(__u64));					\
 })
 
+/* set 64bit .size in struct */
 #define kdbus_size_set_user(_s, _b, _t)						\
 ({										\
 	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size);	\
-	put_user(_s, _sz);							\
+	copy_to_user(_s, _sz, sizeof(__u64));					\
 })
 
 static inline bool kdbus_validate_nul(const char *s, size_t l)

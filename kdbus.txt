@@ -476,10 +476,10 @@ EMFILE
   Too many file descriptors have been supplied with a message.
 
 EMSGSIZE
-  The supplied data is larger than the maximum size.
+  The supplied data is larger than the allowed maximum size.
 
 ENAMETOOLONG
-  The requested name is larger than its maximum size.
+  The requested name is larger than the allowed maximum size.
 
 ENOBUFS
   There is no space left for the submitted data to fit into the receiver's
@@ -523,5 +523,5 @@ ETXTBSY
   shared with other processes or still mmap()ed.
 
 EXFULL
-  The size limits in the pool are reached, no data of that size can
-  be accepted.
+  The size limits in the pool are reached, no data of the size tried to
+  submit can be queued.
