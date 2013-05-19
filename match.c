@@ -263,8 +263,7 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 		return kdbus_match_db_match_from_kernel(db, conn_dst, kmsg);
 }
 
-static
-struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
+static struct kdbus_cmd_match *cmd_match_from_user(void __user *buf, bool items)
 {
 	struct kdbus_cmd_match *cmd_match;
 	u64 size;
@@ -275,10 +274,14 @@ struct kdbus_cmd_match *cmd_match_from_user(void __user *buf)
 	if (size < sizeof(*cmd_match) || size > KDBUS_MATCH_MAX_SIZE)
 		return ERR_PTR(-EMSGSIZE);
 
+	/* remove does not accept any items */
+	if (items && size != sizeof(*cmd_match))
+		return ERR_PTR(-EMSGSIZE);
+
 	return memdup_user(buf, size);
 }
 
-int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
+int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
 	struct kdbus_match_db *db = conn->match_db;
 	struct kdbus_cmd_match *cmd_match;
@@ -286,7 +289,7 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_match_db_entry *e;
 	int ret = 0;
 
-	cmd_match = cmd_match_from_user(buf);
+	cmd_match = cmd_match_from_user(buf, true);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
@@ -298,8 +301,14 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	INIT_LIST_HEAD(&e->list_entry);
 	INIT_LIST_HEAD(&e->items_list);
 	e->id = cmd_match->id;
-	e->src_id = cmd_match->src_id;
 	e->cookie = cmd_match->cookie;
+
+	/* fill-in connection id, if not given */
+	if (cmd_match->src_id == 0)
+		e->src_id = conn->id;
+	else
+		e->src_id = cmd_match->src_id;
+	//FIXME: limit actions on behalf of others to privileged users
 
 	KDBUS_ITEM_FOREACH_VALIDATE(item, cmd_match) {
 		struct kdbus_match_db_entry_item *ei;
@@ -362,14 +371,20 @@ int kdbus_cmd_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	return ret;
 }
 
-int kdbus_cmd_match_db_remove(struct kdbus_match_db *db, void __user *buf)
+int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 {
+	struct kdbus_match_db *db = conn->match_db;
 	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_match_db_entry *e, *tmp;
 
-	cmd_match = cmd_match_from_user(buf);
+	cmd_match = cmd_match_from_user(buf, false);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
+
+	/* fill-in connection id, if not given */
+	if (cmd_match->id == 0)
+		cmd_match->id = conn->id;
+	//FIXME: limit actions on behalf of others to privileged users
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)

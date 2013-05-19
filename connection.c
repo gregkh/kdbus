@@ -1274,7 +1274,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_cmd_match_db_add(conn, buf);
+		ret = kdbus_match_db_add(conn, buf);
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
@@ -1284,7 +1284,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_cmd_match_db_remove(conn->match_db, buf);
+		ret = kdbus_match_db_remove(conn, buf);
 		break;
 
 	case KDBUS_CMD_MONITOR: {
