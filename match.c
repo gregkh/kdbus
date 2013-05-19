@@ -119,11 +119,11 @@ struct kdbus_match_db *kdbus_match_db_new(void)
 static inline
 bool kdbus_match_db_test_bloom(const u64 *filter,
 			       const u64 *mask,
-			       size_t len)
+			       unsigned int n)
 {
 	size_t i;
 
-	for (i = 0; i < len; i++)
+	for (i = 0; i < n; i++)
 		if ((filter[i] & mask[i]) != mask[i])
 			return false;
 
@@ -164,12 +164,12 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
 			if (kmsg->bloom) {
-				size_t bloom_size =
+				size_t bloom_num =
 					conn_src->ep->bus->bloom_size / sizeof(u64);
 
-				if (!kdbus_match_db_test_bloom(ei->bloom,
-							       kmsg->bloom,
-							       bloom_size)) {
+				if (!kdbus_match_db_test_bloom(kmsg->bloom,
+							       ei->bloom,
+							       bloom_num)) {
 					matched = false;
 					break;
 				}
@@ -263,7 +263,8 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 		return kdbus_match_db_match_from_kernel(db, conn_dst, kmsg);
 }
 
-static struct kdbus_cmd_match *cmd_match_from_user(void __user *buf, bool items)
+static struct kdbus_cmd_match *
+cmd_match_from_user(const struct kdbus_conn *conn, void __user *buf, bool items)
 {
 	struct kdbus_cmd_match *cmd_match;
 	u64 size;
@@ -278,7 +279,16 @@ static struct kdbus_cmd_match *cmd_match_from_user(void __user *buf, bool items)
 	if (!items && size != sizeof(*cmd_match))
 		return ERR_PTR(-EMSGSIZE);
 
-	return memdup_user(buf, size);
+	cmd_match = memdup_user(buf, size);
+	if (!cmd_match)
+		return NULL;
+
+	/* fill-in connection id, if not given */
+	if (cmd_match->id == 0)
+		cmd_match->id = conn->id;
+	//FIXME: limit actions on behalf of others to privileged users
+
+	return cmd_match;
 }
 
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
@@ -289,7 +299,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_match_db_entry *e;
 	int ret = 0;
 
-	cmd_match = cmd_match_from_user(buf, true);
+	cmd_match = cmd_match_from_user(conn, buf, true);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
@@ -301,14 +311,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	INIT_LIST_HEAD(&e->list_entry);
 	INIT_LIST_HEAD(&e->items_list);
 	e->id = cmd_match->id;
+	e->src_id = cmd_match->src_id;
 	e->cookie = cmd_match->cookie;
-
-	/* fill-in connection id, if not given */
-	if (cmd_match->src_id == 0)
-		e->src_id = conn->id;
-	else
-		e->src_id = cmd_match->src_id;
-	//FIXME: limit actions on behalf of others to privileged users
 
 	KDBUS_ITEM_FOREACH_VALIDATE(item, cmd_match) {
 		struct kdbus_match_db_entry_item *ei;
@@ -377,14 +381,9 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_match_db_entry *e, *tmp;
 
-	cmd_match = cmd_match_from_user(buf, false);
+	cmd_match = cmd_match_from_user(conn, buf, false);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
-
-	/* fill-in connection id, if not given */
-	if (cmd_match->id == 0)
-		cmd_match->id = conn->id;
-	//FIXME: limit actions on behalf of others to privileged users
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
