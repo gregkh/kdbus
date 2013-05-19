@@ -38,12 +38,14 @@ struct kdbus_bus {
 	u64 msg_id_next;		/* next message id sequence number */
 	struct idr conn_idr;		/* map of connection ids */
 	DECLARE_HASHTABLE(conn_hash, 6);
-	struct list_head ep_list;	/* endpoints assigned to this bus */
+	struct list_head eps_list;	/* endpoints on this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
 	size_t bloom_size;		/* bloom filter size */
 	u64 cgroup_id;			/* the cgroup superblock we attach information from */
 	struct kdbus_name_registry *name_registry;
-	struct list_head bus_entry;
+	struct list_head bus_entry;	/* namespace's list of buses */
+	struct list_head conns_list;	/* connections on this bus */
+	struct list_head monitors_list;	/* connections that monitor */
 };
 
 struct kdbus_cmd_bus_kmake {

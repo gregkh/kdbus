@@ -486,6 +486,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *conn_dst = NULL;
+	struct kdbus_conn *conn;
 	const struct kdbus_msg *msg;
 	u64 now_ns = 0;
 	u64 deadline_ns = 0;
@@ -510,7 +511,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	/* broadcast message */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		list_for_each_entry(conn_dst, &ep->connection_list,
+		mutex_lock(&ep->bus->lock);
+		list_for_each_entry(conn_dst, &ep->bus->conns_list,
 				    connection_entry) {
 			if (conn_dst->type != KDBUS_CONN_EP)
 				continue;
@@ -521,8 +523,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			if (!conn_dst->active)
 				continue;
 
-			if (!conn_dst->monitor &&
-			    !kdbus_match_db_match_kmsg(conn_dst->match_db,
+			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
 						       conn_src, conn_dst,
 						       kmsg))
 				continue;
@@ -531,6 +532,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			if (ret < 0)
 				break;
 		}
+		mutex_unlock(&ep->bus->lock);
 
 		return ret;
 	}
@@ -572,6 +574,18 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		if (ret < 0)
 			return ret;
 	}
+
+	/* monitor connections get all messages */
+	mutex_lock(&ep->bus->lock);
+	list_for_each_entry(conn, &ep->bus->monitors_list, monitor_entry) {
+		/* the monitor connection is addressed, deliver it below */
+		if (conn->id == conn_dst->id)
+			continue;
+
+		/* ignore errors of misbehaving monitor connections */
+		kdbus_conn_queue_insert(conn_dst, kmsg, 0);
+	}
+	mutex_unlock(&ep->bus->lock);
 
 	ret = kdbus_conn_queue_insert(conn_dst, kmsg, deadline_ns);
 
@@ -836,12 +850,10 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	/* create endpoint connection */
 	conn->type = KDBUS_CONN_EP;
 	conn->ep = kdbus_ep_ref(ep);
+	mutex_unlock(&conn->ns->lock);
 
 	/* get and register new id for this connection */
 	conn->id = conn->ep->bus->conn_id_next++;
-
-	/* add this connection to hash table */
-	hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
 
 	mutex_init(&conn->lock);
 	mutex_init(&conn->names_lock);
@@ -850,11 +862,9 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->connection_entry);
-
-	list_add_tail(&conn->connection_entry, &conn->ep->connection_list);
+	INIT_LIST_HEAD(&conn->monitor_entry);
 
 	file->private_data = conn;
-	mutex_unlock(&conn->ns->lock);
 
 	INIT_WORK(&conn->work, kdbus_conn_work);
 
@@ -878,6 +888,12 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	pr_debug("created endpoint bus connection %llu '%s/%s'\n",
 		 (unsigned long long)conn->id, conn->ns->devpath,
 		 conn->ep->bus->name);
+
+	/* link into bus */
+	mutex_lock(&ep->bus->lock);
+	hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
+	list_add_tail(&conn->connection_entry, &conn->ep->bus->conns_list);
+	mutex_unlock(&ep->bus->lock);
 
 	//FIXME: cleanup here!
 	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
@@ -915,8 +931,12 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 
 		INIT_LIST_HEAD(&list);
 
+		/* remove from bus */
+		mutex_lock(&conn->ep->bus->lock);
 		hash_del(&conn->hentry);
 		list_del(&conn->connection_entry);
+		list_del(&conn->monitor_entry);
+		mutex_unlock(&conn->ep->bus->lock);
 
 		/* clean up any messages still left on this endpoint */
 		mutex_lock(&conn->lock);
@@ -1290,6 +1310,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_MONITOR: {
 		/* turn on/turn off monitor mode */
 		struct kdbus_cmd_monitor cmd_monitor;
+		struct kdbus_conn *mconn = conn;
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
@@ -1299,7 +1320,21 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (copy_from_user(&cmd_monitor, buf, sizeof(cmd_monitor)))
 			return -EFAULT;
 
-		conn->monitor = !!cmd_monitor.enabled;
+		/* support to set the monitoring for other connections */
+		if (cmd_monitor.id > 0) {
+			//FIXME: allow only privileged processes to act on behalf
+			//of others
+			mconn = kdbus_bus_find_conn_by_id(bus, cmd_monitor.id);
+			if (!mconn)
+				return -ENXIO;
+		}
+
+		mutex_lock(&bus->lock);
+		if (cmd_monitor.enable)
+			list_add_tail(&mconn->monitor_entry, &bus->monitors_list);
+		else
+			list_del(&mconn->monitor_entry);
+		mutex_unlock(&bus->lock);
 		break;
 	}
 

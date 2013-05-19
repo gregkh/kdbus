@@ -30,9 +30,7 @@ struct kdbus_ep {
 	umode_t mode;			/* file mode of this endpoint device node */
 	kuid_t uid;			/* uid owning this endpoint */
 	kgid_t gid;			/* gid owning this endpoint */
-	struct list_head bus_entry;	/* list of endpoints for this bus */
-	struct list_head message_list;	/* messages in flight for this endpoint */
-	struct list_head connection_list;
+	struct list_head bus_entry;	/* bus' endpoints */
 	wait_queue_head_t wait;		/* wake up this endpoint */
 	struct kdbus_policy_db *policy_db;
 	bool policy_open:1;

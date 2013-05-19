@@ -381,7 +381,7 @@ struct kdbus_cmd_match {
 
 struct kdbus_cmd_monitor {
 	__u64 id;		/* We allow setting the monitor flag of other peers */
-	unsigned int enabled;	/* A boolean to enable/disable monitoring */
+	unsigned int enable;	/* A boolean to enable/disable monitoring */
 };
 
 /* FD states:

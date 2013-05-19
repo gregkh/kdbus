@@ -93,7 +93,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	list_del(&bus->bus_entry);
 
 	/* remove any endpoints attached to this bus */
-	list_for_each_entry_safe(ep, tmp, &bus->ep_list, bus_entry) {
+	list_for_each_entry_safe(ep, tmp, &bus->eps_list, bus_entry) {
 		kdbus_ep_disconnect(ep);
 		kdbus_ep_unref(ep);
 	}
@@ -164,7 +164,9 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	b->conn_id_next = 1; /* connection 0 == kernel */
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
-	INIT_LIST_HEAD(&b->ep_list);
+	INIT_LIST_HEAD(&b->eps_list);
+	INIT_LIST_HEAD(&b->conns_list);
+	INIT_LIST_HEAD(&b->monitors_list);
 
 	b->name = kstrdup(bus_kmake->name, GFP_KERNEL);
 	if (!b->name) {

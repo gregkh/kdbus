@@ -40,7 +40,6 @@ struct kdbus_conn {
 
 	u64 flags;
 	bool active;	/* did the connection say hello yet? */
-	bool monitor;
 
 	struct mutex lock;
 	struct mutex names_lock;
@@ -49,8 +48,9 @@ struct kdbus_conn {
 
 	struct hlist_node hentry;
 
-	struct list_head connection_entry;
-	struct list_head names_list;
+	struct list_head connection_entry;	/* bus' connections */
+	struct list_head monitor_entry;		/* bus' monitor connections */
+	struct list_head names_list;		/* names on this connection */
 	struct list_head names_queue_list;
 
 	struct work_struct work;

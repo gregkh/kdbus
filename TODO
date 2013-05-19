@@ -8,8 +8,6 @@ Internal:
     the receiver's pool
   - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate
     kernel memory anymore
-  - BUG: connections are currently listed in the endpoint not the bus, so
-    broadcasting will never see the other endpoints on the same bus
   - BUG: the sender needs to ref the receiver when looking it up to protect
     against the receiver going away while its ressources are accessed
   - BUG: kdbus_name_fill_info_items() needs to align the next record,

@@ -36,8 +36,8 @@ struct kdbus_ns {
 	struct device *dev;		/* control device node, minor == 0 */
 	struct mutex lock;		/* ns data lock */
 	u64 bus_id_next;		/* next bus id sequence number */
-	struct list_head ns_entry;
-	struct list_head bus_list;	/* list of all buses */
+	struct list_head ns_entry;	/* kdbus' list of namespaces */
+	struct list_head bus_list;	/* buses in this namespace */
 };
 
 struct kdbus_cmd_ns_kmake {
