@@ -275,7 +275,7 @@ static struct kdbus_cmd_match *cmd_match_from_user(void __user *buf, bool items)
 		return ERR_PTR(-EMSGSIZE);
 
 	/* remove does not accept any items */
-	if (items && size != sizeof(*cmd_match))
+	if (!items && size != sizeof(*cmd_match))
 		return ERR_PTR(-EMSGSIZE);
 
 	return memdup_user(buf, size);
