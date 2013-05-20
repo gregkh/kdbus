@@ -29,6 +29,17 @@
 #include "endpoint.h"
 #include "namespace.h"
 
+bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
+{
+	if (capable(CAP_IPC_OWNER))
+		return true;
+
+	if (bus->uid_owner == current_fsuid())
+		return true;
+
+	return false;
+}
+
 /**
  * kdbus_bus_unref() - increase the reference counter of a kdbus_bus
  * @bus:	The bus to unref
@@ -157,6 +168,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 		return -ENOMEM;
 
 	kref_init(&b->kref);
+	b->uid_owner = uid;
 	b->ns = ns;
 	b->bus_flags = bus_kmake->make.flags;
 	b->bloom_size = bus_kmake->make.bloom_size;

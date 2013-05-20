@@ -1317,16 +1317,25 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (copy_from_user(&cmd_monitor, buf, sizeof(cmd_monitor)))
-			return -EFAULT;
+		if (copy_from_user(&cmd_monitor, buf, sizeof(cmd_monitor))) {
+			ret = -EFAULT;
+			break;
+		}
 
-		/* support to set the monitoring for other connections */
-		if (cmd_monitor.id > 0) {
-			//FIXME: allow only privileged processes to act on behalf
-			//of others
+		/* privileged users can act on behalf of someone else */
+		if (cmd_monitor.id == 0) {
+			mconn = conn;
+		} else if (cmd_monitor.id != conn->id) {
+			if (!kdbus_bus_uid_is_privileged(bus)) {
+				ret = -EPERM;
+				break;
+			}
+
 			mconn = kdbus_bus_find_conn_by_id(bus, cmd_monitor.id);
-			if (!mconn)
-				return -ENXIO;
+			if (!mconn) {
+				ret = -ENXIO;
+				break;
+			}
 		}
 
 		mutex_lock(&bus->lock);

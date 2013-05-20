@@ -283,10 +283,12 @@ cmd_match_from_user(const struct kdbus_conn *conn, void __user *buf, bool items)
 	if (!cmd_match)
 		return NULL;
 
-	/* fill-in connection id, if not given */
+	/* privileged users can act on behalf of someone else */
 	if (cmd_match->id == 0)
 		cmd_match->id = conn->id;
-	//FIXME: limit actions on behalf of others to privileged users
+	else if (cmd_match->id != conn->id &&
+		 !kdbus_bus_uid_is_privileged(conn->ep->bus))
+			return ERR_PTR(-EPERM);
 
 	return cmd_match;
 }

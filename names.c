@@ -283,15 +283,16 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (!kdbus_name_is_valid(cmd_name->name))
 		return -EINVAL;
 
-	if (cmd_name->id) {
+	/* privileged users can act on behalf of someone else */
+	if (cmd_name->id > 0) {
 		struct kdbus_conn *new_conn;
 
 		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
 		if (!new_conn)
-			return -ENOENT;
+			return -ENXIO;
 
-		if (!capable(CAP_SYS_ADMIN) &&
-		    conn->creds.uid != new_conn->creds.uid)	/* FIXME: also allow bus-owner */
+		if (conn->creds.uid != new_conn->creds.uid &&
+		    !kdbus_bus_uid_is_privileged(conn->ep->bus))
 			return -EPERM;
 
 		conn = new_conn;
@@ -364,7 +365,6 @@ exit_unlock_free:
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
-
 	return ret;
 }
 

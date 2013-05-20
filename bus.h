@@ -28,6 +28,7 @@
  */
 struct kdbus_bus {
 	struct kref kref;		/* reference count */
+	kuid_t uid_owner;		/* the uid of the owner of the bus */
 	bool disconnected;		/* invalidated data */
 	struct kdbus_ns *ns;		/* namespace of this bus */
 	const char *name;		/* bus name */
@@ -54,6 +55,7 @@ struct kdbus_cmd_bus_kmake {
 	struct kdbus_cmd_bus_make make;
 };
 
+bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 void kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
