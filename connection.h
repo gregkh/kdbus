@@ -21,11 +21,13 @@
  * - connection to a control node or an endpoint
  */
 enum kdbus_conn_type {
-	KDBUS_CONN_UNDEFINED,
-	KDBUS_CONN_CONTROL,
-	KDBUS_CONN_NS_OWNER,
-	KDBUS_CONN_BUS_OWNER,
-	KDBUS_CONN_EP,
+	_KDBUS_CONN_NULL,
+	KDBUS_CONN_CONTROL,		/* new fd of a control node */
+	KDBUS_CONN_CONTROL_NS_OWNER,	/* fd to hold a namespace */
+	KDBUS_CONN_CONTROL_BUS_OWNER,	/* fd to hold a bus */
+	KDBUS_CONN_EP,			/* new fd of a bus node */
+	KDBUS_CONN_EP_CONNECTED,	/* connection after HELLO */
+	KDBUS_CONN_EP_OWNER,		/* fd to hold an endpoint */
 };
 
 struct kdbus_conn {
@@ -37,17 +39,14 @@ struct kdbus_conn {
 		struct kdbus_ep *ep;
 	};
 	u64 id;		/* id of the connection on the bus */
-
 	u64 flags;
-	bool active;	/* did the connection say hello yet? */
 
 	struct mutex lock;
 	struct mutex names_lock;
 	struct mutex accounting_lock;
+
 	struct list_head msg_list;
-
 	struct hlist_node hentry;
-
 	struct list_head connection_entry;	/* bus' connections */
 	struct list_head monitor_entry;		/* bus' monitor connections */
 	struct list_head names_list;		/* names on this connection */

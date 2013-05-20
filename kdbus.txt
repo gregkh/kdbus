@@ -465,9 +465,6 @@ EINVAL
   string which is not NUL terminated, or a string length that points behind
   the first NUL byte in the string.
 
-EISCON
-  A control connection is already activated.
-
 EMEDIUMTYPE
   A file descriptor which is not a kdbus memfd was refused to send
   as KDBUS_MSG_PAYLOAD_MEMFD.

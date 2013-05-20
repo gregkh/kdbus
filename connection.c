@@ -288,7 +288,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 	size_t size;
 	int ret = 0;
 
-	if (!conn->active)
+	if (!conn->type == KDBUS_CONN_EP_CONNECTED)
 		return -ENOTCONN;
 
 	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
@@ -514,13 +514,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		mutex_lock(&ep->bus->lock);
 		list_for_each_entry(conn_dst, &ep->bus->conns_list,
 				    connection_entry) {
-			if (conn_dst->type != KDBUS_CONN_EP)
+			if (conn_dst->type != KDBUS_CONN_EP_CONNECTED)
 				continue;
 
 			if (conn_dst->id == msg->src_id)
-				continue;
-
-			if (!conn_dst->active)
 				continue;
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
@@ -528,9 +525,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						       kmsg))
 				continue;
 
-			ret = kdbus_conn_queue_insert(conn_dst, kmsg, 0);
-			if (ret < 0)
-				break;
+			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
 		}
 		mutex_unlock(&ep->bus->lock);
 
@@ -895,7 +890,7 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	list_add_tail(&conn->connection_entry, &conn->ep->bus->conns_list);
 	mutex_unlock(&ep->bus->lock);
 
-	//FIXME: cleanup here!
+	//FIXME: cleanup here; send notfy only after HELLO!
 	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
 	if (ret < 0)
 		return ret;
@@ -917,15 +912,20 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	struct kdbus_bus *bus;
 
 	switch (conn->type) {
-	case KDBUS_CONN_NS_OWNER:
+	case KDBUS_CONN_CONTROL_NS_OWNER:
+		//FIXME:
 		break;
 
-	case KDBUS_CONN_BUS_OWNER:
+	case KDBUS_CONN_CONTROL_BUS_OWNER:
 		kdbus_bus_disconnect(conn->bus_owner);
 		kdbus_bus_unref(conn->bus_owner);
 		break;
 
-	case KDBUS_CONN_EP: {
+	case KDBUS_CONN_EP_OWNER:
+		//FIXME:
+		break;
+
+	case KDBUS_CONN_EP_CONNECTED: {
 		struct kdbus_conn_queue *queue, *tmp;
 		struct list_head list;
 
@@ -996,7 +996,6 @@ static bool check_flags(u64 kernel_flags)
 {
 	/* The higher 32bit are considered 'incompatible
 	 * flags'. Refuse them all for now */
-
 	return kernel_flags <= 0xFFFFFFFFULL;
 }
 
@@ -1043,7 +1042,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		/* turn the control fd into a new bus owner device */
-		conn->type = KDBUS_CONN_BUS_OWNER;
+		conn->type = KDBUS_CONN_CONTROL_BUS_OWNER;
 		conn->bus_owner = bus;
 		break;
 	}
@@ -1071,7 +1070,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		/* turn the control fd into a new ns owner device */
-		conn->type = KDBUS_CONN_NS_OWNER;
+		conn->type = KDBUS_CONN_CONTROL_NS_OWNER;
 		conn->ns_owner = ns;
 		break;
 
@@ -1098,18 +1097,15 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 	return ret;
 }
 
-/* kdbus bus endpoint commands */
+/* kdbus endpoint make commands */
 static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 				void __user *buf)
 {
 	struct kdbus_conn *conn = file->private_data;
 	struct kdbus_cmd_ep_kmake *kmake = NULL;
 	struct kdbus_cmd_hello *hello = NULL;
-	struct kdbus_bus *bus = NULL;
+	struct kdbus_bus *bus = conn->ep->bus;
 	long ret = 0;
-
-	if (conn && conn->ep)
-		bus = conn->ep->bus;
 
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
@@ -1141,6 +1137,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			current_fsuid(), gid,
 			kmake->make.flags & KDBUS_MAKE_POLICY_OPEN);
 
+		conn->type = KDBUS_CONN_EP_OWNER;
 		break;
 	}
 
@@ -1152,11 +1149,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
-			break;
-		}
-
-		if (conn->active) {
-			ret = -EISCONN;
 			break;
 		}
 
@@ -1227,11 +1219,30 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		conn->flags = hello->conn_flags;
-		conn->active = true;
-
+		conn->type = KDBUS_CONN_EP_CONNECTED;
 		break;
 	}
 
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	kfree(kmake);
+	kfree(hello);
+
+	return ret;
+}
+
+/* kdbus endpoint commands for connected peers */
+static long kdbus_conn_ioctl_ep_connected(struct file *file, unsigned int cmd,
+					  void __user *buf)
+{
+	struct kdbus_conn *conn = file->private_data;
+	struct kdbus_bus *bus = conn->ep->bus;
+	long ret = 0;
+
+	switch (cmd) {
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
@@ -1406,9 +1417,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kfree(kmake);
-	kfree(hello);
-
 	return ret;
 }
 
@@ -1425,6 +1433,9 @@ static long kdbus_conn_ioctl(struct file *file, unsigned int cmd,
 	case KDBUS_CONN_EP:
 		return kdbus_conn_ioctl_ep(file, cmd, argp);
 
+	case KDBUS_CONN_EP_CONNECTED:
+		return kdbus_conn_ioctl_ep_connected(file, cmd, argp);
+
 	default:
 		return -EBADFD;
 	}
@@ -1437,7 +1448,7 @@ static unsigned int kdbus_conn_poll(struct file *file,
 	unsigned int mask = 0;
 
 	/* Only an endpoint can read/write data */
-	if (conn->type != KDBUS_CONN_EP)
+	if (conn->type != KDBUS_CONN_EP_CONNECTED)
 		return POLLERR | POLLHUP;
 
 	poll_wait(file, &conn->ep->wait, wait);
