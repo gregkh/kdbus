@@ -846,56 +846,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	conn->type = KDBUS_CONN_EP;
 	conn->ep = kdbus_ep_ref(ep);
 	mutex_unlock(&conn->ns->lock);
-
-	/* get and register new id for this connection */
-	conn->id = conn->ep->bus->conn_id_next++;
-
-	mutex_init(&conn->lock);
-	mutex_init(&conn->names_lock);
-	mutex_init(&conn->accounting_lock);
-	INIT_LIST_HEAD(&conn->msg_list);
-	INIT_LIST_HEAD(&conn->names_list);
-	INIT_LIST_HEAD(&conn->names_queue_list);
-	INIT_LIST_HEAD(&conn->connection_entry);
-	INIT_LIST_HEAD(&conn->monitor_entry);
-
-	INIT_WORK(&conn->work, kdbus_conn_work);
-
-	init_timer(&conn->timer);
-	conn->timer.expires = 0;
-	conn->timer.function = kdbus_conn_timer_func;
-	conn->timer.data = (unsigned long) conn;
-	add_timer(&conn->timer);
-
-	conn->match_db = kdbus_match_db_new();
-
-	conn->creds.uid = from_kuid_munged(current_user_ns(), current_uid());
-	conn->creds.gid = from_kgid_munged(current_user_ns(), current_gid());
-	conn->creds.pid = current->pid;
-	conn->creds.tid = current->tgid;
-	conn->creds.starttime = timespec_to_ns(&current->start_time);
-
-	kdbus_conn_set_audit(conn);
-	kdbus_conn_set_seclabel(conn);
-
-	pr_debug("created endpoint bus connection %llu '%s/%s'\n",
-		 (unsigned long long)conn->id, conn->ns->devpath,
-		 conn->ep->bus->name);
-
-	/* link into bus */
-	mutex_lock(&ep->bus->lock);
-	hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
-	list_add_tail(&conn->connection_entry, &conn->ep->bus->conns_list);
-	mutex_unlock(&ep->bus->lock);
-
-	//FIXME: cleanup here; send notfy only after HELLO!
-	ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
-	if (ret < 0)
-		return ret;
-
-	/* pin and store the task, so a sender can copy to the receiver */
-	get_task_struct(current);
-	conn->task = current;
 	return 0;
 
 exit_unlock:
@@ -904,10 +854,64 @@ exit_unlock:
 	return ret;
 }
 
+static void kdbus_conn_cleanup(struct kdbus_conn *conn)
+{
+	struct kdbus_conn_queue *queue, *tmp;
+	struct list_head list;
+
+	INIT_LIST_HEAD(&list);
+
+	/* remove from bus */
+	mutex_lock(&conn->ep->bus->lock);
+	hash_del(&conn->hentry);
+	list_del(&conn->connection_entry);
+	list_del(&conn->monitor_entry);
+	mutex_unlock(&conn->ep->bus->lock);
+
+	/* clean up any messages still left on this endpoint */
+	mutex_lock(&conn->lock);
+	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
+		list_del(&queue->entry);
+
+		/* we cannot hold "lock" and enqueue new messages with
+		 * kdbus_notify_reply_dead(); move these messages
+		 * into a temporary list and handle them below */
+		if (queue->src_id != conn->id && queue->expect_reply) {
+			list_add_tail(&queue->entry, &list);
+		} else {
+			kdbus_pool_free(&conn->pool, queue->msg);
+			kdbus_conn_queue_cleanup(queue);
+		}
+	}
+	mutex_unlock(&conn->lock);
+
+	list_for_each_entry_safe(queue, tmp, &list, entry) {
+		kdbus_notify_reply_dead(conn->ep, queue->src_id,
+					queue->cookie);
+		mutex_lock(&conn->lock);
+		kdbus_pool_free(&conn->pool, queue->msg);
+		mutex_unlock(&conn->lock);
+		kdbus_conn_queue_cleanup(queue);
+	}
+
+	del_timer(&conn->timer);
+	cancel_work_sync(&conn->work);
+#ifdef CONFIG_SECURITY
+	kfree(conn->sec_label);
+#endif
+	kdbus_name_remove_by_conn(conn->ep->bus->name_registry, conn);
+	if (conn->ep->policy_db)
+		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
+	kdbus_match_db_unref(conn->match_db);
+	kdbus_ep_unref(conn->ep);
+
+	kdbus_pool_cleanup(&conn->pool);
+	put_task_struct(current);
+}
+
 static int kdbus_conn_release(struct inode *inode, struct file *file)
 {
 	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_bus *bus;
 
 	switch (conn->type) {
 	case KDBUS_CONN_CONTROL_NS_OWNER:
@@ -924,60 +928,11 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_CONN_EP_CONNECTED: {
-		struct kdbus_conn_queue *queue, *tmp;
-		struct list_head list;
+		kdbus_conn_cleanup(conn);
 
-		INIT_LIST_HEAD(&list);
-
-		/* remove from bus */
-		mutex_lock(&conn->ep->bus->lock);
-		hash_del(&conn->hentry);
-		list_del(&conn->connection_entry);
-		list_del(&conn->monitor_entry);
-		mutex_unlock(&conn->ep->bus->lock);
-
-		/* clean up any messages still left on this endpoint */
-		mutex_lock(&conn->lock);
-		list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
-			list_del(&queue->entry);
-
-			/* we cannot hold "lock" and enqueue new messages with
-			 * kdbus_notify_reply_dead(); move these messages
-			 * into a temporary list and handle them below */
-			if (queue->src_id != conn->id && queue->expect_reply) {
-				list_add_tail(&queue->entry, &list);
-			} else {
-				kdbus_pool_free(&conn->pool, queue->msg);
-				kdbus_conn_queue_cleanup(queue);
-			}
-		}
-		mutex_unlock(&conn->lock);
-
-		list_for_each_entry_safe(queue, tmp, &list, entry) {
-			kdbus_notify_reply_dead(conn->ep, queue->src_id,
-						queue->cookie);
-			mutex_lock(&conn->lock);
-			kdbus_pool_free(&conn->pool, queue->msg);
-			mutex_unlock(&conn->lock);
-			kdbus_conn_queue_cleanup(queue);
-		}
-
-		del_timer(&conn->timer);
-		cancel_work_sync(&conn->work);
-
-#ifdef CONFIG_SECURITY
-		kfree(conn->sec_label);
-#endif
-
-		bus = conn->ep->bus;
-		kdbus_name_remove_by_conn(bus->name_registry, conn);
-		if (conn->ep->policy_db)
-			kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
-		kdbus_match_db_unref(conn->match_db);
-		kdbus_ep_unref(conn->ep);
-
-		kdbus_pool_cleanup(&conn->pool);
-		put_task_struct(current);
+		/* notify about the closed connection */
+		kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_REMOVE,
+				       conn->id, conn->flags);
 		break;
 	}
 
@@ -1213,17 +1168,69 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			}
 		}
 
+		mutex_init(&conn->lock);
+		mutex_init(&conn->names_lock);
+		mutex_init(&conn->accounting_lock);
+		INIT_LIST_HEAD(&conn->msg_list);
+		INIT_LIST_HEAD(&conn->names_list);
+		INIT_LIST_HEAD(&conn->names_queue_list);
+		INIT_LIST_HEAD(&conn->connection_entry);
+		INIT_LIST_HEAD(&conn->monitor_entry);
+
+		INIT_WORK(&conn->work, kdbus_conn_work);
+
+		init_timer(&conn->timer);
+		conn->timer.expires = 0;
+		conn->timer.function = kdbus_conn_timer_func;
+		conn->timer.data = (unsigned long) conn;
+		add_timer(&conn->timer);
+
+		conn->match_db = kdbus_match_db_new();
+
+		conn->creds.uid = from_kuid_munged(current_user_ns(),
+						   current_uid());
+		conn->creds.gid = from_kgid_munged(current_user_ns(),
+						   current_gid());
+		conn->creds.pid = current->pid;
+		conn->creds.tid = current->tgid;
+		conn->creds.starttime = timespec_to_ns(&current->start_time);
+
+		kdbus_conn_set_audit(conn);
+		kdbus_conn_set_seclabel(conn);
+
+		/* pin and store the task, so a sender can copy to the receiver */
+		get_task_struct(current);
+		conn->task = current;
+
+		/* link into bus; get new id for this connection */
+		mutex_lock(&conn->ep->bus->lock);
+		conn->id = conn->ep->bus->conn_id_next++;
+		hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
+		list_add_tail(&conn->connection_entry, &conn->ep->bus->conns_list);
+		mutex_unlock(&conn->ep->bus->lock);
+
 		/* return properties of this connection to the caller */
 		hello->bus_flags = bus->bus_flags;
 		hello->bloom_size = bus->bloom_size;
 		hello->id = conn->id;
 		if (copy_to_user(buf, hello, sizeof(struct kdbus_cmd_hello))) {
+			kdbus_conn_cleanup(conn);
 			ret = -EFAULT;
+			break;
+		}
+
+		/* notify about the new active connection */
+		ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
+		if (ret < 0) {
+			kdbus_conn_cleanup(conn);
 			break;
 		}
 
 		conn->flags = hello->conn_flags;
 		conn->type = KDBUS_CONN_EP_CONNECTED;
+		pr_debug("created bus connection %llu '%s/%s'\n",
+			 (unsigned long long)conn->id, conn->ns->devpath,
+			 conn->ep->bus->name);
 		break;
 	}
 
