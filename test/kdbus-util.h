@@ -26,6 +26,15 @@
 	     item = KDBUS_ITEM_NEXT(item))
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 
+#define KDBUS_NAME_SIZE(s) \
+	KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) + strlen(s) + 1)
+#define KDBUS_NAME_NEXT(n) \
+	(struct kdbus_cmd_name *)((char *)n + KDBUS_ALIGN8(n->size))
+#define KDBUS_NAME_FOREACH(name, names)					\
+	for (name = names->names;					\
+	     (char *)name < (char *)names + name->size;			\
+	     name = KDBUS_NAME_NEXT(name))
+
 struct conn {
 	int fd;
 	uint64_t id;

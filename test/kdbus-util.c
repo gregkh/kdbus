@@ -462,15 +462,10 @@ int name_list(struct conn *conn)
 		return EXIT_FAILURE;
 	}
 
-	size = names->size - sizeof(*names);
-	name = names->names;
-
 	printf("REGISTRY:\n");
-
-	while (size > 0) {
+	KDBUS_NAME_FOREACH(name, names) {
 		printf("  '%s' is acquired by id %llx\n", name->name, name->id);
-		size -= name->size;
-		name = (struct kdbus_cmd_name *) ((char *) name + name->size);
+		name = KDBUS_NAME_NEXT(name);
 	}
 
 	printf("\n");

@@ -43,7 +43,7 @@
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
 #define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_ITEM_HEADER_SIZE + (s))
 #define KDBUS_ITEM_NEXT(item) \
 	(struct kdbus_item *)((u8 *)item + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head)						\

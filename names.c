@@ -409,6 +409,11 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	return ret;
 }
 
+#define KDBUS_NAME_SIZE(s) \
+	KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) + strlen(s) + 1)
+#define KDBUS_NAME_NEXT(n) \
+	(struct kdbus_cmd_name *)((u8 *)n + KDBUS_ALIGN8(n->size))
+
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			void __user *buf)
@@ -427,7 +432,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	size = sizeof(struct kdbus_cmd_names);
 
 	hash_for_each(reg->entries_hash, tmp, e, hentry)
-		size += sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
+		size += KDBUS_NAME_SIZE(e->name);
 
 	if (size > user_size) {
 		kdbus_size_set_user(&size, buf, struct kdbus_cmd_names);
@@ -445,12 +450,12 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	cmd_name = cmd_names->names;
 
 	hash_for_each(reg->entries_hash, tmp, e, hentry) {
-		cmd_name->size = sizeof(struct kdbus_cmd_name) + strlen(e->name) + 1;
+		cmd_name->size = sizeof(struct kdbus_cmd_name) +
+				 strlen(e->name) + 1;
 		cmd_name->name_flags = e->flags;
 		cmd_name->id = e->conn->id;
 		strcpy(cmd_name->name, e->name);
-		//FIXME: alignment for next record? convert records to items maybe?
-		cmd_name = (struct kdbus_cmd_name *) ((u8 *) cmd_name + cmd_name->size);
+		cmd_name = KDBUS_NAME_NEXT(cmd_name);
 	}
 
 	if (copy_to_user(buf, cmd_names, size)) {
