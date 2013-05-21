@@ -1,11 +1,9 @@
 External API:
   - _IOWR() vs. _IOR()/_IOW()?
-  - struct kdbus_item cannot be included in structs, the unions are too
-    large --> kind of annoying that things cannot be statically initialized
 
 Internal:
-  - chunk get_user_pages(), replace vmap() for writing to the slice in
-    the receiver's pool
+  - if we expect larger amounts of memory to copy around from the sender
+    to the receiver's pool, we should chunk get_user_pages(), replace vmap()
   - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate
     kernel memory anymore
   - BUG: the sender needs to ref the receiver when looking it up to protect

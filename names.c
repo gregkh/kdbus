@@ -475,11 +475,11 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 	size_t size_avail = *size;
 
 #ifdef CONFIG_AUDITSYSCALL
-	size_req += sizeof(*item) + sizeof(conn->audit_ids);
+	size_req += KDBUS_ITEM_SIZE(sizeof(conn->audit_ids));
 #endif
 
 #ifdef CONFIG_SECURITY
-	size_req += sizeof(*item) + conn->sec_label_len + 1;
+	size_req += KDBUS_ITEM_SIZE(conn->sec_label_len + 1);
 #endif
 
 	*size = size_req;
@@ -487,19 +487,17 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 		return -ENOBUFS;
 
 #ifdef CONFIG_AUDITSYSCALL
-	item->size = sizeof(*item) + sizeof(conn->audit_ids);
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(conn->audit_ids);
 	item->type = KDBUS_NAME_INFO_ITEM_AUDIT;
 	memcpy(item->data, conn->audit_ids, sizeof(conn->audit_ids));
-	//FIXME: use KDBUS_ITEM_NEXT()?
-	item = (struct kdbus_item *) (u8 *) item + item->size;
+	item = KDBUS_ITEM_NEXT(item);
 #endif
 
 #ifdef CONFIG_SECURITY
-	item->size = sizeof(*item) + conn->sec_label_len + 1;
+	item->size = KDBUS_ITEM_HEADER_SIZE + conn->sec_label_len + 1;
 	item->type = KDBUS_NAME_INFO_ITEM_SECLABEL;
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
-	//FIXME: use KDBUS_ITEM_NEXT()?
-	item = (struct kdbus_item *) (u8 *) item + item->size;
+	item = KDBUS_ITEM_NEXT(item);
 #endif
 
 	return ret;
