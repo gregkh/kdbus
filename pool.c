@@ -302,6 +302,25 @@ void kdbus_pool_slice_unmap(struct kdbus_slice *slice)
 	slice->pg = NULL;
 }
 
+bool kdbus_pool_is_anon_map(struct mm_struct *mm,
+			    void __user *buf, size_t size)
+{
+	unsigned long addr = (unsigned long) buf;
+	struct vm_area_struct *vma;
+
+	vma = find_vma(mm, addr);
+	if (!vma)
+		return false;
+
+	if (vma->vm_file)
+		return false;
+
+	if (addr + size  > vma->vm_end)
+		return false;
+
+	return true;
+}
+
 /* pin the receiver's memory range/pages */
 int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task)
 {
@@ -323,17 +342,22 @@ int kdbus_pool_slice_map(struct kdbus_slice *slice, struct task_struct *task)
 	base = addr & PAGE_MASK;
 	slice->pg_off = addr - base;
 
-	/* pin the receiver's pool page(s); the task
+	/* pin the receiver's pool page(s) we will write to; the task
 	 * is pinned as long as the connection is open */
 	mm = get_task_mm(task);
 	if (!mm) {
 		kdbus_pool_slice_unmap(slice);
 		return -ESHUTDOWN;
 	}
+
 	down_read(&mm->mmap_sem);
-	have = get_user_pages(task, mm, base, n,
-			      true, false, slice->pg, NULL);
+	if (kdbus_pool_is_anon_map(mm, slice->buf, slice->size))
+		have = get_user_pages(task, mm, base, n, true, false,
+				      slice->pg, NULL);
+	else
+		have = -EFAULT;
 	up_read(&mm->mmap_sem);
+
 	mmput(mm);
 
 	if (have < 0) {

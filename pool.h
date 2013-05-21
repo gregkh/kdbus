@@ -62,6 +62,8 @@ struct kdbus_slice {
 
 int kdbus_pool_init(struct kdbus_pool *pool, void __user *buf, size_t size);
 void kdbus_pool_cleanup(struct kdbus_pool *pool);
+bool kdbus_pool_is_anon_map(struct mm_struct *mm,
+			    void __user *buf, size_t size);
 
 void __user *kdbus_pool_alloc(struct kdbus_pool *pool, size_t size,
 			      struct kdbus_slice **slice);

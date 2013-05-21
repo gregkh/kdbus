@@ -859,8 +859,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	INIT_LIST_HEAD(&conn->connection_entry);
 	INIT_LIST_HEAD(&conn->monitor_entry);
 
-	file->private_data = conn;
-
 	INIT_WORK(&conn->work, kdbus_conn_work);
 
 	init_timer(&conn->timer);
@@ -1191,7 +1189,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 					break;
 				}
 
-				/* enforce page alignment and page granularity */
+				/* enforce page alignment */
 				if (!IS_ALIGNED(item->vec.address, PAGE_SIZE) ||
 				    !IS_ALIGNED(item->vec.size, PAGE_SIZE)) {
 					ret = -EFAULT;
@@ -1199,6 +1197,12 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 				}
 
 				p = KDBUS_PTR(item->vec.address);
+				if (!kdbus_pool_is_anon_map(current->mm, p,
+							    item->vec.size)) {
+					ret = -EFAULT;
+					break;
+				}
+
 				ret = kdbus_pool_init(&conn->pool,
 						      p, item->vec.size);
 				break;
