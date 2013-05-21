@@ -70,7 +70,7 @@
 #define kdbus_size_set_user(_s, _b, _t)						\
 ({										\
 	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size);	\
-	copy_to_user(_s, _sz, sizeof(__u64));					\
+	copy_to_user(_sz, _s, sizeof(__u64));					\
 })
 
 static inline bool kdbus_validate_nul(const char *s, size_t l)
