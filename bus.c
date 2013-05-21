@@ -295,7 +295,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 
 	/* expect correct padding and size values */
 	if ((char *)item - ((char *)&km->make + km->make.size) >= 8)
-		return EINVAL;
+		return -EINVAL;
 
 	if (!km->name) {
 		ret = -EBADMSG;
