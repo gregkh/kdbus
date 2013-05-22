@@ -57,7 +57,7 @@ struct conn *connect_to_bus(const char *path)
 		return NULL;
 	}
 	h.v_type = KDBUS_HELLO_POOL;
-	h.v_size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	h.v_size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	h.vec.address = (uint64_t)buf;
 	h.vec.size = 16 * 1024 * 1024;
 
@@ -71,7 +71,7 @@ struct conn *connect_to_bus(const char *path)
 			     KDBUS_HELLO_ATTACH_AUDIT;
 
 	h.hello.size = sizeof(struct kdbus_cmd_hello) +
-		       KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+		       KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
 	if (ret) {
@@ -104,34 +104,36 @@ int msg_send(const struct conn *conn,
 	int memfd;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
-	if (ret < 0) {
-		fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
-		return EXIT_FAILURE;
-	}
-
-	if (write(memfd, "kdbus memfd 1234567", 19) != 19) {
-		fprintf(stderr, "writing to memfd failed: %m\n");
-		return EXIT_FAILURE;
-	}
-
-	ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, true);
-	if (ret < 0) {
-		fprintf(stderr, "memfd sealing failed: %m\n");
-		return EXIT_FAILURE;
-	}
-
 	size = sizeof(struct kdbus_msg);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
-		size += KDBUS_ITEM_HEADER_SIZE + 64;
+		size += KDBUS_PART_HEADER_SIZE + 64;
+	else {
+		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
+		if (ret < 0) {
+			fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
+			return EXIT_FAILURE;
+		}
+
+		if (write(memfd, "kdbus memfd 1234567", 19) != 19) {
+			fprintf(stderr, "writing to memfd failed: %m\n");
+			return EXIT_FAILURE;
+		}
+
+		ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, true);
+		if (ret < 0) {
+			fprintf(stderr, "memfd sealing failed: %m\n");
+			return EXIT_FAILURE;
+		}
+
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+	}
 
 	if (name)
-		size += KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
+		size += KDBUS_ITEM_SIZE(strlen(name) + 1);
 
 	msg = malloc(size);
 	if (!msg) {
@@ -150,40 +152,40 @@ int msg_send(const struct conn *conn,
 
 	if (name) {
 		item->type = KDBUS_MSG_DST_NAME;
-		item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
+		item->size = KDBUS_PART_HEADER_SIZE + strlen(name) + 1;
 		strcpy(item->str, name);
-		item = KDBUS_ITEM_NEXT(item);
+		item = KDBUS_PART_NEXT(item);
 	}
 
 	item->type = KDBUS_MSG_PAYLOAD_VEC;
-	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref1;
 	item->vec.size = sizeof(ref1);
-	item = KDBUS_ITEM_NEXT(item);
+	item = KDBUS_PART_NEXT(item);
 
 	/* data padding for ref1 */
 	item->type = KDBUS_MSG_PAYLOAD_VEC;
-	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)NULL;
 	item->vec.size =  KDBUS_ALIGN8(sizeof(ref1)) - sizeof(ref1);
-	item = KDBUS_ITEM_NEXT(item);
+	item = KDBUS_PART_NEXT(item);
 
 	item->type = KDBUS_MSG_PAYLOAD_VEC;
-	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref2;
 	item->vec.size = sizeof(ref2);
-	item = KDBUS_ITEM_NEXT(item);
-
-	item->type = KDBUS_MSG_PAYLOAD_MEMFD;
-	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
-	item->memfd.size = 16;
-	item->memfd.fd = memfd;
-	item = KDBUS_ITEM_NEXT(item);
+	item = KDBUS_PART_NEXT(item);
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
 		item->type = KDBUS_MSG_BLOOM;
-		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
-		item = KDBUS_ITEM_NEXT(item);
+		item->size = KDBUS_PART_HEADER_SIZE + 64;
+		item = KDBUS_PART_NEXT(item);
+	} else {
+		item->type = KDBUS_MSG_PAYLOAD_MEMFD;
+		item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_memfd);
+		item->memfd.size = 16;
+		item->memfd.fd = memfd;
+		item = KDBUS_PART_NEXT(item);
 	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
@@ -219,8 +221,8 @@ void msg_dump(struct kdbus_msg *msg)
 		msg_id(msg->src_id, buf), msg_id(msg->dst_id, buf),
 		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout_ns);
 
-	KDBUS_ITEM_FOREACH(item, msg) {
-		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
+	KDBUS_PART_FOREACH(item, msg, items) {
+		if (item->size <= KDBUS_PART_HEADER_SIZE) {
 			printf("  +%s (%llu bytes) invalid data record\n", enum_MSG(item->type), item->size);
 			break;
 		}
@@ -279,7 +281,7 @@ void msg_dump(struct kdbus_msg *msg)
 
 		case KDBUS_MSG_SRC_CMDLINE:
 		case KDBUS_MSG_SRC_NAMES: {
-			size_t size = item->size - KDBUS_ITEM_HEADER_SIZE;
+			size_t size = item->size - KDBUS_PART_HEADER_SIZE;
 			char *str = item->str;
 			int count = 0;
 
@@ -309,10 +311,10 @@ void msg_dump(struct kdbus_msg *msg)
 
 			printf("  +%s (%llu bytes) len=%llu bytes)\n",
 			       enum_MSG(item->type), item->size,
-			       (unsigned long long)item->size - KDBUS_ITEM_HEADER_SIZE);
+			       (unsigned long long)item->size - KDBUS_PART_HEADER_SIZE);
 
 			cap = item->data32;
-			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / 4 / sizeof(uint32_t);
+			n = (item->size - KDBUS_PART_HEADER_SIZE) / 4 / sizeof(uint32_t);
 
 			printf("    CapInh=");
 			for (i = 0; i < n; i++)
@@ -463,7 +465,7 @@ int name_list(struct conn *conn)
 	}
 
 	printf("REGISTRY:\n");
-	KDBUS_NAME_FOREACH(name, names)
+	KDBUS_PART_FOREACH(name, names, names)
 		printf("  '%s' is acquired by id %llx\n", name->name, name->id);
 	printf("\n");
 
@@ -505,7 +507,8 @@ void append_policy(struct kdbus_cmd_policy *cmd_policy, struct kdbus_policy *pol
 		return;
 
 	memcpy(dst, policy, policy->size);
-	cmd_policy->size += policy->size;
+	cmd_policy->size += KDBUS_ALIGN8(policy->size);
+	free(policy);
 }
 
 struct kdbus_policy *make_policy_name(const char *name)
@@ -517,7 +520,6 @@ struct kdbus_policy *make_policy_name(const char *name)
 	p = malloc(size);
 	if (!p)
 		return NULL;
-
 	memset(p, 0, size);
 	p->size = size;
 	p->type = KDBUS_POLICY_NAME;
@@ -554,9 +556,10 @@ int upload_policy(int fd)
 	int size = 0xffff;
 
 	cmd_policy = (struct kdbus_cmd_policy *) alloca(size);
+	memset(cmd_policy, 0, size);
 
-	policy = (struct kdbus_policy *) cmd_policy->data;
-	cmd_policy->size = offsetof(struct kdbus_cmd_policy, data);
+	policy = (struct kdbus_policy *) cmd_policy->policies;
+	cmd_policy->size = offsetof(struct kdbus_cmd_policy, policies);
 
 	policy = make_policy_name("foo.bar.baz");
 	append_policy(cmd_policy, policy, size);
@@ -576,5 +579,3 @@ int upload_policy(int fd)
 
 	return ret;
 }
-
-

@@ -226,7 +226,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 		}
 	}
 
-	return -EPERM;
+	return 0;
 }
 
 static struct kdbus_policy_db_cache_entry *
@@ -371,13 +371,13 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 				 const struct kdbus_cmd_policy *cmd,
 				 u64 size)
 {
-	struct kdbus_policy *pol;
+	const struct kdbus_policy *pol;
 	struct kdbus_policy_db_entry *current_entry = NULL;
 
-	size -= offsetof(struct kdbus_cmd_policy, data);
-	pol = (struct kdbus_policy *) cmd->data;
+	KDBUS_PART_FOREACH(pol, cmd, policies) {
+		if (!KDBUS_PART_VALID(pol, cmd))
+			return -EINVAL;
 
-	while (size > 0) {
 		switch (pol->type) {
 		case KDBUS_POLICY_NAME: {
 			struct kdbus_policy_db_entry *e;
@@ -398,6 +398,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 			current_entry = e;
 			break;
 		}
+
 		case KDBUS_POLICY_ACCESS: {
 			struct kdbus_policy_db_entry_access *a;
 
@@ -416,16 +417,16 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 			mutex_lock(&db->entries_lock);
 			list_add_tail(&a->list, &current_entry->access_list);
 			mutex_unlock(&db->entries_lock);
-
 			break;
 		}
+
 		default:
 			return -EINVAL;
 		}
-
-		size -= pol->size;
-		pol = (struct kdbus_policy *) ((u8 *) pol + pol->size);
 	}
+
+	if (!KDBUS_PART_END(pol, cmd))
+		return -EINVAL;
 
 	return 0;
 }

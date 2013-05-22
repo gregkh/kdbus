@@ -42,22 +42,23 @@
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
-#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_ITEM_HEADER_SIZE + (s))
-#define KDBUS_ITEM_NEXT(item) \
-	(struct kdbus_item *)((u8 *)item + KDBUS_ALIGN8((item)->size))
-#define KDBUS_ITEM_FOREACH(item, head)						\
-	for (item = (head)->items;						\
-	     (u8 *)(item) < (u8 *)(head) + (head)->size;			\
-	     item = KDBUS_ITEM_NEXT(item))
-/* same iterator with more consistency checks, to be used with incoming data */
-#define KDBUS_ITEM_FOREACH_VALIDATE(item, head)					\
-	for (item = (head)->items;						\
-	     (u8 *)(item) + KDBUS_ITEM_HEADER_SIZE <= (u8 *)(head) + (head)->size && \
-	     (u8 *)(item) + (item)->size <= (u8 *)(head) + (head)->size; \
-	     item = KDBUS_ITEM_NEXT(item))
+#define KDBUS_PART_HEADER_SIZE (2 * sizeof(__u64))
+#define KDBUS_PART_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
+#define KDBUS_PART_NEXT(part) \
+	(typeof(part))(((u8 *)part) + KDBUS_ALIGN8((part)->size))
+#define KDBUS_PART_FOREACH(part, head, first)				\
+	for (part = (head)->first;					\
+	     (u8 *)(part) < (u8 *)(head) + (head)->size;		\
+	     part = KDBUS_PART_NEXT(part))
+#define KDBUS_PART_VALID(part, head)					\
+	((part)->size > KDBUS_PART_HEADER_SIZE &&			\
+	 (u8 *)(part) + (part)->size <= (u8 *)(head) + (head)->size)
+#define KDBUS_PART_END(part, head)					\
+	((u8 *)part >= ((u8 *)(head) + (head)->size) &&			\
+	 (u8 *)part - ((u8 *)(head) + (head)->size) < 8)
 
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
 
 /* read 64bit .size from struct */
 #define kdbus_size_get_user(_s, _b, _t)						\

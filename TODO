@@ -16,6 +16,8 @@ Internal:
     accounts against its budget, security_vm_enough_memory_mm())?
   - how to limit memfd memory?
   - memfd's file pos is shared, which can be confusing, document pread/pwrite
+  - prefix all functions with kdbus
+  - signals miss all the process metadata, we attach only creds
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:

@@ -316,12 +316,12 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	e->src_id = cmd_match->src_id;
 	e->cookie = cmd_match->cookie;
 
-	KDBUS_ITEM_FOREACH_VALIDATE(item, cmd_match) {
+	KDBUS_PART_FOREACH(item, cmd_match, items) {
 		struct kdbus_match_db_entry_item *ei;
 		size_t size;
 
-		if (item->size < sizeof(*item)) {
-			ret = -EBADMSG;
+		if (!KDBUS_PART_VALID(item, cmd_match)) {
+			ret = -EINVAL;
 			break;
 		}
 
@@ -363,6 +363,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 		list_add_tail(&ei->list_entry, &e->items_list);
 	}
+
+	if (!KDBUS_PART_END(item, cmd_match))
+		ret = -EINVAL;
 
 	if (ret >= 0) {
 		list_add_tail(&e->list_entry, &db->entries);

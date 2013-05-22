@@ -298,7 +298,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		conn = new_conn;
 	}
 
-	cmd_name->name_flags &= ~KDBUS_NAME_IN_QUEUE;
+	cmd_name->flags &= ~KDBUS_NAME_IN_QUEUE;
 	hash = kdbus_str_hash(cmd_name->name);
 
 	if (conn->ep->policy_db) {
@@ -313,10 +313,10 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (e) {
 		if (e->conn == conn) {
 			/* just update flags */
-			e->flags = cmd_name->name_flags;
+			e->flags = cmd_name->flags;
 		} else {
 			ret = kdbus_name_handle_conflict(reg, conn, e,
-							 &cmd_name->name_flags);
+							 &cmd_name->flags);
 			if (ret < 0)
 				goto exit_unlock;
 		}
@@ -339,7 +339,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (conn->flags & KDBUS_HELLO_STARTER)
 		e->starter = conn;
 
-	e->flags = cmd_name->name_flags;
+	e->flags = cmd_name->flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
 
@@ -409,11 +409,6 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	return ret;
 }
 
-#define KDBUS_NAME_SIZE(s) \
-	KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) + strlen(s) + 1)
-#define KDBUS_NAME_NEXT(n) \
-	(struct kdbus_cmd_name *)((u8 *)n + KDBUS_ALIGN8(n->size))
-
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			void __user *buf)
@@ -432,7 +427,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	size = sizeof(struct kdbus_cmd_names);
 
 	hash_for_each(reg->entries_hash, tmp, e, hentry)
-		size += KDBUS_NAME_SIZE(e->name);
+		size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) +
+				     strlen(e->name) + 1);
 
 	if (size > user_size) {
 		kdbus_size_set_user(&size, buf, struct kdbus_cmd_names);
@@ -452,10 +448,10 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	hash_for_each(reg->entries_hash, tmp, e, hentry) {
 		cmd_name->size = sizeof(struct kdbus_cmd_name) +
 				 strlen(e->name) + 1;
-		cmd_name->name_flags = e->flags;
+		cmd_name->flags = e->flags;
 		cmd_name->id = e->conn->id;
 		strcpy(cmd_name->name, e->name);
-		cmd_name = KDBUS_NAME_NEXT(cmd_name);
+		cmd_name = KDBUS_PART_NEXT(cmd_name);
 	}
 
 	if (copy_to_user(buf, cmd_names, size)) {
@@ -492,17 +488,17 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 		return -ENOBUFS;
 
 #ifdef CONFIG_AUDITSYSCALL
-	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(conn->audit_ids);
+	item->size = KDBUS_PART_HEADER_SIZE + sizeof(conn->audit_ids);
 	item->type = KDBUS_NAME_INFO_ITEM_AUDIT;
 	memcpy(item->data, conn->audit_ids, sizeof(conn->audit_ids));
-	item = KDBUS_ITEM_NEXT(item);
+	item = KDBUS_PART_NEXT(item);
 #endif
 
 #ifdef CONFIG_SECURITY
-	item->size = KDBUS_ITEM_HEADER_SIZE + conn->sec_label_len + 1;
+	item->size = KDBUS_PART_HEADER_SIZE + conn->sec_label_len + 1;
 	item->type = KDBUS_NAME_INFO_ITEM_SECLABEL;
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
-	item = KDBUS_ITEM_NEXT(item);
+	item = KDBUS_PART_NEXT(item);
 #endif
 
 	return ret;
@@ -538,11 +534,21 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
 						       cmd_name_info->id);
 		if (!owner_conn)
-			return -ENOENT;
+			return -ENXIO;
 	} else {
-		KDBUS_ITEM_FOREACH_VALIDATE(info_item, cmd_name_info)
+		KDBUS_PART_FOREACH(info_item, cmd_name_info, items) {
+			if (!KDBUS_PART_VALID(info_item, cmd_name_info))
+				return -EINVAL;
+
+			if (name)
+				return -EBADMSG;
+
 			if (info_item->type == KDBUS_NAME_INFO_ITEM_NAME)
 				name = info_item->data;
+		}
+
+		if (!KDBUS_PART_END(info_item, cmd_name_info))
+			return -EINVAL;
 
 		if (!name)
 			return -EINVAL;

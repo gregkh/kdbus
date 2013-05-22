@@ -16,24 +16,16 @@
 
 #define KDBUS_PTR(addr) ((void *)(uintptr_t)(addr))
 
-#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
-#define KDBUS_ITEM_NEXT(item) \
-	(struct kdbus_item *)(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
-#define KDBUS_ITEM_FOREACH(item, head)						\
-	for (item = (head)->items;						\
-	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;		\
-	     item = KDBUS_ITEM_NEXT(item))
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
+#define KDBUS_PART_HEADER_SIZE offsetof(struct kdbus_item, data)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_PART_HEADER_SIZE)
 
-#define KDBUS_NAME_SIZE(s) \
-	KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) + strlen(s) + 1)
-#define KDBUS_NAME_NEXT(n) \
-	(struct kdbus_cmd_name *)((char *)n + KDBUS_ALIGN8(n->size))
-#define KDBUS_NAME_FOREACH(name, names)					\
-	for (name = names->names;					\
-	     (char *)name < (char *)names + name->size;			\
-	     name = KDBUS_NAME_NEXT(name))
+#define KDBUS_PART_NEXT(part) \
+	(typeof(part))(((uint8_t *)part) + KDBUS_ALIGN8((part)->size))
+#define KDBUS_PART_FOREACH(part, head, first)				\
+	for (part = (head)->first;					\
+	     (uint8_t *)(part) < (uint8_t *)(head) + (head)->size;	\
+	     part = KDBUS_PART_NEXT(part))
 
 struct conn {
 	int fd;

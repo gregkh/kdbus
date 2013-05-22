@@ -49,11 +49,11 @@ int main(int argc, char *argv[])
 
 	bus_make.cgroup_id = cgroup_systemd();
 	bus_make.c_type = KDBUS_MAKE_CGROUP;
-	bus_make.c_size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
+	bus_make.c_size = KDBUS_PART_HEADER_SIZE + sizeof(uint64_t);
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.n_type = KDBUS_MAKE_NAME;
-	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.n_size = KDBUS_PART_HEADER_SIZE + strlen(bus_make.name) + 1;
 
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
 			     bus_make.c_size +

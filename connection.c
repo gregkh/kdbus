@@ -191,10 +191,10 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 			return -ENOMEM;
 	}
 
-	KDBUS_ITEM_FOREACH(item, &kmsg->msg) {
+	KDBUS_PART_FOREACH(item, &kmsg->msg, items) {
 		switch (item->type) {
 		case KDBUS_MSG_PAYLOAD_VEC: {
-			size_t size = KDBUS_ITEM_HEADER_SIZE +
+			size_t size = KDBUS_PART_HEADER_SIZE +
 				      sizeof(struct kdbus_vec);
 			char tmp[size];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
@@ -225,7 +225,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 		}
 
 		case KDBUS_MSG_PAYLOAD_MEMFD: {
-			size_t size = KDBUS_ITEM_HEADER_SIZE +
+			size_t size = KDBUS_PART_HEADER_SIZE +
 				      sizeof(struct kdbus_memfd);
 			char tmp[size];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
@@ -379,7 +379,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 
 	/* add a FDS item; the array content will be updated at RECV time */
 	if (kmsg->fds_count > 0) {
-		size_t size = KDBUS_ITEM_HEADER_SIZE;
+		size_t size = KDBUS_PART_HEADER_SIZE;
 		char tmp[size];
 		struct kdbus_item *it = (struct kdbus_item *)tmp;
 
@@ -525,6 +525,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						       kmsg))
 				continue;
 
+			//FIXME: call kdbus_kmsg_append_for_dst()?
+
 			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
 		}
 		mutex_unlock(&ep->bus->lock);
@@ -564,11 +566,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			return ret;
 	}
 
-	if (conn_src) {
-		ret = kdbus_kmsg_append_for_dst(kmsg, conn_src, conn_dst);
-		if (ret < 0)
-			return ret;
-	}
+	ret = kdbus_kmsg_append_for_dst(kmsg, conn_src, conn_dst);
+	if (ret < 0)
+		return ret;
 
 	/* monitor connections get all messages */
 	mutex_lock(&ep->bus->lock);
@@ -1127,9 +1127,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		KDBUS_ITEM_FOREACH_VALIDATE(item, hello) {
-			/* empty items are invalid */
-			if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
+		KDBUS_PART_FOREACH(item, hello, items) {
+			if (!KDBUS_PART_VALID(item, hello)) {
 				ret = -EINVAL;
 				break;
 			}
@@ -1167,6 +1166,9 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 				ret = -ENOTSUPP;
 			}
 		}
+
+		if (!KDBUS_PART_END(item, hello))
+			return -EINVAL;
 
 		mutex_init(&conn->lock);
 		mutex_init(&conn->names_lock);

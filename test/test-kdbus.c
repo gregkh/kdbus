@@ -61,15 +61,15 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.head.bloom_size = 8;
+	bus_make.head.bloom_size = 64;
 
 	bus_make.cgroup_id = cgroup_systemd();
 	bus_make.c_type = KDBUS_MAKE_CGROUP;
-	bus_make.c_size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
+	bus_make.c_size = KDBUS_PART_HEADER_SIZE + sizeof(uint64_t);
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.n_type = KDBUS_MAKE_NAME;
-	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.n_size = KDBUS_PART_HEADER_SIZE + strlen(bus_make.name) + 1;
 
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
 			     bus_make.c_size +
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 	add_match_empty(conn_b->fd);
 
 	cookie = 0;
-	msg_send(conn_b, "foo.bar.baz", 0xc0000000 | cookie, KDBUS_DST_ID_BROADCAST);
+	msg_send(conn_b, NULL, 0xc0000000 | cookie, KDBUS_DST_ID_BROADCAST);
 
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;
