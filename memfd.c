@@ -239,79 +239,79 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	mutex_lock(&mf->lock);
 	switch (cmd) {
-		case KDBUS_CMD_MEMFD_SIZE_GET: {
-			u64 size = i_size_read(file_inode(mf->fp));
+	case KDBUS_CMD_MEMFD_SIZE_GET: {
+		u64 size = i_size_read(file_inode(mf->fp));
 
-			if (!KDBUS_IS_ALIGNED8(arg)) {
-				ret = -EFAULT;
-				goto exit;
-			}
-
-			if (copy_to_user(argp, &size, sizeof(__u64))) {
-				ret = -EFAULT;
-				goto exit;
-			}
-			break;
+		if (!KDBUS_IS_ALIGNED8(arg)) {
+			ret = -EFAULT;
+			goto exit;
 		}
 
-		case KDBUS_CMD_MEMFD_SIZE_SET: {
-			u64 size;
+		if (copy_to_user(argp, &size, sizeof(__u64))) {
+			ret = -EFAULT;
+			goto exit;
+		}
+		break;
+	}
 
-			if (!KDBUS_IS_ALIGNED8(arg)) {
-				ret = -EFAULT;
-				goto exit;
-			}
+	case KDBUS_CMD_MEMFD_SIZE_SET: {
+		u64 size;
 
-			if (copy_from_user(&size, argp, sizeof(__u64))) {
-				ret = -EFAULT;
-				goto exit;
-			}
-
-			/* deny a writable access to a sealed file */
-			if (mf->sealed) {
-				if (size == i_size_read(file_inode(mf->fp)))
-					ret = -EALREADY;
-				else
-					ret = -EPERM;
-				goto exit;
-			}
-
-			if (size != i_size_read(file_inode(mf->fp)))
-				ret = vfs_truncate(&mf->fp->f_path, size);
-			break;
+		if (!KDBUS_IS_ALIGNED8(arg)) {
+			ret = -EFAULT;
+			goto exit;
 		}
 
-		case KDBUS_CMD_MEMFD_SEAL_GET: {
-			int __user *addr = argp;
-
-			if (put_user(mf->sealed, addr)) {
-				ret = -EFAULT;
-				goto exit;
-			}
-			break;
+		if (copy_from_user(&size, argp, sizeof(__u64))) {
+			ret = -EFAULT;
+			goto exit;
 		}
 
-		case KDBUS_CMD_MEMFD_SEAL_SET: {
-			/*
-			 * Make sure we have only one single user of the file
-			 * before we seal, we rely on the fact there is no
-			 * any other possibly writable references to the file.
-			 */
-			if (file_count(mf->fp) != 1) {
-				if (mf->sealed == !!argp)
-					ret = -EALREADY;
-				else
-					ret = -ETXTBSY;
-				goto exit;
-			}
-
-			mf->sealed = !!argp;
-			break;
+		/* deny a writable access to a sealed file */
+		if (mf->sealed) {
+			if (size == i_size_read(file_inode(mf->fp)))
+				ret = -EALREADY;
+			else
+				ret = -EPERM;
+			goto exit;
 		}
 
-		default:
-			ret = -ENOTTY;
-			break;
+		if (size != i_size_read(file_inode(mf->fp)))
+			ret = vfs_truncate(&mf->fp->f_path, size);
+		break;
+	}
+
+	case KDBUS_CMD_MEMFD_SEAL_GET: {
+		int __user *addr = argp;
+
+		if (put_user(mf->sealed, addr)) {
+			ret = -EFAULT;
+			goto exit;
+		}
+		break;
+	}
+
+	case KDBUS_CMD_MEMFD_SEAL_SET: {
+		/*
+		 * Make sure we have only one single user of the file
+		 * before we seal, we rely on the fact there is no
+		 * any other possibly writable references to the file.
+		 */
+		if (file_count(mf->fp) != 1) {
+			if (mf->sealed == !!argp)
+				ret = -EALREADY;
+			else
+				ret = -ETXTBSY;
+			goto exit;
+		}
+
+		mf->sealed = !!argp;
+		break;
+	}
+
+	default:
+		ret = -ENOTTY;
+		break;
 	}
 
 exit:

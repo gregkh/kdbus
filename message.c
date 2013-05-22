@@ -466,7 +466,7 @@ int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,
 
 //	cgroup_lock();
 	list_for_each_entry(link, &current->cgroups->cg_links, cg_link_list) {
-		struct cgroup* cg = link->cgrp;
+		struct cgroup *cg = link->cgrp;
 		struct cgroupfs_root *root = (struct cgroupfs_root *)cg->root;
 
 		if (root->hierarchy_id != hierarchy_id)
