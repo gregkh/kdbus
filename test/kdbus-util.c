@@ -463,11 +463,8 @@ int name_list(struct conn *conn)
 	}
 
 	printf("REGISTRY:\n");
-	KDBUS_NAME_FOREACH(name, names) {
+	KDBUS_NAME_FOREACH(name, names)
 		printf("  '%s' is acquired by id %llx\n", name->name, name->id);
-		name = KDBUS_NAME_NEXT(name);
-	}
-
 	printf("\n");
 
 	return 0;
