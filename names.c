@@ -482,7 +482,6 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 #ifdef CONFIG_SECURITY
 	size_req += KDBUS_ITEM_SIZE(conn->sec_label_len + 1);
 #endif
-
 	*size = size_req;
 	if (size_avail < size_req)
 		return -ENOBUFS;
@@ -500,7 +499,6 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
 	item = KDBUS_PART_NEXT(item);
 #endif
-
 	return ret;
 }
 

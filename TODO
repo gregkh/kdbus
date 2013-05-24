@@ -1,6 +1,5 @@
 External API:
   - _IOWR() vs. _IOR()/_IOW()?
-  - convert kdbus_cmd_names to items?
 
 Internal:
   - use hash_for_each() instead of list to iterate over connections?
@@ -10,14 +9,10 @@ Internal:
     kernel memory anymore
   - BUG: the sender needs to ref the receiver when looking it up to protect
     against the receiver going away while its ressources are accessed
-  - BUG: kdbus_name_fill_info_items() needs to align the next record,
-    convert to items?
-  - shmem accounting when passing memfds: the creator of the file content
-    accounts against its budget, security_vm_enough_memory_mm())?
-  - how to limit memfd memory?
   - memfd's file pos is shared, which can be confusing, document pread/pwrite
-  - prefix all functions with kdbus
-  - signals miss all the process metadata, we attach only creds
+  - prefix all functions with kdbus_
+  - "signals" miss all the process metadata, we attach only creds
+  - set size in shmem file for receive buffer
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:
