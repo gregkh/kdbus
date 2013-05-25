@@ -45,7 +45,6 @@ struct kdbus_bus {
 	u64 cgroup_id;			/* the cgroup superblock we attach information from */
 	struct kdbus_name_registry *name_registry;
 	struct list_head bus_entry;	/* namespace's list of buses */
-	struct list_head conns_list;	/* connections on this bus */
 	struct list_head monitors_list;	/* connections that monitor */
 };
 

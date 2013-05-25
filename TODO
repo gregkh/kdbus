@@ -2,7 +2,6 @@ External API:
   - _IOWR() vs. _IOR()/_IOW()?
 
 Internal:
-  - use hash_for_each() instead of list to iterate over connections?
   - if we expect larger amounts of memory to copy around from the sender
     to the receiver's pool, we should chunk get_user_pages(), replace vmap()
   - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate

@@ -177,7 +177,6 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->eps_list);
-	INIT_LIST_HEAD(&b->conns_list);
 	INIT_LIST_HEAD(&b->monitors_list);
 
 	b->name = kstrdup(bus_kmake->name, GFP_KERNEL);

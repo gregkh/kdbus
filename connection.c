@@ -511,9 +511,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	/* broadcast message */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
+		unsigned int i;
+
 		mutex_lock(&ep->bus->lock);
-		list_for_each_entry(conn_dst, &ep->bus->conns_list,
-				    connection_entry) {
+		hash_for_each(ep->bus->conn_hash, i, conn_dst, hentry) {
 			if (conn_dst->type != KDBUS_CONN_EP_CONNECTED)
 				continue;
 
@@ -864,7 +865,6 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 	/* remove from bus */
 	mutex_lock(&conn->ep->bus->lock);
 	hash_del(&conn->hentry);
-	list_del(&conn->connection_entry);
 	list_del(&conn->monitor_entry);
 	mutex_unlock(&conn->ep->bus->lock);
 
@@ -1176,7 +1176,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		INIT_LIST_HEAD(&conn->msg_list);
 		INIT_LIST_HEAD(&conn->names_list);
 		INIT_LIST_HEAD(&conn->names_queue_list);
-		INIT_LIST_HEAD(&conn->connection_entry);
 		INIT_LIST_HEAD(&conn->monitor_entry);
 
 		INIT_WORK(&conn->work, kdbus_conn_work);
@@ -1208,7 +1207,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		mutex_lock(&conn->ep->bus->lock);
 		conn->id = conn->ep->bus->conn_id_next++;
 		hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
-		list_add_tail(&conn->connection_entry, &conn->ep->bus->conns_list);
 		mutex_unlock(&conn->ep->bus->lock);
 
 		/* return properties of this connection to the caller */
