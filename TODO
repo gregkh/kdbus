@@ -16,4 +16,3 @@ Internal:
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:
       http://git.kernel.org/cgit/linux/kernel/git/tj/cgroup.git/commit/?h=review-task_cgroup_path_from_hierarchy
-  - use subsys_virtual_register() when exported to modules
