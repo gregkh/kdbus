@@ -18,7 +18,7 @@
 #define KDBUS_MSG_MAX_SIZE		SZ_8K		/* maximum size of message header and items */
 #define KDBUS_MSG_MAX_ITEMS		128		/* maximum number of message items */
 #define KDBUS_MSG_MAX_FDS		256		/* maximum number of passed file descriptors */
-#define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_2M		/* maximum message payload size */
+#define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_8M		/* maximum message payload size */
 
 #define KDBUS_NAME_MAX_LEN		255		/* maximum length of well-known bus name */
 
@@ -36,7 +36,6 @@
 
 /* exported addresses are 64bit */
 #define KDBUS_PTR(addr) ((void *)(uintptr_t)(addr))
-#define KDBUS_ADDR(ptr) ((u64)(ptr))
 
 /* exported sizes are 64bit and data aligned to 64 bit */
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)

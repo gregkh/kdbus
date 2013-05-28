@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
 			msg_recv(conn_a);
 			msg_send(conn_a, NULL, 0xc0000000 | cookie++, conn_b->id);
 		}
+
 		if (fds[1].revents & POLLIN) {
 			msg_recv(conn_b);
 			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);

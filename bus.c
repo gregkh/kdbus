@@ -41,7 +41,7 @@ bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
 }
 
 /**
- * kdbus_bus_unref() - increase the reference counter of a kdbus_bus
+ * kdbus_bus_ref() - increase the reference counter of a kdbus_bus
  * @bus:	The bus to unref
  *
  * Every user of a bus, except for its creator, must add a reference to the

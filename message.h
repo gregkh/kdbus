@@ -35,6 +35,9 @@ struct kdbus_kmsg {
 	unsigned int vecs_count;
 	unsigned int memfds_count;
 
+	/* added metadata flags KDBUS_HELLO_ATTACH_* */
+	u64 meta_attached;
+
 	struct kdbus_msg msg;
 };
 
@@ -50,7 +53,7 @@ int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 				struct kdbus_conn *conn);
 int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
 			   const struct kdbus_creds *creds);
-int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
-			      struct kdbus_conn *conn_src,
-			      struct kdbus_conn *conn_dst);
+int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
+			   struct kdbus_conn *conn_src,
+			   struct kdbus_conn *conn_dst);
 #endif

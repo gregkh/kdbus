@@ -1,17 +1,13 @@
 External API:
   - _IOWR() vs. _IOR()/_IOW()?
+  - rules for: which unknown items to ignore in userspace?
 
 Internal:
-  - if we expect larger amounts of memory to copy around from the sender
-    to the receiver's pool, we should chunk get_user_pages(), replace vmap()
   - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate
     kernel memory anymore
-  - BUG: the sender needs to ref the receiver when looking it up to protect
-    against the receiver going away while its ressources are accessed
   - memfd's file pos is shared, which can be confusing, document pread/pwrite
   - prefix all functions with kdbus_
-  - "signals" miss all the process metadata, we attach only creds
-  - set size in shmem file for receive buffer
+  - conn->ep->bus ==> conn->bus
 
 Kernel Core:
   - remove our own task_cgroup_path_from_hierarchy() as soon as it's available:

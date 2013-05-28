@@ -352,7 +352,7 @@ Ioctl API
    Send a message and pass data from userspace to the kernel.
 
   KDBUS_CMD_MSG_RECV
-   Receive a message from the kernel which is placed in the receiver-supplied
+   Receive a message from the kernel which is placed in the receiver's
    pool.
 
   KDBUS_CMD_MSG_RELEASE

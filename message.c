@@ -81,9 +81,10 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 {
-	size_t size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
+	size_t size;
 	struct kdbus_kmsg *kmsg;
 
+	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	kmsg = kzalloc(size, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
@@ -122,7 +123,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				return -EINVAL;
 
 			kmsg->vecs_size += item->vec.size;
-			if (kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+			if (!capable(CAP_IPC_OWNER) &&
+			    kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
 
 			kmsg->vecs_count++;
@@ -370,7 +372,7 @@ static int kdbus_kmsg_append_data(struct kdbus_kmsg *kmsg, u64 type,
 
 	item->type = type;
 	item->size = KDBUS_PART_HEADER_SIZE + len;
-	memcpy(item->str, buf, len);
+	memcpy(item->data, buf, len);
 
 	return 0;
 }
@@ -478,12 +480,19 @@ int task_cgroup_path_from_hierarchy(struct task_struct *task, int hierarchy_id,
 	return ret;
 }
 
-int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
-			      struct kdbus_conn *conn_src,
-			      struct kdbus_conn *conn_dst)
+int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
+			   struct kdbus_conn *conn_src,
+			   struct kdbus_conn *conn_dst)
 {
 	struct kdbus_bus *bus = conn_dst->ep->bus;
 	int ret = 0;
+
+	if (!conn_src)
+		return 0;
+
+	/* all metadata already added */
+	if ((conn_dst->flags & kmsg->meta_attached) == conn_dst->flags)
+		return 0;
 
 	if (conn_dst->flags & KDBUS_HELLO_ATTACH_COMM) {
 		char comm[TASK_COMM_LEN];
@@ -497,6 +506,8 @@ int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 		ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_PID_COMM, comm);
 		if (ret < 0)
 			return ret;
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_COMM;
 	}
 
 	if (conn_dst->flags & KDBUS_HELLO_ATTACH_EXE) {
@@ -537,6 +548,8 @@ int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 			if (ret < 0)
 				return ret;
 		}
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_EXE;
 	}
 
 	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CMDLINE) {
@@ -563,6 +576,8 @@ int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 		if (ret < 0)
 			return ret;
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CMDLINE;
 	}
 
 	/* we always return a 4 elements, the element size is 1/4  */
@@ -592,6 +607,8 @@ int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 					     cap, sizeof(cap));
 		if (ret < 0)
 			return ret;
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CAPS;
 	}
 
 #ifdef CONFIG_CGROUPS
@@ -611,6 +628,8 @@ int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 
 		if (ret < 0)
 			return ret;
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CGROUP;
 	}
 #endif
 
@@ -621,6 +640,8 @@ int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 					     sizeof(conn_src->audit_ids));
 		if (ret < 0)
 			return ret;
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_AUDIT;
 	}
 #endif
 
@@ -634,6 +655,8 @@ int kdbus_kmsg_append_for_dst(struct kdbus_kmsg *kmsg,
 			if (ret < 0)
 				return ret;
 		}
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_SECLABEL;
 	}
 #endif
 

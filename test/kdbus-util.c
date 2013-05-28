@@ -30,19 +30,14 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
+#define POOL_SIZE (16 * 1014LU * 1024LU)
 struct conn *connect_to_bus(const char *path)
 {
 	int fd, ret;
-	void *buf;
-	struct {
-		struct kdbus_cmd_hello hello;
-		uint64_t v_size;
-		uint64_t v_type;
-		struct kdbus_vec vec;
-	} h;
+	struct kdbus_cmd_hello hello;
 	struct conn *conn;
 
-	memset(&h, 0, sizeof(h));
+	memset(&hello, 0, sizeof(hello));
 
 	printf("-- opening bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
@@ -51,34 +46,23 @@ struct conn *connect_to_bus(const char *path)
 		return NULL;
 	}
 
-	buf = mmap(NULL, 16 * 1024 * 1024, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-	if (buf == MAP_FAILED) {
-		fprintf(stderr, "--- error mmap (%m)\n");
-		return NULL;
-	}
-	h.v_type = KDBUS_HELLO_POOL;
-	h.v_size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
-	h.vec.address = (uint64_t)buf;
-	h.vec.size = 16 * 1024 * 1024;
+	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD |
+			   KDBUS_HELLO_ATTACH_COMM |
+			   KDBUS_HELLO_ATTACH_EXE |
+			   KDBUS_HELLO_ATTACH_CMDLINE |
+			   KDBUS_HELLO_ATTACH_CAPS |
+			   KDBUS_HELLO_ATTACH_CGROUP |
+			   KDBUS_HELLO_ATTACH_SECLABEL |
+			   KDBUS_HELLO_ATTACH_AUDIT;
+	hello.size = sizeof(struct kdbus_cmd_hello);
+	hello.pool_size = POOL_SIZE;
 
-	h.hello.conn_flags = KDBUS_HELLO_ACCEPT_FD |
-			     KDBUS_HELLO_ATTACH_COMM |
-			     KDBUS_HELLO_ATTACH_EXE |
-			     KDBUS_HELLO_ATTACH_CMDLINE |
-			     KDBUS_HELLO_ATTACH_CAPS |
-			     KDBUS_HELLO_ATTACH_CGROUP |
-			     KDBUS_HELLO_ATTACH_SECLABEL |
-			     KDBUS_HELLO_ATTACH_AUDIT;
-
-	h.hello.size = sizeof(struct kdbus_cmd_hello) +
-		       KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
-
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
+	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	if (ret) {
 		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
-	printf("-- Our peer ID for %s: %llu\n", path, (unsigned long long)h.hello.id);
+	printf("-- Our peer ID for %s: %llu\n", path, (unsigned long long)hello.id);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {
@@ -86,8 +70,15 @@ struct conn *connect_to_bus(const char *path)
 		return NULL;
 	}
 
+	conn->buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, fd, 0);
+	if (conn->buf == MAP_FAILED) {
+		free(conn);
+		fprintf(stderr, "--- error mmap (%m)\n");
+		return NULL;
+	}
+
 	conn->fd = fd;
-	conn->id = h.hello.id;
+	conn->id = hello.id;
 	return conn;
 }
 
@@ -101,7 +92,7 @@ int msg_send(const struct conn *conn,
 	const char ref2[] = "0123456789_1";
 	struct kdbus_item *item;
 	uint64_t size;
-	int memfd;
+	int memfd = -1;
 	int ret;
 
 	size = sizeof(struct kdbus_msg);
@@ -179,14 +170,13 @@ int msg_send(const struct conn *conn,
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
 		item->type = KDBUS_MSG_BLOOM;
 		item->size = KDBUS_PART_HEADER_SIZE + 64;
-		item = KDBUS_PART_NEXT(item);
 	} else {
 		item->type = KDBUS_MSG_PAYLOAD_MEMFD;
 		item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_memfd);
 		item->memfd.size = 16;
 		item->memfd.fd = memfd;
-		item = KDBUS_PART_NEXT(item);
 	}
+	item = KDBUS_PART_NEXT(item);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret) {
@@ -194,7 +184,8 @@ int msg_send(const struct conn *conn,
 		return EXIT_FAILURE;
 	}
 
-	close(memfd);
+	if (memfd >= 0)
+		close(memfd);
 	free(msg);
 
 	return 0;
@@ -210,9 +201,9 @@ char *msg_id(uint64_t id, char *buf)
 	return buf;
 }
 
-void msg_dump(struct kdbus_msg *msg)
+void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 {
-	struct kdbus_item *item = msg->items;
+	const struct kdbus_item *item = msg->items;
 	char buf[32];
 
 	printf("MESSAGE: %s (%llu bytes) flags=0x%llx, %s → %s, cookie=%llu, timeout=%llu\n",
@@ -228,14 +219,17 @@ void msg_dump(struct kdbus_msg *msg)
 		}
 
 		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD_VEC: {
-			char *s = (char *)KDBUS_PTR(item->vec.address);
+		case KDBUS_MSG_PAYLOAD_OFF: {
+			char *s;
 
-			if (!s)
+			if (item->vec.offset == ~0ULL)
 				s = "[padding bytes]";
+			else
+				s = (char *)conn->buf + item->vec.offset;
 
-			printf("  +%s (%llu bytes) addr=%p size=%llu '%s'\n",
-			       enum_MSG(item->type), item->size, KDBUS_PTR(item->vec.address),
+			printf("  +%s (%llu bytes) off=%llu size=%llu '%s'\n",
+			       enum_MSG(item->type), item->size,
+			       (unsigned long long)item->vec.offset,
 			       (unsigned long long)item->vec.size, s);
 			break;
 		}
@@ -282,7 +276,7 @@ void msg_dump(struct kdbus_msg *msg)
 		case KDBUS_MSG_SRC_CMDLINE:
 		case KDBUS_MSG_SRC_NAMES: {
 			size_t size = item->size - KDBUS_PART_HEADER_SIZE;
-			char *str = item->str;
+			const char *str = item->str;
 			int count = 0;
 
 			printf("  +%s (%llu bytes) ", enum_MSG(item->type), item->size);
@@ -306,7 +300,7 @@ void msg_dump(struct kdbus_msg *msg)
 
 		case KDBUS_MSG_SRC_CAPS: {
 			int n;
-			uint32_t *cap;
+			const uint32_t *cap;
 			int i;
 
 			printf("  +%s (%llu bytes) len=%llu bytes)\n",
@@ -378,20 +372,20 @@ void msg_dump(struct kdbus_msg *msg)
 
 int msg_recv(struct conn *conn)
 {
-	uint64_t addr;
+	uint64_t off;
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &addr);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
 	if (ret < 0) {
 		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
-	msg = KDBUS_PTR(addr);
-	msg_dump(msg);
+	msg = (struct kdbus_msg *)(conn->buf + off);
+	msg_dump(conn, msg);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, &off);
 	if (ret < 0) {
 		fprintf(stderr, "error free message: %d (%m)\n", ret);
 		return EXIT_FAILURE;

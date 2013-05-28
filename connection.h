@@ -27,10 +27,12 @@ enum kdbus_conn_type {
 	KDBUS_CONN_CONTROL_BUS_OWNER,	/* fd to hold a bus */
 	KDBUS_CONN_EP,			/* new fd of a bus node */
 	KDBUS_CONN_EP_CONNECTED,	/* connection after HELLO */
+	KDBUS_CONN_EP_DISCONNECTED,	/* closed connection */
 	KDBUS_CONN_EP_OWNER,		/* fd to hold an endpoint */
 };
 
 struct kdbus_conn {
+	struct kref kref;
 	enum kdbus_conn_type type;
 	struct kdbus_ns *ns;
 	union {
@@ -66,15 +68,12 @@ struct kdbus_conn {
 	u32 sec_label_len;
 #endif
 
-	/* reference to the taks owning the connection */
-	struct task_struct *task;
-
 	/* connection accounting */
 	unsigned int msg_count;
 	size_t allocated_size;
 
-	/* userspace-supplied buffer to fill with message data */
-	struct kdbus_pool pool;
+	/* buffer to fill with message data */
+	struct kdbus_pool *pool;
 };
 
 struct kdbus_kmsg;
