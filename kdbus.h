@@ -83,6 +83,7 @@ struct kdbus_vec {
 struct kdbus_memfd {
 	__u64 size;
 	int fd;
+	__u32 __pad;
 };
 
 /* Message Item Types */
@@ -389,6 +390,7 @@ struct kdbus_cmd_match {
 struct kdbus_cmd_monitor {
 	__u64 id;		/* We allow setting the monitor flag of other peers */
 	unsigned int enable;	/* A boolean to enable/disable monitoring */
+	__u32 __pad;
 };
 
 /* FD states:
