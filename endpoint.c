@@ -275,7 +275,7 @@ int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake)
 	}
 
 	if (!KDBUS_PART_END(item, &km->make))
-		return EINVAL;
+		return -EINVAL;
 
 	if (!km->name) {
 		ret = -EBADMSG;
