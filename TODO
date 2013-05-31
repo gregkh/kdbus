@@ -1,5 +1,4 @@
 External API:
-  - _IOWR() vs. _IOR()/_IOW()?
   - rules for: which unknown items to ignore in userspace?
 
 Internal:
