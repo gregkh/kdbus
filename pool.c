@@ -354,7 +354,7 @@ int kdbus_pool_free(struct kdbus_pool *pool, size_t off)
 
 /* write to the receiver's shmem file */
 ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
-			      void *data, size_t len)
+			      void __user *data, size_t len)
 {
 	loff_t o = off;
 
