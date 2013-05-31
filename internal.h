@@ -35,7 +35,7 @@
 #define KDBUS_CHAR_MAJOR		222		/* FIXME: move to uapi/linux/major.h */
 
 /* exported addresses are 64bit */
-#define KDBUS_PTR(addr) ((void *)(uintptr_t)(addr))
+#define KDBUS_PTR(addr) ((void __user *)(uintptr_t)(addr))
 
 /* exported sizes are 64bit and data aligned to 64 bit */
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
