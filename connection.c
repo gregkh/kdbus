@@ -147,14 +147,14 @@ static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
 
 	/* We only accept kdbus_memfd files as payload, other files need to
 	 * be passed with KDBUS_MSG_FDS. */
-	if (!is_kdbus_memfd(fp)) {
+	if (!kdbus_is_memfd(fp)) {
 		ret = -EMEDIUMTYPE;
 		goto exit_unref;
 	}
 
 	/* We only accept a sealed memfd file whose content cannot be altered
 	 * by the sender or anybody else while it is shared or in-flight. */
-	if (!is_kdbus_memfd_sealed(fp)) {
+	if (!kdbus_is_memfd_sealed(fp)) {
 		ret = -ETXTBSY;
 		goto exit_unref;
 	}
@@ -1003,7 +1003,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static bool check_flags(u64 kernel_flags)
+static bool kdbus_check_flags(u64 kernel_flags)
 {
 	/* The higher 32bit are considered 'incompatible
 	 * flags'. Refuse them all for now */
@@ -1035,7 +1035,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!check_flags(bus_kmake->make.flags)) {
+		if (!kdbus_check_flags(bus_kmake->make.flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
@@ -1068,7 +1068,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!check_flags(ns_kmake->make.flags)) {
+		if (!kdbus_check_flags(ns_kmake->make.flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
@@ -1132,7 +1132,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!check_flags(kmake->make.flags)) {
+		if (!kdbus_check_flags(kmake->make.flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
@@ -1180,7 +1180,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 		hello = v;
 
-		if (!check_flags(hello->conn_flags)) {
+		if (!kdbus_check_flags(hello->conn_flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}

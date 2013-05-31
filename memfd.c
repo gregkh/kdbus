@@ -35,12 +35,12 @@ struct kdbus_memfile {
 	struct file *fp;
 };
 
-bool is_kdbus_memfd(const struct file *fp)
+bool kdbus_is_memfd(const struct file *fp)
 {
 	return fp->f_op == &kdbus_memfd_fops;
 }
 
-bool is_kdbus_memfd_sealed(const struct file *fp)
+bool kdbus_is_memfd_sealed(const struct file *fp)
 {
 	struct kdbus_memfile *mf = fp->private_data;
 	bool sealed;

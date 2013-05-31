@@ -161,7 +161,7 @@ struct kdbus_policy_db *kdbus_policy_db_new(void)
 	return db;
 }
 
-static inline u64 collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
+static inline u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
 					 struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_entry_access *a;
@@ -208,7 +208,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
 
-			access = collect_entry_accesses(db_entry, conn_src);
+			access = kdbus_collect_entry_accesses(db_entry, conn_src);
 			if (access & KDBUS_POLICY_SEND)
 				return 0;
 		}
@@ -220,7 +220,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 			if (strcmp(db_entry->name, name_entry->name) != 0)
 				continue;
 
-			access = collect_entry_accesses(db_entry, conn_dst);
+			access = kdbus_collect_entry_accesses(db_entry, conn_dst);
 			if (access & KDBUS_POLICY_RECV)
 				return 0;
 		}
@@ -246,7 +246,7 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 	return ce;
 }
 
-static int add_reverse_cache_entry(struct kdbus_policy_db *db,
+static int kdbus_add_reverse_cache_entry(struct kdbus_policy_db *db,
 				   struct kdbus_policy_db_cache_entry *ce,
 				   u64 reply_deadline_ns)
 {
@@ -291,7 +291,7 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 			mutex_unlock(&db->cache_lock);
 			/* do we need a temporaty rule for replies? */
 			if (reply_deadline_ns)
-				ret = add_reverse_cache_entry(db, ce, reply_deadline_ns);
+				ret = kdbus_add_reverse_cache_entry(db, ce, reply_deadline_ns);
 			return ret;
 		}
 	mutex_unlock(&db->cache_lock);
@@ -312,7 +312,7 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 
 		/* do we need a temporaty rule for replies? */
 		if (reply_deadline_ns)
-			ret = add_reverse_cache_entry(db, ce, reply_deadline_ns);
+			ret = kdbus_add_reverse_cache_entry(db, ce, reply_deadline_ns);
 	}
 
 exit_unlock_entries:
@@ -354,7 +354,7 @@ int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 		if (strcmp(db_entry->name, name) != 0)
 			continue;
 
-		access = collect_entry_accesses(db_entry, conn);
+		access = kdbus_collect_entry_accesses(db_entry, conn);
 		if (access & KDBUS_POLICY_OWN) {
 			ret = 0;
 			goto exit_unlock;

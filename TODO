@@ -5,7 +5,6 @@ Internal:
   - update/rethink kdbus_conn_accounting_sub_size() use, we don't allocate
     kernel memory anymore
   - memfd's file pos is shared, which can be confusing, document pread/pwrite
-  - prefix all functions with kdbus_
   - conn->ep->bus ==> conn->bus
 
 Kernel Core:
