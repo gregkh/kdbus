@@ -477,7 +477,7 @@ static void kdbus_conn_work(struct work_struct *work)
 	kdbus_conn_scan_timeout(conn);
 }
 
-void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
+static void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
 {
 	schedule_work(&conn->work);
 }
