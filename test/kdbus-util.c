@@ -30,7 +30,7 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-#define POOL_SIZE (16 * 1014LU * 1024LU)
+#define POOL_SIZE (16 * 1024LU * 1024LU)
 struct conn *connect_to_bus(const char *path)
 {
 	int fd, ret;
