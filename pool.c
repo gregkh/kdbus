@@ -79,7 +79,7 @@ static void __maybe_unused kdbus_pool_slices_dump(struct kdbus_pool *pool,
 
 	list_for_each_entry(s, &pool->slices, entry)
 		pr_info("  slice=%p free=%u, off=%zu size=%zu\n",
-		        s, s->free, s->off, s->size);
+			s, s->free, s->off, s->size);
 
 	pr_info("=== dump end '%s' pool=%p ===\n", str, pool);
 }
