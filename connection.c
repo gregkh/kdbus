@@ -941,7 +941,7 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 	del_timer(&conn->timer);
 	cancel_work_sync(&conn->work);
 #ifdef CONFIG_SECURITY
-	kfree(conn->sec_label);
+	security_release_secctx(conn->sec_label, conn->sec_label_len);
 #endif
 	kdbus_name_remove_by_conn(conn->ep->bus->name_registry, conn);
 	if (conn->ep->policy_db)
