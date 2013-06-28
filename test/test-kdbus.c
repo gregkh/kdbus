@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 		uint64_t n_size;
 		uint64_t n_type;
 		char name[64];
-	} bus_make;
+	} __attribute__ ((__aligned__(8))) bus_make;
 	int fdc, ret, cookie;
 	char *bus;
 	struct conn *conn_a, *conn_b;
