@@ -444,7 +444,6 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 			   struct kdbus_conn *conn_src,
 			   struct kdbus_conn *conn_dst)
 {
-	struct kdbus_bus *bus = conn_dst->ep->bus;
 	int ret = 0;
 
 	if (!conn_src)
@@ -573,14 +572,14 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 
 #ifdef CONFIG_CGROUPS
 	/* attach the path of the one group hierarchy specified for the bus */
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CGROUP && bus->cgroup_id > 0) {
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CGROUP) {
 		char *tmp;
 
 		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 		if (!tmp)
 			return -ENOMEM;
 
-		ret = task_cgroup_path_from_hierarchy(current, bus->cgroup_id, tmp, PAGE_SIZE);
+		ret = task_cgroup_path_from_hierarchy(current, 0, tmp, PAGE_SIZE);
 		if (ret >= 0)
 			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP, tmp);
 

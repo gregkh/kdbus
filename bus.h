@@ -42,7 +42,6 @@ struct kdbus_bus {
 	struct list_head eps_list;	/* endpoints on this bus */
 	u64 bus_flags;			/* simple pass-thru flags from userspace to userspace */
 	size_t bloom_size;		/* bloom filter size */
-	u64 cgroup_id;			/* the cgroup superblock we attach information from */
 	struct kdbus_name_registry *name_registry;
 	struct list_head bus_entry;	/* namespace's list of buses */
 	struct list_head monitors_list;	/* connections that monitor */
@@ -50,7 +49,6 @@ struct kdbus_bus {
 
 struct kdbus_cmd_bus_kmake {
 	const char *name;
-	u64 cgroup_id;
 	struct kdbus_cmd_bus_make make;
 };
 

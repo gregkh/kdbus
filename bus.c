@@ -172,7 +172,6 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	b->ns = ns;
 	b->bus_flags = bus_kmake->make.flags;
 	b->bloom_size = bus_kmake->make.bloom_size;
-	b->cgroup_id = bus_kmake->cgroup_id;
 	b->conn_id_next = 1; /* connection 0 == kernel */
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
@@ -274,20 +273,6 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 			}
 
 			km->name = item->str;
-			continue;
-
-		case KDBUS_MAKE_CGROUP:
-			if (item->size != KDBUS_PART_HEADER_SIZE + sizeof(__u64)) {
-				ret = -EINVAL;
-				goto exit;
-			}
-
-			if (km->cgroup_id) {
-				ret = -EEXIST;
-				goto exit;
-			}
-
-			km->cgroup_id = item->data64[0];
 			continue;
 
 		default:

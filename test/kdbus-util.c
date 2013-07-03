@@ -466,33 +466,6 @@ int name_list(struct conn *conn)
 	return 0;
 }
 
-unsigned int cgroup_systemd(void)
-{
-	char line[256];
-	FILE *f;
-	unsigned int id = 0;
-
-	f = fopen("/proc/self/cgroup", "re");
-	if (!f)
-		return 0;
-
-	while (fgets(line, sizeof(line), f)) {
-		unsigned int i;
-
-		if (strstr(line, ":name=systemd:") == NULL)
-			continue;
-
-		if (sscanf(line, "%u:", &i) != 1)
-			continue;
-
-		id = i;
-		break;
-	}
-	fclose(f);
-
-	return id;
-}
-
 void append_policy(struct kdbus_cmd_policy *cmd_policy, struct kdbus_policy *policy, __u64 max_size)
 {
 	struct kdbus_policy *dst = (struct kdbus_policy *) ((char *) cmd_policy + cmd_policy->size);
