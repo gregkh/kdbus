@@ -34,7 +34,7 @@ bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
 	if (capable(CAP_IPC_OWNER))
 		return true;
 
-	if (bus->uid_owner == current_fsuid())
+	if (uid_eq(bus->uid_owner, current_fsuid()))
 		return true;
 
 	return false;
