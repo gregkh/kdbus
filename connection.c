@@ -1024,7 +1024,7 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE: {
-		gid_t gid = 0;
+		kgid_t gid = KGIDT_INIT(0);
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
@@ -1121,7 +1121,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
 		umode_t mode = 0;
-		gid_t gid = 0;
+		kgid_t gid = KGIDT_INIT(0);
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
