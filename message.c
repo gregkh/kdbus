@@ -579,7 +579,7 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 		if (!tmp)
 			return -ENOMEM;
 
-		ret = task_cgroup_path_from_hierarchy(current, 0, tmp, PAGE_SIZE);
+		ret = task_cgroup_path_from_hierarchy(current, 2, tmp, PAGE_SIZE);
 		if (ret >= 0)
 			ret = kdbus_kmsg_append_str(kmsg, KDBUS_MSG_SRC_CGROUP, tmp);
 
