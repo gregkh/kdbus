@@ -268,20 +268,23 @@ int kdbus_pool_init(struct kdbus_pool **pool, size_t size)
 	struct kdbus_pool *p;
 	struct file *f;
 	struct kdbus_slice *s;
+	int ret;
 
 	p = kzalloc(sizeof(struct kdbus_pool), GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;
 
 	f = shmem_file_setup("kdbus-pool", size, 0);
-	if (IS_ERR(f))
-		return PTR_ERR(f);
+	if (IS_ERR(f)) {
+		ret = PTR_ERR(f);
+		goto exit_free_p;
+	}
 
 	/* allocate first slice spanning the entire pool */
 	s = kdbus_pool_slice_new(0, size);
 	if (!s) {
-		fput(f);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto exit_put_shmem;
 	}
 
 	p->f = f;
@@ -296,6 +299,12 @@ int kdbus_pool_init(struct kdbus_pool **pool, size_t size)
 	kdbus_pool_add_free_slice(p, s);
 	*pool = p;
 	return 0;
+
+exit_put_shmem:
+	fput(f);
+exit_free_p:
+	kfree(p);
+	return ret;
 }
 
 void kdbus_pool_cleanup(struct kdbus_pool *pool)
