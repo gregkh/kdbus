@@ -303,7 +303,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			const uint32_t *cap;
 			int i;
 
-			printf("  +%s (%llu bytes) len=%llu bytes)\n",
+			printf("  +%s (%llu bytes) len=%llu bytes\n",
 			       enum_MSG(item->type), item->size,
 			       (unsigned long long)item->size - KDBUS_PART_HEADER_SIZE);
 
