@@ -286,5 +286,6 @@ int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake)
 	return 0;
 
 exit:
+	kfree(km);
 	return ret;
 }

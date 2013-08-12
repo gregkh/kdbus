@@ -161,7 +161,7 @@ static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
 
 	/* The specified size in the item cannot be larger than the file. */
 	if (item->memfd.size > kdbus_memfd_size(fp)) {
-		return -EBADF;
+		ret = -EBADF;
 		goto exit_unref;
 	}
 

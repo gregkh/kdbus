@@ -290,7 +290,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	}
 
 	if (!KDBUS_IS_ALIGNED8(km->make.bloom_size)) {
-		return -EINVAL;
+		ret = -EINVAL;
 		goto exit;
 	}
 
@@ -303,5 +303,6 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	return 0;
 
 exit:
+	kfree(km);
 	return ret;
 }
