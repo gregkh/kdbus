@@ -43,19 +43,19 @@ Terminology
     a default endpoint called "bus". A bus can offer additional endpoints
     with custom names to provide a restricted access to the same bus. Custom
     endpoints can carry additional policy which can be used to give sandboxed
-    processes only a locked-down, limited, filtered access access to a bus.
+    processes only a locked-down, limited, filtered access to a bus.
 
   Connection:
     A connection to a bus is created by opening an endpoint device node of
     a bus, and becoming an active client with the HELLO exchange. Every
     connected client connection has a unique identifier on the bus, and can
     address messages to every other connection on the same bus by using
-    the peers connection id as the destination.
+    the peer's connection id as the destination.
 
   Well-known Names:
     A connection can, in addition to is implicit unique connection id, request
     the ownership of a textual well-known name. Well-known names are noted
-    in revese-domain notation like com.example.service. Connections offering
+    in reverse-domain notation like com.example.service. Connections offering
     a service on a bus are usually reached by its well-known name. The analogy
     of connection id and well-known name is an IP address and a DNS name
     associated with that address.
@@ -163,7 +163,7 @@ Data Structures
 ===============================================================================
 Creation of new Namespaces and Buses
 ===============================================================================
-The inital kdbus namespace is unconditionally created by the kernel module. A
+The initial kdbus namespace is unconditionally created by the kernel module. A
 namespace contains a "control" device node which allows to create a new bus or
 namespace. New namespaces do not have any buses created by default.
 
@@ -304,7 +304,7 @@ process when new messages are queued up to be received.
 ===============================================================================
 Passing of Payload Data
 ===============================================================================
-When connectiong to the bus, receivers have to register a memory pool, large
+When connecting to the bus, receivers have to register a memory pool, large
 enough to carry all backlog of data enqueued for the connection. The pool is
 usually an MAP_ANONYMOUS area created upfront with mmap().
 
@@ -332,7 +332,7 @@ receiver, as soon as the kdbus_memfd is not shared anymore.
 Ioctl API
 ===============================================================================
   KDBUS_CMD_BUS_MAKE
-    After opening the "control" device node, this commands creates a new bus
+    After opening the "control" device node, this command creates a new bus
     with the specified name. The bus is immediately shut down and cleaned up
     when the opened "control" device node is closed.
 
@@ -341,7 +341,7 @@ Ioctl API
 
   KDBUS_CMD_EP_MAKE
    Creates a new named special endpoint to talk to the bus. Such endpoints
-   usually carry a more restictive policy and grant restricted access to
+   usually carry a more restrictive policy and grant restricted access to
    specific applications.
 
   KDBUS_CMD_HELLO
@@ -359,7 +359,7 @@ Ioctl API
    Release the memory a message occupies and free the area in the pool.
 
   KDBUS_CMD_NAME_ACQUIRE
-   Request a well-know bus name to associate with the connection. Well-known
+   Request a well-known bus name to associate with the connection. Well-known
    names are used to address a peer on the bus.
 
   KDBUS_CMD_NAME_RELEASE
@@ -379,11 +379,11 @@ Ioctl API
    Remove a current match for broadcast messages.
 
   KDBUS_CMD_MONITOR
-   Monitor the bus and receive all transmitted messaages. Privileges are
+   Monitor the bus and receive all transmitted messages. Privileges are
    required for this operation.
 
   KDBUS_CMD_EP_POLICY_SET
-   Set the polic of an endpoint. It is used to restrict the access for
+   Set the policy of an endpoint. It is used to restrict the access for
    endpoints created with KDBUS_CMD_EP_MAKE.
 
   KDBUS_CMD_MEMFD_NEW
@@ -412,7 +412,7 @@ Ioctl API
    Seal or break a seal of the file. Only files which are not shared with
    other processes and which are currently not mapped can be sealed. The
    current process needs to be the one and single owner of the file, the
-   sealing cannot be changed als long as the file is shared
+   sealing cannot be changed as long as the file is shared.
 
 ===============================================================================
 API Error Codes
@@ -437,7 +437,7 @@ EBADMSG
   Passed data contains a combination of conflicting or inconsistent types.
 
 EBUSY
-  A well-know bus name is already taken by another connection.
+  A well-known bus name is already taken by another connection.
 
 ECOMM
   A peer does not accept the file descriptors addressed to it.
