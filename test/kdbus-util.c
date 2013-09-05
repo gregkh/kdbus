@@ -34,7 +34,7 @@
 struct conn *connect_to_bus(const char *path)
 {
 	int fd, ret;
-	struct kdbus_cmd_hello hello;
+	struct kdbus_cmd_hello __attribute__ ((__aligned__(8))) hello;
 	struct conn *conn;
 
 	memset(&hello, 0, sizeof(hello));
@@ -204,12 +204,13 @@ char *msg_id(uint64_t id, char *buf)
 void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 {
 	const struct kdbus_item *item = msg->items;
-	char buf[32];
+	char buf_src[32];
+	char buf_dst[32];
 
 	printf("MESSAGE: %s (%llu bytes) flags=0x%llx, %s → %s, cookie=%llu, timeout=%llu\n",
 		enum_PAYLOAD(msg->payload_type), (unsigned long long) msg->size,
 		(unsigned long long) msg->flags,
-		msg_id(msg->src_id, buf), msg_id(msg->dst_id, buf),
+		msg_id(msg->src_id, buf_src), msg_id(msg->dst_id, buf_dst),
 		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout_ns);
 
 	KDBUS_PART_FOREACH(item, msg, items) {
