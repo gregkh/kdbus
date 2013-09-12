@@ -53,7 +53,7 @@ Terminology
     the peer's connection id as the destination.
 
   Well-known Names:
-    A connection can, in addition to is implicit unique connection id, request
+    A connection can, in addition to its implicit unique connection id, request
     the ownership of a textual well-known name. Well-known names are noted
     in reverse-domain notation like com.example.service. Connections offering
     a service on a bus are usually reached by its well-known name. The analogy
