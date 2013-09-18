@@ -103,7 +103,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 
 	mutex_lock(&bus->lock);
 	list_for_each_entry(e, &bus->eps_list, bus_entry) {
-		if (strcmp(ep->name, name) != 0)
+		if (strcmp(e->name, name) != 0)
 			continue;
 
 		ep = kdbus_ep_ref(e);

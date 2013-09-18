@@ -133,10 +133,12 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
 
-	n = kdbus_ns_find(parent, name);
-	if (n) {
-		kdbus_ns_unref(n);
-		return -EEXIST;
+	if (name) {
+		n = kdbus_ns_find(parent, name);
+		if (n) {
+			kdbus_ns_unref(n);
+			return -EEXIST;
+		}
 	}
 
 	n = kzalloc(sizeof(struct kdbus_ns), GFP_KERNEL);
