@@ -126,32 +126,15 @@ struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
 {
 	struct kdbus_ns *n;
-	const char *ns_name = NULL;
 	int i;
 	int ret;
 
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
 
-	if (name) {
-		n = kdbus_ns_find(parent, name);
-		if (n) {
-			kdbus_ns_unref(n);
-			return -EEXIST;
-		}
-	}
-
 	n = kzalloc(sizeof(struct kdbus_ns), GFP_KERNEL);
 	if (!n)
 		return -ENOMEM;
-
-	if (name) {
-		ns_name = kstrdup(name, GFP_KERNEL);
-		if (!ns_name) {
-			kfree(n);
-			return -ENOMEM;
-		}
-	}
 
 	INIT_LIST_HEAD(&n->bus_list);
 	kref_init(&n->kref);
@@ -159,38 +142,53 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	idr_init(&n->idr);
 	mutex_init(&n->lock);
 
+	mutex_lock(&kdbus_subsys_lock);
+
 	/* compose name and path of base directory in /dev */
 	if (!parent) {
 		/* initial namespace */
 		n->devpath = kstrdup("kdbus", GFP_KERNEL);
 		if (!n->devpath) {
 			ret = -ENOMEM;
-			goto ret;
+			goto exit_unlock;
 		}
 
 		/* register static major to support module auto-loading */
 		ret = register_chrdev(KDBUS_CHAR_MAJOR, "kdbus", &kdbus_device_ops);
 		if (ret)
-			goto ret;
+			goto exit_unlock;
+
 		n->major = KDBUS_CHAR_MAJOR;
 	} else {
+		struct kdbus_ns *exists;
+
+		exists = kdbus_ns_find(parent, name);
+		if (exists) {
+			kdbus_ns_unref(exists);
+			ret = -EEXIST;
+			goto exit_unlock;
+		}
+
 		n->parent = parent;
 		n->devpath = kasprintf(GFP_KERNEL, "kdbus/ns/%s/%s", parent->devpath, name);
 		if (!n->devpath) {
 			ret = -ENOMEM;
-			goto ret;
+			goto exit_unlock;
+		}
+
+		n->name = kstrdup(name, GFP_KERNEL);
+		if (!n->name) {
+			ret = -ENOMEM;
+			goto exit_unlock;
 		}
 
 		/* get dynamic major */
 		n->major = register_chrdev(0, "kdbus", &kdbus_device_ops);
 		if (n->major < 0) {
 			ret = n->major;
-			goto ret;
+			goto exit_unlock;
 		}
-		n->name = ns_name;
 	}
-
-	mutex_lock(&kdbus_subsys_lock);
 
 	/* kdbus_device_ops' dev_t finds the namespace in the major map,
 	 * and the bus in the minor map of that namespace */
@@ -207,6 +205,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	n->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	if (!n->dev)
 		goto exit_unlock;
+
 	dev_set_name(n->dev, "%s/%s", n->devpath, "control");
 	n->dev->bus = &kdbus_subsys;
 	n->dev->type = &kdbus_devtype_control;
@@ -230,7 +229,6 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 
 exit_unlock:
 	mutex_unlock(&kdbus_subsys_lock);
-ret:
 	kdbus_ns_unref(n);
 	return ret;
 }
