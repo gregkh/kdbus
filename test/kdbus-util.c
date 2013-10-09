@@ -224,7 +224,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			char *s;
 
 			if (item->vec.offset == ~0ULL)
-				s = "[padding bytes]";
+				s = "[\\0-bytes]";
 			else
 				s = (char *)conn->buf + item->vec.offset;
 

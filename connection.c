@@ -207,7 +207,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			it->type = KDBUS_MSG_PAYLOAD_OFF;
 			it->size = size;
 
-			/* a NULL address is a "padding vec" for alignement */
+			/* a NULL address specifies a \0-bytes record */
 			if (KDBUS_PTR(item->vec.address))
 				it->vec.offset = off + vec_data;
 			else
@@ -216,11 +216,24 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			ret = kdbus_pool_write(conn->pool, off + items, it, size);
 			if (ret < 0)
 				return ret;
+			items += KDBUS_ALIGN8(it->size);
 
-			items += KDBUS_ALIGN8((it)->size);
+			/* \0-bytes record */
+			if (!KDBUS_PTR(item->vec.address)) {
+				size_t pad = item->vec.size % 8;
 
-			if (!KDBUS_PTR(item->vec.address))
+				if (pad == 0)
+					break;
+
+				/* Preserve the alignment for the next payload
+				 * record in the output buffer; write as many
+				 * null-bytes to the buffer which the \0-bytes
+				 * record would have shifted the alignment */
+				kdbus_pool_write_user(conn->pool, off + vec_data,
+						      "\0\0\0\0\0\0\0", pad);
+				vec_data += pad;
 				break;
+			}
 
 			/* copy kdbus_vec data from sender to receiver */
 			ret = kdbus_pool_write_user(conn->pool, off + vec_data,
