@@ -166,22 +166,25 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 			if (kmsg->bloom) {
 				size_t bloom_num =
 					conn_src->ep->bus->bloom_size / sizeof(u64);
-
-				if (!kdbus_match_db_test_bloom(kmsg->bloom,
-							       ei->bloom,
-							       bloom_num)) {
-					matched = false;
-					break;
-				}
+				if (ei->type == KDBUS_MATCH_BLOOM)
+					if (!kdbus_match_db_test_bloom(
+								kmsg->bloom,
+								ei->bloom,
+								bloom_num)) {
+						matched = false;
+						break;
+					}
 			}
 
 			if (kmsg->src_names) {
-				if (!kdbus_match_db_test_src_names(kmsg->src_names,
-								   kmsg->src_names_len,
-								   ei->name)) {
-					matched = false;
-					break;
-				}
+				if (ei->type == KDBUS_MATCH_SRC_NAME)
+					if (!kdbus_match_db_test_src_names(
+							kmsg->src_names,
+							kmsg->src_names_len,
+							ei->name)) {
+						matched = false;
+						break;
+					}
 			}
 		}
 
@@ -210,36 +213,36 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 		    e->src_id != 0)
 			continue;
 
-		matched = true;
+		matched = false;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
 			if (ei->type == KDBUS_MATCH_ID_ADD &&
-			    type != KDBUS_MSG_ID_ADD) {
-				matched = false;
+			    type == KDBUS_MSG_ID_ADD) {
+				matched = true;
 				break;
 			}
 
 			if (ei->type == KDBUS_MATCH_ID_REMOVE &&
-			    type != KDBUS_MSG_ID_REMOVE) {
-				matched = false;
+			    type == KDBUS_MSG_ID_REMOVE) {
+				matched = true;
 				break;
 			}
 
 			if (ei->type == KDBUS_MATCH_NAME_ADD &&
-			    type != KDBUS_MSG_NAME_ADD) {
-				matched = false;
+			    type == KDBUS_MSG_NAME_ADD) {
+				matched = true;
 				break;
 			}
 
 			if (ei->type == KDBUS_MATCH_NAME_CHANGE &&
-			    type != KDBUS_MSG_NAME_CHANGE) {
-				matched = false;
+			    type == KDBUS_MSG_NAME_CHANGE) {
+				matched = true;
 				break;
 			}
 
 			if (ei->type == KDBUS_MATCH_NAME_REMOVE &&
-			    type != KDBUS_MSG_NAME_REMOVE) {
-				matched = false;
+			    type == KDBUS_MSG_NAME_REMOVE) {
+				matched = true;
 				break;
 			}
 		}

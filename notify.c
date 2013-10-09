@@ -91,6 +91,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	if (ret < 0)
 		return ret;
 
+	kmsg->notification_type = type;
 	msg = &kmsg->msg;
 	item = msg->items;
 	name_change = (struct kdbus_manager_msg_name_change *)item->data;
@@ -125,6 +126,7 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 	if (ret < 0)
 		return ret;
 
+	kmsg->notification_type = type;
 	msg = &kmsg->msg;
 	item = msg->items;
 	id_change = (struct kdbus_manager_msg_id_change *)item->data;
