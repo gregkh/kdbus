@@ -583,8 +583,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				continue;
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
-						       conn_src, conn_dst,
-						       kmsg))
+						       conn_src, kmsg))
 				continue;
 
 			/* The first receiver which requests additional

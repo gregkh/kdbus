@@ -145,6 +145,37 @@ bool kdbus_match_db_test_src_names(const char *haystack,
 }
 
 static
+bool kdbus_match_db_match_item(struct kdbus_match_db_entry *e,
+			       struct kdbus_conn *conn_src,
+			       struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_match_db_entry_item *ei;
+
+	list_for_each_entry(ei, &e->items_list, list_entry) {
+		if (kmsg->bloom && ei->type == KDBUS_MATCH_BLOOM) {
+			size_t n = conn_src->ep->bus->bloom_size / sizeof(u64);
+
+			if (kdbus_match_db_test_bloom(kmsg->bloom,
+						      ei->bloom, n))
+				continue;
+
+			return false;
+		}
+
+		if (kmsg->src_names && ei->type == KDBUS_MATCH_SRC_NAME) {
+			if (kdbus_match_db_test_src_names(kmsg->src_names,
+							  kmsg->src_names_len,
+							  ei->name))
+				continue;
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static
 bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_kmsg *kmsg)
@@ -154,40 +185,11 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry(e, &db->entries, list_entry) {
-		struct kdbus_match_db_entry_item *ei;
-
 		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
 		    e->src_id != conn_src->id)
 			continue;
 
-		matched = true;
-
-		list_for_each_entry(ei, &e->items_list, list_entry) {
-			if (kmsg->bloom) {
-				size_t bloom_num =
-					conn_src->ep->bus->bloom_size / sizeof(u64);
-				if (ei->type == KDBUS_MATCH_BLOOM)
-					if (!kdbus_match_db_test_bloom(
-								kmsg->bloom,
-								ei->bloom,
-								bloom_num)) {
-						matched = false;
-						break;
-					}
-			}
-
-			if (kmsg->src_names) {
-				if (ei->type == KDBUS_MATCH_SRC_NAME)
-					if (!kdbus_match_db_test_src_names(
-							kmsg->src_names,
-							kmsg->src_names_len,
-							ei->name)) {
-						matched = false;
-						break;
-					}
-			}
-		}
-
+		matched = kdbus_match_db_match_item(e, conn_src, kmsg);
 		if (matched)
 			break;
 	}
@@ -198,7 +200,6 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 
 static
 bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
-				      struct kdbus_conn *conn_dst,
 				      struct kdbus_kmsg *kmsg)
 {
 	u64 type = kmsg->notification_type;
@@ -212,8 +213,6 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
 		    e->src_id != 0)
 			continue;
-
-		matched = false;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
 			if (ei->type == KDBUS_MATCH_ID_ADD &&
@@ -257,13 +256,12 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 
 bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,
-			       struct kdbus_conn *conn_dst,
 			       struct kdbus_kmsg *kmsg)
 {
 	if (conn_src)
 		return kdbus_match_db_match_with_src(db, conn_src, kmsg);
 	else
-		return kdbus_match_db_match_from_kernel(db, conn_dst, kmsg);
+		return kdbus_match_db_match_from_kernel(db, kmsg);
 }
 
 static struct kdbus_cmd_match *
