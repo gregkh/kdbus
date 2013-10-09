@@ -100,6 +100,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
+	size_t vecs_size = 0;
 	unsigned int items_count = 0;
 	bool has_fds = false;
 	bool has_name = false;
@@ -122,11 +123,16 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (item->vec.size == 0)
 				return -EINVAL;
 
-			kmsg->vecs_size += item->vec.size;
+			vecs_size += item->vec.size;
 			if (!capable(CAP_IPC_OWNER) &&
-			    kmsg->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+			    vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
 
+			/* \0-bytes records store only the alignment bytes */
+			if (KDBUS_PTR(item->vec.address))
+				kmsg->vecs_size += item->vec.size;
+			else
+				kmsg->vecs_size += item->vec.size % 8;
 			kmsg->vecs_count++;
 			break;
 
