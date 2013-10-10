@@ -177,6 +177,26 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 	return e;
 }
 
+static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
+			struct kdbus_name_entry *e)
+{
+	struct kdbus_name_queue_item *q;
+
+	q = kzalloc(sizeof(*q), GFP_KERNEL);
+	if (!q)
+		return -ENOMEM;
+
+	q->conn = conn;
+	q->flags = *flags;
+	INIT_LIST_HEAD(&q->entry_entry);
+
+	list_add_tail(&q->entry_entry, &e->queue_list);
+	list_add_tail(&q->conn_entry, &conn->names_queue_list);
+	*flags |= KDBUS_NAME_IN_QUEUE;
+
+	return 0;
+}
+
 /* called with entries_lock held! */
 static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
@@ -196,32 +216,21 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	if (((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 			(e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) ||
 			((e->starter == e->conn) && e->starter != conn)) {
+		if (e->flags & KDBUS_NAME_QUEUE)
+			if (kdbus_name_queue_conn(e->conn, &e->flags, e) < 0)
+				return -ENOMEM;
 		old_id = e->conn->id;
 		kdbus_name_entry_detach(e);
 		kdbus_name_entry_attach(e, conn);
+		e->flags = *flags;
 
 		return kdbus_notify_name_change(conn->ep, KDBUS_MSG_NAME_CHANGE,
 						old_id, conn->id, *flags,
 						e->name);
 	}
 
-	if (*flags & KDBUS_NAME_QUEUE) {
-		struct kdbus_name_queue_item *q;
-
-		q = kzalloc(sizeof(*q), GFP_KERNEL);
-		if (!q)
-			return -ENOMEM;
-
-		q->conn = conn;
-		q->flags = *flags;
-		INIT_LIST_HEAD(&q->entry_entry);
-
-		list_add_tail(&q->entry_entry, &e->queue_list);
-		list_add_tail(&q->conn_entry, &conn->names_queue_list);
-		*flags |= KDBUS_NAME_IN_QUEUE;
-
-		return 0;
-	}
+	if (*flags & KDBUS_NAME_QUEUE)
+		return kdbus_name_queue_conn(conn, flags, e);
 
 	return -EEXIST;
 }
