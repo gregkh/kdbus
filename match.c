@@ -296,7 +296,7 @@ cmd_match_from_user(const struct kdbus_conn *conn, void __user *buf, bool items)
 
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
-	struct kdbus_match_db *db = conn->match_db;
+	struct kdbus_match_db *db;
 	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_item *item;
 	struct kdbus_match_db_entry *e;
@@ -309,6 +309,18 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e)
 		return -ENOMEM;
+
+	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
+		struct kdbus_conn *targ_conn;
+
+		targ_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
+								cmd_match->id);
+		if (targ_conn)
+			db = targ_conn->match_db;
+		else
+			return -ENXIO;
+	} else
+		db = conn->match_db;
 
 	mutex_lock(&db->entries_lock);
 	INIT_LIST_HEAD(&e->list_entry);
@@ -383,13 +395,25 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 {
-	struct kdbus_match_db *db = conn->match_db;
+	struct kdbus_match_db *db;
 	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_match_db_entry *e, *tmp;
 
 	cmd_match = cmd_match_from_user(conn, buf, false);
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
+
+	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
+		struct kdbus_conn *targ_conn;
+
+		targ_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
+								cmd_match->id);
+		if (targ_conn)
+			db = targ_conn->match_db;
+		else
+			return -ENXIO;
+	} else
+		db = conn->match_db;
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
