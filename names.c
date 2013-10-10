@@ -125,7 +125,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 			kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_CHANGE,
 						 e->conn->id, e->starter->id,
 						 e->flags, e->name);
-			e->conn = e->starter;
+			kdbus_name_entry_attach(e, e->starter);
 		} else {
 			kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_REMOVE,
 						 e->conn->id, 0, e->flags, e->name);
@@ -182,6 +182,8 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
 				      struct kdbus_name_entry *e, u64 *flags)
 {
+	u64 old_id;
+
 	if (conn->flags & KDBUS_HELLO_STARTER) {
 		if (e->starter == NULL) {
 			e->starter = conn;
@@ -191,14 +193,15 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 		}
 	}
 
-	if (((*flags   & KDBUS_NAME_REPLACE_EXISTING) &&
-	     (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) ||
-	     (e->starter && e->starter != conn)) {
+	if (((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
+			(e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) ||
+			((e->starter == e->conn) && e->starter != conn)) {
+		old_id = e->conn->id;
 		kdbus_name_entry_detach(e);
 		kdbus_name_entry_attach(e, conn);
 
 		return kdbus_notify_name_change(conn->ep, KDBUS_MSG_NAME_CHANGE,
-						e->conn->id, conn->id, *flags,
+						old_id, conn->id, *flags,
 						e->name);
 	}
 
@@ -268,6 +271,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	u64 size;
 	u32 hash;
 	int ret = 0;
+	u64 old_id = 0;
 
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
@@ -311,6 +315,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
 	if (e) {
+		old_id = e->conn->id;
 		if (e->conn == conn) {
 			/* just update flags */
 			e->flags = cmd_name->flags;
@@ -342,7 +347,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	e->flags = cmd_name->flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
-
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_attach(e, conn);
 
@@ -352,8 +356,9 @@ exit_copy:
 		goto exit_unlock_free;
 	}
 
-	kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_ADD, 0,
-				 e->conn->id, e->flags, e->name);
+	if (old_id == 0)
+		kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_ADD, 0,
+				e->conn->id, e->flags, e->name);
 
 	kfree(cmd_name);
 	mutex_unlock(&reg->entries_lock);
