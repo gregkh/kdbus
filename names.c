@@ -398,7 +398,10 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
 	if (!e)
 		ret = -ESRCH;
-	else if (e->conn != conn)
+	else if ((e->conn != conn) &&
+			(!kdbus_bus_uid_is_privileged(conn->ep->bus) ||
+		    (e->conn !=
+		    kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id))))
 		ret = -EPERM;
 	else
 		kdbus_name_entry_release(e);
