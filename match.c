@@ -314,7 +314,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		struct kdbus_conn *targ_conn;
 
 		targ_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-								cmd_match->id);
+						      cmd_match->id);
 		if (targ_conn)
 			db = targ_conn->match_db;
 		else
@@ -407,7 +407,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 		struct kdbus_conn *targ_conn;
 
 		targ_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-								cmd_match->id);
+						      cmd_match->id);
 		if (targ_conn)
 			db = targ_conn->match_db;
 		else

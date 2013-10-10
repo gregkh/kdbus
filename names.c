@@ -197,7 +197,7 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
 	return 0;
 }
 
-/* called with entries_lock held! */
+/* called with entries_lock held */
 static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
 				      struct kdbus_name_entry *e, u64 *flags)
@@ -214,10 +214,10 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	}
 
 	if (((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
-			(e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) ||
-			((e->starter == e->conn) && e->starter != conn)) {
-		if (e->flags & KDBUS_NAME_QUEUE)
-			if (kdbus_name_queue_conn(e->conn, &e->flags, e) < 0)
+	     (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) ||
+	    ((e->starter == e->conn) && e->starter != conn)) {
+		if (e->flags & KDBUS_NAME_QUEUE &&
+		    kdbus_name_queue_conn(e->conn, &e->flags, e) < 0)
 				return -ENOMEM;
 		old_id = e->conn->id;
 		kdbus_name_entry_detach(e);
@@ -413,9 +413,9 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	if (!e)
 		ret = -ESRCH;
 	else if ((e->conn != conn) &&
-			(!kdbus_bus_uid_is_privileged(conn->ep->bus) ||
-		    (e->conn !=
-		    kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id))))
+		 (!kdbus_bus_uid_is_privileged(conn->ep->bus) ||
+		  (e->conn != kdbus_bus_find_conn_by_id(conn->ep->bus,
+							cmd_name->id))))
 		ret = -EPERM;
 	else
 		kdbus_name_entry_release(e);
