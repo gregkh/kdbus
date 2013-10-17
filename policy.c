@@ -226,7 +226,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 		}
 	}
 
-	return 0;
+	return -EPERM;
 }
 
 static struct kdbus_policy_db_cache_entry *
