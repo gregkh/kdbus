@@ -46,7 +46,5 @@ void append_policy(struct kdbus_cmd_policy *cmd_policy, struct kdbus_policy *pol
 struct kdbus_policy *make_policy_name(const char *name);
 struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id);
 int upload_policy(int fd);
-
-
-
+void add_match_empty(int fd);
 

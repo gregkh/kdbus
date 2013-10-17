@@ -17,21 +17,6 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-static void add_match_empty(int fd)
-{
-	struct kdbus_cmd_match __attribute__ ((__aligned__(8))) cmd_match;
-	int ret;
-
-	memset(&cmd_match, 0, sizeof(cmd_match));
-
-	cmd_match.size = sizeof(cmd_match);
-	cmd_match.src_id = KDBUS_MATCH_SRC_ID_ANY;
-
-	ret = ioctl(fd, KDBUS_CMD_MATCH_ADD, &cmd_match);
-	if (ret < 0)
-		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
-}
-
 int main(int argc, char *argv[])
 {
 	struct {
