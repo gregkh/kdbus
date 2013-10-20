@@ -515,7 +515,7 @@ struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id)
 	return p;
 }
 
-int upload_policy(int fd)
+int upload_policy(int fd, const char *name)
 {
 	struct kdbus_cmd_policy *cmd_policy;
 	struct kdbus_policy *policy;
@@ -528,7 +528,7 @@ int upload_policy(int fd)
 	policy = (struct kdbus_policy *) cmd_policy->policies;
 	cmd_policy->size = offsetof(struct kdbus_cmd_policy, policies);
 
-	policy = make_policy_name("foo.bar.baz");
+	policy = make_policy_name(name);
 	append_policy(cmd_policy, policy, size);
 
 	policy = make_policy_access(KDBUS_POLICY_ACCESS_USER, KDBUS_POLICY_OWN, getuid());

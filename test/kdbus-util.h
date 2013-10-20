@@ -45,6 +45,6 @@ struct conn *connect_to_bus(const char *path);
 void append_policy(struct kdbus_cmd_policy *cmd_policy, struct kdbus_policy *policy, __u64 max_size);
 struct kdbus_policy *make_policy_name(const char *name);
 struct kdbus_policy *make_policy_access(__u64 type, __u64 bits, __u64 id);
-int upload_policy(int fd);
+int upload_policy(int fd, const char *name);
 void add_match_empty(int fd);
 
