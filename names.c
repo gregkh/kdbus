@@ -145,6 +145,26 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 	}
 }
 
+int kdbus_name_release(struct kdbus_name_entry *e, struct kdbus_conn *conn)
+{
+	struct kdbus_name_queue_item *q_tmp, *q;
+
+	if (e->conn == conn)	{
+		kdbus_name_entry_release(e);
+		return 0;
+	} else {
+		list_for_each_entry_safe(q, q_tmp, &e->queue_list,
+				entry_entry) {
+			if (q->conn == conn)	{
+				kdbus_name_queue_item_free(q);
+				return 0;
+			}
+		}
+	}
+
+	return -EPERM;
+}
+
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn)
 {
@@ -188,7 +208,6 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
 
 	q->conn = conn;
 	q->flags = *flags;
-	INIT_LIST_HEAD(&q->entry_entry);
 
 	list_add_tail(&q->entry_entry, &e->queue_list);
 	list_add_tail(&q->conn_entry, &conn->names_queue_list);
@@ -412,13 +431,9 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
 	if (!e)
 		ret = -ESRCH;
-	else if ((e->conn != conn) &&
-		 (!kdbus_bus_uid_is_privileged(conn->ep->bus) ||
-		  (e->conn != kdbus_bus_find_conn_by_id(conn->ep->bus,
-							cmd_name->id))))
-		ret = -EPERM;
-	else
-		kdbus_name_entry_release(e);
+	if (kdbus_bus_uid_is_privileged(conn->ep->bus))
+		conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
+	ret = kdbus_name_release(e, conn);
 	mutex_unlock(&reg->entries_lock);
 
 	kfree(cmd_name);
