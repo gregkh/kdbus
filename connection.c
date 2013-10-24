@@ -628,7 +628,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			continue;
 
 		/* ignore errors of misbehaving monitor connections */
-		kdbus_conn_queue_insert(conn_dst, kmsg, 0);
+		kdbus_conn_queue_insert(conn, kmsg, 0);
 	}
 	mutex_unlock(&ep->bus->lock);
 
