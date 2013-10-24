@@ -134,6 +134,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	kref_init(&e->kref);
 	e->uid = uid;
 	e->gid = gid;
+	e->mode = mode;
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {
