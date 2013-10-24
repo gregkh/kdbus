@@ -88,6 +88,9 @@ static int dump_packet(struct conn *conn, int fd)
 		size = write(fd, item, item->size);
 		if (size != item->size)
 			return EXIT_FAILURE;
+
+		if (item->type == KDBUS_MSG_PAYLOAD_MEMFD)
+			close(item->memfd.fd);
 	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, &off);
