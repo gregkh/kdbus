@@ -108,7 +108,7 @@ static unsigned long long count = 0;
 
 static void do_exit(int foo)
 {
-	fprintf(stderr, "%llu packets received and dumped.\n", count);
+	fprintf(stderr, "\n%llu packets received and dumped.\n", count);
 	fprintf(stderr, "-- closing bus connections\n");
 	close(conn->fd);
 	free(conn);
