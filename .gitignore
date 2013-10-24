@@ -10,3 +10,4 @@ test/test-kdbus
 test/test-kdbus-daemon
 test/test-kdbus-fuzz
 test/test-kdbus-benchmark
+test/test-kdbus-monitor
