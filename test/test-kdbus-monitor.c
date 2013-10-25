@@ -68,27 +68,23 @@ static int dump_packet(struct conn *conn, int fd)
 	msg = (struct kdbus_msg *)(conn->buf + off);
 	item = msg->items;
 
-	/* calculate total size first, as we have to write it to the header */
-	size = 0;
+	entry.len = msg->size;
+	entry.total_len = msg->size;
 
-	KDBUS_PART_FOREACH(item, msg, items)
-		size += item->size;
-
-	entry.len = size;
-	entry.total_len = size;
-
-	ret = write(fd, &entry, sizeof(entry));
-	if (ret != sizeof(entry)) {
+	size = write(fd, &entry, sizeof(entry));
+	if (size != sizeof(entry)) {
 		fprintf(stderr, "Unable to write: %m\n");
 		return EXIT_FAILURE;
 	}
 
-	/* walk the items again to actually write them out */
-	KDBUS_PART_FOREACH(item, msg, items) {
-		size = write(fd, item, item->size);
-		if (size != item->size)
-			return EXIT_FAILURE;
+	size = write(fd, msg, msg->size);
+	if (size != msg->size) {
+		fprintf(stderr, "Unable to write: %m\n");
+		return EXIT_FAILURE;
+	}
 
+	/* walk the items and close all memfds */
+	KDBUS_PART_FOREACH(item, msg, items) {
 		if (item->type == KDBUS_MSG_PAYLOAD_MEMFD)
 			close(item->memfd.fd);
 	}
