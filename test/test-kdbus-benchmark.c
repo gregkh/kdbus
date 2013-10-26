@@ -221,6 +221,10 @@ int main(int argc, char *argv[])
 	struct conn *conn_b;
 	struct pollfd fds[2];
 	struct timeval start;
+	unsigned int i;
+
+	for (i = 0; i < sizeof(stress_payload); i++)
+		stress_payload[i] = i;
 
 	printf("-- opening /dev/kdbus/control\n");
 	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
