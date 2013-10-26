@@ -67,9 +67,15 @@ static int dump_packet(struct conn *conn, int fd)
 
 	msg = (struct kdbus_msg *)(conn->buf + off);
 	item = msg->items;
+	size = msg->size;
 
-	entry.len = msg->size;
-	entry.total_len = msg->size;
+	/* collect length of oob payloads */
+	KDBUS_PART_FOREACH(item, msg, items)
+		if (item->type == KDBUS_MSG_PAYLOAD_OFF)
+			size += KDBUS_ALIGN8(item->vec.size);
+
+	entry.len = size;
+	entry.total_len = size;
 
 	size = write(fd, &entry, sizeof(entry));
 	if (size != sizeof(entry)) {
@@ -83,10 +89,20 @@ static int dump_packet(struct conn *conn, int fd)
 		return EXIT_FAILURE;
 	}
 
-	/* walk the items and close all memfds */
 	KDBUS_PART_FOREACH(item, msg, items) {
-		if (item->type == KDBUS_MSG_PAYLOAD_MEMFD)
+		switch (item->type) {
+		/* close all memfds */
+		case KDBUS_MSG_PAYLOAD_MEMFD:
 			close(item->memfd.fd);
+			break;
+		case KDBUS_MSG_PAYLOAD_OFF:
+			size = write(fd, (char *) msg + item->vec.offset, item->vec.size);
+			if (size != item->vec.size) {
+				fprintf(stderr, "Unable to write: %m\n");
+				return EXIT_FAILURE;
+			}
+			break;
+		}
 	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, &off);
