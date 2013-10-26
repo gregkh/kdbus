@@ -167,7 +167,7 @@ int main(int argc, char **argv)
 	header.major = 2;
 	header.minor = 4;
 	header.snapshot_len = 0xffffffff;
-	header.header_type = 0;			/* FIXME */
+	header.header_type = 0x12345678;			/* FIXME */
 
 	ret = write(output_fd, &header, sizeof(header));
 	if (ret != sizeof(header)) {
