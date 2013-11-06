@@ -96,10 +96,15 @@ static int dump_packet(struct conn *conn, int fd)
 			close(item->memfd.fd);
 			break;
 		case KDBUS_MSG_PAYLOAD_OFF:
-			size = write(fd, (char *) msg + item->vec.offset, item->vec.size);
-			if (size != item->vec.size) {
-				fprintf(stderr, "Unable to write: %m\n");
-				return EXIT_FAILURE;
+			if (item->vec.offset != ~0ULL) {
+				size = write(fd,
+						(char *) msg + item->vec.offset,
+						item->vec.size);
+				if (size != item->vec.size) {
+					fprintf(stderr,
+						"Unable to write: %m\n");
+					return EXIT_FAILURE;
+				}
 			}
 			break;
 		}
