@@ -312,20 +312,26 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_name))
 		return PTR_ERR(cmd_name);
 
-	if (!kdbus_name_is_valid(cmd_name->name))
-		return -EINVAL;
+	if (!kdbus_name_is_valid(cmd_name->name)) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
 
 	/* privileged users can act on behalf of someone else */
 	if (cmd_name->id > 0) {
 		struct kdbus_conn *new_conn;
 
 		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
-		if (!new_conn)
-			return -ENXIO;
+		if (!new_conn) {
+			ret = -ENXIO;
+			goto exit_free;
+		}
 
 		if (conn->creds.uid != new_conn->creds.uid &&
-		    !kdbus_bus_uid_is_privileged(conn->ep->bus))
-			return -EPERM;
+		    !kdbus_bus_uid_is_privileged(conn->ep->bus)) {
+			ret = -EPERM;
+			goto exit_free;
+		}
 
 		conn = new_conn;
 	}
@@ -337,7 +343,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		ret = kdbus_policy_db_check_own_access(conn->ep->policy_db,
 						       conn, cmd_name->name);
 		if (ret < 0)
-			return ret;
+			goto exit_free;
 	}
 
 	mutex_lock(&reg->entries_lock);
@@ -345,16 +351,15 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (e) {
 		old_id = e->conn->id;
 		if (e->conn == conn) {
-			/* just update flags */
 			e->flags = cmd_name->flags;
+			ret = -EALREADY;
+			goto exit_unlock;
 		} else {
 			ret = kdbus_name_handle_conflict(reg, conn, e,
 							 &cmd_name->flags);
 			if (ret < 0)
 				goto exit_unlock;
 		}
-
-		goto exit_copy;
 	}
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
@@ -378,7 +383,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_attach(e, conn);
 
-exit_copy:
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
 		goto exit_unlock_free;
@@ -393,11 +397,13 @@ exit_copy:
 	return 0;
 
 exit_unlock_free:
-	kfree(cmd_name);
 	kdbus_name_entry_release(e);
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
+
+exit_free:
+	kfree(cmd_name);
 	return ret;
 }
 
