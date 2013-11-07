@@ -54,6 +54,8 @@ static int dump_packet(struct conn *conn, int fd)
 	const struct kdbus_item *item;
 	struct timeval now;
 	struct pcap_entry entry;
+	uint64_t to_write;
+	void *data_to_write;
 
 	gettimeofday(&now, NULL);
 	entry.tv_sec = now.tv_sec;
@@ -97,14 +99,18 @@ static int dump_packet(struct conn *conn, int fd)
 			break;
 		case KDBUS_MSG_PAYLOAD_OFF:
 			if (item->vec.offset != ~0ULL) {
-				size = write(fd,
-						(char *) msg + item->vec.offset,
-						item->vec.size);
-				if (size != item->vec.size) {
-					fprintf(stderr,
-						"Unable to write: %m\n");
-					return EXIT_FAILURE;
-				}
+				to_write = item->vec.size;
+				data_to_write = (void *) msg + item->vec.offset;
+			}
+			/*add data padding to file*/
+			else {
+				to_write = item->vec.size % 8;
+				data_to_write = "\0\0\0\0\0\0\0";
+			}
+			size = write(fd, data_to_write, to_write);
+			if (size != to_write) {
+				fprintf(stderr, "Unable to write: %m\n");
+				return EXIT_FAILURE;
 			}
 			break;
 		}
