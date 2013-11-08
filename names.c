@@ -360,6 +360,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			if (ret < 0)
 				goto exit_unlock;
 		}
+		goto exit_copy;
 	}
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
@@ -383,6 +384,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_attach(e, conn);
 
+exit_copy:
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
 		goto exit_unlock_free;
@@ -428,8 +430,10 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_name))
 		return PTR_ERR(cmd_name);
 
-	if (!kdbus_name_is_valid(cmd_name->name))
-		return -EINVAL;
+	if (!kdbus_name_is_valid(cmd_name->name)) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
 
 	hash = kdbus_str_hash(cmd_name->name);
 
@@ -454,8 +458,8 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
+exit_free:
 	kfree(cmd_name);
-
 	return ret;
 }
 
@@ -504,10 +508,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		cmd_name = KDBUS_PART_NEXT(cmd_name);
 	}
 
-	if (copy_to_user(buf, cmd_names, size)) {
+	if (copy_to_user(buf, cmd_names, size))
 		ret = -EFAULT;
-		goto exit_unlock;
-	}
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
@@ -581,25 +583,35 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	if (cmd_name_info->id != 0) {
 		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
 						       cmd_name_info->id);
-		if (!owner_conn)
-			return -ENXIO;
+		if (!owner_conn) {
+			ret = -ENXIO;
+			goto exit_free;
+		}
 	} else {
 		KDBUS_PART_FOREACH(info_item, cmd_name_info, items) {
-			if (!KDBUS_PART_VALID(info_item, cmd_name_info))
-				return -EINVAL;
+			if (!KDBUS_PART_VALID(info_item, cmd_name_info)) {
+				ret = -EINVAL;
+				goto exit_free;
+			}
 
-			if (name)
-				return -EBADMSG;
+			if (name) {
+				ret = -EBADMSG;
+				goto exit_free;
+			}
 
 			if (info_item->type == KDBUS_NAME_INFO_ITEM_NAME)
 				name = info_item->data;
 		}
 
-		if (!KDBUS_PART_END(info_item, cmd_name_info))
-			return -EINVAL;
+		if (!KDBUS_PART_END(info_item, cmd_name_info)) {
+			ret = -EINVAL;
+			goto exit_free;
+		}
 
-		if (!name)
-			return -EINVAL;
+		if (!name) {
+			ret = -EINVAL;
+			goto exit_free;
+		}
 
 		hash = kdbus_str_hash(name);
 	}
@@ -642,8 +654,8 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
+exit_free:
 	kfree(cmd_name_info);
-
 	return ret;
 }
 
