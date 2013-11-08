@@ -306,10 +306,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
-	e = kzalloc(sizeof(*e), GFP_KERNEL);
-	if (!e)
-		return -ENOMEM;
-
 	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
 		struct kdbus_conn *targ_conn;
 
@@ -317,10 +313,18 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 						      cmd_match->id);
 		if (targ_conn)
 			db = targ_conn->match_db;
-		else
-			return -ENXIO;
+		else {
+			ret = -ENXIO;
+			goto exit_free;
+		}
 	} else
 		db = conn->match_db;
+
+	e = kzalloc(sizeof(*e), GFP_KERNEL);
+	if (!e) {
+		ret = -ENOMEM;
+		goto exit_free;
+	}
 
 	mutex_lock(&db->entries_lock);
 	INIT_LIST_HEAD(&e->list_entry);
@@ -388,8 +392,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	}
 
 	mutex_unlock(&db->entries_lock);
-	kfree(cmd_match);
 
+exit_free:
+	kfree(cmd_match);
 	return ret;
 }
 
@@ -410,8 +415,10 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 						      cmd_match->id);
 		if (targ_conn)
 			db = targ_conn->match_db;
-		else
+		else {
+			kfree(cmd_match);
 			return -ENXIO;
+		}
 	} else
 		db = conn->match_db;
 
