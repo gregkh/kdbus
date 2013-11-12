@@ -518,26 +518,26 @@ exit_unlock:
 	return ret;
 }
 
-static int
-kdbus_name_fill_info_items(struct kdbus_conn *conn,
-			   struct kdbus_item *item,
-			   size_t *size)
+static size_t
+kdbus_name_get_info_items_size(const struct kdbus_conn *conn)
 {
-	int ret = 0;
-	size_t size_req = 0;
-	size_t size_avail = *size;
+	size_t size = 0;
 
 #ifdef CONFIG_AUDITSYSCALL
-	size_req += KDBUS_ITEM_SIZE(sizeof(conn->audit_ids));
+	size += KDBUS_ITEM_SIZE(sizeof(conn->audit_ids));
 #endif
 
 #ifdef CONFIG_SECURITY
-	size_req += KDBUS_ITEM_SIZE(conn->sec_label_len + 1);
+	size += KDBUS_ITEM_SIZE(conn->sec_label_len + 1);
 #endif
-	*size = size_req;
-	if (size_avail < size_req)
-		return -ENOBUFS;
 
+	return size;
+}
+
+static void
+kdbus_name_fill_info_items(struct kdbus_conn *conn,
+			   struct kdbus_item *item)
+{
 #ifdef CONFIG_AUDITSYSCALL
 	item->size = KDBUS_PART_HEADER_SIZE + sizeof(conn->audit_ids);
 	item->type = KDBUS_NAME_INFO_ITEM_AUDIT;
@@ -551,7 +551,6 @@ kdbus_name_fill_info_items(struct kdbus_conn *conn,
 	memcpy(item->data, conn->sec_label, conn->sec_label_len);
 	item = KDBUS_PART_NEXT(item);
 #endif
-	return ret;
 }
 
 int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
@@ -561,8 +560,8 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name_info *cmd_name_info;
 	struct kdbus_item *info_item;
-	struct kdbus_conn *owner_conn;
-	size_t extra_size;
+	struct kdbus_conn *owner_conn = NULL;
+	size_t size_req;
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -571,9 +570,19 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name_info))
 		return -EFAULT;
 
-	if ((size < sizeof(struct kdbus_cmd_name_info)) ||
-	    (size > (sizeof(struct kdbus_cmd_name_info) + KDBUS_NAME_MAX_LEN + 1)))
+	/*
+	 * The answer to this call must be capable of holding all
+	 * automatically appended items such as audit and security
+	 * information.
+	 */
+	size_req = sizeof(struct kdbus_cmd_name_info)
+			+ kdbus_name_get_info_items_size(conn);
+
+	if (size < size_req) {
+		/* let the user know how much space we require */
+		kdbus_size_set_user(&size_req, buf, struct kdbus_cmd_name_info);
 		return -EMSGSIZE;
+	}
 
 	cmd_name_info = memdup_user(buf, size);
 	if (IS_ERR(cmd_name_info))
@@ -583,36 +592,20 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	if (cmd_name_info->id != 0) {
 		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
 						       cmd_name_info->id);
-		if (!owner_conn) {
-			ret = -ENXIO;
-			goto exit_free;
-		}
 	} else {
-		KDBUS_PART_FOREACH(info_item, cmd_name_info, items) {
-			if (!KDBUS_PART_VALID(info_item, cmd_name_info)) {
-				ret = -EINVAL;
-				goto exit_free;
-			}
+		info_item = cmd_name_info->items;
 
-			if (name) {
-				ret = -EBADMSG;
-				goto exit_free;
-			}
-
-			if (info_item->type == KDBUS_NAME_INFO_ITEM_NAME)
-				name = info_item->data;
-		}
-
-		if (!KDBUS_PART_END(info_item, cmd_name_info)) {
+		if (!KDBUS_PART_VALID(info_item, cmd_name_info)) {
 			ret = -EINVAL;
 			goto exit_free;
 		}
 
-		if (!name) {
+		if (info_item->type != KDBUS_NAME_INFO_ITEM_NAME) {
 			ret = -EINVAL;
 			goto exit_free;
 		}
 
+		name = info_item->str;
 		hash = kdbus_str_hash(name);
 	}
 
@@ -632,24 +625,22 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		owner_conn = e->conn;
 	}
 
-	extra_size = size - offsetof(struct kdbus_cmd_name_info, items);
-
-	ret = kdbus_name_fill_info_items(owner_conn, cmd_name_info->items, &extra_size);
-	size = offsetof(struct kdbus_cmd_name_info, items) + extra_size;
-	if (ret < 0) {
-		/* let the user know how much space we require */
-		kdbus_size_set_user(&size, buf, struct kdbus_cmd_name_info);
+	if (!owner_conn) {
+		ret = -ENXIO;
 		goto exit_unlock;
 	}
 
-	cmd_name_info->size = size;
+	kdbus_name_fill_info_items(owner_conn, cmd_name_info->items);
+
+	cmd_name_info->size = size_req;
 	cmd_name_info->id = owner_conn->id;
 	if (e)
 		cmd_name_info->flags = e->flags;
+
 	memcpy(&cmd_name_info->creds, &owner_conn->creds,
 	       sizeof(cmd_name_info->creds));
 
-	ret = copy_to_user(buf, cmd_name_info, size);
+	ret = copy_to_user(buf, cmd_name_info, size_req);
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
