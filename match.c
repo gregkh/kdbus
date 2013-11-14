@@ -210,22 +210,27 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 	list_for_each_entry(e, &db->entries, list_entry) {
 		struct kdbus_match_db_entry_item *ei;
 
-		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
-		    e->src_id != 0)
-			continue;
-
 		list_for_each_entry(ei, &e->items_list, list_entry) {
-			if (ei->type == KDBUS_MATCH_ID_ADD &&
-			    type == KDBUS_MSG_ID_ADD) {
-				matched = true;
-				break;
+			if (ei->id == 0 ||
+			    ei->id == KDBUS_MATCH_SRC_ID_ANY ||
+			    ei->id == e->src_id) {
+
+				if (ei->type == KDBUS_MATCH_ID_ADD &&
+				    type == KDBUS_MSG_ID_ADD) {
+					matched = true;
+					break;
+				}
+
+				if (ei->type == KDBUS_MATCH_ID_REMOVE &&
+				    type == KDBUS_MSG_ID_REMOVE) {
+					matched = true;
+					break;
+				}
 			}
 
-			if (ei->type == KDBUS_MATCH_ID_REMOVE &&
-			    type == KDBUS_MSG_ID_REMOVE) {
-				matched = true;
-				break;
-			}
+			if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
+			    e->src_id != 0)
+				continue;
 
 			if (ei->type == KDBUS_MATCH_NAME_ADD &&
 			    type == KDBUS_MSG_NAME_ADD) {
