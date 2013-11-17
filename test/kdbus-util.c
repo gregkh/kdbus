@@ -46,6 +46,8 @@ struct conn *connect_to_bus(const char *path)
 	}
 
 	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD |
+			   KDBUS_HELLO_ATTACH_CREDS |
+			   KDBUS_HELLO_ATTACH_NAMES |
 			   KDBUS_HELLO_ATTACH_COMM |
 			   KDBUS_HELLO_ATTACH_EXE |
 			   KDBUS_HELLO_ATTACH_CMDLINE |

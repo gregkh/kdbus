@@ -555,20 +555,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	u64 deadline_ns = 0;
 	int ret;
 
-	/* augment incoming message */
 	ret = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
 	if (ret < 0)
 		return ret;
-
-	if (conn_src) {
-		ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
-		if (ret < 0)
-			return ret;
-
-		ret = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
-		if (ret < 0)
-			return ret;
-	}
 
 	/* broadcast message */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
@@ -620,7 +609,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ret < 0)
 		goto exit;
 
-	/* monitor connections get all messages */
+	/* the monitor connections get all messages */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(conn, &ep->bus->monitors_list, monitor_entry) {
 		/* the monitor connection is addressed, deliver it below */

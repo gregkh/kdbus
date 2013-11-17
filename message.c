@@ -389,8 +389,8 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 	return kdbus_kmsg_append_data(kmsg, type, str, strlen(str) + 1);
 }
 
-int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
-				struct kdbus_conn *conn)
+static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
+				       struct kdbus_conn *conn)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_item *item;
@@ -429,8 +429,8 @@ exit_unlock:
 	return ret;
 }
 
-int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
-			   const struct kdbus_creds *creds)
+static int kdbus_kmsg_append_cred(struct kdbus_kmsg *kmsg,
+				  const struct kdbus_creds *creds)
 {
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
@@ -458,6 +458,18 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 	/* all metadata already added */
 	if ((conn_dst->flags & kmsg->meta_attached) == conn_dst->flags)
 		return 0;
+
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CREDS) {
+		ret = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_NAMES) {
+		ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
+		if (ret < 0)
+			return ret;
+	}
 
 	if (conn_dst->flags & KDBUS_HELLO_ATTACH_COMM) {
 		char comm[TASK_COMM_LEN];

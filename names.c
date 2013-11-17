@@ -649,4 +649,3 @@ exit_free:
 	kfree(cmd_name_info);
 	return ret;
 }
-
