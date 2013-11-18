@@ -551,11 +551,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_conn *conn;
-	u64 now_ns = 0;
 	u64 deadline_ns = 0;
 	int ret;
 
-	ret = kdbus_kmsg_append_timestamp(kmsg, &now_ns);
+	ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
 	if (ret < 0)
 		return ret;
 
@@ -585,7 +584,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 		mutex_unlock(&ep->bus->lock);
 
-		return ret;
+		return 0;
 	}
 
 	/* direct message */
@@ -593,8 +592,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ret < 0)
 		return ret;
 
-	if (msg->timeout_ns)
-		deadline_ns = now_ns + msg->timeout_ns;
+	if (msg->timeout_ns) {
+		struct timespec ts;
+
+		ktime_get_ts(&ts);
+		deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
+	}
 
 	if (ep->policy_db && conn_src) {
 		ret = kdbus_policy_db_check_send_access(ep->policy_db,

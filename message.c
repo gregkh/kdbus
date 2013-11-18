@@ -337,7 +337,7 @@ kdbus_kmsg_append(struct kdbus_kmsg *kmsg, size_t extra_size)
 	return item;
 }
 
-int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
+static int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
@@ -355,9 +355,6 @@ int kdbus_kmsg_append_timestamp(struct kdbus_kmsg *kmsg, u64 *now_ns)
 
 	ktime_get_real_ts(&ts);
 	item->timestamp.realtime_ns = timespec_to_ns(&ts);
-
-	if (now_ns)
-		*now_ns = item->timestamp.monotonic_ns;
 
 	return 0;
 }
@@ -389,13 +386,16 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 	return kdbus_kmsg_append_data(kmsg, type, str, strlen(str) + 1);
 }
 
-static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
-				       struct kdbus_conn *conn)
+int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
+				struct kdbus_conn *conn)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_item *item;
 	u64 pos = 0, size, strsize = 0;
 	int ret = 0;
+
+	if (!conn)
+		return 0;
 
 	mutex_lock(&conn->names_lock);
 	list_for_each_entry(name_entry, &conn->names_list, conn_entry)
@@ -459,16 +459,20 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 	if ((conn_dst->flags & kmsg->meta_attached) == conn_dst->flags)
 		return 0;
 
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_TIMESTAMP) {
+		ret = kdbus_kmsg_append_timestamp(kmsg);
+		if (ret < 0)
+			return ret;
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_TIMESTAMP;
+	}
+
 	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CREDS) {
 		ret = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
 		if (ret < 0)
 			return ret;
-	}
 
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_NAMES) {
-		ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
-		if (ret < 0)
-			return ret;
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CREDS;
 	}
 
 	if (conn_dst->flags & KDBUS_HELLO_ATTACH_COMM) {
