@@ -470,10 +470,18 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	struct kdbus_cmd_names *cmd_names = NULL;
 	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_name_entry *e;
-	u64 user_size, size = 0, tmp;
-	int ret = 0;
+	struct kdbus_bus *bus;
+	u64 user_size, user_flags, size = 0, tmp;
+	int i, ret = 0;
+
+	bus = conn->ep->bus;
 
 	if (kdbus_size_get_user(&user_size, buf, struct kdbus_cmd_names))
+		return -EFAULT;
+
+	if (copy_from_user(&user_flags,
+			   buf + offsetof(struct kdbus_cmd_names, flags),
+			   sizeof(user_flags)))
 		return -EFAULT;
 
 	mutex_lock(&reg->entries_lock);
@@ -483,6 +491,14 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	hash_for_each(reg->entries_hash, tmp, e, hentry)
 		size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) +
 				     strlen(e->name) + 1);
+
+	if (user_flags & KDBUS_NAME_LIST_UNIQUE_NAMES) {
+		struct kdbus_conn *c;
+
+		hash_for_each(bus->conn_hash, i, c, hentry)
+			if (list_empty(&c->names_list))
+				size += KDBUS_ALIGN8(sizeof(*cmd_name));
+	}
 
 	if (size > user_size) {
 		kdbus_size_set_user(&size, buf, struct kdbus_cmd_names);
@@ -506,6 +522,25 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		cmd_name->id = e->conn->id;
 		strcpy(cmd_name->name, e->name);
 		cmd_name = KDBUS_PART_NEXT(cmd_name);
+	}
+
+	/*
+	 * If the listing of unique names is requested, iterate over the
+	 * bus' connections and find those which do not have a well-known-name
+	 * assigned to it.
+	 */
+	if (user_flags & KDBUS_NAME_LIST_UNIQUE_NAMES) {
+		struct kdbus_conn *c;
+
+		hash_for_each(bus->conn_hash, i, c, hentry) {
+			if (!list_empty(&c->names_list))
+				continue;
+
+			cmd_name->size = sizeof(struct kdbus_cmd_name);
+			cmd_name->id = c->id;
+			cmd_name->flags = c->flags;
+			cmd_name = KDBUS_PART_NEXT(cmd_name);
+		}
 	}
 
 	if (copy_to_user(buf, cmd_names, size))
