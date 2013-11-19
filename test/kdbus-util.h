@@ -8,6 +8,8 @@
  */
 #pragma once
 
+#define BIT(X) (1 << (X))
+
 #include "../kdbus.h"
 
 #define _STRINGIFY(x) #x

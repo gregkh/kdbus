@@ -14,9 +14,6 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
-//#include "include/uapi/kdbus/kdbus.h"
-#include "../kdbus.h"
-
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
