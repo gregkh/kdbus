@@ -157,8 +157,8 @@ struct kdbus_item {
 };
 
 enum {
-	KDBUS_MSG_FLAGS_EXPECT_REPLY	= BIT(0),
-	KDBUS_MSG_FLAGS_NO_AUTO_START	= BIT(1),
+	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1 << 0,
+	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1 << 1,
 };
 
 enum {
@@ -206,9 +206,9 @@ enum {
 };
 
 enum {
-	KDBUS_POLICY_RECV		= BIT(2),
-	KDBUS_POLICY_SEND		= BIT(1),
-	KDBUS_POLICY_OWN		= BIT(0),
+	KDBUS_POLICY_RECV		= 1 <<  2,
+	KDBUS_POLICY_SEND		= 1 <<  1,
+	KDBUS_POLICY_OWN		= 1 <<  0,
 };
 
 struct kdbus_policy_access {
@@ -234,19 +234,19 @@ struct kdbus_cmd_policy {
 
 /* Flags for struct kdbus_cmd_hello */
 enum {
-	KDBUS_HELLO_STARTER		=  BIT(0),
-	KDBUS_HELLO_ACCEPT_FD		=  BIT(1),
+	KDBUS_HELLO_STARTER		=  1 <<  0,
+	KDBUS_HELLO_ACCEPT_FD		=  1 <<  1,
 
 	/* subscription for metadata to attach */
-	KDBUS_HELLO_ATTACH_TIMESTAMP	=  BIT(8),
-	KDBUS_HELLO_ATTACH_CREDS	=  BIT(9),
-	KDBUS_HELLO_ATTACH_COMM		=  BIT(10),
-	KDBUS_HELLO_ATTACH_EXE		=  BIT(11),
-	KDBUS_HELLO_ATTACH_CMDLINE	=  BIT(12),
-	KDBUS_HELLO_ATTACH_CGROUP	=  BIT(13),
-	KDBUS_HELLO_ATTACH_CAPS		=  BIT(14),
-	KDBUS_HELLO_ATTACH_SECLABEL	=  BIT(15),
-	KDBUS_HELLO_ATTACH_AUDIT	=  BIT(16),
+	KDBUS_HELLO_ATTACH_TIMESTAMP	=  1 <<  8,
+	KDBUS_HELLO_ATTACH_CREDS	=  1 <<  9,
+	KDBUS_HELLO_ATTACH_COMM		=  1 << 10,
+	KDBUS_HELLO_ATTACH_EXE		=  1 << 11,
+	KDBUS_HELLO_ATTACH_CMDLINE	=  1 << 12,
+	KDBUS_HELLO_ATTACH_CGROUP	=  1 << 13,
+	KDBUS_HELLO_ATTACH_CAPS		=  1 << 14,
+	KDBUS_HELLO_ATTACH_SECLABEL	=  1 << 15,
+	KDBUS_HELLO_ATTACH_AUDIT	=  1 << 16,
 };
 
 struct kdbus_cmd_hello {
@@ -275,9 +275,9 @@ struct kdbus_cmd_hello {
 
 /* Flags for kdbus_cmd_{bus,ep,ns}_make */
 enum {
-	KDBUS_MAKE_ACCESS_GROUP		= BIT(0),
-	KDBUS_MAKE_ACCESS_WORLD		= BIT(1),
-	KDBUS_MAKE_POLICY_OPEN		= BIT(2),
+	KDBUS_MAKE_ACCESS_GROUP		= 1 <<  0,
+	KDBUS_MAKE_ACCESS_WORLD		= 1 <<  1,
+	KDBUS_MAKE_POLICY_OPEN		= 1 <<  2,
 };
 
 /* Items to append to kdbus_cmd_{bus,ep,ns}_make */
@@ -329,12 +329,12 @@ struct kdbus_cmd_ns_make {
 
 enum {
 	/* userspace → kernel */
-	KDBUS_NAME_REPLACE_EXISTING		= BIT(0),
-	KDBUS_NAME_QUEUE			= BIT(1),
-	KDBUS_NAME_ALLOW_REPLACEMENT		= BIT(2),
+	KDBUS_NAME_REPLACE_EXISTING		= 1 <<  0,
+	KDBUS_NAME_QUEUE			= 1 <<  1,
+	KDBUS_NAME_ALLOW_REPLACEMENT		= 1 <<  2,
 
 	/* kernel → userspace */
-	KDBUS_NAME_IN_QUEUE			= BIT(16),
+	KDBUS_NAME_IN_QUEUE			= 1 << 16,
 };
 
 /* We allow (de)regestration of names of other peers */
@@ -347,7 +347,7 @@ struct kdbus_cmd_name {
 };
 
 enum {
-	KDBUS_NAME_LIST_UNIQUE_NAMES		= BIT(0),
+	KDBUS_NAME_LIST_UNIQUE_NAMES		= 1 <<  0,
 };
 
 struct kdbus_cmd_names {
