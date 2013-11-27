@@ -56,7 +56,7 @@ struct conn *connect_to_bus(const char *path)
 	hello.pool_size = POOL_SIZE;
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	if (ret) {
+	if (ret < 0) {
 		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
@@ -177,7 +177,7 @@ int msg_send(const struct conn *conn,
 	item = KDBUS_PART_NEXT(item);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
-	if (ret) {
+	if (ret < 0) {
 		fprintf(stderr, "error sending message: %d err %d (%m)\n", ret, errno);
 		return EXIT_FAILURE;
 	}
@@ -407,7 +407,7 @@ int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 	cmd_name->conn_flags = flags;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
-	if (ret) {
+	if (ret < 0) {
 		fprintf(stderr, "error aquiring name: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
@@ -432,7 +432,7 @@ int name_release(struct conn *conn, const char *name)
 	printf("conn %lld giving up name '%s'\n", (unsigned long long)conn->id, name);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
-	if (ret) {
+	if (ret < 0) {
 		fprintf(stderr, "error releasing name: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
@@ -460,7 +460,8 @@ int name_list(struct conn *conn, uint64_t flags)
 
 	printf("REGISTRY:\n");
 	KDBUS_PART_FOREACH(name, names, names)
-		printf("  %llx - '%s'\n", name->id, name->name);
+		printf("  %llx - '%s'\n", name->id,
+		       name->size > sizeof(struct kdbus_cmd_name) ? name->name : "");
 	printf("\n");
 
 	return 0;
