@@ -36,7 +36,7 @@ struct conn {
 	size_t size;
 };
 
-int name_list(struct conn *conn);
+int name_list(struct conn *conn, uint64_t flags);
 int name_release(struct conn *conn, const char *name);
 int name_acquire(struct conn *conn, const char *name, uint64_t flags);
 int msg_recv(struct conn *conn);

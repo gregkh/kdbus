@@ -440,7 +440,7 @@ int name_release(struct conn *conn, const char *name)
 	return 0;
 }
 
-int name_list(struct conn *conn)
+int name_list(struct conn *conn, uint64_t flags)
 {
 	uint64_t size = 0xffff;
 	struct kdbus_cmd_names *names;
@@ -450,6 +450,7 @@ int name_list(struct conn *conn)
 	names = alloca(size);
 	memset(names, 0, size);
 	names->size = size;
+	names->flags = flags;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, names);
 	if (ret) {
@@ -459,7 +460,7 @@ int name_list(struct conn *conn)
 
 	printf("REGISTRY:\n");
 	KDBUS_PART_FOREACH(name, names, names)
-		printf("  '%s' is acquired by id %llx\n", name->name, name->id);
+		printf("  %llx - '%s'\n", name->id, name->name);
 	printf("\n");
 
 	return 0;
