@@ -386,7 +386,7 @@ static int kdbus_kmsg_append_str(struct kdbus_kmsg *kmsg, u64 type,
 	return kdbus_kmsg_append_data(kmsg, type, str, strlen(str) + 1);
 }
 
-int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
+static int kdbus_kmsg_append_src_names(struct kdbus_kmsg *kmsg,
 				struct kdbus_conn *conn)
 {
 	struct kdbus_name_entry *name_entry;
@@ -473,6 +473,14 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 			return ret;
 
 		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CREDS;
+	}
+
+	if (conn_dst->flags & KDBUS_HELLO_ATTACH_NAMES) {
+		ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
+		if (ret < 0)
+			return ret;
+
+		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_NAMES;
 	}
 
 	if (conn_dst->flags & KDBUS_HELLO_ATTACH_COMM) {

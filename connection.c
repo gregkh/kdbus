@@ -554,10 +554,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	u64 deadline_ns = 0;
 	int ret;
 
-	ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
-	if (ret < 0)
-		return ret;
-
 	/* broadcast message */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		unsigned int i;
