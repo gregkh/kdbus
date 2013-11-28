@@ -51,6 +51,7 @@ struct kdbus_conn_queue {
 
 	/* offset to the message placed in the receiver's buffer */
 	size_t off;
+	size_t size;
 
 	/* passed KDBUS_MSG_PAYLOAD_MEMFD */
 	size_t *memfds;
@@ -430,6 +431,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 
 	/* remember the offset to the message */
 	queue->off = off;
+	queue->size = want;
 
 	/* link the message into the receiver's queue */
 	mutex_lock(&conn->lock);
@@ -777,6 +779,7 @@ kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 	list_del(&queue->entry);
 	mutex_unlock(&conn->lock);
 
+	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
 	kdbus_conn_queue_cleanup(queue);
 	return 0;
 

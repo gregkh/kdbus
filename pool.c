@@ -24,6 +24,7 @@
 #include <linux/file.h>
 #include <linux/shmem_fs.h>
 #include <linux/aio.h>
+#include <linux/pagemap.h>
 
 #include "pool.h"
 #include "message.h"
@@ -365,15 +366,65 @@ int kdbus_pool_free(struct kdbus_pool *pool, size_t off)
 ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
 			      void __user *data, size_t len)
 {
-	loff_t o = off;
+	struct address_space *mapping = pool->f->f_mapping;
+	const struct address_space_operations *aops = mapping->a_ops;
+	unsigned long fpos = off;
+	unsigned long rem = len;
+	size_t dpos = 0;
+	int ret = 0;
 
-	return pool->f->f_op->write(pool->f, data, len, &o);
+	while (rem > 0) {
+		struct page *p;
+		unsigned long o;
+		unsigned long n;
+		void *fsdata;
+		int status;
+		char *kaddr;
+		unsigned long remain;
+
+		o = fpos & (PAGE_CACHE_SIZE - 1);
+		n = min_t(unsigned long, PAGE_CACHE_SIZE - o, rem);
+
+		if (fault_in_pages_readable(data + dpos, n) < 0) {
+			ret = -EFAULT;
+			break;
+		}
+
+		status = aops->write_begin(pool->f, mapping, fpos, n, 0, &p,
+					   &fsdata);
+		if (status) {
+			ret = -EFAULT;
+			break;
+		}
+
+		kaddr = kmap_atomic(p);
+		pagefault_disable();
+		remain = __copy_from_user_inatomic(kaddr + o, data + dpos, n);
+		pagefault_enable();
+		kunmap_atomic(kaddr);
+		if (remain > 0) {
+			ret = -EFAULT;
+			break;
+		}
+		mark_page_accessed(p);
+
+		status = aops->write_end(pool->f, mapping, fpos, n, n, p, fsdata);
+		if (status != n) {
+			ret = -EFAULT;
+			break;
+		}
+
+		fpos += n;
+		rem -= n;
+		dpos += n;
+	}
+
+	return ret;
 }
 
 ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 			 void *data, size_t len)
 {
-	loff_t o = off;
 	mm_segment_t old_fs;
 	void __user *p;
 	ssize_t ret;
@@ -382,10 +433,32 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 	set_fs(get_ds());
 
 	p = (void __force __user *)data;
-	ret = pool->f->f_op->write(pool->f, p, len, &o);
+	ret = kdbus_pool_write_user(pool, off, data, len);
 
 	set_fs(old_fs);
 	return ret;
+}
+
+void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
+			     size_t off, size_t len)
+{
+#if ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE == 1
+	struct address_space *mapping = pool->f->f_mapping;
+	pgoff_t first = off >> PAGE_CACHE_SHIFT;
+	pgoff_t last = (off + len + PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
+	pgoff_t i;
+
+	for (i = first; i < last; i++) {
+		struct page *page;
+
+		page = find_get_page(mapping, i);
+		if (!page)
+			continue;
+
+		flush_dcache_page(page);
+		put_page(page);
+	}
+#endif
 }
 
 /* map the shmem file for the receiver */
