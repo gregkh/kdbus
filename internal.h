@@ -32,8 +32,6 @@
 #define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages on the bus */
 #define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K		/* maximum number of allocated bytes on the bus */
 
-#define KDBUS_CHAR_MAJOR		222		/* FIXME: move to uapi/linux/major.h */
-
 /* exported addresses are 64bit */
 #define KDBUS_PTR(addr) ((void __user *)(uintptr_t)(addr))
 

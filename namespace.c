@@ -152,13 +152,6 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
-
-		/* register static major to support module auto-loading */
-		ret = register_chrdev(KDBUS_CHAR_MAJOR, "kdbus", &kdbus_device_ops);
-		if (ret)
-			goto exit_unlock;
-
-		n->major = KDBUS_CHAR_MAJOR;
 	} else {
 		struct kdbus_ns *exists;
 
@@ -181,13 +174,13 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
+	}
 
-		/* get dynamic major */
-		n->major = register_chrdev(0, "kdbus", &kdbus_device_ops);
-		if (n->major < 0) {
-			ret = n->major;
-			goto exit_unlock;
-		}
+	/* get dynamic major */
+	n->major = register_chrdev(0, "kdbus", &kdbus_device_ops);
+	if (n->major < 0) {
+		ret = n->major;
+		goto exit_unlock;
 	}
 
 	/* kdbus_device_ops' dev_t finds the namespace in the major map,
@@ -203,8 +196,10 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 
 	/* register control device for this namespace */
 	n->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
-	if (!n->dev)
+	if (!n->dev) {
+		ret = -ENOMEM;
 		goto exit_unlock;
+	}
 
 	dev_set_name(n->dev, "%s/%s", n->devpath, "control");
 	n->dev->bus = &kdbus_subsys;

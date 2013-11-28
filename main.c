@@ -70,5 +70,3 @@ module_init(kdbus_init);
 module_exit(kdbus_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("kdbus interprocess communication");
-MODULE_ALIAS_CHARDEV(KDBUS_CHAR_MAJOR, 0);
-MODULE_ALIAS("devname:kdbus/control");
