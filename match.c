@@ -162,9 +162,9 @@ bool kdbus_match_db_match_item(struct kdbus_match_db_entry *e,
 			return false;
 		}
 
-		if (kmsg->src_names && ei->type == KDBUS_MATCH_SRC_NAME) {
-			if (kdbus_match_db_test_src_names(kmsg->src_names,
-							  kmsg->src_names_len,
+		if (kmsg->meta.src_names && ei->type == KDBUS_MATCH_SRC_NAME) {
+			if (kdbus_match_db_test_src_names(kmsg->meta.src_names,
+							  kmsg->meta.src_names_len,
 							  ei->name))
 				continue;
 

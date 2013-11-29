@@ -7,6 +7,7 @@ kdbus-y	:= \
 	main.o \
 	match.o \
 	message.o \
+	metadata.o \
 	names.o \
 	notify.o \
 	namespace.o \

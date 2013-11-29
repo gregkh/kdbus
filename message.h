@@ -13,22 +13,19 @@
 #define __KDBUS_MESSAGE_H
 
 #include "internal.h"
+#include "metadata.h"
 
 struct kdbus_kmsg {
 	/* short-cuts for faster lookup */
 	u64 notification_type;
 	const char *dst_name;
-	const char *src_names;
-	size_t src_names_len;
 	const u64 *bloom;
 	unsigned int bloom_size;
 	const int *fds;
 	unsigned int fds_count;
 
 	/* appended SCM-like metadata */
-	struct kdbus_item *meta;
-	size_t meta_size;
-	size_t meta_allocated_size;
+	struct kdbus_meta meta;
 
 	/* size of PAYLOAD data */
 	size_t vecs_size;
@@ -47,7 +44,4 @@ struct kdbus_conn;
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m);
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn, struct kdbus_msg __user *msg, struct kdbus_kmsg **m);
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg);
-int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
-			   struct kdbus_conn *conn_src,
-			   struct kdbus_conn *conn_dst);
 #endif

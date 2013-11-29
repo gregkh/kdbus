@@ -353,9 +353,9 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 	}
 
 	/* space for metadata/credential items */
-	if (kmsg->meta_size > 0) {
+	if (kmsg->meta.size > 0) {
 		meta = msg_size;
-		msg_size += kmsg->meta_size;
+		msg_size += kmsg->meta.size;
 	}
 
 	/* data starts after the message */
@@ -422,9 +422,9 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 	}
 
 	/* append message metadata/credential items */
-	if (kmsg->meta_size > 0) {
+	if (kmsg->meta.size > 0) {
 		ret = kdbus_pool_write(conn->pool, off + meta,
-				       kmsg->meta, kmsg->meta_size);
+				       kmsg->meta.data, kmsg->meta.size);
 		if (ret < 0)
 			goto exit;
 	}
@@ -576,7 +576,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 * metadata causes the message to carry it; all
 			 * receivers after that will see all of the added
 			 * data, even when they did not ask for it. */
-			kdbus_kmsg_append_meta(kmsg, conn_src, conn_dst);
+			kdbus_meta_append(&kmsg->meta, conn_src, conn_dst->attach_flags);
 
 			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
 		}
@@ -606,7 +606,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit;
 	}
 
-	ret = kdbus_kmsg_append_meta(kmsg, conn_src, conn_dst);
+	ret = kdbus_meta_append(&kmsg->meta, conn_src, conn_dst->attach_flags);
 	if (ret < 0)
 		goto exit;
 
