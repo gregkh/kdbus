@@ -1228,10 +1228,10 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		kdbus_conn_set_seclabel(conn);
 
 		/* link into bus; get new id for this connection */
-		mutex_lock(&conn->ep->bus->lock);
-		conn->id = conn->ep->bus->conn_id_next++;
-		hash_add(conn->ep->bus->conn_hash, &conn->hentry, conn->id);
-		mutex_unlock(&conn->ep->bus->lock);
+		mutex_lock(&bus->lock);
+		conn->id = bus->conn_id_next++;
+		hash_add(bus->conn_hash, &conn->hentry, conn->id);
+		mutex_unlock(&bus->lock);
 
 		/* return properties of this connection to the caller */
 		hello->bus_flags = bus->bus_flags;
