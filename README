@@ -1,12 +1,17 @@
-Nothing to see here, move along.
+Linux kernel D-Bus implementation
 
-Seriously, don't look at this yet, it's horrible, wrong, and will change
-before it is submitted for inclusion into the Linux kernel.
+See kdbus.txt for kernel-side details.
 
-If you wish to talk to me about this code base, please reconsider, I
-currently have 8 pages of scribbled notes on what needs to be done, any
-distractions at this point in time is pretty pointless.
+The userspace side is developed in systemd:
+  http://cgit.freedesktop.org/systemd/systemd/tree/src/libsystemd-bus
 
-And yes, the code is LGPLv2+, that is on purpose for now.
+See also:
+  https://review.tizen.org/git/?p=platform/upstream/glib.git;a=shortlog;h=refs/heads/kdbus-dev
+  https://review.tizen.org/git/?p=platform/upstream/dbus.git;a=shortlog;h=refs/heads/kdbus-dev
 
-Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Development repos:
+  https://github.com/gregkh/kdbus
+  https://code.google.com/p/d-bus/
+
+The code is LGPLv2+, that is on purpose to be able to share code
+with userspace tools.
