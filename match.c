@@ -386,18 +386,19 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 			break;
 		}
 
+		if (ret < 0)
+			break;
+
 		list_add_tail(&ei->list_entry, &e->items_list);
 	}
 
 	if (ret == 0 && !KDBUS_PART_END(item, cmd_match))
 		ret = -EINVAL;
 
-	if (ret >= 0) {
+	if (ret >= 0)
 		list_add_tail(&e->list_entry, &db->entries);
-	} else {
+	else
 		kdbus_match_db_entry_free(e);
-		kfree(e);
-	}
 
 	mutex_unlock(&db->entries_lock);
 
