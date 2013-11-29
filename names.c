@@ -30,6 +30,7 @@
 #include "policy.h"
 #include "bus.h"
 #include "endpoint.h"
+#include "metadata.h"
 
 struct kdbus_name_queue_item {
 	struct kdbus_conn	*conn;
@@ -553,41 +554,6 @@ exit_unlock:
 	return ret;
 }
 
-static size_t
-kdbus_name_get_info_items_size(const struct kdbus_conn *conn)
-{
-	size_t size = 0;
-
-#ifdef CONFIG_AUDITSYSCALL
-	size += KDBUS_ITEM_SIZE(sizeof(conn->audit_ids));
-#endif
-
-#ifdef CONFIG_SECURITY
-	size += KDBUS_ITEM_SIZE(conn->sec_label_len + 1);
-#endif
-
-	return size;
-}
-
-static void
-kdbus_name_fill_info_items(struct kdbus_conn *conn,
-			   struct kdbus_item *item)
-{
-#ifdef CONFIG_AUDITSYSCALL
-	item->size = KDBUS_PART_HEADER_SIZE + sizeof(conn->audit_ids);
-	item->type = KDBUS_NAME_INFO_ITEM_AUDIT;
-	memcpy(item->data, conn->audit_ids, sizeof(conn->audit_ids));
-	item = KDBUS_PART_NEXT(item);
-#endif
-
-#ifdef CONFIG_SECURITY
-	item->size = KDBUS_PART_HEADER_SIZE + conn->sec_label_len + 1;
-	item->type = KDBUS_NAME_INFO_ITEM_SECLABEL;
-	memcpy(item->data, conn->sec_label, conn->sec_label_len);
-	item = KDBUS_PART_NEXT(item);
-#endif
-}
-
 int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 			 struct kdbus_conn *conn,
 			 void __user *buf)
@@ -596,30 +562,27 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 	struct kdbus_cmd_name_info *cmd_name_info;
 	struct kdbus_item *info_item;
 	struct kdbus_conn *owner_conn = NULL;
+	struct kdbus_meta meta;
 	size_t size_req;
-	u64 size;
+	u64 user_size;
 	u32 hash;
 	int ret = 0;
 	char *name = NULL;
 
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name_info))
+	memset(&meta, 0, sizeof(meta));
+
+	if (kdbus_size_get_user(&user_size, buf, struct kdbus_cmd_name_info))
 		return -EFAULT;
 
-	/*
-	 * The answer to this call must be capable of holding all
-	 * automatically appended items such as audit and security
-	 * information.
-	 */
-	size_req = sizeof(struct kdbus_cmd_name_info)
-			+ kdbus_name_get_info_items_size(conn);
+	size_req = sizeof(struct kdbus_cmd_name_info);
 
-	if (size < size_req) {
+	if (user_size < size_req) {
 		/* let the user know how much space we require */
 		kdbus_size_set_user(&size_req, buf, struct kdbus_cmd_name_info);
 		return -EMSGSIZE;
 	}
 
-	cmd_name_info = memdup_user(buf, size);
+	cmd_name_info = memdup_user(buf, user_size);
 	if (IS_ERR(cmd_name_info))
 		return PTR_ERR(cmd_name_info);
 
@@ -665,7 +628,23 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	kdbus_name_fill_info_items(owner_conn, cmd_name_info->items);
+	ret = kdbus_meta_append(&meta, owner_conn, cmd_name_info->attach_flags);
+	if (ret < 0)
+		goto exit_free;
+
+	if (meta.size) {
+		size_req += meta.size;
+
+		if (size_req > user_size) {
+			/* let the user know how much space we require */
+			kdbus_size_set_user(&size_req, buf,
+					    struct kdbus_cmd_name_info);
+			ret = -EMSGSIZE;
+			goto exit_unlock;
+		}
+	}
+
+	memcpy(cmd_name_info->items, meta.data, meta.size);
 
 	cmd_name_info->size = size_req;
 	cmd_name_info->id = owner_conn->id;
@@ -682,5 +661,6 @@ exit_unlock:
 
 exit_free:
 	kfree(cmd_name_info);
+	kdbus_meta_free(&meta);
 	return ret;
 }
