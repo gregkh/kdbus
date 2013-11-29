@@ -42,17 +42,19 @@ struct conn *connect_to_bus(const char *path)
 		return NULL;
 	}
 
-	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD |
-			   KDBUS_HELLO_ATTACH_TIMESTAMP |
-			   KDBUS_HELLO_ATTACH_CREDS |
-			   KDBUS_HELLO_ATTACH_NAMES |
-			   KDBUS_HELLO_ATTACH_COMM |
-			   KDBUS_HELLO_ATTACH_EXE |
-			   KDBUS_HELLO_ATTACH_CMDLINE |
-			   KDBUS_HELLO_ATTACH_CAPS |
-			   KDBUS_HELLO_ATTACH_CGROUP |
-			   KDBUS_HELLO_ATTACH_SECLABEL |
-			   KDBUS_HELLO_ATTACH_AUDIT;
+	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
+
+	hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
+			     KDBUS_ATTACH_CREDS |
+			     KDBUS_ATTACH_NAMES |
+			     KDBUS_ATTACH_COMM |
+			     KDBUS_ATTACH_EXE |
+			     KDBUS_ATTACH_CMDLINE |
+			     KDBUS_ATTACH_CAPS |
+			     KDBUS_ATTACH_CGROUP |
+			     KDBUS_ATTACH_SECLABEL |
+			     KDBUS_ATTACH_AUDIT;
+
 	hello.size = sizeof(struct kdbus_cmd_hello);
 	hello.pool_size = POOL_SIZE;
 

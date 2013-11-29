@@ -459,31 +459,31 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 	if ((conn_dst->flags & kmsg->meta_attached) == conn_dst->flags)
 		return 0;
 
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_TIMESTAMP) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_TIMESTAMP) {
 		ret = kdbus_kmsg_append_timestamp(kmsg);
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_TIMESTAMP;
+		kmsg->meta_attached |= KDBUS_ATTACH_TIMESTAMP;
 	}
 
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CREDS) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_CREDS) {
 		ret = kdbus_kmsg_append_cred(kmsg, &conn_src->creds);
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CREDS;
+		kmsg->meta_attached |= KDBUS_ATTACH_CREDS;
 	}
 
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_NAMES) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_NAMES) {
 		ret = kdbus_kmsg_append_src_names(kmsg, conn_src);
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_NAMES;
+		kmsg->meta_attached |= KDBUS_ATTACH_NAMES;
 	}
 
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_COMM) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_COMM) {
 		char comm[TASK_COMM_LEN];
 
 		get_task_comm(comm, current->group_leader);
@@ -496,10 +496,10 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_COMM;
+		kmsg->meta_attached |= KDBUS_ATTACH_COMM;
 	}
 
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_EXE) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_EXE) {
 		struct mm_struct *mm = get_task_mm(current);
 		struct path *exe_path = NULL;
 
@@ -538,10 +538,10 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 				return ret;
 		}
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_EXE;
+		kmsg->meta_attached |= KDBUS_ATTACH_EXE;
 	}
 
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CMDLINE) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_CMDLINE) {
 		struct mm_struct *mm = current->mm;
 		char *tmp;
 
@@ -566,11 +566,11 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CMDLINE;
+		kmsg->meta_attached |= KDBUS_ATTACH_CMDLINE;
 	}
 
 	/* we always return a 4 elements, the element size is 1/4  */
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CAPS) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_CAPS) {
 		const struct cred *cred;
 		struct caps {
 			u32 cap[_KERNEL_CAPABILITY_U32S];
@@ -597,12 +597,12 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CAPS;
+		kmsg->meta_attached |= KDBUS_ATTACH_CAPS;
 	}
 
 #ifdef CONFIG_CGROUPS
 	/* attach the path of the one group hierarchy specified for the bus */
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_CGROUP) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_CGROUP) {
 		char *tmp;
 
 		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
@@ -618,24 +618,24 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_CGROUP;
+		kmsg->meta_attached |= KDBUS_ATTACH_CGROUP;
 	}
 #endif
 
 #ifdef CONFIG_AUDITSYSCALL
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_AUDIT) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_AUDIT) {
 		ret = kdbus_kmsg_append_data(kmsg, KDBUS_MSG_SRC_AUDIT,
 					     conn_src->audit_ids,
 					     sizeof(conn_src->audit_ids));
 		if (ret < 0)
 			return ret;
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_AUDIT;
+		kmsg->meta_attached |= KDBUS_ATTACH_AUDIT;
 	}
 #endif
 
 #ifdef CONFIG_SECURITY
-	if (conn_dst->flags & KDBUS_HELLO_ATTACH_SECLABEL) {
+	if (conn_dst->attach_flags & KDBUS_ATTACH_SECLABEL) {
 		if (conn_src->sec_label_len > 0) {
 			ret = kdbus_kmsg_append_data(kmsg,
 						     KDBUS_MSG_SRC_SECLABEL,
@@ -645,7 +645,7 @@ int kdbus_kmsg_append_meta(struct kdbus_kmsg *kmsg,
 				return ret;
 		}
 
-		kmsg->meta_attached |= KDBUS_HELLO_ATTACH_SECLABEL;
+		kmsg->meta_attached |= KDBUS_ATTACH_SECLABEL;
 	}
 #endif
 

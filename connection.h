@@ -42,6 +42,7 @@ struct kdbus_conn {
 	};
 	u64 id;		/* id of the connection on the bus */
 	u64 flags;
+	u64 attach_flags;
 
 	struct mutex lock;
 	struct mutex names_lock;

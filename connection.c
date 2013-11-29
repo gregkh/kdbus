@@ -1251,6 +1251,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		conn->flags = hello->conn_flags;
+		conn->attach_flags = hello->attach_flags;
 		conn->type = KDBUS_CONN_EP_CONNECTED;
 		pr_debug("created bus connection %llu '%s/%s'\n",
 			 (unsigned long long)conn->id, conn->ns->devpath,
