@@ -371,7 +371,8 @@ enum {
 
 struct kdbus_cmd_name_info {
 	__u64 size;			/* overall size of info */
-	__u64 flags;
+	__u64 flags;			/* query flags */
+	__u64 attach_flags;		/* which meta data payload to attach */
 	__u64 id;			/* either ID, or 0 and _ITEM_NAME follows */
 	struct kdbus_creds creds;
 	struct kdbus_item items[0];	/* list of item records */
