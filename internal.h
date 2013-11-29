@@ -51,8 +51,7 @@
 	((part)->size > KDBUS_PART_HEADER_SIZE &&			\
 	 (u8 *)(part) + (part)->size <= (u8 *)(head) + (head)->size)
 #define KDBUS_PART_END(part, head)					\
-	((u8 *)part >= ((u8 *)(head) + (head)->size) &&			\
-	 (u8 *)part - ((u8 *)(head) + (head)->size) < 8)
+	((u8 *)part == ((u8 *)(head) + KDBUS_ALIGN8((head)->size)))
 
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
