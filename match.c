@@ -355,10 +355,10 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 		ei->type = item->type;
 		INIT_LIST_HEAD(&ei->list_entry);
+		size = item->size - offsetof(struct kdbus_item, data);
 
 		switch (item->type) {
 		case KDBUS_MATCH_BLOOM:
-			size = item->size - offsetof(struct kdbus_item, data);
 			if (size != conn->ep->bus->bloom_size) {
 				ret = -EBADMSG;
 				break;
@@ -373,9 +373,11 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		case KDBUS_MATCH_NAME_ADD:
 		case KDBUS_MATCH_NAME_REMOVE:
 		case KDBUS_MATCH_NAME_CHANGE:
-			ei->name = kstrdup(item->str, GFP_KERNEL);
-			if (!ei->name)
-				ret = -ENOMEM;
+			if (size > 0) {
+				ei->name = kstrdup(item->str, GFP_KERNEL);
+				if (!ei->name)
+					ret = -ENOMEM;
+			}
 			break;
 
 		case KDBUS_MATCH_ID_ADD:
