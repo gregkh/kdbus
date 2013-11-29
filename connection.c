@@ -198,14 +198,14 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 
 	KDBUS_PART_FOREACH(item, &kmsg->msg, items) {
 		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD_VEC: {
+		case KDBUS_ITEM_PAYLOAD_VEC: {
 			const size_t size = KDBUS_PART_HEADER_SIZE +
 					    sizeof(struct kdbus_vec);
 			char tmp[size];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
 
 			/* add item */
-			it->type = KDBUS_MSG_PAYLOAD_OFF;
+			it->type = KDBUS_ITEM_PAYLOAD_OFF;
 			it->size = size;
 
 			/* a NULL address specifies a \0-bytes record */
@@ -246,7 +246,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			break;
 		}
 
-		case KDBUS_MSG_PAYLOAD_MEMFD: {
+		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			const size_t size = KDBUS_PART_HEADER_SIZE +
 					    sizeof(struct kdbus_memfd);
 			char tmp[size];
@@ -255,7 +255,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			size_t memfd;
 
 			/* add item */
-			it->type = KDBUS_MSG_PAYLOAD_MEMFD;
+			it->type = KDBUS_ITEM_PAYLOAD_MEMFD;
 			it->size = size;
 			it->memfd.size = item->memfd.size;
 			it->memfd.fd = -1;
@@ -406,7 +406,7 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 		char tmp[size];
 		struct kdbus_item *it = (struct kdbus_item *)tmp;
 
-		it->type = KDBUS_MSG_FDS;
+		it->type = KDBUS_ITEM_FDS;
 		it->size = size + (kmsg->fds_count * sizeof(int));
 		ret = kdbus_pool_write(conn->pool, off + fds, it, size);
 		if (ret < 0)
@@ -992,7 +992,7 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_CONN_EP_CONNECTED:
-		kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_REMOVE,
+		kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_REMOVE,
 				       conn->id, conn->flags);
 		kdbus_conn_cleanup(conn);
 		break;
@@ -1248,7 +1248,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		/* notify about the new active connection */
-		ret = kdbus_notify_id_change(conn->ep, KDBUS_MSG_ID_ADD, conn->id, conn->flags);
+		ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD, conn->id, conn->flags);
 		if (ret < 0) {
 			kdbus_conn_cleanup(conn);
 			break;

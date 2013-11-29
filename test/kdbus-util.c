@@ -148,36 +148,36 @@ int msg_send(const struct conn *conn,
 	item = msg->items;
 
 	if (name) {
-		item->type = KDBUS_MSG_DST_NAME;
+		item->type = KDBUS_ITEM_DST_NAME;
 		item->size = KDBUS_PART_HEADER_SIZE + strlen(name) + 1;
 		strcpy(item->str, name);
 		item = KDBUS_PART_NEXT(item);
 	}
 
-	item->type = KDBUS_MSG_PAYLOAD_VEC;
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref1;
 	item->vec.size = sizeof(ref1);
 	item = KDBUS_PART_NEXT(item);
 
 	/* data padding for ref1 */
-	item->type = KDBUS_MSG_PAYLOAD_VEC;
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)NULL;
 	item->vec.size =  KDBUS_ALIGN8(sizeof(ref1)) - sizeof(ref1);
 	item = KDBUS_PART_NEXT(item);
 
-	item->type = KDBUS_MSG_PAYLOAD_VEC;
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref2;
 	item->vec.size = sizeof(ref2);
 	item = KDBUS_PART_NEXT(item);
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
-		item->type = KDBUS_MSG_BLOOM;
+		item->type = KDBUS_ITEM_BLOOM;
 		item->size = KDBUS_PART_HEADER_SIZE + 64;
 	} else {
-		item->type = KDBUS_MSG_PAYLOAD_MEMFD;
+		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
 		item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_memfd);
 		item->memfd.size = 16;
 		item->memfd.fd = memfd;
@@ -226,7 +226,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		}
 
 		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD_OFF: {
+		case KDBUS_ITEM_PAYLOAD_OFF: {
 			char *s;
 
 			if (item->vec.offset == ~0ULL)
@@ -241,7 +241,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			break;
 		}
 
-		case KDBUS_MSG_PAYLOAD_MEMFD: {
+		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			char *buf;
 			uint64_t size;
 
@@ -262,7 +262,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			break;
 		}
 
-		case KDBUS_MSG_SRC_CREDS:
+		case KDBUS_ITEM_CREDS:
 			printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",
 				enum_MSG(item->type), item->size,
 				item->creds.uid, item->creds.gid,
@@ -270,18 +270,18 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 				item->creds.starttime);
 			break;
 
-		case KDBUS_MSG_SRC_PID_COMM:
-		case KDBUS_MSG_SRC_TID_COMM:
-		case KDBUS_MSG_SRC_EXE:
-		case KDBUS_MSG_SRC_CGROUP:
-		case KDBUS_MSG_SRC_SECLABEL:
-		case KDBUS_MSG_DST_NAME:
+		case KDBUS_ITEM_PID_COMM:
+		case KDBUS_ITEM_TID_COMM:
+		case KDBUS_ITEM_EXE:
+		case KDBUS_ITEM_CGROUP:
+		case KDBUS_ITEM_SECLABEL:
+		case KDBUS_ITEM_DST_NAME:
 			printf("  +%s (%llu bytes) '%s' (%zu)\n",
 			       enum_MSG(item->type), item->size, item->str, strlen(item->str));
 			break;
 
-		case KDBUS_MSG_SRC_CMDLINE:
-		case KDBUS_MSG_SRC_NAMES: {
+		case KDBUS_ITEM_CMDLINE:
+		case KDBUS_ITEM_NAMES: {
 			size_t size = item->size - KDBUS_PART_HEADER_SIZE;
 			const char *str = item->str;
 			int count = 0;
@@ -298,14 +298,14 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			break;
 		}
 
-		case KDBUS_MSG_SRC_AUDIT:
+		case KDBUS_ITEM_AUDIT:
 			printf("  +%s (%llu bytes) loginuid=%llu sessionid=%llu\n",
 			       enum_MSG(item->type), item->size,
 			       (unsigned long long)item->data64[0],
 			       (unsigned long long)item->data64[1]);
 			break;
 
-		case KDBUS_MSG_SRC_CAPS: {
+		case KDBUS_ITEM_CAPS: {
 			int n;
 			const uint32_t *cap;
 			int i;
@@ -336,29 +336,29 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			break;
 		}
 
-		case KDBUS_MSG_TIMESTAMP:
+		case KDBUS_ITEM_TIMESTAMP:
 			printf("  +%s (%llu bytes) realtime=%lluns monotonic=%lluns\n",
 			       enum_MSG(item->type), item->size,
 			       (unsigned long long)item->timestamp.realtime_ns,
 			       (unsigned long long)item->timestamp.monotonic_ns);
 			break;
 
-		case KDBUS_MSG_REPLY_TIMEOUT:
+		case KDBUS_ITEM_REPLY_TIMEOUT:
 			printf("  +%s (%llu bytes) cookie=%llu\n",
 			       enum_MSG(item->type), item->size, msg->cookie_reply);
 			break;
 
-		case KDBUS_MSG_NAME_ADD:
-		case KDBUS_MSG_NAME_REMOVE:
-		case KDBUS_MSG_NAME_CHANGE:
+		case KDBUS_ITEM_NAME_ADD:
+		case KDBUS_ITEM_NAME_REMOVE:
+		case KDBUS_ITEM_NAME_CHANGE:
 			printf("  +%s (%llu bytes) '%s', old id=%lld, new id=%lld, flags=0x%llx\n",
 				enum_MSG(item->type), (unsigned long long) item->size,
 				item->name_change.name, item->name_change.old_id,
 				item->name_change.new_id, item->name_change.flags);
 			break;
 
-		case KDBUS_MSG_ID_ADD:
-		case KDBUS_MSG_ID_REMOVE:
+		case KDBUS_ITEM_ID_ADD:
+		case KDBUS_ITEM_ID_REMOVE:
 			printf("  +%s (%llu bytes) id=%llu flags=%llu\n",
 			       enum_MSG(item->type), (unsigned long long) item->size,
 			       (unsigned long long) item->id_change.id,

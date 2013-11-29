@@ -67,12 +67,12 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
 
 int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 {
-	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_MSG_REPLY_TIMEOUT);
+	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_ITEM_REPLY_TIMEOUT);
 }
 
 int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 {
-	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_MSG_REPLY_DEAD);
+	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_ITEM_REPLY_DEAD);
 }
 
 int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,

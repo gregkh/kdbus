@@ -100,7 +100,7 @@ enum {
 	KDBUS_ITEM_PRIORITY,		/* queue priority for message */
 
 	/* Filled in by kernelspace */
-	KDBUS_ITEM_SRC_NAMES	= 0x400,/* NUL separated string list with well-known names of source */
+	KDBUS_ITEM_NAMES	= 0x400,/* NUL separated string list with well-known names of source */
 	KDBUS_ITEM_TIMESTAMP,		/* .timestamp */
 
 	/* when appended to a message, the following items refer to the sender */

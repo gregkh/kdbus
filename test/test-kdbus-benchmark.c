@@ -127,13 +127,13 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 
 	item = msg->items;
 
-	item->type = KDBUS_MSG_PAYLOAD_VEC;
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t) stress_payload;
 	item->vec.size = sizeof(stress_payload);
 	item = KDBUS_PART_NEXT(item);
 
-	item->type = KDBUS_MSG_PAYLOAD_MEMFD;
+	item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
 	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_memfd);
 	item->memfd.size = 16;
 	item->memfd.fd = memfd;
@@ -171,7 +171,7 @@ handle_echo_reply(struct conn *conn)
 
 	KDBUS_PART_FOREACH(item, msg, items) {
 		switch (item->type) {
-		case KDBUS_MSG_PAYLOAD_MEMFD: {
+		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			char *buf;
 
 			buf = mmap(NULL, item->memfd.size, PROT_READ, MAP_SHARED, item->memfd.fd, 0);
@@ -186,7 +186,7 @@ handle_echo_reply(struct conn *conn)
 			break;
 		}
 
-		case KDBUS_MSG_PAYLOAD_OFF: {
+		case KDBUS_ITEM_PAYLOAD_OFF: {
 			/* ignore */
 			break;
 		}

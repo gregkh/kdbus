@@ -110,7 +110,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 		if (!KDBUS_PART_VALID(item, msg))
 			return -EINVAL;
 
-		if (++items_count > KDBUS_ITEM_MAX_ITEMS)
+		if (++items_count > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 
 		switch (item->type) {
@@ -125,7 +125,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 
 			vecs_size += item->vec.size;
 			if (!capable(CAP_IPC_OWNER) &&
-			    vecs_size > KDBUS_ITEM_MAX_PAYLOAD_VEC_SIZE)
+			    vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
 
 			/* \0-bytes records store only the alignment bytes */
@@ -168,7 +168,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				return -ENOTUNIQ;
 
 			n = (item->size - KDBUS_PART_HEADER_SIZE) / sizeof(int);
-			if (n > KDBUS_ITEM_MAX_FDS)
+			if (n > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
 			kmsg->fds = item->fds;
@@ -261,7 +261,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	if (kdbus_size_get_user(&size, msg, struct kdbus_msg))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_msg) || size > KDBUS_ITEM_MAX_SIZE)
+	if (size < sizeof(struct kdbus_msg) || size > KDBUS_MSG_MAX_SIZE)
 		return -EMSGSIZE;
 
 	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;

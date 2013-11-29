@@ -216,13 +216,13 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 			    ei->id == e->src_id) {
 
 				if (ei->type == KDBUS_MATCH_ID_ADD &&
-				    type == KDBUS_MSG_ID_ADD) {
+				    type == KDBUS_ITEM_ID_ADD) {
 					matched = true;
 					break;
 				}
 
 				if (ei->type == KDBUS_MATCH_ID_REMOVE &&
-				    type == KDBUS_MSG_ID_REMOVE) {
+				    type == KDBUS_ITEM_ID_REMOVE) {
 					matched = true;
 					break;
 				}
@@ -233,19 +233,19 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 				continue;
 
 			if (ei->type == KDBUS_MATCH_NAME_ADD &&
-			    type == KDBUS_MSG_NAME_ADD) {
+			    type == KDBUS_ITEM_NAME_ADD) {
 				matched = true;
 				break;
 			}
 
 			if (ei->type == KDBUS_MATCH_NAME_CHANGE &&
-			    type == KDBUS_MSG_NAME_CHANGE) {
+			    type == KDBUS_ITEM_NAME_CHANGE) {
 				matched = true;
 				break;
 			}
 
 			if (ei->type == KDBUS_MATCH_NAME_REMOVE &&
-			    type == KDBUS_MSG_NAME_REMOVE) {
+			    type == KDBUS_ITEM_NAME_REMOVE) {
 				matched = true;
 				break;
 			}

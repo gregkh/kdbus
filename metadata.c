@@ -87,7 +87,7 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
 	if (IS_ERR(item))
 		return PTR_ERR(item);
 
-	item->type = KDBUS_MSG_TIMESTAMP;
+	item->type = KDBUS_ITEM_TIMESTAMP;
 	item->size = size;
 
 	ktime_get_ts(&ts);
@@ -152,7 +152,7 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 		goto exit_unlock;
 	}
 
-	item->type = KDBUS_MSG_SRC_NAMES;
+	item->type = KDBUS_ITEM_NAMES;
 	item->size = KDBUS_PART_HEADER_SIZE + strsize;
 
 	list_for_each_entry(name_entry, &conn->names_list, conn_entry) {
@@ -179,7 +179,7 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta,
 	if (IS_ERR(item))
 		return PTR_ERR(item);
 
-	item->type = KDBUS_MSG_SRC_CREDS;
+	item->type = KDBUS_ITEM_CREDS;
 	item->size = size;
 	memcpy(&item->creds, creds, sizeof(struct kdbus_creds));
 
@@ -217,7 +217,7 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta,
 		pathname = d_path(exe_path, tmp, PAGE_SIZE);
 		if (!IS_ERR(pathname)) {
 			len = tmp + PAGE_SIZE - pathname;
-			ret = kdbus_meta_append_data(meta, KDBUS_MSG_SRC_EXE,
+			ret = kdbus_meta_append_data(meta, KDBUS_ITEM_EXE,
 						     pathname, len);
 		}
 
@@ -247,7 +247,7 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta,
 
 		ret = copy_from_user(tmp, (const char __user *) mm->arg_start, len);
 		if (ret == 0)
-			ret = kdbus_meta_append_data(meta, KDBUS_MSG_SRC_CMDLINE,
+			ret = kdbus_meta_append_data(meta, KDBUS_ITEM_CMDLINE,
 						     tmp, len);
 	}
 
@@ -279,7 +279,7 @@ static int kdbus_meta_append_caps(struct kdbus_meta *meta,
 		cap[i].cap[CAP_TO_INDEX(CAP_LAST_CAP)] &=
 			CAP_TO_MASK(CAP_LAST_CAP + 1) - 1;
 
-	return kdbus_meta_append_data(meta, KDBUS_MSG_SRC_CAPS,
+	return kdbus_meta_append_data(meta, KDBUS_ITEM_CAPS,
 				      cap, sizeof(cap));
 }
 
@@ -296,7 +296,7 @@ static int kdbus_meta_append_cgroup(struct kdbus_meta *meta,
 
 	ret = task_cgroup_path(current, tmp, PAGE_SIZE);
 	if (ret >= 0)
-		ret = kdbus_meta_append_str(meta, KDBUS_MSG_SRC_CGROUP, tmp);
+		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CGROUP, tmp);
 
 	free_page((unsigned long) tmp);
 
@@ -350,12 +350,12 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		char comm[TASK_COMM_LEN];
 
 		get_task_comm(comm, current->group_leader);
-		ret = kdbus_meta_append_str(meta, KDBUS_MSG_SRC_TID_COMM, comm);
+		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_TID_COMM, comm);
 		if (ret < 0)
 			return ret;
 
 		get_task_comm(comm, current);
-		ret = kdbus_meta_append_str(meta, KDBUS_MSG_SRC_PID_COMM, comm);
+		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_PID_COMM, comm);
 		if (ret < 0)
 			return ret;
 
@@ -406,7 +406,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 #ifdef CONFIG_AUDITSYSCALL
 	if (which & KDBUS_ATTACH_AUDIT &&
 	    !(meta->attached & KDBUS_ATTACH_AUDIT)) {
-		ret = kdbus_meta_append_data(meta, KDBUS_MSG_SRC_AUDIT,
+		ret = kdbus_meta_append_data(meta, KDBUS_ITEM_AUDIT,
 					     conn->audit_ids,
 					     sizeof(conn->audit_ids));
 		if (ret < 0)
@@ -421,7 +421,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_SECLABEL)) {
 		if (conn->sec_label_len > 0) {
 			ret = kdbus_meta_append_data(meta,
-						     KDBUS_MSG_SRC_SECLABEL,
+						     KDBUS_ITEM_SECLABEL,
 						     conn->sec_label,
 						     conn->sec_label_len);
 			if (ret < 0)

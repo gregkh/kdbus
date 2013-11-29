@@ -122,12 +122,12 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 
 	if (list_empty(&e->queue_list)) {
 		if (e->starter) {
-			kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_CHANGE,
+			kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->starter->id,
 						 e->flags, e->name);
 			kdbus_name_entry_attach(e, e->starter);
 		} else {
-			kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_REMOVE,
+			kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_REMOVE,
 						 e->conn->id, 0, e->flags, e->name);
 			kdbus_name_entry_free(e);
 		}
@@ -140,7 +140,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 		e->flags = q->flags;
 		kdbus_name_entry_attach(e, q->conn);
 		kdbus_name_queue_item_free(q);
-		kdbus_notify_name_change(old_conn->ep, KDBUS_MSG_NAME_CHANGE,
+		kdbus_notify_name_change(old_conn->ep, KDBUS_ITEM_NAME_CHANGE,
 				old_conn->id, e->conn->id, e->flags, e->name);
 	}
 }
@@ -243,7 +243,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 		kdbus_name_entry_attach(e, conn);
 		e->flags = *flags;
 
-		return kdbus_notify_name_change(conn->ep, KDBUS_MSG_NAME_CHANGE,
+		return kdbus_notify_name_change(conn->ep, KDBUS_ITEM_NAME_CHANGE,
 						old_id, conn->id, *flags,
 						e->name);
 	}
@@ -391,7 +391,7 @@ exit_copy:
 	}
 
 	if (old_id == 0)
-		kdbus_notify_name_change(e->conn->ep, KDBUS_MSG_NAME_ADD, 0,
+		kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD, 0,
 				e->conn->id, e->flags, e->name);
 
 	kfree(cmd_name);
