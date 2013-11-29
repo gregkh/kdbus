@@ -267,7 +267,7 @@ static int kdbus_meta_append_caps(struct kdbus_meta *meta,
 	rcu_read_lock();
 	cred = __task_cred(current);
 	for (i = 0; i < _KERNEL_CAPABILITY_U32S; i++) {
-			cap[0].cap[i] = cred->cap_inheritable.cap[i];
+		cap[0].cap[i] = cred->cap_inheritable.cap[i];
 		cap[1].cap[i] = cred->cap_permitted.cap[i];
 		cap[2].cap[i] = cred->cap_effective.cap[i];
 		cap[3].cap[i] = cred->cap_bset.cap[i];
