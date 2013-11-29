@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.head.bloom_size = 8;
+	bus_make.head.bloom_size = 64;
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.n_type = KDBUS_MAKE_NAME;
