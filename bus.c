@@ -22,6 +22,7 @@
 #include <linux/hashtable.h>
 #include <linux/uaccess.h>
 #include <linux/sizes.h>
+#include <linux/random.h>
 
 #include "bus.h"
 #include "connection.h"
@@ -177,6 +178,17 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->eps_list);
 	INIT_LIST_HEAD(&b->monitors_list);
+
+	/* generate unique ID for this bus */
+	get_random_bytes(b->id128, sizeof(b->id128));
+
+	/* Set UUID version to 4 --- truly random generation */
+	b->id128[6] &= 0x0f;
+	b->id128[6] |= 0x40;
+
+	/* Set the UUID variant to DCE */
+	b->id128[8] &= 0x3f;
+	b->id128[8] |= 0x80;
 
 	b->name = kstrdup(bus_kmake->name, GFP_KERNEL);
 	if (!b->name) {

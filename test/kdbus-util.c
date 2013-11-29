@@ -63,7 +63,12 @@ struct conn *connect_to_bus(const char *path)
 		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
-	printf("-- Our peer ID for %s: %llu\n", path, (unsigned long long)hello.id);
+	printf("-- Our peer ID for %s: %llu -- bus uuid: '%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x'\n",
+		path, (unsigned long long)hello.id,
+		hello.id128[0],  hello.id128[1],  hello.id128[2],  hello.id128[3],
+		hello.id128[4],  hello.id128[5],  hello.id128[6],  hello.id128[7],
+		hello.id128[8],  hello.id128[9],  hello.id128[10], hello.id128[11],
+		hello.id128[12], hello.id128[13], hello.id128[14], hello.id128[15]);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {

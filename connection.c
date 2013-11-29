@@ -1237,6 +1237,10 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		hello->bus_flags = bus->bus_flags;
 		hello->bloom_size = bus->bloom_size;
 		hello->id = conn->id;
+
+		BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
+		memcpy(hello->id128, bus->id128, sizeof(hello->id128));
+
 		if (copy_to_user(buf, hello, sizeof(struct kdbus_cmd_hello))) {
 			kdbus_conn_cleanup(conn);
 			ret = -EFAULT;

@@ -45,6 +45,7 @@ struct kdbus_bus {
 	struct kdbus_name_registry *name_registry;
 	struct list_head bus_entry;	/* namespace's list of buses */
 	struct list_head monitors_list;	/* connections that monitor */
+	u8 id128[16];
 };
 
 struct kdbus_cmd_bus_kmake {
