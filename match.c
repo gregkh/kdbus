@@ -364,8 +364,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 				break;
 			}
 
-			ei->bloom = kmemdup(item->data, item->size - offsetof(struct kdbus_item, data),
-					GFP_KERNEL);
+			ei->bloom = kmemdup(item->data, size, GFP_KERNEL);
+			if (!ei->bloom)
+				ret = -ENOMEM;
 			break;
 
 		case KDBUS_MATCH_SRC_NAME:
@@ -386,7 +387,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		list_add_tail(&ei->list_entry, &e->items_list);
 	}
 
-	if (!KDBUS_PART_END(item, cmd_match))
+	if (ret == 0 && !KDBUS_PART_END(item, cmd_match))
 		ret = -EINVAL;
 
 	if (ret >= 0) {
