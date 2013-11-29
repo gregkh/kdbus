@@ -79,7 +79,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     u64 old_id, u64 new_id, u64 flags,
 			     const char *name)
 {
-	struct kdbus_manager_msg_name_change *name_change;
+	struct kdbus_notify_name_change *name_change;
 	struct kdbus_kmsg *kmsg = NULL;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
@@ -94,7 +94,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	kmsg->notification_type = type;
 	msg = &kmsg->msg;
 	item = msg->items;
-	name_change = (struct kdbus_manager_msg_name_change *)item->data;
+	name_change = (struct kdbus_notify_name_change *)item->data;
 
 	/* FIXME */
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
@@ -116,7 +116,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 			   u64 id, u64 flags)
 {
-	struct kdbus_manager_msg_id_change *id_change;
+	struct kdbus_notify_id_change *id_change;
 	struct kdbus_kmsg *kmsg = NULL;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
@@ -129,7 +129,7 @@ int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 	kmsg->notification_type = type;
 	msg = &kmsg->msg;
 	item = msg->items;
-	id_change = (struct kdbus_manager_msg_id_change *)item->data;
+	id_change = (struct kdbus_notify_id_change *)item->data;
 
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
 	msg->src_id = KDBUS_SRC_ID_KERNEL;
