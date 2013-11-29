@@ -1,4 +1,6 @@
 External API:
+  - place all arbitrary long return buffers in the pool instead
+    of requiring the caller to supply a buffer of that size?
   - rules for: which unknown items to ignore in userspace?
 
 Internal:
