@@ -524,7 +524,11 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 			goto exit_unlock;
 		}
 
-		c = name_entry->conn;
+		if (name_entry->starter)
+			c = name_entry->starter;
+		else
+			c = name_entry->conn;
+
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
 		    (c->flags & KDBUS_HELLO_STARTER)) {
 			ret = -EADDRNOTAVAIL;
