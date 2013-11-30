@@ -979,7 +979,8 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 
 	switch (conn->type) {
 	case KDBUS_CONN_CONTROL_NS_OWNER:
-		//FIXME:
+		kdbus_ns_disconnect(conn->ns_owner);
+		kdbus_ns_unref(conn->ns_owner);
 		break;
 
 	case KDBUS_CONN_CONTROL_BUS_OWNER:

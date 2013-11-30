@@ -23,6 +23,7 @@
 #include <uapi/linux/major.h>
 
 #include "namespace.h"
+#include "bus.h"
 
 /* global list of all namespaces */
 static LIST_HEAD(namespace_list);
@@ -60,8 +61,16 @@ struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
 
 void kdbus_ns_disconnect(struct kdbus_ns *ns)
 {
+	struct kdbus_bus *bus, *tmp;
+
 	mutex_lock(&kdbus_subsys_lock);
 	list_del(&ns->ns_entry);
+
+	/* remove any buses attached to this endpoint */
+	list_for_each_entry_safe(bus, tmp, &ns->bus_list, ns_entry) {
+		kdbus_bus_disconnect(bus);
+		kdbus_bus_unref(bus);
+	}
 
 	if (ns->dev) {
 		device_unregister(ns->dev);

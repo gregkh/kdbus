@@ -102,7 +102,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	if (bus->disconnected)
 		return;
 	bus->disconnected = true;
-	list_del(&bus->bus_entry);
+	list_del(&bus->ns_entry);
 
 	/* remove any endpoints attached to this bus */
 	list_for_each_entry_safe(ep, tmp, &bus->eps_list, bus_entry) {
@@ -119,7 +119,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 	struct kdbus_bus *b;
 
 	mutex_lock(&ns->lock);
-	list_for_each_entry(b, &ns->bus_list, bus_entry) {
+	list_for_each_entry(b, &ns->bus_list, ns_entry) {
 		if (strcmp(b->name, name))
 			continue;
 
@@ -210,7 +210,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	mutex_lock(&ns->lock);
 	b->id = ns->bus_id_next++;
 
-	list_add_tail(&b->bus_entry, &ns->bus_list);
+	list_add_tail(&b->ns_entry, &ns->bus_list);
 	mutex_unlock(&ns->lock);
 
 	*bus = b;
