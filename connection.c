@@ -24,8 +24,6 @@
 #include <linux/poll.h>
 #include <linux/file.h>
 #include <linux/hashtable.h>
-#include <linux/audit.h>
-#include <linux/security.h>
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <linux/syscalls.h>
@@ -42,6 +40,7 @@
 #include "match.h"
 #include "names.h"
 #include "policy.h"
+#include "metadata.h"
 
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 void kdbus_conn_unref(struct kdbus_conn *conn);
@@ -824,36 +823,6 @@ void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size)
 	mutex_unlock(&conn->accounting_lock);
 }
 
-#ifdef CONFIG_AUDITSYSCALL
-static void kdbus_conn_set_audit(struct kdbus_conn *conn)
-{
-	const struct cred *cred;
-	uid_t uid;
-
-	rcu_read_lock();
-	cred = __task_cred(current);
-	uid = from_kuid(cred->user_ns, audit_get_loginuid(current));
-	rcu_read_unlock();
-
-	conn->audit_ids[0] = uid;
-	conn->audit_ids[1] = audit_get_sessionid(current);
-}
-#else
-static inline void kdbus_conn_set_audit(struct kdbus_conn *conn) {}
-#endif
-
-#ifdef CONFIG_SECURITY
-static void kdbus_conn_set_seclabel(struct kdbus_conn *conn)
-{
-	u32 sid;
-
-	security_task_getsecid(current, &sid);
-	security_secid_to_secctx(sid, &conn->sec_label, &conn->sec_label_len);
-}
-#else
-static inline void kdbus_conn_set_seclabel(struct kdbus_conn *conn) {}
-#endif
-
 /* kdbus file operations */
 static int kdbus_conn_open(struct inode *inode, struct file *file)
 {
@@ -947,15 +916,13 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 
 	del_timer(&conn->timer);
 	cancel_work_sync(&conn->work);
-#ifdef CONFIG_SECURITY
-	security_release_secctx(conn->sec_label, conn->sec_label_len);
-#endif
 	kdbus_name_remove_by_conn(conn->ep->bus->name_registry, conn);
 	if (conn->ep->policy_db)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 	kdbus_match_db_unref(conn->match_db);
 	kdbus_ep_unref(conn->ep);
 
+	kdbus_meta_free(&conn->meta);
 	kdbus_pool_cleanup(conn->pool);
 }
 
@@ -1252,17 +1219,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 		conn->match_db = kdbus_match_db_new();
 
-		conn->creds.uid = from_kuid_munged(current_user_ns(),
-						   current_uid());
-		conn->creds.gid = from_kgid_munged(current_user_ns(),
-						   current_gid());
-		conn->creds.pid = current->pid;
-		conn->creds.tid = current->tgid;
-		conn->creds.starttime = timespec_to_ns(&current->start_time);
-
-		kdbus_conn_set_audit(conn);
-		kdbus_conn_set_seclabel(conn);
-
 		/* link into bus; get new id for this connection */
 		mutex_lock(&bus->lock);
 		conn->id = bus->conn_id_next++;
@@ -1276,6 +1232,21 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 		BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
 		memcpy(hello->id128, bus->id128, sizeof(hello->id128));
+
+		ret = kdbus_meta_append(&conn->meta, conn,
+					KDBUS_ATTACH_CREDS |
+					KDBUS_ATTACH_NAMES |
+					KDBUS_ATTACH_COMM |
+					KDBUS_ATTACH_EXE |
+					KDBUS_ATTACH_CMDLINE |
+					KDBUS_ATTACH_CGROUP |
+					KDBUS_ATTACH_CAPS |
+					KDBUS_ATTACH_SECLABEL |
+					KDBUS_ATTACH_AUDIT);
+		if (ret < 0) {
+			kdbus_conn_cleanup(conn);
+			break;
+		}
 
 		if (copy_to_user(buf, hello, sizeof(struct kdbus_cmd_hello))) {
 			kdbus_conn_cleanup(conn);

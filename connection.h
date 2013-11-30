@@ -15,6 +15,7 @@
 
 #include "internal.h"
 #include "pool.h"
+#include "metadata.h"
 
 /*
  * kdbus connection
@@ -40,7 +41,7 @@ struct kdbus_conn {
 		struct kdbus_bus *bus_owner;
 		struct kdbus_ep *ep;
 	};
-	u64 id;		/* id of the connection on the bus */
+	u64 id;
 	u64 flags;
 	u64 attach_flags;
 
@@ -59,17 +60,10 @@ struct kdbus_conn {
 	struct work_struct work;
 	struct timer_list timer;
 
-	struct kdbus_creds creds;
 	struct kdbus_match_db *match_db;
 
-#ifdef CONFIG_AUDITSYSCALL
-	u64 audit_ids[2];
-#endif
-
-#ifdef CONFIG_SECURITY
-	char *sec_label;
-	u32 sec_label_len;
-#endif
+	/* connection creator metadata */
+	struct kdbus_meta meta;
 
 	/* connection accounting */
 	unsigned int msg_count;

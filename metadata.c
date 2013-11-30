@@ -22,6 +22,8 @@
 #include <linux/cred.h>
 #include <linux/capability.h>
 #include <linux/sizes.h>
+#include <linux/audit.h>
+#include <linux/security.h>
 
 #include "connection.h"
 #include "names.h"
@@ -169,11 +171,17 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_meta_append_cred(struct kdbus_meta *meta,
-				  const struct kdbus_creds *creds)
+static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 {
+	struct kdbus_creds creds = {};
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
+
+	creds.uid = from_kuid_munged(current_user_ns(), current_uid());
+	creds.gid = from_kgid_munged(current_user_ns(), current_gid());
+	creds.pid = current->pid;
+	creds.tid = current->tgid;
+	creds.starttime = timespec_to_ns(&current->start_time);
 
 	item = kdbus_meta_append_item(meta, size);
 	if (IS_ERR(item))
@@ -181,15 +189,14 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta,
 
 	item->type = KDBUS_ITEM_CREDS;
 	item->size = size;
-	memcpy(&item->creds, creds, sizeof(struct kdbus_creds));
+	memcpy(&item->creds, &creds, sizeof(struct kdbus_creds));
 
 	return 0;
 }
 
-static int kdbus_meta_append_exe(struct kdbus_meta *meta,
-				 struct task_struct *task)
+static int kdbus_meta_append_exe(struct kdbus_meta *meta)
 {
-	struct mm_struct *mm = get_task_mm(task);
+	struct mm_struct *mm = get_task_mm(current);
 	struct path *exe_path = NULL;
 	int ret = 0;
 
@@ -228,10 +235,9 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta,
 	return ret;
 }
 
-static int kdbus_meta_append_cmdline(struct kdbus_meta *meta,
-				     struct task_struct *task)
+static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 {
-	struct mm_struct *mm = task->mm;
+	struct mm_struct *mm = current->mm;
 	char *tmp;
 	int ret = 0;
 
@@ -255,8 +261,7 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta,
 	return ret;
 }
 
-static int kdbus_meta_append_caps(struct kdbus_meta *meta,
-				  struct task_struct *task)
+static int kdbus_meta_append_caps(struct kdbus_meta *meta)
 {
 	const struct cred *cred;
 	struct caps {
@@ -265,7 +270,7 @@ static int kdbus_meta_append_caps(struct kdbus_meta *meta,
 	unsigned int i;
 
 	rcu_read_lock();
-	cred = __task_cred(task);
+	cred = __task_cred(current);
 	for (i = 0; i < _KERNEL_CAPABILITY_U32S; i++) {
 		cap[0].cap[i] = cred->cap_inheritable.cap[i];
 		cap[1].cap[i] = cred->cap_permitted.cap[i];
@@ -284,8 +289,7 @@ static int kdbus_meta_append_caps(struct kdbus_meta *meta,
 }
 
 #ifdef CONFIG_CGROUPS
-static int kdbus_meta_append_cgroup(struct kdbus_meta *meta,
-				    struct task_struct *task)
+static int kdbus_meta_append_cgroup(struct kdbus_meta *meta)
 {
 	char *tmp;
 	int ret;
@@ -294,11 +298,54 @@ static int kdbus_meta_append_cgroup(struct kdbus_meta *meta,
 	if (!tmp)
 		return -ENOMEM;
 
-	ret = task_cgroup_path(task, tmp, PAGE_SIZE);
+	ret = task_cgroup_path(current, tmp, PAGE_SIZE);
 	if (ret >= 0)
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CGROUP, tmp);
 
 	free_page((unsigned long) tmp);
+
+	return ret;
+}
+#endif
+
+#ifdef CONFIG_AUDITSYSCALL
+static int kdbus_meta_append_audit(struct kdbus_meta *meta)
+{
+	struct kdbus_audit audit;
+	const struct cred *cred;
+	uid_t uid;
+
+	rcu_read_lock();
+	cred = __task_cred(current);
+	uid = from_kuid(cred->user_ns, audit_get_loginuid(current));
+	rcu_read_unlock();
+
+	audit.loginuid = uid;
+	audit.sessionid = audit_get_sessionid(current);
+
+	return kdbus_meta_append_data(meta, KDBUS_ITEM_AUDIT,
+				      &audit, sizeof(struct kdbus_audit));
+}
+#endif
+
+#ifdef CONFIG_SECURITY
+static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
+{
+	u32 sid;
+	char *label;
+	u32 len;
+	int ret;
+
+	security_task_getsecid(current, &sid);
+	ret = security_secid_to_secctx(sid, &label, &len);
+	if (ret == -EOPNOTSUPP)
+		return 0;
+	if (ret < 0)
+		return ret;
+
+	if (label && len > 0)
+		ret = kdbus_meta_append_data(meta, KDBUS_ITEM_SECLABEL, label, len);
+	security_release_secctx(label, len);
 
 	return ret;
 }
@@ -309,7 +356,6 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		      u64 which)
 {
 	int ret = 0;
-	struct task_struct *task = current;
 
 	/* kernel-generated messages */
 	if (!conn)
@@ -323,16 +369,16 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_TIMESTAMP)) {
 		ret = kdbus_meta_append_timestamp(meta);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_TIMESTAMP;
 	}
 
 	if (which & KDBUS_ATTACH_CREDS &&
 	    !(meta->attached & KDBUS_ATTACH_CREDS)) {
-		ret = kdbus_meta_append_cred(meta, &conn->creds);
+		ret = kdbus_meta_append_cred(meta);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_CREDS;
 	}
@@ -341,7 +387,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_NAMES)) {
 		ret = kdbus_meta_append_src_names(meta, conn);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_NAMES;
 	}
@@ -350,34 +396,34 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_COMM)) {
 		char comm[TASK_COMM_LEN];
 
-		get_task_comm(comm, task->group_leader);
+		get_task_comm(comm, current->group_leader);
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_TID_COMM, comm);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		get_task_comm(comm, task);
+		get_task_comm(comm, current);
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_PID_COMM, comm);
 		if (ret < 0)
-			return ret;
-printk("XXX add %s\n", comm);
+			goto exit;
+
 		meta->attached |= KDBUS_ATTACH_COMM;
 	}
 
 	if (which & KDBUS_ATTACH_EXE &&
 	    !(meta->attached & KDBUS_ATTACH_EXE)) {
 
-		ret = kdbus_meta_append_exe(meta, task);
+		ret = kdbus_meta_append_exe(meta);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_EXE;
 	}
 
 	if (which & KDBUS_ATTACH_CMDLINE &&
 	    !(meta->attached & KDBUS_ATTACH_CMDLINE)) {
-		ret = kdbus_meta_append_cmdline(meta, task);
+		ret = kdbus_meta_append_cmdline(meta);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_CMDLINE;
 	}
@@ -385,9 +431,9 @@ printk("XXX add %s\n", comm);
 	/* we always return a 4 elements, the element size is 1/4  */
 	if (which & KDBUS_ATTACH_CAPS &&
 	    !(meta->attached & KDBUS_ATTACH_CAPS)) {
-		ret = kdbus_meta_append_caps(meta, task);
+		ret = kdbus_meta_append_caps(meta);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_CAPS;
 	}
@@ -396,9 +442,9 @@ printk("XXX add %s\n", comm);
 	/* attach the path of the one group hierarchy specified for the bus */
 	if (which & KDBUS_ATTACH_CGROUP &&
 	    !(meta->attached & KDBUS_ATTACH_CGROUP)) {
-		ret = kdbus_meta_append_cgroup(meta, task);
+		ret = kdbus_meta_append_cgroup(meta);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_CGROUP;
 	}
@@ -407,11 +453,9 @@ printk("XXX add %s\n", comm);
 #ifdef CONFIG_AUDITSYSCALL
 	if (which & KDBUS_ATTACH_AUDIT &&
 	    !(meta->attached & KDBUS_ATTACH_AUDIT)) {
-		ret = kdbus_meta_append_data(meta, KDBUS_ITEM_AUDIT,
-					     conn->audit_ids,
-					     sizeof(conn->audit_ids));
+		ret = kdbus_meta_append_audit(meta);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_AUDIT;
 	}
@@ -420,18 +464,14 @@ printk("XXX add %s\n", comm);
 #ifdef CONFIG_SECURITY
 	if (which & KDBUS_ATTACH_SECLABEL &&
 	    !(meta->attached & KDBUS_ATTACH_SECLABEL)) {
-		if (conn->sec_label_len > 0) {
-			ret = kdbus_meta_append_data(meta,
-						     KDBUS_ITEM_SECLABEL,
-						     conn->sec_label,
-						     conn->sec_label_len);
-			if (ret < 0)
-				return ret;
-		}
+		ret = kdbus_meta_append_seclabel(meta);
+		if (ret < 0)
+			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_SECLABEL;
 	}
 #endif
 
-	return 0;
+exit:
+	return ret;
 }

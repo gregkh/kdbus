@@ -1,7 +1,10 @@
 External API:
   - rules for: which unknown items to ignore in userspace?
+  - pids and namespaces, ref struct pid
 
 Internal:
+  - POLLERR to connection on bus destruct
+  - ns creation deadlock
   - update/rethink kdbus_conn_accounting_sub_size() use
   - memfd's file pos is shared, document pread/pwrite
   - conn->ep->bus ==> conn->bus

@@ -364,15 +364,14 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (cmd_name->id > 0) {
 		struct kdbus_conn *new_conn;
 
-		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
-		if (!new_conn) {
-			ret = -ENXIO;
+		if (!kdbus_bus_uid_is_privileged(conn->ep->bus)) {
+			ret = -EPERM;
 			goto exit_free;
 		}
 
-		if (conn->creds.uid != new_conn->creds.uid &&
-		    !kdbus_bus_uid_is_privileged(conn->ep->bus)) {
-			ret = -EPERM;
+		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
+		if (!new_conn) {
+			ret = -ENXIO;
 			goto exit_free;
 		}
 
@@ -614,7 +613,6 @@ int kdbus_cmd_name_info(struct kdbus_name_registry *reg,
 	struct kdbus_name_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_name_entry *e = NULL;
-	struct kdbus_meta meta = {};
 	u64 size;
 	u32 hash;
 	char *name = NULL;
@@ -674,11 +672,10 @@ int kdbus_cmd_name_info(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_meta_append(&meta, owner_conn, cmd_info->attach_flags);
-	if (ret < 0)
-		goto exit_free;
+	if (owner_conn->meta.size == 0)
+		goto exit_unlock;
 
-	info.size = sizeof(struct kdbus_name_info) + meta.size;
+	info.size = sizeof(struct kdbus_name_info) + owner_conn->meta.size;
 	info.id = owner_conn->id;
 	if (e)
 		cmd_info->flags = e->flags;
@@ -695,7 +692,7 @@ int kdbus_cmd_name_info(struct kdbus_name_registry *reg,
 	}
 
 	ret = kdbus_pool_write(conn->pool, off + sizeof(struct kdbus_name_info),
-			       meta.data, meta.size);
+			       owner_conn->meta.data, owner_conn->meta.size);
 	if (ret < 0) {
 		kdbus_pool_free(conn->pool, off);
 		goto exit_unlock;
@@ -712,6 +709,5 @@ exit_unlock:
 
 exit_free:
 	kfree(cmd_info);
-	kdbus_meta_free(&meta);
 	return ret;
 }

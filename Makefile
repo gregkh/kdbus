@@ -38,7 +38,7 @@ clean:
 
 tt: all
 	sudo sh -c 'dmesg -c > /dev/null'
-	sudo sh -c 'rmmod kdbus'
+	-sudo sh -c 'rmmod kdbus'
 	sudo sh -c 'insmod kdbus.ko'
 	-sudo sh -c 'sync; umount / 2> /dev/null'
 	test/test-kdbus
