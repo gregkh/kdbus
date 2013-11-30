@@ -96,7 +96,6 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	item = msg->items;
 	name_change = (struct kdbus_notify_name_change *)item->data;
 
-	/* FIXME */
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
 	msg->src_id = KDBUS_SRC_ID_KERNEL;
 

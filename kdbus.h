@@ -217,12 +217,11 @@ enum {
 };
 
 struct kdbus_policy_access {
-	__u64 type;		/* USER, GROUP, WORLD */
-	__u64 bits;		/* RECV, SEND, OWN */
-	__u64 id;		/* uid, gid, 0 */
+	__u64 type;			/* USER, GROUP, WORLD */
+	__u64 bits;			/* RECV, SEND, OWN */
+	__u64 id;			/* uid, gid, 0 */
 };
 
-//FIXME: convert access to access[]
 struct kdbus_policy {
 	KDBUS_PART_HEADER;
 	union {
