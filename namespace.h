@@ -25,19 +25,20 @@
  * - closing the connection destroys the created namespace
  */
 struct kdbus_ns {
-	struct kref kref;		/* reference counter */
-	const char *name;		/* name of the namespace */
-	struct kdbus_ns *parent;	/* parent namespace */
-	u64 id;				/* global id of this namespace */
-	const char *devpath;		/* /dev base directory path */
-	unsigned int major;		/* device major number for all nodes */
-	umode_t mode;			/* device node access mode */
-	struct idr idr;			/* map of endpoint minors to buses */
-	struct device *dev;		/* control device node, minor == 0 */
-	struct mutex lock;		/* ns data lock */
-	u64 bus_id_next;		/* next bus id sequence number */
-	struct list_head ns_entry;	/* kdbus' list of namespaces */
-	struct list_head bus_list;	/* buses in this namespace */
+	struct kref kref;			/* reference counter */
+	bool disconnected;			/* invalidated data */
+	const char *name;			/* name of the namespace */
+	struct kdbus_ns *parent;		/* parent namespace */
+	u64 id;					/* global id of this namespace */
+	const char *devpath;			/* /dev base directory path */
+	unsigned int major;			/* device major number for all nodes */
+	umode_t mode;				/* device node access mode */
+	struct idr idr;				/* map of endpoint minors to buses */
+	struct device *dev;			/* control device node, minor == 0 */
+	struct mutex lock;			/* ns data lock */
+	u64 bus_id_next;			/* next bus id sequence number */
+	struct list_head namespace_entry;	/* kdbus' list of namespaces */
+	struct list_head bus_list;		/* buses in this namespace */
 };
 
 struct kdbus_cmd_ns_kmake {

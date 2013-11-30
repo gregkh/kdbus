@@ -64,7 +64,12 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 	struct kdbus_bus *bus, *tmp;
 
 	mutex_lock(&kdbus_subsys_lock);
-	list_del(&ns->ns_entry);
+
+	if (ns->disconnected)
+		goto exit_unlock;
+	ns->disconnected = true;
+
+	list_del(&ns->namespace_entry);
 
 	/* remove any buses attached to this endpoint */
 	list_for_each_entry_safe(bus, tmp, &ns->bus_list, ns_entry) {
@@ -81,8 +86,9 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 		unregister_chrdev(ns->major, "kdbus");
 		ns->major = 0;
 	}
+
+exit_unlock:
 	mutex_unlock(&kdbus_subsys_lock);
-	pr_debug("closing namespace %s\n", ns->devpath);
 }
 
 static void __kdbus_ns_free(struct kref *kref)
@@ -90,7 +96,6 @@ static void __kdbus_ns_free(struct kref *kref)
 	struct kdbus_ns *ns = container_of(kref, struct kdbus_ns, kref);
 
 	kdbus_ns_disconnect(ns);
-	pr_debug("clean up namespace %s\n", ns->devpath);
 	kfree(ns->name);
 	kfree(ns->devpath);
 	kfree(ns);
@@ -106,8 +111,7 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
 	struct kdbus_ns *ns = NULL;
 	struct kdbus_ns *n;
 
-	mutex_lock(&kdbus_subsys_lock);
-	list_for_each_entry(n, &namespace_list, ns_entry) {
+	list_for_each_entry(n, &namespace_list, namespace_entry) {
 		if (n->parent != parent)
 			continue;
 		if (strcmp(n->name, name))
@@ -117,7 +121,6 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
 		break;
 	}
 
-	mutex_unlock(&kdbus_subsys_lock);
 	return ns;
 }
 
@@ -172,7 +175,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		}
 
 		n->parent = parent;
-		n->devpath = kasprintf(GFP_KERNEL, "kdbus/ns/%s/%s", parent->devpath, name);
+		n->devpath = kasprintf(GFP_KERNEL, "%s/ns/%s", parent->devpath, name);
 		if (!n->devpath) {
 			ret = -ENOMEM;
 			goto exit_unlock;
@@ -222,13 +225,10 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		goto exit_unlock;
 	}
 
-	list_add_tail(&n->ns_entry, &namespace_list);
-
+	list_add_tail(&n->namespace_entry, &namespace_list);
 	mutex_unlock(&kdbus_subsys_lock);
 
 	*ns = n;
-	pr_debug("created namespace %llu '%s/'\n",
-		 (unsigned long long)n->id, n->devpath);
 	return 0;
 
 exit_unlock:

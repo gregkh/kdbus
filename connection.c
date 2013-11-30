@@ -849,8 +849,6 @@ static int kdbus_conn_open(struct inode *inode, struct file *file)
 	/* control device node */
 	if (MINOR(inode->i_rdev) == 0) {
 		conn->type = KDBUS_CONN_CONTROL;
-		pr_debug("opened control device '%s/control'\n",
-			 conn->ns->devpath);
 		return 0;
 	}
 
@@ -1278,9 +1276,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		conn->flags = hello->conn_flags;
 		conn->attach_flags = hello->attach_flags;
 		conn->type = KDBUS_CONN_EP_CONNECTED;
-		pr_debug("created bus connection %llu '%s/%s'\n",
-			 (unsigned long long)conn->id, conn->ns->devpath,
-			 conn->ep->bus->name);
 		break;
 	}
 

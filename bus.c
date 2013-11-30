@@ -60,7 +60,6 @@ static void __kdbus_bus_free(struct kref *kref)
 
 	kdbus_name_registry_unref(bus->name_registry);
 	kdbus_bus_disconnect(bus);
-	pr_debug("clean up bus %s/%s\n", bus->ns->devpath, bus->name);
 
 	kfree(bus->name);
 	kfree(bus);
@@ -109,8 +108,6 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 		kdbus_ep_disconnect(ep);
 		kdbus_ep_unref(ep);
 	}
-
-	pr_debug("closing bus %s/%s\n", bus->ns->devpath, bus->name);
 }
 
 static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
@@ -214,8 +211,6 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	mutex_unlock(&ns->lock);
 
 	*bus = b;
-	pr_debug("created bus %llu '%s/%s'\n",
-		 (unsigned long long)b->id, ns->devpath, b->name);
 	return 0;
 ret:
 	kdbus_bus_unref(b);

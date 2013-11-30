@@ -58,7 +58,6 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
 
 		size = roundup_pow_of_two(size);
 		size_diff = size - meta->allocated_size;
-		pr_debug("%s: grow to size=%zu\n", __func__, size);
 		data = kmalloc(size, GFP_KERNEL);
 		if (!data)
 			return ERR_PTR(-ENOMEM);

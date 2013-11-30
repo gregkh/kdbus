@@ -2,7 +2,13 @@ CFLAGS		+= -std=gnu99 -Wall -Wextra -g -Wno-unused-parameter -D_GNU_SOURCE
 TEST_COMMON	:= kdbus-enum.o kdbus-util.o
 CC		:= $(CROSS_COMPILE)gcc
 
-TESTS=test-kdbus test-kdbus-daemon test-kdbus-fuzz test-kdbus-benchmark test-kdbus-monitor
+TESTS= \
+	test-kdbus \
+	test-kdbus-daemon \
+	test-kdbus-namespace \
+	test-kdbus-fuzz \
+	test-kdbus-benchmark \
+	test-kdbus-monitor
 
 all: $(TESTS)
 
