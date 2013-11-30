@@ -37,7 +37,7 @@
  * to the data placed in the pool.
  *
  * The internally allocated memory needs to be returned by the receiver
- * with KDBUS_CMD_MSG_RELEASE.
+ * with KDBUS_CMD_MSG_FREE.
  */
 
 /* The receiver's buffer, managed as a pool of allocated and free

@@ -105,6 +105,7 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 
 static void kdbus_name_entry_detach(struct kdbus_name_entry *e)
 {
+	e->conn->names--;
 	list_del(&e->conn_entry);
 }
 
@@ -113,6 +114,7 @@ static void kdbus_name_entry_attach(struct kdbus_name_entry *e,
 {
 	e->conn = conn;
 	list_add_tail(&e->conn_entry, &e->conn->names_list);
+	conn->names++;
 }
 
 static void kdbus_name_entry_release(struct kdbus_name_entry *e)
@@ -309,6 +311,9 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	    (size > (sizeof(struct kdbus_cmd_name) + KDBUS_NAME_MAX_LEN + 1)))
 		return -EMSGSIZE;
 
+	if (conn->names > KDBUS_CONN_MAX_NAMES)
+		return -E2BIG;
+
 	cmd_name = memdup_user(buf, size);
 	if (IS_ERR(cmd_name))
 		return PTR_ERR(cmd_name);
@@ -468,142 +473,169 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			void __user *buf)
 {
-	struct kdbus_cmd_names *cmd_names = NULL;
-	struct kdbus_cmd_name *cmd_name;
+	struct kdbus_cmd_name_list *cmd_list;
+	struct kdbus_name_list list = {};
 	struct kdbus_name_entry *e;
-	struct kdbus_bus *bus;
-	u64 user_size, user_flags, size = 0, tmp;
-	int i, ret = 0;
+	struct kdbus_bus *bus = conn->ep->bus;
+	size_t size;
+	u64 tmp;
+	size_t off, pos;
+	int ret = 0;
 
-	bus = conn->ep->bus;
-
-	if (kdbus_size_get_user(&user_size, buf, struct kdbus_cmd_names))
-		return -EFAULT;
-
-	if (copy_from_user(&user_flags,
-			   buf + offsetof(struct kdbus_cmd_names, flags),
-			   sizeof(user_flags)))
-		return -EFAULT;
+	cmd_list = memdup_user(buf, sizeof(struct kdbus_cmd_name_list));
+	if (IS_ERR(cmd_list))
+		return PTR_ERR(cmd_list);
 
 	mutex_lock(&reg->entries_lock);
 
-	size = sizeof(struct kdbus_cmd_names);
-
+	/* calculate size */
+	size = sizeof(struct kdbus_name_list);
 	hash_for_each(reg->entries_hash, tmp, e, hentry)
 		size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) +
 				     strlen(e->name) + 1);
 
-	if (user_flags & KDBUS_NAME_LIST_UNIQUE_NAMES) {
+	if (cmd_list->flags & KDBUS_NAME_LIST_UNIQUE_NAMES) {
 		struct kdbus_conn *c;
-
-		hash_for_each(bus->conn_hash, i, c, hentry)
-			if (list_empty(&c->names_list))
-				size += KDBUS_ALIGN8(sizeof(*cmd_name));
-	}
-
-	if (size > user_size) {
-		kdbus_size_set_user(&size, buf, struct kdbus_cmd_names);
-		ret = -ENOBUFS;
-		goto exit_unlock;
-	}
-
-	cmd_names = kzalloc(size, GFP_KERNEL);
-	if (!cmd_names) {
-		ret = -ENOMEM;
-		goto exit_unlock;
-	}
-
-	cmd_names->size = size;
-	cmd_name = cmd_names->names;
-
-	hash_for_each(reg->entries_hash, tmp, e, hentry) {
-		cmd_name->size = sizeof(struct kdbus_cmd_name) +
-				 strlen(e->name) + 1;
-		cmd_name->flags = e->flags;
-		cmd_name->id = e->conn->id;
-		strcpy(cmd_name->name, e->name);
-		cmd_name = KDBUS_PART_NEXT(cmd_name);
-	}
-
-	/*
-	 * If the listing of unique names is requested, iterate over the
-	 * bus' connections and find those which do not have a well-known-name
-	 * assigned to it.
-	 */
-	if (user_flags & KDBUS_NAME_LIST_UNIQUE_NAMES) {
-		struct kdbus_conn *c;
+		int i;
 
 		hash_for_each(bus->conn_hash, i, c, hentry) {
 			if (!list_empty(&c->names_list))
 				continue;
 
-			cmd_name->size = sizeof(struct kdbus_cmd_name);
-			cmd_name->id = c->id;
-			cmd_name->flags = c->flags;
-			cmd_name = KDBUS_PART_NEXT(cmd_name);
+			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
 		}
 	}
 
-	if (copy_to_user(buf, cmd_names, size))
+	ret = kdbus_pool_alloc(conn->pool, size, &off);
+	if (ret < 0)
+		goto exit_unlock;
+
+	/* copy header */
+	pos = off;
+	list.size = size;
+	ret = kdbus_pool_write(conn->pool, pos,
+			       &list, sizeof(struct kdbus_name_list));
+	if (ret < 0) {
+		kdbus_pool_free(conn->pool, off);
+		goto exit_unlock;
+	}
+	pos += sizeof(struct kdbus_name_list);
+
+	/* copy names */
+	hash_for_each(reg->entries_hash, tmp, e, hentry) {
+		struct kdbus_cmd_name cmd_name = {};
+		size_t len;
+
+		cmd_name.size = sizeof(struct kdbus_cmd_name) +
+				strlen(e->name) + 1;
+		cmd_name.flags = e->flags;
+		cmd_name.id = e->conn->id;
+
+		ret = kdbus_pool_write(conn->pool, pos,
+				       &cmd_name, sizeof(struct kdbus_cmd_name));
+		if (ret < 0) {
+			kdbus_pool_free(conn->pool, off);
+			goto exit_unlock;
+		}
+		pos += sizeof(struct kdbus_cmd_name);
+
+		len = strlen(e->name) + 1;
+		ret = kdbus_pool_write(conn->pool, pos, e->name, len);
+		if (ret < 0) {
+			kdbus_pool_free(conn->pool, off);
+			goto exit_unlock;
+		}
+
+		pos += KDBUS_ALIGN8(len);
+	}
+
+	/*
+	 * If the listing of unique names is requested, iterate over the
+	 * bus' connections and find those which do not have a well-known name
+	 * assigned to it.
+	 */
+	if (cmd_list->flags & KDBUS_NAME_LIST_UNIQUE_NAMES) {
+		struct kdbus_conn *c;
+		int i;
+
+		hash_for_each(bus->conn_hash, i, c, hentry) {
+			struct kdbus_cmd_name cmd_name = {};
+
+			if (!list_empty(&c->names_list))
+				continue;
+
+			cmd_name.size = sizeof(struct kdbus_cmd_name);
+			cmd_name.id = c->id;
+			cmd_name.flags = c->flags;
+
+			ret = kdbus_pool_write(conn->pool, pos,
+					       &cmd_name, sizeof(struct kdbus_cmd_name));
+			if (ret < 0) {
+				kdbus_pool_free(conn->pool, off);
+				goto exit_unlock;
+			}
+
+			pos += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
+		}
+	}
+
+	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_name_list)) {
 		ret = -EFAULT;
+		kdbus_pool_free(conn->pool, off);
+		goto exit_unlock;
+	}
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
-	kfree(cmd_names);
+	kfree(cmd_list);
 
 	return ret;
 }
 
-int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
-			 struct kdbus_conn *conn,
-			 void __user *buf)
+int kdbus_cmd_name_info(struct kdbus_name_registry *reg,
+			struct kdbus_conn *conn,
+			void __user *buf)
 {
-	struct kdbus_name_entry *e = NULL;
-	struct kdbus_cmd_name_info *cmd_name_info;
-	struct kdbus_item *info_item;
+	struct kdbus_cmd_name_info *cmd_info;
+	struct kdbus_name_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
-	struct kdbus_meta meta;
-	size_t size_req;
-	u64 user_size;
+	struct kdbus_name_entry *e = NULL;
+	struct kdbus_meta meta = {};
+	u64 size;
 	u32 hash;
-	int ret = 0;
 	char *name = NULL;
+	size_t off;
+	int ret = 0;
 
-	memset(&meta, 0, sizeof(meta));
-
-	if (kdbus_size_get_user(&user_size, buf, struct kdbus_cmd_name_info))
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name_info))
 		return -EFAULT;
 
-	size_req = sizeof(struct kdbus_cmd_name_info);
+	if (size < sizeof(struct kdbus_cmd_name_info))
+		return -EINVAL;
 
-	if (user_size < size_req) {
-		/* let the user know how much space we require */
-		kdbus_size_set_user(&size_req, buf, struct kdbus_cmd_name_info);
+	if (size > sizeof(struct kdbus_cmd_name_info) + KDBUS_NAME_MAX_LEN + 1)
 		return -EMSGSIZE;
-	}
 
-	cmd_name_info = memdup_user(buf, user_size);
-	if (IS_ERR(cmd_name_info))
-		return PTR_ERR(cmd_name_info);
+	cmd_info = memdup_user(buf, size);
+	if (IS_ERR(cmd_info))
+		return PTR_ERR(cmd_info);
 
 	/* The API offers to look up a connection by ID or by name */
-	if (cmd_name_info->id != 0) {
+	if (cmd_info->id != 0) {
 		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-						       cmd_name_info->id);
+						       cmd_info->id);
 	} else {
-		info_item = cmd_name_info->items;
-
-		if (!KDBUS_PART_VALID(info_item, cmd_name_info)) {
+		if (size == sizeof(struct kdbus_cmd_name_info)) {
 			ret = -EINVAL;
 			goto exit_free;
 		}
 
-		if (info_item->type != KDBUS_NAME_INFO_ITEM_NAME) {
+		if (!kdbus_name_is_valid(cmd_info->name)) {
 			ret = -EINVAL;
 			goto exit_free;
 		}
 
-		name = info_item->str;
+		name = cmd_info->name;
 		hash = kdbus_str_hash(name);
 	}
 
@@ -628,39 +660,44 @@ int kdbus_cmd_name_query(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_meta_append(&meta, owner_conn, cmd_name_info->attach_flags);
+	ret = kdbus_meta_append(&meta, owner_conn, cmd_info->attach_flags);
 	if (ret < 0)
 		goto exit_free;
 
-	if (meta.size) {
-		size_req += meta.size;
+	info.size = sizeof(struct kdbus_name_info) + meta.size;
+	info.id = owner_conn->id;
+	if (e)
+		cmd_info->flags = e->flags;
 
-		if (size_req > user_size) {
-			/* let the user know how much space we require */
-			kdbus_size_set_user(&size_req, buf,
-					    struct kdbus_cmd_name_info);
-			ret = -EMSGSIZE;
-			goto exit_unlock;
-		}
+	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
+	if (ret < 0)
+		goto exit_unlock;
+
+	ret = kdbus_pool_write(conn->pool, off,
+			       &info, sizeof(struct kdbus_name_info));
+	if (ret < 0) {
+		kdbus_pool_free(conn->pool, off);
+		goto exit_unlock;
 	}
 
-	memcpy(cmd_name_info->items, meta.data, meta.size);
+	ret = kdbus_pool_write(conn->pool, off + sizeof(struct kdbus_name_info),
+			       meta.data, meta.size);
+	if (ret < 0) {
+		kdbus_pool_free(conn->pool, off);
+		goto exit_unlock;
+	}
 
-	cmd_name_info->size = size_req;
-	cmd_name_info->id = owner_conn->id;
-	if (e)
-		cmd_name_info->flags = e->flags;
-
-	memcpy(&cmd_name_info->creds, &owner_conn->creds,
-	       sizeof(cmd_name_info->creds));
-
-	ret = copy_to_user(buf, cmd_name_info, size_req);
+	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_name_info)) {
+		ret = -EFAULT;
+		kdbus_pool_free(conn->pool, off);
+		goto exit_unlock;
+	}
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
 exit_free:
-	kfree(cmd_name_info);
+	kfree(cmd_info);
 	kdbus_meta_free(&meta);
 	return ret;
 }

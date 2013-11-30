@@ -193,7 +193,7 @@ handle_echo_reply(struct conn *conn)
 		}
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
 	if (ret < 0) {
 		fprintf(stderr, "error free message: %d (%m)\n", ret);
 		return EXIT_FAILURE;

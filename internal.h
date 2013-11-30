@@ -30,6 +30,7 @@
 #define KDBUS_POLICY_MAX_SIZE		SZ_32K		/* maximum size of policy data */
 
 #define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages on the bus */
+#define KDBUS_CONN_MAX_NAMES		64		/* maximum number of well-known names */
 #define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K		/* maximum number of allocated bytes on the bus */
 
 /* exported addresses are 64bit */
@@ -56,17 +57,17 @@
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
 
-/* read 64bit .size from struct */
+/* read 64bit .size in struct */
 #define kdbus_size_get_user(_s, _b, _t)						\
 ({										\
 	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size);	\
 	copy_from_user(_s, _sz, sizeof(__u64));					\
 })
 
-/* set 64bit .size in struct */
-#define kdbus_size_set_user(_s, _b, _t)						\
+/* set 64bit .offset in struct */
+#define kdbus_offset_set_user(_s, _b, _t)					\
 ({										\
-	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size);	\
+	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), offset);	\
 	copy_to_user(_sz, _s, sizeof(__u64));					\
 })
 

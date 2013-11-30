@@ -1328,14 +1328,14 @@ static long kdbus_conn_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
 		break;
 
-	case KDBUS_CMD_NAME_QUERY:
+	case KDBUS_CMD_NAME_INFO:
 		/* return details about a specific well-known name */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
 			break;
 		}
 
-		ret = kdbus_cmd_name_query(bus->name_registry, conn, buf);
+		ret = kdbus_cmd_name_info(bus->name_registry, conn, buf);
 		break;
 
 	case KDBUS_CMD_MATCH_ADD:
@@ -1427,7 +1427,7 @@ static long kdbus_conn_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_MSG_RELEASE: {
+	case KDBUS_CMD_FREE: {
 		u64 off;
 
 		/* free the memory used in the receiver's pool */

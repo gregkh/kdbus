@@ -358,8 +358,8 @@ Ioctl API
    Receive a message from the kernel which is placed in the receiver's
    pool.
 
-  KDBUS_CMD_MSG_RELEASE
-   Release the memory a message occupies and free the area in the pool.
+  KDBUS_CMD_MSG_FREE
+   Release the allocated memory in the receiver's pool.
 
   KDBUS_CMD_NAME_ACQUIRE
    Request a well-known bus name to associate with the connection. Well-known
@@ -369,10 +369,10 @@ Ioctl API
    Release a well-known name the connection currently owns.
 
   KDBUS_CMD_NAME_LIST
-   Retrieve the list of all currently registered well-known names.
+   Retrieve the list of all currently registered well-known and unique names.
 
-  KDBUS_CMD_NAME_QUERY
-   Retrieve properties and the state of a well-known name.
+  KDBUS_CMD_NAME_INFO
+   Retrieve properties and the state of a connection.
 
   KDBUS_CMD_MATCH_ADD
    Install a match which broadcast messages should be delivered to the

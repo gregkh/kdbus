@@ -51,8 +51,10 @@ struct kdbus_conn {
 	struct list_head msg_list;
 	struct hlist_node hentry;
 	struct list_head monitor_entry;		/* bus' monitor connections */
+
 	struct list_head names_list;		/* names on this connection */
 	struct list_head names_queue_list;
+	size_t names;				/* number of names */
 
 	struct work_struct work;
 	struct timer_list timer;

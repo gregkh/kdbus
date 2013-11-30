@@ -392,7 +392,7 @@ int msg_recv(struct conn *conn)
 	msg = (struct kdbus_msg *)(conn->buf + off);
 	msg_dump(conn, msg);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RELEASE, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
 	if (ret < 0) {
 		fprintf(stderr, "error free message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
@@ -450,27 +450,31 @@ int name_release(struct conn *conn, const char *name)
 
 int name_list(struct conn *conn, uint64_t flags)
 {
-	uint64_t size = 0xffff;
-	struct kdbus_cmd_names *names;
+	struct kdbus_cmd_name_list cmd_list = { 0, 0 };
+	struct kdbus_name_list *list;
 	struct kdbus_cmd_name *name;
 	int ret;
 
-	names = alloca(size);
-	memset(names, 0, size);
-	names->size = size;
-	names->flags = flags;
+	cmd_list.flags = flags;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, names);
+	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);
 	if (ret) {
 		fprintf(stderr, "error listing names: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
 	printf("REGISTRY:\n");
-	KDBUS_PART_FOREACH(name, names, names)
+	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
+	KDBUS_PART_FOREACH(name, list, names)
 		printf("  %llx - '%s'\n", name->id,
 		       name->size > sizeof(struct kdbus_cmd_name) ? name->name : "");
 	printf("\n");
+
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &cmd_list.offset);
+	if (ret < 0) {
+		fprintf(stderr, "error free name list: %d (%m)\n", ret);
+		return EXIT_FAILURE;
+	}
 
 	return 0;
 }
