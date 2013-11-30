@@ -1524,6 +1524,9 @@ static int kdbus_conn_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct kdbus_conn *conn = file->private_data;
 
+	if (conn->flags & KDBUS_HELLO_STARTER)
+		return -EPERM;
+
 	return kdbus_pool_mmap(conn->pool, vma);
 }
 
