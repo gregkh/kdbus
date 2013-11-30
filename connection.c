@@ -989,7 +989,8 @@ static int kdbus_conn_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_CONN_EP_OWNER:
-		//FIXME:
+		kdbus_ep_disconnect(conn->ep);
+		kdbus_ep_unref(conn->ep);
 		break;
 
 	case KDBUS_CONN_EP_CONNECTED:
