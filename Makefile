@@ -37,4 +37,8 @@ clean:
 	$(MAKE) -C test clean
 
 tt: all
-	sudo sh -c 'dmesg -c > /dev/null; rmmod kdbus; insmod kdbus.ko; sync; umount /'; test/test-kdbus
+	sudo sh -c 'dmesg -c > /dev/null'
+	sudo sh -c 'rmmod kdbus'
+	sudo sh -c 'insmod kdbus.ko'
+	-sudo sh -c 'sync; umount / 2> /dev/null'
+	test/test-kdbus
