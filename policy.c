@@ -27,6 +27,8 @@
 #include "connection.h"
 #include "names.h"
 
+#define KDBUS_POLICY_HASH_SIZE	64
+
 struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn	*conn_a;
 	struct kdbus_conn	*conn_b;
@@ -258,8 +260,8 @@ static int kdbus_add_reverse_cache_entry(struct kdbus_policy_db *db,
 	if (!new)
 		return -ENOMEM;
 
-	hash ^= hash_ptr(ce->conn_b, sizeof(ce->conn_b) * 8);
-	hash ^= hash_ptr(ce->conn_a, sizeof(ce->conn_a) * 8);
+	hash ^= hash_ptr(ce->conn_b, KDBUS_POLICY_HASH_SIZE);
+	hash ^= hash_ptr(ce->conn_a, KDBUS_POLICY_HASH_SIZE);
 	new->deadline_ns = reply_deadline_ns;
 
 	mutex_lock(&db->cache_lock);
@@ -281,9 +283,8 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	unsigned int hash = 0;
 	struct kdbus_policy_db_cache_entry *ce;
 
-	/* FIXME */
-	hash ^= hash_ptr(conn_src, sizeof(conn_src) * 8);
-	hash ^= hash_ptr(conn_dst, sizeof(conn_dst) * 8);
+	hash ^= hash_ptr(conn_src, KDBUS_POLICY_HASH_SIZE);
+	hash ^= hash_ptr(conn_dst, KDBUS_POLICY_HASH_SIZE);
 
 	mutex_lock(&db->cache_lock);
 	hash_for_each_possible(db->send_access_hash, ce, hentry, hash)
