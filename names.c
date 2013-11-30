@@ -562,9 +562,6 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		hash_for_each(bus->conn_hash, i, c, hentry) {
 			struct kdbus_cmd_name cmd_name = {};
 
-			if (!list_empty(&c->names_list))
-				continue;
-
 			cmd_name.size = sizeof(struct kdbus_cmd_name);
 			cmd_name.id = c->id;
 			cmd_name.flags = c->flags;
