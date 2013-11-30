@@ -1168,6 +1168,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_HELLO: {
 		/* turn this fd into a connection. */
+		const struct kdbus_item *item;
+		const char *starter_name = NULL;
 		size_t size;
 		void *v;
 
@@ -1206,6 +1208,29 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		ret = kdbus_pool_init(&conn->pool, hello->pool_size);
+		if (ret < 0)
+			break;
+
+		KDBUS_PART_FOREACH(item, hello, items) {
+			switch (item->type) {
+			case KDBUS_ITEM_STARTER_NAME:
+				if (!hello->conn_flags & KDBUS_HELLO_STARTER) {
+					ret = -EINVAL;
+					break;
+				}
+
+				starter_name = item->str;
+				break;
+
+			default:
+				ret = -EINVAL;
+				break;
+			}
+
+			if (ret < 0)
+				break;
+		}
+
 		if (ret < 0)
 			break;
 
@@ -1259,10 +1284,24 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		/* notify about the new active connection */
-		ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD, conn->id, conn->flags);
+		ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD,
+					     conn->id, conn->flags);
 		if (ret < 0) {
 			kdbus_conn_cleanup(conn);
 			break;
+		}
+
+		if (starter_name) {
+			mutex_lock(&bus->name_registry->entries_lock);
+			ret = kdbus_name_acquire(bus->name_registry, conn,
+					         starter_name,
+						 KDBUS_HELLO_STARTER, NULL);
+			mutex_unlock(&bus->name_registry->entries_lock);
+
+			if (ret < 0) {
+				kdbus_conn_cleanup(conn);
+				break;
+			}
 		}
 
 		conn->flags = hello->conn_flags;

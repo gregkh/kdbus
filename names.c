@@ -294,6 +294,42 @@ bool kdbus_name_is_valid(const char *p)
 	return true;
 }
 
+/* called with reg->lock held! */
+int kdbus_name_acquire(struct kdbus_name_registry *reg,
+		       struct kdbus_conn *conn,
+		       const char *name, u64 flags,
+		       struct kdbus_name_entry **entry)
+{
+	struct kdbus_name_entry *e = NULL;
+	u32 hash;
+
+	hash = kdbus_str_hash(name);
+
+	e = kzalloc(sizeof(*e), GFP_KERNEL);
+	if (!e)
+		return -ENOMEM;
+
+	e->name = kstrdup(name, GFP_KERNEL);
+	if (!e->name) {
+		kfree(e);
+		return -ENOMEM;
+	}
+
+	if (flags & KDBUS_HELLO_STARTER)
+		e->starter = conn;
+
+	e->flags = flags;
+	INIT_LIST_HEAD(&e->queue_list);
+	INIT_LIST_HEAD(&e->conn_entry);
+	hash_add(reg->entries_hash, &e->hentry, hash);
+	kdbus_name_entry_attach(e, conn);
+
+	if (entry)
+		*entry = e;
+
+	return 0;
+}
+
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
 			   void __user *buf)
@@ -370,26 +406,10 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_copy;
 	}
 
-	e = kzalloc(sizeof(*e), GFP_KERNEL);
-	if (!e) {
-		ret = -ENOMEM;
-		goto exit_unlock_free;
-	}
-
-	e->name = kstrdup(cmd_name->name, GFP_KERNEL);
-	if (!e->name) {
-		ret = -ENOMEM;
-		goto exit_unlock_free;
-	}
-
-	if (conn->flags & KDBUS_HELLO_STARTER)
-		e->starter = conn;
-
-	e->flags = cmd_name->flags;
-	INIT_LIST_HEAD(&e->queue_list);
-	INIT_LIST_HEAD(&e->conn_entry);
-	hash_add(reg->entries_hash, &e->hentry, hash);
-	kdbus_name_entry_attach(e, conn);
+	ret = kdbus_name_acquire(reg, conn, cmd_name->name,
+				 cmd_name->flags, &e);
+	if (ret < 0)
+		goto exit_unlock;
 
 exit_copy:
 	if (copy_to_user(buf, cmd_name, size)) {
@@ -399,7 +419,7 @@ exit_copy:
 
 	if (old_id == 0)
 		kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD, 0,
-				e->conn->id, e->flags, e->name);
+					 e->conn->id, e->flags, e->name);
 
 	kfree(cmd_name);
 	mutex_unlock(&reg->entries_lock);
