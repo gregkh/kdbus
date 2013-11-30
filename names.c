@@ -499,12 +499,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		struct kdbus_conn *c;
 		int i;
 
-		hash_for_each(bus->conn_hash, i, c, hentry) {
-			if (!list_empty(&c->names_list))
-				continue;
-
+		hash_for_each(bus->conn_hash, i, c, hentry)
 			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
-		}
 	}
 
 	ret = kdbus_pool_alloc(conn->pool, size, &off);
