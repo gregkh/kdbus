@@ -1064,6 +1064,11 @@ static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_NS_MAKE:
+		if (!capable(CAP_IPC_OWNER)) {
+			ret = -EPERM;
+			break;
+		}
+
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
 			break;
