@@ -1392,7 +1392,7 @@ static long kdbus_conn_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		}
 
 		mutex_lock(&bus->lock);
-		if (cmd_monitor.enable)
+		if (cmd_monitor.flags && KDBUS_MONITOR_ENABLE)
 			list_add_tail(&mconn->monitor_entry, &bus->monitors_list);
 		else
 			list_del(&mconn->monitor_entry);

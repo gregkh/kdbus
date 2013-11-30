@@ -162,8 +162,8 @@ int main(int argc, char **argv)
 	if (!conn)
 		return EXIT_FAILURE;
 
-	cmd_monitor.id = 0; //conn->id;
-	cmd_monitor.enable = 1;
+	cmd_monitor.id = 0;;
+	cmd_monitor.flags = KDBUS_MONITOR_ENABLE;
 	ret = ioctl(conn->fd, KDBUS_CMD_MONITOR, &cmd_monitor);
 	if (ret < 0) {
 		fprintf(stderr, "Unable to set monitor mode on bus: %m\n");
