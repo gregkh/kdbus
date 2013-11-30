@@ -144,7 +144,8 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 		kdbus_name_entry_attach(e, q->conn);
 		kdbus_name_queue_item_free(q);
 		kdbus_notify_name_change(old_conn->ep, KDBUS_ITEM_NAME_CHANGE,
-				old_conn->id, e->conn->id, e->flags, e->name);
+					 old_conn->id, e->conn->id,
+					 e->flags, e->name);
 	}
 }
 
@@ -201,7 +202,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 }
 
 static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
-			struct kdbus_name_entry *e)
+				 struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
 
