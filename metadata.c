@@ -187,9 +187,9 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta,
 }
 
 static int kdbus_meta_append_exe(struct kdbus_meta *meta,
-				 struct kdbus_conn *conn)
+				 struct task_struct *task)
 {
-	struct mm_struct *mm = get_task_mm(current);
+	struct mm_struct *mm = get_task_mm(task);
 	struct path *exe_path = NULL;
 	int ret = 0;
 
@@ -229,9 +229,9 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta,
 }
 
 static int kdbus_meta_append_cmdline(struct kdbus_meta *meta,
-				     struct kdbus_conn *conn)
+				     struct task_struct *task)
 {
-	struct mm_struct *mm = current->mm;
+	struct mm_struct *mm = task->mm;
 	char *tmp;
 	int ret = 0;
 
@@ -256,7 +256,7 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta,
 }
 
 static int kdbus_meta_append_caps(struct kdbus_meta *meta,
-				  struct kdbus_conn *conn)
+				  struct task_struct *task)
 {
 	const struct cred *cred;
 	struct caps {
@@ -265,7 +265,7 @@ static int kdbus_meta_append_caps(struct kdbus_meta *meta,
 	unsigned int i;
 
 	rcu_read_lock();
-	cred = __task_cred(current);
+	cred = __task_cred(task);
 	for (i = 0; i < _KERNEL_CAPABILITY_U32S; i++) {
 		cap[0].cap[i] = cred->cap_inheritable.cap[i];
 		cap[1].cap[i] = cred->cap_permitted.cap[i];
@@ -285,7 +285,7 @@ static int kdbus_meta_append_caps(struct kdbus_meta *meta,
 
 #ifdef CONFIG_CGROUPS
 static int kdbus_meta_append_cgroup(struct kdbus_meta *meta,
-				     struct kdbus_conn *conn)
+				    struct task_struct *task)
 {
 	char *tmp;
 	int ret;
@@ -294,7 +294,7 @@ static int kdbus_meta_append_cgroup(struct kdbus_meta *meta,
 	if (!tmp)
 		return -ENOMEM;
 
-	ret = task_cgroup_path(current, tmp, PAGE_SIZE);
+	ret = task_cgroup_path(task, tmp, PAGE_SIZE);
 	if (ret >= 0)
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CGROUP, tmp);
 
@@ -309,6 +309,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		      u64 which)
 {
 	int ret = 0;
+	struct task_struct *task = current;
 
 	/* kernel-generated messages */
 	if (!conn)
@@ -349,23 +350,23 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_COMM)) {
 		char comm[TASK_COMM_LEN];
 
-		get_task_comm(comm, current->group_leader);
+		get_task_comm(comm, task->group_leader);
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_TID_COMM, comm);
 		if (ret < 0)
 			return ret;
 
-		get_task_comm(comm, current);
+		get_task_comm(comm, task);
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_PID_COMM, comm);
 		if (ret < 0)
 			return ret;
-
+printk("XXX add %s\n", comm);
 		meta->attached |= KDBUS_ATTACH_COMM;
 	}
 
 	if (which & KDBUS_ATTACH_EXE &&
 	    !(meta->attached & KDBUS_ATTACH_EXE)) {
 
-		ret = kdbus_meta_append_exe(meta, conn);
+		ret = kdbus_meta_append_exe(meta, task);
 		if (ret < 0)
 			return ret;
 
@@ -374,7 +375,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 	if (which & KDBUS_ATTACH_CMDLINE &&
 	    !(meta->attached & KDBUS_ATTACH_CMDLINE)) {
-		ret = kdbus_meta_append_cmdline(meta, conn);
+		ret = kdbus_meta_append_cmdline(meta, task);
 		if (ret < 0)
 			return ret;
 
@@ -384,7 +385,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	/* we always return a 4 elements, the element size is 1/4  */
 	if (which & KDBUS_ATTACH_CAPS &&
 	    !(meta->attached & KDBUS_ATTACH_CAPS)) {
-		ret = kdbus_meta_append_caps(meta, conn);
+		ret = kdbus_meta_append_caps(meta, task);
 		if (ret < 0)
 			return ret;
 
@@ -395,7 +396,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	/* attach the path of the one group hierarchy specified for the bus */
 	if (which & KDBUS_ATTACH_CGROUP &&
 	    !(meta->attached & KDBUS_ATTACH_CGROUP)) {
-		ret = kdbus_meta_append_cgroup(meta, conn);
+		ret = kdbus_meta_append_cgroup(meta, task);
 		if (ret < 0)
 			return ret;
 
