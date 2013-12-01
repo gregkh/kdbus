@@ -8,6 +8,7 @@ TESTS= \
 	test-kdbus-namespace \
 	test-kdbus-fuzz \
 	test-kdbus-benchmark \
+	test-kdbus-starter \
 	test-kdbus-monitor
 
 all: $(TESTS)

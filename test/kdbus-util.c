@@ -412,7 +412,7 @@ int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 	memset(cmd_name, 0, size);
 	strcpy(cmd_name->name, name);
 	cmd_name->size = size;
-	cmd_name->conn_flags = flags;
+	cmd_name->flags = flags;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (ret < 0) {
