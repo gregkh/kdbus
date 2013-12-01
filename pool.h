@@ -21,11 +21,13 @@ void kdbus_pool_cleanup(struct kdbus_pool *pool);
 int kdbus_pool_alloc(struct kdbus_pool *pool, size_t size, size_t *off);
 int kdbus_pool_free(struct kdbus_pool *pool, size_t off);
 size_t kdbus_pool_remain(const struct kdbus_pool *pool);
-
 ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 			 void *data, size_t len);
 ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
 			 void __user *data, size_t len);
+int kdbus_pool_move(struct kdbus_pool *dst_pool,
+		    struct kdbus_pool *src_pool,
+		    size_t *offset, size_t size);
 void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
 			     size_t off, size_t len);
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);

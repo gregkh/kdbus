@@ -439,6 +439,55 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 	return ret;
 }
 
+int kdbus_pool_move(struct kdbus_pool *dst_pool,
+		    struct kdbus_pool *src_pool,
+		    size_t *offset, size_t size)
+{
+	size_t rem = size;
+	size_t new_offset;
+	int ret;
+	loff_t pos = *offset;
+	char *buf;
+
+	buf = (char *) __get_free_page(GFP_USER);
+	if (!buf)
+		return -ENOMEM;
+
+	ret = kdbus_pool_alloc(dst_pool, size, &new_offset);
+	if (ret < 0)
+		goto exit_page_free;
+
+	while (rem > 0) {
+		size_t s = min_t(size_t, PAGE_SIZE, rem);
+
+		ret = kernel_read(src_pool->f, pos, buf, s);
+		if (ret < 0)
+			goto exit_pool_free;
+
+		ret = kdbus_pool_write(dst_pool, pos, buf, s);
+		if (ret < 0)
+			goto exit_pool_free;
+
+		rem -= s;
+	}
+
+	ret = kdbus_pool_free(src_pool, *offset);
+	if (ret < 0)
+		goto exit_pool_free;
+
+	*offset = new_offset;
+
+	return 0;
+
+exit_pool_free:
+	kdbus_pool_free(dst_pool, new_offset);
+
+exit_page_free:
+	free_page((unsigned long) buf);
+
+	return ret;
+}
+
 void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
 			     size_t off, size_t len)
 {
