@@ -149,7 +149,8 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 	}
 }
 
-int kdbus_name_release(struct kdbus_name_entry *e, struct kdbus_conn *conn)
+static int kdbus_name_release(struct kdbus_name_entry *e,
+			      struct kdbus_conn *conn)
 {
 	struct kdbus_name_queue_item *q_tmp, *q;
 
