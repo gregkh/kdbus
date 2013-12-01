@@ -1261,12 +1261,9 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		if (starter_name) {
-			mutex_lock(&bus->name_registry->entries_lock);
 			ret = kdbus_name_acquire(bus->name_registry, conn,
 					         starter_name,
 						 KDBUS_HELLO_STARTER, NULL);
-			mutex_unlock(&bus->name_registry->entries_lock);
-
 			if (ret < 0) {
 				kdbus_conn_cleanup(conn);
 				break;

@@ -294,25 +294,44 @@ bool kdbus_name_is_valid(const char *p)
 	return true;
 }
 
-/* called with reg->lock held! */
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       const char *name, u64 flags,
 		       struct kdbus_name_entry **entry)
 {
 	struct kdbus_name_entry *e = NULL;
+	int ret = 0;
 	u32 hash;
 
 	hash = kdbus_str_hash(name);
 
+	mutex_lock(&reg->entries_lock);
+	e = __kdbus_name_lookup(reg, hash, name);
+	if (e) {
+		if (e->conn == conn) {
+			e->flags = flags;
+			ret = -EALREADY;
+			goto exit_unlock;
+		} else {
+			ret = kdbus_name_handle_conflict(reg, conn, e, &flags);
+			if (ret < 0)
+				goto exit_unlock;
+		}
+
+		goto exit_unlock;
+	}
+
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
-	if (!e)
-		return -ENOMEM;
+	if (!e) {
+		ret = -ENOMEM;
+		goto exit_unlock;
+	}
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {
 		kfree(e);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto exit_unlock;
 	}
 
 	if (flags & KDBUS_HELLO_STARTER)
@@ -324,10 +343,15 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_attach(e, conn);
 
+	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD, 0,
+				 e->conn->id, e->flags, e->name);
+
 	if (entry)
 		*entry = e;
 
-	return 0;
+exit_unlock:
+	mutex_lock(&reg->entries_lock);
+	return ret;
 }
 
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
@@ -339,7 +363,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	u64 size;
 	u32 hash;
 	int ret = 0;
-	u64 old_id = 0;
 
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
@@ -388,37 +411,15 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_free;
 	}
 
-	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
-	if (e) {
-		old_id = e->conn->id;
-		if (e->conn == conn) {
-			e->flags = cmd_name->flags;
-			ret = -EALREADY;
-			goto exit_unlock;
-		} else {
-			ret = kdbus_name_handle_conflict(reg, conn, e,
-							 &cmd_name->flags);
-			if (ret < 0)
-				goto exit_unlock;
-		}
-		goto exit_copy;
-	}
-
 	ret = kdbus_name_acquire(reg, conn, cmd_name->name,
 				 cmd_name->flags, &e);
 	if (ret < 0)
 		goto exit_unlock;
 
-exit_copy:
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
 		goto exit_unlock_free;
 	}
-
-	if (old_id == 0)
-		kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD, 0,
-					 e->conn->id, e->flags, e->name);
 
 	kfree(cmd_name);
 	mutex_unlock(&reg->entries_lock);
