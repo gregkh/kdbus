@@ -924,6 +924,44 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 	kdbus_pool_cleanup(conn->pool);
 }
 
+/*
+ * Move all messages from one connection to another. This is used when
+ * an ordinary connection is taking over a well-known name from a
+ * starter connection.
+ */
+int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
+			     struct kdbus_conn *conn_src)
+{
+	struct kdbus_conn_queue *queue, *tmp;
+	int ret = 0;
+
+	if (!conn_src->flags & KDBUS_HELLO_STARTER)
+		return -EINVAL;
+
+	mutex_lock(&conn_src->lock);
+	mutex_lock(&conn_dst->lock);
+
+	list_for_each_entry_safe(queue, tmp, &conn_src->msg_list, entry) {
+		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
+				      &queue->off, queue->size);
+		if (ret < 0)
+			goto exit_unlock;
+
+		list_del(&queue->entry);
+		list_add_tail(&queue->entry, &conn_dst->msg_list);
+		conn_src->msg_count--;
+		conn_dst->msg_count++;
+	}
+
+exit_unlock:
+	mutex_unlock(&conn_src->lock);
+	mutex_unlock(&conn_dst->lock);
+
+	wake_up_interruptible(&conn_dst->ep->wait);
+
+	return ret;
+}
+
 static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);

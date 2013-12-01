@@ -82,7 +82,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue);
 int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 			    u64 deadline_ns);
-
+int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
+			     struct kdbus_conn *conn_src);
 int kdbus_conn_accounting_add_size(struct kdbus_conn *conn, size_t size);
 void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size);
 #endif
