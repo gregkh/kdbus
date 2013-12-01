@@ -447,6 +447,8 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 	loff_t pos = *offset;
 	char *buf;
 
+	/* FIXME: this implementation is a dirty hack */
+
 	buf = (char *) __get_free_page(GFP_TEMPORARY);
 	if (!buf)
 		return -ENOMEM;
@@ -467,6 +469,7 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 			goto exit_pool_free;
 
 		rem -= s;
+		pos += s;
 	}
 
 	ret = kdbus_pool_free(src_pool, *offset);
