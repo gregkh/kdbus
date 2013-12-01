@@ -1234,6 +1234,10 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 				break;
 		}
 
+		if ((hello->conn_flags & KDBUS_HELLO_STARTER) &&
+		    !starter_name)
+			ret = -EINVAL;
+
 		if (ret < 0)
 			break;
 
@@ -1298,19 +1302,19 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		conn->flags = hello->conn_flags;
+		conn->attach_flags = hello->attach_flags;
+		conn->type = KDBUS_CONN_EP_CONNECTED;
+
 		if (starter_name) {
 			ret = kdbus_name_acquire(bus->name_registry, conn,
-					         starter_name,
-						 KDBUS_HELLO_STARTER, NULL);
+						 starter_name, 0, NULL);
 			if (ret < 0) {
 				kdbus_conn_cleanup(conn);
 				break;
 			}
 		}
 
-		conn->flags = hello->conn_flags;
-		conn->attach_flags = hello->attach_flags;
-		conn->type = KDBUS_CONN_EP_CONNECTED;
 		break;
 	}
 

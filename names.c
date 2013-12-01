@@ -226,25 +226,30 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_name_entry *e, u64 *flags)
 {
 	u64 old_id;
+	int ret;
 
-	if (conn->flags & KDBUS_HELLO_STARTER) {
-		if (e->starter == NULL) {
-			e->starter = conn;
-			return 0;
-		} else {
-			return -EBUSY;
-		}
-	}
-
-	if (((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
-	     (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) ||
-	    ((e->starter == e->conn) && e->starter != conn)) {
-		if (e->flags & KDBUS_NAME_QUEUE &&
-		    kdbus_name_queue_conn(e->conn, &e->flags, e) < 0)
+	if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
+	    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
+		if (e->flags & KDBUS_NAME_QUEUE) {
+			ret = kdbus_name_queue_conn(e->conn, &e->flags, e);
+			if (ret < 0)
 				return -ENOMEM;
+		}
+
 		old_id = e->conn->id;
-		kdbus_name_entry_detach(e);
-		kdbus_name_entry_attach(e, conn);
+
+		if (e->starter) {
+			ret = kdbus_conn_move_messages(conn, e->starter);
+			if (ret < 0)
+				return ret;
+
+			e->conn = conn;
+			e->starter = NULL;
+		} else {
+			kdbus_name_entry_detach(e);
+			kdbus_name_entry_attach(e, conn);
+		}
+
 		e->flags = *flags;
 
 		return kdbus_notify_name_change(conn->ep, KDBUS_ITEM_NAME_CHANGE,
@@ -334,8 +339,10 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	if (flags & KDBUS_HELLO_STARTER)
+	if (conn->flags & KDBUS_HELLO_STARTER) {
 		e->starter = conn;
+		flags = KDBUS_NAME_ALLOW_REPLACEMENT;
+	}
 
 	e->flags = flags;
 	INIT_LIST_HEAD(&e->queue_list);
