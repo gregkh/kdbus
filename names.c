@@ -350,7 +350,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		*entry = e;
 
 exit_unlock:
-	mutex_lock(&reg->entries_lock);
+	mutex_unlock(&reg->entries_lock);
 	return ret;
 }
 
