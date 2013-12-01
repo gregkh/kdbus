@@ -69,6 +69,12 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 		idr_remove(&ep->bus->ns->idr, ep->minor);
 		ep->minor = 0;
 	}
+
+	/*
+	 * wake up the queue so the connections can report
+	 * POLLERR to their users.
+	 */
+	wake_up_interruptible(&ep->wait);
 }
 
 static void __kdbus_ep_free(struct kref *kref)

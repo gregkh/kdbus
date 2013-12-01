@@ -5,7 +5,6 @@ External API:
   - rename name_info to connection_info?
 
 Internal:
-  - POLLERR to connection on bus destruct
   - update/rethink kdbus_conn_accounting_sub_size() use
   - memfd's file pos is shared, document pread/pwrite
   - conn->ep->bus ==> conn->bus

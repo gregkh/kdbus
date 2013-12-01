@@ -1518,7 +1518,9 @@ static unsigned int kdbus_conn_poll(struct file *file,
 	poll_wait(file, &conn->ep->wait, wait);
 
 	mutex_lock(&conn->lock);
-	if (!list_empty(&conn->msg_list))
+	if (unlikely(conn->ep->disconnected))
+		mask |= POLLERR | POLLHUP;
+	else if (!list_empty(&conn->msg_list))
 		mask |= POLLIN | POLLRDNORM;
 	mutex_unlock(&conn->lock);
 
