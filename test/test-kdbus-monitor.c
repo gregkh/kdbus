@@ -205,6 +205,9 @@ int main(int argc, char **argv)
 
 			count++;
 		}
+
+		if (fd.revents & (POLLHUP | POLLERR))
+			return EXIT_FAILURE;
 	}
 
 	return 0;
