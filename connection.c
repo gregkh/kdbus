@@ -935,7 +935,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	struct kdbus_conn_queue *queue, *tmp;
 	int ret = 0;
 
-	if (!conn_src->flags & KDBUS_HELLO_STARTER)
+	if (!(conn_src->flags & KDBUS_HELLO_STARTER))
 		return -EINVAL;
 
 	mutex_lock(&conn_src->lock);
@@ -1217,7 +1217,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		KDBUS_PART_FOREACH(item, hello, items) {
 			switch (item->type) {
 			case KDBUS_ITEM_STARTER_NAME:
-				if (!hello->conn_flags & KDBUS_HELLO_STARTER) {
+				if (!(hello->conn_flags & KDBUS_HELLO_STARTER)) {
 					ret = -EINVAL;
 					break;
 				}

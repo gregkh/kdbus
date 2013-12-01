@@ -431,7 +431,7 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	ret = kdbus_pool_write_user(pool, off, data, len);
+	ret = kdbus_pool_write_user(pool, off, (void __user *)data, len);
 
 	set_fs(old_fs);
 	return ret;
