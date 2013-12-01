@@ -426,13 +426,11 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 			 void *data, size_t len)
 {
 	mm_segment_t old_fs;
-	void __user *p;
 	ssize_t ret;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	p = (void __force __user *)data;
 	ret = kdbus_pool_write_user(pool, off, data, len);
 
 	set_fs(old_fs);
@@ -449,7 +447,7 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 	loff_t pos = *offset;
 	char *buf;
 
-	buf = (char *) __get_free_page(GFP_USER);
+	buf = (char *) __get_free_page(GFP_TEMPORARY);
 	if (!buf)
 		return -ENOMEM;
 
@@ -476,6 +474,7 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 		goto exit_pool_free;
 
 	*offset = new_offset;
+	free_page((unsigned long) buf);
 
 	return 0;
 
