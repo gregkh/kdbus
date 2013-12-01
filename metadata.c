@@ -24,6 +24,7 @@
 #include <linux/sizes.h>
 #include <linux/audit.h>
 #include <linux/security.h>
+#include <linux/kref.h>
 
 #include "connection.h"
 #include "names.h"
