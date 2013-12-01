@@ -132,7 +132,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
  * kdbus_bus_new() - create a new struct kdbus_bus
  * @ns:		The namespace to work on
  * @bus_kmake:	Pointer to a struct kdbus_cmd_bus_kmake containing the
- * 		details for the bus creation
+ *		details for the bus creation
  * @mode:	The access mode for the device node
  * @uid:	The uid of the device node
  * @gid:	The gid of the device node
