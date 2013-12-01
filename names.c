@@ -414,25 +414,16 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	ret = kdbus_name_acquire(reg, conn, cmd_name->name,
 				 cmd_name->flags, &e);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_free;
 
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
-		goto exit_unlock_free;
+		kdbus_name_entry_release(e);
 	}
-
-	kfree(cmd_name);
-	mutex_unlock(&reg->entries_lock);
-	return 0;
-
-exit_unlock_free:
-	kdbus_name_entry_release(e);
-
-exit_unlock:
-	mutex_unlock(&reg->entries_lock);
 
 exit_free:
 	kfree(cmd_name);
+
 	return ret;
 }
 
