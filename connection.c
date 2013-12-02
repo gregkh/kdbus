@@ -1082,14 +1082,15 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	if (names_size) {
 		struct kdbus_item item;
 
-		item.size = sizeof(item) + names_size;
+		item.size = KDBUS_PART_HEADER_SIZE + names_size;
 		item.type = KDBUS_ITEM_NAMES;
 
-		ret = kdbus_pool_write(conn->pool, pos, &item, sizeof(item));
+		ret = kdbus_pool_write(conn->pool, pos, &item,
+				       KDBUS_PART_HEADER_SIZE);
 		if (ret < 0)
 			goto exit_free;
 
-		pos += sizeof(item);
+		pos += KDBUS_PART_HEADER_SIZE;
 
 		list_for_each_entry(e, &owner_conn->names_list, conn_entry) {
 			size_t slen = strlen(e->name) + 1;
