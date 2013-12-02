@@ -1043,7 +1043,7 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	}
 
 	mutex_lock(&conn->names_lock);
-	list_for_each_entry(e, &conn->names_list, conn_entry)
+	list_for_each_entry(e, &owner_conn->names_list, conn_entry)
 		names_size += strlen(e->name) + 1;
 
 	/*
@@ -1091,7 +1091,7 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 
 		pos += sizeof(item);
 
-		list_for_each_entry(e, &conn->names_list, conn_entry) {
+		list_for_each_entry(e, &owner_conn->names_list, conn_entry) {
 			size_t slen = strlen(e->name) + 1;
 
 			ret = kdbus_pool_write(conn->pool, pos, e->name, slen);
