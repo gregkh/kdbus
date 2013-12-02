@@ -129,7 +129,7 @@ static int kdbus_meta_append_str(struct kdbus_meta *meta, u64 type,
 }
 
 static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
-				struct kdbus_conn *conn)
+				       struct kdbus_conn *conn)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_item *item;
