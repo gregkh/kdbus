@@ -362,13 +362,48 @@ int kdbus_pool_free(struct kdbus_pool *pool, size_t off)
 	return 0;
 }
 
-/* write to the receiver's shmem file */
-ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
-			      void __user *data, size_t len)
+/* copy data from a file to ia page in the receiver's pool */
+static int kdbus_pool_copy_file(void *to, struct file *f, size_t off,
+				size_t count)
 {
-	struct address_space *mapping = pool->f->f_mapping;
+	ssize_t n;
+	loff_t o = off;
+
+	n = f->f_op->read(f, (char __force __user *)to, count, &o);
+	if (n < 0)
+		return n;
+	if (n != count)
+		return -EFAULT;
+
+	return 0;
+}
+
+/* copy data to a page in the receiver's pool */
+static int kdbus_pool_copy_data(void *to, void __user *from, size_t count)
+{
+	unsigned long remain;
+
+	if (fault_in_pages_readable(from, count) < 0)
+		return -EFAULT;
+
+	pagefault_disable();
+	remain = __copy_from_user_inatomic(to, from, count);
+	pagefault_enable();
+	if (remain > 0)
+		return -EFAULT;
+
+	return 0;
+}
+
+/* copy data to the receiver's pool */
+static size_t
+kdbus_pool_copy(struct file *f_dst, size_t off_dst,
+		void __user *data, struct file *f_src, size_t off_src,
+		size_t len)
+{
+	struct address_space *mapping = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping->a_ops;
-	unsigned long fpos = off;
+	unsigned long fpos = off_dst;
 	unsigned long rem = len;
 	size_t dpos = 0;
 	int ret = 0;
@@ -380,17 +415,11 @@ ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
 		void *fsdata;
 		int status;
 		char *kaddr;
-		unsigned long remain;
 
 		o = fpos & (PAGE_CACHE_SIZE - 1);
 		n = min_t(unsigned long, PAGE_CACHE_SIZE - o, rem);
 
-		if (fault_in_pages_readable(data + dpos, n) < 0) {
-			ret = -EFAULT;
-			break;
-		}
-
-		status = aops->write_begin(pool->f, mapping, fpos, n, 0, &p,
+		status = aops->write_begin(f_dst, mapping, fpos, n, 0, &p,
 					   &fsdata);
 		if (status) {
 			ret = -EFAULT;
@@ -398,17 +427,17 @@ ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
 		}
 
 		kaddr = kmap_atomic(p);
-		pagefault_disable();
-		remain = __copy_from_user_inatomic(kaddr + o, data + dpos, n);
-		pagefault_enable();
+		if (data)
+			ret = kdbus_pool_copy_data(kaddr + o, data + dpos, n);
+		else
+			ret = kdbus_pool_copy_file(kaddr + o, f_src, off_src, n);
 		kunmap_atomic(kaddr);
-		if (remain > 0) {
-			ret = -EFAULT;
-			break;
-		}
 		mark_page_accessed(p);
 
-		status = aops->write_end(pool->f, mapping, fpos, n, n, p, fsdata);
+		status = aops->write_end(f_dst, mapping, fpos, n, n, p, fsdata);
+
+		if (ret < 0)
+			break;
 		if (status != n) {
 			ret = -EFAULT;
 			break;
@@ -422,6 +451,14 @@ ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
 	return ret;
 }
 
+/* copy user memory to the receiver's pool */
+ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
+			      void __user *data, size_t len)
+{
+	return kdbus_pool_copy(pool->f, off, data, NULL, 0, len);
+}
+
+/* copy kernel memory to the receiver's pool */
 ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 			 void *data, size_t len)
 {
@@ -431,65 +468,51 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	ret = kdbus_pool_write_user(pool, off, (void __user *)data, len);
+	ret = kdbus_pool_copy(pool->f, off, (void __user *)data, NULL, 0, len);
 
 	set_fs(old_fs);
 	return ret;
 }
 
+/* move memory from one pool into another one */
 int kdbus_pool_move(struct kdbus_pool *dst_pool,
 		    struct kdbus_pool *src_pool,
-		    size_t *offset, size_t size)
+		    size_t *off, size_t len)
 {
-	size_t rem = size;
-	size_t new_offset;
+	mm_segment_t old_fs;
+	size_t new_off;
 	int ret;
-	loff_t pos = *offset;
-	char *buf;
 
-	/* FIXME: this implementation is a dirty hack */
-
-	buf = (char *) __get_free_page(GFP_TEMPORARY);
-	if (!buf)
-		return -ENOMEM;
-
-	ret = kdbus_pool_alloc(dst_pool, size, &new_offset);
+	ret = kdbus_pool_alloc(dst_pool, len, &new_off);
 	if (ret < 0)
-		goto exit_page_free;
+		return ret;
 
-	while (rem > 0) {
-		size_t s = min_t(size_t, PAGE_SIZE, rem);
-
-		ret = kernel_read(src_pool->f, pos, buf, s);
-		if (ret < 0)
-			goto exit_pool_free;
-
-		ret = kdbus_pool_write(dst_pool, pos, buf, s);
-		if (ret < 0)
-			goto exit_pool_free;
-
-		rem -= s;
-		pos += s;
-	}
-
-	ret = kdbus_pool_free(src_pool, *offset);
+	old_fs = get_fs();
+	set_fs(get_ds());
+	ret = kdbus_pool_copy(dst_pool->f, new_off,
+			      NULL, src_pool->f, *off, len);
+	set_fs(old_fs);
 	if (ret < 0)
-		goto exit_pool_free;
+		goto exit_free;
 
-	*offset = new_offset;
-	free_page((unsigned long) buf);
+	ret = kdbus_pool_free(src_pool, *off);
+	if (ret < 0)
+		goto exit_free;
 
+	*off = new_off;
 	return 0;
 
-exit_pool_free:
-	kdbus_pool_free(dst_pool, new_offset);
-
-exit_page_free:
-	free_page((unsigned long) buf);
-
+exit_free:
+	kdbus_pool_free(dst_pool, new_off);
 	return ret;
 }
 
+/*
+ * Dcache flushes are delayed to happen only right before the receiver
+ * gets the new buffer area announced. The mapped buffer is always
+ * read-only for the receiver, and only the area of the announced message
+ * needs to be coherent.
+ */
 void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
 			     size_t off, size_t len)
 {
