@@ -1104,8 +1104,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			break;
 	}
 
-	if ((hello->conn_flags & KDBUS_HELLO_STARTER) &&
-	    !starter_name)
+	if ((hello->conn_flags & KDBUS_HELLO_STARTER) && !starter_name)
 		ret = -EINVAL;
 
 	if (ret < 0)
