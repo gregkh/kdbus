@@ -984,11 +984,11 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	struct kdbus_conn_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_name_entry *e = NULL;
-	size_t off, pos, names_size = 0;
+	size_t off, pos, names_size;
 	char *name = NULL;
-	int ret = 0;
 	u64 size;
 	u32 hash;
+	int ret = 0;
 
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_info))
 		return -EFAULT;
@@ -1042,25 +1042,19 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 		goto exit_free;
 	}
 
-	mutex_lock(&conn->names_lock);
-	list_for_each_entry(e, &owner_conn->names_list, conn_entry)
-		names_size += strlen(e->name) + 1;
-
-	/*
-	 * skip the rest of this function if there is neither
-	 * metadata nor well-known names for this connection.
-	 */
-	if (owner_conn->meta.size == 0 && names_size == 0)
-		goto exit_unlock;
-
 	info.size = sizeof(struct kdbus_conn_info) +
 		    owner_conn->meta.size;
-
-	if (names_size)
-		info.size += KDBUS_ITEM_SIZE(names_size);
-
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
+
+	mutex_lock(&conn->names_lock);
+
+	/* calculate and reserve size for well-known names */
+	names_size = 0;
+	list_for_each_entry(e, &owner_conn->names_list, conn_entry)
+		names_size += strlen(e->name) + 1;
+	if (names_size > 0)
+		info.size += KDBUS_ITEM_SIZE(names_size);
 
 	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
 	if (ret < 0)
@@ -1069,27 +1063,25 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	ret = kdbus_pool_write(conn->pool, off, &info, sizeof(info));
 	if (ret < 0)
 		goto exit_free;
-
 	pos = off + sizeof(struct kdbus_conn_info);
 
 	ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta.data,
 			       owner_conn->meta.size);
 	if (ret < 0)
 		goto exit_free;
-
 	pos += owner_conn->meta.size;
 
-	if (names_size) {
-		struct kdbus_item item;
+	if (names_size > 0) {
+		char tmp[KDBUS_PART_HEADER_SIZE];
+		struct kdbus_item *item = (struct kdbus_item *)tmp;
 
-		item.size = KDBUS_PART_HEADER_SIZE + names_size;
-		item.type = KDBUS_ITEM_NAMES;
+		item->size = KDBUS_PART_HEADER_SIZE + names_size;
+		item->type = KDBUS_ITEM_NAMES;
 
-		ret = kdbus_pool_write(conn->pool, pos, &item,
+		ret = kdbus_pool_write(conn->pool, pos, item,
 				       KDBUS_PART_HEADER_SIZE);
 		if (ret < 0)
 			goto exit_free;
-
 		pos += KDBUS_PART_HEADER_SIZE;
 
 		list_for_each_entry(e, &owner_conn->names_list, conn_entry) {
