@@ -1,8 +1,7 @@
 External API:
   - rules for: which unknown items to ignore in userspace?
-  - pids and namespaces, ref struct pid
+  - pids and namespaces, ref struct pid?
   - move monitor to MATCH?
-  - rename name_info to connection_info?
 
 Internal:
   - update/rethink kdbus_conn_accounting_sub_size() use
