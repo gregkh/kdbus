@@ -48,9 +48,6 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			void __user *buf);
-int kdbus_cmd_name_info(struct kdbus_name_registry *reg,
-			struct kdbus_conn *conn,
-			void __user *buf);
 
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name);
