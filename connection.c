@@ -1718,6 +1718,8 @@ static int kdbus_conn_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct kdbus_conn *conn = file->private_data;
 
+	if (!(conn->type == KDBUS_CONN_EP_CONNECTED))
+		return -EPERM;
 	if (conn->flags & KDBUS_HELLO_STARTER)
 		return -EPERM;
 
