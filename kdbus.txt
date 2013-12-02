@@ -174,7 +174,7 @@ for the entire life-time of the created bus or namespace, closing it will
 immediately cleanup the entire bus or namespace and all its associated
 resources and connections. Every control file descriptor can only be used once
 to create a new bus or namespace; from that point, it is not used for any
-further communication than the final close().
+further communication until the final close().
 
 ===============================================================================
 Connection IDs and Well-Known Connection Names
@@ -307,9 +307,10 @@ process when new messages are queued up to be received.
 ===============================================================================
 Passing of Payload Data
 ===============================================================================
-When connecting to the bus, receivers have to register a memory pool, large
-enough to carry all backlog of data enqueued for the connection. The pool is
-usually an MAP_ANONYMOUS area created upfront with mmap().
+When connecting to the bus, receivers request a memory pool of a given size,
+large enough to carry all backlog of data enqueued for the connection. The
+pool is internally backed by a shared memory file which can be mmap()ed by
+the receiver.
 
 KDBUS_MSG_PAYLOAD_VEC:
 Messages are directly copied by the sending process into the receiver's pool,
