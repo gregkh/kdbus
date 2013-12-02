@@ -984,11 +984,11 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	struct kdbus_conn_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_name_entry *e = NULL;
+	size_t off, pos, names_size = 0;
+	char *name = NULL;
+	int ret = 0;
 	u64 size;
 	u32 hash;
-	char *name = NULL;
-	size_t off;
-	int ret = 0;
 
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_info))
 		return -EFAULT;
@@ -1042,40 +1042,71 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 		goto exit_free;
 	}
 
-	if (owner_conn->meta.size == 0)
-		goto exit_free;
+	mutex_lock(&conn->names_lock);
+	list_for_each_entry(e, &conn->names_list, conn_entry)
+		names_size += strlen(e->name) + 1;
 
-	info.size = sizeof(struct kdbus_conn_info) + owner_conn->meta.size;
+	/*
+	 * skip the rest of this function if there is neither
+	 * metadata nor well-known names for this connection.
+	 */
+	if (owner_conn->meta.size == 0 && names_size == 0)
+		goto exit_unlock;
+
+	if (names_size)
+		names_size = KDBUS_ITEM_SIZE(names_size);
+
+	info.size = sizeof(struct kdbus_conn_info)
+		    + owner_conn->meta.size + names_size;
 	info.id = owner_conn->id;
-	if (e)
-		cmd_info->flags = e->flags;
+	info.flags = owner_conn->flags;
 
 	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
 	if (ret < 0)
+		goto exit_unlock;
+
+	ret = kdbus_pool_write(conn->pool, off, &info, sizeof(info));
+	if (ret < 0)
 		goto exit_free;
 
-	ret = kdbus_pool_write(conn->pool, off,
-			       &info, sizeof(struct kdbus_conn_info));
-	if (ret < 0) {
-		kdbus_pool_free(conn->pool, off);
-		goto exit_free;
-	}
+	pos = off + sizeof(struct kdbus_conn_info);
 
-	ret = kdbus_pool_write(conn->pool, off + sizeof(struct kdbus_conn_info),
-			       owner_conn->meta.data, owner_conn->meta.size);
-	if (ret < 0) {
-		kdbus_pool_free(conn->pool, off);
+	ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta.data,
+			       owner_conn->meta.size);
+	if (ret < 0)
 		goto exit_free;
+
+	pos += owner_conn->meta.size;
+
+	list_for_each_entry(e, &conn->names_list, conn_entry) {
+		struct kdbus_item item;
+
+		item.size = names_size;
+		item.type = KDBUS_ITEM_NAMES;
+
+		ret = kdbus_pool_write(conn->pool, pos, &item, sizeof(item));
+		if (ret < 0)
+			goto exit_free;
+
+		ret = kdbus_pool_write(conn->pool, pos, e->name,
+				       strlen(e->name) + 1);
+		if (ret < 0)
+			goto exit_free;
 	}
 
 	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_conn_info)) {
 		ret = -EFAULT;
-		kdbus_pool_free(conn->pool, off);
 		goto exit_free;
 	}
 
 exit_free:
+	if (ret < 0)
+		kdbus_pool_free(conn->pool, off);
+
+exit_unlock:
+	mutex_unlock(&conn->names_lock);
 	kfree(cmd_info);
+
 	return ret;
 }
 
@@ -1392,7 +1423,6 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 
 		ret = kdbus_meta_append(&conn->meta, conn,
 					KDBUS_ATTACH_CREDS |
-					KDBUS_ATTACH_NAMES |
 					KDBUS_ATTACH_COMM |
 					KDBUS_ATTACH_EXE |
 					KDBUS_ATTACH_CMDLINE |
