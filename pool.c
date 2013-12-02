@@ -363,13 +363,16 @@ int kdbus_pool_free(struct kdbus_pool *pool, size_t off)
 }
 
 /* copy data from a file to ia page in the receiver's pool */
-static int kdbus_pool_copy_file(void *to, struct file *f, size_t off,
-				size_t count)
+static int kdbus_pool_copy_file(struct page *p, size_t start,
+				struct file *f, size_t off, size_t count)
 {
+	char *kaddr;
 	ssize_t n;
 	loff_t o = off;
 
-	n = f->f_op->read(f, (char __force __user *)to, count, &o);
+	kaddr = kmap(p);
+	n = f->f_op->read(f, (char __force __user *)kaddr + start, count, &o);
+	kunmap(p);
 	if (n < 0)
 		return n;
 	if (n != count)
@@ -379,19 +382,24 @@ static int kdbus_pool_copy_file(void *to, struct file *f, size_t off,
 }
 
 /* copy data to a page in the receiver's pool */
-static int kdbus_pool_copy_data(void *to, void __user *from, size_t count)
+static int kdbus_pool_copy_data(struct page *p, size_t start,
+				void __user *from, size_t count)
 {
+	char *kaddr;
 	unsigned long remain;
 
 	if (fault_in_pages_readable(from, count) < 0)
 		return -EFAULT;
 
+	kaddr = kmap_atomic(p);
 	pagefault_disable();
-	remain = __copy_from_user_inatomic(to, from, count);
+	remain = __copy_from_user_inatomic(kaddr + start, from, count);
 	pagefault_enable();
+	kunmap_atomic(kaddr);
 	if (remain > 0)
 		return -EFAULT;
 
+	cond_resched();
 	return 0;
 }
 
@@ -414,7 +422,6 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 		unsigned long n;
 		void *fsdata;
 		int status;
-		char *kaddr;
 
 		o = fpos & (PAGE_CACHE_SIZE - 1);
 		n = min_t(unsigned long, PAGE_CACHE_SIZE - o, rem);
@@ -426,12 +433,10 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 			break;
 		}
 
-		kaddr = kmap_atomic(p);
 		if (data)
-			ret = kdbus_pool_copy_data(kaddr + o, data + dpos, n);
+			ret = kdbus_pool_copy_data(p, o, data + dpos, n);
 		else
-			ret = kdbus_pool_copy_file(kaddr + o, f_src, off_src, n);
-		kunmap_atomic(kaddr);
+			ret = kdbus_pool_copy_file(p, o, f_src, off_src, n);
 		mark_page_accessed(p);
 
 		status = aops->write_end(f_dst, mapping, fpos, n, n, p, fsdata);
@@ -467,10 +472,9 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-
 	ret = kdbus_pool_copy(pool->f, off, (void __user *)data, NULL, 0, len);
-
 	set_fs(old_fs);
+
 	return ret;
 }
 
