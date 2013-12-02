@@ -1053,8 +1053,8 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	if (owner_conn->meta.size == 0 && names_size == 0)
 		goto exit_unlock;
 
-	info.size = sizeof(struct kdbus_conn_info)
-		    + owner_conn->meta.size + names_size;
+	info.size = sizeof(struct kdbus_conn_info) +
+		    owner_conn->meta.size + names_size;
 
 	if (names_size)
 		info.size += KDBUS_ITEM_SIZE(names_size);
