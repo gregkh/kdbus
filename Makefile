@@ -1,9 +1,9 @@
 kdbus-y	:= \
 	bus.o \
 	connection.o \
-	pool.o \
-	memfd.o \
 	endpoint.o \
+	handle.o \
+	memfd.o \
 	main.o \
 	match.o \
 	message.o \
@@ -11,7 +11,8 @@ kdbus-y	:= \
 	names.o \
 	notify.o \
 	namespace.o \
-	policy.o
+	policy.o \
+	pool.o
 
 # obj-$(CONFIG_KDBUS)	+= kdbus.o
 obj-m += kdbus.o

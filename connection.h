@@ -17,30 +17,10 @@
 #include "pool.h"
 #include "metadata.h"
 
-/*
- * kdbus connection
- * - connection to a control node or an endpoint
- */
-enum kdbus_conn_type {
-	_KDBUS_CONN_NULL,
-	KDBUS_CONN_CONTROL,		/* new fd of a control node */
-	KDBUS_CONN_CONTROL_NS_OWNER,	/* fd to hold a namespace */
-	KDBUS_CONN_CONTROL_BUS_OWNER,	/* fd to hold a bus */
-	KDBUS_CONN_EP,			/* new fd of a bus node */
-	KDBUS_CONN_EP_CONNECTED,	/* connection after HELLO */
-	KDBUS_CONN_EP_DISCONNECTED,	/* closed connection */
-	KDBUS_CONN_EP_OWNER,		/* fd to hold an endpoint */
-};
-
 struct kdbus_conn {
 	struct kref kref;
-	enum kdbus_conn_type type;
-	struct kdbus_ns *ns;
-	union {
-		struct kdbus_ns *ns_owner;
-		struct kdbus_bus *bus_owner;
-		struct kdbus_ep *ep;
-	};
+	struct kdbus_ep *ep;
+
 	u64 id;
 	u64 flags;
 	u64 attach_flags;
@@ -75,7 +55,18 @@ struct kdbus_conn {
 
 struct kdbus_kmsg;
 struct kdbus_conn_queue;
+struct kdbus_name_registry;
 
+int kdbus_conn_new(struct kdbus_ep *ep,
+		   struct kdbus_cmd_hello *hello,
+		   struct kdbus_conn **conn);
+struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
+void kdbus_conn_unref(struct kdbus_conn *conn);
+
+int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf);
+int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
+			struct kdbus_conn *conn,
+			void __user *buf);
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);

@@ -42,9 +42,6 @@
 #include "policy.h"
 #include "metadata.h"
 
-struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
-void kdbus_conn_unref(struct kdbus_conn *conn);
-
 struct kdbus_conn_queue {
 	struct list_head entry;
 
@@ -314,9 +311,6 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 	size_t off;
 	int ret = 0;
 
-	if (!conn->type == KDBUS_CONN_EP_CONNECTED)
-		return -ENOTCONN;
-
 	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
 		return -ECOMM;
 
@@ -571,9 +565,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		mutex_lock(&ep->bus->lock);
 		hash_for_each(ep->bus->conn_hash, i, conn_dst, hentry) {
-			if (conn_dst->type != KDBUS_CONN_EP_CONNECTED)
-				continue;
-
 			if (conn_dst->id == msg->src_id)
 				continue;
 
@@ -747,8 +738,7 @@ remove_unused:
 	return ret;
 }
 
-static int
-kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
+int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 {
 	struct kdbus_conn_queue *queue;
 	u64 off;
@@ -835,57 +825,9 @@ void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size)
 	mutex_unlock(&conn->accounting_lock);
 }
 
-/* kdbus file operations */
-static int kdbus_conn_open(struct inode *inode, struct file *file)
+static void __kdbus_conn_free(struct kref *kref)
 {
-	struct kdbus_conn *conn;
-	struct kdbus_ns *ns;
-	struct kdbus_ep *ep;
-	int ret;
-
-	conn = kzalloc(sizeof(struct kdbus_conn), GFP_KERNEL);
-	if (!conn)
-		return -ENOMEM;
-
-	kref_init(&conn->kref);
-
-	/* find and reference namespace */
-	ns = kdbus_ns_find_by_major(MAJOR(inode->i_rdev));
-	if (!ns) {
-		kfree(conn);
-		return -ESHUTDOWN;
-	}
-	conn->ns = kdbus_ns_ref(ns);
-	file->private_data = conn;
-
-	/* control device node */
-	if (MINOR(inode->i_rdev) == 0) {
-		conn->type = KDBUS_CONN_CONTROL;
-		return 0;
-	}
-
-	/* find endpoint for device node */
-	mutex_lock(&conn->ns->lock);
-	ep = idr_find(&conn->ns->idr, MINOR(inode->i_rdev));
-	if (!ep || ep->disconnected) {
-		ret = -ESHUTDOWN;
-		goto exit_unlock;
-	}
-
-	/* create endpoint connection */
-	conn->type = KDBUS_CONN_EP;
-	conn->ep = kdbus_ep_ref(ep);
-	mutex_unlock(&conn->ns->lock);
-	return 0;
-
-exit_unlock:
-	mutex_unlock(&conn->ns->lock);
-	kfree(conn);
-	return ret;
-}
-
-static void kdbus_conn_cleanup(struct kdbus_conn *conn)
-{
+	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 	struct kdbus_conn_queue *queue, *tmp;
 	struct list_head list;
 
@@ -895,7 +837,6 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 	mutex_lock(&conn->ep->bus->lock);
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
-	conn->type = KDBUS_CONN_EP_DISCONNECTED;
 	mutex_unlock(&conn->ep->bus->lock);
 
 	/* clean up any messages still left on this endpoint */
@@ -926,6 +867,9 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 		kdbus_conn_queue_cleanup(queue);
 	}
 
+	kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_REMOVE,
+			       conn->id, conn->flags);
+
 	del_timer(&conn->timer);
 	cancel_work_sync(&conn->work);
 	kdbus_name_remove_by_conn(conn->ep->bus->name_registry, conn);
@@ -936,6 +880,18 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 
 	kdbus_meta_free(&conn->meta);
 	kdbus_pool_cleanup(conn->pool);
+	kfree(conn);
+}
+
+struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
+{
+	kref_get(&conn->kref);
+	return conn;
+}
+
+void kdbus_conn_unref(struct kdbus_conn *conn)
+{
+	kref_put(&conn->kref, __kdbus_conn_free);
 }
 
 /*
@@ -1110,630 +1066,121 @@ exit_unlock:
 	return ret;
 }
 
-static void __kdbus_conn_free(struct kref *kref)
+int kdbus_conn_new(struct kdbus_ep *ep,
+		   struct kdbus_cmd_hello *hello,
+		   struct kdbus_conn **c)
 {
-	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
-
-	kfree(conn);
-}
-
-struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
-{
-	kref_get(&conn->kref);
-	return conn;
-}
-
-void kdbus_conn_unref(struct kdbus_conn *conn)
-{
-	kref_put(&conn->kref, __kdbus_conn_free);
-}
-
-static int kdbus_conn_release(struct inode *inode, struct file *file)
-{
-	struct kdbus_conn *conn = file->private_data;
-
-	switch (conn->type) {
-	case KDBUS_CONN_CONTROL_NS_OWNER:
-		kdbus_ns_disconnect(conn->ns_owner);
-		kdbus_ns_unref(conn->ns_owner);
-		break;
-
-	case KDBUS_CONN_CONTROL_BUS_OWNER:
-		kdbus_bus_disconnect(conn->bus_owner);
-		kdbus_bus_unref(conn->bus_owner);
-		break;
-
-	case KDBUS_CONN_EP_OWNER:
-		kdbus_ep_disconnect(conn->ep);
-		kdbus_ep_unref(conn->ep);
-		break;
-
-	case KDBUS_CONN_EP_CONNECTED:
-		kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_REMOVE,
-				       conn->id, conn->flags);
-		kdbus_conn_cleanup(conn);
-		break;
-
-	default:
-		break;
-	}
-
-	kdbus_ns_unref(conn->ns);
-	kdbus_conn_unref(conn);
-	return 0;
-}
-
-static bool kdbus_check_flags(u64 kernel_flags)
-{
-	/* The higher 32bit are considered 'incompatible
-	 * flags'. Refuse them all for now */
-	return kernel_flags <= 0xFFFFFFFFULL;
-}
-
-/* kdbus control device commands */
-static long kdbus_conn_ioctl_control(struct file *file, unsigned int cmd,
-				     void __user *buf)
-{
-	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_bus_kmake *bus_kmake = NULL;
-	struct kdbus_cmd_ns_kmake *ns_kmake = NULL;
-	struct kdbus_bus *bus = NULL;
-	struct kdbus_ns *ns = NULL;
-	umode_t mode = 0600;
 	int ret;
+	struct kdbus_conn *conn;
+	struct kdbus_bus *bus = ep->bus;
+	const struct kdbus_item *item;
+	const char *starter_name = NULL;
 
-	switch (cmd) {
-	case KDBUS_CMD_BUS_MAKE: {
-		kgid_t gid = KGIDT_INIT(0);
+	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
+	if (!conn)
+		return -ENOMEM;
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
+	ret = kdbus_pool_new(&conn->pool, hello->pool_size);
+	if (ret < 0)
+		return ret;
 
-		ret = kdbus_bus_make_user(buf, &bus_kmake);
-		if (ret < 0)
-			break;
-
-		if (!kdbus_check_flags(bus_kmake->make.flags)) {
-			ret = -ENOTSUPP;
-			break;
-		}
-
-		if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD) {
-			mode = 0666;
-		} else if (bus_kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP) {
-			mode = 0660;
-			gid = current_fsgid();
-		}
-
-		ret = kdbus_bus_new(conn->ns, bus_kmake, mode, current_fsuid(),
-				    gid, &bus);
-		if (ret < 0)
-			break;
-
-		/* turn the control fd into a new bus owner device */
-		conn->type = KDBUS_CONN_CONTROL_BUS_OWNER;
-		conn->bus_owner = bus;
-		break;
-	}
-
-	case KDBUS_CMD_NS_MAKE:
-		if (!capable(CAP_IPC_OWNER)) {
-			ret = -EPERM;
-			break;
-		}
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_ns_kmake_user(buf, &ns_kmake);
-		if (ret < 0)
-			break;
-
-		if (!kdbus_check_flags(ns_kmake->make.flags)) {
-			ret = -ENOTSUPP;
-			break;
-		}
-
-		if (ns_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
-			mode = 0666;
-
-		ret = kdbus_ns_new(kdbus_ns_init, ns_kmake->name, mode, &ns);
-		if (ret < 0)
-			break;
-
-		/* turn the control fd into a new ns owner device */
-		conn->type = KDBUS_CONN_CONTROL_NS_OWNER;
-		conn->ns_owner = ns;
-		break;
-
-	case KDBUS_CMD_MEMFD_NEW: {
-		int fd;
-		int __user *addr = buf;
-
-		ret = kdbus_memfd_new(&fd);
-		if (ret < 0)
-			break;
-
-		if (put_user(fd, addr))
-			ret = -EFAULT;
-		break;
-	}
-
-	default:
-		ret = -ENOTTY;
-		break;
-	}
-
-	kfree(bus_kmake);
-	kfree(ns_kmake);
-	return ret;
-}
-
-/* kdbus endpoint make commands */
-static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
-				void __user *buf)
-{
-	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_cmd_ep_kmake *kmake = NULL;
-	struct kdbus_cmd_hello *hello = NULL;
-	struct kdbus_bus *bus = conn->ep->bus;
-	long ret = 0;
-
-	switch (cmd) {
-	case KDBUS_CMD_EP_MAKE: {
-		umode_t mode = 0;
-		kgid_t gid = KGIDT_INIT(0);
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_ep_kmake_user(buf, &kmake);
-		if (ret < 0)
-			break;
-
-		if (!kdbus_check_flags(kmake->make.flags)) {
-			ret = -ENOTSUPP;
-			break;
-		}
-
-		if (kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD) {
-			mode = 0666;
-		} else if (kmake->make.flags & KDBUS_MAKE_ACCESS_GROUP) {
-			mode = 0660;
-			gid = current_fsgid();
-		}
-
-		ret = kdbus_ep_new(conn->ep->bus, kmake->name, mode,
-				   current_fsuid(), gid,
-				   kmake->make.flags & KDBUS_MAKE_POLICY_OPEN);
-
-		conn->type = KDBUS_CONN_EP_OWNER;
-		break;
-	}
-
-	case KDBUS_CMD_HELLO: {
-		/* turn this fd into a connection. */
-		const struct kdbus_item *item;
-		const char *starter_name = NULL;
-		size_t size;
-		void *v;
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_hello)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		if (size < sizeof(struct kdbus_cmd_hello) ||
-		    size > KDBUS_HELLO_MAX_SIZE) {
-			ret = -EMSGSIZE;
-			break;
-		}
-
-		v = memdup_user(buf, size);
-		if (IS_ERR(v)) {
-			ret = PTR_ERR(v);
-			break;
-		}
-		hello = v;
-
-		if (!kdbus_check_flags(hello->conn_flags)) {
-			ret = -ENOTSUPP;
-			break;
-		}
-
-		if (hello->pool_size == 0 ||
-		    !IS_ALIGNED(hello->pool_size, PAGE_SIZE)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_pool_new(&conn->pool, hello->pool_size);
-		if (ret < 0)
-			break;
-
-		KDBUS_PART_FOREACH(item, hello, items) {
-			switch (item->type) {
-			case KDBUS_ITEM_STARTER_NAME:
-				if (!(hello->conn_flags & KDBUS_HELLO_STARTER)) {
-					ret = -EINVAL;
-					break;
-				}
-
-				starter_name = item->str;
-				break;
-
-			default:
+	KDBUS_PART_FOREACH(item, hello, items) {
+		switch (item->type) {
+		case KDBUS_ITEM_STARTER_NAME:
+			if (!(hello->conn_flags & KDBUS_HELLO_STARTER)) {
 				ret = -EINVAL;
 				break;
 			}
 
-			if (ret < 0)
-				break;
-		}
+			starter_name = item->str;
+			break;
 
-		if ((hello->conn_flags & KDBUS_HELLO_STARTER) &&
-		    !starter_name)
+		default:
 			ret = -EINVAL;
+			break;
+		}
 
 		if (ret < 0)
 			break;
+	}
 
-		mutex_init(&conn->lock);
-		mutex_init(&conn->names_lock);
-		mutex_init(&conn->accounting_lock);
-		INIT_LIST_HEAD(&conn->msg_list);
-		INIT_LIST_HEAD(&conn->names_list);
-		INIT_LIST_HEAD(&conn->names_queue_list);
-		INIT_LIST_HEAD(&conn->monitor_entry);
+	if ((hello->conn_flags & KDBUS_HELLO_STARTER) &&
+	    !starter_name)
+		ret = -EINVAL;
 
-		INIT_WORK(&conn->work, kdbus_conn_work);
+	if (ret < 0)
+		return ret;
 
-		init_timer(&conn->timer);
-		conn->timer.expires = 0;
-		conn->timer.function = kdbus_conn_timer_func;
-		conn->timer.data = (unsigned long) conn;
-		add_timer(&conn->timer);
+	conn->ep = ep;
 
-		conn->match_db = kdbus_match_db_new();
+	kref_init(&conn->kref);
+	mutex_init(&conn->lock);
+	mutex_init(&conn->names_lock);
+	mutex_init(&conn->accounting_lock);
+	INIT_LIST_HEAD(&conn->msg_list);
+	INIT_LIST_HEAD(&conn->names_list);
+	INIT_LIST_HEAD(&conn->names_queue_list);
+	INIT_LIST_HEAD(&conn->monitor_entry);
 
-		/* link into bus; get new id for this connection */
-		mutex_lock(&bus->lock);
-		conn->id = bus->conn_id_next++;
-		hash_add(bus->conn_hash, &conn->hentry, conn->id);
-		mutex_unlock(&bus->lock);
+	INIT_WORK(&conn->work, kdbus_conn_work);
 
-		/* return properties of this connection to the caller */
-		hello->bus_flags = bus->bus_flags;
-		hello->bloom_size = bus->bloom_size;
-		hello->id = conn->id;
+	init_timer(&conn->timer);
+	conn->timer.expires = 0;
+	conn->timer.function = kdbus_conn_timer_func;
+	conn->timer.data = (unsigned long) conn;
+	add_timer(&conn->timer);
 
-		BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
-		memcpy(hello->id128, bus->id128, sizeof(hello->id128));
+	conn->match_db = kdbus_match_db_new();
 
-		ret = kdbus_meta_append(&conn->meta, conn,
-					KDBUS_ATTACH_CREDS |
-					KDBUS_ATTACH_COMM |
-					KDBUS_ATTACH_EXE |
-					KDBUS_ATTACH_CMDLINE |
-					KDBUS_ATTACH_CGROUP |
-					KDBUS_ATTACH_CAPS |
-					KDBUS_ATTACH_SECLABEL |
-					KDBUS_ATTACH_AUDIT);
+	/* link into bus; get new id for this connection */
+	mutex_lock(&bus->lock);
+	conn->id = bus->conn_id_next++;
+	hash_add(bus->conn_hash, &conn->hentry, conn->id);
+	mutex_unlock(&bus->lock);
+
+	/* return properties of this connection to the caller */
+	hello->bus_flags = bus->bus_flags;
+	hello->bloom_size = bus->bloom_size;
+	hello->id = conn->id;
+
+	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
+	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
+
+	ret = kdbus_meta_append(&conn->meta, conn,
+				KDBUS_ATTACH_CREDS |
+				KDBUS_ATTACH_COMM |
+				KDBUS_ATTACH_EXE |
+				KDBUS_ATTACH_CMDLINE |
+				KDBUS_ATTACH_CGROUP |
+				KDBUS_ATTACH_CAPS |
+				KDBUS_ATTACH_SECLABEL |
+				KDBUS_ATTACH_AUDIT);
+	if (ret < 0) {
+		kdbus_conn_unref(conn);
+		return ret;
+	}
+
+	/* notify about the new active connection */
+	ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD,
+				     conn->id, conn->flags);
+	if (ret < 0) {
+		kdbus_conn_unref(conn);
+		return ret;
+	}
+
+	conn->flags = hello->conn_flags;
+	conn->attach_flags = hello->attach_flags;
+
+	if (starter_name) {
+		ret = kdbus_name_acquire(bus->name_registry, conn,
+					 starter_name, 0, NULL);
 		if (ret < 0) {
-			kdbus_conn_cleanup(conn);
-			break;
+			kdbus_conn_unref(conn);
+			return ret;
 		}
-
-		if (copy_to_user(buf, hello, sizeof(struct kdbus_cmd_hello))) {
-			kdbus_conn_cleanup(conn);
-			ret = -EFAULT;
-			break;
-		}
-
-		/* notify about the new active connection */
-		ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD,
-					     conn->id, conn->flags);
-		if (ret < 0) {
-			kdbus_conn_cleanup(conn);
-			break;
-		}
-
-		conn->flags = hello->conn_flags;
-		conn->attach_flags = hello->attach_flags;
-		conn->type = KDBUS_CONN_EP_CONNECTED;
-
-		if (starter_name) {
-			ret = kdbus_name_acquire(bus->name_registry, conn,
-						 starter_name, 0, NULL);
-			if (ret < 0) {
-				kdbus_conn_cleanup(conn);
-				break;
-			}
-		}
-
-		break;
 	}
 
-	default:
-		ret = -ENOTTY;
-		break;
-	}
+	*c = conn;
 
-	kfree(kmake);
-	kfree(hello);
-
-	return ret;
+	return 0;
 }
-
-/* kdbus endpoint commands for connected peers */
-static long kdbus_conn_ioctl_ep_connected(struct file *file, unsigned int cmd,
-					  void __user *buf)
-{
-	struct kdbus_conn *conn = file->private_data;
-	struct kdbus_bus *bus = conn->ep->bus;
-	long ret = 0;
-
-	switch (cmd) {
-	case KDBUS_CMD_EP_POLICY_SET:
-		/* upload a policy for this endpoint */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		if (!conn->ep->policy_db)
-			conn->ep->policy_db = kdbus_policy_db_new();
-		if (!conn->ep->policy_db)
-			return -ENOMEM;
-
-		ret = kdbus_cmd_policy_set_from_user(conn->ep->policy_db, buf);
-		break;
-
-	case KDBUS_CMD_NAME_ACQUIRE:
-		/* acquire a well-known name */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, buf);
-		break;
-
-	case KDBUS_CMD_NAME_RELEASE:
-		/* release a well-known name */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_cmd_name_release(bus->name_registry, conn, buf);
-		break;
-
-	case KDBUS_CMD_NAME_LIST:
-		/* return all current well-known names */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
-		break;
-
-	case KDBUS_CMD_CONN_INFO:
-		/* return details about a specific well-known name */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_cmd_conn_info(bus->name_registry, conn, buf);
-		break;
-
-	case KDBUS_CMD_MATCH_ADD:
-		/* subscribe to/filter for broadcast messages */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_match_db_add(conn, buf);
-		break;
-
-	case KDBUS_CMD_MATCH_REMOVE:
-		/* unsubscribe from broadcast messages */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_match_db_remove(conn, buf);
-		break;
-
-	case KDBUS_CMD_MONITOR: {
-		/* turn on/turn off monitor mode */
-		struct kdbus_cmd_monitor cmd_monitor;
-		struct kdbus_conn *mconn = conn;
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		if (copy_from_user(&cmd_monitor, buf, sizeof(cmd_monitor))) {
-			ret = -EFAULT;
-			break;
-		}
-
-		/* privileged users can act on behalf of someone else */
-		if (cmd_monitor.id == 0) {
-			mconn = conn;
-		} else if (cmd_monitor.id != conn->id) {
-			if (!kdbus_bus_uid_is_privileged(bus)) {
-				ret = -EPERM;
-				break;
-			}
-
-			mconn = kdbus_bus_find_conn_by_id(bus, cmd_monitor.id);
-			if (!mconn) {
-				ret = -ENXIO;
-				break;
-			}
-		}
-
-		mutex_lock(&bus->lock);
-		if (cmd_monitor.flags && KDBUS_MONITOR_ENABLE)
-			list_add_tail(&mconn->monitor_entry, &bus->monitors_list);
-		else
-			list_del(&mconn->monitor_entry);
-		mutex_unlock(&bus->lock);
-		break;
-	}
-
-	case KDBUS_CMD_MSG_SEND: {
-		/* submit a message which will be queued in the receiver */
-		struct kdbus_kmsg *kmsg;
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_conn_kmsg_send(conn->ep, conn, kmsg);
-		kdbus_kmsg_free(kmsg);
-		break;
-	}
-
-	case KDBUS_CMD_MSG_RECV: {
-		/* receive a pointer to a queued message */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_conn_recv_msg(conn, buf);
-		break;
-	}
-
-	case KDBUS_CMD_FREE: {
-		u64 off;
-
-		/* free the memory used in the receiver's pool */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		if (copy_from_user(&off, buf, sizeof(__u64))) {
-			ret = -EFAULT;
-			break;
-		}
-
-		mutex_lock(&conn->lock);
-		ret = kdbus_pool_free(conn->pool, off);
-		mutex_unlock(&conn->lock);
-		break;
-	}
-
-	case KDBUS_CMD_MEMFD_NEW: {
-		int fd;
-		int __user *addr = buf;
-
-		ret = kdbus_memfd_new(&fd);
-		if (ret < 0)
-			break;
-
-		if (put_user(fd, addr))
-			ret = -EFAULT;
-		break;
-	}
-
-	default:
-		ret = -ENOTTY;
-		break;
-	}
-
-	return ret;
-}
-
-static long kdbus_conn_ioctl(struct file *file, unsigned int cmd,
-			     unsigned long arg)
-{
-	struct kdbus_conn *conn = file->private_data;
-	void __user *argp = (void __user *)arg;
-
-	switch (conn->type) {
-	case KDBUS_CONN_CONTROL:
-		return kdbus_conn_ioctl_control(file, cmd, argp);
-
-	case KDBUS_CONN_EP:
-		return kdbus_conn_ioctl_ep(file, cmd, argp);
-
-	case KDBUS_CONN_EP_CONNECTED:
-		return kdbus_conn_ioctl_ep_connected(file, cmd, argp);
-
-	default:
-		return -EBADFD;
-	}
-}
-
-static unsigned int kdbus_conn_poll(struct file *file,
-				    struct poll_table_struct *wait)
-{
-	struct kdbus_conn *conn = file->private_data;
-	unsigned int mask = 0;
-
-	/* Only an endpoint can read/write data */
-	if (conn->type != KDBUS_CONN_EP_CONNECTED)
-		return POLLERR | POLLHUP;
-
-	poll_wait(file, &conn->ep->wait, wait);
-
-	mutex_lock(&conn->lock);
-	if (unlikely(conn->ep->disconnected))
-		mask |= POLLERR | POLLHUP;
-	else if (!list_empty(&conn->msg_list))
-		mask |= POLLIN | POLLRDNORM;
-	mutex_unlock(&conn->lock);
-
-	return mask;
-}
-
-static int kdbus_conn_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	struct kdbus_conn *conn = file->private_data;
-
-	if (!(conn->type == KDBUS_CONN_EP_CONNECTED))
-		return -EPERM;
-	if (conn->flags & KDBUS_HELLO_STARTER)
-		return -EPERM;
-
-	return kdbus_pool_mmap(conn->pool, vma);
-}
-
-const struct file_operations kdbus_device_ops = {
-	.owner =		THIS_MODULE,
-	.open =			kdbus_conn_open,
-	.release =		kdbus_conn_release,
-	.poll =			kdbus_conn_poll,
-	.llseek =		noop_llseek,
-	.unlocked_ioctl =	kdbus_conn_ioctl,
-	.mmap =			kdbus_conn_mmap,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl =		kdbus_conn_ioctl,
-#endif
-};
