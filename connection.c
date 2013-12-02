@@ -1072,13 +1072,12 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	pos += owner_conn->meta.size;
 
 	if (names_size > 0) {
-		char tmp[KDBUS_PART_HEADER_SIZE];
-		struct kdbus_item *item = (struct kdbus_item *)tmp;
+		KDBUS_PART_HEADER item = {
+			.size = KDBUS_PART_HEADER_SIZE + names_size,
+			.type = KDBUS_ITEM_NAMES,
+		};
 
-		item->size = KDBUS_PART_HEADER_SIZE + names_size;
-		item->type = KDBUS_ITEM_NAMES;
-
-		ret = kdbus_pool_write(conn->pool, pos, item,
+		ret = kdbus_pool_write(conn->pool, pos, &item,
 				       KDBUS_PART_HEADER_SIZE);
 		if (ret < 0)
 			goto exit_free;
