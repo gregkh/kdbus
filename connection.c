@@ -1053,11 +1053,12 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	if (owner_conn->meta.size == 0 && names_size == 0)
 		goto exit_unlock;
 
-	if (names_size)
-		names_size = KDBUS_ITEM_SIZE(names_size);
-
 	info.size = sizeof(struct kdbus_conn_info)
 		    + owner_conn->meta.size + names_size;
+
+	if (names_size)
+		info.size += KDBUS_ITEM_SIZE(names_size);
+
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
@@ -1078,20 +1079,27 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 
 	pos += owner_conn->meta.size;
 
-	list_for_each_entry(e, &conn->names_list, conn_entry) {
+	if (names_size) {
 		struct kdbus_item item;
 
-		item.size = names_size;
+		item.size = sizeof(item) + names_size;
 		item.type = KDBUS_ITEM_NAMES;
 
 		ret = kdbus_pool_write(conn->pool, pos, &item, sizeof(item));
 		if (ret < 0)
 			goto exit_free;
 
-		ret = kdbus_pool_write(conn->pool, pos, e->name,
-				       strlen(e->name) + 1);
-		if (ret < 0)
-			goto exit_free;
+		pos += sizeof(item);
+
+		list_for_each_entry(e, &conn->names_list, conn_entry) {
+			size_t slen = strlen(e->name) + 1;
+
+			ret = kdbus_pool_write(conn->pool, pos, e->name, slen);
+			if (ret < 0)
+				goto exit_free;
+
+			pos += slen;
+		}
 	}
 
 	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_conn_info)) {
