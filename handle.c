@@ -146,6 +146,10 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		kdbus_ep_unref(handle->ep);
 		break;
 
+	case KDBUS_CONN_EP:
+		kdbus_ep_unref(handle->ep);
+		break;
+
 	case KDBUS_CONN_EP_CONNECTED:
 		kdbus_conn_unref(handle->conn);
 		break;
