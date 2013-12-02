@@ -145,8 +145,10 @@ static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
 	if (!fp)
 		return -EBADF;
 
-	/* We only accept kdbus_memfd files as payload, other files need to
-	 * be passed with KDBUS_MSG_FDS. */
+	/*
+	 * We only accept kdbus_memfd files as payload, other files need to
+	 * be passed with KDBUS_MSG_FDS.
+	 */
 	if (!kdbus_is_memfd(fp)) {
 		ret = -EMEDIUMTYPE;
 		goto exit_unref;
@@ -225,10 +227,12 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 				if (pad == 0)
 					break;
 
-				/* Preserve the alignment for the next payload
+				/*
+				 * Preserve the alignment for the next payload
 				 * record in the output buffer; write as many
 				 * null-bytes to the buffer which the \0-bytes
-				 * record would have shifted the alignment */
+				 * record would have shifted the alignment.
+				 */
 				kdbus_pool_write_user(conn->pool, off + vec_data,
 						      "\0\0\0\0\0\0\0", pad);
 				vec_data += pad;
@@ -267,8 +271,10 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			if (ret < 0)
 				return ret;
 
-			/* remember the file and the location of the fd number
-			 * which will be updated at RECV time */
+			/*
+			 * Remember the file and the location of the fd number
+			 * which will be updated at RECV time.
+			 */
 			memfd = items + offsetof(struct kdbus_item, memfd.fd);
 			queue->memfds[queue->memfds_count] = memfd;
 			queue->memfds_fp[queue->memfds_count] = fp;
@@ -575,10 +581,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						       conn_src, kmsg))
 				continue;
 
-			/* The first receiver which requests additional
+			/*
+			 * The first receiver which requests additional
 			 * metadata causes the message to carry it; all
 			 * receivers after that will see all of the added
-			 * data, even when they did not ask for it. */
+			 * data, even when they did not ask for it.
+			 */
 			kdbus_meta_append(&kmsg->meta, conn_src, conn_dst->attach_flags);
 
 			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
@@ -707,8 +715,10 @@ static int kdbus_conn_memfds_install(struct kdbus_conn *conn,
 		}
 	}
 
-	/* Update the file descriptor number in the items. We remembered
-	 * the locations of the values in the buffer. */
+	/*
+	 * Update the file descriptor number in the items. We remembered
+	 * the locations of the values in the buffer.
+	 */
 	for (i = 0; i < queue->memfds_count; i++) {
 		ret = kdbus_pool_write(conn->pool,
 				       queue->off + queue->memfds[i],
@@ -761,8 +771,10 @@ kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 		goto exit_unlock;
 	}
 
-	/* Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
-	 * the list of file descriptors to be able to cleanup on error. */
+	/*
+	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
+	 * the list of file descriptors to be able to cleanup on error.
+	 */
 	if (queue->memfds_count > 0) {
 		ret = kdbus_conn_memfds_install(conn, queue, &memfds);
 		if (ret < 0)
@@ -891,9 +903,11 @@ static void kdbus_conn_cleanup(struct kdbus_conn *conn)
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
 		list_del(&queue->entry);
 
-		/* we cannot hold "lock" and enqueue new messages with
+		/*
+		 * We cannot hold "lock" and enqueue new messages with
 		 * kdbus_notify_reply_dead(); move these messages
-		 * into a temporary list and handle them below */
+		 * into a temporary list and handle them below.
+		 */
 		if (queue->src_id != conn->id && queue->expect_reply) {
 			list_add_tail(&queue->entry, &list);
 		} else {
@@ -959,6 +973,109 @@ exit_unlock:
 
 	wake_up_interruptible(&conn_dst->ep->wait);
 
+	return ret;
+}
+
+int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
+			struct kdbus_conn *conn,
+			void __user *buf)
+{
+	struct kdbus_cmd_conn_info *cmd_info;
+	struct kdbus_conn_info info = {};
+	struct kdbus_conn *owner_conn = NULL;
+	struct kdbus_name_entry *e = NULL;
+	u64 size;
+	u32 hash;
+	char *name = NULL;
+	size_t off;
+	int ret = 0;
+
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_info))
+		return -EFAULT;
+
+	if (size < sizeof(struct kdbus_cmd_conn_info))
+		return -EINVAL;
+
+	if (size > sizeof(struct kdbus_cmd_conn_info) + KDBUS_NAME_MAX_LEN + 1)
+		return -EMSGSIZE;
+
+	cmd_info = memdup_user(buf, size);
+	if (IS_ERR(cmd_info))
+		return PTR_ERR(cmd_info);
+
+	/* The API offers to look up a connection by ID or by name */
+	if (cmd_info->id != 0) {
+		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
+						       cmd_info->id);
+	} else {
+		if (size == sizeof(struct kdbus_cmd_conn_info)) {
+			ret = -EINVAL;
+			goto exit_free;
+		}
+
+		if (!kdbus_name_is_valid(cmd_info->name)) {
+			ret = -EINVAL;
+			goto exit_free;
+		}
+
+		name = cmd_info->name;
+		hash = kdbus_str_hash(name);
+	}
+
+	/*
+	 * If a lookup by name was requested, set owner_conn to the
+	 * matching entry's connection pointer. Otherwise, owner_conn
+	 * was already set above.
+	 */
+	if (name) {
+		e = kdbus_name_lookup(reg, name);
+		if (!e) {
+			ret = -ENOENT;
+			goto exit_free;
+		}
+
+		owner_conn = e->conn;
+	}
+
+	if (!owner_conn) {
+		ret = -ENXIO;
+		goto exit_free;
+	}
+
+	if (owner_conn->meta.size == 0)
+		goto exit_free;
+
+	info.size = sizeof(struct kdbus_conn_info) + owner_conn->meta.size;
+	info.id = owner_conn->id;
+	if (e)
+		cmd_info->flags = e->flags;
+
+	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
+	if (ret < 0)
+		goto exit_free;
+
+	ret = kdbus_pool_write(conn->pool, off,
+			       &info, sizeof(struct kdbus_conn_info));
+	if (ret < 0) {
+		kdbus_pool_free(conn->pool, off);
+		goto exit_free;
+	}
+
+	ret = kdbus_pool_write(conn->pool, off + sizeof(struct kdbus_conn_info),
+			       owner_conn->meta.data, owner_conn->meta.size);
+	if (ret < 0) {
+		kdbus_pool_free(conn->pool, off);
+		goto exit_free;
+	}
+
+	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_conn_info)) {
+		ret = -EFAULT;
+		kdbus_pool_free(conn->pool, off);
+		goto exit_free;
+	}
+
+exit_free:
+	kfree(cmd_info);
 	return ret;
 }
 
@@ -1162,8 +1279,8 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		ret = kdbus_ep_new(conn->ep->bus, kmake->name, mode,
-			current_fsuid(), gid,
-			kmake->make.flags & KDBUS_MAKE_POLICY_OPEN);
+				   current_fsuid(), gid,
+				   kmake->make.flags & KDBUS_MAKE_POLICY_OPEN);
 
 		conn->type = KDBUS_CONN_EP_OWNER;
 		break;
@@ -1383,14 +1500,14 @@ static long kdbus_conn_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
 		break;
 
-	case KDBUS_CMD_NAME_INFO:
+	case KDBUS_CMD_CONN_INFO:
 		/* return details about a specific well-known name */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
 			break;
 		}
 
-		ret = kdbus_cmd_name_info(bus->name_registry, conn, buf);
+		ret = kdbus_cmd_conn_info(bus->name_registry, conn, buf);
 		break;
 
 	case KDBUS_CMD_MATCH_ADD:

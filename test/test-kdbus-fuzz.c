@@ -24,7 +24,7 @@ static unsigned int ioctl_cmds[] = {
 	KDBUS_CMD_NAME_ACQUIRE,
 	KDBUS_CMD_NAME_RELEASE,
 	KDBUS_CMD_NAME_LIST,
-	KDBUS_CMD_NAME_INFO,
+	KDBUS_CMD_CONN_INFO,
 	KDBUS_CMD_MATCH_ADD,
 	KDBUS_CMD_MATCH_REMOVE,
 	KDBUS_CMD_MONITOR,
@@ -52,7 +52,7 @@ static const char *ioctl_name(unsigned int ioctl)
 		return "NAME_RELEASE";
 	case KDBUS_CMD_NAME_LIST:
 		return "NAME_LIST";
-	case KDBUS_CMD_NAME_INFO:
+	case KDBUS_CMD_CONN_INFO:
 		return "NAME_INFO";
 	case KDBUS_CMD_MATCH_ADD:
 		return "MATCH_ADD";
