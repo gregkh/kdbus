@@ -15,7 +15,7 @@
 
 struct kdbus_pool;
 
-int kdbus_pool_init(struct kdbus_pool **pool, size_t size);
+int kdbus_pool_new(struct kdbus_pool **pool, size_t size);
 void kdbus_pool_cleanup(struct kdbus_pool *pool);
 
 int kdbus_pool_alloc(struct kdbus_pool *pool, size_t size, size_t *off);

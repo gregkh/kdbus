@@ -1327,7 +1327,7 @@ static long kdbus_conn_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_pool_init(&conn->pool, hello->pool_size);
+		ret = kdbus_pool_new(&conn->pool, hello->pool_size);
 		if (ret < 0)
 			break;
 

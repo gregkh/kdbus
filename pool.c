@@ -29,7 +29,18 @@
 #include "pool.h"
 #include "message.h"
 
-/*
+/**
+ * kdbus_pool - the receiver's buffer
+ * @f:			the backing shmem file
+ * @size:		the size of the file
+ * @busy:		the currently used size
+ * @slices:		all slices sorted by address
+ * @slices_busy:	tree of allocated slices
+ * @slices_free:	tree of free slices
+ *
+ * The receiver's buffer, managed as a pool of allocated and free
+ * slices containing the queued messages.
+ *
  * Messages sent with KDBUS_CMD_MSG_SEND are copied direcly by the
  * sending process into the receiver's pool.
  *
@@ -39,20 +50,25 @@
  * The internally allocated memory needs to be returned by the receiver
  * with KDBUS_CMD_MSG_FREE.
  */
-
-/* The receiver's buffer, managed as a pool of allocated and free
- * slices containing the queued messages. */
 struct kdbus_pool {
-	struct file *f;			/* shmem file */
-	size_t size;			/* size of file  */
-	size_t busy;			/* currently allocated size */
+	struct file *f;
+	size_t size;
+	size_t busy;
 
-	struct list_head slices;	/* all slices sorted by address */
-	struct rb_root slices_busy;	/* tree of allocated slices */
-	struct rb_root slices_free;	/* tree of free slices */
+	struct list_head slices;
+	struct rb_root slices_busy;
+	struct rb_root slices_free;
 };
 
-/* The pool has one or more slices, always spanning the entire size of the
+/**
+ * kdbus_slice - allocated element in kdbus_pool
+ * @off			offset of slice in the shmem file
+ * @size		size of slice
+ * @entry		entry in "all slices" list
+ * @rb_node		entry in free or busy list
+ * @free		unused slice
+ *
+ * The pool has one or more slices, always spanning the entire size of the
  * pool.
  *
  * Every slice is an element in a list sorted by the buffer address, to
@@ -60,10 +76,11 @@ struct kdbus_pool {
  *
  * Every slice is member in either the busy or the free tree. The free
  * tree is organized by slice size, the busy tree organized by buffer
- * offset. */
+ * offset.
+ */
 struct kdbus_slice {
-	size_t off;			/* offset of slice */
-	size_t size;			/* size of slice */
+	size_t off;
+	size_t size;
 
 	struct list_head entry;
 	struct rb_node rb_node;
@@ -264,7 +281,14 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
 	kdbus_pool_add_free_slice(pool, slice);
 }
 
-int kdbus_pool_init(struct kdbus_pool **pool, size_t size)
+/**
+ * kdbus_pool_new - create a new pool
+ * @pool:		newly allocated pool
+ * @size:		maximum size of the pool
+ *
+ * Returns: 0 on success, or negative errno on failure.
+ */
+int kdbus_pool_new(struct kdbus_pool **pool, size_t size)
 {
 	struct kdbus_pool *p;
 	struct file *f;
@@ -308,6 +332,10 @@ exit_free_p:
 	return ret;
 }
 
+/**
+ * kdbus_pool_cleanup() - destroy pool
+ * @pool		the receiver's pool
+ */
 void kdbus_pool_cleanup(struct kdbus_pool *pool)
 {
 	struct kdbus_slice *s, *tmp;
@@ -324,12 +352,29 @@ void kdbus_pool_cleanup(struct kdbus_pool *pool)
 	kfree(pool);
 }
 
+/**
+ * kdbus_pool_remain() - the number of free bytes in the pool
+ * @pool		the receiver's pool
+ *
+ * Returns: the number of unallocated bytes in the pool
+ */
 size_t kdbus_pool_remain(const struct kdbus_pool *pool)
 {
 	return pool->size - pool->busy;
 }
 
-/* allocate a message of the given size in the receiver's pool */
+/**
+ * kdbus_pool_alloc() - allocate memory from a pool
+ * @pool		the receiver's pool
+ * @size:		the number of bytes to allocate
+ * @off			the offset in bytes in the pool's file
+ *
+ *
+ * The returned offset is used for kdbus_pool_free() to
+ * free the allocated memory.
+ *
+ * Returns: 0 on success, or negative errno on failure.
+ */
 int kdbus_pool_alloc(struct kdbus_pool *pool, size_t size, size_t *off)
 {
 	struct kdbus_slice *s;
@@ -343,7 +388,16 @@ int kdbus_pool_alloc(struct kdbus_pool *pool, size_t size, size_t *off)
 	return 0;
 }
 
-/* free the allocated message */
+/**
+ * kdbus_pool_free() - give allocated memory back to the pool
+ * @pool		the receiver's pool
+ * @off			offset of allocated memory
+ *
+ * The offset was returned by the call to kdbus_pool_alloc(),
+ * the memory is returned to the pool.
+ *
+ * Returns: 0 on success, or negative errno on failure.
+ */
 int kdbus_pool_free(struct kdbus_pool *pool, size_t off)
 {
 	struct kdbus_slice *slice;
@@ -456,14 +510,38 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 	return ret;
 }
 
-/* copy user memory to the receiver's pool */
+/**
+ * kdbus_pool_write_user() - copy user memory to the pool
+ * @pool		the receiver's pool
+ * @off			offset of allocated memory
+ * @data:		user memory
+ * @len:		number of bytes to copy
+ *
+ * The offset was returned by the call to kdbus_pool_alloc().
+ * The user memory at @data will be copied to the @off in
+ * the allocated memory in the pool.
+ *
+ * Returns: the numbers of bytes copied, or negative errno on failure.
+ */
 ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
 			      void __user *data, size_t len)
 {
 	return kdbus_pool_copy(pool->f, off, data, NULL, 0, len);
 }
 
-/* copy kernel memory to the receiver's pool */
+/**
+ * kdbus_pool_write() - copy kernel memory to the pool
+ * @pool		the receiver's pool
+ * @off			offset of allocated memory
+ * @data:		user memory
+ * @len:		number of bytes to copy
+ *
+ * The offset was returned by the call to kdbus_pool_alloc().
+ * The user memory at @data will be copied to the @off in
+ * the allocated memory in the pool.
+ *
+ * Returns: the numbers of bytes copied, or negative errno on failure.
+ */
 ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 			 void *data, size_t len)
 {
@@ -478,7 +556,20 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 	return ret;
 }
 
-/* move memory from one pool into another one */
+/**
+ * kdbus_pool_write() - move memory from one pool into another one
+ * @dst_pool		the receiver's pool to copy to
+ * @src_pool		the receiver's pool to copy from
+ * @off			offset of allocated memory in the source pool,
+ * 			updated with the offset in the destination pool
+ * @len:		number of bytes to copy
+ *
+ * Move memory from one pool to another. Memory will be allocated in the
+ * destination pool, the memory copied over, and the free()d in source
+ * pool.
+ *
+ * Returns: 0 on success, or negative errno on failure.
+ */
 int kdbus_pool_move(struct kdbus_pool *dst_pool,
 		    struct kdbus_pool *src_pool,
 		    size_t *off, size_t len)
@@ -511,11 +602,16 @@ exit_free:
 	return ret;
 }
 
-/*
+/**
+ * kdbus_pool_flush_dcache() - flush memory area in the pool
+ * @pool		the receiver's pool
+ * @off			offset to the memory
+ * @len:		number of bytes to flush
+ *
  * Dcache flushes are delayed to happen only right before the receiver
  * gets the new buffer area announced. The mapped buffer is always
  * read-only for the receiver, and only the area of the announced message
- * needs to be coherent.
+ * needs to be flushed.
  */
 void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
 			     size_t off, size_t len)
@@ -539,7 +635,13 @@ void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
 #endif
 }
 
-/* map the shmem file for the receiver */
+/**
+ * kdbus_pool_mmap() -  map the pool into the process
+ * @pool		the receiver's pool
+ * @vma:		mmap()
+ *
+ * Returns: the result of the mmap() call, or negative errno on failure.
+ */
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma)
 {
 	/* deny write access to the pool */
