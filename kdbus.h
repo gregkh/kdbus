@@ -359,6 +359,7 @@ struct kdbus_cmd_name_list {
 	__u64 offset;		/* returned offset in the caller's buffer */
 };
 
+/* information returned in the callers's pool */
 struct kdbus_name_list {
 	__u64 size;
 	struct kdbus_cmd_name names[0];
@@ -373,6 +374,7 @@ struct kdbus_cmd_name_info {
 	char name[0];
 };
 
+/* information returned in the caller's pool */
 struct kdbus_name_info {
 	__u64 size;
 	__u64 id;

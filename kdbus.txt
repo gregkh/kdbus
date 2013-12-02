@@ -372,7 +372,10 @@ Ioctl API
    Retrieve the list of all currently registered well-known and unique names.
 
   KDBUS_CMD_NAME_INFO
-   Retrieve properties and the state of a connection.
+   Retrieve credentials and properties of the initial creator of the
+   connection. The data was stored at registration time and does not
+   neccessarily represent the connected process or the actual state
+   of the process.
 
   KDBUS_CMD_MATCH_ADD
    Install a match which broadcast messages should be delivered to the
