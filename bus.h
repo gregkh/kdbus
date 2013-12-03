@@ -18,7 +18,7 @@
 #include "internal.h"
 
 /**
- * kdbus_bus - bus in a namespace
+ * struct kdbus_bus - bus in a namespace
  * @kref		reference count
  * @disconnected	invalidated data
  * @uid_owner		the uid of the owner of the bus

@@ -15,7 +15,7 @@
 #include "internal.h"
 
 /*
- * kdbus endpoint - enpoint to access a bus
+ * struct kdbus_endpoint - enpoint to access a bus
  * @kref		reference count
  * @disconnected	invalidated data
  * @bus			bus behind this endpoint

@@ -15,7 +15,7 @@
 #include "internal.h"
 
 /**
- * kdbus_namespace - namespace for buses
+ * struct kdbus_namespace - namespace for buses
  * @kref		Reference counter
  * @disconnected	Invalidated data
  * @name		Name of the namespace

@@ -15,8 +15,21 @@
 #include "internal.h"
 #include "metadata.h"
 
+/**
+ * struct kdbus_kmsg - internal message handling data
+ * @notification_type	short-cut for faster lookup
+ * @dst_name		short-cut to msg for faster lookup
+ * @bloom		short-cut to msg for faster lookup
+ * @bloom_size		short-cut to msg for faster lookup
+ * @fds			array of file descriptors to pass
+ * @fds_count		number of file descriptors to pass
+ * @meta		appended SCM-like metadata of the sending process
+ * @vecs_size		size of PAYLOAD data
+ * @vecs_count		number of PAYLOAD vectors
+ * @memfds_count	number of memfds to pass
+ * @msg			message from userspace
+ */
 struct kdbus_kmsg {
-	/* short-cuts for faster lookup */
 	u64 notification_type;
 	const char *dst_name;
 	const u64 *bloom;
@@ -24,16 +37,11 @@ struct kdbus_kmsg {
 	const int *fds;
 	unsigned int fds_count;
 
-	/* appended SCM-like metadata */
 	struct kdbus_meta meta;
 
-	/* size of PAYLOAD data */
 	size_t vecs_size;
 	unsigned int vecs_count;
 	unsigned int memfds_count;
-
-	/* added metadata flags KDBUS_HELLO_ATTACH_* */
-	u64 meta_attached;
 
 	struct kdbus_msg msg;
 };
