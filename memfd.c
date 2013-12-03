@@ -215,7 +215,7 @@ static int kdbus_memfd_mmap(struct file *file, struct vm_area_struct *vma)
 		if (size > PAGE_ALIGN(i_size_read(file_inode(mf->fp)))) {
 			ret = vfs_truncate(&mf->fp->f_path, size);
 			if (ret < 0)
-				return ret;
+				goto exit;
 		}
 	}
 
