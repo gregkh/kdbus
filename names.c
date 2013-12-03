@@ -30,8 +30,14 @@
 #include "policy.h"
 #include "bus.h"
 #include "endpoint.h"
-#include "metadata.h"
 
+/** struct kdbus_name_queue_item - a queue item for a name
+ * @conn:		The associated connection
+ * @entry		Name entry queuing up for
+ * @flags		The queuing flags
+ * @entry_entry:	List element for the list in @entry
+ * @conn_entry:		List element for the list in @conn
+ */
 struct kdbus_name_queue_item {
 	struct kdbus_conn	*conn;
 	struct kdbus_name_entry	*entry;
@@ -65,24 +71,39 @@ static void __kdbus_name_registry_free(struct kref *kref)
 	kfree(reg);
 }
 
+/**
+ * kdbus_name_registry_unref - drop a name reg's reference
+ * @reg:	The name registry
+ *
+ * When the last reference is dropped, the name registry's internal structure
+ * is freed.
+ */
 void kdbus_name_registry_unref(struct kdbus_name_registry *reg)
 {
 	kref_put(&reg->kref, __kdbus_name_registry_free);
 }
 
-struct kdbus_name_registry *kdbus_name_registry_new(void)
+/**
+ * kdbus_name_registry_new - create a new name registry
+ * @reg:	The returned name registry
+ *
+ * Returns 0 on success, -ENOMEM if memory allocation failed.
+ */
+int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 {
-	struct kdbus_name_registry *reg;
+	struct kdbus_name_registry *r;
 
-	reg = kzalloc(sizeof(*reg), GFP_KERNEL);
-	if (!reg)
-		return NULL;
+	r = kzalloc(sizeof(*reg), GFP_KERNEL);
+	if (!r)
+		return -ENOMEM;
 
-	kref_init(&reg->kref);
-	hash_init(reg->entries_hash);
-	mutex_init(&reg->entries_lock);
+	kref_init(&r->kref);
+	hash_init(r->entries_hash);
+	mutex_init(&r->entries_lock);
 
-	return reg;
+	*reg = r;
+
+	return 0;
 }
 
 static struct kdbus_name_entry *
@@ -172,6 +193,13 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 	return -EPERM;
 }
 
+/**
+ * kdbus_name_remove_by_conn - remove all name entries of a given connection
+ * @reg:	The name registry
+ * @conn:	The connection which entries to remove
+ *
+ * This function removes all name entry held by a given connection.
+ */
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn)
 {
@@ -191,6 +219,13 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	mutex_unlock(&reg->entries_lock);
 }
 
+/**
+ * kdbus_name_lookup - look up a name in a name registry
+ * @reg:	The name registry
+ * @name:	The name to look up
+ *
+ * Returns the name entry, if found. Otherwise, NULL is returned.
+ */
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name)
 {
@@ -266,6 +301,21 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	return -EEXIST;
 }
 
+/**
+ * kdbus_name_is_valid - check if a name is value
+ * @p:		The name to check
+ *
+ * A name is valid if all of the following criterias are met:
+ *
+ *  - The name has one or more elements separated by a period ('.') character.
+ *    All elements must contain at least one character.
+ *  - Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_"
+ *    and must not begin with a digit.
+ *  - The name must contain at least one '.' (period) character
+ *    (and thus at least two elements).
+ *  - The name must not begin with a '.' (period) character.
+ *  - The name must not exceed KDBUS_NAME_MAX_LEN.
+ */
 bool kdbus_name_is_valid(const char *p)
 {
 	const char *q;
@@ -302,6 +352,16 @@ bool kdbus_name_is_valid(const char *p)
 	return true;
 }
 
+/**
+ * kdbus_name_acquire - acquire a name
+ * @reg:	The name registry
+ * @conn:	The connection to pin this entry to
+ * @name:	The name to acquire
+ * @flags:	Acquisition flags (KDBUS_NAME_*)
+ * @entry:	Return pointer for the entry (may be NULL)
+ *
+ * Returns 0 on success, other values on error.
+ */
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       const char *name, u64 flags,
@@ -364,6 +424,14 @@ exit_unlock:
 	return ret;
 }
 
+/**
+ * kdbus_name_acquire - acquire a name from a ioctl command buffer
+ * @reg:	The name registry
+ * @conn:	The connection to pin this entry to
+ * @buf:	The __user buffer as passed in by the ioctl
+ *
+ * Returns 0 on success, other values on error.
+ */
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
 			   void __user *buf)
@@ -437,6 +505,14 @@ exit_free:
 	return ret;
 }
 
+/**
+ * kdbus_cmd_name_release - release a name entry from a ioctl command buffer
+ * @reg:	The name registry
+ * @conn:	The connection that holds the name
+ * @buf:	The __user buffer as passed in by the ioctl
+ *
+ * Returns 0 on success, other values on error.
+ */
 int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
 			   void __user *buf)
@@ -500,6 +576,14 @@ static inline int entry_list_omit(const struct kdbus_name_entry *e,
 	return os ^ is;
 }
 
+/**
+ * kdbus_cmd_name_list - list names of a connection
+ * @reg:	The name registry
+ * @conn:	The connection holding the name entries
+ * @buf:	The __user buffer as passed in by the ioctl
+ *
+ * Returns 0 on success, other values on error.
+ */
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			void __user *buf)

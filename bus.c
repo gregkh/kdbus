@@ -190,19 +190,17 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	b->name = kstrdup(bus_kmake->name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;
-		goto ret;
+		goto exit;
 	}
 
-	b->name_registry = kdbus_name_registry_new();
-	if (!b->name_registry) {
-		ret = -ENOMEM;
-		goto ret;
-	}
+	ret = kdbus_name_registry_new(&b->name_registry);
+	if (ret < 0)
+		goto exit;
 
 	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
 			   b->bus_flags & KDBUS_MAKE_POLICY_OPEN);
 	if (ret < 0)
-		goto ret;
+		goto exit;
 
 	mutex_lock(&ns->lock);
 	b->id = ns->bus_id_next++;
@@ -212,7 +210,8 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 
 	*bus = b;
 	return 0;
-ret:
+
+exit:
 	kdbus_bus_unref(b);
 	return ret;
 }
