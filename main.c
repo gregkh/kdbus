@@ -49,6 +49,10 @@ static int __init kdbus_init(void)
 	if (ret < 0)
 		return ret;
 
+	/*
+	 * Create the initial namespace; it is world-accessible and
+	 * provides the /dev/kdbus/control device node.
+	 */
 	ret = kdbus_ns_new(NULL, NULL, 0666, &kdbus_ns_init);
 	if (ret < 0) {
 		bus_unregister(&kdbus_subsys);
