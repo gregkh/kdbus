@@ -42,9 +42,9 @@
 struct kdbus_name_queue_item {
 	struct kdbus_conn	*conn;
 	struct kdbus_name_entry	*entry;
-	u64			 flags;
-	struct list_head	 entry_entry;
-	struct list_head	 conn_entry;
+	u64			flags;
+	struct list_head	entry_entry;
+	struct list_head	conn_entry;
 };
 
 static void kdbus_name_entry_free(struct kdbus_name_entry *e)
@@ -58,10 +58,10 @@ static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 
 static void __kdbus_name_registry_free(struct kref *kref)
 {
-	struct kdbus_name_entry *e;
-	struct hlist_node *tmp;
 	struct kdbus_name_registry *reg =
 		container_of(kref, struct kdbus_name_registry, kref);
+	struct kdbus_name_entry *e;
+	struct hlist_node *tmp;
 	unsigned int i;
 
 	mutex_lock(&reg->entries_lock);
@@ -149,13 +149,16 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 
 	if (list_empty(&e->queue_list)) {
 		if (e->starter) {
-			kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_CHANGE,
+			kdbus_notify_name_change(e->conn->ep,
+						 KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->starter->id,
 						 e->flags, e->name);
 			kdbus_name_entry_attach(e, e->starter);
 		} else {
-			kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_REMOVE,
-						 e->conn->id, 0, e->flags, e->name);
+			kdbus_notify_name_change(e->conn->ep,
+						 KDBUS_ITEM_NAME_REMOVE,
+						 e->conn->id, 0,
+						 e->flags, e->name);
 			kdbus_name_entry_free(e);
 		}
 	} else {
@@ -291,7 +294,8 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 		e->flags = *flags;
 
-		return kdbus_notify_name_change(conn->ep, KDBUS_ITEM_NAME_CHANGE,
+		return kdbus_notify_name_change(conn->ep,
+						KDBUS_ITEM_NAME_CHANGE,
 						old_id, conn->id, *flags,
 						e->name);
 	}
@@ -471,7 +475,8 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_free;
 		}
 
-		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
+		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
+						     cmd_name->id);
 		if (!new_conn) {
 			ret = -ENXIO;
 			goto exit_free;
@@ -706,7 +711,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			cmd_name.flags = c->flags;
 
 			ret = kdbus_pool_write(conn->pool, pos,
-					       &cmd_name, sizeof(struct kdbus_cmd_name));
+					       &cmd_name, sizeof(cmd_name));
 			if (ret < 0) {
 				kdbus_pool_free(conn->pool, off);
 				goto exit_unlock;
