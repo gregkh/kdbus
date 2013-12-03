@@ -450,11 +450,12 @@ int name_release(struct conn *conn, const char *name)
 
 int name_list(struct conn *conn, uint64_t flags)
 {
-	struct kdbus_cmd_name_list cmd_list = { 0, 0 };
+	struct kdbus_cmd_name_list cmd_list;
 	struct kdbus_name_list *list;
 	struct kdbus_cmd_name *name;
 	int ret;
 
+	cmd_list.size = sizeof(cmd_list);
 	cmd_list.flags = flags;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);

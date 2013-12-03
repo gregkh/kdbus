@@ -596,27 +596,33 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 {
 	struct kdbus_cmd_name_list *cmd_list;
 	struct kdbus_name_list list = {};
-	struct kdbus_name_entry *e;
+	struct kdbus_name_entry *name_entry = NULL, *e;
 	struct kdbus_bus *bus = conn->ep->bus;
-	size_t size;
+	size_t size, name_len;
 	u64 tmp;
 	u64 flags;
 	size_t off, pos;
 	int ret = 0;
 
-	cmd_list = memdup_user(buf, sizeof(struct kdbus_cmd_name_list));
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name_list))
+		return -EFAULT;
+
+	if (size < sizeof(struct kdbus_cmd_name_list))
+		return -EINVAL;
+
+	if (size > sizeof(struct kdbus_cmd_name_list) + KDBUS_NAME_MAX_LEN + 1)
+		return -EMSGSIZE;
+
+	cmd_list = memdup_user(buf, size);
 	if (IS_ERR(cmd_list))
 		return PTR_ERR(cmd_list);
 
 	flags = cmd_list->flags;
+	name_len = size - sizeof(*cmd_list);
 
 	/* KDBUS_NAME_LIST_STARTERS implies KDBUS_NAME_LIST_NAMES */
 	if (flags & KDBUS_NAME_LIST_STARTERS)
 		flags |= KDBUS_NAME_LIST_NAMES;
-
-	/* KDBUS_NAME_LIST_QUEUED implies KDBUS_NAME_LIST_UNIQUE */
-	if (flags & KDBUS_NAME_LIST_QUEUED)
-		flags |= KDBUS_NAME_LIST_UNIQUE;
 
 	/* check flags */
 	if ((flags & KDBUS_NAME_LIST_UNIQUE) &&
@@ -627,10 +633,26 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	    (flags & KDBUS_NAME_LIST_QUEUED))
 		return -EINVAL;
 
-	/* calculate size */
-	size = sizeof(struct kdbus_name_list);
-
 	mutex_lock(&reg->entries_lock);
+
+	if (flags & KDBUS_NAME_LIST_QUEUED) {
+		u32 hash;
+
+		if (name_len == 0) {
+			ret = -EINVAL;
+			goto exit_unlock;
+		}
+
+		hash = kdbus_str_hash(cmd_list->name);
+		name_entry = __kdbus_name_lookup(reg, hash, cmd_list->name);
+		if (!name_entry) {
+			ret = -ENOENT;
+			goto exit_unlock;
+		}
+	}
+
+	/* calculate size of return buffer */
+	size = sizeof(struct kdbus_name_list);
 
 	if (flags & KDBUS_NAME_LIST_NAMES) {
 		hash_for_each(reg->entries_hash, tmp, e, hentry) {
@@ -642,7 +664,13 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		}
 	}
 
-	if (flags & KDBUS_NAME_LIST_UNIQUE) {
+	if (flags & KDBUS_NAME_LIST_QUEUED) {
+		struct kdbus_name_queue_item *q;
+
+		list_for_each_entry(q, &name_entry->queue_list, entry_entry)
+			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
+
+	} else if (flags & KDBUS_NAME_LIST_UNIQUE) {
 		struct kdbus_conn *c;
 		int i;
 
@@ -665,8 +693,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	}
 	pos += sizeof(struct kdbus_name_list);
 
-	/* copy names */
 	if (flags & KDBUS_NAME_LIST_NAMES) {
+		/* copy names */
 		hash_for_each(reg->entries_hash, tmp, e, hentry) {
 			struct kdbus_cmd_name cmd_name = {};
 			size_t len;
@@ -698,8 +726,29 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		}
 	}
 
-	/* copy unique ids */
-	if (flags & KDBUS_NAME_LIST_UNIQUE) {
+	if (flags & KDBUS_NAME_LIST_QUEUED) {
+		/* copy queued owners */
+		struct kdbus_name_queue_item *q;
+
+		list_for_each_entry(q, &name_entry->queue_list, entry_entry) {
+			struct kdbus_cmd_name cmd_name = {};
+
+			cmd_name.size = sizeof(struct kdbus_cmd_name);
+			cmd_name.id = q->conn->id;
+			cmd_name.flags = q->conn->flags;
+
+			ret = kdbus_pool_write(conn->pool, pos,
+					       &cmd_name, sizeof(cmd_name));
+			if (ret < 0) {
+				kdbus_pool_free(conn->pool, off);
+				goto exit_unlock;
+			}
+
+			pos += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
+		}
+
+	} else if (flags & KDBUS_NAME_LIST_UNIQUE) {
+		/* copy unique ids */
 		struct kdbus_conn *c;
 		int i;
 
