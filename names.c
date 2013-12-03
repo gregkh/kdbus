@@ -617,7 +617,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 {
 	struct kdbus_cmd_name_list *cmd_list;
 	struct kdbus_name_list list = {};
-	struct kdbus_name_entry *name_entry = NULL, *e;
+	struct kdbus_name_entry *name_entry = NULL;
 	struct kdbus_bus *bus = conn->ep->bus;
 	size_t size, name_len;
 	u64 tmp;
@@ -676,6 +676,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	size = sizeof(struct kdbus_name_list);
 
 	if (flags & KDBUS_NAME_LIST_NAMES) {
+		struct kdbus_name_entry *e;
+
 		hash_for_each(reg->entries_hash, tmp, e, hentry) {
 			if (entry_list_omit(e, flags))
 				continue;
@@ -695,8 +697,12 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		struct kdbus_conn *c;
 		int i;
 
-		hash_for_each(bus->conn_hash, i, c, hentry)
+		hash_for_each(bus->conn_hash, i, c, hentry) {
+			if (c->flags & KDBUS_HELLO_STARTER)
+				continue;
+
 			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
+		}
 	}
 
 	ret = kdbus_pool_alloc(conn->pool, size, &off);
@@ -715,6 +721,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	pos += sizeof(struct kdbus_name_list);
 
 	if (flags & KDBUS_NAME_LIST_NAMES) {
+		struct kdbus_name_entry *e;
+
 		/* copy names */
 		hash_for_each(reg->entries_hash, tmp, e, hentry) {
 			struct kdbus_cmd_name cmd_name = {};
@@ -775,6 +783,9 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 		hash_for_each(bus->conn_hash, i, c, hentry) {
 			struct kdbus_cmd_name cmd_name = {};
+
+			if (c->flags & KDBUS_HELLO_STARTER)
+				continue;
 
 			cmd_name.size = sizeof(struct kdbus_cmd_name);
 			cmd_name.id = c->id;
