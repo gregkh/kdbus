@@ -539,6 +539,15 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 			ret = -ENXIO;
 			goto exit_unlock;
 		}
+
+		/*
+		 * A starter connection is not allowed to be addressed
+		 * via its unique id.
+		 */
+		if (c->flags & KDBUS_HELLO_STARTER) {
+			ret = -ENXIO;
+			goto exit_unlock;
+		}
 	}
 
 	kdbus_conn_ref(c);
