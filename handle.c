@@ -41,7 +41,7 @@
  * kdbus handle
  * - handle a control node or an endpoint
  */
-enum kdbus_conn_type {
+enum kdbus_handle_type {
 	_KDBUS_CONN_NULL,
 	KDBUS_CONN_CONTROL,		/* new fd of a control node */
 	KDBUS_CONN_CONTROL_NS_OWNER,	/* fd to hold a namespace */
@@ -54,7 +54,7 @@ enum kdbus_conn_type {
 
 struct kdbus_handle {
 	struct kref kref;
-	enum kdbus_conn_type type;
+	enum kdbus_handle_type type;
 	struct kdbus_ns *ns;
 	union {
 		struct kdbus_ns *ns_owner;
