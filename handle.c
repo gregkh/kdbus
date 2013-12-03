@@ -171,7 +171,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 {
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_cmd_bus_make *bus_make = NULL;
-	struct kdbus_cmd_ns_kmake *ns_kmake = NULL;
+	struct kdbus_cmd_ns_make *ns_make = NULL;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
 	umode_t mode = 0600;
@@ -214,7 +214,9 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_NS_MAKE:
+	case KDBUS_CMD_NS_MAKE: {
+		char *name;
+
 		if (!capable(CAP_IPC_OWNER)) {
 			ret = -EPERM;
 			break;
@@ -225,19 +227,19 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_ns_kmake_user(buf, &ns_kmake);
+		ret = kdbus_ns_make_user(buf, &ns_make, &name);
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(ns_kmake->make.flags)) {
+		if (!kdbus_check_flags(ns_make->flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (ns_kmake->make.flags & KDBUS_MAKE_ACCESS_WORLD)
+		if (ns_make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
 
-		ret = kdbus_ns_new(kdbus_ns_init, ns_kmake->name, mode, &ns);
+		ret = kdbus_ns_new(kdbus_ns_init, name, mode, &ns);
 		if (ret < 0)
 			break;
 
@@ -245,6 +247,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		handle->type = KDBUS_HANDLE_CONTROL_NS_OWNER;
 		handle->ns_owner = ns;
 		break;
+	}
 
 	case KDBUS_CMD_MEMFD_NEW: {
 		int fd;
@@ -265,7 +268,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	}
 
 	kfree(bus_make);
-	kfree(ns_kmake);
+	kfree(ns_make);
 	return ret;
 }
 

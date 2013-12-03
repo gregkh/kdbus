@@ -244,12 +244,9 @@ int kdbus_bus_make_user(void __user *buf,
 	if (size < sizeof(struct kdbus_cmd_bus_make) || size > KDBUS_MAKE_MAX_SIZE)
 		return -EMSGSIZE;
 
-	m = kmalloc(size, GFP_KERNEL);
-	if (!m)
-		return -ENOMEM;
-
-	if (copy_from_user(m, buf, size)) {
-		ret = -EFAULT;
+	m = memdup_user(buf, size);
+	if (IS_ERR(m)) {
+		ret = PTR_ERR(m);
 		goto exit;
 	}
 

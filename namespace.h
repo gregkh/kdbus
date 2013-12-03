@@ -14,42 +14,54 @@
 
 #include "internal.h"
 
-/*
- * kdbus namespace
- * - provides a "control" node
- * - owns a major number
- * - owns all created buses
- * - the initial namespace is unnamed and stays around for forver
- * - new namespaces are created by opening the control node and
- *   issuing KDBUS_NS_CREATE
- * - closing the connection destroys the created namespace
+/**
+ * kdbus_namespace - namespace for buses
+ * @kref		Reference counter
+ * @disconnected	Invalidated data
+ * @name		Name of the namespace
+ * @parent		Parent namespace
+ * @id			Global id of this namespace
+ * @devpath		/dev base directory path
+ * @major		Device major number for all nodes
+ * @mode		Device node access mode
+ * @idr			Map of endpoint minors to buses
+ * @dev			Control device node, minor == 0
+ * @lock		Namespace data lock
+ * @bus_id_next		Next bus id sequence number
+ * @namespace_entry	Kdbus' global list of namespaces
+ * @bus_list		Buses in this namespace
+ *
+ * A namespace provides a "control" device node. Every namespace has its
+ * own major number for its endpoint device nodes.
+
+ * The initial namespace is created at initialization time, is unnamed and
+ * stays around for forver.
+ *
+ * A namespace is created by opening the "control" device node of the
+ * parent namespace and issuing the KDBUS_CMD_NS_MAKE iotcl. Closing this
+ * file immediately destroys the entire namespace.
  */
 struct kdbus_ns {
-	struct kref kref;			/* reference counter */
-	bool disconnected;			/* invalidated data */
-	const char *name;			/* name of the namespace */
-	struct kdbus_ns *parent;		/* parent namespace */
-	u64 id;					/* global id of this namespace */
-	const char *devpath;			/* /dev base directory path */
-	unsigned int major;			/* device major number for all nodes */
-	umode_t mode;				/* device node access mode */
-	struct idr idr;				/* map of endpoint minors to buses */
-	struct device *dev;			/* control device node, minor == 0 */
-	struct mutex lock;			/* ns data lock */
-	u64 bus_id_next;			/* next bus id sequence number */
-	struct list_head namespace_entry;	/* kdbus' list of namespaces */
-	struct list_head bus_list;		/* buses in this namespace */
-};
-
-struct kdbus_cmd_ns_kmake {
+	struct kref kref;
+	bool disconnected;
 	const char *name;
-	struct kdbus_cmd_ns_make make;
+	struct kdbus_ns *parent;
+	u64 id;
+	const char *devpath;
+	unsigned int major;
+	umode_t mode;
+	struct idr idr;
+	struct device *dev;
+	struct mutex lock;
+	u64 bus_id_next;
+	struct list_head namespace_entry;
+	struct list_head bus_list;
 };
 
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
-int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake);
+int kdbus_ns_make_user(void __user *buf, struct kdbus_cmd_ns_make **make, char **name);
 struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major);
 #endif

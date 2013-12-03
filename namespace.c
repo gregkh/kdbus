@@ -237,11 +237,13 @@ exit_unlock:
 	return ret;
 }
 
-int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
+int kdbus_ns_make_user(void __user *buf,
+			struct kdbus_cmd_ns_make **make, char **name)
 {
 	u64 size;
-	struct kdbus_cmd_ns_kmake *km;
+	struct kdbus_cmd_ns_make *m;
 	const struct kdbus_item *item;
+	const char *n = NULL;
 	int ret;
 
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_ns_make))
@@ -250,25 +252,21 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 	if (size < sizeof(struct kdbus_cmd_ns_make) || size > KDBUS_MAKE_MAX_SIZE)
 		return -EMSGSIZE;
 
-	km = kmalloc(sizeof(struct kdbus_cmd_ns_kmake) + size, GFP_KERNEL);
-	if (!km)
-		return -ENOMEM;
-
-	memset(km, 0, offsetof(struct kdbus_cmd_ns_kmake, make));
-	if (copy_from_user(&km->make, buf, size)) {
-		ret = -EFAULT;
+	m = memdup_user(buf, size);
+	if (IS_ERR(m)) {
+		ret = PTR_ERR(m);
 		goto exit;
 	}
 
-	KDBUS_PART_FOREACH(item, &km->make, items) {
-		if (!KDBUS_PART_VALID(item, &km->make)) {
+	KDBUS_PART_FOREACH(item, m, items) {
+		if (!KDBUS_PART_VALID(item, m)) {
 			ret = -EINVAL;
 			goto exit;
 		}
 
 		switch (item->type) {
 		case KDBUS_MAKE_NAME:
-			if (km->name) {
+			if (n) {
 				ret = -EEXIST;
 				goto exit;
 			}
@@ -289,7 +287,7 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 				goto exit;
 			}
 
-			km->name = item->str;
+			n = item->str;
 			continue;
 
 		default:
@@ -298,18 +296,19 @@ int kdbus_ns_kmake_user(void __user *buf, struct kdbus_cmd_ns_kmake **kmake)
 		}
 	}
 
-	if (!KDBUS_PART_END(item, &km->make))
+	if (!KDBUS_PART_END(item, m))
 		return -EINVAL;
 
-	if (!km->name) {
+	if (!name) {
 		ret = -EBADMSG;
 		goto exit;
 	}
 
-	*kmake = km;
+	*make = m;
+	*name = (char *)n;
 	return 0;
 
 exit:
-	kfree(km);
+	kfree(m);
 	return ret;
 }
