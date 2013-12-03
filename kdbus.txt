@@ -450,7 +450,7 @@ ECOMM
   A peer does not accept the file descriptors addressed to it.
 
 EDESTADDRREQ
-  The well-known bus name is missing, to address the destination.
+  The well-known bus name is required but missing.
 
 EDOM
   The size of data does not match the expectations. Used for the

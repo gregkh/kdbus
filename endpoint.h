@@ -15,31 +15,43 @@
 #include "internal.h"
 
 /*
- * kdbus endpoint
- * - offers access to a bus, the default device node name is "bus"
- * - additional endpoints can carry a specific policy/filters
+ * kdbus endpoint - enpoint to access a bus
+ * @kref		reference count
+ * @disconnected	invalidated data
+ * @bus			bus behind this endpoint
+ * @name		name of the endpoint
+ * @id			id of this endpoint on the bus
+ * @minor		minor of this endpoint in the namespace major
+ * @dev			device node of this endpoint
+ * @mode		file mode of this endpoint device node
+ * @uid			uid owning this endpoint
+ * @gid			gid owning this endpoint
+ * @bus_entry		bus' endpoints
+ * @wait		wake up this endpoint
+ * @lock		endpoint data lock
+ * @policy_db		uploaded policy
+ * @policy_open		default endpoint policy
+ *
+ * An enpoint offers access to a bus; the default device node name is "bus".
+ * Additional custom endpoints to the same bus can be created and they can
+ * carry their own policies/filters.
  */
 struct kdbus_ep {
-	struct kref kref;		/* reference count */
-	bool disconnected;		/* invalidated data */
-	struct kdbus_bus *bus;		/* bus behind this endpoint */
-	const char *name;		/* name, prefixed with uid */
-	u64 id;				/* id of this endpoint on the bus */
-	unsigned int minor;		/* minor of this endpoint in the namespace major */
-	struct device *dev;		/* device node of this endpoint */
-	umode_t mode;			/* file mode of this endpoint device node */
-	kuid_t uid;			/* uid owning this endpoint */
-	kgid_t gid;			/* gid owning this endpoint */
-	struct list_head bus_entry;	/* bus' endpoints */
-	wait_queue_head_t wait;		/* wake up this endpoint */
+	struct kref kref;
+	bool disconnected;
+	struct kdbus_bus *bus;
+	const char *name;
+	u64 id;
+	unsigned int minor;
+	struct device *dev;
+	umode_t mode;
+	kuid_t uid;
+	kgid_t gid;
+	struct list_head bus_entry;
+	wait_queue_head_t wait;
 	struct mutex lock;
 	struct kdbus_policy_db *policy_db;
 	bool policy_open:1;
-};
-
-struct kdbus_cmd_ep_kmake {
-	const char *name;
-	struct kdbus_cmd_ep_make make;
 };
 
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
@@ -49,5 +61,6 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		 umode_t mode, kuid_t uid, kgid_t gid, bool policy);
 int kdbus_ep_remove(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
-int kdbus_ep_kmake_user(void __user *buf, struct kdbus_cmd_ep_kmake **kmake);
+int kdbus_ep_make_user(void __user *buf,
+		       struct kdbus_cmd_ep_make **make, char **name);
 #endif
