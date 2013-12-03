@@ -516,13 +516,15 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_list))
 		return PTR_ERR(cmd_list);
 
-	mutex_lock(&reg->entries_lock);
-
 	flags = cmd_list->flags;
 
 	/* KDBUS_NAME_LIST_STARTERS implies KDBUS_NAME_LIST_NAMES */
 	if (flags & KDBUS_NAME_LIST_STARTERS)
 		flags |= KDBUS_NAME_LIST_NAMES;
+
+	/* KDBUS_NAME_LIST_QUEUED implies KDBUS_NAME_LIST_UNIQUE */
+	if (flags & KDBUS_NAME_LIST_QUEUED)
+		flags |= KDBUS_NAME_LIST_UNIQUE;
 
 	/* check flags */
 	if ((flags & KDBUS_NAME_LIST_UNIQUE) &&
@@ -535,6 +537,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	/* calculate size */
 	size = sizeof(struct kdbus_name_list);
+
+	mutex_lock(&reg->entries_lock);
 
 	if (flags & KDBUS_NAME_LIST_NAMES) {
 		hash_for_each(reg->entries_hash, tmp, e, hentry) {
@@ -602,11 +606,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		}
 	}
 
-	/*
-	 * If the listing of unique names is requested, iterate over the
-	 * bus' connections and find those which do not have a well-known name
-	 * assigned to it.
-	 */
+	/* copy unique ids */
 	if (flags & KDBUS_NAME_LIST_UNIQUE) {
 		struct kdbus_conn *c;
 		int i;
