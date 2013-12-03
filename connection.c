@@ -1170,18 +1170,14 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 				KDBUS_ATTACH_CAPS |
 				KDBUS_ATTACH_SECLABEL |
 				KDBUS_ATTACH_AUDIT);
-	if (ret < 0) {
-		kdbus_conn_unref(conn);
-		return ret;
-	}
+	if (ret < 0)
+		goto exit_unref;
 
 	/* notify about the new active connection */
 	ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD,
 				     conn->id, conn->flags);
-	if (ret < 0) {
-		kdbus_conn_unref(conn);
-		return ret;
-	}
+	if (ret < 0)
+		goto exit_unref;
 
 	conn->flags = hello->conn_flags;
 	conn->attach_flags = hello->attach_flags;
@@ -1189,13 +1185,14 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (starter_name) {
 		ret = kdbus_name_acquire(bus->name_registry, conn,
 					 starter_name, 0, NULL);
-		if (ret < 0) {
-			kdbus_conn_unref(conn);
-			return ret;
-		}
+		if (ret < 0)
+			goto exit_unref;
 	}
 
 	*c = conn;
-
 	return 0;
+
+exit_unref:
+	kdbus_conn_unref(conn);
+	return ret;
 }
