@@ -568,6 +568,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			if (conn_dst->id == msg->src_id)
 				continue;
 
+			/*
+			 * starter connections will not receive any
+			 * broadcast messages.
+			 */
+			if (conn_dst->flags & KDBUS_HELLO_STARTER)
+				continue;
+
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
 						       conn_src, kmsg))
 				continue;
