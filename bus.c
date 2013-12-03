@@ -77,15 +77,28 @@ void kdbus_bus_unref(struct kdbus_bus *bus)
 	kref_put(&bus->kref, __kdbus_bus_free);
 }
 
+/**
+ * kdbus_bus_find_conn_by_id - find a connection with a given id
+ * @bus:	The bus to look for the connection
+ * @id:		The 64-bit connection id
+ *
+ * Looks up a connection with a given id. The returned connection
+ * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
+ * the connection can't be found.
+ *
+ * This function must be called with bus->lock held.
+ */
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 {
-	struct kdbus_conn *conn;
+	struct kdbus_conn *conn, *found = NULL;
 
 	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
-		if (conn->id == id)
-			return conn;
+		if (conn->id == id) {
+			found = kdbus_conn_ref(conn);
+			break;
+		}
 
-	return NULL;
+	return found;
 }
 
 /**

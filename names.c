@@ -467,22 +467,27 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	}
 
 	/* privileged users can act on behalf of someone else */
-	if (cmd_name->id > 0) {
+	if (cmd_name->id != 0) {
 		struct kdbus_conn *new_conn;
+		struct kdbus_bus *bus = conn->ep->bus;
 
-		if (!kdbus_bus_uid_is_privileged(conn->ep->bus)) {
+		if (!kdbus_bus_uid_is_privileged(bus)) {
 			ret = -EPERM;
 			goto exit_free;
 		}
 
-		new_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-						     cmd_name->id);
+		mutex_lock(&bus->lock);
+		new_conn = kdbus_bus_find_conn_by_id(bus, cmd_name->id);
+		mutex_unlock(&bus->lock);
+
 		if (!new_conn) {
 			ret = -ENXIO;
 			goto exit_free;
 		}
 
 		conn = new_conn;
+	} else {
+		kdbus_conn_ref(conn);
 	}
 
 	cmd_name->flags &= ~KDBUS_NAME_IN_QUEUE;
@@ -492,18 +497,21 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		ret = kdbus_policy_db_check_own_access(conn->ep->policy_db,
 						       conn, cmd_name->name);
 		if (ret < 0)
-			goto exit_free;
+			goto exit_unref_conn;
 	}
 
 	ret = kdbus_name_acquire(reg, conn, cmd_name->name,
 				 cmd_name->flags, &e);
 	if (ret < 0)
-		goto exit_free;
+		goto exit_unref_conn;
 
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
 		kdbus_name_entry_release(e);
 	}
+
+exit_unref_conn:
+	kdbus_conn_unref(conn);
 
 exit_free:
 	kfree(cmd_name);
@@ -556,14 +564,27 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 	/* privileged users can act on behalf of someone else */
 	if (e->conn != conn) {
-		if (!kdbus_bus_uid_is_privileged(conn->ep->bus)) {
+		struct kdbus_bus *bus = conn->ep->bus;
+
+		if (!kdbus_bus_uid_is_privileged(bus)) {
 			ret = -EPERM;
 			goto exit_unlock;
 		}
-		conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd_name->id);
+
+		mutex_lock(&bus->lock);
+		conn = kdbus_bus_find_conn_by_id(bus, cmd_name->id);
+		mutex_unlock(&bus->lock);
+
+		if (!conn) {
+			ret = -EPERM;
+			goto exit_unlock;
+		}
+	} else {
+		kdbus_conn_ref(conn);
 	}
 
 	ret = kdbus_name_release(e, conn);
+	kdbus_conn_unref(conn);
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);

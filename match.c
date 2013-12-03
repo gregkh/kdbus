@@ -101,6 +101,12 @@ void kdbus_match_db_unref(struct kdbus_match_db *db)
 	kref_put(&db->kref, __kdbus_match_db_free);
 }
 
+struct kdbus_match_db *kdbus_match_db_ref(struct kdbus_match_db *db)
+{
+	kref_get(&db->kref);
+	return db;
+}
+
 int kdbus_match_db_new(struct kdbus_match_db **db)
 {
 	struct kdbus_match_db *d;
@@ -318,17 +324,21 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
 		struct kdbus_conn *targ_conn;
+		struct kdbus_bus *bus = conn->ep->bus;
 
-		targ_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-						      cmd_match->id);
-		if (targ_conn)
-			db = targ_conn->match_db;
-		else {
+		mutex_lock(&bus->lock);
+		targ_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
+		mutex_unlock(&bus->lock);
+
+		if (!targ_conn) {
 			ret = -ENXIO;
 			goto exit_free;
 		}
+
+		db = kdbus_match_db_ref(targ_conn->match_db);
+		kdbus_conn_unref(targ_conn);
 	} else
-		db = conn->match_db;
+		db = kdbus_match_db_ref(conn->match_db);
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e) {
@@ -406,6 +416,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		kdbus_match_db_entry_free(e);
 
 	mutex_unlock(&db->entries_lock);
+	kdbus_match_db_unref(db);
 
 exit_free:
 	kfree(cmd_match);
@@ -425,17 +436,22 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 
 	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
 		struct kdbus_conn *targ_conn;
+		struct kdbus_bus *bus = conn->ep->bus;
 
-		targ_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-						      cmd_match->id);
-		if (targ_conn)
-			db = targ_conn->match_db;
-		else {
+		mutex_lock(&bus->lock);
+		targ_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
+		mutex_unlock(&bus->lock);
+
+		if (targ_conn) {
+			db = kdbus_match_db_ref(targ_conn->match_db);
+			kdbus_conn_unref(targ_conn);
+		} else {
 			kfree(cmd_match);
 			return -ENXIO;
 		}
-	} else
-		db = conn->match_db;
+	} else {
+		db = kdbus_match_db_ref(conn->match_db);
+	}
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
@@ -444,6 +460,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 			kdbus_match_db_entry_free(e);
 	mutex_unlock(&db->entries_lock);
 
+	kdbus_match_db_unref(db);
 	kfree(cmd_match);
 
 	return 0;

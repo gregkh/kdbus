@@ -469,7 +469,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_MONITOR: {
 		/* turn on/turn off monitor mode */
 		struct kdbus_cmd_monitor cmd_monitor;
-		struct kdbus_conn *mconn = conn;
+		struct kdbus_conn *mconn = NULL;
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
@@ -482,27 +482,33 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		}
 
 		/* privileged users can act on behalf of someone else */
-		if (cmd_monitor.id == 0) {
-			mconn = conn;
-		} else if (cmd_monitor.id != conn->id) {
+		if (cmd_monitor.id == 0 || cmd_monitor.id == conn->id) {
+			mconn = kdbus_conn_ref(conn);
+		} else {
 			if (!kdbus_bus_uid_is_privileged(bus)) {
 				ret = -EPERM;
 				break;
 			}
 
+			mutex_lock(&bus->lock);
 			mconn = kdbus_bus_find_conn_by_id(bus, cmd_monitor.id);
-			if (!mconn) {
-				ret = -ENXIO;
-				break;
-			}
+			mutex_unlock(&bus->lock);
+		}
+
+		if (!mconn) {
+			ret = -ENXIO;
+			break;
 		}
 
 		mutex_lock(&bus->lock);
-		if (cmd_monitor.flags && KDBUS_MONITOR_ENABLE)
+		if (cmd_monitor.flags & KDBUS_MONITOR_ENABLE)
 			list_add_tail(&mconn->monitor_entry, &bus->monitors_list);
 		else
 			list_del(&mconn->monitor_entry);
 		mutex_unlock(&bus->lock);
+
+		kdbus_conn_unref(mconn);
+
 		break;
 	}
 

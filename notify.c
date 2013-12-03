@@ -36,13 +36,16 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
 	struct kdbus_item *item;
 	int ret;
 
+	mutex_lock(&ep->bus->lock);
 	dst_conn = kdbus_bus_find_conn_by_id(ep->bus, src_id);
+	mutex_unlock(&ep->bus->lock);
+
 	if (!dst_conn)
 		return -ENXIO;
 
 	ret = kdbus_kmsg_new(KDBUS_ITEM_SIZE(0), &kmsg);
 	if (ret < 0)
-		return ret;
+		goto exit_unref_conn;
 
 	/*
 	 * a kernel-generated notification can only contain one
@@ -61,6 +64,9 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
 
 	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_free(kmsg);
+
+exit_unref_conn:
+	kdbus_conn_unref(dst_conn);
 
 	return ret;
 }

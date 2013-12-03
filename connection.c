@@ -522,14 +522,14 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		}
 
 		if (name_entry->starter)
-			c = name_entry->starter;
+			c = kdbus_conn_ref(name_entry->starter);
 		else
-			c = name_entry->conn;
+			c = kdbus_conn_ref(name_entry->conn);
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
 		    (c->flags & KDBUS_HELLO_STARTER)) {
 			ret = -EADDRNOTAVAIL;
-			goto exit_unlock;
+			goto exit_unref;
 		}
 	} else {
 		c = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
@@ -544,7 +544,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		 */
 		if (c->flags & KDBUS_HELLO_STARTER) {
 			ret = -ENXIO;
-			goto exit_unlock;
+			goto exit_unref;
 		}
 	}
 
@@ -554,11 +554,18 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 
 	if (disconnected) {
 		ret = -ESRCH;
-		goto exit_unlock;
+		goto exit_unref;
 	}
 
-	kdbus_conn_ref(c);
+	/* the connection is already ref'ed at this point */
 	*conn = c;
+
+	/* nullify it so it won't be freed below */
+	c = NULL;
+
+exit_unref:
+	if (c)
+		kdbus_conn_unref(c);
 
 exit_unlock:
 	mutex_unlock(&bus->lock);
@@ -655,7 +662,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kdbus_conn_timeout_schedule_scan(conn_dst);
 
 exit:
+	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
+
 	return ret;
 }
 
@@ -1001,8 +1010,11 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 
 	/* The API offers to look up a connection by ID or by name */
 	if (cmd_info->id != 0) {
-		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-						       cmd_info->id);
+		struct kdbus_bus *bus = conn->ep->bus;
+
+		mutex_lock(&bus->lock);
+		owner_conn = kdbus_bus_find_conn_by_id(bus, cmd_info->id);
+		mutex_unlock(&bus->lock);
 	} else {
 		if (size == sizeof(struct kdbus_cmd_conn_info)) {
 			ret = -EINVAL;
@@ -1030,7 +1042,8 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 			goto exit_free;
 		}
 
-		owner_conn = e->conn;
+		if (e->conn)
+			owner_conn = kdbus_conn_ref(e->conn);
 	}
 
 	if (!owner_conn) {
@@ -1056,7 +1069,7 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 
 	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_unref_owner_conn;
 
 	ret = kdbus_pool_write(conn->pool, off, &info, sizeof(info));
 	if (ret < 0)
@@ -1101,7 +1114,8 @@ exit_free:
 	if (ret < 0)
 		kdbus_pool_free(conn->pool, off);
 
-exit_unlock:
+exit_unref_owner_conn:
+	kdbus_conn_unref(owner_conn);
 	mutex_unlock(&conn->names_lock);
 	kfree(cmd_info);
 
