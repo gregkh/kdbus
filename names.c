@@ -31,7 +31,8 @@
 #include "bus.h"
 #include "endpoint.h"
 
-/** struct kdbus_name_queue_item - a queue item for a name
+/**
+ * struct kdbus_name_queue_item - a queue item for a name
  * @conn:		The associated connection
  * @entry		Name entry queuing up for
  * @flags		The queuing flags
