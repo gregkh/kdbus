@@ -442,7 +442,6 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
-exit:
 	kdbus_conn_queue_cleanup(queue);
 	kdbus_pool_free(conn->pool, off);
 	return ret;
@@ -1097,6 +1096,14 @@ exit_unlock:
 	return ret;
 }
 
+/**
+ * kdbus_conn_new - create a new connection
+ * @ep:		The endpoint the connection is connected to
+ * @hello:	The kdbus_cmd_hello as passed in by the user
+ * @c		Returned connection
+ *
+ * Return 0 on success, or other values in case of errors
+ */
 int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_cmd_hello *hello,
 		   struct kdbus_conn **c)
