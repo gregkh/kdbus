@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
 	name_acquire(conn_a, "foo.bar.baz", 0);
 	name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
-	name_list(conn_b, KDBUS_NAME_LIST_UNIQUE_NAMES);
+	name_list(conn_b, KDBUS_NAME_LIST_UNIQUE | KDBUS_NAME_LIST_NAMES);
 
 	add_match_empty(conn_a->fd);
 	add_match_empty(conn_b->fd);
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);
 		}
 
-		name_list(conn_b, KDBUS_NAME_LIST_UNIQUE_NAMES);
+		name_list(conn_b, KDBUS_NAME_LIST_UNIQUE | KDBUS_NAME_LIST_NAMES);
 
 		if (count > 10)
 			break;

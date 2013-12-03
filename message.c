@@ -222,11 +222,11 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 		return -EINVAL;
 
 	/* name is needed if no ID is given */
-	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME && !has_name)
+	if (msg->dst_id == KDBUS_DST_ID_NAME && !has_name)
 		return -EDESTADDRREQ;
 
 	/* name and ID should not be given at the same time */
-	if (msg->dst_id > KDBUS_DST_ID_WELL_KNOWN_NAME &&
+	if (msg->dst_id > KDBUS_DST_ID_NAME &&
 	    msg->dst_id < KDBUS_DST_ID_BROADCAST && has_name)
 		return -EBADMSG;
 

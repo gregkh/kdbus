@@ -513,7 +513,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 
 	mutex_lock(&bus->lock);
 
-	if (msg->dst_id == KDBUS_DST_ID_WELL_KNOWN_NAME) {
+	if (msg->dst_id == KDBUS_DST_ID_NAME) {
 		const struct kdbus_name_entry *name_entry;
 
 		name_entry = kdbus_name_lookup(bus->name_registry,

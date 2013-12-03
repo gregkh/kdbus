@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 	upload_policy(conn_a->fd, "foo.test.starter");
 	add_match_empty(conn_a->fd);
 
-	msg_send(conn_a, "foo.test.starter", 0xdeafbeef, KDBUS_DST_ID_WELL_KNOWN_NAME);
+	msg_send(conn_a, "foo.test.starter", 0xdeafbeef, KDBUS_DST_ID_NAME);
 
 	fds[0].fd = starter->fd;
 	fds[1].fd = conn_a->fd;
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 		if (ret <= 0)
 			break;
 
-		name_list(conn_a, 0);
+		name_list(conn_a, KDBUS_NAME_LIST_NAMES);
 
 		if ((fds[0].revents & POLLIN) && !starter_done) {
 			printf("Starter was called back!\n");
