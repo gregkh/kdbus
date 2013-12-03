@@ -37,23 +37,31 @@
 #include "names.h"
 #include "policy.h"
 
-/*
- * kdbus handle
- * - handle a control node or an endpoint
- */
 enum kdbus_handle_type {
-	_KDBUS_CONN_NULL,
-	KDBUS_CONN_CONTROL,		/* new fd of a control node */
-	KDBUS_CONN_CONTROL_NS_OWNER,	/* fd to hold a namespace */
-	KDBUS_CONN_CONTROL_BUS_OWNER,	/* fd to hold a bus */
-	KDBUS_CONN_EP,			/* new fd of a bus node */
-	KDBUS_CONN_EP_CONNECTED,	/* connection after HELLO */
-	KDBUS_CONN_EP_DISCONNECTED,	/* closed connection */
-	KDBUS_CONN_EP_OWNER,		/* fd to hold an endpoint */
+	_KDBUS_HANDLE_NULL,
+	KDBUS_HANDLE_CONTROL,		/* new fd of a control node */
+	KDBUS_HANDLE_CONTROL_NS_OWNER,	/* fd to hold a namespace */
+	KDBUS_HANDLE_CONTROL_BUS_OWNER,	/* fd to hold a bus */
+	KDBUS_HANDLE_EP,		/* new fd of a bus node */
+	KDBUS_HANDLE_EP_CONNECTED,	/* connection after HELLO */
+	KDBUS_HANDLE_EP_DISCONNECTED,	/* closed connection */
+	KDBUS_HANDLE_EP_OWNER,		/* fd to hold an endpoint */
 };
 
+/**
+ * struct kdbus_handle - a handle to the kdbus system
+ * @type	Type of this handle (KDBUS_HANDLE_*)
+ * @ns		Namespace for this handle
+ * @ns_owner:	The namespace this handle owns, in case @type
+ * 		is KDBUS_HANDLE_CONTROL_NS_OWNER
+ * @bus_owner:	The bus this handle owns, in case @type
+ * 		is KDBUS_HANDLE_CONTROL_BUS_OWNER
+ * @conn	The connection this handle owns, in case @type
+ * 		is KDBUS_HANDLE_EP_CONNECTED
+ * @ep		The endpoint this handle owns, in case @type
+ * 		is KDBUS_HANDLE_EP or KDBUS_HANDLE_EP_OWNER
+ */
 struct kdbus_handle {
-	struct kref kref;
 	enum kdbus_handle_type type;
 	struct kdbus_ns *ns;
 	union {
@@ -64,7 +72,6 @@ struct kdbus_handle {
 	};
 };
 
-/* kdbus file operations */
 static int kdbus_handle_open(struct inode *inode, struct file *file)
 {
 	struct kdbus_handle *handle;
@@ -75,8 +82,6 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	handle = kzalloc(sizeof(struct kdbus_handle), GFP_KERNEL);
 	if (!handle)
 		return -ENOMEM;
-
-	kref_init(&handle->kref);
 
 	/* find and reference namespace */
 	ns = kdbus_ns_find_by_major(MAJOR(inode->i_rdev));
@@ -89,7 +94,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 
 	/* control device node */
 	if (MINOR(inode->i_rdev) == 0) {
-		handle->type = KDBUS_CONN_CONTROL;
+		handle->type = KDBUS_HANDLE_CONTROL;
 		return 0;
 	}
 
@@ -102,7 +107,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	}
 
 	/* create endpoint connection */
-	handle->type = KDBUS_CONN_EP;
+	handle->type = KDBUS_HANDLE_EP;
 	handle->ep = kdbus_ep_ref(ep);
 	mutex_unlock(&handle->ns->lock);
 	return 0;
@@ -113,44 +118,31 @@ exit_unlock:
 	return ret;
 }
 
-static void __kdbus_handle_free(struct kref *kref)
-{
-	struct kdbus_handle *handle =
-		container_of(kref, struct kdbus_handle, kref);
-
-	kfree(handle);
-}
-
-void kdbus_handle_unref(struct kdbus_handle *handle)
-{
-	kref_put(&handle->kref, __kdbus_handle_free);
-}
-
 static int kdbus_handle_release(struct inode *inode, struct file *file)
 {
 	struct kdbus_handle *handle = file->private_data;
 
 	switch (handle->type) {
-	case KDBUS_CONN_CONTROL_NS_OWNER:
+	case KDBUS_HANDLE_CONTROL_NS_OWNER:
 		kdbus_ns_disconnect(handle->ns_owner);
 		kdbus_ns_unref(handle->ns_owner);
 		break;
 
-	case KDBUS_CONN_CONTROL_BUS_OWNER:
+	case KDBUS_HANDLE_CONTROL_BUS_OWNER:
 		kdbus_bus_disconnect(handle->bus_owner);
 		kdbus_bus_unref(handle->bus_owner);
 		break;
 
-	case KDBUS_CONN_EP_OWNER:
+	case KDBUS_HANDLE_EP_OWNER:
 		kdbus_ep_disconnect(handle->ep);
 		kdbus_ep_unref(handle->ep);
 		break;
 
-	case KDBUS_CONN_EP:
+	case KDBUS_HANDLE_EP:
 		kdbus_ep_unref(handle->ep);
 		break;
 
-	case KDBUS_CONN_EP_CONNECTED:
+	case KDBUS_HANDLE_EP_CONNECTED:
 		kdbus_conn_disconnect(handle->conn);
 		kdbus_conn_unref(handle->conn);
 		break;
@@ -159,9 +151,9 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 	}
 
-	handle->type = KDBUS_CONN_EP_DISCONNECTED;
+	handle->type = KDBUS_HANDLE_EP_DISCONNECTED;
 	kdbus_ns_unref(handle->ns);
-	kdbus_handle_unref(handle);
+	kfree(handle);
 
 	return 0;
 }
@@ -216,7 +208,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		/* turn the control fd into a new bus owner device */
-		handle->type = KDBUS_CONN_CONTROL_BUS_OWNER;
+		handle->type = KDBUS_HANDLE_CONTROL_BUS_OWNER;
 		handle->bus_owner = bus;
 		break;
 	}
@@ -249,7 +241,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		/* turn the control fd into a new ns owner device */
-		handle->type = KDBUS_CONN_CONTROL_NS_OWNER;
+		handle->type = KDBUS_HANDLE_CONTROL_NS_OWNER;
 		handle->ns_owner = ns;
 		break;
 
@@ -278,7 +270,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 
 /* kdbus endpoint make commands */
 static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
-				void __user *buf)
+				  void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_cmd_ep_kmake *kmake = NULL;
@@ -315,7 +307,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 				   current_fsuid(), gid,
 				   kmake->make.flags & KDBUS_MAKE_POLICY_OPEN);
 
-		handle->type = KDBUS_CONN_EP_OWNER;
+		handle->type = KDBUS_HANDLE_EP_OWNER;
 		break;
 	}
 
@@ -362,7 +354,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		handle->type = KDBUS_CONN_EP_CONNECTED;
+		handle->type = KDBUS_HANDLE_EP_CONNECTED;
 
 		if (copy_to_user(buf, hello, sizeof(struct kdbus_cmd_hello))) {
 			kdbus_conn_unref(handle->conn);
@@ -585,13 +577,13 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 	void __user *argp = (void __user *)arg;
 
 	switch (handle->type) {
-	case KDBUS_CONN_CONTROL:
+	case KDBUS_HANDLE_CONTROL:
 		return kdbus_handle_ioctl_control(file, cmd, argp);
 
-	case KDBUS_CONN_EP:
+	case KDBUS_HANDLE_EP:
 		return kdbus_handle_ioctl_ep(file, cmd, argp);
 
-	case KDBUS_CONN_EP_CONNECTED:
+	case KDBUS_HANDLE_EP_CONNECTED:
 		return kdbus_handle_ioctl_ep_connected(file, cmd, argp);
 
 	default:
@@ -607,7 +599,7 @@ static unsigned int kdbus_handle_poll(struct file *file,
 	unsigned int mask = 0;
 
 	/* Only an endpoint can read/write data */
-	if (handle->type != KDBUS_CONN_EP_CONNECTED)
+	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
 		return POLLERR | POLLHUP;
 
 	conn = handle->conn;
@@ -628,7 +620,7 @@ static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct kdbus_handle *handle = file->private_data;
 
-	if (handle->type != KDBUS_CONN_EP_CONNECTED)
+	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
 		return -EPERM;
 
 	if (handle->conn->flags & KDBUS_HELLO_STARTER)
