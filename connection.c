@@ -506,6 +506,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c;
+	bool disconnected;
 	int ret = 0;
 
 	mutex_lock(&bus->lock);
@@ -547,7 +548,11 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		}
 	}
 
-	if (c->disconnected) {
+	mutex_lock(&c->lock);
+	disconnected = c->disconnected;
+	mutex_unlock(&c->lock);
+
+	if (disconnected) {
 		ret = -ESRCH;
 		goto exit_unlock;
 	}
@@ -848,9 +853,14 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	struct kdbus_conn_queue *queue, *tmp;
 	struct list_head list;
 
-	if (conn->disconnected)
+	mutex_lock(&conn->lock);
+	if (conn->disconnected) {
+		mutex_unlock(&conn->lock);
 		return;
+	}
+
 	conn->disconnected = true;
+	mutex_unlock(&conn->lock);
 
 	/* remove from bus */
 	mutex_lock(&conn->ep->bus->lock);
