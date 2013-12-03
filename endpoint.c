@@ -57,9 +57,15 @@ struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 
 void kdbus_ep_disconnect(struct kdbus_ep *ep)
 {
-	if (ep->disconnected)
+	mutex_lock(&ep->lock);
+
+	if (ep->disconnected) {
+		mutex_unlock(&ep->lock);
 		return;
+	}
+
 	ep->disconnected = true;
+	mutex_unlock(&ep->lock);
 
 	if (ep->dev) {
 		device_unregister(ep->dev);
@@ -132,18 +138,17 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	if (!e)
 		return -ENOMEM;
 
-	mutex_lock(&bus->ns->lock);
+	mutex_init(&e->lock);
 	kref_init(&e->kref);
 	e->uid = uid;
 	e->gid = gid;
 	e->mode = mode;
 
 	e->name = kstrdup(name, GFP_KERNEL);
-	if (!e->name) {
-		ret = -ENOMEM;
-		goto exit_unlock;
-	}
+	if (!e->name)
+		return -ENOMEM;
 
+	mutex_lock(&bus->ns->lock);
 	/* register minor in our endpoint map */
 	i = idr_alloc(&bus->ns->idr, e, 1, 0, GFP_KERNEL);
 	if (i <= 0) {

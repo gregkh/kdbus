@@ -32,6 +32,7 @@ struct kdbus_ep {
 	kgid_t gid;			/* gid owning this endpoint */
 	struct list_head bus_entry;	/* bus' endpoints */
 	wait_queue_head_t wait;		/* wake up this endpoint */
+	struct mutex lock;
 	struct kdbus_policy_db *policy_db;
 	bool policy_open:1;
 };
