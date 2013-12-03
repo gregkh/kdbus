@@ -489,6 +489,15 @@ exit_free:
 	return ret;
 }
 
+static inline int entry_list_omit(const struct kdbus_name_entry *e,
+				  u64 list_flags)
+{
+	int os = !!(list_flags & KDBUS_NAME_LIST_STARTERS_ONLY);
+	int is = !!e->starter;
+
+	return os ^ is;
+}
+
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			void __user *buf)
@@ -510,9 +519,13 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	/* calculate size */
 	size = sizeof(struct kdbus_name_list);
-	hash_for_each(reg->entries_hash, tmp, e, hentry)
+	hash_for_each(reg->entries_hash, tmp, e, hentry) {
+		if (entry_list_omit(e, cmd_list->flags))
+			continue;
+
 		size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) +
 				     strlen(e->name) + 1);
+	}
 
 	if (cmd_list->flags & KDBUS_NAME_LIST_UNIQUE_NAMES) {
 		struct kdbus_conn *c;
@@ -541,6 +554,9 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	hash_for_each(reg->entries_hash, tmp, e, hentry) {
 		struct kdbus_cmd_name cmd_name = {};
 		size_t len;
+
+		if (entry_list_omit(e, cmd_list->flags))
+			continue;
 
 		cmd_name.size = sizeof(struct kdbus_cmd_name) +
 				strlen(e->name) + 1;
