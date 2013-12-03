@@ -269,34 +269,37 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 		return kdbus_match_db_match_from_kernel(db, kmsg);
 }
 
-static struct kdbus_cmd_match *
-cmd_match_from_user(const struct kdbus_conn *conn, void __user *buf, bool items)
+static int cmd_match_from_user(const struct kdbus_conn *conn,
+			       void __user *buf, bool items,
+			       struct kdbus_cmd_match **m)
 {
 	struct kdbus_cmd_match *cmd_match;
 	u64 size;
 
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_match))
-		return ERR_PTR(-EFAULT);
+		return -EFAULT;
 
 	if (size < sizeof(*cmd_match) || size > KDBUS_MATCH_MAX_SIZE)
-		return ERR_PTR(-EMSGSIZE);
+		return -EMSGSIZE;
 
 	/* remove does not accept any items */
 	if (!items && size != sizeof(*cmd_match))
-		return ERR_PTR(-EMSGSIZE);
+		return -EMSGSIZE;
 
 	cmd_match = memdup_user(buf, size);
-	if (!cmd_match)
-		return NULL;
+	if (!IS_ERR(cmd_match))
+		return PTR_ERR(cmd_match);
 
 	/* privileged users can act on behalf of someone else */
 	if (cmd_match->id == 0)
 		cmd_match->id = conn->id;
 	else if (cmd_match->id != conn->id &&
 		 !kdbus_bus_uid_is_privileged(conn->ep->bus))
-			return ERR_PTR(-EPERM);
+			return -EPERM;
 
-	return cmd_match;
+	*m = cmd_match;
+
+	return 0;
 }
 
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
@@ -305,11 +308,11 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_item *item;
 	struct kdbus_match_db_entry *e;
-	int ret = 0;
+	int ret;
 
-	cmd_match = cmd_match_from_user(conn, buf, true);
-	if (IS_ERR(cmd_match))
-		return PTR_ERR(cmd_match);
+	ret = cmd_match_from_user(conn, buf, true, &cmd_match);
+	if (ret < 0)
+		return ret;
 
 	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
 		struct kdbus_conn *targ_conn;
@@ -412,10 +415,11 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_match_db *db;
 	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_match_db_entry *e, *tmp;
+	int ret;
 
-	cmd_match = cmd_match_from_user(conn, buf, false);
-	if (IS_ERR(cmd_match))
-		return PTR_ERR(cmd_match);
+	ret = cmd_match_from_user(conn, buf, false, &cmd_match);
+	if (ret < 0)
+		return ret;
 
 	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
 		struct kdbus_conn *targ_conn;
