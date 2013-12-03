@@ -30,6 +30,10 @@
 #include "names.h"
 #include "metadata.h"
 
+/**
+ * kdbus_meta_free() - release metadata
+ * @meta:		metadata object
+ */
 void kdbus_meta_free(struct kdbus_meta *meta)
 {
 	kfree(meta->data);
@@ -351,6 +355,17 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
 }
 #endif
 
+/**
+ * kdbus_meta_append() - collect metadata from current process
+ * @meta:		metadata object
+ * @conn		current connection
+ * @which		KDBUS_ATTACH_* flags which typ of data to attach
+ *
+ * Collect the data specified in flags and allocate or extend
+ * the buffer in the metadata object.
+ *
+ * Returns: 0 on success, or negative errno on failure.
+ */
 int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
 		      u64 which)

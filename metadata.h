@@ -12,6 +12,18 @@
 #ifndef __KDBUS_METADATA_H
 #define __KDBUS_METADATA_H
 
+/**
+ * kdbus_meta - metadata buffer
+ * @attached		flags for already attached data
+ * @data		allocated buffer
+ * @size		number of bytes used
+ * @allocated size	size of buffer
+ * @src_names		list of \0-separated well-known names
+ * src_names_len	length of list
+ *
+ * Used to collect and store connection metadata in a pre-compiled
+ * buffer containing struct kdbus_item.
+ */
 struct kdbus_meta {
 	u64 attached;
 	struct kdbus_item *data;
