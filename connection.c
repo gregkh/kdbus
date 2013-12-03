@@ -1146,7 +1146,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		ret = -EINVAL;
 
 	if (ret < 0)
-		return ret;
+		goto exit_unref;
 
 	conn->ep = ep;
 
@@ -1167,7 +1167,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->timer.data = (unsigned long) conn;
 	add_timer(&conn->timer);
 
-	conn->match_db = kdbus_match_db_new();
+	ret = kdbus_match_db_new(&conn->match_db);
+	if (ret < 0) 
+		goto exit_unref;
 
 	/* link into bus; get new id for this connection */
 	mutex_lock(&bus->lock);

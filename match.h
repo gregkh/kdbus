@@ -23,7 +23,7 @@ struct kdbus_match_db {
 struct kdbus_conn;
 struct kdbus_kmsg;
 
-struct kdbus_match_db *kdbus_match_db_new(void);
+int kdbus_match_db_new(struct kdbus_match_db **db);
 void kdbus_match_db_unref(struct kdbus_match_db *db);
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf);
 int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf);

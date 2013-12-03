@@ -101,19 +101,21 @@ void kdbus_match_db_unref(struct kdbus_match_db *db)
 	kref_put(&db->kref, __kdbus_match_db_free);
 }
 
-struct kdbus_match_db *kdbus_match_db_new(void)
+int kdbus_match_db_new(struct kdbus_match_db **db)
 {
-	struct kdbus_match_db *db;
+	struct kdbus_match_db *d;
 
-	db = kzalloc(sizeof(*db), GFP_KERNEL);
-	if (!db)
-		return NULL;
+	d = kzalloc(sizeof(*d), GFP_KERNEL);
+	if (!d)
+		return -ENOMEM;
 
-	kref_init(&db->kref);
-	mutex_init(&db->entries_lock);
-	INIT_LIST_HEAD(&db->entries);
+	kref_init(&d->kref);
+	mutex_init(&d->entries_lock);
+	INIT_LIST_HEAD(&d->entries);
 
-	return db;
+	*db = d;
+
+	return 0;
 }
 
 static inline
