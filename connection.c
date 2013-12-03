@@ -938,6 +938,9 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	if (!(conn_src->flags & KDBUS_HELLO_STARTER))
 		return -EINVAL;
 
+	if (conn_src == conn_dst)
+		return -EINVAL;
+
 	mutex_lock(&conn_src->lock);
 	mutex_lock(&conn_dst->lock);
 
