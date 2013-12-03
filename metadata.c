@@ -181,10 +181,10 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
 
-	creds.uid = from_kuid_munged(current_user_ns(), current_uid());
-	creds.gid = from_kgid_munged(current_user_ns(), current_gid());
-	creds.pid = current->pid;
-	creds.tid = current->tgid;
+	creds.uid = from_kuid(current_user_ns(), current_uid());
+	creds.gid = from_kgid(current_user_ns(), current_gid());
+	creds.pid = task_pid_vnr(current);
+	creds.tid = task_tgid_vnr(current);
 	creds.starttime = timespec_to_ns(&current->start_time);
 
 	item = kdbus_meta_append_item(meta, size);

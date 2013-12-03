@@ -167,8 +167,8 @@ static inline u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_
 					 struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_entry_access *a;
-	u64 uid = from_kuid_munged(current_user_ns(), current_uid());
-	u64 gid = from_kgid_munged(current_user_ns(), current_gid());
+	u64 uid = from_kuid(current_user_ns(), current_uid());
+	u64 gid = from_kgid(current_user_ns(), current_gid());
 	u64 access = 0;
 
 	list_for_each_entry(a, &db_entry->access_list, list) {
