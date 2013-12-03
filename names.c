@@ -94,7 +94,7 @@ int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 {
 	struct kdbus_name_registry *r;
 
-	r = kzalloc(sizeof(*reg), GFP_KERNEL);
+	r = kzalloc(sizeof(*r), GFP_KERNEL);
 	if (!r)
 		return -ENOMEM;
 
