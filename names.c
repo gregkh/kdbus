@@ -42,6 +42,8 @@ struct kdbus_name_queue_item {
 
 static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 {
+	if (e->starter)
+		kdbus_conn_unref(e->starter);
 	hash_del(&e->hentry);
 	kfree(e->name);
 	kfree(e);
@@ -341,7 +343,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	}
 
 	if (conn->flags & KDBUS_HELLO_STARTER) {
-		e->starter = conn;
+		e->starter = kdbus_conn_ref(conn);
 		flags = KDBUS_NAME_ALLOW_REPLACEMENT;
 	}
 

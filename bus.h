@@ -28,8 +28,8 @@
  */
 struct kdbus_bus {
 	struct kref kref;		/* reference count */
-	kuid_t uid_owner;		/* the uid of the owner of the bus */
 	bool disconnected;		/* invalidated data */
+	kuid_t uid_owner;		/* the uid of the owner of the bus */
 	struct kdbus_ns *ns;		/* namespace of this bus */
 	const char *name;		/* bus name */
 	u64 id;				/* id of this bus in the namespace */

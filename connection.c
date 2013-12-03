@@ -550,6 +550,11 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		}
 	}
 
+	if (c->disconnected) {
+		ret = -ESRCH;
+		goto exit_unlock;
+	}
+
 	kdbus_conn_ref(c);
 	*conn = c;
 
@@ -841,13 +846,14 @@ void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size)
 	mutex_unlock(&conn->accounting_lock);
 }
 
-static void __kdbus_conn_free(struct kref *kref)
+void kdbus_conn_disconnect(struct kdbus_conn *conn)
 {
-	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 	struct kdbus_conn_queue *queue, *tmp;
 	struct list_head list;
 
-	INIT_LIST_HEAD(&list);
+	if (conn->disconnected)
+		return;
+	conn->disconnected = true;
 
 	/* remove from bus */
 	mutex_lock(&conn->ep->bus->lock);
@@ -856,6 +862,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	mutex_unlock(&conn->ep->bus->lock);
 
 	/* clean up any messages still left on this endpoint */
+	INIT_LIST_HEAD(&list);
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
 		list_del(&queue->entry);
@@ -896,6 +903,13 @@ static void __kdbus_conn_free(struct kref *kref)
 
 	kdbus_meta_free(&conn->meta);
 	kdbus_pool_cleanup(conn->pool);
+}
+
+static void __kdbus_conn_free(struct kref *kref)
+{
+	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
+
+	kdbus_conn_disconnect(conn);
 	kfree(conn);
 }
 
