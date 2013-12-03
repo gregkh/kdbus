@@ -287,7 +287,7 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
 		return -EMSGSIZE;
 
 	cmd_match = memdup_user(buf, size);
-	if (!IS_ERR(cmd_match))
+	if (IS_ERR(cmd_match))
 		return PTR_ERR(cmd_match);
 
 	/* privileged users can act on behalf of someone else */
@@ -305,7 +305,7 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
 	struct kdbus_match_db *db;
-	struct kdbus_cmd_match *cmd_match;
+	struct kdbus_cmd_match *cmd_match = NULL;
 	struct kdbus_item *item;
 	struct kdbus_match_db_entry *e;
 	int ret;
@@ -413,7 +413,7 @@ exit_free:
 int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 {
 	struct kdbus_match_db *db;
-	struct kdbus_cmd_match *cmd_match;
+	struct kdbus_cmd_match *cmd_match = NULL;
 	struct kdbus_match_db_entry *e, *tmp;
 	int ret;
 
