@@ -573,13 +573,13 @@ exit_free:
 	return ret;
 }
 
-static inline int entry_list_omit(const struct kdbus_name_entry *e,
+static inline bool entry_list_omit(const struct kdbus_name_entry *e,
 				  u64 list_flags)
 {
-	int os = !!(list_flags & KDBUS_NAME_LIST_STARTERS);
-	int is = !!e->starter;
+	bool list = !!(list_flags & KDBUS_NAME_LIST_STARTERS);
+	bool starter = !!e->starter;
 
-	return os ^ is;
+	return list ^ starter;
 }
 
 /**

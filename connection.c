@@ -1037,10 +1037,12 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 
 	/* calculate and reserve size for well-known names */
 	names_size = 0;
-	list_for_each_entry(e, &owner_conn->names_list, conn_entry)
-		names_size += strlen(e->name) + 1;
-	if (names_size > 0)
-		info.size += KDBUS_ITEM_SIZE(names_size);
+	if (!(owner_conn->flags & KDBUS_HELLO_STARTER)) {
+		list_for_each_entry(e, &owner_conn->names_list, conn_entry)
+			names_size += strlen(e->name) + 1;
+		if (names_size > 0)
+			info.size += KDBUS_ITEM_SIZE(names_size);
+	}
 
 	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
 	if (ret < 0)
