@@ -43,7 +43,7 @@ bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
 
 /**
  * kdbus_bus_ref() - increase the reference counter of a kdbus_bus
- * @bus:	The bus to unref
+ * @bus:		The bus to unref
  *
  * Every user of a bus, except for its creator, must add a reference to the
  * kdbus_bus using this function.
@@ -67,9 +67,10 @@ static void __kdbus_bus_free(struct kref *kref)
 
 /**
  * kdbus_bus_unref() - decrease the reference counter of a kdbus_bus
- * @bus:	The bus to unref
+ * @bus:		The bus to unref
  *
- * Give up a retain. If the reference count drops to 0, the bus will be freed.
+ * Release a reference. If the reference count drops to 0, the bus will be
+ * freed.
  */
 void kdbus_bus_unref(struct kdbus_bus *bus)
 {
@@ -89,7 +90,7 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 
 /**
  * kdbus_bus_disconnect() - disconnect a kdbus_bus
- * @bus:	The kdbus reference
+ * @bus:		The kdbus reference
  *
  * The passed bus will be disconnected and the associated endpoint will be
  * unref'ed.
@@ -130,20 +131,21 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 
 /**
  * kdbus_bus_new() - create a new struct kdbus_bus
- * @ns:		The namespace to work on
- * @bus_kmake:	Pointer to a struct kdbus_cmd_bus_kmake containing the
- *		details for the bus creation
- * @mode:	The access mode for the device node
- * @uid:	The uid of the device node
- * @gid:	The gid of the device node
- * @bus:	Pointer to a reference where the new bus is stored
+ * @ns:			The namespace to work on
+ * @bus_make:		Pointer to a struct kdbus_cmd_bus_make containing the
+ *			details for the bus creation
+ * @mode:		The access mode for the device node
+ * @uid:		The uid of the device node
+ * @gid:		The gid of the device node
+ * @bus:		Pointer to a reference where the new bus is stored
  *
  * This function will allocate a new kdbus_bus and link it to the given
  * namespace.
  *
- * Return: 0 on success, < 0 on failure
+ * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
+int kdbus_bus_new(struct kdbus_ns *ns,
+		  struct kdbus_cmd_bus_make *bus_make, const char *name,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus)
 {
 	char prefix[16];
@@ -152,10 +154,10 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-", from_kuid(current_user_ns(), uid));
-	if (strncmp(bus_kmake->name, prefix, strlen(prefix) != 0))
+	if (strncmp(name, prefix, strlen(prefix) != 0))
 		return -EPERM;
 
-	b = kdbus_bus_find(ns, bus_kmake->name);
+	b = kdbus_bus_find(ns, name);
 	if (b) {
 		kdbus_bus_unref(b);
 		return -EEXIST;
@@ -168,8 +170,8 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	kref_init(&b->kref);
 	b->uid_owner = uid;
 	b->ns = ns;
-	b->bus_flags = bus_kmake->make.flags;
-	b->bloom_size = bus_kmake->make.bloom_size;
+	b->bus_flags = bus_make->flags;
+	b->bloom_size = bus_make->bloom_size;
 	b->conn_id_next = 1; /* connection 0 == kernel */
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
@@ -187,7 +189,7 @@ int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_bus_kmake *bus_kmake,
 	b->id128[8] &= 0x3f;
 	b->id128[8] |= 0x80;
 
-	b->name = kstrdup(bus_kmake->name, GFP_KERNEL);
+	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;
 		goto exit;
@@ -217,19 +219,22 @@ exit:
 }
 
 /**
- * kdbus_bus_make_user() - create a kdbus_cmd_bus_kmake from user-supplied data
- * @buf:	The user supplied data from the ioctl() call
- * @kmage:	Reference to the location where to store the result.
+ * kdbus_bus_make_user() - create a kdbus_cmd_bus_make from user-supplied data
+ * @buf:		The user supplied data from the ioctl() call
+ * @make:		Reference to the location where to store the result
+ * @name:		Shortcut to the requested name
  *
  * This function is part of the connection ioctl() interface and will parse
  * the user-supplied data.
  *
- * Return: 0 on success, < 0 on failure
+ * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
+int kdbus_bus_make_user(void __user *buf,
+			struct kdbus_cmd_bus_make **make, char **name)
 {
 	u64 size;
-	struct kdbus_cmd_bus_kmake *km;
+	struct kdbus_cmd_bus_make *m;
+	const char *n = NULL;
 	const struct kdbus_item *item;
 	int ret;
 
@@ -239,25 +244,24 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 	if (size < sizeof(struct kdbus_cmd_bus_make) || size > KDBUS_MAKE_MAX_SIZE)
 		return -EMSGSIZE;
 
-	km = kmalloc(sizeof(struct kdbus_cmd_bus_kmake) + size, GFP_KERNEL);
-	if (!km)
+	m = kmalloc(size, GFP_KERNEL);
+	if (!m)
 		return -ENOMEM;
 
-	memset(km, 0, offsetof(struct kdbus_cmd_bus_kmake, make));
-	if (copy_from_user(&km->make, buf, size)) {
+	if (copy_from_user(m, buf, size)) {
 		ret = -EFAULT;
 		goto exit;
 	}
 
-	KDBUS_PART_FOREACH(item, &km->make, items) {
-		if (!KDBUS_PART_VALID(item, &km->make)) {
+	KDBUS_PART_FOREACH(item, m, items) {
+		if (!KDBUS_PART_VALID(item, m)) {
 			ret = -EINVAL;
 			goto exit;
 		}
 
 		switch (item->type) {
 		case KDBUS_MAKE_NAME:
-			if (km->name) {
+			if (n) {
 				ret = -EEXIST;
 				goto exit;
 			}
@@ -278,7 +282,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 				goto exit;
 			}
 
-			km->name = item->str;
+			n = item->str;
 			continue;
 
 		default:
@@ -287,28 +291,29 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_bus_kmake **kmake)
 		}
 	}
 
-	if (!KDBUS_PART_END(item, &km->make))
+	if (!KDBUS_PART_END(item, m))
 		return -EINVAL;
 
-	if (!km->name) {
+	if (!n) {
 		ret = -EBADMSG;
 		goto exit;
 	}
 
-	if (!KDBUS_IS_ALIGNED8(km->make.bloom_size)) {
+	if (!KDBUS_IS_ALIGNED8(m->bloom_size)) {
 		ret = -EINVAL;
 		goto exit;
 	}
 
-	if (km->make.bloom_size < 8 || km->make.bloom_size > 16 * 1024) {
+	if (m->bloom_size < 8 || m->bloom_size > 16 * 1024) {
 		ret = -EINVAL;
 		goto exit;
 	}
 
-	*kmake = km;
+	*make = m;
+	*name = (char *)n;
 	return 0;
 
 exit:
-	kfree(km);
+	kfree(m);
 	return ret;
 }
