@@ -30,7 +30,7 @@ struct kdbus_policy_db {
 
 struct kdbus_conn;
 
-struct kdbus_policy_db *kdbus_policy_db_new(void);
+int kdbus_policy_db_new(struct kdbus_policy_db **db);
 void kdbus_policy_db_unref(struct kdbus_policy_db *db);
 int kdbus_cmd_policy_set_from_user(struct kdbus_policy_db *db,
 				   void __user *buf);

@@ -182,11 +182,9 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	/* install policy */
 	e->policy_open = policy_open;
 	if (!policy_open) {
-		e->policy_db = kdbus_policy_db_new();
-		if (!e->policy_db) {
-			ret = -ENOMEM;
+		ret = kdbus_policy_db_new(&e->policy_db);
+		if (ret < 0)
 			goto exit_unlock;
-		}
 	}
 
 	init_waitqueue_head(&e->wait);

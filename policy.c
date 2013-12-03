@@ -137,30 +137,32 @@ void kdbus_policy_db_unref(struct kdbus_policy_db *db)
 	kref_put(&db->kref, __kdbus_policy_db_free);
 }
 
-struct kdbus_policy_db *kdbus_policy_db_new(void)
+int kdbus_policy_db_new(struct kdbus_policy_db **db)
 {
-	struct kdbus_policy_db *db;
+	struct kdbus_policy_db *d;
 
-	db = kzalloc(sizeof(*db), GFP_KERNEL);
-	if (!db)
-		return NULL;
+	d = kzalloc(sizeof(*d), GFP_KERNEL);
+	if (!d)
+		return -ENOMEM;
 
-	kref_init(&db->kref);
-	hash_init(db->entries_hash);
-	hash_init(db->send_access_hash);
-	INIT_LIST_HEAD(&db->timeout_list);
-	mutex_init(&db->entries_lock);
-	mutex_init(&db->cache_lock);
+	kref_init(&d->kref);
+	hash_init(d->entries_hash);
+	hash_init(d->send_access_hash);
+	INIT_LIST_HEAD(&d->timeout_list);
+	mutex_init(&d->entries_lock);
+	mutex_init(&d->cache_lock);
 
-	INIT_WORK(&db->work, kdbus_policy_db_work);
+	INIT_WORK(&d->work, kdbus_policy_db_work);
 
-	init_timer(&db->timer);
-	db->timer.expires = 0;
-	db->timer.function = kdbus_policy_db_timer_func;
-	db->timer.data = (unsigned long) db;
-	add_timer(&db->timer);
+	init_timer(&d->timer);
+	d->timer.expires = 0;
+	d->timer.function = kdbus_policy_db_timer_func;
+	d->timer.data = (unsigned long) d;
+	add_timer(&d->timer);
 
-	return db;
+	*db = d;
+
+	return 0;
 }
 
 static inline u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
