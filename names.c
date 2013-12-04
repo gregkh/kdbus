@@ -280,6 +280,10 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 		old_id = e->conn->id;
 
+		/*
+		 * In case the name is owned by a starteri connection, take it over.
+		 * Move queued messages from the starter to our connection.
+		 */
 		if (e->starter) {
 			ret = kdbus_conn_move_messages(conn, e->starter);
 			if (ret < 0)
@@ -287,12 +291,14 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 			kdbus_conn_unref(e->conn);
 			e->conn = kdbus_conn_ref(conn);
+
 			kdbus_conn_unref(e->starter);
 			e->starter = NULL;
-		} else {
-			kdbus_name_entry_detach(e);
-			kdbus_name_entry_attach(e, conn);
 		}
+
+		/* update the owner of the name */
+		kdbus_name_entry_detach(e);
+		kdbus_name_entry_attach(e, conn);
 
 		e->flags = *flags;
 
