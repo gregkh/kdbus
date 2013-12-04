@@ -339,16 +339,16 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 	/* space for PAYLOAD items */
 	if ((kmsg->vecs_count + kmsg->memfds_count) > 0) {
 		payloads = msg_size;
-		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec)) *
+		msg_size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec)) *
 			    kmsg->vecs_count;
-		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd)) *
+		msg_size += KDBUS_PART_SIZE(sizeof(struct kdbus_memfd)) *
 			    kmsg->memfds_count;
 	}
 
 	/* space for FDS item */
 	if (kmsg->fds_count > 0) {
 		fds = msg_size;
-		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
+		msg_size += KDBUS_PART_SIZE(kmsg->fds_count * sizeof(int));
 	}
 
 	/* space for metadata/credential items */
@@ -1064,7 +1064,7 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 		list_for_each_entry(e, &owner_conn->names_list, conn_entry)
 			names_size += strlen(e->name) + 1;
 		if (names_size > 0)
-			info.size += KDBUS_ITEM_SIZE(names_size);
+			info.size += KDBUS_PART_SIZE(names_size);
 	}
 
 	ret = kdbus_pool_alloc(conn->pool, info.size, &off);

@@ -102,9 +102,9 @@ int msg_send(const struct conn *conn,
 	int ret;
 
 	size = sizeof(struct kdbus_msg);
-	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_PART_HEADER_SIZE + 64;
@@ -126,11 +126,11 @@ int msg_send(const struct conn *conn,
 			return EXIT_FAILURE;
 		}
 
-		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+		size += KDBUS_PART_SIZE(sizeof(struct kdbus_memfd));
 	}
 
 	if (name)
-		size += KDBUS_ITEM_SIZE(strlen(name) + 1);
+		size += KDBUS_PART_SIZE(strlen(name) + 1);
 
 	msg = malloc(size);
 	if (!msg) {

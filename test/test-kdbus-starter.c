@@ -24,7 +24,7 @@ static struct conn *make_starter(const char *path, const char *name)
 	size_t size, slen;
 
 	slen = strlen(name) + 1;
-	size = sizeof(*hello) + KDBUS_ITEM_SIZE(slen);
+	size = sizeof(*hello) + KDBUS_PART_SIZE(slen);
 
 	hello = alloca(size);
 	memset(hello, 0, size);
@@ -41,7 +41,7 @@ static struct conn *make_starter(const char *path, const char *name)
 	hello->conn_flags = KDBUS_HELLO_STARTER;
 
 	item = hello->items;
-	item->size = KDBUS_ITEM_SIZE(slen);
+	item->size = KDBUS_PART_SIZE(slen);
 	item->type = KDBUS_ITEM_STARTER_NAME;
 	strcpy(item->str, name);
 

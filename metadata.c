@@ -86,7 +86,7 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
 static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
 {
 	struct kdbus_item *item;
-	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
+	u64 size = KDBUS_PART_SIZE(sizeof(struct kdbus_timestamp));
 	struct timespec ts;
 
 	item = kdbus_meta_append_item(meta, size);
@@ -114,7 +114,7 @@ static int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 	if (len == 0)
 		return 0;
 
-	size = KDBUS_ITEM_SIZE(len);
+	size = KDBUS_PART_SIZE(len);
 	item = kdbus_meta_append_item(meta, size);
 	if (IS_ERR(item))
 		return PTR_ERR(item);
@@ -151,7 +151,7 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 	if (strsize == 0)
 		goto exit_unlock;
 
-	size = KDBUS_ITEM_SIZE(strsize);
+	size = KDBUS_PART_SIZE(strsize);
 	item = kdbus_meta_append_item(meta, size);
 	if (IS_ERR(item)) {
 		ret = PTR_ERR(item);
@@ -179,7 +179,7 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 {
 	struct kdbus_creds creds = {};
 	struct kdbus_item *item;
-	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
+	u64 size = KDBUS_PART_SIZE(sizeof(struct kdbus_creds));
 
 	creds.uid = from_kuid(current_user_ns(), current_uid());
 	creds.gid = from_kgid(current_user_ns(), current_gid());

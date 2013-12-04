@@ -20,7 +20,7 @@
 
 #define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
 #define KDBUS_PART_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_PART_HEADER_SIZE)
+#define KDBUS_PART_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_PART_HEADER_SIZE)
 
 #define KDBUS_PART_NEXT(part) \
 	(typeof(part))(((uint8_t *)part) + KDBUS_ALIGN8((part)->size))

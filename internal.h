@@ -55,7 +55,6 @@
 	((u8 *)part == ((u8 *)(head) + KDBUS_ALIGN8((head)->size)))
 
 #define KDBUS_MSG_HEADER_SIZE offsetof(struct kdbus_msg, items)
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
 
 /* read 64bit .size in struct */
 #define kdbus_size_get_user(_s, _b, _t)						\

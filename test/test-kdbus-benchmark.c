@@ -92,7 +92,7 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 	gettimeofday(&now, NULL);
 
 	size = sizeof(struct kdbus_msg);
-	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
 	if (ret < 0) {
@@ -111,7 +111,7 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 		return EXIT_FAILURE;
 	}
 
-	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+	size += KDBUS_PART_SIZE(sizeof(struct kdbus_memfd));
 
 	msg = malloc(size);
 	if (!msg) {

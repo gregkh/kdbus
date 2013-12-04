@@ -84,13 +84,13 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 	size_t size;
 	struct kdbus_kmsg *kmsg;
 
-	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
+	size = sizeof(struct kdbus_kmsg) + KDBUS_PART_SIZE(extra_size);
 	kmsg = kzalloc(size, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
 
 	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
-	kmsg->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
+	kmsg->msg.items[0].size = KDBUS_PART_SIZE(extra_size);
 
 	*m = kmsg;
 	return 0;
