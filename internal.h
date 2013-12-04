@@ -40,7 +40,7 @@
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
-#define KDBUS_PART_HEADER_SIZE (2 * sizeof(__u64))
+#define KDBUS_PART_HEADER_SIZE sizeof(KDBUS_PART_HEADER)
 #define KDBUS_PART_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
 #define KDBUS_PART_NEXT(part) \
 	(typeof(part))(((u8 *)part) + KDBUS_ALIGN8((part)->size))
