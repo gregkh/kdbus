@@ -517,7 +517,7 @@ struct kdbus_name_list {
 /**
  * struct kdbus_cmd_conn_info - struct used for KDBUS_CMD_CONN_INFO ioctl
  * @size:		The total size of the struct
- * @flags:		Query flags, currently unused
+ * @flags:		KDBUS_ATTACH_* flags
  * @id:			The 64-bit ID of the connection. If set to zero, passing
  * 			@name is required. kdbus will look up the name to determine
  * 			the ID in this case.

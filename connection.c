@@ -988,7 +988,6 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	struct kdbus_cmd_conn_info *cmd_info;
 	struct kdbus_conn_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
-	struct kdbus_name_entry *e = NULL;
 	size_t off, pos, names_size;
 	char *name = NULL;
 	u64 size;
@@ -1008,7 +1007,7 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_info))
 		return PTR_ERR(cmd_info);
 
-	/* The API offers to look up a connection by ID or by name */
+	/* look up a connection by name */
 	if (cmd_info->id != 0) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
@@ -1036,6 +1035,8 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	 * was already set above.
 	 */
 	if (name) {
+		struct kdbus_name_entry *e;
+
 		e = kdbus_name_lookup(reg, name);
 		if (!e) {
 			ret = -ENOENT;
@@ -1058,11 +1059,22 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 
 	mutex_lock(&conn->names_lock);
 
-	/* calculate and reserve size for well-known names */
+	/*
+	 * Calculate and reserve size for well-known names.
+	 *
+	 * Unlike the rest of the values which are cached at
+	 * connection creation time, the names are appended here
+	 * because at creation time a connection does not have
+	 * any name.
+	 */
 	names_size = 0;
-	if (!(owner_conn->flags & KDBUS_HELLO_STARTER)) {
+	if (cmd_info->flags & KDBUS_ATTACH_NAMES &&
+	    !(owner_conn->flags & KDBUS_HELLO_STARTER)) {
+		struct kdbus_name_entry *e;
+
 		list_for_each_entry(e, &owner_conn->names_list, conn_entry)
 			names_size += strlen(e->name) + 1;
+
 		if (names_size > 0)
 			info.size += KDBUS_PART_SIZE(names_size);
 	}
@@ -1087,6 +1099,7 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 			.size = KDBUS_PART_HEADER_SIZE + names_size,
 			.type = KDBUS_ITEM_NAMES,
 		};
+		struct kdbus_name_entry *e;
 
 		ret = kdbus_pool_write(conn->pool, pos, &item,
 				       KDBUS_PART_HEADER_SIZE);
@@ -1115,7 +1128,8 @@ exit_free:
 		kdbus_pool_free(conn->pool, off);
 
 exit_unref_owner_conn:
-	kdbus_conn_unref(owner_conn);
+	if (owner_conn)
+		kdbus_conn_unref(owner_conn);
 	mutex_unlock(&conn->names_lock);
 	kfree(cmd_info);
 
