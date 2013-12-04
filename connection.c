@@ -564,8 +564,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 	c = NULL;
 
 exit_unref:
-	if (c)
-		kdbus_conn_unref(c);
+	kdbus_conn_unref(c);
 
 exit_unlock:
 	mutex_unlock(&bus->lock);
@@ -937,6 +936,9 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
 
 void kdbus_conn_unref(struct kdbus_conn *conn)
 {
+	if (!conn)
+		return;
+
 	kref_put(&conn->kref, __kdbus_conn_free);
 }
 
@@ -1128,8 +1130,7 @@ exit_free:
 		kdbus_pool_free(conn->pool, off);
 
 exit_unref_owner_conn:
-	if (owner_conn)
-		kdbus_conn_unref(owner_conn);
+	kdbus_conn_unref(owner_conn);
 	mutex_unlock(&conn->names_lock);
 	kfree(cmd_info);
 

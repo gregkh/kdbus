@@ -50,8 +50,7 @@ struct kdbus_name_queue_item {
 static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 {
 	kdbus_conn_unref(e->conn);
-	if (e->starter)
-		kdbus_conn_unref(e->starter);
+	kdbus_conn_unref(e->starter);
 	hash_del(&e->hentry);
 	kfree(e->name);
 	kfree(e);
