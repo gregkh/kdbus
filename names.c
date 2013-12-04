@@ -49,6 +49,7 @@ struct kdbus_name_queue_item {
 
 static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 {
+	kdbus_conn_unref(e->conn);
 	if (e->starter)
 		kdbus_conn_unref(e->starter);
 	hash_del(&e->hentry);
@@ -136,7 +137,7 @@ static void kdbus_name_entry_detach(struct kdbus_name_entry *e)
 static void kdbus_name_entry_attach(struct kdbus_name_entry *e,
 				    struct kdbus_conn *conn)
 {
-	e->conn = conn;
+	e->conn = kdbus_conn_ref(conn);
 	list_add_tail(&e->conn_entry, &e->conn->names_list);
 	conn->names++;
 }
@@ -285,7 +286,9 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 			if (ret < 0)
 				return ret;
 
-			e->conn = conn;
+			kdbus_conn_unref(e->conn);
+			e->conn = kdbus_conn_ref(conn);
+			kdbus_conn_unref(e->starter);
 			e->starter = NULL;
 		} else {
 			kdbus_name_entry_detach(e);
