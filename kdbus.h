@@ -559,10 +559,10 @@ struct kdbus_conn_info {
 enum {
 	_KDBUS_MATCH_NULL,
 	KDBUS_MATCH_BLOOM,		/* Matches a mask blob against KDBUS_MSG_BLOOM */
-	KDBUS_MATCH_SRC_NAME,		/* Matches a name string against KDBUS_MSG_SRC_NAMES */
-	KDBUS_MATCH_NAME_ADD,		/* Matches a name string against KDBUS_MSG_NAME_ADD */
-	KDBUS_MATCH_NAME_REMOVE,	/* Matches a name string against KDBUS_MSG_NAME_REMOVE */
-	KDBUS_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_MSG_NAME_CHANGE */
+	KDBUS_MATCH_SRC_NAME,		/* Matches a name string against KDBUS_ITEM_NAME */
+	KDBUS_MATCH_NAME_ADD,		/* Matches a name string against KDBUS_ITEM_NAME_ADD */
+	KDBUS_MATCH_NAME_REMOVE,	/* Matches a name string against KDBUS_ITEM_NAME_REMOVE */
+	KDBUS_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_ITEM_NAME_CHANGE */
 	KDBUS_MATCH_ID_ADD,		/* Matches an ID against KDBUS_MSG_ID_ADD */
 	KDBUS_MATCH_ID_REMOVE,		/* Matches an ID against KDBUS_MSG_ID_REMOVE */
 };
