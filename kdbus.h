@@ -81,10 +81,10 @@ struct kdbus_notify_id_change {
 
 /**
  * struct kdbus_creds - process credentials
- * @uid			User id
- * @gid			Group id
- * @pid			Process id
- * @tid			Thread id
+ * @uid			User ID
+ * @gid			Group ID
+ * @pid			Process ID
+ * @tid			Thread ID
  * @starttime		Starttime of the process
  *
  * The starttime of the process PID. This is useful to detect PID overruns
@@ -354,7 +354,7 @@ enum {
  * 			KDBUS_CMD_BUS_MAKE ioctl. It's intended to be useful
  *			to do negotiation of features of the payload that is
  *			transferred (kernel → userspace)
- * @id:			The id of this connection (kernel → userspace)
+ * @id:			The ID of this connection (kernel → userspace)
  * @bloom_size:		The bloom filter size chosen by the owner
  * 			(kernel → userspace)
  * @pool_size:		Maximum size of the pool buffer (kernel → userspace)
