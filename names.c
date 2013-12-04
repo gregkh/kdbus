@@ -597,15 +597,6 @@ exit_free:
 	return ret;
 }
 
-static inline bool entry_list_omit(const struct kdbus_name_entry *e,
-				  u64 list_flags)
-{
-	bool list = !!(list_flags & KDBUS_NAME_LIST_STARTERS);
-	bool starter = !!e->starter;
-
-	return list ^ starter;
-}
-
 /**
  * kdbus_cmd_name_list - list names of a connection
  * @reg:	The name registry
@@ -620,91 +611,51 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 {
 	struct kdbus_cmd_name_list *cmd_list;
 	struct kdbus_name_list list = {};
-	struct kdbus_name_entry *name_entry = NULL;
 	struct kdbus_bus *bus = conn->ep->bus;
-	size_t size, name_len;
+	size_t size;
 	u64 tmp;
-	u64 flags;
 	size_t off, pos;
 	int ret = 0;
 
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name_list))
-		return -EFAULT;
-
-	if (size < sizeof(struct kdbus_cmd_name_list))
-		return -EINVAL;
-
-	if (size > sizeof(struct kdbus_cmd_name_list) + KDBUS_NAME_MAX_LEN + 1)
-		return -EMSGSIZE;
-
-	cmd_list = memdup_user(buf, size);
+	cmd_list = memdup_user(buf, sizeof(struct kdbus_cmd_name_list));
 	if (IS_ERR(cmd_list))
 		return PTR_ERR(cmd_list);
 
-	flags = cmd_list->flags;
-	name_len = size - sizeof(*cmd_list);
-
-	/* KDBUS_NAME_LIST_STARTERS implies KDBUS_NAME_LIST_NAMES */
-	if (flags & KDBUS_NAME_LIST_STARTERS)
-		flags |= KDBUS_NAME_LIST_NAMES;
-
-	/* check flags */
-	if ((flags & KDBUS_NAME_LIST_UNIQUE) &&
-	    (flags & KDBUS_NAME_LIST_STARTERS))
-		return -EINVAL;
-
-	if ((flags & KDBUS_NAME_LIST_NAMES) &&
-	    (flags & KDBUS_NAME_LIST_QUEUED))
-		return -EINVAL;
-
 	mutex_lock(&reg->entries_lock);
-
-	if (flags & KDBUS_NAME_LIST_QUEUED) {
-		u32 hash;
-
-		if (name_len == 0) {
-			ret = -EINVAL;
-			goto exit_unlock;
-		}
-
-		hash = kdbus_str_hash(cmd_list->name);
-		name_entry = __kdbus_name_lookup(reg, hash, cmd_list->name);
-		if (!name_entry) {
-			ret = -ENOENT;
-			goto exit_unlock;
-		}
-	}
 
 	/* calculate size of return buffer */
 	size = sizeof(struct kdbus_name_list);
 
-	if (flags & KDBUS_NAME_LIST_NAMES) {
-		struct kdbus_name_entry *e;
-
-		hash_for_each(reg->entries_hash, tmp, e, hentry) {
-			if (entry_list_omit(e, flags))
-				continue;
-
-			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) +
-					     strlen(e->name) + 1);
-		}
-	}
-
-	if (flags & KDBUS_NAME_LIST_QUEUED) {
-		struct kdbus_name_queue_item *q;
-
-		list_for_each_entry(q, &name_entry->queue_list, entry_entry)
-			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
-
-	} else if (flags & KDBUS_NAME_LIST_UNIQUE) {
+	if (cmd_list->flags & KDBUS_NAME_LIST_UNIQUE) {
 		struct kdbus_conn *c;
 		int i;
 
 		hash_for_each(bus->conn_hash, i, c, hentry) {
-			if (c->flags & KDBUS_HELLO_STARTER)
+			/* skip starters */
+			if (!(cmd_list->flags & KDBUS_NAME_LIST_STARTERS) &&
+			    (c->flags & KDBUS_HELLO_STARTER))
 				continue;
 
 			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
+		}
+	}
+
+	if (cmd_list->flags & KDBUS_NAME_LIST_NAMES) {
+		struct kdbus_name_entry *e;
+
+		hash_for_each(reg->entries_hash, tmp, e, hentry) {
+			/* skip starters */
+			if (!(cmd_list->flags & KDBUS_NAME_LIST_STARTERS) &&
+			    (e->starter))
+				continue;
+
+			/* skip queued names */
+			if (!(cmd_list->flags & KDBUS_NAME_LIST_QUEUED) &&
+			    (e->flags & KDBUS_NAME_QUEUE))
+				continue;
+
+			size += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name) +
+					     strlen(e->name) + 1);
 		}
 	}
 
@@ -723,21 +674,55 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	}
 	pos += sizeof(struct kdbus_name_list);
 
-	if (flags & KDBUS_NAME_LIST_NAMES) {
+	if (cmd_list->flags & KDBUS_NAME_LIST_UNIQUE) {
+		struct kdbus_conn *c;
+		int i;
+
+		hash_for_each(bus->conn_hash, i, c, hentry) {
+			struct kdbus_cmd_name cmd_name = {};
+
+			/* skip starters */
+			if (!(cmd_list->flags & KDBUS_NAME_LIST_STARTERS) &&
+			    (c->flags & KDBUS_HELLO_STARTER))
+				continue;
+
+			cmd_name.size = sizeof(struct kdbus_cmd_name);
+			cmd_name.id = c->id;
+			cmd_name.conn_flags = c->flags;
+
+			ret = kdbus_pool_write(conn->pool, pos,
+					       &cmd_name, sizeof(cmd_name));
+			if (ret < 0) {
+				kdbus_pool_free(conn->pool, off);
+				goto exit_unlock;
+			}
+
+			pos += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
+		}
+	}
+
+	if (cmd_list->flags & KDBUS_NAME_LIST_NAMES) {
 		struct kdbus_name_entry *e;
 
-		/* copy names */
 		hash_for_each(reg->entries_hash, tmp, e, hentry) {
 			struct kdbus_cmd_name cmd_name = {};
 			size_t len;
 
-			if (entry_list_omit(e, flags))
+			/* skip starters */
+			if (!(cmd_list->flags & KDBUS_NAME_LIST_STARTERS) &&
+			    e->starter)
+				continue;
+
+			/* skip queued names */
+			if (!(cmd_list->flags & KDBUS_NAME_LIST_QUEUED) &&
+			    (e->flags & KDBUS_NAME_QUEUE))
 				continue;
 
 			cmd_name.size = sizeof(struct kdbus_cmd_name) +
 					strlen(e->name) + 1;
 			cmd_name.flags = e->flags;
 			cmd_name.id = e->conn->id;
+			cmd_name.conn_flags = e->conn->flags;
 
 			ret = kdbus_pool_write(conn->pool, pos,
 					       &cmd_name, sizeof(cmd_name));
@@ -755,53 +740,6 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			}
 
 			pos += KDBUS_ALIGN8(len);
-		}
-	}
-
-	if (flags & KDBUS_NAME_LIST_QUEUED) {
-		/* copy queued owners */
-		struct kdbus_name_queue_item *q;
-
-		list_for_each_entry(q, &name_entry->queue_list, entry_entry) {
-			struct kdbus_cmd_name cmd_name = {};
-
-			cmd_name.size = sizeof(struct kdbus_cmd_name);
-			cmd_name.id = q->conn->id;
-			cmd_name.flags = q->conn->flags;
-
-			ret = kdbus_pool_write(conn->pool, pos,
-					       &cmd_name, sizeof(cmd_name));
-			if (ret < 0) {
-				kdbus_pool_free(conn->pool, off);
-				goto exit_unlock;
-			}
-
-			pos += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
-		}
-
-	} else if (flags & KDBUS_NAME_LIST_UNIQUE) {
-		/* copy unique ids */
-		struct kdbus_conn *c;
-		int i;
-
-		hash_for_each(bus->conn_hash, i, c, hentry) {
-			struct kdbus_cmd_name cmd_name = {};
-
-			if (c->flags & KDBUS_HELLO_STARTER)
-				continue;
-
-			cmd_name.size = sizeof(struct kdbus_cmd_name);
-			cmd_name.id = c->id;
-			cmd_name.flags = c->flags;
-
-			ret = kdbus_pool_write(conn->pool, pos,
-					       &cmd_name, sizeof(cmd_name));
-			if (ret < 0) {
-				kdbus_pool_free(conn->pool, off);
-				goto exit_unlock;
-			}
-
-			pos += KDBUS_ALIGN8(sizeof(struct kdbus_cmd_name));
 		}
 	}
 

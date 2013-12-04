@@ -455,11 +455,10 @@ int name_list(struct conn *conn, uint64_t flags)
 	struct kdbus_cmd_name *name;
 	int ret;
 
-	cmd_list.size = sizeof(cmd_list);
 	cmd_list.flags = flags;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);
-	if (ret) {
+	if (ret < 0) {
 		fprintf(stderr, "error listing names: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
@@ -467,7 +466,8 @@ int name_list(struct conn *conn, uint64_t flags)
 	printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
 	KDBUS_PART_FOREACH(name, list, names)
-		printf("  %llx - '%s'\n", name->id,
+		printf("%8llx flags=0x%08llx conn=0x%08llx '%s'\n", name->id,
+		       name->flags, name->conn_flags,
 		       name->size > sizeof(struct kdbus_cmd_name) ? name->name : "");
 	printf("\n");
 

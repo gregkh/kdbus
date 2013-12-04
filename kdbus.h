@@ -451,22 +451,16 @@ enum {
 
 /**
  * struct kdbus_cmd_name_list - request a list of name entries
- * @size		Total size of the struct
  * @flags:		Flags for the query (KDBUS_NAME_LIST_*)
  * @offset:		The returned offset in the caller's pool buffer.
  *			The user must use KDBUS_CMD_FREE to free the
  *			allocated memory.
- * @name		If KDBUS_NAME_LIST_QUEUED_OWNERS is set in @flags,
- * 			a name must be provided.
  * 
  * This structure is used with the KDBUS_CMD_NAME_LIST ioctl.
- * Refer to the documentation for more information.
  */
 struct kdbus_cmd_name_list {
-	__u64 size;
 	__u64 flags;
 	__u64 offset;
-	char name[0];
 };
 
 /**

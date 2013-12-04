@@ -60,6 +60,7 @@ static struct conn *make_starter(const char *path, const char *name)
 
 	conn->fd = fd;
 	conn->id = hello->id;
+
 	return conn;
 }
 
@@ -109,7 +110,6 @@ int main(int argc, char *argv[])
 
 	starter = make_starter(bus, "foo.test.starter");
 
-
 	conn_a = connect_to_bus(bus);
 	if (!starter || !conn_a)
 		return EXIT_FAILURE;
@@ -117,13 +117,17 @@ int main(int argc, char *argv[])
 	upload_policy(conn_a->fd, "foo.test.starter");
 	add_match_empty(conn_a->fd);
 
+	name_list(conn_a, KDBUS_NAME_LIST_NAMES |
+			KDBUS_NAME_LIST_UNIQUE |
+			KDBUS_NAME_LIST_STARTERS |
+			KDBUS_NAME_LIST_QUEUED);
+
 	msg_send(conn_a, "foo.test.starter", 0xdeafbeef, KDBUS_DST_ID_NAME);
 
 	fds[0].fd = starter->fd;
 	fds[1].fd = conn_a->fd;
 
 	printf("-- entering poll loop ...\n");
-
 	for (;;) {
 		int i, nfds = sizeof(fds) / sizeof(fds[0]);
 
