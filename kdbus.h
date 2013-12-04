@@ -428,7 +428,7 @@ enum {
  * @flags:		Flags for a name entry (KDBUS_NAME_*)
  * @id:			Priviledged users may use this field to (de)register
  * 			names on behalf of other peers.
- * @conn_flags:		The flags of the owning connection
+ * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
  * @name:		The well-known name
  *
  * This structure is used with the KDBUS_CMD_NAME_ACQUIRE ioctl.
@@ -442,7 +442,6 @@ struct kdbus_cmd_name {
 	char name[0];
 };
 
-/* KDBUS_CMD_NAME_LIST */
 enum {
 	KDBUS_NAME_LIST_UNIQUE		= 1 <<  0,
 	KDBUS_NAME_LIST_NAMES		= 1 <<  1,
@@ -482,8 +481,6 @@ struct kdbus_name_list {
 	__u64 size;
 	struct kdbus_cmd_name names[0];
 };
-
-/* KDBUS_CMD_CONN_INFO */
 
 /**
  * struct kdbus_cmd_conn_info - struct used for KDBUS_CMD_CONN_INFO ioctl
@@ -527,7 +524,6 @@ struct kdbus_conn_info {
 	struct kdbus_item items[0];
 };
 
-/* KDBUS_CMD_MATCH_ADD/REMOVE */
 enum {
 	_KDBUS_MATCH_NULL,
 	KDBUS_MATCH_BLOOM,		/* Matches a mask blob against KDBUS_MSG_BLOOM */
@@ -563,7 +559,6 @@ struct kdbus_cmd_match {
 	struct kdbus_item items[0];
 };
 
-/* KDBUS_CMD_MONITOR */
 enum {
 	KDBUS_MONITOR_ENABLE		= 1 <<  0,
 };
