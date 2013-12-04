@@ -990,8 +990,9 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	struct kdbus_cmd_conn_info *cmd_info;
 	struct kdbus_conn_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
-	size_t off, pos, names_size;
+	size_t off, pos;
 	char *name = NULL;
+	struct kdbus_meta meta = {};
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -1059,26 +1060,19 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
-	mutex_lock(&conn->names_lock);
-
 	/*
-	 * Calculate and reserve size for well-known names.
-	 *
 	 * Unlike the rest of the values which are cached at
 	 * connection creation time, the names are appended here
 	 * because at creation time a connection does not have
 	 * any name.
 	 */
-	names_size = 0;
 	if (cmd_info->flags & KDBUS_ATTACH_NAMES &&
 	    !(owner_conn->flags & KDBUS_HELLO_STARTER)) {
-		struct kdbus_name_entry *e;
+		ret = kdbus_meta_append(&meta, owner_conn, KDBUS_ATTACH_NAMES);
+		if (ret < 0)
+			goto exit_unref_owner_conn;
 
-		list_for_each_entry(e, &owner_conn->names_list, conn_entry)
-			names_size += strlen(e->name) + 1;
-
-		if (names_size > 0)
-			info.size += KDBUS_PART_SIZE(names_size);
+		info.size += meta.size;
 	}
 
 	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
@@ -1096,28 +1090,12 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 		goto exit_free;
 	pos += owner_conn->meta.size;
 
-	if (names_size > 0) {
-		KDBUS_PART_HEADER item = {
-			.size = KDBUS_PART_HEADER_SIZE + names_size,
-			.type = KDBUS_ITEM_NAMES,
-		};
-		struct kdbus_name_entry *e;
-
-		ret = kdbus_pool_write(conn->pool, pos, &item,
-				       KDBUS_PART_HEADER_SIZE);
+	if (meta.size > 0) {
+		ret = kdbus_pool_write(conn->pool, pos, meta.data, meta.size);
 		if (ret < 0)
 			goto exit_free;
-		pos += KDBUS_PART_HEADER_SIZE;
 
-		list_for_each_entry(e, &owner_conn->names_list, conn_entry) {
-			size_t slen = strlen(e->name) + 1;
-
-			ret = kdbus_pool_write(conn->pool, pos, e->name, slen);
-			if (ret < 0)
-				goto exit_free;
-
-			pos += slen;
-		}
+		pos += meta.size;
 	}
 
 	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_conn_info)) {
@@ -1130,8 +1108,8 @@ exit_free:
 		kdbus_pool_free(conn->pool, off);
 
 exit_unref_owner_conn:
+	kdbus_meta_free(&meta);
 	kdbus_conn_unref(owner_conn);
-	mutex_unlock(&conn->names_lock);
 	kfree(cmd_info);
 
 	return ret;
