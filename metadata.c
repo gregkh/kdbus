@@ -83,28 +83,6 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
 	return item;
 }
 
-static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
-{
-	struct kdbus_item *item;
-	u64 size = KDBUS_PART_SIZE(sizeof(struct kdbus_timestamp));
-	struct timespec ts;
-
-	item = kdbus_meta_append_item(meta, size);
-	if (IS_ERR(item))
-		return PTR_ERR(item);
-
-	item->type = KDBUS_ITEM_TIMESTAMP;
-	item->size = size;
-
-	ktime_get_ts(&ts);
-	item->timestamp.monotonic_ns = timespec_to_ns(&ts);
-
-	ktime_get_real_ts(&ts);
-	item->timestamp.realtime_ns = timespec_to_ns(&ts);
-
-	return 0;
-}
-
 static int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 				  const void *buf, size_t len)
 {
@@ -130,6 +108,51 @@ static int kdbus_meta_append_str(struct kdbus_meta *meta, u64 type,
 				 const char *str)
 {
 	return kdbus_meta_append_data(meta, type, str, strlen(str) + 1);
+}
+
+static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
+{
+	struct kdbus_item *item;
+	u64 size = KDBUS_PART_SIZE(sizeof(struct kdbus_timestamp));
+	struct timespec ts;
+
+	item = kdbus_meta_append_item(meta, size);
+	if (IS_ERR(item))
+		return PTR_ERR(item);
+
+	item->type = KDBUS_ITEM_TIMESTAMP;
+	item->size = size;
+
+	ktime_get_ts(&ts);
+	item->timestamp.monotonic_ns = timespec_to_ns(&ts);
+
+	ktime_get_real_ts(&ts);
+	item->timestamp.realtime_ns = timespec_to_ns(&ts);
+
+	return 0;
+}
+
+static int kdbus_meta_append_cred(struct kdbus_meta *meta)
+{
+	struct kdbus_creds creds = {};
+	struct kdbus_item *item;
+	u64 size = KDBUS_PART_SIZE(sizeof(struct kdbus_creds));
+
+	creds.uid = from_kuid(current_user_ns(), current_uid());
+	creds.gid = from_kgid(current_user_ns(), current_gid());
+	creds.pid = task_pid_vnr(current);
+	creds.tid = task_tgid_vnr(current);
+	creds.starttime = timespec_to_ns(&current->start_time);
+
+	item = kdbus_meta_append_item(meta, size);
+	if (IS_ERR(item))
+		return PTR_ERR(item);
+
+	item->type = KDBUS_ITEM_CREDS;
+	item->size = size;
+	memcpy(&item->creds, &creds, sizeof(struct kdbus_creds));
+
+	return 0;
 }
 
 static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
@@ -173,29 +196,6 @@ exit_unlock:
 	mutex_unlock(&conn->names_lock);
 
 	return ret;
-}
-
-static int kdbus_meta_append_cred(struct kdbus_meta *meta)
-{
-	struct kdbus_creds creds = {};
-	struct kdbus_item *item;
-	u64 size = KDBUS_PART_SIZE(sizeof(struct kdbus_creds));
-
-	creds.uid = from_kuid(current_user_ns(), current_uid());
-	creds.gid = from_kgid(current_user_ns(), current_gid());
-	creds.pid = task_pid_vnr(current);
-	creds.tid = task_tgid_vnr(current);
-	creds.starttime = timespec_to_ns(&current->start_time);
-
-	item = kdbus_meta_append_item(meta, size);
-	if (IS_ERR(item))
-		return PTR_ERR(item);
-
-	item->type = KDBUS_ITEM_CREDS;
-	item->size = size;
-	memcpy(&item->creds, &creds, sizeof(struct kdbus_creds));
-
-	return 0;
 }
 
 static int kdbus_meta_append_exe(struct kdbus_meta *meta)

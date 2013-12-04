@@ -27,7 +27,7 @@
 #define KDBUS_DST_ID_BROADCAST		(~0ULL)
 
 /**
- * struct KDBUS_PART_HEADER - header
+ * struct KDBUS_PART_HEADER - anonymous struct used as header
  * @size:		Size of element, excluding padding bytes
  * @type		Type of element
  *
