@@ -158,41 +158,32 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 				       struct kdbus_conn *conn)
 {
-	struct kdbus_name_entry *name_entry;
-	struct kdbus_item *item;
-	u64 pos = 0, size, strsize = 0;
+	struct kdbus_name_entry *e;
 	int ret = 0;
 
 	if (!conn)
 		return 0;
 
 	mutex_lock(&conn->names_lock);
-	list_for_each_entry(name_entry, &conn->names_list, conn_entry)
-		strsize += strlen(name_entry->name) + 1;
+	list_for_each_entry(e, &conn->names_list, conn_entry) {
+		struct kdbus_item *item;
+		size_t len;
+		size_t size;
 
-	/* no names? then don't do anything */
-	if (strsize == 0)
-		goto exit_unlock;
+		len = strlen(e->name) + 1;
+		size = KDBUS_PART_SIZE(sizeof(struct kdbus_name) + len);
 
-	size = KDBUS_PART_SIZE(strsize);
-	item = kdbus_meta_append_item(meta, size);
-	if (IS_ERR(item)) {
-		ret = PTR_ERR(item);
-		goto exit_unlock;
+		item = kdbus_meta_append_item(meta, size);
+		if (IS_ERR(item)) {
+			ret = PTR_ERR(item);
+			break;
+		}
+
+		item->type = KDBUS_ITEM_NAME;
+		item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_name) + len;
+		item->name.flags = e->flags;
+		memcpy(item->name.name, e->name, len);
 	}
-
-	item->type = KDBUS_ITEM_NAMES;
-	item->size = KDBUS_PART_HEADER_SIZE + strsize;
-
-	list_for_each_entry(name_entry, &conn->names_list, conn_entry) {
-		strcpy(item->data + pos, name_entry->name);
-		pos += strlen(name_entry->name) + 1;
-	}
-
-	meta->src_names = item->data;
-	meta->src_names_len = pos;
-
-exit_unlock:
 	mutex_unlock(&conn->names_lock);
 
 	return ret;

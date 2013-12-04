@@ -62,8 +62,10 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
+	upload_policy(conn_a->fd, "foo.bar.test");
 	upload_policy(conn_a->fd, "foo.bar.baz");
 
+	name_acquire(conn_a, "foo.bar.test", KDBUS_NAME_ALLOW_REPLACEMENT);
 	name_acquire(conn_a, "foo.bar.baz", 0);
 	name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
 	name_list(conn_b, KDBUS_NAME_LIST_UNIQUE | KDBUS_NAME_LIST_NAMES);

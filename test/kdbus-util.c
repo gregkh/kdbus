@@ -213,7 +213,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 	char buf_src[32];
 	char buf_dst[32];
 
-	printf("MESSAGE: %s (%llu bytes) flags=0x%llx, %s → %s, cookie=%llu, timeout=%llu\n",
+	printf("MESSAGE: %s (%llu bytes) flags=0x%08llx, %s → %s, cookie=%llu, timeout=%llu\n",
 		enum_PAYLOAD(msg->payload_type), (unsigned long long) msg->size,
 		(unsigned long long) msg->flags,
 		msg_id(msg->src_id, buf_src), msg_id(msg->dst_id, buf_dst),
@@ -280,8 +280,14 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			       enum_MSG(item->type), item->size, item->str, strlen(item->str));
 			break;
 
-		case KDBUS_ITEM_CMDLINE:
-		case KDBUS_ITEM_NAMES: {
+		case KDBUS_ITEM_NAME: {
+			printf("  +%s (%llu bytes) '%s' (%zu) flags=0x%08llx\n",
+			       enum_MSG(item->type), item->size, item->name.name, strlen(item->name.name),
+			       item->name.flags);
+			break;
+		}
+
+		case KDBUS_ITEM_CMDLINE: {
 			size_t size = item->size - KDBUS_PART_HEADER_SIZE;
 			const char *str = item->str;
 			int count = 0;

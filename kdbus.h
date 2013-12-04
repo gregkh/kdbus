@@ -146,6 +146,16 @@ struct kdbus_memfd {
 	__u32 __pad;
 };
 
+/**
+ * struct kdbus_name - a registered well-known name with its flags
+ * @flags		flags from KDBUS_NAME_*
+ * @name		well-known name
+ */
+struct kdbus_name {
+	__u64 flags;
+	char name[0];
+};
+
 /* Message Item Types */
 enum {
 	_KDBUS_ITEM_NULL,
@@ -162,7 +172,7 @@ enum {
 
 	/* Filled in by kernelspace */
 	_KDBUS_ITEM_ATTACH_BASE	= 0x400,
-	KDBUS_ITEM_NAMES	= 0x400,/* NUL separated string list with well-known names of source */
+	KDBUS_ITEM_NAME		= 0x400,/* NUL separated string list with well-known names of source */
 	KDBUS_ITEM_STARTER_NAME,	/* Only used in HELLO for starter connection */
 	KDBUS_ITEM_TIMESTAMP,		/* .timestamp */
 
@@ -212,6 +222,7 @@ struct kdbus_item {
 		struct kdbus_creds creds;
 		struct kdbus_audit audit;
 		struct kdbus_timestamp timestamp;
+		struct kdbus_name name;
 
 		/* specific fields */
 		struct kdbus_memfd memfd;
