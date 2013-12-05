@@ -29,17 +29,35 @@
 
 static const struct file_operations kdbus_memfd_fops;
 
+/**
+ * struct kdbus_memfile - protectable shared memory file
+ * @sealed:		Flag if the content is writable
+ * @lock:		Locking
+ * @fp:			Shared memory backing file
+ */
 struct kdbus_memfile {
 	bool sealed;
 	struct mutex lock;
 	struct file *fp;
 };
 
+/**
+ * kdbus_is_memfd - check if a file is one of our memfds
+ * @fp:			File to check
+ *
+ * Returns: true if the file is a memfd
+ */
 bool kdbus_is_memfd(const struct file *fp)
 {
 	return fp->f_op == &kdbus_memfd_fops;
 }
 
+/**
+ * kdbus_is_memfd_sealed - check if a memfd is protected
+ * @fp:			Memfd file to check
+ *
+ * Returns: true if the memfd is protected
+ */
 bool kdbus_is_memfd_sealed(const struct file *fp)
 {
 	struct kdbus_memfile *mf = fp->private_data;
@@ -52,6 +70,12 @@ bool kdbus_is_memfd_sealed(const struct file *fp)
 	return sealed;
 }
 
+/**
+ * kdbus_memfd_size - return the actual size of a memfd
+ * @fp:			Memfd file to check
+ *
+ * Returns: the actual size of the file in bytes
+ */
 u64 kdbus_memfd_size(const struct file *fp)
 {
 	struct kdbus_memfile *mf = fp->private_data;
@@ -64,7 +88,12 @@ u64 kdbus_memfd_size(const struct file *fp)
 	return size;
 }
 
-/* create file and install a new file descriptor */
+/**
+ * kdbus_memfd_new - create and install a memfd and file descriptor
+ * @fd:			installed file descriptor
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_memfd_new(int *fd)
 {
 	struct kdbus_memfile *mf;
