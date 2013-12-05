@@ -6,6 +6,5 @@ External API:
   - move monitor to MATCH?
 
 Internal:
-  - update/rethink kdbus_conn_accounting_sub_size() use
   - memfd's file pos is shared, document pread/pwrite
   - conn->ep->bus ==> conn->bus

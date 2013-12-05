@@ -296,7 +296,9 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 		/* update the owner of the name */
 		kdbus_name_entry_detach(e);
+		e->conn->names--;
 		kdbus_name_entry_attach(e, conn);
+		conn->names++;
 
 		e->flags = *flags;
 

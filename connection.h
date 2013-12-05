@@ -17,40 +17,49 @@
 #include "pool.h"
 #include "metadata.h"
 
+/**
+ * struct kdbus_conn - connection to a bus
+ * @kref		Reference count
+ * @disconnected	Invalidated data
+ * @ep			default endpoint "bus"
+ * @id			Connection ID
+ * @flags		KDBUS_HELLO_* flags
+ * @attach_flags	KDBUS_ATTACH_* flags
+ * @lock		Connection data lock
+ * @msg_list		Queue of messages
+ * @hentry		Entry in ID <-> connection map
+ * @monitor_entry	The connection is a monitor
+ * @names_lock		Well-known names lock
+ * @names_list		List of well-known names
+ * @names_queue_list	Well-known names this connection waits for
+ * @names		Number of owned well-known names
+ * @work		Support for poll()
+ * @timer		Message reply timeout handling
+ * @match_db		Subscription filter to broadcast messages
+ * @meta		Cached connection creator's metadata/credentials
+ * @msg_count		Number of queued messages
+ * @pool		The user's buffer to receive messages
+ */
 struct kdbus_conn {
 	struct kref kref;
-	bool disconnected;			/* invalidated data */
+	bool disconnected;
 	struct kdbus_ep *ep;
-
 	u64 id;
 	u64 flags;
 	u64 attach_flags;
-
 	struct mutex lock;
-	struct mutex names_lock;
-	struct mutex accounting_lock;
-
 	struct list_head msg_list;
 	struct hlist_node hentry;
-	struct list_head monitor_entry;		/* bus' monitor connections */
-
-	struct list_head names_list;		/* names on this connection */
+	struct list_head monitor_entry;
+	struct mutex names_lock;
+	struct list_head names_list;
 	struct list_head names_queue_list;
-	size_t names;				/* number of names */
-
+	size_t names;
 	struct work_struct work;
 	struct timer_list timer;
-
 	struct kdbus_match_db *match_db;
-
-	/* connection creator metadata */
 	struct kdbus_meta meta;
-
-	/* connection accounting */
 	unsigned int msg_count;
-	size_t allocated_size;
-
-	/* buffer to fill with message data */
 	struct kdbus_pool *pool;
 };
 
@@ -77,6 +86,4 @@ int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 			    u64 deadline_ns);
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src);
-int kdbus_conn_accounting_add_size(struct kdbus_conn *conn, size_t size);
-void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size);
 #endif

@@ -827,33 +827,6 @@ exit_unlock:
 	return ret;
 }
 
-int kdbus_conn_accounting_add_size(struct kdbus_conn *conn, size_t size)
-{
-	int ret = 0;
-
-	if (!conn)
-		return 0;
-
-	mutex_lock(&conn->accounting_lock);
-	if (conn->allocated_size + size > KDBUS_CONN_MAX_ALLOCATED_BYTES)
-		ret = -EXFULL;
-	else
-		conn->allocated_size += size;
-	mutex_unlock(&conn->accounting_lock);
-
-	return ret;
-}
-
-void kdbus_conn_accounting_sub_size(struct kdbus_conn *conn, size_t size)
-{
-	if (!conn)
-		return;
-
-	mutex_lock(&conn->accounting_lock);
-	conn->allocated_size -= size;
-	mutex_unlock(&conn->accounting_lock);
-}
-
 void kdbus_conn_disconnect(struct kdbus_conn *conn)
 {
 	struct kdbus_conn_queue *queue, *tmp;
@@ -1170,7 +1143,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);
 	mutex_init(&conn->names_lock);
-	mutex_init(&conn->accounting_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
