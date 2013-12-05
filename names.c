@@ -72,7 +72,7 @@ static void __kdbus_name_registry_free(struct kref *kref)
 
 /**
  * kdbus_name_registry_unref - drop a name reg's reference
- * @reg:	The name registry
+ * @reg:		The name registry
  *
  * When the last reference is dropped, the name registry's internal structure
  * is freed.
@@ -84,7 +84,7 @@ void kdbus_name_registry_unref(struct kdbus_name_registry *reg)
 
 /**
  * kdbus_name_registry_new - create a new name registry
- * @reg:	The returned name registry
+ * @reg:		The returned name registry
  *
  * Returns 0 on success, -ENOMEM if memory allocation failed.
  */
@@ -197,8 +197,8 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 
 /**
  * kdbus_name_remove_by_conn - remove all name entries of a given connection
- * @reg:	The name registry
- * @conn:	The connection which entries to remove
+ * @reg:		The name registry
+ * @conn:		The connection which entries to remove
  *
  * This function removes all name entry held by a given connection.
  */
@@ -223,8 +223,8 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 
 /**
  * kdbus_name_lookup - look up a name in a name registry
- * @reg:	The name registry
- * @name:	The name to look up
+ * @reg:		The name registry
+ * @name:		The name to look up
  *
  * Returns the name entry, if found. Otherwise, NULL is returned.
  */
@@ -316,7 +316,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 /**
  * kdbus_name_is_valid - check if a name is value
- * @p:		The name to check
+ * @p:			The name to check
  *
  * A name is valid if all of the following criterias are met:
  *
@@ -367,11 +367,11 @@ bool kdbus_name_is_valid(const char *p)
 
 /**
  * kdbus_name_acquire - acquire a name
- * @reg:	The name registry
- * @conn:	The connection to pin this entry to
- * @name:	The name to acquire
- * @flags:	Acquisition flags (KDBUS_NAME_*)
- * @entry:	Return pointer for the entry (may be NULL)
+ * @reg:		The name registry
+ * @conn:		The connection to pin this entry to
+ * @name:		The name to acquire
+ * @flags:		Acquisition flags (KDBUS_NAME_*)
+ * @entry:		Return pointer for the entry (may be NULL)
  *
  * Returns 0 on success, other values on error.
  */
@@ -439,9 +439,9 @@ exit_unlock:
 
 /**
  * kdbus_name_acquire - acquire a name from a ioctl command buffer
- * @reg:	The name registry
- * @conn:	The connection to pin this entry to
- * @buf:	The __user buffer as passed in by the ioctl
+ * @reg:		The name registry
+ * @conn:		The connection to pin this entry to
+ * @buf:		The __user buffer as passed in by the ioctl
  *
  * Returns 0 on success, other values on error.
  */
@@ -529,9 +529,9 @@ exit_free:
 
 /**
  * kdbus_cmd_name_release - release a name entry from a ioctl command buffer
- * @reg:	The name registry
- * @conn:	The connection that holds the name
- * @buf:	The __user buffer as passed in by the ioctl
+ * @reg:		The name registry
+ * @conn:		The connection that holds the name
+ * @buf:		The __user buffer as passed in by the ioctl
  *
  * Returns 0 on success, other values on error.
  */
@@ -604,9 +604,9 @@ exit_free:
 
 /**
  * kdbus_cmd_name_list - list names of a connection
- * @reg:	The name registry
- * @conn:	The connection holding the name entries
- * @buf:	The __user buffer as passed in by the ioctl
+ * @reg:		The name registry
+ * @conn:		The connection holding the name entries
+ * @buf:		The __user buffer as passed in by the ioctl
  *
  * Returns 0 on success, other values on error.
  */

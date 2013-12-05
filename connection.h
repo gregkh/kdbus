@@ -75,15 +75,11 @@ void kdbus_conn_unref(struct kdbus_conn *conn);
 void kdbus_conn_disconnect(struct kdbus_conn *conn);
 
 int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf);
-int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
-			struct kdbus_conn *conn,
+int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			void __user *buf);
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
-void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue);
-int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
-			    u64 deadline_ns);
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src);
 #endif

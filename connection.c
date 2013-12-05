@@ -39,24 +39,35 @@
 #include "policy.h"
 #include "metadata.h"
 
+/**
+ * struct kdbus_conn_queue - messages waiting to be read
+ * @entry:		Entry in the connection's list
+ * @off:		Offset into the shmem file in the receiver's pool
+ * @size:		The number of bytes used in the pool
+ * @memfds:		Arrays of offsets where to update the installed fd number
+ * @memfds_fp:		Array memfd files queued up for this message
+ * @memfds_count:	Number of memfds
+ * @fds:		Offset to array where to update the installed fd number
+ * @fds_fp:		Array passed files queued up for this message
+ * @fds_count:		Number of files
+ * @deadline_ns:	Timeout for this message, used replies/method calls
+ * @src_id:		The ID of the sender
+ * @cookie:		Message cookie, used for replies/method calls
+ * @expect_reply:	Reply to message expected
+ */
 struct kdbus_conn_queue {
 	struct list_head entry;
-
-	/* offset to the message placed in the receiver's buffer */
 	size_t off;
 	size_t size;
 
-	/* passed KDBUS_MSG_PAYLOAD_MEMFD */
 	size_t *memfds;
 	struct file **memfds_fp;
 	unsigned int memfds_count;
 
-	/* passed KDBUS_MSG_FDS */
 	size_t fds;
 	struct file **fds_fp;
 	unsigned int fds_count;
 
-	/* timeout in the queue */
 	u64 deadline_ns;
 	u64 src_id;
 	u64 cookie;
@@ -286,7 +297,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 	return 0;
 }
 
-void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
+static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 {
 	kdbus_conn_memfds_unref(queue);
 	kdbus_conn_fds_unref(queue);
@@ -294,7 +305,7 @@ void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 }
 
 /* enqueue a message into the receiver's pool */
-int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
+static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
 			    u64 deadline_ns)
 {
 	struct kdbus_conn_queue *queue;
@@ -568,6 +579,14 @@ exit_unlock:
 	return ret;
 }
 
+/**
+ * kdbus_conn_kmsg_send - send a message
+ * @ep:			Endpoint to send from
+ * @conn_src:		Connection, kernel-generated messages do not have one
+ * @kmsg:		Message to send
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg)
@@ -766,6 +785,13 @@ remove_unused:
 	return ret;
 }
 
+/**
+ * kdbus_conn_recv_msg - receive a message from the queue
+ * @conn:		Connection to receive from
+ * @buf:		The returned offset to the message in the pool
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 {
 	struct kdbus_conn_queue *queue;
@@ -898,12 +924,25 @@ static void __kdbus_conn_free(struct kref *kref)
 	kfree(conn);
 }
 
+/**
+ * kdbus_conn_ref - take a connection reference
+ * @conn:		Connection
+ *
+ * Returns: the connection itself
+ */
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
 {
 	kref_get(&conn->kref);
 	return conn;
 }
 
+/**
+ * kdbus_conn_unref - drop a connection reference
+ * @conn:		Connection
+ *
+ * When the last reference is dropped, the name registry's internal structure
+ * is freed.
+ */
 void kdbus_conn_unref(struct kdbus_conn *conn)
 {
 	if (!conn)
@@ -912,10 +951,16 @@ void kdbus_conn_unref(struct kdbus_conn *conn)
 	kref_put(&conn->kref, __kdbus_conn_free);
 }
 
-/*
+/**
+ * kdbus_conn_move_messages - move a message from one connection to another
+ * @conn_dst:		Connection to copy to
+ * @conn_src:		Connection to copy from
+ *
  * Move all messages from one connection to another. This is used when
  * an ordinary connection is taking over a well-known name from a
  * starter connection.
+ *
+ * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src)
@@ -953,8 +998,14 @@ exit_unlock:
 	return ret;
 }
 
-int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
-			struct kdbus_conn *conn,
+/**
+ * kdbus_cmd_conn_info - retrieve info about a connection
+ * @conn:		Connection
+ * @buf:		The returned offset to the message in the pool
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
+int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			void __user *buf)
 {
 	struct kdbus_cmd_conn_info *cmd_info;
@@ -1010,7 +1061,7 @@ int kdbus_cmd_conn_info(struct kdbus_name_registry *reg,
 	if (name) {
 		struct kdbus_name_entry *e;
 
-		e = kdbus_name_lookup(reg, name);
+		e = kdbus_name_lookup(conn->ep->bus->name_registry, name);
 		if (!e) {
 			ret = -ENOENT;
 			goto exit_free;
