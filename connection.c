@@ -26,7 +26,6 @@
 #include <linux/highmem.h>
 #include <linux/syscalls.h>
 #include <linux/uio.h>
-#include <uapi/linux/major.h>
 
 #include "connection.h"
 #include "message.h"

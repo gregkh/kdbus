@@ -19,7 +19,6 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
 #include <linux/poll.h>
-#include <uapi/linux/major.h>
 
 #include "internal.h"
 #include "namespace.h"

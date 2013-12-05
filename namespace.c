@@ -19,7 +19,6 @@
 #include <linux/init.h>
 #include <linux/uaccess.h>
 #include <linux/sizes.h>
-#include <uapi/linux/major.h>
 
 #include "handle.h"
 #include "namespace.h"

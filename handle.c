@@ -22,7 +22,6 @@
 #include <linux/poll.h>
 #include <linux/file.h>
 #include <linux/syscalls.h>
-#include <uapi/linux/major.h>
 
 #include "connection.h"
 #include "message.h"
