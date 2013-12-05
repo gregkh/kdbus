@@ -10,8 +10,6 @@
  * your option) any later version.
  */
 
-#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
-
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/sched.h>

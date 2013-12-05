@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2013 Kay Sievers
  * Copyright (C) 2013 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+ * Copyright (C) 2013 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013 Linux Foundation
  *
  * kdbus is free software; you can redistribute it and/or modify it under
@@ -57,6 +58,9 @@ struct kdbus_ns {
 	struct list_head namespace_entry;
 	struct list_head bus_list;
 };
+
+extern struct kdbus_ns *kdbus_ns_init;
+extern struct bus_type kdbus_subsys;
 
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 void kdbus_ns_unref(struct kdbus_ns *ns);

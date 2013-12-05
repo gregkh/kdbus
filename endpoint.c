@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2013 Kay Sievers
  * Copyright (C) 2013 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+ * Copyright (C) 2013 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013 Linux Foundation
  *
  * kdbus is free software; you can redistribute it and/or modify it under
@@ -8,8 +9,6 @@
  * Free Software Foundation; either version 2.1 of the License, or (at
  * your option) any later version.
  */
-
-#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
 #include <linux/device.h>
@@ -41,6 +40,11 @@ static char *kdbus_devnode_ep(struct device *dev, umode_t *mode,
 		*gid = ep->gid;
 
 	return NULL;
+}
+
+static void kdbus_dev_release(struct device *dev)
+{
+	kfree(dev);
 }
 
 static struct device_type kdbus_devtype_ep = {

@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2013 Kay Sievers
  * Copyright (C) 2013 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+ * Copyright (C) 2013 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013 Linux Foundation
  *
  * kdbus is free software; you can redistribute it and/or modify it under
@@ -8,8 +9,6 @@
  * Free Software Foundation; either version 2.1 of the License, or (at
  * your option) any later version.
  */
-
-#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
 #include <linux/device.h>
@@ -22,17 +21,29 @@
 #include <linux/sizes.h>
 #include <uapi/linux/major.h>
 
+#include "handle.h"
 #include "namespace.h"
 #include "bus.h"
 
 /* global list of all namespaces */
 static LIST_HEAD(namespace_list);
 
-/* namespace list lock */
-DEFINE_MUTEX(kdbus_subsys_lock);
+/* map of majors to namespaces */
+static DEFINE_IDR(kdbus_ns_major_idr);
 
 /* next namespace id sequence number */
 static u64 kdbus_ns_id_next;
+
+/* kdbus initial namespace */
+struct kdbus_ns *kdbus_ns_init;
+
+/* kdbus subsystem lock */
+static DEFINE_MUTEX(kdbus_subsys_lock);
+
+/* kdbus sysfs subsystem */
+struct bus_type kdbus_subsys = {
+	.name = "kdbus",
+};
 
 /* control nodes are world accessible */
 static char *kdbus_devnode_control(struct device *dev, umode_t *mode,
@@ -44,6 +55,11 @@ static char *kdbus_devnode_control(struct device *dev, umode_t *mode,
 		*mode = ns->mode;
 
 	return NULL;
+}
+
+static void kdbus_dev_release(struct device *dev)
+{
+	kfree(dev);
 }
 
 static struct device_type kdbus_devtype_control = {

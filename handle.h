@@ -10,13 +10,8 @@
  * your option) any later version.
  */
 
-#ifndef __KDBUS_MEMFD_H
-#define __KDBUS_MEMFD_H
+#ifndef __KDBUS_HANDLE_H
+#define __KDBUS_HANDLE_H
 
-#include "internal.h"
-
-bool kdbus_is_memfd(const struct file *fp);
-bool kdbus_is_memfd_sealed(const struct file *fp);
-u64 kdbus_memfd_size(const struct file *fp);
-int kdbus_memfd_new(int *fd);
+extern const struct file_operations kdbus_device_ops;
 #endif
