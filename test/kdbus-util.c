@@ -472,7 +472,7 @@ int name_list(struct conn *conn, uint64_t flags)
 	printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
 	KDBUS_PART_FOREACH(name, list, names)
-		printf("%8llx flags=0x%08llx conn=0x%08llx '%s'\n", name->id,
+		printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n", name->id,
 		       name->flags, name->conn_flags,
 		       name->size > sizeof(struct kdbus_cmd_name) ? name->name : "");
 	printf("\n");
