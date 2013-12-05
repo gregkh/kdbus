@@ -67,13 +67,22 @@ static struct device_type kdbus_devtype_control = {
 	.devnode	= kdbus_devnode_control,
 };
 
-/* kdbus namespace */
+/**
+ * kdbus_ns_ref - take a namespace reference
+ * @ns	:		Namespace
+ *
+ * Returns: the namespace itself
+ */
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
 {
 	kref_get(&ns->kref);
 	return ns;
 }
 
+/**
+ * kdbus_ns_disconnect - invalidate a namespace
+ * @ns	:		Namespace
+ */
 void kdbus_ns_disconnect(struct kdbus_ns *ns)
 {
 	struct kdbus_bus *bus, *tmp;
@@ -116,6 +125,13 @@ static void __kdbus_ns_free(struct kref *kref)
 	kfree(ns);
 }
 
+/**
+ * kdbus_ns_unref - drop a namespace reference
+ * @ns	:		Namespace
+ *
+ * When the last reference is dropped, the namespace internal structure
+ * is freed.
+ */
 void kdbus_ns_unref(struct kdbus_ns *ns)
 {
 	kref_put(&ns->kref, __kdbus_ns_free);
@@ -139,6 +155,12 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
 	return ns;
 }
 
+/**
+ * kdbus_ns_find_by_major - lookup a namespace by its major device number
+ * @major:		Major number
+ *
+ * Returns: the namespace, or NULL if not found
+ */
 struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 {
 	struct kdbus_ns *ns;
@@ -150,6 +172,15 @@ struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 	return ns;
 }
 
+/**
+ * kdbus_ns_new - create a new namespace
+ * @parent:		Parent namespace, NULL for initial one
+ * @name:		Name of the namespace, NULL for the initial one
+ * @mode:		The access mode for the "control" device node
+ * @ns:			The returned namespace
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
 {
 	struct kdbus_ns *n;
@@ -252,6 +283,14 @@ exit_unlock:
 	return ret;
 }
 
+/**
+ * kdbus_ns_make_user - create a new namespace from user data
+ * @buf:		User data
+ * @make:		The returned copy of user data
+ * @name:		The name of the namespace to create
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_ns_make_user(void __user *buf,
 			struct kdbus_cmd_ns_make **make, char **name)
 {

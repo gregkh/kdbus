@@ -335,13 +335,11 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 	if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
 		queue->expect_reply = true;
 
-	/* we accept items from kernel-created messages */
+	/* space for the header */
 	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
 		size = kmsg->msg.size;
 	else
-		size = KDBUS_MSG_HEADER_SIZE;
-
-	/* the header */
+		size = offsetof(struct kdbus_msg, items);
 	msg_size = size;
 
 	/* space for PAYLOAD items */
@@ -940,7 +938,7 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
  * kdbus_conn_unref - drop a connection reference
  * @conn:		Connection
  *
- * When the last reference is dropped, the name registry's internal structure
+ * When the last reference is dropped, the connection's internal structure
  * is freed.
  */
 void kdbus_conn_unref(struct kdbus_conn *conn)
