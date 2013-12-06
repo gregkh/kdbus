@@ -279,11 +279,25 @@ struct kdbus_item {
 	};
 };
 
+/**
+ * enum kdbus_msg_flags - type of message
+ * @KDBUS_MSG_FLAGS_EXPECT_REPLY:	Expect a reply message, used for method
+ * 					calls. The cookie identifies the
+ * 					message and the respective reply
+ * @KDBUS_MSG_FLAGS_NO_AUTO_START:	Do not start a service, if the addressed
+ * 					name is not currently active
+ */
 enum kdbus_msg_flags {
 	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1 << 0,
 	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1 << 1,
 };
 
+/**
+ * enum kdbus_payload_type - type of payload carried by message
+ * @KDBUS_PAYLOAD_KERNEL:	Kernel-generated simple message
+ * @KDBUS_PAYLOAD_DBUS1:	Legacy D-Bus version 1 marshalling
+ * @KDBUS_PAYLOAD_GVARIANT:	GVariant marshalling
+ */
 enum kdbus_payload_type {
 	KDBUS_PAYLOAD_KERNEL,
 	KDBUS_PAYLOAD_DBUS1	= 0x4442757356657231ULL, /* 'DBusVer1' */
@@ -318,6 +332,12 @@ struct kdbus_msg {
 	struct kdbus_item items[0];
 };
 
+/**
+ * enum kdbus_policy_access_type - permissions of a policy record
+ * @KDBUS_POLICY_ACCESS_USER:	Grant access to a uid
+ * @KDBUS_POLICY_ACCESS_GROUP:	Grant acces to gid
+ * @KDBUS_POLICY_ACCESS_WORLD:	World-accessible
+ */
 enum kdbus_policy_access_type {
 	_KDBUS_POLICY_ACCESS_NULL,
 	KDBUS_POLICY_ACCESS_USER,
@@ -325,6 +345,12 @@ enum kdbus_policy_access_type {
 	KDBUS_POLICY_ACCESS_WORLD,
 };
 
+/**
+ * enum kdbus_policy_access_flags - mode flags
+ * @KDBUS_POLICY_RECV:		Allow receive
+ * @KDBUS_POLICY_SEND:		Allow send
+ * @KDBUS_POLICY_OWN:		Allow to own a well-known name
+ */
 enum kdbus_policy_type {
 	KDBUS_POLICY_RECV		= 1 <<  2,
 	KDBUS_POLICY_SEND		= 1 <<  1,
@@ -345,13 +371,31 @@ struct kdbus_cmd_policy {
 	struct kdbus_item policies[0];
 };
 
-/* Flags for struct kdbus_cmd_hello */
+/**
+ * enum kdbus_hello_flags - flags for struct kdbus_cmd_hello
+ * @KDBUS_HELLO_STARTER:		The connection registers a name for activation
+ * 				by well-know name
+ * @KDBUS_HELLO_ACCEPT_FD:	The connection allows the receiving of
+ * 				any passed file descriptors
+ */
 enum kdbus_hello_flags {
 	KDBUS_HELLO_STARTER		=  1 <<  0,
 	KDBUS_HELLO_ACCEPT_FD		=  1 <<  1,
 };
 
-/* Flags for message attachments */
+/**
+ * enum kdbus_attach_flags - flags for metadata attachments
+ * @KDBUS_ATTACH_TIMESTAMP:	Timestamp
+ * @KDBUS_ATTACH_CREDS:		Credentials
+ * @KDBUS_ATTACH_NAMES:		Well-known names
+ * @KDBUS_ATTACH_COMM:		The "comm" process identifier
+ * @KDBUS_ATTACH_EXE:		The path of the executable
+ * @KDBUS_ATTACH_CMDLINE:	The process command line
+ * @KDBUS_ATTACH_CGROUP:	The croup membership
+ * @KDBUS_ATTACH_CAPS:		The process capabilities
+ * @KDBUS_ATTACH_SECLABEL:	The security label
+ * @KDBUS_ATTACH_AUDIT:		The audit IDs
+ */
 enum kdbus_attach_flags {
 	KDBUS_ATTACH_TIMESTAMP		=  1 <<  0,
 	KDBUS_ATTACH_CREDS		=  1 <<  1,
