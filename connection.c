@@ -595,6 +595,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		mutex_lock(&ep->bus->lock);
 		hash_for_each(ep->bus->conn_hash, i, conn_dst, hentry) {
+			bool disconnected = false;
+
 			if (conn_dst->id == msg->src_id)
 				continue;
 
@@ -607,6 +609,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
 						       conn_src, kmsg))
+				continue;
+
+			mutex_lock(&conn_dst->lock);
+			disconnected = conn_dst->disconnected;
+			mutex_unlock(&conn_dst->lock);
+
+			if (unlikely(disconnected))
 				continue;
 
 			/*
@@ -848,6 +857,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 {
 	struct kdbus_conn_queue *queue, *tmp;
 	struct list_head list;
+	struct kdbus_bus *bus;
 
 	mutex_lock(&conn->lock);
 	if (conn->disconnected) {
@@ -858,11 +868,13 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	conn->disconnected = true;
 	mutex_unlock(&conn->lock);
 
+	bus = conn->ep->bus;
+
 	/* remove from bus */
-	mutex_lock(&conn->ep->bus->lock);
+	mutex_lock(&bus->lock);
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
-	mutex_unlock(&conn->ep->bus->lock);
+	mutex_unlock(&bus->lock);
 
 	/* clean up any messages still left on this endpoint */
 	INIT_LIST_HEAD(&list);
@@ -898,9 +910,11 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 
 	del_timer(&conn->timer);
 	cancel_work_sync(&conn->work);
-	kdbus_name_remove_by_conn(conn->ep->bus->name_registry, conn);
+	kdbus_name_remove_by_conn(bus->name_registry, conn);
+
 	if (conn->ep->policy_db)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
+
 	kdbus_match_db_unref(conn->match_db);
 	kdbus_ep_unref(conn->ep);
 
