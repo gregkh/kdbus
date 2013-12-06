@@ -38,6 +38,15 @@ struct kdbus_match_db {
 	struct mutex		entries_lock;
 };
 
+/**
+ * struct kdbus_match_db_entry_item - a match databate entry item
+ * @type:	The type of the item (KDBUS_MATCH_*)
+ * @name:	The name tp match against, if @type is KDBUS_MATCH_BLOOM
+ * @bloom:	The bloom filter to match against, if @type is
+ * 		KDBUS_MATCH_SRC_NAME or KDBUS_MATCH_NAME_*
+ * @id:		The ID to match against, if @type is KDBUS_MATCH_ID_ADD
+ * 		or KDBUS_MATCH_ID_REMOVE
+ */
 struct kdbus_match_db_entry_item {
 	u64 type;
 	union {
@@ -49,6 +58,15 @@ struct kdbus_match_db_entry_item {
 	struct list_head	list_entry;
 };
 
+/**
+ * struct kdbus_match_db_entry - a match database entry
+ * @id:		The ID of the destination connection of this entry
+ * @cookie:	User-supplied cookie to lookup the entry
+ * @src_id:	The ID of the source connection to match against,
+ * 		or KDBUS_MATCH_SRC_ID_ANY.
+ * @list_entry:	The list entry element for the db list
+ * @items_list:	The list head for tracking items to this entry
+ */
 struct kdbus_match_db_entry {
 	u64			id;
 	u64			cookie;
@@ -106,17 +124,36 @@ static void __kdbus_match_db_free(struct kref *kref)
 	kfree(db);
 }
 
+/**
+ * kdbus_match_db_unref - drop a reference on a match database
+ * @db:		The match database
+ *
+ * When the last reference is dropped, the database's internal memory
+ * is freed.
+ */
 void kdbus_match_db_unref(struct kdbus_match_db *db)
 {
 	kref_put(&db->kref, __kdbus_match_db_free);
 }
 
+/**
+ * kdbus_match_db_ref - take a reference of a match database
+ * @db:		The match database
+ *
+ * Returns: the database itself
+ */
 struct kdbus_match_db *kdbus_match_db_ref(struct kdbus_match_db *db)
 {
 	kref_get(&db->kref);
 	return db;
 }
 
+/**
+ * kdbus_match_db_new - create a new match database
+ * @db:		Pointer location for the returned database
+ *
+ * Returns 0 on success, any other value in case of errors.
+ */
 int kdbus_match_db_new(struct kdbus_match_db **db)
 {
 	struct kdbus_match_db *d;
@@ -277,6 +314,14 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 	return matched;
 }
 
+/**
+ * kdbus_match_db_match_kmsg - match a kmsg object agains the database entries
+ * @db:		The match database
+ * @conn_src:	The connection object originating the message
+ * @kmsg:	The kmsg to perform the match on
+ *
+ * Returns true in if there was a matching database entry, false otherwise.
+ */
 bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,
 			       struct kdbus_kmsg *kmsg)
@@ -320,6 +365,15 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
 	return 0;
 }
 
+/**
+ * kdbus_match_db_add - add an entry to the match database
+ * @conn:	The connection that was used in the ioctl call
+ * @buf:	The __user buffer that was provided along with the ioctl call
+ *
+ * Returns 0 in success, any other value in case of errors.
+ * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
+ * interface.
+ */
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
 	struct kdbus_match_db *db;
@@ -433,6 +487,15 @@ exit_free:
 	return ret;
 }
 
+/**
+ * kdbus_match_db_renove - remove an entry from the match database
+ * @conn:	The connection that was used in the ioctl call
+ * @buf:	The __user buffer that was provided along with the ioctl call
+ *
+ * Returns 0 in success, any other value in case of errors.
+ * This function is used in the context of the KDBUS_CMD_MATCH_REMOVE
+ * ioctl interface.
+ */
 int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 {
 	struct kdbus_match_db *db;
