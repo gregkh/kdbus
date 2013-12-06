@@ -21,7 +21,6 @@
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <linux/file.h>
-#include <linux/syscalls.h>
 
 #include "connection.h"
 #include "message.h"

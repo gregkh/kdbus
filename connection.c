@@ -23,7 +23,6 @@
 #include <linux/file.h>
 #include <linux/hashtable.h>
 #include <linux/mm.h>
-#include <linux/highmem.h>
 #include <linux/syscalls.h>
 #include <linux/uio.h>
 

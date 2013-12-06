@@ -18,7 +18,6 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/uaccess.h>
-#include <linux/hashtable.h>
 #include <linux/sizes.h>
 
 #include "endpoint.h"
