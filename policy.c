@@ -27,6 +27,17 @@
 
 #define KDBUS_POLICY_HASH_SIZE	64
 
+struct kdbus_policy_db {
+	struct kref kref;
+	DECLARE_HASHTABLE(entries_hash, 6);
+	DECLARE_HASHTABLE(send_access_hash, 6);
+	struct list_head timeout_list;
+	struct mutex	entries_lock;
+	struct mutex	cache_lock;
+	struct work_struct work;
+	struct timer_list timer;
+};
+
 struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn	*conn_a;
 	struct kdbus_conn	*conn_b;

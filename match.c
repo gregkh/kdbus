@@ -26,6 +26,18 @@
 #include "message.h"
 #include "bus.h"
 
+/**
+ * struct kdbus_match_db - message filters
+ * @kref		Reference count
+ * @entries		List of matches
+ * @entrieslock		Match data lock
+ */
+struct kdbus_match_db {
+	struct kref		kref;
+	struct list_head	entries;
+	struct mutex		entries_lock;
+};
+
 struct kdbus_match_db_entry_item {
 	u64 type;
 	union {

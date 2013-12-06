@@ -17,19 +17,8 @@
 
 #include "internal.h"
 
-struct kdbus_policy_db {
-	struct kref	kref;
-	DECLARE_HASHTABLE(entries_hash, 6);
-	DECLARE_HASHTABLE(send_access_hash, 6);
-	struct list_head timeout_list;
-	struct mutex	entries_lock;
-	struct mutex	cache_lock;
-
-	struct work_struct work;
-	struct timer_list timer;
-};
-
 struct kdbus_conn;
+struct kdbus_policy_db;
 
 int kdbus_policy_db_new(struct kdbus_policy_db **db);
 void kdbus_policy_db_unref(struct kdbus_policy_db *db);

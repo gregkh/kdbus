@@ -15,14 +15,9 @@
 
 #include "internal.h"
 
-struct kdbus_match_db {
-	struct kref		kref;
-	struct list_head	entries;
-	struct mutex		entries_lock;
-};
-
 struct kdbus_conn;
 struct kdbus_kmsg;
+struct kdbus_match_db;
 
 int kdbus_match_db_new(struct kdbus_match_db **db);
 struct kdbus_match_db *kdbus_match_db_ref(struct kdbus_match_db *db);

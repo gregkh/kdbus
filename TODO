@@ -2,10 +2,8 @@ Docs:
   - kernel doc for:
       endpoint.c
       match.c
-      match.h
       message.c
       policy.c
-      policy.h
 
 External API:
   - actually return compatible/incompatible flags
