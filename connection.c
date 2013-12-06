@@ -578,7 +578,7 @@ exit_unlock:
 }
 
 /**
- * kdbus_conn_kmsg_send - send a message
+ * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
  * @conn_src:		Connection, kernel-generated messages do not have one
  * @kmsg:		Message to send
@@ -923,7 +923,7 @@ static void __kdbus_conn_free(struct kref *kref)
 }
 
 /**
- * kdbus_conn_ref - take a connection reference
+ * kdbus_conn_ref() - take a connection reference
  * @conn:		Connection
  *
  * Returns: the connection itself
@@ -935,7 +935,7 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
 }
 
 /**
- * kdbus_conn_unref - drop a connection reference
+ * kdbus_conn_unref() - drop a connection reference
  * @conn:		Connection
  *
  * When the last reference is dropped, the connection's internal structure
@@ -950,7 +950,7 @@ void kdbus_conn_unref(struct kdbus_conn *conn)
 }
 
 /**
- * kdbus_conn_move_messages - move a message from one connection to another
+ * kdbus_conn_move_messages() - move a message from one connection to another
  * @conn_dst:		Connection to copy to
  * @conn_src:		Connection to copy from
  *
@@ -997,7 +997,7 @@ exit_unlock:
 }
 
 /**
- * kdbus_cmd_conn_info - retrieve info about a connection
+ * kdbus_cmd_conn_info() - retrieve info about a connection
  * @conn:		Connection
  * @buf:		The returned offset to the message in the pool
  *
@@ -1135,12 +1135,12 @@ exit_unref_owner_conn:
 }
 
 /**
- * kdbus_conn_new - create a new connection
+ * kdbus_conn_new() - create a new connection
  * @ep:			The endpoint the connection is connected to
  * @hello:		The kdbus_cmd_hello as passed in by the user
- * @c			Returned connection
+ * @c:			Returned connection
  *
- * Return 0 on success, or other values in case of errors
+ * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_cmd_hello *hello,

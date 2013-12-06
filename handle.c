@@ -47,8 +47,8 @@ enum kdbus_handle_type {
 
 /**
  * struct kdbus_handle - a handle to the kdbus system
- * @type	Type of this handle (KDBUS_HANDLE_*)
- * @ns		Namespace for this handle
+ * @type:	Type of this handle (KDBUS_HANDLE_*)
+ * @ns:		Namespace for this handle
  * @ns_owner:	The namespace this handle owns, in case @type
  * 		is KDBUS_HANDLE_CONTROL_NS_OWNER
  * @bus_owner:	The bus this handle owns, in case @type

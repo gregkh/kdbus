@@ -26,7 +26,7 @@
 #define KDBUS_MATCH_SRC_ID_ANY		(~0ULL)
 #define KDBUS_DST_ID_BROADCAST		(~0ULL)
 
-/**
+/*
  * struct KDBUS_PART_HEADER - anonymous struct used as header
  * @size:		Size of element, excluding padding bytes
  * @type		Type of element
@@ -198,7 +198,7 @@ enum {
 	KDBUS_ITEM_REPLY_DEAD,		/* dito */
 };
 
-/**
+/*
  * struct kdbus_item - chain of data blocks
  * @size	:	overall data record size
  * @type:		kdbus_item type of data
@@ -303,7 +303,7 @@ struct kdbus_policy_access {
 	__u64 id;	/* uid, gid, 0 */
 };
 
-/**
+/*
  * struct kdbus_policy - a policy to upload
  * @size:		The total size of the structure
  * @type:		KDBUS_POLICY_NAME or KDBUS_POLICY_ACCESS
@@ -409,7 +409,7 @@ enum {
  * struct kdbus_cmd_bus_make - struct to make a bus
  * @size:		The total size of the struct
  * @flags:		Properties for the bus to create
- * @bloom_filter:	Size of the bloom filter for this bus
+ * @bloom_size:		Size of the bloom filter for this bus
  * @items:		Items describing details such as the name of the bus
  *
  * This structure is used with the KDBUS_CMD_BUS_MAKE ioctl. Refer to the

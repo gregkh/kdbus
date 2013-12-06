@@ -28,7 +28,7 @@
 #include "message.h"
 
 /**
- * kdbus_pool - the receiver's buffer
+ * struct kdbus_pool - the receiver's buffer
  * @f:			The backing shmem file
  * @size:		The size of the file
  * @busy:		The currently used size
@@ -59,7 +59,7 @@ struct kdbus_pool {
 };
 
 /**
- * kdbus_slice - allocated element in kdbus_pool
+ * struct kdbus_slice - allocated element in kdbus_pool
  * @off			Offset of slice in the shmem file
  * @size		Size of slice
  * @entry		Entry in "all slices" list
@@ -280,7 +280,7 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
 }
 
 /**
- * kdbus_pool_new - create a new pool
+ * kdbus_pool_new() - create a new pool
  * @pool:		Newly allocated pool
  * @size:		Maximum size of the pool
  *

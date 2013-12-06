@@ -68,7 +68,7 @@ static struct device_type kdbus_devtype_control = {
 };
 
 /**
- * kdbus_ns_ref - take a namespace reference
+ * kdbus_ns_ref() - take a namespace reference
  * @ns	:		Namespace
  *
  * Returns: the namespace itself
@@ -80,7 +80,7 @@ struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
 }
 
 /**
- * kdbus_ns_disconnect - invalidate a namespace
+ * kdbus_ns_disconnect() - invalidate a namespace
  * @ns	:		Namespace
  */
 void kdbus_ns_disconnect(struct kdbus_ns *ns)
@@ -126,7 +126,7 @@ static void __kdbus_ns_free(struct kref *kref)
 }
 
 /**
- * kdbus_ns_unref - drop a namespace reference
+ * kdbus_ns_unref() - drop a namespace reference
  * @ns	:		Namespace
  *
  * When the last reference is dropped, the namespace internal structure
@@ -156,7 +156,7 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
 }
 
 /**
- * kdbus_ns_find_by_major - lookup a namespace by its major device number
+ * kdbus_ns_find_by_major() - lookup a namespace by its major device number
  * @major:		Major number
  *
  * Returns: the namespace, or NULL if not found
@@ -173,7 +173,7 @@ struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 }
 
 /**
- * kdbus_ns_new - create a new namespace
+ * kdbus_ns_new() - create a new namespace
  * @parent:		Parent namespace, NULL for initial one
  * @name:		Name of the namespace, NULL for the initial one
  * @mode:		The access mode for the "control" device node
@@ -284,7 +284,7 @@ exit_unlock:
 }
 
 /**
- * kdbus_ns_make_user - create namespace data from user data
+ * kdbus_ns_make_user() - create namespace data from user data
  * @buf:		User data
  * @make:		The returned copy of user data
  * @name:		The name of the namespace to create

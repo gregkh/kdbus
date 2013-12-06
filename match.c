@@ -28,9 +28,9 @@
 
 /**
  * struct kdbus_match_db - message filters
- * @kref		Reference count
- * @entries		List of matches
- * @entrieslock		Match data lock
+ * @kref:		Reference count
+ * @entries:		List of matches
+ * @entries_lock:	Match data lock
  */
 struct kdbus_match_db {
 	struct kref		kref;

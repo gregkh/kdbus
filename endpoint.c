@@ -136,12 +136,12 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
- * @policy:		Default policy of allow or deny
+ * @policy_open:	Default policy of allow or deny
  *
  * This function will create a new enpoint with the given
  * name and properties for a given bus.
  *
- r Returns: 0 on success, negative errno on failure.
+ * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		 kuid_t uid, kgid_t gid, bool policy_open)
@@ -226,7 +226,7 @@ exit_unlock:
 }
 
 /**
- * kdbus_ep_remove - remove endpoint
+ * kdbus_ep_remove() - remove endpoint
  * @ep:			Endpoint
  *
  * Returns: 0 on success, negative errno on failure.
@@ -245,7 +245,7 @@ int kdbus_ep_remove(struct kdbus_ep *ep)
 }
 
 /**
- * kdbus_ep_make_user - create endpoint data from user data
+ * kdbus_ep_make_user() - create endpoint data from user data
  * @buf:		User data
  * @make:		The returned copy of user data
  * @name:		The name of the endpoint to create

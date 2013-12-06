@@ -347,8 +347,8 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
 /**
  * kdbus_meta_append() - collect metadata from current process
  * @meta:		Metadata object
- * @conn		Current connection
- * @which		KDBUS_ATTACH_* flags which typ of data to attach
+ * @conn:		Current connection
+ * @which:		KDBUS_ATTACH_* flags which typ of data to attach
  *
  * Collect the data specified in flags and allocate or extend
  * the buffer in the metadata object.

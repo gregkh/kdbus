@@ -32,8 +32,8 @@
 /**
  * struct kdbus_name_queue_item - a queue item for a name
  * @conn:		The associated connection
- * @entry		Name entry queuing up for
- * @flags		The queuing flags
+ * @entry:		Name entry queuing up for
+ * @flags:		The queuing flags
  * @entry_entry:	List element for the list in @entry
  * @conn_entry:		List element for the list in @conn
  */
@@ -71,7 +71,7 @@ static void __kdbus_name_registry_free(struct kref *kref)
 }
 
 /**
- * kdbus_name_registry_unref - drop a name reg's reference
+ * kdbus_name_registry_unref() - drop a name reg's reference
  * @reg:		The name registry
  *
  * When the last reference is dropped, the name registry's internal structure
@@ -83,7 +83,7 @@ void kdbus_name_registry_unref(struct kdbus_name_registry *reg)
 }
 
 /**
- * kdbus_name_registry_new - create a new name registry
+ * kdbus_name_registry_new() - create a new name registry
  * @reg:		The returned name registry
  *
  * Returns 0 on success, -ENOMEM if memory allocation failed.
@@ -196,7 +196,7 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 }
 
 /**
- * kdbus_name_remove_by_conn - remove all name entries of a given connection
+ * kdbus_name_remove_by_conn() - remove all name entries of a given connection
  * @reg:		The name registry
  * @conn:		The connection which entries to remove
  *
@@ -222,7 +222,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 }
 
 /**
- * kdbus_name_lookup - look up a name in a name registry
+ * kdbus_name_lookup() - look up a name in a name registry
  * @reg:		The name registry
  * @name:		The name to look up
  *
@@ -315,7 +315,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 }
 
 /**
- * kdbus_name_is_valid - check if a name is value
+ * kdbus_name_is_valid() - check if a name is value
  * @p:			The name to check
  *
  * A name is valid if all of the following criterias are met:
@@ -366,7 +366,7 @@ bool kdbus_name_is_valid(const char *p)
 }
 
 /**
- * kdbus_name_acquire - acquire a name
+ * kdbus_name_acquire() - acquire a name
  * @reg:		The name registry
  * @conn:		The connection to pin this entry to
  * @name:		The name to acquire
@@ -438,7 +438,7 @@ exit_unlock:
 }
 
 /**
- * kdbus_name_acquire - acquire a name from a ioctl command buffer
+ * kdbus_name_acquire() - acquire a name from a ioctl command buffer
  * @reg:		The name registry
  * @conn:		The connection to pin this entry to
  * @buf:		The __user buffer as passed in by the ioctl
@@ -528,7 +528,7 @@ exit_free:
 }
 
 /**
- * kdbus_cmd_name_release - release a name entry from a ioctl command buffer
+ * kdbus_cmd_name_release() - release a name entry from a ioctl command buffer
  * @reg:		The name registry
  * @conn:		The connection that holds the name
  * @buf:		The __user buffer as passed in by the ioctl
@@ -603,7 +603,7 @@ exit_free:
 }
 
 /**
- * kdbus_cmd_name_list - list names of a connection
+ * kdbus_cmd_name_list() - list names of a connection
  * @reg:		The name registry
  * @conn:		The connection holding the name entries
  * @buf:		The __user buffer as passed in by the ioctl

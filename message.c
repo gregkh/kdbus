@@ -72,7 +72,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 }
 
 /**
- * kdbus_kmsg_free - free allocated message
+ * kdbus_kmsg_free() - free allocated message
  * @kmsg:		Message
  */
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
@@ -82,8 +82,9 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 }
 
 /**
- * kdbus_kmsg_new - allocate message
- * @size:		additional size to reserve for data
+ * kdbus_kmsg_new() - allocate message
+ * @extra_size:		additional size to reserve for data
+ * @m:			Returned Message
  *
  * Returns: 0 on success, negative errno on failure.
  */
@@ -263,7 +264,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 }
 
 /**
- * kdbus_kmsg_new_from_user - copy message from user memory
+ * kdbus_kmsg_new_from_user() - copy message from user memory
  * @conn:		Connection
  * @msg:		User-provided message
  * @m:			Copy of message

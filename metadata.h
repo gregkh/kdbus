@@ -14,7 +14,7 @@
 #define __KDBUS_METADATA_H
 
 /**
- * kdbus_meta - metadata buffer
+ * struct kdbus_meta - metadata buffer
  * @attached		Flags for already attached data
  * @data		Allocated buffer
  * @size		Number of bytes used

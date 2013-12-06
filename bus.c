@@ -76,7 +76,7 @@ void kdbus_bus_unref(struct kdbus_bus *bus)
 }
 
 /**
- * kdbus_bus_find_conn_by_id - find a connection with a given id
+ * kdbus_bus_find_conn_by_id() - find a connection with a given id
  * @bus:		The bus to look for the connection
  * @id:			The 64-bit connection id
  *
@@ -145,6 +145,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
  * @ns:			The namespace to work on
  * @bus_make:		Pointer to a struct kdbus_cmd_bus_make containing the
  *			details for the bus creation
+ * @name:		Name of the bus
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node

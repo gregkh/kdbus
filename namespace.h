@@ -34,7 +34,7 @@
  *
  * A namespace provides a "control" device node. Every namespace has its
  * own major number for its endpoint device nodes.
-
+ *
  * The initial namespace is created at initialization time, is unnamed and
  * stays around for forver.
  *
