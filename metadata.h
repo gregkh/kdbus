@@ -15,12 +15,12 @@
 
 /**
  * struct kdbus_meta - metadata buffer
- * @attached		Flags for already attached data
- * @data		Allocated buffer
- * @size		Number of bytes used
- * @allocated size	Size of buffer
- * @src_names		List of \0-separated well-known names
- * src_names_len	Length of list
+ * @attached:		Flags for already attached data
+ * @data:		Allocated buffer
+ * @size:		Number of bytes used
+ * @allocated_size:	Size of buffer
+ * @src_names:		List of \0-separated well-known names
+ * @src_names_len:	Length of list
  *
  * Used to collect and store connection metadata in a pre-compiled
  * buffer containing struct kdbus_item.

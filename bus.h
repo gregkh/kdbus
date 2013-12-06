@@ -20,25 +20,25 @@
 
 /**
  * struct kdbus_bus - bus in a namespace
- * @kref		Reference count
- * @disconnected	Invalidated data
- * @uid_owner		The uid of the owner of the bus
- * @ns			Namespace of this bus
- * @name		The bus name
- * @id			ID of this bus in the namespace
- * @lock		Bus data lock
- * @ep_id_next		Next endpoint id sequence number
- * @conn_id_next	Next connection id sequence number
- * @msg_id_next		Next message id sequence number
- * @conn_idr		Map of connection ids
- * @conn_hash
- * @eps_list		Endpoints on this bus
- * @bus_flags		Simple pass-through flags from userspace to userspace
- * @bloom_size		Bloom filter size
- * @name_registry	Namespace's list of buses
- * @ns_entry		Namespace's list of buses
- * @monitors_list	Connections that monitor this bus
- * @id128		Unique random 128 bit ID of this bus
+ * @kref:		Reference count
+ * @disconnected:	Invalidated data
+ * @uid_owner:		The uid of the owner of the bus
+ * @ns:			Namespace of this bus
+ * @name:		The bus name
+ * @id:			ID of this bus in the namespace
+ * @lock:		Bus data lock
+ * @ep_id_next:		Next endpoint id sequence number
+ * @conn_id_next:	Next connection id sequence number
+ * @msg_id_next:	Next message id sequence number
+ * @conn_idr:		Map of connection device minor nummbers
+ * @conn_hash:		Map of connection IDs
+ * @eps_list:		Endpoints on this bus
+ * @bus_flags:		Simple pass-through flags from userspace to userspace
+ * @bloom_size:		Bloom filter size
+ * @name_registry:	Namespace's list of buses
+ * @ns_entry:		Namespace's list of buses
+ * @monitors_list:	Connections that monitor this bus
+ * @id128:		Unique random 128 bit ID of this bus
  *
  * A bus provides a "bus" endpoint / device node.
  *

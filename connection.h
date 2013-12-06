@@ -19,26 +19,26 @@
 
 /**
  * struct kdbus_conn - connection to a bus
- * @kref		Reference count
- * @disconnected	Invalidated data
- * @ep			default endpoint "bus"
- * @id			Connection ID
- * @flags		KDBUS_HELLO_* flags
- * @attach_flags	KDBUS_ATTACH_* flags
- * @lock		Connection data lock
- * @msg_list		Queue of messages
- * @hentry		Entry in ID <-> connection map
- * @monitor_entry	The connection is a monitor
- * @names_lock		Well-known names lock
- * @names_list		List of well-known names
- * @names_queue_list	Well-known names this connection waits for
- * @names		Number of owned well-known names
- * @work		Support for poll()
- * @timer		Message reply timeout handling
- * @match_db		Subscription filter to broadcast messages
- * @meta		Cached connection creator's metadata/credentials
- * @msg_count		Number of queued messages
- * @pool		The user's buffer to receive messages
+ * @kref:		Reference count
+ * @disconnected:	Invalidated data
+ * @ep:			default endpoint "bus"
+ * @id:			Connection ID
+ * @flags:		KDBUS_HELLO_* flags
+ * @attach_flags:	KDBUS_ATTACH_* flags
+ * @lock:		Connection data lock
+ * @msg_list:		Queue of messages
+ * @hentry:		Entry in ID <-> connection map
+ * @monitor_entry:	The connection is a monitor
+ * @names_lock:		Well-known names lock
+ * @names_list:		List of well-known names
+ * @names_queue_list:	Well-known names this connection waits for
+ * @names:		Number of owned well-known names
+ * @work:		Support for poll()
+ * @timer:		Message reply timeout handling
+ * @match_db:		Subscription filter to broadcast messages
+ * @meta:		Cached connection creator's metadata/credentials
+ * @msg_count:		Number of queued messages
+ * @pool:		The user's buffer to receive messages
  */
 struct kdbus_conn {
 	struct kref kref;

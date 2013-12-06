@@ -20,8 +20,8 @@
 /**
  * struct kdbus_name_registry - names resgistered for a bus
  * @kref:		Reference count
- * @entries_hash:
- * @entries_lock:
+ * @entries_hash:	Map of entries
+ * @entries_lock:	Registry data lock
  */
 struct kdbus_name_registry {
 	struct kref		kref;
@@ -33,9 +33,9 @@ struct kdbus_name_registry {
  * struct kdbus_name_entry - well-know name entry
  * @name:		The well-known name
  * @flags:		KDBUS_NAME_* flags
- * @queue_list:
- * @conn_entry:
- * @hentry:
+ * @queue_list:		List of queued waiters for the well-known name
+ * @conn_entry:		Entry in connection
+ * @hentry:		Entry in registry map
  * @conn:		Connection owning the name
  * @starter:		Connection of the starter queuing incoming messages
  */

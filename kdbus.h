@@ -29,7 +29,7 @@
 /*
  * struct KDBUS_PART_HEADER - anonymous struct used as header
  * @size:		Size of element, excluding padding bytes
- * @type		Type of element
+ * @type:		Type of element
  *
  * Common first elements in a structure, used to specify the type
  * and size of the data.
@@ -42,10 +42,10 @@
 
 /**
  * struct kdbus_notify_name_change - name registry change message
- * @old_id		Former owner of a name
- * @new_id		New owner of a name
- * @flags		flags from KDBUS_NAME_*
- * @name		Well-known name
+ * @old_id:		Former owner of a name
+ * @new_id:		New owner of a name
+ * @flags:		flags from KDBUS_NAME_*
+ * @name:		Well-known name
  *
  * Data attached to:
  *   KDBUS_ITEM_NAME_ADD
@@ -64,8 +64,8 @@ struct kdbus_notify_name_change {
 
 /**
  * struct kdbus_notify_id_change - name registry change message
- * @id			New or former owner of the name
- * @flags		flags field from KDBUS_HELLO_*
+ * @id:			New or former owner of the name
+ * @flags:		flags field from KDBUS_HELLO_*
  *
  * Data attached to:
  *   KDBUS_ITEM_ID_ADD
@@ -81,11 +81,11 @@ struct kdbus_notify_id_change {
 
 /**
  * struct kdbus_creds - process credentials
- * @uid			User ID
- * @gid			Group ID
- * @pid			Process ID
- * @tid			Thread ID
- * @starttime		Starttime of the process
+ * @uid:		User ID
+ * @gid:		Group ID
+ * @pid:		Process ID
+ * @tid:		Thread ID
+ * @starttime:		Starttime of the process
  *
  * The starttime of the process PID. This is useful to detect PID overruns
  * from the client side. i.e. if you use the PID to look something up in
@@ -102,8 +102,8 @@ struct kdbus_creds {
 
 /**
  * struct kdbus_audit - audit information
- * @sessionid		The audit session ID
- * @loginuid		The audit login uid
+ * @sessionid:		The audit session ID
+ * @loginuid:		The audit login uid
  */
 struct kdbus_audit {
 	__u64 sessionid;
@@ -123,8 +123,8 @@ struct kdbus_timestamp {
 /**
  * struct kdbus_vec - I/O vector for kdbus payload items
  * @size:		The size of the vector
- * @address		Memory address for memory addresses
- * @offset		Offset in the in-message payload memory
+ * @address:		Memory address for memory addresses
+ * @offset:		Offset in the in-message payload memory
  */
 struct kdbus_vec {
 	__u64 size;
@@ -148,8 +148,8 @@ struct kdbus_memfd {
 
 /**
  * struct kdbus_name - a registered well-known name with its flags
- * @flags		flags from KDBUS_NAME_*
- * @name		well-known name
+ * @flags:		flags from KDBUS_NAME_*
+ * @name:		well-known name
  */
 struct kdbus_name {
 	__u64 flags;
@@ -200,7 +200,7 @@ enum {
 
 /*
  * struct kdbus_item - chain of data blocks
- * @size	:	overall data record size
+ * @size:	:	overall data record size
  * @type:		kdbus_item type of data
  */
 struct kdbus_item {
@@ -370,7 +370,7 @@ enum {
  * 			(kernel → userspace)
  * @pool_size:		Maximum size of the pool buffer (kernel → userspace)
  * @id128:		Unique 128-bit ID of the bus (kernel → userspace)
- * @items;		A list of items
+ * @items:		A list of items
  *
  * This struct is used with the KDBUS_CMD_HELLO ioctl. See the ioctl
  * documentation for more information.

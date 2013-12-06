@@ -17,20 +17,20 @@
 
 /**
  * struct kdbus_namespace - namespace for buses
- * @kref		Reference counter
- * @disconnected	Invalidated data
- * @name		Name of the namespace
- * @parent		Parent namespace
- * @id			Global id of this namespace
- * @devpath		/dev base directory path
- * @major		Device major number for all nodes
- * @mode		Device node access mode
- * @idr			Map of endpoint minors to buses
- * @dev			Control device node, minor == 0
- * @lock		Namespace data lock
- * @bus_id_next		Next bus id sequence number
- * @namespace_entry	Kdbus' global list of namespaces
- * @bus_list		Buses in this namespace
+ * @kref:		Reference counter
+ * @disconnected:	Invalidated data
+ * @name:		Name of the namespace
+ * @parent:		Parent namespace
+ * @id:			Global id of this namespace
+ * @devpath:		/dev base directory path
+ * @major:		Device major number for all nodes
+ * @mode:		Device node access mode
+ * @idr:		Map of endpoint minors to buses
+ * @dev:		Control device node, minor == 0
+ * @lock:		Namespace data lock
+ * @bus_id_next:	Next bus id sequence number
+ * @namespace_entry:	Kdbus' global list of namespaces
+ * @bus_list:		Buses in this namespace
  *
  * A namespace provides a "control" device node. Every namespace has its
  * own major number for its endpoint device nodes.

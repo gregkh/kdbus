@@ -18,17 +18,17 @@
 
 /**
  * struct kdbus_kmsg - internal message handling data
- * @notification_type	Short-cut for faster lookup
- * @dst_name		Short-cut to msg for faster lookup
- * @bloom		Short-cut to msg for faster lookup
- * @bloom_size		Short-cut to msg for faster lookup
- * @fds			Array of file descriptors to pass
- * @fds_count		Number of file descriptors to pass
- * @meta		Appended SCM-like metadata of the sending process
- * @vecs_size		Size of PAYLOAD data
- * @vecs_count		Number of PAYLOAD vectors
- * @memfds_count	Number of memfds to pass
- * @msg			Message from or to userspace
+ * @notification_type:	Short-cut for faster lookup
+ * @dst_name:		Short-cut to msg for faster lookup
+ * @bloom:		Short-cut to msg for faster lookup
+ * @bloom_size:		Short-cut to msg for faster lookup
+ * @fds:		Array of file descriptors to pass
+ * @fds_count:		Number of file descriptors to pass
+ * @meta:		Appended SCM-like metadata of the sending process
+ * @vecs_size:		Size of PAYLOAD data
+ * @vecs_count:		Number of PAYLOAD vectors
+ * @memfds_count:	Number of memfds to pass
+ * @msg:		Message from or to userspace
  */
 struct kdbus_kmsg {
 	u64 notification_type;
