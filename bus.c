@@ -77,8 +77,8 @@ void kdbus_bus_unref(struct kdbus_bus *bus)
 
 /**
  * kdbus_bus_find_conn_by_id - find a connection with a given id
- * @bus:	The bus to look for the connection
- * @id:		The 64-bit connection id
+ * @bus:		The bus to look for the connection
+ * @id:			The 64-bit connection id
  *
  * Looks up a connection with a given id. The returned connection
  * is ref'ed, and needs to be unref'ed by the user. Returns NULL if

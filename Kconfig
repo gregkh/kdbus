@@ -3,3 +3,4 @@ config KDBUS
 	help
 	  D-Bus is a system for low-latency, low-overhead, easy to use
 	  interprocess communication (IPC).
+	  http://dbus.freedesktop.org/doc/dbus-specification.html

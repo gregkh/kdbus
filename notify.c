@@ -71,12 +71,13 @@ exit_unref_conn:
 
 /**
  * kdbus_notify_reply_timeout - send a timeout reply
- * @ep:		The endpoint to use for sending
- * @src_id:	The id to use as sender address
- * @cookie	The cookie to set in the reply.
+ * @ep:			The endpoint to use for sending
+ * @src_id:		The id to use as sender address
+ * @cookie		The cookie to set in the reply.
  *
  * Sends a message that has a KDBUS_ITEM_REPLY_TIMEOUT item attached.
- * Returns 0 on success, or a negative error code.
+ *
+ * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 {
@@ -85,12 +86,13 @@ int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 
 /**
  * kdbus_notify_reply_dead - send a 'dead' reply
- * @ep:		The endpoint to use for sending
- * @src_id:	The id to use as sender address
- * @cookie	The cookie to set in the reply.
+ * @ep:			The endpoint to use for sending
+ * @src_id:		The id to use as sender address
+ * @cookie		The cookie to set in the reply.
  *
  * Sends a message that has a KDBUS_ITEM_REPLY_DEAD item attached.
- * Returns 0 on success, or a negative error code.
+ *
+ * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 {
@@ -99,15 +101,15 @@ int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
 
 /**
  * kdbus_notify_name_change - send a notification about a name owner change
- * @ep:		The endpoint to use for sending
- * @type:	The type if the notification; KDBUS_ITEM_NAME_ADD,
- * 		KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
- * @old_id:	The id of the connection that used to own the name
- * @new_id:	The id of the new owner connection
- * @flags:	The flags to pass in the KDBUS_ITEM flags field
- * @name:	The name that was removed or assigned to a new owner
+ * @ep:			The endpoint to use for sending
+ * @type:		The type if the notification; KDBUS_ITEM_NAME_ADD,
+ * 			KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
+ * @old_id:		The id of the connection that used to own the name
+ * @new_id:		The id of the new owner connection
+ * @flags:		The flags to pass in the KDBUS_ITEM flags field
+ * @name:		The name that was removed or assigned to a new owner
  *
- * Returns 0 on success, or a negative error code.
+ * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     u64 old_id, u64 new_id, u64 flags,
@@ -148,13 +150,13 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 
 /**
  * kdbus_notify_id_change - send a notification about a unique ID change
- * @ep:		The endpoint to use for sending
- * @type:	The type if the notification; KDBUS_MATCH_ID_ADD or
- * 		KDBUS_MATCH_ID_REMOVE
- * @id:		The id of the connection that was added or removed
- * @flags:	The flags to pass in the KDBUS_ITEM flags field
+ * @ep:			The endpoint to use for sending
+ * @type:		The type if the notification; KDBUS_MATCH_ID_ADD or
+ * 			KDBUS_MATCH_ID_REMOVE
+ * @id:			The id of the connection that was added or removed
+ * @flags:		The flags to pass in the KDBUS_ITEM flags field
  *
- * Returns 0 on success, or a negative error code.
+ * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 			   u64 id, u64 flags)

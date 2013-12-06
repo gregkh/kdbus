@@ -17,12 +17,28 @@
 
 #include "internal.h"
 
+/**
+ * struct kdbus_name_registry - names resgistered for a bus
+ * @kref:		Reference count
+ * @entries_hash:
+ * @entries_lock:
+ */
 struct kdbus_name_registry {
 	struct kref		kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
 	struct mutex		entries_lock;
 };
 
+/**
+ * struct kdbus_name_entry - well-know name entry
+ * @name:		The well-known name
+ * @flags:		KDBUS_NAME_* flags
+ * @queue_list:
+ * @conn_entry:
+ * @hentry:
+ * @conn:		Connection owning the name
+ * @starter:		Connection of the starter queuing incoming messages
+ */
 struct kdbus_name_entry {
 	char			*name;
 	u64			flags;

@@ -1136,9 +1136,9 @@ exit_unref_owner_conn:
 
 /**
  * kdbus_conn_new - create a new connection
- * @ep:		The endpoint the connection is connected to
- * @hello:	The kdbus_cmd_hello as passed in by the user
- * @c		Returned connection
+ * @ep:			The endpoint the connection is connected to
+ * @hello:		The kdbus_cmd_hello as passed in by the user
+ * @c			Returned connection
  *
  * Return 0 on success, or other values in case of errors
  */

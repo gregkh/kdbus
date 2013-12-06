@@ -1,4 +1,14 @@
+Docs:
+  - kernel doc for:
+      endpoint.c
+      match.c
+      match.h
+      message.c
+      policy.c
+      policy.h
+
 External API:
+  - actually return compatible/incompatible flags
   - rules for: which unknown items to ignore in userspace?
   - review all different structures of custom ioctls and items if they
     can be somehow unified
