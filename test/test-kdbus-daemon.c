@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 	bus_make.head.bloom_size = 64;
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
-	bus_make.n_type = KDBUS_MAKE_NAME;
+	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +

@@ -203,6 +203,7 @@ enum kdbus_item_type {
 	KDBUS_ITEM_BLOOM,		/* for broadcasts, carries bloom filter */
 	KDBUS_ITEM_DST_NAME,		/* destination's well-known name */
 	KDBUS_ITEM_PRIORITY,		/* queue priority for message */
+	KDBUS_ITEM_MAKE_NAME,
 
 	_KDBUS_ITEM_POLICY_BASE	= 0x400,
 	KDBUS_ITEM_POLICY_NAME = _KDBUS_ITEM_POLICY_BASE,
@@ -235,7 +236,7 @@ enum kdbus_item_type {
 
 /**
  * struct kdbus_item - chain of data blocks
- * @size:	:	Overall data record size
+ * @size:		Overall data record size
  * @type:		Kdbus_item type of data
  * @data:		Generic bytes
  * @data32:		Generic 32 bit array
@@ -452,12 +453,6 @@ enum kdbus_make_flags {
 	KDBUS_MAKE_ACCESS_GROUP		= 1 <<  0,
 	KDBUS_MAKE_ACCESS_WORLD		= 1 <<  1,
 	KDBUS_MAKE_POLICY_OPEN		= 1 <<  2,
-};
-
-/* Items to append to KDBUS_CMD_{BUS,EP,NS}_MAKE */
-enum kdbus_make_type {
-	_KDBUS_MAKE_NULL,
-	KDBUS_MAKE_NAME,
 };
 
 /**

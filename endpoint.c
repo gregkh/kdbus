@@ -280,7 +280,7 @@ int kdbus_ep_make_user(void __user *buf,
 		}
 
 		switch (item->type) {
-		case KDBUS_MAKE_NAME:
+		case KDBUS_ITEM_MAKE_NAME:
 			if (n) {
 				ret = -EEXIST;
 				goto exit;

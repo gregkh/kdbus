@@ -319,7 +319,7 @@ int kdbus_ns_make_user(void __user *buf,
 		}
 
 		switch (item->type) {
-		case KDBUS_MAKE_NAME:
+		case KDBUS_ITEM_MAKE_NAME:
 			if (n) {
 				ret = -EEXIST;
 				goto exit;
@@ -336,7 +336,7 @@ int kdbus_ns_make_user(void __user *buf,
 			}
 
 			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE)) {
+						item->size - KDBUS_ITEM_HEADER_SIZE)) {
 				ret = -EINVAL;
 				goto exit;
 			}

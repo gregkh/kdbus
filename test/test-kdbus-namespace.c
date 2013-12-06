@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 	ns_make.head.flags = KDBUS_MAKE_POLICY_OPEN;
 
 	strcpy(ns_make.name, "test-ns");
-	ns_make.n_type = KDBUS_MAKE_NAME;
+	ns_make.n_type = KDBUS_ITEM_MAKE_NAME;
 	ns_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(ns_make.name) + 1;
 
 	ns_make.head.size = sizeof(struct kdbus_cmd_ns_make) +
