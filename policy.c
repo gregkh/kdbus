@@ -55,6 +55,7 @@ struct kdbus_policy_db {
  * @conn_b:		Connection B
  * @hentry:		The hash table entry for the database's entries_hash
  * @deadline_ns:	This entry's deadline timeout, in nanoseconds
+ * @timeout_entry:	List entry item for the database's timeout_list
  */
 struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn	*conn_a;
@@ -190,7 +191,7 @@ void kdbus_policy_db_unref(struct kdbus_policy_db *db)
 }
 
 /**
- * kdbus_policy_db_new - create a new policy database
+ * kdbus_policy_db_new() - create a new policy database
  * @db:		The location where to store the new database
  *
  * Return 0 on success, or any other value in case of errors.
@@ -337,7 +338,7 @@ static int kdbus_add_reverse_cache_entry(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_policy_db_check_send_access - check if one connection is allowed
+ * kdbus_policy_db_check_send_access() - check if one connection is allowed
  * 				       to send a message to another connection
  * @db:			The policy database
  * @conn_src:		The source connection
@@ -398,7 +399,7 @@ exit_unlock_entries:
 }
 
 /**
- * kdbus_policy_db_remove_conn - remove all entries related to a connection
+ * kdbus_policy_db_remove_conn() - remove all entries related to a connection
  * @db:		The policy database
  * @conn:	The connection which items to remove
  */
@@ -419,8 +420,8 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_policy_db_check_own_access - check whether a policy is allowed
- * 				      to own a name
+ * kdbus_policy_db_check_own_access() - check whether a policy is allowed
+ * 					to own a name
  * @db:		The policy database
  * @conn:	The connection to check
  * @name:	The name to check
@@ -522,7 +523,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_cmd_policy_set_from_user - set a connection's policy rules
+ * kdbus_cmd_policy_set_from_user() - set a connection's policy rules
  * @db:		The policy database
  * @buf:	The __user buffer that was provided by the ioctl() call
  *
