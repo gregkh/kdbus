@@ -514,17 +514,13 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 	bool disconnected;
 	int ret = 0;
 
-	mutex_lock(&bus->lock);
-
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
 		const struct kdbus_name_entry *name_entry;
 
 		name_entry = kdbus_name_lookup(bus->name_registry,
 					       kmsg->dst_name);
-		if (!name_entry) {
-			ret = -ESRCH;
-			goto exit_unlock;
-		}
+		if (!name_entry)
+			return -ESRCH;
 
 		if (name_entry->starter)
 			c = kdbus_conn_ref(name_entry->starter);
@@ -537,11 +533,12 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 			goto exit_unref;
 		}
 	} else {
+		mutex_lock(&bus->lock);
 		c = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
-		if (!c) {
-			ret = -ENXIO;
-			goto exit_unlock;
-		}
+		mutex_unlock(&bus->lock);
+
+		if (!c)
+			return -ENXIO;
 
 		/*
 		 * A starter connection is not allowed to be addressed
@@ -571,8 +568,6 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 exit_unref:
 	kdbus_conn_unref(c);
 
-exit_unlock:
-	mutex_unlock(&bus->lock);
 	return ret;
 }
 
