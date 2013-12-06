@@ -780,4 +780,5 @@ enum kdbus_ioctl_type {
  * 			mmap()ed.
  * @EXFULL:		The size limits in the pool are reached, no data of
  * 			the size tried to submit can be queued.
+ */
 #endif
