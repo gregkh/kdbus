@@ -155,14 +155,12 @@ struct kdbus_policy_access {
 	__u64 id;	/* uid, gid, 0 */
 };
 
-/*
- * struct kdbus_policy - a policy to upload
- * @size:		The total size of the structure
- * @type:		KDBUS_POLICY_NAME or KDBUS_POLICY_ACCESS
- * @name:		The well-known name to grant access to,
- * 			if @type is KDBUS_POLICY_NAME
+/**
+ * struct kdbus_policy - a policy item
  * @access:		The policy access details,
  * 			if @type is KDBUS_POLICY_ACCESS
+ * @name:		The well-known name to grant access to,
+ * 			if @type is KDBUS_POLICY_NAME
  */
 struct kdbus_policy {
 	union {
@@ -171,47 +169,44 @@ struct kdbus_policy {
 	};
 };
 
-/* Message Item Types */
+/* item types to chain data in lists of items */
 enum {
 	_KDBUS_ITEM_NULL,
-
-	/* Filled in by userspace */
 	_KDBUS_ITEM_USER_BASE,
-	KDBUS_ITEM_PAYLOAD_VEC	= _KDBUS_ITEM_USER_BASE,
-	KDBUS_ITEM_PAYLOAD_OFF,		/* .data_vec, reference to memory area */
-	KDBUS_ITEM_PAYLOAD_MEMFD,	/* file descriptor of a special data file */
-	KDBUS_ITEM_FDS,			/* .data_fds of file descriptors */
-	KDBUS_ITEM_BLOOM,		/* for broadcasts, carries bloom filter blob in .data */
-	KDBUS_ITEM_DST_NAME,		/* destination's well-known name, in .str */
+	KDBUS_ITEM_PAYLOAD_VEC	= _KDBUS_ITEM_USER_BASE, /* .data_vec */
+	KDBUS_ITEM_PAYLOAD_OFF,		/* data at returned offset in the pool */
+	KDBUS_ITEM_PAYLOAD_MEMFD,	/* data as sealed memfd */
+	KDBUS_ITEM_FDS,			/* attached file descriptors */
+	KDBUS_ITEM_BLOOM,		/* for broadcasts, carries bloom filter */
+	KDBUS_ITEM_DST_NAME,		/* destination's well-known name */
 	KDBUS_ITEM_PRIORITY,		/* queue priority for message */
 
 	_KDBUS_ITEM_POLICY_BASE	= 0x400,
 	KDBUS_ITEM_POLICY_NAME = _KDBUS_ITEM_POLICY_BASE,
 	KDBUS_ITEM_POLICY_ACCESS,
 
-	/* Filled in by kernelspace */
 	_KDBUS_ITEM_ATTACH_BASE	= 0x600,
 	KDBUS_ITEM_NAME		= _KDBUS_ITEM_ATTACH_BASE,
-	KDBUS_ITEM_STARTER_NAME,	/* Only used in HELLO for starter connection */
-	KDBUS_ITEM_TIMESTAMP,		/* .timestamp */
-	KDBUS_ITEM_CREDS,		/* .creds */
-	KDBUS_ITEM_PID_COMM,		/* optional, in .str */
-	KDBUS_ITEM_TID_COMM,		/* optional, in .str */
-	KDBUS_ITEM_EXE,			/* optional, in .str */
-	KDBUS_ITEM_CMDLINE,		/* optional, in .str (a chain of NUL str) */
-	KDBUS_ITEM_CGROUP,		/* optional, in .str */
-	KDBUS_ITEM_CAPS,		/* caps data blob, in .data */
-	KDBUS_ITEM_SECLABEL,		/* NUL terminated string, in .str */
-	KDBUS_ITEM_AUDIT,		/* .audit */
+	KDBUS_ITEM_STARTER_NAME,
+	KDBUS_ITEM_TIMESTAMP,
+	KDBUS_ITEM_CREDS,
+	KDBUS_ITEM_PID_COMM,
+	KDBUS_ITEM_TID_COMM,
+	KDBUS_ITEM_EXE,
+	KDBUS_ITEM_CMDLINE,
+	KDBUS_ITEM_CGROUP,
+	KDBUS_ITEM_CAPS,
+	KDBUS_ITEM_SECLABEL,
+	KDBUS_ITEM_AUDIT,
 
-	/* Special messages from kernel, consisting of one and only one of these data blocks */
+	/* Special messages from kernel */
 	_KDBUS_ITEM_KERNEL_BASE	= 0x800,
 	KDBUS_ITEM_NAME_ADD	= _KDBUS_ITEM_KERNEL_BASE,
 	KDBUS_ITEM_NAME_REMOVE,		/* .name_change */
 	KDBUS_ITEM_NAME_CHANGE,		/* .name_change */
 	KDBUS_ITEM_ID_ADD,		/* .id_change */
 	KDBUS_ITEM_ID_REMOVE,		/* .id_change */
-	KDBUS_ITEM_REPLY_TIMEOUT,	/* empty, but .reply_cookie in .kdbus_msg is filled in */
+	KDBUS_ITEM_REPLY_TIMEOUT,	/* empty, reply_cookie is filled in */
 	KDBUS_ITEM_REPLY_DEAD,		/* dito */
 };
 
