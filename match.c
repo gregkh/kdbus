@@ -40,12 +40,13 @@ struct kdbus_match_db {
 
 /**
  * struct kdbus_match_db_entry_item - a match databate entry item
- * @type:	The type of the item (KDBUS_MATCH_*)
- * @name:	The name tp match against, if @type is KDBUS_MATCH_BLOOM
- * @bloom:	The bloom filter to match against, if @type is
- * 		KDBUS_MATCH_SRC_NAME or KDBUS_MATCH_NAME_*
- * @id:		The ID to match against, if @type is KDBUS_MATCH_ID_ADD
- * 		or KDBUS_MATCH_ID_REMOVE
+ * @type:		The type of the item (KDBUS_MATCH_*)
+ * @name:		The name tp match against, if @type is KDBUS_MATCH_BLOOM
+ * @bloom:		The bloom filter to match against, if @type is
+ * 			KDBUS_MATCH_SRC_NAME or KDBUS_MATCH_NAME_*
+ * @id:			The ID to match against, if @type is KDBUS_MATCH_ID_ADD
+ * 			or KDBUS_MATCH_ID_REMOVE
+ * @list_entry:		Entry in struct kdbus_match_db
  */
 struct kdbus_match_db_entry_item {
 	u64 type;
@@ -60,12 +61,12 @@ struct kdbus_match_db_entry_item {
 
 /**
  * struct kdbus_match_db_entry - a match database entry
- * @id:		The ID of the destination connection of this entry
- * @cookie:	User-supplied cookie to lookup the entry
- * @src_id:	The ID of the source connection to match against,
- * 		or KDBUS_MATCH_SRC_ID_ANY.
- * @list_entry:	The list entry element for the db list
- * @items_list:	The list head for tracking items to this entry
+ * @id:			The ID of the destination connection of this entry
+ * @cookie:		User-supplied cookie to lookup the entry
+ * @src_id:		The ID of the source connection to match against,
+ * 			or KDBUS_MATCH_SRC_ID_ANY.
+ * @list_entry:		The list entry element for the db list
+ * @items_list:		The list head for tracking items to this entry
  */
 struct kdbus_match_db_entry {
 	u64			id;
@@ -125,8 +126,8 @@ static void __kdbus_match_db_free(struct kref *kref)
 }
 
 /**
- * kdbus_match_db_unref - drop a reference on a match database
- * @db:		The match database
+ * kdbus_match_db_unref() - drop a reference on a match database
+ * @db:			The match database
  *
  * When the last reference is dropped, the database's internal memory
  * is freed.
@@ -137,8 +138,8 @@ void kdbus_match_db_unref(struct kdbus_match_db *db)
 }
 
 /**
- * kdbus_match_db_ref - take a reference of a match database
- * @db:		The match database
+ * kdbus_match_db_ref() - take a reference of a match database
+ * @db:			The match database
  *
  * Returns: the database itself
  */
@@ -149,8 +150,8 @@ struct kdbus_match_db *kdbus_match_db_ref(struct kdbus_match_db *db)
 }
 
 /**
- * kdbus_match_db_new - create a new match database
- * @db:		Pointer location for the returned database
+ * kdbus_match_db_new() - create a new match database
+ * @db:			Pointer location for the returned database
  *
  * Returns 0 on success, any other value in case of errors.
  */
@@ -315,10 +316,10 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 }
 
 /**
- * kdbus_match_db_match_kmsg - match a kmsg object agains the database entries
- * @db:		The match database
- * @conn_src:	The connection object originating the message
- * @kmsg:	The kmsg to perform the match on
+ * kdbus_match_db_match_kmsg() - match a kmsg object agains the database entries
+ * @db:			The match database
+ * @conn_src:		The connection object originating the message
+ * @kmsg:		The kmsg to perform the match on
  *
  * Returns true in if there was a matching database entry, false otherwise.
  */
@@ -366,9 +367,9 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
 }
 
 /**
- * kdbus_match_db_add - add an entry to the match database
- * @conn:	The connection that was used in the ioctl call
- * @buf:	The __user buffer that was provided along with the ioctl call
+ * kdbus_match_db_add() - add an entry to the match database
+ * @conn:		The connection that was used in the ioctl call
+ * @buf:		The __user buffer that was provided along with the ioctl call
  *
  * Returns 0 in success, any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
@@ -488,9 +489,9 @@ exit_free:
 }
 
 /**
- * kdbus_match_db_renove - remove an entry from the match database
- * @conn:	The connection that was used in the ioctl call
- * @buf:	The __user buffer that was provided along with the ioctl call
+ * kdbus_match_db_remove() - remove an entry from the match database
+ * @conn:		The connection that was used in the ioctl call
+ * @buf:		The __user buffer that was provided along with the ioctl call
  *
  * Returns 0 in success, any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_MATCH_REMOVE

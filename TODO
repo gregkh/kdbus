@@ -1,6 +1,6 @@
 Docs:
   - kernel doc for:
-      match.c
+      enums in kdbus.h
       policy.c
 
 External API:
