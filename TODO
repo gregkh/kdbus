@@ -1,8 +1,3 @@
-Docs:
-  - kernel doc for:
-      enums in kdbus.h
-      policy.c
-
 External API:
   - actually return compatible/incompatible flags
   - rules for: which unknown items to ignore in userspace?

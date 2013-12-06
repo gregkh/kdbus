@@ -39,14 +39,14 @@
  * @timer:		Timer to run for time-out processing
  */
 struct kdbus_policy_db {
-	struct kref kref;
+	struct kref		kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
 	DECLARE_HASHTABLE(send_access_hash, 6);
-	struct list_head timeout_list;
-	struct mutex	entries_lock;
-	struct mutex	cache_lock;
-	struct work_struct work;
-	struct timer_list timer;
+	struct list_head	timeout_list;
+	struct mutex		entries_lock;
+	struct mutex		cache_lock;
+	struct work_struct	work;
+	struct timer_list	timer;
 };
 
 /**
