@@ -13,8 +13,6 @@
 #ifndef __KDBUS_NS_H
 #define __KDBUS_NS_H
 
-#include "internal.h"
-
 /**
  * struct kdbus_namespace - namespace for buses
  * @kref:		Reference counter

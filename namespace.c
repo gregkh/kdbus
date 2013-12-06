@@ -20,6 +20,7 @@
 #include <linux/uaccess.h>
 #include <linux/sizes.h>
 
+#include "internal.h"
 #include "handle.h"
 #include "namespace.h"
 #include "bus.h"

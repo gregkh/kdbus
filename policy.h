@@ -13,8 +13,6 @@
 #ifndef __KDBUS_POLICY_H
 #define __KDBUS_POLICY_H
 
-#include "internal.h"
-
 struct kdbus_conn;
 struct kdbus_policy_db;
 

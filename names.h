@@ -15,8 +15,6 @@
 
 #include <linux/hashtable.h>
 
-#include "internal.h"
-
 /**
  * struct kdbus_name_registry - names resgistered for a bus
  * @kref:		Reference count

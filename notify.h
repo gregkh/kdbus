@@ -13,8 +13,6 @@
 #ifndef __KDBUS_NOTIFY_H
 #define __KDBUS_NOTIFY_H
 
-#include "internal.h"
-
 struct kdbus_ep;
 
 int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,

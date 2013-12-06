@@ -13,8 +13,6 @@
 #ifndef __KDBUS_MATCH_H
 #define __KDBUS_MATCH_H
 
-#include "internal.h"
-
 struct kdbus_conn;
 struct kdbus_kmsg;
 struct kdbus_match_db;
