@@ -723,4 +723,61 @@ enum kdbus_ioctl_type {
 	KDBUS_CMD_MEMFD_SEAL_GET =	_IOR (KDBUS_IOC_MAGIC, 0x93, int *),
 	KDBUS_CMD_MEMFD_SEAL_SET =	_IO  (KDBUS_IOC_MAGIC, 0x94),
 };
+
+/*
+ * errno - api error codes
+ * @E2BIG:		A message contains too many records or items.
+ * @EADDRNOTAVAIL:	A message flagged not to activate a service, addressed
+ * 			a service which is not currently running.
+ * @EAGAIN:		No messages are queued at the moment.
+ * @EBADF:		File descriptors passed with the message are not valid.
+ * @EBADFD:		A bus connection is in a corrupted state.
+ * @EBADMSG:		Passed data contains a combination of conflicting or
+ * 			inconsistent types.
+ * @EBUSY:		A well-known bus name is already taken by another
+ * 			connection.
+ * @ECOMM:		A peer does not accept the file descriptors addressed
+ * 			to it.
+ * @EDESTADDRREQ:	The well-known bus name is required but missing.
+ * @EDOM:		The size of data does not match the expectations. Used
+ * 			for the size of the bloom filter bit field.
+ * @EEXIST:		A requested namespace, bus or endpoint with the same
+ * 			name already exists.  A specific data type, which is
+ * 			only expected once, is provided multiple times.
+ * @EFAULT:		The supplied memory could not be accessed, or the data
+ * 			is not properly aligned.
+ * @EINVAL:		The provided data does not match its type or other
+ * 			expectations, like a string which is not NUL terminated,
+ * 			or a string length that points behind the first
+ * 			\0-byte in the string.
+ * @EMEDIUMTYPE:	A file descriptor which is not a kdbus memfd was
+ * 			refused to send as KDBUS_MSG_PAYLOAD_MEMFD.
+ * @EMFILE:		Too many file descriptors have been supplied with a
+ * 			message.
+ * @EMSGSIZE:		The supplied data is larger than the allowed maximum
+ * 			size.
+ * @ENAMETOOLONG:	The requested name is larger than the allowed maximum
+ * 			size.
+ * @ENOBUFS:		There is no space left for the submitted data to fit
+ * 			into the receiver's pool.
+ * @ENOMEM:		Out of memory.
+ * @ENOSYS:		The requested functionality is not available.
+ * @ENOTCONN:		The addressed peer is not an active connection.
+ * @ENOTSUPP:		The feature negotiation failed, a not supported feature
+ * 			was requested.
+ * @ENOTTY:		An unknown ioctl command was received.
+ * @ENOTUNIQ:		A specific data type was addressed to a broadcast
+ * 			address, but only direct addresses support this kind of
+ * 			data.
+ * @ENXIO:		A unique address does not exist.
+ * @EPERM:		The policy prevented an operation. The requested
+ * 			resource is owned by another entity.
+ * @ESHUTDOWN:		The connection is currently shutting down, no further
+ * 			operations are possible.
+ * @ESRCH:		A requested well-known bus name is not found.
+ * @ETXTBSY:		A kdbus memfd file cannot be sealed or the seal removed,
+ * 			because it is shared with other processes or still
+ * 			mmap()ed.
+ * @EXFULL:		The size limits in the pool are reached, no data of
+ * 			the size tried to submit can be queued.
 #endif
