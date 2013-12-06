@@ -936,7 +936,7 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
 
 /**
  * kdbus_conn_unref() - drop a connection reference
- * @conn:		Connection
+ * @conn:		Connection (may be NULL)
  *
  * When the last reference is dropped, the connection's internal structure
  * is freed.
