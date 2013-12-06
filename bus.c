@@ -100,7 +100,7 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 }
 
 /**
- * kdbus_bus_disconnect() - disconnect a kdbus_bus
+ * kdbus_bus_disconnect() - disconnect a bus
  * @bus:		The kdbus reference
  *
  * The passed bus will be disconnected and the associated endpoint will be
@@ -141,7 +141,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 }
 
 /**
- * kdbus_bus_new() - create a new struct kdbus_bus
+ * kdbus_bus_new() - create a new bus
  * @ns:			The namespace to work on
  * @bus_make:		Pointer to a struct kdbus_cmd_bus_make containing the
  *			details for the bus creation

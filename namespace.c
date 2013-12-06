@@ -284,7 +284,7 @@ exit_unlock:
 }
 
 /**
- * kdbus_ns_make_user - create a new namespace from user data
+ * kdbus_ns_make_user - create namespace data from user data
  * @buf:		User data
  * @make:		The returned copy of user data
  * @name:		The name of the namespace to create

@@ -71,12 +71,22 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 	}
 }
 
+/**
+ * kdbus_kmsg_free - free allocated message
+ * @kmsg:		Message
+ */
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
 	kdbus_meta_free(&kmsg->meta);
 	kfree(kmsg);
 }
 
+/**
+ * kdbus_kmsg_new - allocate message
+ * @size:		additional size to reserve for data
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 {
 	size_t size;
@@ -94,6 +104,13 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 	return 0;
 }
 
+/*
+ * kdbus_msg_scan_items - validate incoming data and prepare parsing
+ * @conn:		Connection
+ * @kmsg:		Message
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
@@ -245,6 +262,14 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	return 0;
 }
 
+/**
+ * kdbus_kmsg_new_from_user - copy message from user memory
+ * @conn:		Connection
+ * @msg:		User-provided message
+ * @m:			Copy of message
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 			     struct kdbus_msg __user *msg,
 			     struct kdbus_kmsg **m)

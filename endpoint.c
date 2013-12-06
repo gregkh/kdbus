@@ -59,6 +59,10 @@ struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 	return ep;
 }
 
+/**
+ * kdbus_ep_disconnect() - disconnect an endpoint
+ * @ep:			Endpoint
+ */
 void kdbus_ep_disconnect(struct kdbus_ep *ep)
 {
 	mutex_lock(&ep->lock);
@@ -125,6 +129,20 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 	return ep;
 }
 
+/**
+ * kdbus_ep_new() - create a new endpoint
+ * @bus:		The bus this endpoint will be created for
+ * @name:		The name of the endpoint
+ * @mode:		The access mode for the device node
+ * @uid:		The uid of the device node
+ * @gid:		The gid of the device node
+ * @policy:		Default policy of allow or deny
+ *
+ * This function will create a new enpoint with the given
+ * name and properties for a given bus.
+ *
+ r Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		 kuid_t uid, kgid_t gid, bool policy_open)
 {
@@ -207,6 +225,12 @@ exit_unlock:
 	return ret;
 }
 
+/**
+ * kdbus_ep_remove - remove endpoint
+ * @ep:			Endpoint
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_ep_remove(struct kdbus_ep *ep)
 {
 	struct kdbus_bus *bus = ep->bus;
@@ -220,6 +244,14 @@ int kdbus_ep_remove(struct kdbus_ep *ep)
 	return 0;
 }
 
+/**
+ * kdbus_ep_make_user - create endpoint data from user data
+ * @buf:		User data
+ * @make:		The returned copy of user data
+ * @name:		The name of the endpoint to create
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
 int kdbus_ep_make_user(void __user *buf,
 		       struct kdbus_cmd_ep_make **make, char **name)
 {

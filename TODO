@@ -1,8 +1,6 @@
 Docs:
   - kernel doc for:
-      endpoint.c
       match.c
-      message.c
       policy.c
 
 External API:
