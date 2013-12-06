@@ -33,13 +33,13 @@
  * @flags:		flags from KDBUS_NAME_*
  * @name:		Well-known name
  *
- * Data attached to:
+ * Sent from kernel to userspace when the owner or starter of
+ * a well-known name changes.
+ *
+ * Attached to:
  *   KDBUS_ITEM_NAME_ADD
  *   KDBUS_ITEM_NAME_REMOVE
  *   KDBUS_ITEM_NAME_CHANGE
- *
- * Sent from kernel to userspace when the owner or starter of
- * a well-known name changes.
  */
 struct kdbus_notify_name_change {
 	__u64 old_id;
@@ -53,12 +53,12 @@ struct kdbus_notify_name_change {
  * @id:			New or former owner of the name
  * @flags:		flags field from KDBUS_HELLO_*
  *
- * Data attached to:
- *   KDBUS_ITEM_ID_ADD
- *   KDBUS_ITEM_ID_REMOVE
- *
  * Sent from kernel to userspace when the owner or starter of
  * a well-known name changes.
+ *
+ * Attached to:
+ *   KDBUS_ITEM_ID_ADD
+ *   KDBUS_ITEM_ID_REMOVE
  */
 struct kdbus_notify_id_change {
 	__u64 id;
@@ -77,6 +77,9 @@ struct kdbus_notify_id_change {
  * from the client side. i.e. if you use the PID to look something up in
  * /proc/$PID/ you can afterwards check the starttime field of it, to ensure
  * you didn't run into a PID overrun.
+ *
+ * Attached to:
+ *   KDBUS_ITEM_CREDS
  */
 struct kdbus_creds {
 	__u64 uid;
@@ -90,6 +93,9 @@ struct kdbus_creds {
  * struct kdbus_audit - audit information
  * @sessionid:		The audit session ID
  * @loginuid:		The audit login uid
+ *
+ * Attached to:
+ *   KDBUS_ITEM_AUDIT
  */
 struct kdbus_audit {
 	__u64 sessionid;
@@ -100,6 +106,9 @@ struct kdbus_audit {
  * struct kdbus_timestamp
  * @monotonic_ns:	Monotonic timestamp, in nanoseconds
  * @realtime_ns:	Realtime timestamp, in nanoseconds
+ *
+ * Attached to:
+ *   KDBUS_ITEM_TIMESTAMP
  */
 struct kdbus_timestamp {
 	__u64 monotonic_ns;
@@ -111,6 +120,9 @@ struct kdbus_timestamp {
  * @size:		The size of the vector
  * @address:		Memory address for memory addresses
  * @offset:		Offset in the in-message payload memory
+ *
+ * Attached to:
+ *   KDBUS_ITEM_PAYLOAD_VEC
  */
 struct kdbus_vec {
 	__u64 size;
@@ -125,6 +137,9 @@ struct kdbus_vec {
  * @size:		The memfd's size
  * @fd:			The file descriptor number
  * @__pad:		Padding to make the struct aligned
+ *
+ * Attached to:
+ *   KDBUS_ITEM_PAYLOAD_MEMFD
  */
 struct kdbus_memfd {
 	__u64 size;
@@ -136,6 +151,9 @@ struct kdbus_memfd {
  * struct kdbus_name - a registered well-known name with its flags
  * @flags:		flags from KDBUS_NAME_*
  * @name:		well-known name
+ *
+ * Attached to:
+ *   KDBUS_ITEM_NAME
  */
 struct kdbus_name {
 	__u64 flags;
@@ -148,6 +166,9 @@ struct kdbus_name {
  * @bits:		Access to grant. One of KDBUS_POLICY_*
  * @id:			For KDBUS_POLICY_ACCESS_USER, the uid
  * 			For KDBUS_POLICY_ACCESS_GROUP, the gid
+ *
+ * Embedded in:
+ *   struct kdbus_policy
  */
 struct kdbus_policy_access {
 	__u64 type;	/* USER, GROUP, WORLD */
@@ -157,10 +178,12 @@ struct kdbus_policy_access {
 
 /**
  * struct kdbus_policy - a policy item
- * @access:		The policy access details,
- * 			if @type is KDBUS_POLICY_ACCESS
- * @name:		The well-known name to grant access to,
- * 			if @type is KDBUS_POLICY_NAME
+ * @access:		Policy access details
+ * @name:		Well-known name to grant access to
+ *
+ * Attached to:
+ *   KDBUS_POLICY_ACCESS
+ *   KDBUS_ITEM_POLICY_NAME
  */
 struct kdbus_policy {
 	union {
@@ -210,34 +233,44 @@ enum {
 	KDBUS_ITEM_REPLY_DEAD,		/* dito */
 };
 
-/*
+/**
  * struct kdbus_item - chain of data blocks
- * @size:	:	overall data record size
- * @type:		kdbus_item type of data
+ * @size:	:	Overall data record size
+ * @type:		Kdbus_item type of data
+ * @data:		Generic bytes
+ * @data32:		Generic 32 bit array
+ * @data64:		Generic 64 bit array
+ * @str:		Generic string
+ * @id:			Connection ID
+ * @vec:		KDBUS_ITEM_PAYLOAD_VEC
+ * @creds:		KDBUS_ITEM_CREDS
+ * @audit:		KDBUS_ITEM_AUDIT
+ * @timestamp:		KDBUS_ITEM_TIMESTAMP
+ * @name:		KDBUS_ITEM_NAME
+ * @memfd:		KDBUS_ITEM_PAYLOAD_MEMFD
+ * @name_change:	KDBUS_ITEM_NAME_ADD
+ * 			KDBUS_ITEM_NAME_REMOVE
+ * 			KDBUS_ITEM_NAME_CHANGE
+ * @id_change:		KDBUS_ITEM_ID_ADD
+ * 			KDBUS_ITEM_ID_REMOVE
+ * @policy:		KDBUS_ITEM_POLICY_NAME
+ * 			KDBUS_ITEM_POLICY_ACCESS
  */
 struct kdbus_item {
 	__u64 size;
 	__u64 type;
 	union {
-		/* inline data */
 		__u8 data[0];
 		__u32 data32[0];
 		__u64 data64[0];
 		char str[0];
 
-		/* connection */
 		__u64 id;
-
-		/* data vector */
 		struct kdbus_vec vec;
-
-		/* process credentials and properties*/
 		struct kdbus_creds creds;
 		struct kdbus_audit audit;
 		struct kdbus_timestamp timestamp;
 		struct kdbus_name name;
-
-		/* specific fields */
 		struct kdbus_memfd memfd;
 		int fds[0];
 		struct kdbus_notify_name_change name_change;
