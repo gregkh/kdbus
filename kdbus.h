@@ -193,7 +193,7 @@ struct kdbus_policy {
 };
 
 /* item types to chain data in lists of items */
-enum {
+enum kdbus_item_type {
 	_KDBUS_ITEM_NULL,
 	_KDBUS_ITEM_USER_BASE,
 	KDBUS_ITEM_PAYLOAD_VEC	= _KDBUS_ITEM_USER_BASE, /* .data_vec */
@@ -279,12 +279,12 @@ struct kdbus_item {
 	};
 };
 
-enum {
+enum kdbus_msg_flags {
 	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1 << 0,
 	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1 << 1,
 };
 
-enum {
+enum kdbus_payload_type {
 	KDBUS_PAYLOAD_KERNEL,
 	KDBUS_PAYLOAD_DBUS1	= 0x4442757356657231ULL, /* 'DBusVer1' */
 	KDBUS_PAYLOAD_GVARIANT	= 0x4756617269616e74ULL, /* 'GVariant' */
@@ -318,14 +318,14 @@ struct kdbus_msg {
 	struct kdbus_item items[0];
 };
 
-enum {
+enum kdbus_policy_access_type {
 	_KDBUS_POLICY_ACCESS_NULL,
 	KDBUS_POLICY_ACCESS_USER,
 	KDBUS_POLICY_ACCESS_GROUP,
 	KDBUS_POLICY_ACCESS_WORLD,
 };
 
-enum {
+enum kdbus_policy_type {
 	KDBUS_POLICY_RECV		= 1 <<  2,
 	KDBUS_POLICY_SEND		= 1 <<  1,
 	KDBUS_POLICY_OWN		= 1 <<  0,
@@ -346,13 +346,13 @@ struct kdbus_cmd_policy {
 };
 
 /* Flags for struct kdbus_cmd_hello */
-enum {
+enum kdbus_hello_flags {
 	KDBUS_HELLO_STARTER		=  1 <<  0,
 	KDBUS_HELLO_ACCEPT_FD		=  1 <<  1,
 };
 
 /* Flags for message attachments */
-enum {
+enum kdbus_attach_flags {
 	KDBUS_ATTACH_TIMESTAMP		=  1 <<  0,
 	KDBUS_ATTACH_CREDS		=  1 <<  1,
 	KDBUS_ATTACH_NAMES		=  1 <<  2,
@@ -404,14 +404,14 @@ struct kdbus_cmd_hello {
 };
 
 /* Flags for KDBUS_CMD_{BUS,EP,NS}_MAKE */
-enum {
+enum kdbus_make_flags {
 	KDBUS_MAKE_ACCESS_GROUP		= 1 <<  0,
 	KDBUS_MAKE_ACCESS_WORLD		= 1 <<  1,
 	KDBUS_MAKE_POLICY_OPEN		= 1 <<  2,
 };
 
 /* Items to append to KDBUS_CMD_{BUS,EP,NS}_MAKE */
-enum {
+enum kdbus_make_type {
 	_KDBUS_MAKE_NULL,
 	KDBUS_MAKE_NAME,
 };
@@ -465,7 +465,7 @@ struct kdbus_cmd_ns_make {
 	struct kdbus_item items[0];
 };
 
-enum {
+enum kdbus_name_flags {
 	/* userspace → kernel */
 	KDBUS_NAME_REPLACE_EXISTING		= 1 <<  0,
 	KDBUS_NAME_QUEUE			= 1 <<  1,
@@ -495,7 +495,7 @@ struct kdbus_cmd_name {
 	char name[0];
 };
 
-enum {
+enum kdbus_name_list_flags {
 	KDBUS_NAME_LIST_UNIQUE		= 1 <<  0,
 	KDBUS_NAME_LIST_NAMES		= 1 <<  1,
 	KDBUS_NAME_LIST_STARTERS	= 1 <<  2,
@@ -571,27 +571,37 @@ struct kdbus_conn_info {
 	struct kdbus_item items[0];
 };
 
-enum {
+/**
+ * enum kdbus_match_type - type of match record
+ * @KDBUS_MATCH_BLOOM:		Matches against KDBUS_MSG_BLOOM
+ * @KDBUS_MATCH_SRC_NAME:	Matches a name string
+ * @KDBUS_MATCH_NAME_ADD:	Matches a name string
+ * @KDBUS_MATCH_NAME_REMOVE:	Matches a name string
+ * @KDBUS_MATCH_NAME_CHANGE:	Matches a name string
+ * @KDBUS_MATCH_ID_ADD:		Matches an ID
+ * @KDBUS_MATCH_ID_REMOVE:	Matches an ID
+ */
+enum kdbus_match_type {
 	_KDBUS_MATCH_NULL,
-	KDBUS_MATCH_BLOOM,		/* Matches a mask blob against KDBUS_MSG_BLOOM */
-	KDBUS_MATCH_SRC_NAME,		/* Matches a name string against KDBUS_ITEM_NAME */
-	KDBUS_MATCH_NAME_ADD,		/* Matches a name string against KDBUS_ITEM_NAME_ADD */
-	KDBUS_MATCH_NAME_REMOVE,	/* Matches a name string against KDBUS_ITEM_NAME_REMOVE */
-	KDBUS_MATCH_NAME_CHANGE,	/* Matches a name string against KDBUS_ITEM_NAME_CHANGE */
-	KDBUS_MATCH_ID_ADD,		/* Matches an ID against KDBUS_MSG_ID_ADD */
-	KDBUS_MATCH_ID_REMOVE,		/* Matches an ID against KDBUS_MSG_ID_REMOVE */
+	KDBUS_MATCH_BLOOM,
+	KDBUS_MATCH_SRC_NAME,
+	KDBUS_MATCH_NAME_ADD,
+	KDBUS_MATCH_NAME_REMOVE,
+	KDBUS_MATCH_NAME_CHANGE,
+	KDBUS_MATCH_ID_ADD,
+	KDBUS_MATCH_ID_REMOVE,
 };
 
 /**
  * struct kdbus_cmd_match - struct to add or remove matches
  * @size:		The total size of the struct
- * @id:			Priviledged users may (de)register matches on behalf
- * 			of other peers.
- * 			In other cases, set to 0.
- * @cookie:		Userspace supplied cookie. When removing, the cookie is
- * 			suffices as information
- * @src_id:		The source ID to match against. Use KDBUS_MATCH_SRC_ID_ANY or
- * 			any other value for a unique match.
+ * @id:			Privileged users may (de)register matches on behalf
+ * 			of other peers. In other cases, set to 0.
+ * @cookie:		Userspace supplied cookie. When removing, the cookie
+ * 			identifies the match to remove.
+ * @src_id:		The source ID to match against. Use
+ * 			KDBUS_MATCH_SRC_ID_ANY or any other value for a unique
+ * 			match.
  * @items:		A list of items for additional information
  *
  * This structure is used with the KDBUS_CMD_ADD_MATCH and
@@ -606,7 +616,7 @@ struct kdbus_cmd_match {
 	struct kdbus_item items[0];
 };
 
-enum {
+enum kdbus_monitor_flags {
 	KDBUS_MONITOR_ENABLE		= 1 <<  0,
 };
 
