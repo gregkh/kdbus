@@ -48,7 +48,7 @@ static void __maybe_unused kdbus_msg_dump(const struct kdbus_msg *msg)
 		(unsigned long long) msg->payload_type,
 		(unsigned long long) msg->timeout_ns);
 
-	KDBUS_PART_FOREACH(item, msg, items) {
+	KDBUS_ITEM_FOREACH(item, msg, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC:
 			pr_info("+KDBUS_ITEM_PAYLOAD_VEC (%zu bytes) address=%p size=%zu\n",
@@ -93,13 +93,13 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 	size_t size;
 	struct kdbus_kmsg *kmsg;
 
-	size = sizeof(struct kdbus_kmsg) + KDBUS_PART_SIZE(extra_size);
+	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	kmsg = kzalloc(size, GFP_KERNEL);
 	if (!kmsg)
 		return -ENOMEM;
 
 	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
-	kmsg->msg.items[0].size = KDBUS_PART_SIZE(extra_size);
+	kmsg->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
 	*m = kmsg;
 	return 0;
@@ -122,8 +122,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	bool has_name = false;
 	bool has_bloom = false;
 
-	KDBUS_PART_FOREACH(item, msg, items) {
-		if (!KDBUS_PART_VALID(item, msg))
+	KDBUS_ITEM_FOREACH(item, msg, items) {
+		if (!KDBUS_ITEM_VALID(item, msg))
 			return -EINVAL;
 
 		if (++items_count > KDBUS_MSG_MAX_ITEMS)
@@ -131,7 +131,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC:
-			if (item->size != KDBUS_PART_HEADER_SIZE +
+			if (item->size != KDBUS_ITEM_HEADER_SIZE +
 					  sizeof(struct kdbus_vec))
 				return -EINVAL;
 
@@ -153,7 +153,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			break;
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD:
-			if (item->size != KDBUS_PART_HEADER_SIZE +
+			if (item->size != KDBUS_ITEM_HEADER_SIZE +
 					  sizeof(struct kdbus_memfd))
 				return -EINVAL;
 
@@ -183,7 +183,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			n = (item->size - KDBUS_PART_HEADER_SIZE) / sizeof(int);
+			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
 			if (n > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
@@ -203,11 +203,11 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				return -EBADMSG;
 
 			/* allow only bloom sizes of a multiple of 64bit */
-			if (!KDBUS_IS_ALIGNED8(item->size - KDBUS_PART_HEADER_SIZE))
+			if (!KDBUS_IS_ALIGNED8(item->size - KDBUS_ITEM_HEADER_SIZE))
 				return -EFAULT;
 
 			/* do not allow mismatching bloom filter sizes */
-			if (item->size - KDBUS_PART_HEADER_SIZE != conn->ep->bus->bloom_size)
+			if (item->size - KDBUS_ITEM_HEADER_SIZE != conn->ep->bus->bloom_size)
 				return -EDOM;
 
 			kmsg->bloom = item->data64;
@@ -220,7 +220,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			has_name = true;
 
 			/* enforce NUL-terminated strings */
-			if (!kdbus_validate_nul(item->str, item->size - KDBUS_PART_HEADER_SIZE))
+			if (!kdbus_validate_nul(item->str, item->size - KDBUS_ITEM_HEADER_SIZE))
 				return -EINVAL;
 
 			if (!kdbus_name_is_valid(item->str))
@@ -234,7 +234,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 		}
 	}
 
-	if (!KDBUS_PART_END(item, msg))
+	if (!KDBUS_ITEM_END(item, msg))
 		return -EINVAL;
 
 	/* name is needed if no ID is given */

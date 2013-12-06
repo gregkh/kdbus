@@ -102,12 +102,12 @@ int msg_send(const struct conn *conn,
 	int ret;
 
 	size = sizeof(struct kdbus_msg);
-	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
-	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
-	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
-		size += KDBUS_PART_HEADER_SIZE + 64;
+		size += KDBUS_ITEM_HEADER_SIZE + 64;
 	else {
 		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
 		if (ret < 0) {
@@ -126,11 +126,11 @@ int msg_send(const struct conn *conn,
 			return EXIT_FAILURE;
 		}
 
-		size += KDBUS_PART_SIZE(sizeof(struct kdbus_memfd));
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 	}
 
 	if (name)
-		size += KDBUS_PART_SIZE(strlen(name) + 1);
+		size += KDBUS_ITEM_SIZE(strlen(name) + 1);
 
 	msg = malloc(size);
 	if (!msg) {
@@ -149,40 +149,40 @@ int msg_send(const struct conn *conn,
 
 	if (name) {
 		item->type = KDBUS_ITEM_DST_NAME;
-		item->size = KDBUS_PART_HEADER_SIZE + strlen(name) + 1;
+		item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
 		strcpy(item->str, name);
-		item = KDBUS_PART_NEXT(item);
+		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
-	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref1;
 	item->vec.size = sizeof(ref1);
-	item = KDBUS_PART_NEXT(item);
+	item = KDBUS_ITEM_NEXT(item);
 
 	/* data padding for ref1 */
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
-	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)NULL;
 	item->vec.size =  KDBUS_ALIGN8(sizeof(ref1)) - sizeof(ref1);
-	item = KDBUS_PART_NEXT(item);
+	item = KDBUS_ITEM_NEXT(item);
 
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
-	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t)&ref2;
 	item->vec.size = sizeof(ref2);
-	item = KDBUS_PART_NEXT(item);
+	item = KDBUS_ITEM_NEXT(item);
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
 		item->type = KDBUS_ITEM_BLOOM;
-		item->size = KDBUS_PART_HEADER_SIZE + 64;
+		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
 	} else {
 		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-		item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_memfd);
+		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
 		item->memfd.size = 16;
 		item->memfd.fd = memfd;
 	}
-	item = KDBUS_PART_NEXT(item);
+	item = KDBUS_ITEM_NEXT(item);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret < 0) {
@@ -219,8 +219,8 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		msg_id(msg->src_id, buf_src), msg_id(msg->dst_id, buf_dst),
 		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout_ns);
 
-	KDBUS_PART_FOREACH(item, msg, items) {
-		if (item->size <= KDBUS_PART_HEADER_SIZE) {
+	KDBUS_ITEM_FOREACH(item, msg, items) {
+		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			printf("  +%s (%llu bytes) invalid data record\n", enum_MSG(item->type), item->size);
 			break;
 		}
@@ -288,7 +288,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		}
 
 		case KDBUS_ITEM_CMDLINE: {
-			size_t size = item->size - KDBUS_PART_HEADER_SIZE;
+			size_t size = item->size - KDBUS_ITEM_HEADER_SIZE;
 			const char *str = item->str;
 			int count = 0;
 
@@ -318,10 +318,10 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 
 			printf("  +%s (%llu bytes) len=%llu bytes\n",
 			       enum_MSG(item->type), item->size,
-			       (unsigned long long)item->size - KDBUS_PART_HEADER_SIZE);
+			       (unsigned long long)item->size - KDBUS_ITEM_HEADER_SIZE);
 
 			cap = item->data32;
-			n = (item->size - KDBUS_PART_HEADER_SIZE) / 4 / sizeof(uint32_t);
+			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / 4 / sizeof(uint32_t);
 
 			printf("    CapInh=");
 			for (i = 0; i < n; i++)
@@ -471,7 +471,7 @@ int name_list(struct conn *conn, uint64_t flags)
 
 	printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
-	KDBUS_PART_FOREACH(name, list, names)
+	KDBUS_ITEM_FOREACH(name, list, names)
 		printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n", name->id,
 		       name->flags, name->conn_flags,
 		       name->size > sizeof(struct kdbus_cmd_name) ? name->name : "");

@@ -69,7 +69,7 @@ static int dump_packet(struct conn *conn, int fd)
 	size = msg->size;
 
 	/* collect length of oob payloads */
-	KDBUS_PART_FOREACH(item, msg, items)
+	KDBUS_ITEM_FOREACH(item, msg, items)
 		if (item->type == KDBUS_ITEM_PAYLOAD_OFF)
 			size += KDBUS_ALIGN8(item->vec.size);
 
@@ -88,7 +88,7 @@ static int dump_packet(struct conn *conn, int fd)
 		return EXIT_FAILURE;
 	}
 
-	KDBUS_PART_FOREACH(item, msg, items) {
+	KDBUS_ITEM_FOREACH(item, msg, items) {
 		switch (item->type) {
 		/* close all memfds */
 		case KDBUS_ITEM_PAYLOAD_MEMFD:

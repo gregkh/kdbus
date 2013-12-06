@@ -41,7 +41,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
 	if (!dst_conn)
 		return -ENXIO;
 
-	ret = kdbus_kmsg_new(KDBUS_PART_SIZE(0), &kmsg);
+	ret = kdbus_kmsg_new(KDBUS_ITEM_SIZE(0), &kmsg);
 	if (ret < 0)
 		goto exit_unref_conn;
 

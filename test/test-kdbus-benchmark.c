@@ -92,7 +92,7 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 	gettimeofday(&now, NULL);
 
 	size = sizeof(struct kdbus_msg);
-	size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
 	if (ret < 0) {
@@ -111,7 +111,7 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 		return EXIT_FAILURE;
 	}
 
-	size += KDBUS_PART_SIZE(sizeof(struct kdbus_memfd));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 
 	msg = malloc(size);
 	if (!msg) {
@@ -128,16 +128,16 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 	item = msg->items;
 
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
-	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
 	item->vec.address = (uint64_t) stress_payload;
 	item->vec.size = sizeof(stress_payload);
-	item = KDBUS_PART_NEXT(item);
+	item = KDBUS_ITEM_NEXT(item);
 
 	item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-	item->size = KDBUS_PART_HEADER_SIZE + sizeof(struct kdbus_memfd);
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
 	item->memfd.size = 16;
 	item->memfd.fd = memfd;
-	item = KDBUS_PART_NEXT(item);
+	item = KDBUS_ITEM_NEXT(item);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret) {
@@ -169,7 +169,7 @@ handle_echo_reply(struct conn *conn)
 	msg = (struct kdbus_msg *)(conn->buf + off);
 	item = msg->items;
 
-	KDBUS_PART_FOREACH(item, msg, items) {
+	KDBUS_ITEM_FOREACH(item, msg, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			char *buf;
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.n_type = KDBUS_MAKE_NAME;
-	bus_make.n_size = KDBUS_PART_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
 			     bus_make.n_size;

@@ -42,18 +42,18 @@
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
 /* generic access and iterators over a stream of items/parts */
-#define KDBUS_PART_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_PART_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
-#define KDBUS_PART_NEXT(part) \
+#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_ITEM_HEADER_SIZE + (s))
+#define KDBUS_ITEM_NEXT(part) \
 	(typeof(part))(((u8 *)part) + KDBUS_ALIGN8((part)->size))
-#define KDBUS_PART_FOREACH(part, head, first)				\
+#define KDBUS_ITEM_FOREACH(part, head, first)				\
 	for (part = (head)->first;					\
 	     (u8 *)(part) < (u8 *)(head) + (head)->size;		\
-	     part = KDBUS_PART_NEXT(part))
-#define KDBUS_PART_VALID(part, head)					\
-	((part)->size > KDBUS_PART_HEADER_SIZE &&			\
+	     part = KDBUS_ITEM_NEXT(part))
+#define KDBUS_ITEM_VALID(part, head)					\
+	((part)->size > KDBUS_ITEM_HEADER_SIZE &&			\
 	 (u8 *)(part) + (part)->size <= (u8 *)(head) + (head)->size)
-#define KDBUS_PART_END(part, head)					\
+#define KDBUS_ITEM_END(part, head)					\
 	((u8 *)part == ((u8 *)(head) + KDBUS_ALIGN8((head)->size)))
 
 /**

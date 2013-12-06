@@ -202,10 +202,10 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			return -ENOMEM;
 	}
 
-	KDBUS_PART_FOREACH(item, &kmsg->msg, items) {
+	KDBUS_ITEM_FOREACH(item, &kmsg->msg, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
-			const size_t size = KDBUS_PART_HEADER_SIZE +
+			const size_t size = KDBUS_ITEM_HEADER_SIZE +
 					    sizeof(struct kdbus_vec);
 			char tmp[size];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
@@ -255,7 +255,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 		}
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			const size_t size = KDBUS_PART_HEADER_SIZE +
+			const size_t size = KDBUS_ITEM_HEADER_SIZE +
 					    sizeof(struct kdbus_memfd);
 			char tmp[size];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
@@ -345,16 +345,16 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 	/* space for PAYLOAD items */
 	if ((kmsg->vecs_count + kmsg->memfds_count) > 0) {
 		payloads = msg_size;
-		msg_size += KDBUS_PART_SIZE(sizeof(struct kdbus_vec)) *
+		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec)) *
 			    kmsg->vecs_count;
-		msg_size += KDBUS_PART_SIZE(sizeof(struct kdbus_memfd)) *
+		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd)) *
 			    kmsg->memfds_count;
 	}
 
 	/* space for FDS item */
 	if (kmsg->fds_count > 0) {
 		fds = msg_size;
-		msg_size += KDBUS_PART_SIZE(kmsg->fds_count * sizeof(int));
+		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
 	}
 
 	/* space for metadata/credential items */
@@ -406,7 +406,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 
 	/* add a FDS item; the array content will be updated at RECV time */
 	if (kmsg->fds_count > 0) {
-		const size_t size = KDBUS_PART_HEADER_SIZE;
+		const size_t size = KDBUS_ITEM_HEADER_SIZE;
 		char tmp[size];
 		struct kdbus_item *it = (struct kdbus_item *)tmp;
 
@@ -1160,7 +1160,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (ret < 0)
 		return ret;
 
-	KDBUS_PART_FOREACH(item, hello, items) {
+	KDBUS_ITEM_FOREACH(item, hello, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_STARTER_NAME:
 			if (!(hello->conn_flags & KDBUS_HELLO_STARTER)) {

@@ -19,15 +19,15 @@
 #define KDBUS_PTR(addr) ((void *)(uintptr_t)(addr))
 
 #define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
-#define KDBUS_PART_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_PART_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_PART_HEADER_SIZE)
+#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
+#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 
-#define KDBUS_PART_NEXT(part) \
+#define KDBUS_ITEM_NEXT(part) \
 	(typeof(part))(((uint8_t *)part) + KDBUS_ALIGN8((part)->size))
-#define KDBUS_PART_FOREACH(part, head, first)				\
+#define KDBUS_ITEM_FOREACH(part, head, first)				\
 	for (part = (head)->first;					\
 	     (uint8_t *)(part) < (uint8_t *)(head) + (head)->size;	\
-	     part = KDBUS_PART_NEXT(part))
+	     part = KDBUS_ITEM_NEXT(part))
 
 struct conn {
 	int fd;

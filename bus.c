@@ -262,8 +262,8 @@ int kdbus_bus_make_user(void __user *buf,
 		goto exit;
 	}
 
-	KDBUS_PART_FOREACH(item, m, items) {
-		if (!KDBUS_PART_VALID(item, m)) {
+	KDBUS_ITEM_FOREACH(item, m, items) {
+		if (!KDBUS_ITEM_VALID(item, m)) {
 			ret = -EINVAL;
 			goto exit;
 		}
@@ -275,18 +275,18 @@ int kdbus_bus_make_user(void __user *buf,
 				goto exit;
 			}
 
-			if (item->size < KDBUS_PART_HEADER_SIZE + 2) {
+			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
 				ret = -EINVAL;
 				goto exit;
 			}
 
-			if (item->size > KDBUS_PART_HEADER_SIZE + KDBUS_MAKE_MAX_LEN + 1) {
+			if (item->size > KDBUS_ITEM_HEADER_SIZE + KDBUS_MAKE_MAX_LEN + 1) {
 				ret = -ENAMETOOLONG;
 				goto exit;
 			}
 
 			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_PART_HEADER_SIZE)) {
+					item->size - KDBUS_ITEM_HEADER_SIZE)) {
 				ret = -EINVAL;
 				goto exit;
 			}
@@ -300,7 +300,7 @@ int kdbus_bus_make_user(void __user *buf,
 		}
 	}
 
-	if (!KDBUS_PART_END(item, m))
+	if (!KDBUS_ITEM_END(item, m))
 		return -EINVAL;
 
 	if (!n) {

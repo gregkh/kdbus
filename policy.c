@@ -388,8 +388,8 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 	const struct kdbus_item *pol;
 	struct kdbus_policy_db_entry *current_entry = NULL;
 
-	KDBUS_PART_FOREACH(pol, cmd, policies) {
-		if (!KDBUS_PART_VALID(pol, cmd))
+	KDBUS_ITEM_FOREACH(pol, cmd, policies) {
+		if (!KDBUS_ITEM_VALID(pol, cmd))
 			return -EINVAL;
 
 		switch (pol->type) {
@@ -439,7 +439,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 		}
 	}
 
-	if (!KDBUS_PART_END(pol, cmd))
+	if (!KDBUS_ITEM_END(pol, cmd))
 		return -EINVAL;
 
 	return 0;

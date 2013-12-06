@@ -24,7 +24,7 @@ static struct conn *make_starter(const char *path, const char *name)
 	size_t size, slen;
 
 	slen = strlen(name) + 1;
-	size = sizeof(*hello) + KDBUS_PART_SIZE(slen);
+	size = sizeof(*hello) + KDBUS_ITEM_SIZE(slen);
 
 	hello = alloca(size);
 	memset(hello, 0, size);
@@ -41,7 +41,7 @@ static struct conn *make_starter(const char *path, const char *name)
 	hello->conn_flags = KDBUS_HELLO_STARTER;
 
 	item = hello->items;
-	item->size = KDBUS_PART_SIZE(slen);
+	item->size = KDBUS_ITEM_SIZE(slen);
 	item->type = KDBUS_ITEM_STARTER_NAME;
 	strcpy(item->str, name);
 
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.n_type = KDBUS_MAKE_NAME;
-	bus_make.n_size = KDBUS_PART_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
 			     bus_make.n_size;
