@@ -967,7 +967,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		return -EINVAL;
 
 	mutex_lock(&conn_src->lock);
-	mutex_lock(&conn_dst->lock);
+	mutex_lock_nested(&conn_dst->lock, SINGLE_DEPTH_NESTING);
 
 	list_for_each_entry_safe(queue, tmp, &conn_src->msg_list, entry) {
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
@@ -982,8 +982,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	}
 
 exit_unlock:
-	mutex_unlock(&conn_src->lock);
 	mutex_unlock(&conn_dst->lock);
+	mutex_unlock(&conn_src->lock);
 
 	wake_up_interruptible(&conn_dst->ep->wait);
 
