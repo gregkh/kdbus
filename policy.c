@@ -385,7 +385,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 				 const struct kdbus_cmd_policy *cmd,
 				 u64 size)
 {
-	const struct kdbus_policy *pol;
+	const struct kdbus_item *pol;
 	struct kdbus_policy_db_entry *current_entry = NULL;
 
 	KDBUS_PART_FOREACH(pol, cmd, policies) {
@@ -393,7 +393,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 			return -EINVAL;
 
 		switch (pol->type) {
-		case KDBUS_POLICY_NAME: {
+		case KDBUS_ITEM_POLICY_NAME: {
 			struct kdbus_policy_db_entry *e;
 			u32 hash;
 
@@ -401,8 +401,8 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 			if (!e)
 				return -ENOMEM;
 
-			hash = kdbus_str_hash(pol->name);
-			e->name = kstrdup(pol->name, GFP_KERNEL);
+			hash = kdbus_str_hash(pol->policy.name);
+			e->name = kstrdup(pol->policy.name, GFP_KERNEL);
 			INIT_LIST_HEAD(&e->access_list);
 
 			mutex_lock(&db->entries_lock);
@@ -413,7 +413,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 			break;
 		}
 
-		case KDBUS_POLICY_ACCESS: {
+		case KDBUS_ITEM_POLICY_ACCESS: {
 			struct kdbus_policy_db_entry_access *a;
 
 			if (!current_entry)
@@ -423,9 +423,9 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 			if (!a)
 				return -ENOMEM;
 
-			a->type = pol->access.type;
-			a->bits = pol->access.bits;
-			a->id   = pol->access.id;
+			a->type = pol->policy.access.type;
+			a->bits = pol->policy.access.bits;
+			a->id   = pol->policy.access.id;
 			INIT_LIST_HEAD(&a->list);
 
 			mutex_lock(&db->entries_lock);

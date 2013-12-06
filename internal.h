@@ -42,7 +42,7 @@
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
 /* generic access and iterators over a stream of items/parts */
-#define KDBUS_PART_HEADER_SIZE sizeof(KDBUS_PART_HEADER)
+#define KDBUS_PART_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_PART_SIZE(s) KDBUS_ALIGN8(KDBUS_PART_HEADER_SIZE + (s))
 #define KDBUS_PART_NEXT(part) \
 	(typeof(part))(((u8 *)part) + KDBUS_ALIGN8((part)->size))
