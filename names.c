@@ -207,18 +207,23 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e_tmp, *e;
 	struct kdbus_name_queue_item *q_tmp, *q;
+	LIST_HEAD(names_queue_list);
+	LIST_HEAD(names_list);
 
 	mutex_lock(&reg->entries_lock);
 	mutex_lock(&conn->names_lock);
 
-	list_for_each_entry_safe(q, q_tmp, &conn->names_queue_list, conn_entry)
-		kdbus_name_queue_item_free(q);
-
-	list_for_each_entry_safe(e, e_tmp, &conn->names_list, conn_entry)
-		kdbus_name_entry_release(e);
+	list_splice_init(&conn->names_list, &names_list);
+	list_splice_init(&conn->names_queue_list, &names_queue_list);
 
 	mutex_unlock(&conn->names_lock);
 	mutex_unlock(&reg->entries_lock);
+
+	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
+		kdbus_name_queue_item_free(q);
+
+	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
+		kdbus_name_entry_release(e);
 }
 
 /**
