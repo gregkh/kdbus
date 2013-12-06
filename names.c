@@ -502,10 +502,11 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	hash = kdbus_str_hash(cmd_name->name);
 
 	if (conn->ep->policy_db) {
-		ret = kdbus_policy_db_check_own_access(conn->ep->policy_db,
-						       conn, cmd_name->name);
-		if (ret < 0)
+		if (!kdbus_policy_db_check_own_access(conn->ep->policy_db,
+						      conn, cmd_name->name)) {
+			ret = -EPERM;
 			goto exit_unref_conn;
+		}
 	}
 
 	ret = kdbus_name_acquire(reg, conn, cmd_name->name,

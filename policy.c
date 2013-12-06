@@ -27,6 +27,17 @@
 
 #define KDBUS_POLICY_HASH_SIZE	64
 
+/**
+ * struct kdbus_policy_db - policy database
+ * @kref:		Kernel reference counter for this database
+ * @entries_hash:	Hashtable of entries
+ * @send_access_hash:	Hashtable of send access elements
+ * @timeout_list:	List head for entries that are about to time out
+ * @entries_lock:	Mutex to protect the database's access entries
+ * @cache_lock:		Mutex to protect the database's cache
+ * @work:		Work struct for proecessing time-out scans
+ * @timer:		Timer to run for time-out processing
+ */
 struct kdbus_policy_db {
 	struct kref kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
@@ -38,6 +49,13 @@ struct kdbus_policy_db {
 	struct timer_list timer;
 };
 
+/**
+ * struct kdbus_policy_db_cache_entry - a cached entry
+ * @conn_a:		Connection A
+ * @conn_b:		Connection B
+ * @hentry:		The hash table entry for the database's entries_hash
+ * @deadline_ns:	This entry's deadline timeout, in nanoseconds
+ */
 struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn	*conn_a;
 	struct kdbus_conn	*conn_b;
@@ -46,6 +64,16 @@ struct kdbus_policy_db_cache_entry {
 	struct list_head	timeout_entry;
 };
 
+/**
+ * struct kdbus_policy_db_entry_access - a database entry access item
+ * @type:		One of KDBUS_POLICY_ACCESS_* types
+ * @bits:		Access to grant. One of KDBUS_POLICY_*
+ * @id:			For KDBUS_POLICY_ACCESS_USER, the uid
+ * 			For KDBUS_POLICY_ACCESS_GROUP, the gid
+ * @list:		List entry item for the entry's list
+ *
+ * This is the internal version of struct kdbus_policy_access.
+ */
 struct kdbus_policy_db_entry_access {
 	u8			type;	/* USER, GROUP, WORLD */
 	u8			bits;	/* RECV, SEND, OWN */
@@ -53,6 +81,13 @@ struct kdbus_policy_db_entry_access {
 	struct list_head	list;
 };
 
+/**
+ * struct kdbus_policy_db_entry - a policy database entry
+ * @name:		The name to match the policy entry against
+ * @hentry:		The hash entry for the database's entries_hash
+ * @access_list:	List head for keeping tracks of the entry's
+ * 			access items.
+ */
 struct kdbus_policy_db_entry {
 	char			*name;
 	struct hlist_node	hentry;
@@ -141,11 +176,25 @@ static void __kdbus_policy_db_free(struct kref *kref)
 	kfree(db);
 }
 
+/**
+ * kdbus_policy_db_unref - drop a policy database reference
+ * @db:		The policy database
+ *
+ *
+ * When the last reference is dropped, the database's internal memory
+ * is freed.
+ */
 void kdbus_policy_db_unref(struct kdbus_policy_db *db)
 {
 	kref_put(&db->kref, __kdbus_policy_db_free);
 }
 
+/**
+ * kdbus_policy_db_new - create a new policy database
+ * @db:		The location where to store the new database
+ *
+ * Return 0 on success, or any other value in case of errors.
+ */
 int kdbus_policy_db_new(struct kdbus_policy_db **db)
 {
 	struct kdbus_policy_db *d;
@@ -211,7 +260,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	u32 hash;
 
 	/*
-	 * send access is granted if either the source connection has a
+	 * Send access is granted if either the source connection has a
 	 * matching SEND rule or the receiver connection has a matching
 	 * RECV rule.
 	 * Hence, we walk the list of the names registered for each
@@ -287,6 +336,19 @@ static int kdbus_add_reverse_cache_entry(struct kdbus_policy_db *db,
 	return 0;
 }
 
+/**
+ * kdbus_policy_db_check_send_access - check if one connection is allowed
+ * 				       to send a message to another connection
+ * @db:			The policy database
+ * @conn_src:		The source connection
+ * @conn_dst:		The destination connection
+ * @reply_deadline_ns:	If non-zero, a temporary permission is installed,
+ * 			allowing @conn_dst to reply to @conn_src in a time
+ * 			window of the passed nanoseconds.
+ *
+ * Returns 0 if access is granted, -EPERM in case it's not, any any other
+ * value in case of errors during adding the cache item internally.
+ */
 int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_src,
 				      struct kdbus_conn *conn_dst,
@@ -335,6 +397,11 @@ exit_unlock_entries:
 	return ret;
 }
 
+/**
+ * kdbus_policy_db_remove_conn - remove all entries related to a connection
+ * @db:		The policy database
+ * @conn:	The connection which items to remove
+ */
 void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
 				 struct kdbus_conn *conn)
 {
@@ -351,13 +418,22 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
 	mutex_unlock(&db->cache_lock);
 }
 
-int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
-				     struct kdbus_conn *conn,
-				     const char *name)
+/**
+ * kdbus_policy_db_check_own_access - check whether a policy is allowed
+ * 				      to own a name
+ * @db:		The policy database
+ * @conn:	The connection to check
+ * @name:	The name to check
+ *
+ * Returns true if the connection is allowed to own the name, false otherwise.
+ */
+bool kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
+				      struct kdbus_conn *conn,
+				      const char *name)
 {
 	struct kdbus_policy_db_entry *db_entry;
-	int ret = -EPERM;
 	u32 hash = kdbus_str_hash(name);
+	bool allowed = false;
 
 	/* Walk the list of the names registered for a connection ... */
 	mutex_lock(&db->entries_lock);
@@ -370,7 +446,7 @@ int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 
 		access = kdbus_collect_entry_accesses(db_entry, conn);
 		if (access & KDBUS_POLICY_OWN) {
-			ret = 0;
+			allowed = true;
 			goto exit_unlock;
 		}
 	}
@@ -378,7 +454,7 @@ int kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 exit_unlock:
 	mutex_unlock(&db->entries_lock);
 
-	return ret;
+	return allowed;
 }
 
 static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
@@ -445,6 +521,15 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 	return 0;
 }
 
+/**
+ * kdbus_cmd_policy_set_from_user - set a connection's policy rules
+ * @db:		The policy database
+ * @buf:	The __user buffer that was provided by the ioctl() call
+ *
+ * Returns 0 on success, or any other value in case of errors.
+ * This function is used in the context of the KDBUS_CMD_EP_POLICY_SET
+ * ioctl().
+ */
 int kdbus_cmd_policy_set_from_user(struct kdbus_policy_db *db, void __user *buf)
 {
 	struct kdbus_cmd_policy *cmd;
