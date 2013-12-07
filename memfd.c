@@ -225,12 +225,17 @@ static int kdbus_memfd_mmap(struct file *file, struct vm_area_struct *vma)
 	struct kdbus_memfile *mf = file->private_data;
 	int ret = 0;
 
-	mutex_lock(&mf->lock);
-
 	if (vma->vm_flags & VM_WRITE) {
 		size_t size;
 
-		/* deny a writable mapping to a sealed file */
+		/*
+		 * Deny a writable mapping to a sealed file.
+		 *
+		 * Avoid a deadlock and do not take mf->lock here, the call to
+		 * mmap() already holds mm->mmap_sem.
+		 * To protect KDBUS_CMD_MEMFD_SEAL_SET racing against us,
+		 * mf->sealed is changed only with mm->mmap_sem held.
+		 */
 		if (mf->sealed) {
 			ret = -EPERM;
 			goto exit;
@@ -253,7 +258,6 @@ static int kdbus_memfd_mmap(struct file *file, struct vm_area_struct *vma)
 	ret = mf->fp->f_op->mmap(file, vma);
 
 exit:
-	mutex_unlock(&mf->lock);
 	return ret;
 }
 
@@ -319,24 +323,30 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 
 	case KDBUS_CMD_MEMFD_SEAL_SET: {
+		struct mm_struct *mm = current->mm;
+
 		/*
 		 * Make sure we have only one single user of the file
 		 * before we seal, we rely on the fact there is no
 		 * any other possibly writable references to the file.
+		 *
+		 * Protect mmap() racing against us, take * mm->mmap_sem
+		 * when accessing mf->sealed.
 		 */
+		down_read(&mm->mmap_sem);
 		if (file_count(mf->fp) != 1) {
 			if (mf->sealed == !!argp)
 				ret = -EALREADY;
 			else
 				ret = -ETXTBSY;
-			goto exit;
 		}
 
-		mf->sealed = !!argp;
+		if (ret == 0)
+			mf->sealed = !!argp;
+		up_read(&mm->mmap_sem);
 		break;
 	}
-
-	default:
+default:
 		ret = -ENOTTY;
 		break;
 	}
