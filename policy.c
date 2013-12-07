@@ -99,12 +99,17 @@ static void kdbus_policy_db_scan_timeout(struct kdbus_policy_db *db)
 {
 	struct kdbus_policy_db_cache_entry *ce, *tmp;
 	struct timespec ts;
-	u64 deadline = -1;
+	u64 deadline = ~0ULL;
 	u64 now;
 
 	ktime_get_ts(&ts);
 	now = timespec_to_ns(&ts);
 
+	/*
+	 * Walk the list of all items that are linked in the timeout list
+	 * and kill those which are expired. Also determine the one which
+	 * is about to expire next.
+	 */
 	mutex_lock(&db->cache_lock);
 	list_for_each_entry_safe(ce, tmp, &db->timeout_list, timeout_entry) {
 		if (ce->deadline_ns <= now) {
@@ -117,7 +122,8 @@ static void kdbus_policy_db_scan_timeout(struct kdbus_policy_db *db)
 	}
 	mutex_unlock(&db->cache_lock);
 
-	if (deadline != -1) {
+	/* If there's still an entry in the list, re-schedule the timer. */
+	if (deadline != ~0ULL) {
 		u64 usecs = deadline - now;
 		do_div(usecs, 1000ULL);
 		mod_timer(&db->timer, jiffies + usecs_to_jiffies(usecs));
@@ -259,6 +265,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	struct kdbus_policy_db_entry *db_entry;
 	u64 access;
 	u32 hash;
+	int ret = -EPERM;
 
 	/*
 	 * Send access is granted if either the source connection has a
@@ -267,6 +274,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	 * Hence, we walk the list of the names registered for each
 	 * connection.
 	 */
+	mutex_lock(&conn_src->lock);
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
 		hash = kdbus_str_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
@@ -274,11 +282,18 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				continue;
 
 			access = kdbus_collect_entry_accesses(db_entry, conn_src);
-			if (access & KDBUS_POLICY_SEND)
-				return 0;
+			if (access & KDBUS_POLICY_SEND) {
+				ret = 0;
+				break;
+			}
 		}
 	}
+	mutex_unlock(&conn_src->lock);
 
+	if (ret == 0)
+		return 0;
+
+	mutex_lock(&conn_dst->lock);
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		hash = kdbus_str_hash(name_entry->name);
 		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
@@ -286,12 +301,15 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				continue;
 
 			access = kdbus_collect_entry_accesses(db_entry, conn_dst);
-			if (access & KDBUS_POLICY_RECV)
-				return 0;
+			if (access & KDBUS_POLICY_RECV) {
+				ret = 0;
+				break;
+			}
 		}
 	}
+	mutex_unlock(&conn_dst->lock);
 
-	return -EPERM;
+	return ret;
 }
 
 static struct kdbus_policy_db_cache_entry *
