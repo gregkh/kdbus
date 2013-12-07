@@ -149,6 +149,11 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e)
 
 	kdbus_name_entry_detach(e);
 
+	/*
+	 * When a name is released, check if there is any connection
+	 * waiting to take over. If there isn't, check if the name has
+	 * had a starter; in this case, hand the name back to it.
+	 */
 	if (list_empty(&e->queue_list)) {
 		if (e->starter) {
 			kdbus_notify_name_change(e->conn->ep,
@@ -183,12 +188,16 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 {
 	struct kdbus_name_queue_item *q_tmp, *q;
 
+	/* Is the connection already the real owner of the name? */
 	if (e->conn == conn) {
 		kdbus_name_entry_release(e);
 		return 0;
 	}
 
-	/* remove queued name */
+	/*
+	 * Otherwise, walk the list of queued entries and search for
+	 * items for the connection.
+	 */
 	list_for_each_entry_safe(q, q_tmp, &e->queue_list, entry_entry) {
 		if (q->conn != conn)
 			continue;
@@ -196,6 +205,10 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 		return 0;
 	}
 
+	/*
+	 * If we didn't find the connection in the lists above,
+	 * deny permisson to removal.
+	 */
 	return -EPERM;
 }
 
@@ -274,6 +287,11 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	u64 old_id;
 	int ret;
 
+	/*
+	 * When the acquisition of an already taken name is requested,
+	 * check if replacing the ownership was explicitly allowed by the
+	 * owner.
+	 */
 	if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 	    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
 		if (e->flags & KDBUS_NAME_QUEUE) {
@@ -285,8 +303,8 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 		old_id = e->conn->id;
 
 		/*
-		 * In case the name is owned by a starteri connection, take it over.
-		 * Move queued messages from the starter to our connection.
+		 * In case the name is owned by a starter connection, take it over.
+		 * Move queued messages from the starter to the new connection.
 		 */
 		if (e->starter) {
 			ret = kdbus_conn_move_messages(conn, e->starter);
@@ -302,9 +320,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 		/* update the owner of the name */
 		kdbus_name_entry_detach(e);
-		e->conn->names--;
 		kdbus_name_entry_attach(e, conn);
-		conn->names++;
 
 		e->flags = *flags;
 
