@@ -16,7 +16,7 @@
 #include <linux/hashtable.h>
 
 /**
- * struct kdbus_name_registry - names resgistered for a bus
+ * struct kdbus_name_registry - names registered for a bus
  * @kref:		Reference count
  * @entries_hash:	Map of entries
  * @entries_lock:	Registry data lock
