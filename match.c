@@ -402,8 +402,10 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 		db = kdbus_match_db_ref(targ_conn->match_db);
 		kdbus_conn_unref(targ_conn);
-	} else
+	} else {
+		/* ensure a ref'ed db after this block in any case */
 		db = kdbus_match_db_ref(conn->match_db);
+	}
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e) {
