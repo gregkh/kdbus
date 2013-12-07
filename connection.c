@@ -685,10 +685,7 @@ exit:
 }
 
 /**
- * kdbus_conn_kmsg_send() - send a list of previously collected messages
- * @ep:			The endpoint to use for sending
- * @conn_src:		The sending connection, or NULL in case
- * 			of kernel-generated messages
+ * kdbus_conn_kmsg_free() - free a list of kmsg objects
  * @kmsg_list:		List head of kmsg objects to send.
  */
 void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list)
@@ -719,7 +716,7 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
 	int ret = 0;
 
 	list_for_each_entry(kmsg, kmsg_list, queue_entry) {
-		ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
+		ret = kdbus_conn_kmsg_send(ep, conn_src, kmsg);
 		if (ret < 0)
 			break;
 	}
