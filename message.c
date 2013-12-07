@@ -101,6 +101,8 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
 	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	kmsg->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
+	INIT_LIST_HEAD(&kmsg->queue_entry);
+
 	*m = kmsg;
 	return 0;
 }

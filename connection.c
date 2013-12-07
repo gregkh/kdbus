@@ -684,6 +684,51 @@ exit:
 	return ret;
 }
 
+/**
+ * kdbus_conn_kmsg_send() - send a list of previously collected messages
+ * @ep:			The endpoint to use for sending
+ * @conn_src:		The sending connection, or NULL in case
+ * 			of kernel-generated messages
+ * @kmsg_list:		List head of kmsg objects to send.
+ */
+void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list)
+{
+	struct kdbus_kmsg *kmsg, *tmp;
+
+	list_for_each_entry_safe(kmsg, tmp, kmsg_list, queue_entry) {
+		list_del(&kmsg->queue_entry);
+		kdbus_kmsg_free(kmsg);
+	}
+}
+
+/**
+ * kdbus_conn_kmsg_send() - send a list of previously collected messages
+ * @ep:			The endpoint to use for sending
+ * @conn_src:		The sending connection, or NULL in case
+ * 			of kernel-generated messages
+ * @kmsg_list:		List head of kmsg objects to send.
+ *
+ * The list is cleared and freed after sending.
+ * Returns 0 on success.
+ */
+int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
+			      struct kdbus_conn *conn_src,
+			      struct list_head *kmsg_list)
+{
+	struct kdbus_kmsg *kmsg;
+	int ret = 0;
+
+	list_for_each_entry(kmsg, kmsg_list, queue_entry) {
+		ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
+		if (ret < 0)
+			break;
+	}
+
+	kdbus_conn_kmsg_list_free(kmsg_list);
+
+	return ret;
+}
+
 static int kdbus_conn_fds_install(struct kdbus_conn *conn,
 				  struct kdbus_conn_queue *queue)
 {

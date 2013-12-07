@@ -108,12 +108,17 @@ int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
  * @new_id:		The id of the new owner connection
  * @flags:		The flags to pass in the KDBUS_ITEM flags field
  * @name:		The name that was removed or assigned to a new owner
+ * @queue_list:		A queue list for the newly generated kdbus_kmsg.
+ * 			The caller has to free all items in the list using
+ * 			kdbus_kmsg_free(). Maybe NULL, in which case this
+ * 			function does nothing.
  *
  * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     u64 old_id, u64 new_id, u64 flags,
-			     const char *name)
+			     const char *name,
+			     struct list_head *queue_list)
 {
 	struct kdbus_notify_name_change *name_change;
 	struct kdbus_kmsg *kmsg = NULL;
@@ -121,6 +126,9 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	struct kdbus_msg *msg;
 	size_t extra_size;
 	int ret;
+
+	if (!queue_list)
+		return 0;
 
 	extra_size = sizeof(*name_change) + strlen(name);
 	ret = kdbus_kmsg_new(extra_size, &kmsg);
@@ -142,8 +150,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	name_change->flags = flags;
 	strcpy(name_change->name, name);
 
-	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
-	kdbus_kmsg_free(kmsg);
+	list_add_tail(&kmsg->queue_entry, queue_list);
 
 	return ret;
 }

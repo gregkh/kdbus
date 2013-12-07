@@ -46,6 +46,10 @@ struct kdbus_kmsg {
 	unsigned int vecs_count;
 	unsigned int memfds_count;
 
+	/* used for kernel-generated notifications */
+	struct list_head queue_entry;
+
+	/* must be the last member of the struct */
 	struct kdbus_msg msg;
 };
 
