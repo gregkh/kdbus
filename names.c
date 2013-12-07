@@ -632,11 +632,15 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	}
 
 	ret = kdbus_name_release(e, conn, &notification_list);
-	kdbus_conn_unref(conn);
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
-	kdbus_conn_kmsg_list_send(conn->ep, NULL, &notification_list);
+
+	if (conn)
+		kdbus_conn_kmsg_list_send(conn->ep, NULL,
+					  &notification_list);
+
+	kdbus_conn_unref(conn);
 
 exit_free:
 	kfree(cmd_name);
