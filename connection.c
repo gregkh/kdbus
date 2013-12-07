@@ -972,6 +972,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src)
 {
 	struct kdbus_conn_queue *queue, *tmp;
+	LIST_HEAD(msg_list);
 	int ret = 0;
 
 	if (!(conn_src->flags & KDBUS_HELLO_STARTER))
@@ -981,23 +982,23 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		return -EINVAL;
 
 	mutex_lock(&conn_src->lock);
-	mutex_lock_nested(&conn_dst->lock, SINGLE_DEPTH_NESTING);
+	list_splice_init(&conn_src->msg_list, &msg_list);
+	conn_src->msg_count = 0;
+	mutex_unlock(&conn_src->lock);
 
-	list_for_each_entry_safe(queue, tmp, &conn_src->msg_list, entry) {
+	mutex_lock(&conn_dst->lock);
+	list_for_each_entry_safe(queue, tmp, &msg_list, entry) {
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
 				      &queue->off, queue->size);
 		if (ret < 0)
-			goto exit_unlock;
+			goto exit_unlock_dst;
 
-		list_del(&queue->entry);
 		list_add_tail(&queue->entry, &conn_dst->msg_list);
-		conn_src->msg_count--;
 		conn_dst->msg_count++;
 	}
 
-exit_unlock:
+exit_unlock_dst:
 	mutex_unlock(&conn_dst->lock);
-	mutex_unlock(&conn_src->lock);
 
 	wake_up_interruptible(&conn_dst->ep->wait);
 
