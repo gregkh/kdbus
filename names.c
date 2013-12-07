@@ -220,8 +220,6 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
  * kdbus_name_remove_by_conn() - remove all name entries of a given connection
  * @reg:		The name registry
  * @conn:		The connection which entries to remove
- * @notification_list:	A list head to add notifications to that may arise
- * 			during the removal of the entries.
  *
  * This function removes all name entry held by a given connection.
  */
