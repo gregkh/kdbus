@@ -377,6 +377,10 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	unsigned int hash = 0;
 	struct kdbus_policy_db_cache_entry *ce;
 
+	/*
+	 * If there was a positive match for these two connections before,
+	 * there's an entry in the hash table for them.
+	 */
 	hash ^= hash_ptr(conn_src, KDBUS_POLICY_HASH_SIZE);
 	hash ^= hash_ptr(conn_dst, KDBUS_POLICY_HASH_SIZE);
 
@@ -391,10 +395,13 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 		}
 	mutex_unlock(&db->cache_lock);
 
+	/*
+	 * Otherwise, walk the connection list and store and add
+	 * a hash table entry if send access is granted.
+	 */
 	mutex_lock(&db->entries_lock);
 	ret = __kdbus_policy_db_check_send_access(db, conn_src, conn_dst);
 	if (ret == 0) {
-		/* add to cache */
 		ce = kdbus_policy_cache_entry_new(conn_src, conn_dst);
 		if (!ce) {
 			ret = -ENOMEM;
@@ -405,9 +412,13 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 		hash_add(db->send_access_hash, &ce->hentry, hash);
 		mutex_unlock(&db->cache_lock);
 
-		/* do we need a temporaty rule for replies? */
+		/*
+		 * If reply_deadline_ns is non-zero, install a temporary rule
+		 * to allow replies to pass the policy.
+		 */
 		if (reply_deadline_ns)
-			ret = kdbus_add_reverse_cache_entry(db, ce, reply_deadline_ns);
+			ret = kdbus_add_reverse_cache_entry(db, ce,
+							    reply_deadline_ns);
 	}
 
 exit_unlock_entries:
@@ -511,6 +522,10 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 		case KDBUS_ITEM_POLICY_ACCESS: {
 			struct kdbus_policy_db_entry_access *a;
 
+			/*
+			 * A KDBUS_ITEM_POLICY_ACCESS item can only appear
+			 * after a KDBUS_ITEM_POLICY_NAME item.
+			 */
 			if (!current_entry)
 				return -EINVAL;
 
