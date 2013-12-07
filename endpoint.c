@@ -100,7 +100,7 @@ static void __kdbus_ep_free(struct kref *kref)
 
 	kdbus_bus_unref(ep->bus);
 	if (ep->policy_db)
-		kdbus_policy_db_unref(ep->policy_db);
+		kdbus_policy_db_free(ep->policy_db);
 
 	kfree(ep->name);
 	kfree(ep);

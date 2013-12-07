@@ -29,7 +29,6 @@
 
 /**
  * struct kdbus_policy_db - policy database
- * @kref:		Kernel reference counter for this database
  * @entries_hash:	Hashtable of entries
  * @send_access_hash:	Hashtable of send access elements
  * @timeout_list:	List head for entries that are about to time out
@@ -39,7 +38,6 @@
  * @timer:		Timer to run for time-out processing
  */
 struct kdbus_policy_db {
-	struct kref		kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
 	DECLARE_HASHTABLE(send_access_hash, 6);
 	struct list_head	timeout_list;
@@ -147,13 +145,15 @@ static void kdbus_policy_db_timer_func(unsigned long val)
 	kdbus_policy_db_schedule_timeout_scan(db);
 }
 
-static void __kdbus_policy_db_free(struct kref *kref)
+/**
+ * kdbus_policy_db_free - drop a policy database reference
+ * @db:		The policy database
+ */
+void kdbus_policy_db_free(struct kdbus_policy_db *db)
 {
 	struct kdbus_policy_db_entry *e;
 	struct kdbus_policy_db_cache_entry *ce;
 	struct hlist_node *tmp;
-	struct kdbus_policy_db *db =
-		container_of(kref, struct kdbus_policy_db, kref);
 	unsigned int i;
 
 	/* purge entries */
@@ -184,19 +184,6 @@ static void __kdbus_policy_db_free(struct kref *kref)
 }
 
 /**
- * kdbus_policy_db_unref - drop a policy database reference
- * @db:		The policy database
- *
- *
- * When the last reference is dropped, the database's internal memory
- * is freed.
- */
-void kdbus_policy_db_unref(struct kdbus_policy_db *db)
-{
-	kref_put(&db->kref, __kdbus_policy_db_free);
-}
-
-/**
  * kdbus_policy_db_new() - create a new policy database
  * @db:		The location where to store the new database
  *
@@ -210,7 +197,6 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db)
 	if (!d)
 		return -ENOMEM;
 
-	kref_init(&d->kref);
 	hash_init(d->entries_hash);
 	hash_init(d->send_access_hash);
 	INIT_LIST_HEAD(&d->timeout_list);
