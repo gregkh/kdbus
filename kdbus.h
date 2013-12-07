@@ -194,7 +194,7 @@ struct kdbus_policy {
 
 /**
  * enum kdbus_item_type - item types to chain data in a list
- * @KDBUS_ITEM_PAYLOAD_VEC:	Vevtor to data
+ * @KDBUS_ITEM_PAYLOAD_VEC:	Vector to data
  * @KDBUS_ITEM_PAYLOAD_OFF:	Data at returned offset in the pool
  * @KDBUS_ITEM_PAYLOAD_MEMFD:	Data as sealed memfd
  * @KDBUS_ITEM_FDS:		Attached file descriptors
@@ -222,7 +222,7 @@ struct kdbus_policy {
  * @KDBUS_ITEM_ID_ADD:		Notify in struct kdbus_notify_id_change
  * @KDBUS_ITEM_ID_REMOVE:	Notify in struct kdbus_notify_id_change
  * @KDBUS_ITEM_REPLY_TIMEOUT:	Timeout has been reached
- * @KDBUS_ITEM_REPLY_DEAD:	Destiantion died
+ * @KDBUS_ITEM_REPLY_DEAD:	Destination died
  */
 enum kdbus_item_type {
 	_KDBUS_ITEM_NULL,
@@ -326,8 +326,8 @@ enum kdbus_msg_flags {
 /**
  * enum kdbus_payload_type - type of payload carried by message
  * @KDBUS_PAYLOAD_KERNEL:	Kernel-generated simple message
- * @KDBUS_PAYLOAD_DBUS1:	Legacy D-Bus version 1 marshalling
- * @KDBUS_PAYLOAD_GVARIANT:	GVariant marshalling
+ * @KDBUS_PAYLOAD_DBUS1:	Legacy D-Bus version 1 marshaling
+ * @KDBUS_PAYLOAD_GVARIANT:	GVariant marshaling
  */
 enum kdbus_payload_type {
 	KDBUS_PAYLOAD_KERNEL,
@@ -366,7 +366,7 @@ struct kdbus_msg {
 /**
  * enum kdbus_policy_access_type - permissions of a policy record
  * @KDBUS_POLICY_ACCESS_USER:	Grant access to a uid
- * @KDBUS_POLICY_ACCESS_GROUP:	Grant acces to gid
+ * @KDBUS_POLICY_ACCESS_GROUP:	Grant access to gid
  * @KDBUS_POLICY_ACCESS_WORLD:	World-accessible
  */
 enum kdbus_policy_access_type {
@@ -393,7 +393,7 @@ enum kdbus_policy_type {
  * @size:		The total size of the structure
  * @policies:		The policies to upload
  *
- * A KDBUS_POLICY_NAME must always preceed a KDBUS_POLICY_ACCESS entry.
+ * A KDBUS_POLICY_NAME must always preceeds a KDBUS_POLICY_ACCESS entry.
  * A new KDBUS_POLICY_NAME can be added after KDBUS_POLICY_ACCESS for
  * chaining multiple policies together.
  */
@@ -445,7 +445,7 @@ enum kdbus_attach_flags {
  * @size:		The total size of the structure
  * @conn_flags:		Connection flags (KDBUS_HELLO_*). The kernel will
  * 			return its capabilities in that field.
- * @attach_flags:	Mask of metdata to attach to each message sent
+ * @attach_flags:	Mask of metadata to attach to each message sent
  * 			(KDBUS_ATTACH_*)
  * @bus_flags:		The flags field copied verbatim from the original
  * 			KDBUS_CMD_BUS_MAKE ioctl. It's intended to be useful
@@ -463,18 +463,13 @@ enum kdbus_attach_flags {
  */
 struct kdbus_cmd_hello {
 	__u64 size;
-
-	/* userspace → kernel, kernel → userspace */
 	__u64 conn_flags;
 	__u64 attach_flags;
-
-	/* kernel → userspace */
 	__u64 bus_flags;
 	__u64 id;
 	__u64 bloom_size;
 	__u64 pool_size;
 	__u8 id128[16];
-
 	struct kdbus_item items[0];
 };
 
@@ -555,7 +550,7 @@ enum kdbus_name_flags {
  * struct kdbus_cmd_name - struct to describe a well-known name
  * @size:		The total size of the struct
  * @flags:		Flags for a name entry (KDBUS_NAME_*)
- * @id:			Priviledged users may use this field to (de)register
+ * @id:			Privileged users may use this field to (de)register
  * 			names on behalf of other peers.
  * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
  * @name:		The well-known name
@@ -709,7 +704,7 @@ enum kdbus_monitor_flags {
 
 /**
  * struct kdbus_cmd_monitor - struct to enable or disable eavesdropping
- * @id:			Priviledged users may enable or disable the monitor feature
+ * @id:			Privileged users may enable or disable the monitor feature
  * 			on behalf of other peers
  * @flags:		Use KDBUS_MONITOR_ENABLE to enable eavesdropping
  *
@@ -753,7 +748,7 @@ struct kdbus_cmd_monitor {
  * @KDBUS_CMD_CONN_INFO:	Retrieve credentials and properties of the
  * 				initial creator of the connection. The data was
  * 				stored at registration time and does not
- * 				neccessarily represent the connected process or
+ * 				necessarily represent the connected process or
  * 				the actual state of the process.
  * @KDBUS_CMD_MATCH_ADD:	Install a match which broadcast messages should
  * 				be delivered to the connection.

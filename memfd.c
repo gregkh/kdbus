@@ -330,7 +330,7 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		 * before we seal, we rely on the fact there is no
 		 * any other possibly writable references to the file.
 		 *
-		 * Protect mmap() racing against us, take * mm->mmap_sem
+		 * Protect mmap() racing against us, take mm->mmap_sem
 		 * when accessing mf->sealed.
 		 */
 		down_read(&mm->mmap_sem);

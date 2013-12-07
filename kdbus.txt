@@ -7,7 +7,7 @@ all communication between processes take place over special device nodes in
 /dev/kdbus/.
 
 For the general D-Bus protocol specification, the payload format, the
-marshalling, the communication semantics, please refer to:
+marshaling, the communication semantics, please refer to:
   http://dbus.freedesktop.org/doc/dbus-specification.html
 
 For a kdbus specific userspace library implementation please refer to:
