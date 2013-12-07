@@ -127,16 +127,20 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 
 static void kdbus_name_entry_detach(struct kdbus_name_entry *e)
 {
+	mutex_lock(&e->conn->lock);
 	e->conn->names--;
 	list_del(&e->conn_entry);
+	mutex_unlock(&e->conn->lock);
 }
 
 static void kdbus_name_entry_attach(struct kdbus_name_entry *e,
 				    struct kdbus_conn *conn)
 {
+	mutex_lock(&conn->lock);
 	e->conn = kdbus_conn_ref(conn);
 	list_add_tail(&e->conn_entry, &e->conn->names_list);
 	conn->names++;
+	mutex_unlock(&conn->lock);
 }
 
 static void kdbus_name_entry_release(struct kdbus_name_entry *e)
@@ -210,20 +214,17 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	LIST_HEAD(names_queue_list);
 	LIST_HEAD(names_list);
 
-	mutex_lock(&reg->entries_lock);
-	mutex_lock(&conn->names_lock);
-
+	mutex_lock(&conn->lock);
 	list_splice_init(&conn->names_list, &names_list);
 	list_splice_init(&conn->names_queue_list, &names_queue_list);
+	mutex_unlock(&conn->lock);
 
-	mutex_unlock(&conn->names_lock);
-	mutex_unlock(&reg->entries_lock);
-
+	mutex_lock(&reg->entries_lock);
 	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
-
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
 		kdbus_name_entry_release(e);
+	mutex_unlock(&reg->entries_lock);
 }
 
 /**

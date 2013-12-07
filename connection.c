@@ -1198,7 +1198,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);
-	mutex_init(&conn->names_lock);
 	INIT_LIST_HEAD(&conn->msg_list);
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);

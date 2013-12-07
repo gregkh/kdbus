@@ -51,7 +51,6 @@ struct kdbus_conn {
 	struct list_head msg_list;
 	struct hlist_node hentry;
 	struct list_head monitor_entry;
-	struct mutex names_lock;
 	struct list_head names_list;
 	struct list_head names_queue_list;
 	size_t names;
