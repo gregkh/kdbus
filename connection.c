@@ -381,7 +381,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 		goto exit_unlock;
 	}
 
-	ret = kdbus_pool_alloc(conn->pool, want, &off);
+	ret = kdbus_pool_alloc_range(conn->pool, want, &off);
 	if (ret < 0)
 		goto exit_unlock;
 
@@ -448,7 +448,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 exit_unlock:
 	mutex_unlock(&conn->lock);
 	kdbus_conn_queue_cleanup(queue);
-	kdbus_pool_free(conn->pool, off);
+	kdbus_pool_free_range(conn->pool, off);
 	return ret;
 }
 
@@ -471,7 +471,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			if (queue->expect_reply)
 				kdbus_notify_reply_timeout(conn->ep,
 					queue->src_id, queue->cookie);
-			kdbus_pool_free(conn->pool, queue->off);
+			kdbus_pool_free_range(conn->pool, queue->off);
 			list_del(&queue->entry);
 			kdbus_conn_queue_cleanup(queue);
 		} else if (queue->deadline_ns < deadline) {
@@ -932,7 +932,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 		if (queue->src_id != conn->id && queue->expect_reply) {
 			list_add_tail(&queue->entry, &list);
 		} else {
-			kdbus_pool_free(conn->pool, queue->off);
+			kdbus_pool_free_range(conn->pool, queue->off);
 			kdbus_conn_queue_cleanup(queue);
 		}
 	}
@@ -942,7 +942,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 		kdbus_notify_reply_dead(conn->ep, queue->src_id,
 					queue->cookie);
 		mutex_lock(&conn->lock);
-		kdbus_pool_free(conn->pool, queue->off);
+		kdbus_pool_free_range(conn->pool, queue->off);
 		mutex_unlock(&conn->lock);
 		kdbus_conn_queue_cleanup(queue);
 	}
@@ -961,7 +961,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	kdbus_ep_unref(conn->ep);
 
 	kdbus_meta_free(&conn->meta);
-	kdbus_pool_cleanup(conn->pool);
+	kdbus_pool_free(conn->pool);
 }
 
 static void __kdbus_conn_free(struct kref *kref)
@@ -1145,7 +1145,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		info.size += meta.size;
 	}
 
-	ret = kdbus_pool_alloc(conn->pool, info.size, &off);
+	ret = kdbus_pool_alloc_range(conn->pool, info.size, &off);
 	if (ret < 0)
 		goto exit_unref_owner_conn;
 
@@ -1175,7 +1175,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 exit_free:
 	if (ret < 0)
-		kdbus_pool_free(conn->pool, off);
+		kdbus_pool_free_range(conn->pool, off);
 
 exit_unref_owner_conn:
 	kdbus_meta_free(&meta);

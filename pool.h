@@ -16,10 +16,10 @@
 struct kdbus_pool;
 
 int kdbus_pool_new(struct kdbus_pool **pool, size_t size);
-void kdbus_pool_cleanup(struct kdbus_pool *pool);
+void kdbus_pool_free(struct kdbus_pool *pool);
 
-int kdbus_pool_alloc(struct kdbus_pool *pool, size_t size, size_t *off);
-int kdbus_pool_free(struct kdbus_pool *pool, size_t off);
+int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off);
+int kdbus_pool_free_range(struct kdbus_pool *pool, size_t off);
 size_t kdbus_pool_remain(const struct kdbus_pool *pool);
 ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 			 void *data, size_t len);

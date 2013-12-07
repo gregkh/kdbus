@@ -331,10 +331,10 @@ exit_free_p:
 }
 
 /**
- * kdbus_pool_cleanup() - destroy pool
+ * kdbus_pool_free() - destroy pool
  * @pool:		The receiver's pool
  */
-void kdbus_pool_cleanup(struct kdbus_pool *pool)
+void kdbus_pool_free(struct kdbus_pool *pool)
 {
 	struct kdbus_slice *s, *tmp;
 
@@ -362,7 +362,7 @@ size_t kdbus_pool_remain(const struct kdbus_pool *pool)
 }
 
 /**
- * kdbus_pool_alloc() - allocate memory from a pool
+ * kdbus_pool_alloc_range() - allocate memory from a pool
  * @pool:		The receiver's pool
  * @size:		The number of bytes to allocate
  * @off:		The offset in bytes in the pool's file
@@ -373,7 +373,7 @@ size_t kdbus_pool_remain(const struct kdbus_pool *pool)
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_pool_alloc(struct kdbus_pool *pool, size_t size, size_t *off)
+int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off)
 {
 	struct kdbus_slice *s;
 	int ret;
@@ -387,16 +387,16 @@ int kdbus_pool_alloc(struct kdbus_pool *pool, size_t size, size_t *off)
 }
 
 /**
- * kdbus_pool_free() - give allocated memory back to the pool
+ * kdbus_pool_free_range() - give allocated memory back to the pool
  * @pool:		The receiver's pool
  * @off:		Offset of allocated memory
  *
- * The offset was returned by the call to kdbus_pool_alloc(),
- * the memory is returned to the pool.
+ * The offset was returned by the call to kdbus_pool_alloc_range(), the
+ * memory is returned to the pool.
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_pool_free(struct kdbus_pool *pool, size_t off)
+int kdbus_pool_free_range(struct kdbus_pool *pool, size_t off)
 {
 	struct kdbus_slice *slice;
 
@@ -515,9 +515,9 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
  * @data:		User memory
  * @len:		Number of bytes to copy
  *
- * The offset was returned by the call to kdbus_pool_alloc().
- * The user memory at @data will be copied to the @off in
- * the allocated memory in the pool.
+ * The offset was returned by the call to kdbus_pool_alloc_range().
+ * The user memory at @data will be copied to the @off in the allocated
+ * memory in the pool.
  *
  * Returns: the numbers of bytes copied, negative errno on failure.
  */
@@ -534,9 +534,9 @@ ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
  * @data:		User memory
  * @len:		Number of bytes to copy
  *
- * The offset was returned by the call to kdbus_pool_alloc().
- * The user memory at @data will be copied to the @off in
- * the allocated memory in the pool.
+ * The offset was returned by the call to kdbus_pool_alloc_range().
+ * The user memory at @data will be copied to the @off in the allocated
+ * memory in the pool.
  *
  * Returns: the numbers of bytes copied, negative errno on failure.
  */
@@ -576,7 +576,7 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 	size_t new_off;
 	int ret;
 
-	ret = kdbus_pool_alloc(dst_pool, len, &new_off);
+	ret = kdbus_pool_alloc_range(dst_pool, len, &new_off);
 	if (ret < 0)
 		return ret;
 
@@ -588,7 +588,7 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 	if (ret < 0)
 		goto exit_free;
 
-	ret = kdbus_pool_free(src_pool, *off);
+	ret = kdbus_pool_free_range(src_pool, *off);
 	if (ret < 0)
 		goto exit_free;
 
@@ -596,7 +596,7 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 	return 0;
 
 exit_free:
-	kdbus_pool_free(dst_pool, new_off);
+	kdbus_pool_free_range(dst_pool, new_off);
 	return ret;
 }
 

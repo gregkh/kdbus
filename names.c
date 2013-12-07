@@ -700,7 +700,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		}
 	}
 
-	ret = kdbus_pool_alloc(conn->pool, size, &off);
+	ret = kdbus_pool_alloc_range(conn->pool, size, &off);
 	if (ret < 0)
 		goto exit_unlock;
 
@@ -710,7 +710,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	ret = kdbus_pool_write(conn->pool, pos,
 			       &list, sizeof(struct kdbus_name_list));
 	if (ret < 0) {
-		kdbus_pool_free(conn->pool, off);
+		kdbus_pool_free_range(conn->pool, off);
 		goto exit_unlock;
 	}
 	pos += sizeof(struct kdbus_name_list);
@@ -734,7 +734,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			ret = kdbus_pool_write(conn->pool, pos,
 					       &cmd_name, sizeof(cmd_name));
 			if (ret < 0) {
-				kdbus_pool_free(conn->pool, off);
+				kdbus_pool_free_range(conn->pool, off);
 				goto exit_unlock;
 			}
 
@@ -768,7 +768,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			ret = kdbus_pool_write(conn->pool, pos,
 					       &cmd_name, sizeof(cmd_name));
 			if (ret < 0) {
-				kdbus_pool_free(conn->pool, off);
+				kdbus_pool_free_range(conn->pool, off);
 				goto exit_unlock;
 			}
 			pos += sizeof(struct kdbus_cmd_name);
@@ -776,7 +776,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			len = strlen(e->name) + 1;
 			ret = kdbus_pool_write(conn->pool, pos, e->name, len);
 			if (ret < 0) {
-				kdbus_pool_free(conn->pool, off);
+				kdbus_pool_free_range(conn->pool, off);
 				goto exit_unlock;
 			}
 
@@ -786,7 +786,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_name_list)) {
 		ret = -EFAULT;
-		kdbus_pool_free(conn->pool, off);
+		kdbus_pool_free_range(conn->pool, off);
 		goto exit_unlock;
 	}
 

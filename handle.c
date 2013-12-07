@@ -552,7 +552,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		}
 
 		mutex_lock(&conn->lock);
-		ret = kdbus_pool_free(conn->pool, off);
+		ret = kdbus_pool_free_range(conn->pool, off);
 		mutex_unlock(&conn->lock);
 		break;
 	}
