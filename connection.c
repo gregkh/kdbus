@@ -686,7 +686,7 @@ exit:
 
 /**
  * kdbus_conn_kmsg_free() - free a list of kmsg objects
- * @kmsg_list:		List head of kmsg objects to send.
+ * @kmsg_list:		List head of kmsg objects to free.
  */
 void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list)
 {
