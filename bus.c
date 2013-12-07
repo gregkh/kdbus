@@ -56,7 +56,7 @@ static void __kdbus_bus_free(struct kref *kref)
 {
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
-	kdbus_name_registry_unref(bus->name_registry);
+	kdbus_name_registry_free(bus->name_registry);
 	kdbus_bus_disconnect(bus);
 
 	kfree(bus->name);

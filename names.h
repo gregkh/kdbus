@@ -17,12 +17,10 @@
 
 /**
  * struct kdbus_name_registry - names registered for a bus
- * @kref:		Reference count
  * @entries_hash:	Map of entries
  * @entries_lock:	Registry data lock
  */
 struct kdbus_name_registry {
-	struct kref		kref;
 	DECLARE_HASHTABLE(entries_hash, 6);
 	struct mutex		entries_lock;
 };
@@ -48,7 +46,7 @@ struct kdbus_name_entry {
 };
 
 int kdbus_name_registry_new(struct kdbus_name_registry **reg);
-void kdbus_name_registry_unref(struct kdbus_name_registry *reg);
+void kdbus_name_registry_free(struct kdbus_name_registry *reg);
 
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,

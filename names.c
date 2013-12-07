@@ -54,10 +54,14 @@ static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 	kfree(e);
 }
 
-static void __kdbus_name_registry_free(struct kref *kref)
+/**
+ * kdbus_name_registry_free() - drop a name reg's reference
+ * @reg:		The name registry
+ *
+ * Cleanup the name registry's internal structures.
+ */
+void kdbus_name_registry_free(struct kdbus_name_registry *reg)
 {
-	struct kdbus_name_registry *reg =
-		container_of(kref, struct kdbus_name_registry, kref);
 	struct kdbus_name_entry *e;
 	struct hlist_node *tmp;
 	unsigned int i;
@@ -68,18 +72,6 @@ static void __kdbus_name_registry_free(struct kref *kref)
 	mutex_unlock(&reg->entries_lock);
 
 	kfree(reg);
-}
-
-/**
- * kdbus_name_registry_unref() - drop a name reg's reference
- * @reg:		The name registry
- *
- * When the last reference is dropped, the name registry's internal structure
- * is freed.
- */
-void kdbus_name_registry_unref(struct kdbus_name_registry *reg)
-{
-	kref_put(&reg->kref, __kdbus_name_registry_free);
 }
 
 /**
@@ -96,7 +88,6 @@ int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 	if (!r)
 		return -ENOMEM;
 
-	kref_init(&r->kref);
 	hash_init(r->entries_hash);
 	mutex_init(&r->entries_lock);
 
