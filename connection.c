@@ -958,7 +958,6 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 
 	kdbus_match_db_unref(conn->match_db);
-	kdbus_ep_unref(conn->ep);
 
 	kdbus_meta_free(&conn->meta);
 	kdbus_pool_free(conn->pool);
@@ -969,6 +968,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 
 	kdbus_conn_disconnect(conn);
+	kdbus_ep_unref(conn->ep);
 	kfree(conn);
 }
 
