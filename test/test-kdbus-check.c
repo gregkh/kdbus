@@ -636,6 +636,8 @@ int main(int argc, char *argv[])
 	const struct kdbus_check *c;
 	struct kdbus_check_env env;
 
+	sync();
+
 	memset(&env, 0, sizeof(env));
 
 	for (c = checks; c->name; c++) {
