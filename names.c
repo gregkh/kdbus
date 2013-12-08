@@ -601,7 +601,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	}
 
 	/* privileged users can act on behalf of someone else */
-	if (e->conn != conn) {
+	if (cmd_name->id > 0) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		if (!kdbus_bus_uid_is_privileged(bus)) {
