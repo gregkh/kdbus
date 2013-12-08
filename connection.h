@@ -21,7 +21,7 @@
  * struct kdbus_conn - connection to a bus
  * @kref:		Reference count
  * @disconnected:	Invalidated data
- * @ep:			default endpoint "bus"
+ * @ep:			The endpoint this connection belongs to
  * @id:			Connection ID
  * @flags:		KDBUS_HELLO_* flags
  * @attach_flags:	KDBUS_ATTACH_* flags

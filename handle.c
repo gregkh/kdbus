@@ -423,7 +423,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_NAME_LIST:
-		/* return all current well-known names */
+		/* query current IDs and names */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
 			break;
@@ -433,7 +433,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_CONN_INFO:
-		/* return details about a specific well-known name */
+		/* return the properties of a connection */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
 			break;
