@@ -9,4 +9,3 @@ External API:
 Internal:
   - limit the number of connections per uid
   - memfd's file pos is shared, document pread/pwrite
-  - conn->ep->bus ==> conn->bus
