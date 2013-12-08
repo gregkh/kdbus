@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <poll.h>
+#include <limits.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 
@@ -241,6 +242,49 @@ static int send_message(const struct kdbus_conn *conn,
 
 /* -----------------------------------8<------------------------------- */
 
+static int check_nsmake(struct kdbus_check_env *env)
+{
+	int fd;
+	struct {
+		struct kdbus_cmd_ns_make head;
+
+		/* name item */
+		uint64_t n_size;
+		uint64_t n_type;
+		char name[64];
+	} __attribute__ ((__aligned__(8))) ns_make;
+	int ret;
+
+	fd = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	ASSERT_RETURN(fd >= 0);
+
+	memset(&ns_make, 0, sizeof(ns_make));
+
+	ns_make.n_type = KDBUS_ITEM_MAKE_NAME;
+
+	/* create a new namespace */
+	snprintf(ns_make.name, sizeof(ns_make.name), "blah");
+	ns_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(ns_make.name) + 1;
+	ns_make.head.size = sizeof(struct kdbus_cmd_ns_make) + ns_make.n_size;
+	ret = ioctl(fd, KDBUS_CMD_NS_MAKE, &ns_make);
+	if (ret < 0 && errno == EPERM)
+		return CHECK_SKIP;
+	ASSERT_RETURN(ret == 0);
+
+	ASSERT_RETURN(access("/dev/kdbus/ns/blah/control", F_OK) == 0);
+
+	/* can't use the same fd for ns make twice */
+	ret = ioctl(fd, KDBUS_CMD_NS_MAKE, &ns_make);
+	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+
+	close(fd);
+	ASSERT_RETURN(access("/dev/kdbus/ns/blah/control", F_OK) < 0);
+
+	return CHECK_OK;
+}
+
+/* -----------------------------------8<------------------------------- */
+
 static int check_busmake(struct kdbus_check_env *env)
 {
 	struct {
@@ -251,6 +295,7 @@ static int check_busmake(struct kdbus_check_env *env)
 		uint64_t n_type;
 		char name[64];
 	} __attribute__ ((__aligned__(8))) bus_make;
+	char s[PATH_MAX];
 	int ret;
 
 	env->control_fd = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
@@ -266,15 +311,18 @@ static int check_busmake(struct kdbus_check_env *env)
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
-	ASSERT_RETURN(ret == -1 && errno == EPERM);
+	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
-	/* can't use the same fd for bus make twice */
+	/* create a new bus */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah", getuid());
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
+	snprintf(s, sizeof(s), "/dev/kdbus/%u-blah/bus", getuid());
+	ASSERT_RETURN(access(s, F_OK) == 0);
 
+	/* can't use the same fd for bus make twice */
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
@@ -623,6 +671,7 @@ static const struct kdbus_check checks[] = {
 	{ "name queue",		check_name_queue,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "message basic",	check_msg_basic,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "message free",	check_msg_free,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
+	{ "ns make",		check_nsmake,		0					},
 	{ NULL, NULL, 0 }
 };
 

@@ -5,7 +5,6 @@ CC		:= $(CROSS_COMPILE)gcc
 TESTS= \
 	test-kdbus \
 	test-kdbus-daemon \
-	test-kdbus-namespace \
 	test-kdbus-fuzz \
 	test-kdbus-benchmark \
 	test-kdbus-starter \
