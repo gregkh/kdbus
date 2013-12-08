@@ -170,7 +170,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 		q = list_first_entry(&e->queue_list,
 				     struct kdbus_name_queue_item,
 				     entry_entry);
-		e->flags = q->flags;
+		e->flags = q->flags & ~KDBUS_NAME_QUEUE;
 		kdbus_name_entry_attach(e, q->conn);
 		kdbus_name_queue_item_free(q);
 		kdbus_notify_name_change(old_conn->ep, KDBUS_ITEM_NAME_CHANGE,
