@@ -37,6 +37,9 @@ clean:
 	rm -rf .tmp_versions Modules.symvers $(hostprogs-y)
 	$(MAKE) -C test clean
 
+check:
+	test/test-kdbus
+
 tt: all
 	sudo sh -c 'dmesg -c > /dev/null'
 	-sudo sh -c 'rmmod kdbus'

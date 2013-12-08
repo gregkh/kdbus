@@ -3,14 +3,14 @@ TEST_COMMON	:= kdbus-enum.o kdbus-util.o
 CC		:= $(CROSS_COMPILE)gcc
 
 TESTS= \
-	test-kdbus-chat \
+	test-kdbus \
 	test-kdbus-daemon \
 	test-kdbus-namespace \
 	test-kdbus-fuzz \
 	test-kdbus-benchmark \
 	test-kdbus-starter \
 	test-kdbus-monitor \
-	test-kdbus-check
+	test-kdbus-chat
 
 all: $(TESTS)
 
