@@ -202,11 +202,7 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 		return 0;
 	}
 
-	/*
-	 * If we didn't find the connection in the lists above,
-	 * deny permisson to removal.
-	 */
-	return -EPERM;
+	return -ESRCH;
 }
 
 /**
@@ -618,7 +614,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 		mutex_unlock(&bus->lock);
 
 		if (!conn) {
-			ret = -EPERM;
+			ret = -ENXIO;
 			goto exit_unlock;
 		}
 	} else {
