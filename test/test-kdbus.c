@@ -684,7 +684,6 @@ void check_unprepare_env(const struct kdbus_check *c, struct kdbus_check_env *en
 
 static const struct kdbus_check checks[] = {
 	{ "bus make",		check_busmake,		0					},
-	{ NULL, NULL, 0 },
 	{ "hello",		check_hello,		CHECK_CREATE_BUS			},
 	{ "name basics",	check_name_basic,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name conflict",	check_name_conflict,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
