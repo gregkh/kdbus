@@ -145,7 +145,141 @@ static int conn_is_name_owner(const struct kdbus_conn *conn, uint64_t flags, con
 	return found ? 0 : -1;
 }
 
+static int send_message(const struct kdbus_conn *conn,
+			const char *name,
+			uint64_t cookie,
+			uint64_t dst_id)
+{
+	struct kdbus_msg *msg;
+	const char ref1[1024 * 1024 + 3] = "0123456789_0";
+	const char ref2[] = "0123456789_1";
+	struct kdbus_item *item;
+	uint64_t size;
+	int memfd = -1;
+	int ret;
+
+	size = sizeof(struct kdbus_msg);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+
+	if (dst_id == KDBUS_DST_ID_BROADCAST)
+		size += KDBUS_ITEM_HEADER_SIZE + 64;
+	else {
+		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
+		ASSERT_RETURN(ret == 0);
+
+		ASSERT_RETURN(write(memfd, "kdbus memfd 1234567", 19) == 19);
+
+		ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, 1);
+		ASSERT_RETURN(ret == 0);
+
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+	}
+
+	if (name)
+		size += KDBUS_ITEM_SIZE(strlen(name) + 1);
+
+	msg = malloc(size);
+	ASSERT_RETURN(msg != NULL);
+
+	memset(msg, 0, size);
+	msg->size = size;
+	msg->src_id = conn->hello.id;
+	msg->dst_id = name ? 0 : dst_id;
+	msg->cookie = cookie;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS1;
+
+	item = msg->items;
+
+	if (name) {
+		item->type = KDBUS_ITEM_DST_NAME;
+		item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
+		strcpy(item->str, name);
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->vec.address = (uint64_t)&ref1;
+	item->vec.size = sizeof(ref1);
+	item = KDBUS_ITEM_NEXT(item);
+
+	/* data padding for ref1 */
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->vec.address = (uint64_t)NULL;
+	item->vec.size =  KDBUS_ALIGN8(sizeof(ref1)) - sizeof(ref1);
+	item = KDBUS_ITEM_NEXT(item);
+
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->vec.address = (uint64_t)&ref2;
+	item->vec.size = sizeof(ref2);
+	item = KDBUS_ITEM_NEXT(item);
+
+	if (dst_id == KDBUS_DST_ID_BROADCAST) {
+		item->type = KDBUS_ITEM_BLOOM;
+		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
+	} else {
+		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
+		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
+		item->memfd.size = 16;
+		item->memfd.fd = memfd;
+	}
+	item = KDBUS_ITEM_NEXT(item);
+
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ASSERT_RETURN(ret == 0);
+
+	if (memfd >= 0)
+		close(memfd);
+	free(msg);
+
+	return 0;
+}
+
 /* -----------------------------------8<------------------------------- */
+
+static int check_busmake(struct kdbus_check_env *env)
+{
+	struct {
+		struct kdbus_cmd_bus_make head;
+
+		/* name item */
+		uint64_t n_size;
+		uint64_t n_type;
+		char name[64];
+	} __attribute__ ((__aligned__(8))) bus_make;
+	int ret;
+
+	env->control_fd = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	ASSERT_RETURN(env->control_fd >= 0);
+
+	memset(&bus_make, 0, sizeof(bus_make));
+	bus_make.head.bloom_size = 64;
+
+	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
+
+	/* check some illegal names */
+	snprintf(bus_make.name, sizeof(bus_make.name), "foo");
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + bus_make.n_size;
+	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
+	ASSERT_RETURN(ret == -1 && errno == EPERM);
+
+	/* can't use the same fd for bus make twice */
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah", getuid());
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + bus_make.n_size;
+	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
+	ASSERT_RETURN(ret == 0);
+
+	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
+	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+
+	return CHECK_OK;
+}
 
 static int check_hello(struct kdbus_check_env *env)
 {
@@ -339,10 +473,73 @@ static int check_name_queue(struct kdbus_check_env *env)
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	ASSERT_RETURN(ret == 0);
 
+	ASSERT_RETURN(cmd_name->flags & KDBUS_NAME_QUEUE);
+
 	/* release name from 1st connection */
 	cmd_name->flags = 0;
 	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
 	ASSERT_RETURN(ret == 0);
+
+	/* now the name should be owned by the 2nd connection */
+	ret = conn_is_name_owner(conn, KDBUS_NAME_LIST_NAMES, name);
+	ASSERT_RETURN(ret == 0);
+
+	return CHECK_OK;
+}
+
+static int check_msg_basic(struct kdbus_check_env *env)
+{
+	struct kdbus_conn *conn;
+	struct kdbus_msg *msg;
+	uint64_t cookie = 0x1234abcd5678eeff;
+	struct pollfd fd;
+	uint64_t off;
+	int ret;
+
+	/* create a 2nd connection */
+	conn = make_conn(env->buspath);
+	ASSERT_RETURN(conn != NULL);
+
+	add_match_empty(conn->fd);
+	add_match_empty(env->conn->fd);
+
+	/* send over 1st connection */
+	ret = send_message(env->conn, NULL, cookie, KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	/* ... and receive on the 2nd */
+	fd.fd = conn->fd;
+	fd.events = POLLIN | POLLPRI | POLLHUP;
+	fd.revents = 0;
+
+	ret = poll(&fd, 1, 100);
+	ASSERT_RETURN(ret > 0 && (fd.revents & POLLIN));
+
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ASSERT_RETURN(ret == 0);
+
+	msg = (struct kdbus_msg *)(conn->buf + off);
+	ASSERT_RETURN(msg->cookie == cookie);
+
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
+	ASSERT_RETURN(ret == 0);
+
+	return CHECK_OK;
+}
+
+static int check_msg_free(struct kdbus_check_env *env)
+{
+	int ret;
+	uint64_t off = 0;
+
+	/* free an unallocated buffer */
+	ret = ioctl(env->conn->fd, KDBUS_CMD_FREE, &off);
+	ASSERT_RETURN(ret == -1 && errno == ENXIO);
+
+	/* free a buffer out of the pool's bounds */
+	off = env->conn->size + 1;
+	ret = ioctl(env->conn->fd, KDBUS_CMD_FREE, &off);
+	ASSERT_RETURN(ret == -1 && errno == ENXIO);
 
 	return CHECK_OK;
 }
@@ -419,10 +616,13 @@ void check_unprepare_env(const struct kdbus_check *c, struct kdbus_check_env *en
 }
 
 static const struct kdbus_check checks[] = {
+	{ "bus make",		check_busmake,		0					},
 	{ "hello",		check_hello,		CHECK_CREATE_BUS			},
 	{ "name basics",	check_name_basic,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name conflict",	check_name_conflict,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name queue",		check_name_queue,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
+	{ "message basic",	check_msg_basic,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
+	{ "message free",	check_msg_free,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ NULL, NULL, 0 }
 };
 
