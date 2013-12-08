@@ -9,7 +9,8 @@ TESTS= \
 	test-kdbus-fuzz \
 	test-kdbus-benchmark \
 	test-kdbus-starter \
-	test-kdbus-monitor
+	test-kdbus-monitor \
+	test-kdbus-check
 
 all: $(TESTS)
 
