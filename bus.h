@@ -74,7 +74,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 		  struct kdbus_cmd_bus_make *make, const char *name,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
-void kdbus_bus_unref(struct kdbus_bus *bus);
+struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);
 
 bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus);

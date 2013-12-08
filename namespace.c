@@ -132,10 +132,16 @@ static void __kdbus_ns_free(struct kref *kref)
  *
  * When the last reference is dropped, the namespace internal structure
  * is freed.
+ *
+ * Returns: NULL
  */
-void kdbus_ns_unref(struct kdbus_ns *ns)
+struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
 {
+	if (!ns)
+		return NULL;
+
 	kref_put(&ns->kref, __kdbus_ns_free);
+	return NULL;
 }
 
 static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char *name)

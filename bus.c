@@ -69,10 +69,16 @@ static void __kdbus_bus_free(struct kref *kref)
  *
  * Release a reference. If the reference count drops to 0, the bus will be
  * freed.
+ *
+ * Returns: NULL
  */
-void kdbus_bus_unref(struct kdbus_bus *bus)
+struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 {
+	if (!bus)
+		return NULL;
+
 	kref_put(&bus->kref, __kdbus_bus_free);
+	return NULL;
 }
 
 /**

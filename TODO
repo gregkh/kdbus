@@ -1,3 +1,6 @@
+Doc:
+  - endpoint.c
+
 External API:
   - actually return compatible/incompatible flags
   - rules for: which unknown items to ignore in userspace?

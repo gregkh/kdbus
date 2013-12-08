@@ -990,13 +990,16 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
  *
  * When the last reference is dropped, the connection's internal structure
  * is freed.
+ *
+ * Returns: NULL
  */
-void kdbus_conn_unref(struct kdbus_conn *conn)
+struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
 {
 	if (!conn)
-		return;
+		return NULL;
 
 	kref_put(&conn->kref, __kdbus_conn_free);
+	return NULL;
 }
 
 /**

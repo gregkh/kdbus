@@ -106,9 +106,13 @@ static void __kdbus_ep_free(struct kref *kref)
 	kfree(ep);
 }
 
-void kdbus_ep_unref(struct kdbus_ep *ep)
+struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 {
+	if (!ep)
+		return NULL;
+
 	kref_put(&ep->kref, __kdbus_ep_free);
+	return NULL;
 }
 
 static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
