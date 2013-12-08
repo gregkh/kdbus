@@ -29,6 +29,7 @@ int main(int argc, char *argv[])
 	struct conn *conn_a, *conn_b;
 	struct pollfd fds[2];
 	int count;
+	int r;
 
 	printf("-- opening /dev/kdbus/control\n");
 	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
@@ -62,12 +63,40 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	upload_policy(conn_a->fd, "foo.bar.test");
-	upload_policy(conn_a->fd, "foo.bar.baz");
+	r = upload_policy(conn_a->fd, "foo.bar.test");
+	if (r < 0)
+		return EXIT_FAILURE;
+	r = upload_policy(conn_a->fd, "foo.bar.baz");
+	if (r < 0)
+		return EXIT_FAILURE;
+	r = upload_policy(conn_a->fd, "foo.bar.double");
+	if (r < 0)
+		return EXIT_FAILURE;
 
-	name_acquire(conn_a, "foo.bar.test", KDBUS_NAME_ALLOW_REPLACEMENT);
-	name_acquire(conn_a, "foo.bar.baz", 0);
-	name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
+	r = name_acquire(conn_a, "foo.bar.test", KDBUS_NAME_ALLOW_REPLACEMENT);
+	if (r < 0)
+		return EXIT_FAILURE;
+	r = name_acquire(conn_a, "foo.bar.baz", 0);
+	if (r < 0)
+		return EXIT_FAILURE;
+	r = name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
+	if (r < 0)
+		return EXIT_FAILURE;
+
+	r = name_acquire(conn_a, "foo.bar.double", 0);
+	if (r < 0)
+		return EXIT_FAILURE;
+	r = name_acquire(conn_a, "foo.bar.double", 0);
+	if (r != -EALREADY)
+		return EXIT_FAILURE;
+
+	r = name_release(conn_a, "foo.bar.double");
+	if (r < 0)
+		return EXIT_FAILURE;
+	r = name_release(conn_a, "foo.bar.double");
+	if (r != -ESRCH)
+		return EXIT_FAILURE;
+
 	name_list(conn_b, KDBUS_NAME_LIST_UNIQUE | KDBUS_NAME_LIST_NAMES);
 
 	add_match_empty(conn_a->fd);

@@ -422,8 +422,9 @@ int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (ret < 0) {
-		fprintf(stderr, "error aquiring name: %d (%m)\n", ret);
-		return EXIT_FAILURE;
+		ret = -errno;
+		fprintf(stderr, "error aquiring name: %s\n", strerror(-ret));
+		return ret;
 	}
 
 	printf("%s(): flags after call: 0x%llx\n", __func__, cmd_name->conn_flags);
@@ -447,8 +448,9 @@ int name_release(struct conn *conn, const char *name)
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
 	if (ret < 0) {
-		fprintf(stderr, "error releasing name: %d (%m)\n", ret);
-		return EXIT_FAILURE;
+		ret = -errno;
+		fprintf(stderr, "error releasing name: %s\n", strerror(-ret));
+		return ret;
 	}
 
 	return 0;
