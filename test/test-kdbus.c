@@ -12,6 +12,7 @@
 #include <limits.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <getopt.h>
 
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -675,7 +676,7 @@ static const struct kdbus_check checks[] = {
 	{ NULL, NULL, 0 }
 };
 
-int main(int argc, char *argv[])
+static int run_tests(void)
 {
 	int ret;
 	unsigned int fail_cnt = 0;
@@ -727,4 +728,49 @@ int main(int argc, char *argv[])
 	printf("\nSUMMARY: %d tests passed, %d skipped, %d failed\n", ok_cnt, skip_cnt, fail_cnt);
 
 	return fail_cnt > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+
+static int arg_count = 1;
+static int arg_loop = 0;
+
+int main(int argc, char *argv[])
+{
+	int c, ret;
+
+	enum {
+		ARG_VERSION = 0x100,
+	};
+
+	static const struct option options[] = {
+		{ "count",	required_argument,	NULL, 'c'	},
+		{ "loop",	no_argument,		NULL, 'l'	},
+		{ NULL,		0,			NULL, 0		}
+	};
+
+	while ((c = getopt_long(argc, argv, "c:l", options, NULL)) >= 0) {
+
+		switch (c) {
+
+		case 'c':
+			arg_count = atoi(optarg);
+			break;
+
+		case 'l':
+			arg_loop = 1;
+			break;
+
+		default:
+			printf("Unknown option code %c", c);
+			return -EINVAL;
+		}
+	}
+
+	if (arg_loop)
+		for(;;)
+			run_tests();
+
+	for (c = 0; c < arg_count; c++)
+		ret = run_tests();
+
+	return ret > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
