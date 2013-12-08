@@ -118,10 +118,12 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 
 static void kdbus_name_entry_detach(struct kdbus_name_entry *e)
 {
-	mutex_lock(&e->conn->lock);
-	e->conn->names--;
+	struct kdbus_conn *conn = e->conn;
+
+	mutex_lock(&conn->lock);
+	conn->names--;
 	list_del(&e->conn_entry);
-	mutex_unlock(&e->conn->lock);
+	mutex_unlock(&conn->lock);
 }
 
 static void kdbus_name_entry_attach(struct kdbus_name_entry *e,
@@ -598,6 +600,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
 	if (!e) {
 		ret = -ESRCH;
+		conn = NULL;
 		goto exit_unlock;
 	}
 
@@ -627,11 +630,11 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
-	if (conn)
+	if (conn) {
 		kdbus_conn_kmsg_list_send(conn->ep, NULL,
 					  &notification_list);
-
-	kdbus_conn_unref(conn);
+		kdbus_conn_unref(conn);
+	}
 
 exit_free:
 	kfree(cmd_name);
