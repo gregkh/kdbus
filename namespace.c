@@ -166,6 +166,10 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
  * kdbus_ns_find_by_major() - lookup a namespace by its major device number
  * @major:		Major number
  *
+ * Looks up a namespace by major number. The returned namspace
+ * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
+ * the namepace can't be found.
+ *
  * Returns: the namespace, or NULL if not found
  */
 struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
@@ -174,6 +178,8 @@ struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 
 	mutex_lock(&kdbus_subsys_lock);
 	ns = idr_find(&kdbus_ns_major_idr, major);
+	if (ns)
+		kdbus_ns_ref(ns);
 	mutex_unlock(&kdbus_subsys_lock);
 
 	return ns;

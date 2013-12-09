@@ -40,7 +40,6 @@ enum kdbus_handle_type {
 	KDBUS_HANDLE_CONTROL_BUS_OWNER,	/* fd to hold a bus */
 	KDBUS_HANDLE_EP,		/* new fd of a bus node */
 	KDBUS_HANDLE_EP_CONNECTED,	/* connection after HELLO */
-	KDBUS_HANDLE_EP_DISCONNECTED,	/* closed connection */
 	KDBUS_HANDLE_EP_OWNER,		/* fd to hold an endpoint */
 };
 
@@ -53,7 +52,8 @@ enum kdbus_handle_type {
  * @bus_owner:	The bus this handle owns, in case @type
  * 		is KDBUS_HANDLE_CONTROL_BUS_OWNER
  * @conn	The connection this handle owns, in case @type
- * 		is KDBUS_HANDLE_EP_CONNECTED
+ * 		is KDBUS_HANDLE_EP, after HELLO it is
+ * 		KDBUS_HANDLE_EP_CONNECTED
  * @ep		The endpoint this handle owns, in case @type
  * 		is KDBUS_HANDLE_EP or KDBUS_HANDLE_EP_OWNER
  */
@@ -85,7 +85,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		kfree(handle);
 		return -ESHUTDOWN;
 	}
-	handle->ns = kdbus_ns_ref(ns);
+	handle->ns = ns;
 	file->private_data = handle;
 
 	/* control device node */
@@ -110,6 +110,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 
 exit_unlock:
 	mutex_unlock(&handle->ns->lock);
+	kdbus_ns_unref(handle->ns);
 	kfree(handle);
 	return ret;
 }
@@ -147,7 +148,6 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 	}
 
-	handle->type = KDBUS_HANDLE_EP_DISCONNECTED;
 	kdbus_ns_unref(handle->ns);
 	kfree(handle);
 
