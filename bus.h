@@ -32,7 +32,7 @@
  * @msg_id_next:	Next message id sequence number
  * @conn_idr:		Map of connection device minor nummbers
  * @conn_hash:		Map of connection IDs
- * @eps_list:		Endpoints on this bus
+ * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @bloom_size:		Bloom filter size
  * @name_registry:	Namespace's list of buses
@@ -59,7 +59,7 @@ struct kdbus_bus {
 	u64 msg_id_next;
 	struct idr conn_idr;
 	DECLARE_HASHTABLE(conn_hash, 6);
-	struct list_head eps_list;
+	struct list_head ep_list;
 	u64 bus_flags;
 	size_t bloom_size;
 	struct kdbus_name_registry *name_registry;

@@ -121,7 +121,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 	struct kdbus_ep *e;
 
 	mutex_lock(&bus->lock);
-	list_for_each_entry(e, &bus->eps_list, bus_entry) {
+	list_for_each_entry(e, &bus->ep_list, bus_entry) {
 		if (strcmp(e->name, name) != 0)
 			continue;
 
@@ -207,7 +207,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 
 	/* Link this endpoint to the bus it is on */
 	e->bus = kdbus_bus_ref(bus);
-	list_add_tail(&e->bus_entry, &bus->eps_list);
+	list_add_tail(&e->bus_entry, &bus->ep_list);
 
 	/* install policy */
 	e->policy_open = policy_open;

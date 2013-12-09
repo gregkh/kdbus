@@ -56,9 +56,10 @@ static void __kdbus_bus_free(struct kref *kref)
 {
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
-	kdbus_name_registry_free(bus->name_registry);
 	kdbus_bus_disconnect(bus);
-
+	if (bus->name_registry)
+		kdbus_name_registry_free(bus->name_registry);
+	kdbus_ns_unref(bus->ns);
 	kfree(bus->name);
 	kfree(bus);
 }
@@ -116,13 +117,22 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 {
 	struct kdbus_ep *ep, *tmp;
 
-	if (bus->disconnected)
+	mutex_lock(&bus->lock);
+	if (bus->disconnected) {
+		mutex_unlock(&bus->lock);
 		return;
-	bus->disconnected = true;
-	list_del(&bus->ns_entry);
+	}
 
-	/* remove any endpoints attached to this bus */
-	list_for_each_entry_safe(ep, tmp, &bus->eps_list, bus_entry) {
+	bus->disconnected = true;
+	mutex_unlock(&bus->lock);
+
+	/* disconnect from namespace */
+	mutex_lock(&bus->ns->lock);
+	list_del(&bus->ns_entry);
+	mutex_unlock(&bus->ns->lock);
+
+	/* remove all endpoints attached to this bus */
+	list_for_each_entry_safe(ep, tmp, &bus->ep_list, bus_entry) {
 		kdbus_ep_disconnect(ep);
 		kdbus_ep_unref(ep);
 	}
@@ -187,14 +197,14 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 
 	kref_init(&b->kref);
 	b->uid_owner = uid;
-	b->ns = ns;
 	b->bus_flags = bus_make->flags;
 	b->bloom_size = bus_make->bloom_size;
 	b->conn_id_next = 1; /* connection 0 == kernel */
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
-	INIT_LIST_HEAD(&b->eps_list);
+	INIT_LIST_HEAD(&b->ep_list);
 	INIT_LIST_HEAD(&b->monitors_list);
+	b->ns = kdbus_ns_ref(ns);
 
 	/* generate unique ID for this bus */
 	get_random_bytes(b->id128, sizeof(b->id128));
@@ -222,9 +232,9 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	if (ret < 0)
 		goto exit;
 
+	/* link into namespace */
 	mutex_lock(&ns->lock);
 	b->id = ns->bus_id_next++;
-
 	list_add_tail(&b->ns_entry, &ns->bus_list);
 	mutex_unlock(&ns->lock);
 
