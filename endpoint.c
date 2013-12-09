@@ -65,7 +65,6 @@ struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 void kdbus_ep_disconnect(struct kdbus_ep *ep)
 {
 	mutex_lock(&ep->lock);
-
 	if (ep->disconnected) {
 		mutex_unlock(&ep->lock);
 		return;
@@ -73,6 +72,11 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 
 	ep->disconnected = true;
 	mutex_unlock(&ep->lock);
+
+	/* disconnect from bus */
+	mutex_lock(&ep->bus->lock);
+	list_del(&ep->bus_entry);
+	mutex_unlock(&ep->bus->lock);
 
 	if (ep->dev) {
 		device_unregister(ep->dev);
@@ -94,14 +98,10 @@ static void __kdbus_ep_free(struct kref *kref)
 {
 	struct kdbus_ep *ep = container_of(kref, struct kdbus_ep, kref);
 
-	mutex_lock(&ep->bus->lock);
 	kdbus_ep_disconnect(ep);
-	mutex_unlock(&ep->bus->lock);
-
-	kdbus_bus_unref(ep->bus);
 	if (ep->policy_db)
 		kdbus_policy_db_free(ep->policy_db);
-
+	kdbus_bus_unref(ep->bus);
 	kfree(ep->name);
 	kfree(ep);
 }
@@ -146,8 +146,8 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
-		 kuid_t uid, kgid_t gid, bool policy_open)
+int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
+		 umode_t mode, kuid_t uid, kgid_t gid, bool policy_open)
 {
 	struct kdbus_ep *e;
 	int ret;
@@ -168,6 +168,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	e->uid = uid;
 	e->gid = gid;
 	e->mode = mode;
+	init_waitqueue_head(&e->wait);
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name)
@@ -178,20 +179,16 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 	i = idr_alloc(&bus->ns->idr, e, 1, 0, GFP_KERNEL);
 	if (i <= 0) {
 		ret = i;
-		goto exit_unlock;
+		goto exit;
 	}
 	e->minor = i;
-
-	/* get id for this endpoint from bus */
-	mutex_lock(&bus->lock);
-	e->id = bus->ep_id_next++;
-	mutex_unlock(&bus->lock);
+	mutex_unlock(&bus->ns->lock);
 
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	if (!e->dev) {
 		ret = -ENOMEM;
-		goto exit_unlock;
+		goto exit;
 	}
 
 	dev_set_name(e->dev, "%s/%s/%s", bus->ns->devpath, bus->name, name);
@@ -205,46 +202,25 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name, umode_t mode,
 		e->dev = NULL;
 	}
 
-	/* Link this endpoint to the bus it is on */
-	e->bus = kdbus_bus_ref(bus);
-	list_add_tail(&e->bus_entry, &bus->ep_list);
-
 	/* install policy */
 	e->policy_open = policy_open;
 	if (!policy_open) {
 		ret = kdbus_policy_db_new(&e->policy_db);
 		if (ret < 0)
-			goto exit_unlock;
+			goto exit;
 	}
 
-	init_waitqueue_head(&e->wait);
-
-	mutex_unlock(&bus->ns->lock);
+	/* link into bus  */
+	mutex_lock(&bus->lock);
+	e->id = bus->ep_id_next++;
+	e->bus = kdbus_bus_ref(bus);
+	list_add_tail(&e->bus_entry, &bus->ep_list);
+	mutex_unlock(&bus->lock);
 	return 0;
 
-exit_unlock:
-	mutex_unlock(&bus->ns->lock);
+exit:
 	kdbus_ep_unref(e);
 	return ret;
-}
-
-/**
- * kdbus_ep_remove() - remove endpoint
- * @ep:			Endpoint
- *
- * Returns: 0 on success, negative errno on failure.
- */
-int kdbus_ep_remove(struct kdbus_ep *ep)
-{
-	struct kdbus_bus *bus = ep->bus;
-
-	mutex_lock(&bus->ns->lock);
-	device_unregister(ep->dev);
-	list_del(&ep->bus_entry);
-	kdbus_ep_unref(ep);
-	mutex_unlock(&bus->ns->lock);
-	kdbus_bus_unref(bus);
-	return 0;
 }
 
 /**

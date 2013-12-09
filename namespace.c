@@ -88,13 +88,19 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 {
 	struct kdbus_bus *bus, *tmp;
 
-	mutex_lock(&kdbus_subsys_lock);
 
-	if (ns->disconnected)
-		goto exit_unlock;
+	mutex_lock(&ns->lock);
+	if (ns->disconnected) {
+		mutex_unlock(&ns->lock);
+		return;
+	}
+
 	ns->disconnected = true;
+	mutex_unlock(&ns->lock);
 
+	mutex_lock(&kdbus_subsys_lock);
 	list_del(&ns->namespace_entry);
+	mutex_unlock(&kdbus_subsys_lock);
 
 	/* remove any buses attached to this endpoint */
 	list_for_each_entry_safe(bus, tmp, &ns->bus_list, ns_entry) {
@@ -111,9 +117,6 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 		unregister_chrdev(ns->major, "kdbus");
 		ns->major = 0;
 	}
-
-exit_unlock:
-	mutex_unlock(&kdbus_subsys_lock);
 }
 
 static void __kdbus_ns_free(struct kref *kref)
