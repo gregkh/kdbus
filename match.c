@@ -28,12 +28,10 @@
 
 /**
  * struct kdbus_match_db - message filters
- * @kref:		Reference count
  * @entries:		List of matches
  * @entries_lock:	Match data lock
  */
 struct kdbus_match_db {
-	struct kref		kref;
 	struct list_head	entries;
 	struct mutex		entries_lock;
 };
@@ -111,11 +109,13 @@ static void kdbus_match_db_entry_free(struct kdbus_match_db_entry *e)
 	kfree(e);
 }
 
-static void __kdbus_match_db_free(struct kref *kref)
+/**
+ * kdbus_match_db_free() - free match db resources
+ * @db:			The match database
+ */
+void kdbus_match_db_free(struct kdbus_match_db *db)
 {
 	struct kdbus_match_db_entry *e, *tmp;
-	struct kdbus_match_db *db =
-		container_of(kref, struct kdbus_match_db, kref);
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
@@ -123,30 +123,6 @@ static void __kdbus_match_db_free(struct kref *kref)
 	mutex_unlock(&db->entries_lock);
 
 	kfree(db);
-}
-
-/**
- * kdbus_match_db_unref() - drop a reference on a match database
- * @db:			The match database
- *
- * When the last reference is dropped, the database's internal memory
- * is freed.
- */
-void kdbus_match_db_unref(struct kdbus_match_db *db)
-{
-	kref_put(&db->kref, __kdbus_match_db_free);
-}
-
-/**
- * kdbus_match_db_ref() - take a reference of a match database
- * @db:			The match database
- *
- * Returns: the database itself
- */
-struct kdbus_match_db *kdbus_match_db_ref(struct kdbus_match_db *db)
-{
-	kref_get(&db->kref);
-	return db;
 }
 
 /**
@@ -163,12 +139,10 @@ int kdbus_match_db_new(struct kdbus_match_db **db)
 	if (!d)
 		return -ENOMEM;
 
-	kref_init(&d->kref);
 	mutex_init(&d->entries_lock);
 	INIT_LIST_HEAD(&d->entries);
 
 	*db = d;
-
 	return 0;
 }
 
@@ -377,8 +351,9 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
  */
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
+	struct kdbus_conn *target_conn = NULL;
 	struct kdbus_match_db *db;
-	struct kdbus_cmd_match *cmd_match = NULL;
+	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_item *item;
 	struct kdbus_match_db_entry *e;
 	int ret;
@@ -388,23 +363,20 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		return ret;
 
 	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
-		struct kdbus_conn *targ_conn;
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		mutex_lock(&bus->lock);
-		targ_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
+		target_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
 		mutex_unlock(&bus->lock);
 
-		if (!targ_conn) {
+		if (!target_conn) {
 			ret = -ENXIO;
 			goto exit_free;
 		}
 
-		db = kdbus_match_db_ref(targ_conn->match_db);
-		kdbus_conn_unref(targ_conn);
+		db = target_conn->match_db;
 	} else {
-		/* ensure a ref'ed db after this block in any case */
-		db = kdbus_match_db_ref(conn->match_db);
+		db = conn->match_db;
 	}
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
@@ -483,9 +455,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		kdbus_match_db_entry_free(e);
 
 	mutex_unlock(&db->entries_lock);
-	kdbus_match_db_unref(db);
 
 exit_free:
+	kdbus_conn_unref(target_conn);
 	kfree(cmd_match);
 	return ret;
 }
@@ -501,6 +473,7 @@ exit_free:
  */
 int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 {
+	struct kdbus_conn *target_conn = NULL;
 	struct kdbus_match_db *db;
 	struct kdbus_cmd_match *cmd_match = NULL;
 	struct kdbus_match_db_entry *e, *tmp;
@@ -511,22 +484,20 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 		return ret;
 
 	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
-		struct kdbus_conn *targ_conn;
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		mutex_lock(&bus->lock);
-		targ_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
+		target_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
 		mutex_unlock(&bus->lock);
 
-		if (targ_conn) {
-			db = kdbus_match_db_ref(targ_conn->match_db);
-			kdbus_conn_unref(targ_conn);
-		} else {
+		if (!target_conn) {
 			kfree(cmd_match);
 			return -ENXIO;
 		}
+
+		db = target_conn->match_db;
 	} else {
-		db = kdbus_match_db_ref(conn->match_db);
+		db = conn->match_db;
 	}
 
 	mutex_lock(&db->entries_lock);
@@ -536,7 +507,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 			kdbus_match_db_entry_free(e);
 	mutex_unlock(&db->entries_lock);
 
-	kdbus_match_db_unref(db);
+	kdbus_conn_unref(target_conn);
 	kfree(cmd_match);
 
 	return 0;
