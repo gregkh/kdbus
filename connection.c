@@ -1206,41 +1206,26 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	const struct kdbus_item *item;
 	const char *starter_name = NULL;
 
-	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
-	if (!conn)
-		return -ENOMEM;
-
-	ret = kdbus_pool_new(&conn->pool, hello->pool_size);
-	if (ret < 0)
-		return ret;
-
 	KDBUS_ITEM_FOREACH(item, hello, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_STARTER_NAME:
-			if (!(hello->conn_flags & KDBUS_HELLO_STARTER)) {
-				ret = -EINVAL;
-				break;
-			}
+			if (!(hello->conn_flags & KDBUS_HELLO_STARTER))
+				return -EINVAL;
 
 			starter_name = item->str;
 			break;
 
 		default:
-			ret = -EINVAL;
-			break;
+			return -ENOTSUPP;
 		}
-
-		if (ret < 0)
-			break;
 	}
 
 	if ((hello->conn_flags & KDBUS_HELLO_STARTER) && !starter_name)
-		ret = -EINVAL;
+		return -EINVAL;
 
-	if (ret < 0)
-		goto exit_unref;
-
-	conn->ep = ep;
+	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
+	if (!conn)
+		return -ENOMEM;
 
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);
@@ -1248,18 +1233,22 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->monitor_entry);
-
 	INIT_WORK(&conn->work, kdbus_conn_work);
-
 	init_timer(&conn->timer);
 	conn->timer.expires = 0;
 	conn->timer.function = kdbus_conn_timer_func;
 	conn->timer.data = (unsigned long) conn;
 	add_timer(&conn->timer);
 
+	ret = kdbus_pool_new(&conn->pool, hello->pool_size);
+	if (ret < 0)
+		goto exit_unref;
+
 	ret = kdbus_match_db_new(&conn->match_db);
 	if (ret < 0) 
 		goto exit_unref;
+
+	conn->ep = kdbus_ep_ref(ep);
 
 	/* link into bus; get new id for this connection */
 	mutex_lock(&bus->lock);

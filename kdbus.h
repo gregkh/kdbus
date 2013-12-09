@@ -856,7 +856,7 @@ enum kdbus_ioctl_type {
  * @ENOSYS:		The requested functionality is not available.
  * @ENOTCONN:		The addressed peer is not an active connection.
  * @ENOTSUPP:		The feature negotiation failed, a not supported feature
- * 			was requested.
+ * 			was requested, or an unknown item type was received.
  * @ENOTTY:		An unknown ioctl command was received.
  * @ENOTUNIQ:		A specific data type was addressed to a broadcast
  * 			address, but only direct addresses support this kind of
