@@ -201,7 +201,7 @@ static int send_message(const struct kdbus_conn *conn,
 	msg->src_id = conn->hello.id;
 	msg->dst_id = name ? 0 : dst_id;
 	msg->cookie = cookie;
-	msg->payload_type = KDBUS_PAYLOAD_DBUS1;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
 
 	item = msg->items;
 

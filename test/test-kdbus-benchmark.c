@@ -79,7 +79,7 @@ static void add_stats(const struct timeval *tv)
 		stats.latency_high = diff;
 }
 
-static int 
+static int
 send_echo_request(struct conn *conn, uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
@@ -123,7 +123,7 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 	msg->size = size;
 	msg->src_id = conn->id;
 	msg->dst_id = dst_id;
-	msg->payload_type = KDBUS_PAYLOAD_DBUS1;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
 
 	item = msg->items;
 

@@ -143,7 +143,7 @@ int msg_send(const struct conn *conn,
 	msg->src_id = conn->id;
 	msg->dst_id = name ? 0 : dst_id;
 	msg->cookie = cookie;
-	msg->payload_type = KDBUS_PAYLOAD_DBUS1;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
 
 	item = msg->items;
 
@@ -582,4 +582,3 @@ void add_match_empty(int fd)
 	if (ret < 0)
 		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
 }
-
