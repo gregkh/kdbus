@@ -326,13 +326,11 @@ enum kdbus_msg_flags {
 /**
  * enum kdbus_payload_type - type of payload carried by message
  * @KDBUS_PAYLOAD_KERNEL:	Kernel-generated simple message
- * @KDBUS_PAYLOAD_DBUS1:	Legacy D-Bus version 1 marshaling
- * @KDBUS_PAYLOAD_GVARIANT:	GVariant marshaling
+ * @KDBUS_PAYLOAD_DBUS:	        D-Bus marshalling
  */
 enum kdbus_payload_type {
 	KDBUS_PAYLOAD_KERNEL,
-	KDBUS_PAYLOAD_DBUS1	= 0x4442757356657231ULL, /* 'DBusVer1' */
-	KDBUS_PAYLOAD_GVARIANT	= 0x4756617269616e74ULL, /* 'GVariant' */
+	KDBUS_PAYLOAD_DBUS	= 0x4442757356657231ULL, /* 'DBusVer1' */
 };
 
 /**
