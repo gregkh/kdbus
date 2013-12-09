@@ -47,8 +47,6 @@ struct kdbus_name_queue_item {
 
 static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 {
-	kdbus_conn_unref(e->conn);
-	kdbus_conn_unref(e->starter);
 	hash_del(&e->hentry);
 	kfree(e->name);
 	kfree(e);
@@ -116,19 +114,26 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 	kfree(q);
 }
 
-static void kdbus_name_entry_detach(struct kdbus_name_entry *e)
+static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 {
 	struct kdbus_conn *conn = e->conn;
+
+	BUG_ON(!e->conn);
 
 	mutex_lock(&conn->lock);
 	conn->names--;
 	list_del(&e->conn_entry);
 	mutex_unlock(&conn->lock);
+
+	kdbus_conn_unref(conn);
+	e->conn = NULL;
 }
 
-static void kdbus_name_entry_attach(struct kdbus_name_entry *e,
-				    struct kdbus_conn *conn)
+static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
+				       struct kdbus_conn *conn)
 {
+	BUG_ON(e->conn);
+
 	mutex_lock(&conn->lock);
 	e->conn = kdbus_conn_ref(conn);
 	list_add_tail(&e->conn_entry, &e->conn->names_list);
@@ -141,42 +146,41 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 {
 	struct kdbus_name_queue_item *q;
 
-	kdbus_name_entry_detach(e);
-
-	/*
-	 * When a name is released, check if there is any connection
-	 * waiting to take over. If there isn't, check if the name has
-	 * had a starter; in this case, hand the name back to it.
-	 */
 	if (list_empty(&e->queue_list)) {
-		if (e->starter) {
+		/* if the name has a starter connection, hand it back */
+		if (e->starter && e->starter != e->conn) {
 			kdbus_notify_name_change(e->conn->ep,
 						 KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->starter->id,
 						 e->flags, e->name,
 						 notification_list);
-			kdbus_name_entry_attach(e, e->starter);
-		} else {
-			kdbus_notify_name_change(e->conn->ep,
-						 KDBUS_ITEM_NAME_REMOVE,
-						 e->conn->id, 0,
-						 e->flags, e->name,
-						 notification_list);
-			kdbus_name_entry_free(e);
+			kdbus_name_entry_remove_owner(e);
+			kdbus_name_entry_set_owner(e, e->starter);
+			return;
 		}
-	} else {
-		struct kdbus_conn *old_conn = e->conn;
 
-		q = list_first_entry(&e->queue_list,
-				     struct kdbus_name_queue_item,
-				     entry_entry);
-		e->flags = q->flags & ~KDBUS_NAME_QUEUE;
-		kdbus_name_entry_attach(e, q->conn);
-		kdbus_name_queue_item_free(q);
-		kdbus_notify_name_change(old_conn->ep, KDBUS_ITEM_NAME_CHANGE,
-					 old_conn->id, e->conn->id,
-					 e->flags, e->name, notification_list);
+		/* release the name */
+		kdbus_notify_name_change(e->conn->ep,
+					 KDBUS_ITEM_NAME_REMOVE,
+					 e->conn->id, 0,
+					 e->flags, e->name,
+					 notification_list);
+		kdbus_name_entry_remove_owner(e);
+		kdbus_name_entry_free(e);
+		return;
 	}
+
+	/* give it to first waiter in the queue */
+	q = list_first_entry(&e->queue_list,
+			     struct kdbus_name_queue_item,
+			     entry_entry);
+	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_CHANGE,
+				 e->conn->id, q->conn->id,
+				 q->flags, e->name, notification_list);
+	e->flags = q->flags & ~KDBUS_NAME_QUEUE;
+	kdbus_name_entry_remove_owner(e);
+	kdbus_name_entry_set_owner(e, q->conn);
+	kdbus_name_queue_item_free(q);
 }
 
 static int kdbus_name_release(struct kdbus_name_entry *e,
@@ -281,7 +285,6 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 				      struct kdbus_name_entry *e, u64 *flags,
 				      struct list_head *notification_list)
 {
-	u64 old_id;
 	int ret;
 
 	/*
@@ -291,13 +294,13 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	 */
 	if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 	    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
+
+		//FIXME: why is this done? needs comment
 		if (e->flags & KDBUS_NAME_QUEUE) {
 			ret = kdbus_name_queue_conn(e->conn, &e->flags, e);
 			if (ret < 0)
 				return -ENOMEM;
 		}
-
-		old_id = e->conn->id;
 
 		/*
 		 * In case the name is owned by a starter connection, take it over.
@@ -308,23 +311,22 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 			if (ret < 0)
 				return ret;
 
-			kdbus_conn_unref(e->conn);
-			e->conn = kdbus_conn_ref(conn);
-
+			//FIXME: this is wrong, we need to restore the starter
+			//systemd needs to be fixed, runs into a loop on shutdown
+			//when we do not disable it here
 			kdbus_conn_unref(e->starter);
 			e->starter = NULL;
+
 		}
 
-		/* update the owner of the name */
-		kdbus_name_entry_detach(e);
-		kdbus_name_entry_attach(e, conn);
-
+		kdbus_notify_name_change(conn->ep,
+					 KDBUS_ITEM_NAME_CHANGE,
+					 e->conn->id, conn->id, *flags,
+					 e->name, notification_list);
+		kdbus_name_entry_remove_owner(e);
+		kdbus_name_entry_set_owner(e, conn);
 		e->flags = *flags;
-
-		return kdbus_notify_name_change(conn->ep,
-						KDBUS_ITEM_NAME_CHANGE,
-						old_id, conn->id, *flags,
-						e->name, notification_list);
+		return 0;
 	}
 
 	if (*flags & KDBUS_NAME_QUEUE)
@@ -410,16 +412,19 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	e = __kdbus_name_lookup(reg, hash, name);
 	if (e) {
 		if (e->conn == conn) {
+			//FIXME: weird API? data change + error return?
 			e->flags = flags;
 			ret = -EALREADY;
 			goto exit_unlock;
-		} else {
-			ret = kdbus_name_handle_conflict(reg, conn, e, &flags,
-							 &notification_list);
-			if (ret < 0)
-				goto exit_unlock;
 		}
 
+		if (conn->flags & KDBUS_HELLO_STARTER && e->starter) {
+			ret = -EALREADY;
+			goto exit_unlock;
+		}
+
+		ret = kdbus_name_handle_conflict(reg, conn, e, &flags,
+						 &notification_list);
 		goto exit_unlock;
 	}
 
@@ -445,7 +450,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
 	hash_add(reg->entries_hash, &e->hentry, hash);
-	kdbus_name_entry_attach(e, conn);
+	kdbus_name_entry_set_owner(e, conn);
 
 	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD, 0,
 				 e->conn->id, e->flags, e->name,

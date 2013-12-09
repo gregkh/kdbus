@@ -522,7 +522,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		if (!name_entry)
 			return -ESRCH;
 
-		if (name_entry->starter)
+		if (!name_entry->conn && name_entry->starter)
 			c = kdbus_conn_ref(name_entry->starter);
 		else
 			c = kdbus_conn_ref(name_entry->conn);
