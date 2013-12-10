@@ -643,11 +643,11 @@ exit_free:
 	return ret;
 }
 
-static int kdbus_cmd_name_list_write(struct kdbus_conn *conn,
-				     struct kdbus_conn *c,
-				     size_t *pos,
-				     struct kdbus_name_entry *e,
-				     bool write)
+static int kdbus_name_list_write(struct kdbus_conn *conn,
+				 struct kdbus_conn *c,
+				 size_t *pos,
+				 struct kdbus_name_entry *e,
+				 bool write)
 {
 	size_t p = *pos;
 	const size_t len = sizeof(struct kdbus_cmd_name);
@@ -687,8 +687,8 @@ static int kdbus_cmd_name_list_write(struct kdbus_conn *conn,
 }
 
 
-static int kdbus_cmd_name_list_all(struct kdbus_conn *conn, u64 flags,
-				   size_t *pos, bool write)
+static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
+			       size_t *pos, bool write)
 {
 	size_t p = *pos;
 	int i;
@@ -704,16 +704,17 @@ static int kdbus_cmd_name_list_all(struct kdbus_conn *conn, u64 flags,
 		    c->flags & KDBUS_HELLO_STARTER)
 			continue;
 
-		/* names the connection owns */
-		list_for_each_entry(e, &c->names_list, conn_entry) {
-			if (!(flags & KDBUS_NAME_LIST_NAMES))
-				continue;
+		/* all names the connection owns */
+		if (flags & KDBUS_NAME_LIST_NAMES ||
+		    c->flags & KDBUS_HELLO_STARTER) {
+			list_for_each_entry(e, &c->names_list, conn_entry) {
+				ret = kdbus_name_list_write(conn, c, &p,
+							    e, write);
+				if (ret < 0)
+					return ret;
 
-			ret = kdbus_cmd_name_list_write(conn, c, &p, e, write);
-			if (ret < 0)
-				return ret;
-
-			added = true;
+				added = true;
+			}
 		}
 
 		/* queue of names the connection is currently waiting for */
@@ -721,8 +722,8 @@ static int kdbus_cmd_name_list_all(struct kdbus_conn *conn, u64 flags,
 			struct kdbus_name_queue_item *q;
 
 			list_for_each_entry(q, &c->names_queue_list, entry_entry) {
-				ret = kdbus_cmd_name_list_write(conn, c, &p, q->entry,
-								write);
+				ret = kdbus_name_list_write(conn, c, &p,
+							    q->entry, write);
 				if (ret < 0)
 					return ret;
 
@@ -732,7 +733,7 @@ static int kdbus_cmd_name_list_all(struct kdbus_conn *conn, u64 flags,
 
 		/* nothing added so far, just add the unique ID */
 		if (!added && flags & KDBUS_NAME_LIST_UNIQUE) {
-			ret = kdbus_cmd_name_list_write(conn, c, &p, NULL, write);
+			ret = kdbus_name_list_write(conn, c, &p, NULL, write);
 			if (ret < 0)
 				return ret;
 		}
@@ -771,7 +772,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	size = sizeof(struct kdbus_name_list);
 
 	/* size of records */
-	ret = kdbus_cmd_name_list_all(conn, cmd_list->flags, &size, false);
+	ret = kdbus_name_list_all(conn, cmd_list->flags, &size, false);
 	if (ret < 0)
 		goto exit_unlock;
 
@@ -790,7 +791,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	pos += sizeof(struct kdbus_name_list);
 
 	/* copy data */
-	ret = kdbus_cmd_name_list_all(conn, cmd_list->flags, &pos, true);
+	ret = kdbus_name_list_all(conn, cmd_list->flags, &pos, true);
 	if (ret < 0)
 		goto exit_unlock;
 
