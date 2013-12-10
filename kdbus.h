@@ -817,6 +817,8 @@ enum kdbus_ioctl_type {
 /*
  * errno - api error codes
  * @E2BIG:		A message contains too many records or items.
+ * @EADDRINUSE:		A well-known bus name is already taken by another
+ * 			connection.
  * @EADDRNOTAVAIL:	A message flagged not to activate a service, addressed
  * 			a service which is not currently running.
  * @EAGAIN:		No messages are queued at the moment.
@@ -824,8 +826,6 @@ enum kdbus_ioctl_type {
  * @EBADFD:		A bus connection is in a corrupted state.
  * @EBADMSG:		Passed data contains a combination of conflicting or
  * 			inconsistent types.
- * @EBUSY:		A well-known bus name is already taken by another
- * 			connection.
  * @ECOMM:		A peer does not accept the file descriptors addressed
  * 			to it.
  * @EDESTADDRREQ:	The well-known bus name is required but missing.

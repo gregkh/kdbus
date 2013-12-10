@@ -206,7 +206,8 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 		return 0;
 	}
 
-	return -ESRCH;
+	/* the name belongs to somebody else */
+	return -EADDRINUSE;
 }
 
 /**
