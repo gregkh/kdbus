@@ -609,7 +609,7 @@ struct kdbus_name_list {
  * 			@name is required. kdbus will look up the name to determine
  * 			the ID in this case.
  * @offset:		Returned offset in the caller's pool buffer where the
- * 			kdbus_name_info struct result is stored. The user must
+ * 			kdbus_conn_info struct result is stored. The user must
  * 			use KDBUS_CMD_FREE to free the allocated memory.
  * @name:		The optional well-known name to look up. Only needed in
  * 			case @id is zero.
