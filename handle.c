@@ -32,6 +32,7 @@
 #include "match.h"
 #include "names.h"
 #include "policy.h"
+#include "handle.h"
 
 enum kdbus_handle_type {
 	_KDBUS_HANDLE_NULL,
