@@ -330,7 +330,7 @@ enum kdbus_msg_flags {
  */
 enum kdbus_payload_type {
 	KDBUS_PAYLOAD_KERNEL,
-	KDBUS_PAYLOAD_DBUS	= 0x4442757356657231ULL, /* 'DBusVer1' */
+	KDBUS_PAYLOAD_DBUS	= 0x4442757344427573ULL, /* 'DBusDBus' */
 };
 
 /**
