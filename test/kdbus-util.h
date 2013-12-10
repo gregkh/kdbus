@@ -22,12 +22,12 @@
 #define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8((s) + KDBUS_ITEM_HEADER_SIZE)
 
-#define KDBUS_ITEM_NEXT(part) \
-	(typeof(part))(((uint8_t *)part) + KDBUS_ALIGN8((part)->size))
-#define KDBUS_ITEM_FOREACH(part, head, first)				\
-	for (part = (head)->first;					\
-	     (uint8_t *)(part) < (uint8_t *)(head) + (head)->size;	\
-	     part = KDBUS_ITEM_NEXT(part))
+#define KDBUS_ITEM_NEXT(item) \
+	(typeof(item))(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
+#define KDBUS_ITEM_FOREACH(item, head, first)				\
+	for (item = (head)->first;					\
+	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;	\
+	     item = KDBUS_ITEM_NEXT(item))
 
 struct conn {
 	int fd;
