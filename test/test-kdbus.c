@@ -256,7 +256,7 @@ static int send_message(const struct kdbus_conn *conn,
 
 static int check_nsmake(struct kdbus_check_env *env)
 {
-	int fd;
+	int fd, fd2;
 	struct {
 		struct kdbus_cmd_ns_make head;
 
@@ -288,6 +288,12 @@ static int check_nsmake(struct kdbus_check_env *env)
 	/* can't use the same fd for ns make twice */
 	ret = ioctl(fd, KDBUS_CMD_NS_MAKE, &ns_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+
+	/* can't register the same name twice */
+	fd2 = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	ret = ioctl(fd2, KDBUS_CMD_NS_MAKE, &ns_make);
+	ASSERT_RETURN(ret == -1 && errno == EEXIST);
+	close(fd2);
 
 	close(fd);
 	ASSERT_RETURN(access("/dev/kdbus/ns/blah/control", F_OK) < 0);
