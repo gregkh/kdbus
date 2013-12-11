@@ -128,7 +128,8 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 
 	/* disconnect from namespace */
 	mutex_lock(&bus->ns->lock);
-	list_del(&bus->ns_entry);
+	if (bus->ns)
+		list_del(&bus->ns_entry);
 	mutex_unlock(&bus->ns->lock);
 
 	/* remove all endpoints attached to this bus */
@@ -204,7 +205,6 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
 	INIT_LIST_HEAD(&b->monitors_list);
-	b->ns = kdbus_ns_ref(ns);
 
 	/* generate unique ID for this bus */
 	get_random_bytes(b->id128, sizeof(b->id128));
@@ -227,7 +227,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	if (ret < 0)
 		goto exit;
 
-	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
+	ret = kdbus_ep_new(b, ns, "bus", mode, uid, gid,
 			   b->bus_flags & KDBUS_MAKE_POLICY_OPEN);
 	if (ret < 0)
 		goto exit;
@@ -236,6 +236,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	mutex_lock(&ns->lock);
 	b->id = ns->bus_id_next++;
 	list_add_tail(&b->ns_entry, &ns->bus_list);
+	b->ns = kdbus_ns_ref(ns);
 	mutex_unlock(&ns->lock);
 
 	*bus = b;

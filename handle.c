@@ -305,8 +305,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_ep_new(handle->ep->bus, n, mode,
-				   current_fsuid(), gid,
+		ret = kdbus_ep_new(handle->ep->bus, handle->ep->bus->ns, n,
+				   mode, current_fsuid(), gid,
 				   m->flags & KDBUS_MAKE_POLICY_OPEN);
 
 		handle->type = KDBUS_HANDLE_EP_OWNER;
@@ -504,6 +504,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			list_del(&mconn->monitor_entry);
 		mutex_unlock(&bus->lock);
 
+		//FIXME: keep ref around, we cannot add things to lists without pinning
 		kdbus_conn_unref(mconn);
 
 		break;

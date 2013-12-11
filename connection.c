@@ -1244,7 +1244,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_unref;
 
 	ret = kdbus_match_db_new(&conn->match_db);
-	if (ret < 0) 
+	if (ret < 0)
 		goto exit_unref;
 
 	conn->ep = kdbus_ep_ref(ep);

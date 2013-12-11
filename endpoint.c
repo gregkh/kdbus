@@ -75,7 +75,8 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 
 	/* disconnect from bus */
 	mutex_lock(&ep->bus->lock);
-	list_del(&ep->bus_entry);
+	if (ep->bus)
+		list_del(&ep->bus_entry);
 	mutex_unlock(&ep->bus->lock);
 
 	if (ep->dev) {
@@ -135,6 +136,8 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 /**
  * kdbus_ep_new() - create a new endpoint
  * @bus:		The bus this endpoint will be created for
+ * @namespace:		The namespace of the bus; needed separately when
+ * 			creating the default endpoint for a new bus
  * @name:		The name of the endpoint
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
@@ -146,7 +149,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
+int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 		 umode_t mode, kuid_t uid, kgid_t gid, bool policy_open)
 {
 	struct kdbus_ep *e;
@@ -174,15 +177,15 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (!e->name)
 		return -ENOMEM;
 
-	mutex_lock(&bus->ns->lock);
+	mutex_lock(&ns->lock);
 	/* register minor in our endpoint map */
-	i = idr_alloc(&bus->ns->idr, e, 1, 0, GFP_KERNEL);
+	i = idr_alloc(&ns->idr, e, 1, 0, GFP_KERNEL);
 	if (i <= 0) {
 		ret = i;
 		goto exit;
 	}
 	e->minor = i;
-	mutex_unlock(&bus->ns->lock);
+	mutex_unlock(&ns->lock);
 
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
@@ -191,10 +194,10 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		goto exit;
 	}
 
-	dev_set_name(e->dev, "%s/%s/%s", bus->ns->devpath, bus->name, name);
+	dev_set_name(e->dev, "%s/%s/%s", ns->devpath, bus->name, name);
 	e->dev->bus = &kdbus_subsys;
 	e->dev->type = &kdbus_devtype_ep;
-	e->dev->devt = MKDEV(bus->ns->major, e->minor);
+	e->dev->devt = MKDEV(ns->major, e->minor);
 	dev_set_drvdata(e->dev, e);
 	ret = device_register(e->dev);
 	if (ret < 0) {
