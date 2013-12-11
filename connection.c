@@ -325,8 +325,6 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 	if (!queue)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&queue->entry);
-
 	/* copy message properties we need for the queue management */
 	queue->deadline_ns = deadline_ns;
 	queue->src_id = kmsg->msg.src_id;
