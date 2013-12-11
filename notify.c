@@ -120,7 +120,6 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     const char *name,
 			     struct list_head *queue_list)
 {
-	struct kdbus_notify_name_change *name_change;
 	struct kdbus_kmsg *kmsg = NULL;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
@@ -130,25 +129,23 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	if (!queue_list)
 		return 0;
 
-	extra_size = sizeof(*name_change) + strlen(name);
+	extra_size = sizeof(struct kdbus_notify_name_change) + strlen(name);
 	ret = kdbus_kmsg_new(extra_size, &kmsg);
 	if (ret < 0)
 		return ret;
 
 	kmsg->notification_type = type;
 	msg = &kmsg->msg;
-	item = msg->items;
-	name_change = (struct kdbus_notify_name_change *)item->data;
-
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
 	msg->src_id = KDBUS_SRC_ID_KERNEL;
 
+	item = msg->items;
 	item->type = type;
 
-	name_change->old_id = old_id;
-	name_change->new_id = new_id;
-	name_change->flags = flags;
-	strcpy(name_change->name, name);
+	item->name_change.old_id = old_id;
+	item->name_change.new_id = new_id;
+	item->name_change.flags = flags;
+	strcpy(item->name_change.name, name);
 
 	list_add_tail(&kmsg->queue_entry, queue_list);
 
@@ -168,28 +165,24 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 			   u64 id, u64 flags)
 {
-	struct kdbus_notify_id_change *id_change;
 	struct kdbus_kmsg *kmsg = NULL;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = kdbus_kmsg_new(sizeof(*id_change), &kmsg);
+	ret = kdbus_kmsg_new(sizeof(struct kdbus_notify_id_change), &kmsg);
 	if (ret < 0)
 		return ret;
 
 	kmsg->notification_type = type;
 	msg = &kmsg->msg;
-	item = msg->items;
-	id_change = (struct kdbus_notify_id_change *)item->data;
-
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
 	msg->src_id = KDBUS_SRC_ID_KERNEL;
 
+	item = msg->items;
 	item->type = type;
-
-	id_change->id = id;
-	id_change->flags = flags;
+	item->id_change.id = id;
+	item->id_change.flags = flags;
 
 	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
 	kdbus_kmsg_free(kmsg);
