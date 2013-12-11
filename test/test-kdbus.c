@@ -722,7 +722,7 @@ static int run_tests(void)
 			continue;
 		}
 
-		printf("RUNING TEST '%s' ", c->name);
+		printf("RUNNING TEST '%s' ", c->name);
 		for (i = 0; i < 30 - strlen(c->name); i++)
 			printf(".");
 		printf(" ");
