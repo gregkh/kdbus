@@ -149,6 +149,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	if (list_empty(&e->queue_list)) {
 		/* if the name has a starter connection, hand it back */
 		if (e->starter && e->starter != e->conn) {
+			e->flags = KDBUS_NAME_ALLOW_REPLACEMENT;
 			kdbus_notify_name_change(e->conn->ep,
 						 KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->starter->id,
@@ -311,13 +312,6 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 			ret = kdbus_conn_move_messages(conn, e->starter);
 			if (ret < 0)
 				return ret;
-
-			//FIXME: this is wrong, we need to restore the starter
-			//systemd needs to be fixed, runs into a loop on shutdown
-			//when we do not disable it here
-			kdbus_conn_unref(e->starter);
-			e->starter = NULL;
-
 		}
 
 		kdbus_notify_name_change(conn->ep,
