@@ -313,7 +313,6 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 
 	ce->conn_a = conn_a;
 	ce->conn_b = conn_b;
-	INIT_LIST_HEAD(&ce->timeout_entry);
 
 	return ce;
 }

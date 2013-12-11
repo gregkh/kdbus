@@ -32,7 +32,7 @@
  * @entries_lock:	Match data lock
  */
 struct kdbus_match_db {
-	struct list_head	entries;
+	struct list_head	entries_list;
 	struct mutex		entries_lock;
 };
 
@@ -118,7 +118,7 @@ void kdbus_match_db_free(struct kdbus_match_db *db)
 	struct kdbus_match_db_entry *e, *tmp;
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
+	list_for_each_entry_safe(e, tmp, &db->entries_list, list_entry)
 		kdbus_match_db_entry_free(e);
 	mutex_unlock(&db->entries_lock);
 
@@ -140,7 +140,7 @@ int kdbus_match_db_new(struct kdbus_match_db **db)
 		return -ENOMEM;
 
 	mutex_init(&d->entries_lock);
-	INIT_LIST_HEAD(&d->entries);
+	INIT_LIST_HEAD(&d->entries_list);
 
 	*db = d;
 	return 0;
@@ -214,7 +214,7 @@ bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
 	bool matched = false;
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry(e, &db->entries, list_entry) {
+	list_for_each_entry(e, &db->entries_list, list_entry) {
 		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
 		    e->src_id != conn_src->id)
 			continue;
@@ -237,7 +237,7 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 	bool matched = false;
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry(e, &db->entries, list_entry) {
+	list_for_each_entry(e, &db->entries_list, list_entry) {
 		struct kdbus_match_db_entry_item *ei;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
@@ -386,7 +386,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	}
 
 	mutex_lock(&db->entries_lock);
-	INIT_LIST_HEAD(&e->list_entry);
 	INIT_LIST_HEAD(&e->items_list);
 	e->id = cmd_match->id;
 	e->src_id = cmd_match->src_id;
@@ -408,7 +407,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		}
 
 		ei->type = item->type;
-		INIT_LIST_HEAD(&ei->list_entry);
 		size = item->size - offsetof(struct kdbus_item, data);
 
 		switch (item->type) {
@@ -450,7 +448,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		ret = -EINVAL;
 
 	if (ret >= 0)
-		list_add_tail(&e->list_entry, &db->entries);
+		list_add_tail(&e->list_entry, &db->entries_list);
 	else
 		kdbus_match_db_entry_free(e);
 
@@ -501,7 +499,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 	}
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry_safe(e, tmp, &db->entries, list_entry)
+	list_for_each_entry_safe(e, tmp, &db->entries_list, list_entry)
 		if (e->cookie == cmd_match->cookie &&
 		    e->id == cmd_match->id)
 			kdbus_match_db_entry_free(e);

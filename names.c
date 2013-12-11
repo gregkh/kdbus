@@ -443,7 +443,6 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	e->flags = flags;
 	INIT_LIST_HEAD(&e->queue_list);
-	INIT_LIST_HEAD(&e->conn_entry);
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
 
