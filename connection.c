@@ -843,7 +843,11 @@ int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 
 	mutex_lock(&conn->lock);
 	if (conn->msg_count == 0) {
-		ret = -EAGAIN;
+		if (unlikely(conn->ep->disconnected))
+			ret = -ECONNRESET;
+		else
+			ret = -EAGAIN;
+
 		goto exit_unlock;
 	}
 
