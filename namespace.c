@@ -25,9 +25,6 @@
 #include "namespace.h"
 #include "bus.h"
 
-/* global list of all namespaces */
-static LIST_HEAD(namespace_list);
-
 /* map of majors to namespaces */
 static DEFINE_IDR(kdbus_ns_major_idr);
 
@@ -99,7 +96,8 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 	mutex_unlock(&ns->lock);
 
 	mutex_lock(&kdbus_subsys_lock);
-	list_del(&ns->namespace_entry);
+	if (ns->parent)
+		list_del(&ns->ns_entry);
 	mutex_unlock(&kdbus_subsys_lock);
 
 	/* remove any buses attached to this endpoint */
@@ -124,6 +122,7 @@ static void __kdbus_ns_free(struct kref *kref)
 	struct kdbus_ns *ns = container_of(kref, struct kdbus_ns, kref);
 
 	kdbus_ns_disconnect(ns);
+	kdbus_ns_unref(ns->parent);
 	kfree(ns->name);
 	kfree(ns->devpath);
 	kfree(ns);
@@ -152,9 +151,7 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char 
 	struct kdbus_ns *ns = NULL;
 	struct kdbus_ns *n;
 
-	list_for_each_entry(n, &namespace_list, namespace_entry) {
-		if (n->parent != parent)
-			continue;
+	list_for_each_entry(n, &parent->ns_list, ns_entry) {
 		if (strcmp(n->name, name))
 			continue;
 
@@ -211,6 +208,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&n->bus_list);
+	INIT_LIST_HEAD(&n->ns_list);
 	kref_init(&n->kref);
 	n->mode = mode;
 	idr_init(&n->idr);
@@ -236,7 +234,6 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 			goto exit_unlock;
 		}
 
-		n->parent = parent;
 		n->devpath = kasprintf(GFP_KERNEL, "%s/ns/%s", parent->devpath, name);
 		if (!n->devpath) {
 			ret = -ENOMEM;
@@ -287,7 +284,11 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 		goto exit_unlock;
 	}
 
-	list_add_tail(&n->namespace_entry, &namespace_list);
+	/* link into parent namespace */
+	if (parent) {
+		n->parent = kdbus_ns_ref(parent);
+		list_add_tail(&n->ns_entry, &parent->ns_list);
+	}
 	mutex_unlock(&kdbus_subsys_lock);
 
 	*ns = n;

@@ -19,6 +19,7 @@
  * @disconnected:	Invalidated data
  * @name:		Name of the namespace
  * @parent:		Parent namespace
+ * @ns_list:		List of child namespaces
  * @id:			Global id of this namespace
  * @devpath:		/dev base directory path
  * @major:		Device major number for all nodes
@@ -27,7 +28,7 @@
  * @dev:		Control device node, minor == 0
  * @lock:		Namespace data lock
  * @bus_id_next:	Next bus id sequence number
- * @namespace_entry:	Kdbus' global list of namespaces
+ * @ns_entry:		Entry in parent namespace
  * @bus_list:		Buses in this namespace
  *
  * A namespace provides a "control" device node. Every namespace has its
@@ -45,6 +46,7 @@ struct kdbus_ns {
 	bool disconnected;
 	const char *name;
 	struct kdbus_ns *parent;
+	struct list_head ns_list;
 	u64 id;
 	const char *devpath;
 	unsigned int major;
@@ -53,7 +55,7 @@ struct kdbus_ns {
 	struct device *dev;
 	struct mutex lock;
 	u64 bus_id_next;
-	struct list_head namespace_entry;
+	struct list_head ns_entry;
 	struct list_head bus_list;
 };
 
