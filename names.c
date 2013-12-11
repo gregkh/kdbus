@@ -149,7 +149,8 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	if (list_empty(&e->queue_list)) {
 		/* if the name has a starter connection, hand it back */
 		if (e->starter && e->starter != e->conn) {
-			e->flags = KDBUS_NAME_ALLOW_REPLACEMENT;
+			e->flags = KDBUS_NAME_ALLOW_REPLACEMENT |
+				   KDBUS_NAME_STARTER;
 			kdbus_notify_name_change(e->conn->ep,
 						 KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->starter->id,
@@ -312,6 +313,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 			ret = kdbus_conn_move_messages(conn, e->starter);
 			if (ret < 0)
 				return ret;
+			e->flags &= ~KDBUS_NAME_STARTER;
 		}
 
 		kdbus_notify_name_change(conn->ep,
@@ -438,7 +440,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	if (conn->flags & KDBUS_HELLO_STARTER) {
 		e->starter = kdbus_conn_ref(conn);
-		flags = KDBUS_NAME_ALLOW_REPLACEMENT;
+		flags = KDBUS_NAME_ALLOW_REPLACEMENT|KDBUS_NAME_STARTER;
 	}
 
 	e->flags = flags;

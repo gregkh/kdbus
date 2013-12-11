@@ -527,18 +527,17 @@ struct kdbus_cmd_ns_make {
 /**
  * enum kdbus_name_flags - properties of a well-known name
  * @KDBUS_NAME_REPLACE_EXISTING:	Try to replace name of other connections
- * @KDBUS_NAME_QUEUE:			Name should be queued if busy
  * @KDBUS_NAME_ALLOW_REPLACEMENT:	Allow the replacement of the name
+ * @KDBUS_NAME_QUEUE:			Name should be queued if busy
  * @KDBUS_NAME_IN_QUEUE:		Name is queued
+ * @KDBUS_NAME_STARTER:			Name is owned by a starter connection
  */
 enum kdbus_name_flags {
-	/* userspace → kernel */
 	KDBUS_NAME_REPLACE_EXISTING		= 1 <<  0,
-	KDBUS_NAME_QUEUE			= 1 <<  1,
-	KDBUS_NAME_ALLOW_REPLACEMENT		= 1 <<  2,
-
-	/* kernel → userspace */
-	KDBUS_NAME_IN_QUEUE			= 1 << 16,
+	KDBUS_NAME_ALLOW_REPLACEMENT		= 1 <<  1,
+	KDBUS_NAME_QUEUE			= 1 <<  2,
+	KDBUS_NAME_IN_QUEUE			= 1 <<  3,
+	KDBUS_NAME_STARTER			= 1 <<  4,
 };
 
 /**
