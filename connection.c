@@ -88,6 +88,7 @@ struct kdbus_conn_reply_entry {
 
 static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
 {
+	kdbus_conn_unref(reply->conn);
 	list_del(&reply->entry);
 	kfree(reply);
 }
@@ -716,7 +717,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		INIT_LIST_HEAD(&reply->entry);
 		reply->deadline_ns = deadline_ns;
-		reply->conn = conn_dst;
+		reply->conn = kdbus_conn_ref(conn_dst);
 		reply->cookie = msg->cookie;
 		list_add(&reply->entry, &conn_src->reply_list);
 	}
