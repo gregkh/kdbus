@@ -301,6 +301,12 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	}
 
 	/* check validity and gather some values for processing */
+	if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY &&
+	    kmsg->msg.timeout_ns == 0) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
+
 	ret = kdbus_msg_scan_items(conn, kmsg);
 	if (ret < 0)
 		goto exit_free;
