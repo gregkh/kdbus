@@ -106,7 +106,10 @@ int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
  * 			KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
  * @old_id:		The id of the connection that used to own the name
  * @new_id:		The id of the new owner connection
- * @flags:		The flags to pass in the KDBUS_ITEM flags field
+ * @old_flags:		The flags to pass in the KDBUS_ITEM flags field for
+ *                      the old owner
+ * @new_flags:		The flags to pass in the KDBUS_ITEM flags field for
+ *                      the new owner
  * @name:		The name that was removed or assigned to a new owner
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
  * 			The caller has to free all items in the list using

@@ -181,7 +181,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	flags = q->flags & ~KDBUS_NAME_QUEUE;
 	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, q->conn->id,
-				 q->flags, flags, e->name, notification_list);
+				 e->flags, flags, e->name, notification_list);
 	e->flags = flags;
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, q->conn);
@@ -300,6 +300,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 	 */
 	if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 	    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
+		u64 old_flags = e->flags;
 
 		//FIXME: why is this done? needs comment
 		if (e->flags & KDBUS_NAME_QUEUE) {
@@ -322,7 +323,7 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 		kdbus_notify_name_change(conn->ep,
 					 KDBUS_ITEM_NAME_CHANGE,
 					 e->conn->id, conn->id,
-					 e->flags, *flags,
+					 old_flags, *flags,
 					 e->name, notification_list);
 		kdbus_name_entry_remove_owner(e);
 		kdbus_name_entry_set_owner(e, conn);
