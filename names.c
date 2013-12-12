@@ -149,7 +149,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 
 	if (list_empty(&e->queue_list)) {
 		/* if the name has a starter connection, hand it back */
-		if (e->starter && e->starter != e->conn) {
+		if (e->flags & KDBUS_NAME_STARTER && e->starter != e->conn) {
 			u64 flags = KDBUS_NAME_ALLOW_REPLACEMENT |
 				    KDBUS_NAME_STARTER;
 			kdbus_notify_name_change(e->conn->ep,
@@ -266,7 +266,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 	return e;
 }
 
-static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
+static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 				 struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
@@ -276,65 +276,41 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
 		return -ENOMEM;
 
 	q->conn = conn;
-	q->flags = *flags;
+	q->flags = flags;
 
 	list_add_tail(&q->entry_entry, &e->queue_list);
 	list_add_tail(&q->conn_entry, &conn->names_queue_list);
-	*flags |= KDBUS_NAME_IN_QUEUE;
 
 	return 0;
 }
 
 /* called with entries_lock held */
-static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
+static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
-				      struct kdbus_name_entry *e, u64 *flags,
+				      struct kdbus_name_entry *e, u64 flags,
 				      struct list_head *notification_list)
 {
 	int ret;
 
-	/*
-	 * When the acquisition of an already taken name is requested,
-	 * check if replacing the ownership was explicitly allowed by the
-	 * owner.
-	 */
-	if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
-	    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
-		u64 old_flags = e->flags;
-
-		//FIXME: why is this done? needs comment
-		if (e->flags & KDBUS_NAME_QUEUE) {
-			ret = kdbus_name_queue_conn(e->conn, &e->flags, e);
-			if (ret < 0)
-				return -ENOMEM;
-		}
-
-		/*
-		 * In case the name is owned by a starter connection, take it over.
-		 * Move queued messages from the starter to the new connection.
-		 */
-		if (e->starter) {
-			ret = kdbus_conn_move_messages(conn, e->starter);
-			if (ret < 0)
-				return ret;
-			e->flags &= ~KDBUS_NAME_STARTER;
-		}
-
-		kdbus_notify_name_change(conn->ep,
-					 KDBUS_ITEM_NAME_CHANGE,
-					 e->conn->id, conn->id,
-					 old_flags, *flags,
-					 e->name, notification_list);
-		kdbus_name_entry_remove_owner(e);
-		kdbus_name_entry_set_owner(e, conn);
-		e->flags = *flags;
-		return 0;
+	/* move already queued messages from the activator connection */
+	if (e->flags & KDBUS_NAME_STARTER) {
+		ret = kdbus_conn_move_messages(conn, e->starter);
+		if (ret < 0)
+			return ret;
 	}
 
-	if (*flags & KDBUS_NAME_QUEUE)
-		return kdbus_name_queue_conn(conn, flags, e);
+	kdbus_notify_name_change(conn->ep,
+				 KDBUS_ITEM_NAME_CHANGE,
+				 e->conn->id, conn->id,
+				 e->flags, flags,
+				 e->name, notification_list);
 
-	return -EEXIST;
+	/* hand over ownership */
+	kdbus_name_entry_remove_owner(e);
+	kdbus_name_entry_set_owner(e, conn);
+	e->flags = flags;
+
+	return 0;
 }
 
 /**
@@ -413,23 +389,45 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, name);
 	if (e) {
+		/* connection already owns that name */
 		if (e->conn == conn) {
-			//FIXME: weird API? data change + error return?
-			e->flags = flags;
 			ret = -EALREADY;
 			goto exit_unlock;
 		}
 
-		if (conn->flags & KDBUS_HELLO_STARTER && e->starter) {
+		/* starters can only own a single name */
+		if (conn->flags & KDBUS_HELLO_STARTER) {
 			ret = -EALREADY;
 			goto exit_unlock;
 		}
 
-		ret = kdbus_name_handle_conflict(reg, conn, e, &flags,
-						 &notification_list);
+		/* take over the name of an activator connection */
+		if (e->flags & KDBUS_NAME_STARTER) {
+			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
+							  &notification_list);
+			goto exit_unlock;
+		}
+
+		/* take over the name if both parties agree */
+		if ((flags & KDBUS_NAME_REPLACE_EXISTING) &&
+		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
+			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
+							 &notification_list);
+			goto exit_unlock;
+		}
+
+		/* add it to the queue waiting for the name */
+		if (flags & KDBUS_NAME_QUEUE) {
+			ret = kdbus_name_queue_conn(conn, flags, e);
+			goto exit_unlock;
+		}
+
+		/* the name is busy, return a failure */
+		ret = -EEXIST;
 		goto exit_unlock;
 	}
 
+	/* new name entry */
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e) {
 		ret = -ENOMEM;
