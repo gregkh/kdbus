@@ -1029,10 +1029,15 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
+	struct kdbus_conn_reply_entry *reply, *reply_tmp;
 
 	kdbus_conn_disconnect(conn);
 	if (conn->ep->policy_db)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
+
+	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
+		kdbus_conn_reply_entry_free(reply);
+
 	kdbus_match_db_free(conn->match_db);
 	kdbus_meta_free(&conn->meta);
 	kdbus_pool_free(conn->pool);
