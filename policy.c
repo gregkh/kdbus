@@ -31,20 +31,15 @@
  * struct kdbus_policy_db - policy database
  * @entries_hash:	Hashtable of entries
  * @send_access_hash:	Hashtable of send access elements
- * @timeout_list:	List head for entries that are about to time out
  * @entries_lock:	Mutex to protect the database's access entries
  * @cache_lock:		Mutex to protect the database's cache
  * @work:		Work struct for proecessing time-out scans
- * @timer:		Timer to run for time-out processing
  */
 struct kdbus_policy_db {
 	DECLARE_HASHTABLE(entries_hash, 6);
 	DECLARE_HASHTABLE(send_access_hash, 6);
-	struct list_head	timeout_list;
 	struct mutex		entries_lock;
 	struct mutex		cache_lock;
-	struct work_struct	work;
-	struct timer_list	timer;
 };
 
 /**
@@ -52,15 +47,11 @@ struct kdbus_policy_db {
  * @conn_a:		Connection A
  * @conn_b:		Connection B
  * @hentry:		The hash table entry for the database's entries_hash
- * @deadline_ns:	This entry's deadline timeout, in nanoseconds
- * @timeout_entry:	List entry item for the database's timeout_list
  */
 struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn	*conn_a;
 	struct kdbus_conn	*conn_b;
 	struct hlist_node	hentry;
-	u64			deadline_ns;
-	struct list_head	timeout_entry;
 };
 
 /**
@@ -93,58 +84,6 @@ struct kdbus_policy_db_entry {
 	struct list_head	access_list;
 };
 
-static void kdbus_policy_db_scan_timeout(struct kdbus_policy_db *db)
-{
-	struct kdbus_policy_db_cache_entry *ce, *tmp;
-	struct timespec ts;
-	u64 deadline = ~0ULL;
-	u64 now;
-
-	ktime_get_ts(&ts);
-	now = timespec_to_ns(&ts);
-
-	/*
-	 * Walk the list of all items that are linked in the timeout list
-	 * and kill those which are expired. Also determine the one which
-	 * is about to expire next.
-	 */
-	mutex_lock(&db->cache_lock);
-	list_for_each_entry_safe(ce, tmp, &db->timeout_list, timeout_entry) {
-		if (ce->deadline_ns <= now) {
-			list_del(&ce->timeout_entry);
-			hash_del(&ce->hentry);
-			kfree(ce);
-		} else if (ce->deadline_ns < deadline) {
-			deadline = ce->deadline_ns;
-		}
-	}
-	mutex_unlock(&db->cache_lock);
-
-	/* If there's still an entry in the list, re-schedule the timer. */
-	if (deadline != ~0ULL) {
-		u64 usecs = deadline - now;
-		do_div(usecs, 1000ULL);
-		mod_timer(&db->timer, jiffies + usecs_to_jiffies(usecs));
-	}
-}
-
-static void kdbus_policy_db_work(struct work_struct *work)
-{
-	struct kdbus_policy_db *db = container_of(work, struct kdbus_policy_db, work);
-	kdbus_policy_db_scan_timeout(db);
-}
-
-static void kdbus_policy_db_schedule_timeout_scan(struct kdbus_policy_db *db)
-{
-	schedule_work(&db->work);
-}
-
-static void kdbus_policy_db_timer_func(unsigned long val)
-{
-	struct kdbus_policy_db *db = (struct kdbus_policy_db *) val;
-	kdbus_policy_db_schedule_timeout_scan(db);
-}
-
 /**
  * kdbus_policy_db_free - drop a policy database reference
  * @db:		The policy database
@@ -155,9 +94,6 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 	struct kdbus_policy_db_cache_entry *ce;
 	struct hlist_node *tmp;
 	unsigned int i;
-
-	del_timer(&db->timer);
-	cancel_work_sync(&db->work);
 
 	/* purge entries */
 	mutex_lock(&db->entries_lock);
@@ -202,17 +138,8 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db)
 
 	hash_init(d->entries_hash);
 	hash_init(d->send_access_hash);
-	INIT_LIST_HEAD(&d->timeout_list);
 	mutex_init(&d->entries_lock);
 	mutex_init(&d->cache_lock);
-
-	INIT_WORK(&d->work, kdbus_policy_db_work);
-
-	init_timer(&d->timer);
-	d->timer.expires = 0;
-	d->timer.function = kdbus_policy_db_timer_func;
-	d->timer.data = (unsigned long) d;
-	add_timer(&d->timer);
 
 	*db = d;
 
@@ -317,49 +244,19 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 	return ce;
 }
 
-static int kdbus_add_reverse_cache_entry(struct kdbus_policy_db *db,
-				   struct kdbus_policy_db_cache_entry *ce,
-				   u64 reply_deadline_ns)
-{
-	struct kdbus_policy_db_cache_entry *new;
-	unsigned int hash = 0;
-
-	/* note that the entries are given in reverse order (b, a) */
-	new = kdbus_policy_cache_entry_new(ce->conn_b, ce->conn_a);
-	if (!new)
-		return -ENOMEM;
-
-	hash ^= hash_ptr(ce->conn_b, KDBUS_POLICY_HASH_SIZE);
-	hash ^= hash_ptr(ce->conn_a, KDBUS_POLICY_HASH_SIZE);
-	new->deadline_ns = reply_deadline_ns;
-
-	mutex_lock(&db->cache_lock);
-	hash_add(db->send_access_hash, &new->hentry, hash);
-	list_add_tail(&new->timeout_entry, &db->timeout_list);
-	mutex_unlock(&db->cache_lock);
-
-	kdbus_policy_db_scan_timeout(db);
-
-	return 0;
-}
-
 /**
  * kdbus_policy_db_check_send_access() - check if one connection is allowed
  * 				       to send a message to another connection
  * @db:			The policy database
  * @conn_src:		The source connection
  * @conn_dst:		The destination connection
- * @reply_deadline_ns:	If non-zero, a temporary permission is installed,
- * 			allowing @conn_dst to reply to @conn_src in a time
- * 			window of the passed nanoseconds.
  *
  * Returns 0 if access is granted, -EPERM in case it's not, any any other
  * value in case of errors during adding the cache item internally.
  */
 int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst,
-				      u64 reply_deadline_ns)
+				      struct kdbus_conn *conn_dst)
 {
 	int ret = 0;
 	unsigned int hash = 0;
@@ -376,9 +273,6 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	hash_for_each_possible(db->send_access_hash, ce, hentry, hash)
 		if (ce->conn_a == conn_src && ce->conn_b == conn_dst) {
 			mutex_unlock(&db->cache_lock);
-			/* do we need a temporaty rule for replies? */
-			if (reply_deadline_ns)
-				ret = kdbus_add_reverse_cache_entry(db, ce, reply_deadline_ns);
 			return ret;
 		}
 	mutex_unlock(&db->cache_lock);
@@ -399,14 +293,6 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 		mutex_lock(&db->cache_lock);
 		hash_add(db->send_access_hash, &ce->hentry, hash);
 		mutex_unlock(&db->cache_lock);
-
-		/*
-		 * If reply_deadline_ns is non-zero, install a temporary rule
-		 * to allow replies to pass the policy.
-		 */
-		if (reply_deadline_ns)
-			ret = kdbus_add_reverse_cache_entry(db, ce,
-							    reply_deadline_ns);
 	}
 
 exit_unlock_entries:

@@ -647,8 +647,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ep->policy_db && conn_src) {
 		ret = kdbus_policy_db_check_send_access(ep->policy_db,
 							conn_src,
-							conn_dst,
-							deadline_ns);
+							conn_dst);
 		if (ret < 0)
 			goto exit;
 	}
