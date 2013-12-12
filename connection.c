@@ -554,7 +554,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 	mutex_unlock(&c->lock);
 
 	if (disconnected) {
-		ret = -ESRCH;
+		ret = -ECONNRESET;
 		goto exit_unref;
 	}
 

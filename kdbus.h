@@ -821,6 +821,8 @@ enum kdbus_ioctl_type {
  * @EBADFD:		A bus connection is in a corrupted state.
  * @EBADMSG:		Passed data contains a combination of conflicting or
  * 			inconsistent types.
+ * @ECONNRESET:		A connection is shut down, no further operations are
+ * 			possible.
  * @ECOMM:		A peer does not accept the file descriptors addressed
  * 			to it.
  * @EDESTADDRREQ:	The well-known bus name is required but missing.
@@ -857,8 +859,8 @@ enum kdbus_ioctl_type {
  * @ENXIO:		A unique address does not exist.
  * @EPERM:		The policy prevented an operation. The requested
  * 			resource is owned by another entity.
- * @ESHUTDOWN:		The connection is currently shutting down, no further
- * 			operations are possible.
+ * @ESHUTDOWN:		A namespace or endpoint is currently shutting down;
+ * 			no further operations will be possible.
  * @ESRCH:		A requested well-known bus name is not found.
  * @ETXTBSY:		A kdbus memfd file cannot be sealed or the seal removed,
  * 			because it is shared with other processes or still
