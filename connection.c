@@ -304,8 +304,9 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 }
 
 /* enqueue a message into the receiver's pool */
-static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg,
-			    u64 deadline_ns)
+static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
+				   struct kdbus_kmsg *kmsg,
+				   u64 deadline_ns)
 {
 	struct kdbus_conn_queue *queue;
 	u64 msg_size;
@@ -355,7 +356,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 	}
 
 	/* space for metadata/credential items */
-	if (kmsg->meta.size > 0) {
+	if (kmsg->meta.size > 0 && kmsg->meta.ns == conn->meta.ns) {
 		meta = msg_size;
 		msg_size += kmsg->meta.size;
 	}
@@ -394,7 +395,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 		goto exit_unlock;
 
 	/* add PAYLOAD items */
-	if (kmsg->vecs_count + kmsg->memfds_count > 0) {
+	if (payloads > 0) {
 		ret = kdbus_conn_payload_add(conn, queue, kmsg,
 					     off, payloads, vec_data);
 		if (ret < 0)
@@ -423,7 +424,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn, struct kdbus_kmsg *k
 	}
 
 	/* append message metadata/credential items */
-	if (kmsg->meta.size > 0) {
+	if (meta > 0) {
 		ret = kdbus_pool_write(conn->pool, off + meta,
 				       kmsg->meta.data, kmsg->meta.size);
 		if (ret < 0)
@@ -1082,7 +1083,6 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	if (IS_ERR(cmd_info))
 		return PTR_ERR(cmd_info);
 
-	/* look up a connection by name */
 	if (cmd_info->id != 0) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
@@ -1127,10 +1127,13 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	info.size = sizeof(struct kdbus_conn_info) +
-		    owner_conn->meta.size;
+	info.size = sizeof(struct kdbus_conn_info);
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
+
+	/* do not leak namespace-specific credentials */
+	if (conn->meta.ns == owner_conn->meta.ns)
+		info.size += owner_conn->meta.size;
 
 	/*
 	 * Unlike the rest of the values which are cached at
@@ -1156,11 +1159,13 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		goto exit_free;
 	pos = off + sizeof(struct kdbus_conn_info);
 
-	ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta.data,
-			       owner_conn->meta.size);
-	if (ret < 0)
-		goto exit_free;
-	pos += owner_conn->meta.size;
+	if (conn->meta.ns == owner_conn->meta.ns) {
+		ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta.data,
+				       owner_conn->meta.size);
+		if (ret < 0)
+			goto exit_free;
+		pos += owner_conn->meta.size;
+	}
 
 	if (meta.size > 0) {
 		ret = kdbus_pool_write(conn->pool, pos, meta.data, meta.size);
@@ -1265,6 +1270,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
+	/* cache the metadata/credentials of the creator of the connection */
 	ret = kdbus_meta_append(&conn->meta, conn,
 				KDBUS_ATTACH_CREDS |
 				KDBUS_ATTACH_COMM |

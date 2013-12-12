@@ -23,6 +23,7 @@
 #include <linux/audit.h>
 #include <linux/security.h>
 #include <linux/kref.h>
+#include <linux/pid_namespace.h>
 
 #include "connection.h"
 #include "names.h"
@@ -370,6 +371,14 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	/* all metadata already added */
 	if ((which & meta->attached) == which)
 		return 0;
+
+	/*
+	 * Remember the PID namespace our credentials belong to; we
+	 * need to prevent leaking authorization and security-relevant
+	 * data across different namespaces.
+	 */
+	if (!meta->ns)
+		meta->ns = task_active_pid_ns(current);
 
 	if (which & KDBUS_ATTACH_TIMESTAMP &&
 	    !(meta->attached & KDBUS_ATTACH_TIMESTAMP)) {

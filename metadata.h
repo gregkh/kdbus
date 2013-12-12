@@ -16,6 +16,7 @@
 /**
  * struct kdbus_meta - metadata buffer
  * @attached:		Flags for already attached data
+ * @ns:			Namespace the metadata belongs to
  * @data:		Allocated buffer
  * @size:		Number of bytes used
  * @allocated_size:	Size of buffer
@@ -27,6 +28,7 @@
  */
 struct kdbus_meta {
 	u64 attached;
+	const struct pid_namespace *ns;
 	struct kdbus_item *data;
 	size_t size;
 	size_t allocated_size;
