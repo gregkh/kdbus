@@ -52,7 +52,6 @@
  * @deadline_ns:	Timeout for this message, used replies/method calls
  * @src_id:		The ID of the sender
  * @cookie:		Message cookie, used for replies/method calls
- * @expect_reply:	Reply to message expected
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -70,8 +69,28 @@ struct kdbus_conn_queue {
 	u64 deadline_ns;
 	u64 src_id;
 	u64 cookie;
-	bool expect_reply;
 };
+
+/**
+ * struct kdbus_conn_reply_entry - an entry of kdbus_conn's list of replies
+ * @entry:		The list_head entry of the connection's
+ * 			reply_list
+ * @conn:		The counterpart connection that is expected to answer
+ * @deadline_ns:	The deadline of the reply, in nanoseconds
+ * @cookie:		The expected reply cookie
+ */
+struct kdbus_conn_reply_entry {
+	struct list_head entry;
+	struct kdbus_conn *conn;
+	u64 deadline_ns;
+	u64 cookie;
+};
+
+static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
+{
+	list_del(&reply->entry);
+	kfree(reply);
+}
 
 static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
 {
@@ -330,8 +349,6 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	queue->deadline_ns = deadline_ns;
 	queue->src_id = kmsg->msg.src_id;
 	queue->cookie = kmsg->msg.cookie;
-	if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
-		queue->expect_reply = true;
 
 	/* space for the header */
 	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
@@ -453,7 +470,8 @@ exit_unlock:
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
-	struct kdbus_conn_queue *queue, *tmp;
+	struct kdbus_conn_queue *queue, *queue_tmp;
+	struct kdbus_conn_reply_entry *reply, *reply_tmp;
 	u64 deadline = -1;
 	struct timespec ts;
 	u64 now;
@@ -462,19 +480,24 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	now = timespec_to_ns(&ts);
 
 	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
+	list_for_each_entry_safe(queue, queue_tmp, &conn->msg_list, entry) {
 		if (queue->deadline_ns == 0)
 			continue;
 
 		if (queue->deadline_ns <= now) {
-			if (queue->expect_reply)
-				kdbus_notify_reply_timeout(conn->ep,
-					queue->src_id, queue->cookie);
 			kdbus_pool_free_range(conn->pool, queue->off);
 			list_del(&queue->entry);
 			kdbus_conn_queue_cleanup(queue);
 		} else if (queue->deadline_ns < deadline) {
 			deadline = queue->deadline_ns;
+		}
+	}
+
+	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
+		if (reply->deadline_ns <= now) {
+			kdbus_notify_reply_timeout(conn->ep, reply->conn->id,
+						   reply->cookie);
+			kdbus_conn_reply_entry_free(reply);
 		}
 	}
 	mutex_unlock(&conn->lock);
@@ -637,6 +660,40 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ret < 0)
 		return ret;
 
+	if (conn_src) {
+		bool allowed = false;
+		struct kdbus_conn_reply_entry *reply;
+
+		/*
+		 * Walk the list of connection we expect a reply from.
+		 * If there's any matching entry, allow the message to
+		 * be sent, and remove the entry.
+		 */
+		list_for_each_entry(reply, &conn_dst->reply_list, entry) {
+			if (reply->conn == conn_src &&
+			    reply->cookie == msg->cookie_reply) {
+				kdbus_conn_reply_entry_free(reply);
+				allowed = true;
+				break;
+			}
+		}
+
+		/* ... otherwise, ask the policy DB for permission */
+		if (!allowed && ep->policy_db) {
+			ret = kdbus_policy_db_check_send_access(ep->policy_db,
+								conn_src,
+								conn_dst);
+			if (ret < 0)
+				goto exit_unref;
+		}
+	}
+
+	/*
+	 * If the message has a timeout value set, calculate the deadline here,
+	 * based on the current time. Note that this only takes care for the
+	 * timeout of the actual message, and has nothing to do with a potential
+	 * reply that may be expected.
+	 */
 	if (msg->timeout_ns) {
 		struct timespec ts;
 
@@ -644,19 +701,31 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
 	}
 
-	if (ep->policy_db && conn_src) {
-		ret = kdbus_policy_db_check_send_access(ep->policy_db,
-							conn_src,
-							conn_dst);
-		if (ret < 0)
-			goto exit;
+	/*
+	 * If the message expects a reply, add a
+	 * kdbus_conn_reply_entry
+	 */
+	if (conn_src && (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)) {
+		struct kdbus_conn_reply_entry *reply;
+
+		reply = kzalloc(sizeof(*reply), GFP_KERNEL);
+		if (!reply) {
+			ret = -ENOMEM;
+			goto exit_unref;
+		}
+
+		INIT_LIST_HEAD(&reply->entry);
+		reply->deadline_ns = deadline_ns;
+		reply->conn = conn_dst;
+		reply->cookie = msg->cookie;
+		list_add(&reply->entry, &conn_src->reply_list);
 	}
 
 	ret = kdbus_meta_append(&kmsg->meta, conn_src, conn_dst->attach_flags);
 	if (ret < 0)
-		goto exit;
+		goto exit_unref;
 
-	/* the monitor connections get all messages */
+	/* Eaves-dropping (monitor) connections get all messages */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(conn, &ep->bus->monitors_list, monitor_entry) {
 		/* the monitor connection is addressed, deliver it below */
@@ -670,12 +739,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	ret = kdbus_conn_queue_insert(conn_dst, kmsg, deadline_ns);
 	if (ret < 0)
-		goto exit;
+		goto exit_unref;
 
 	if (msg->timeout_ns)
 		kdbus_conn_timeout_schedule_scan(conn_dst);
 
-exit:
+exit_unref:
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
 
@@ -931,7 +1000,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 		 * kdbus_notify_reply_dead(); move these messages
 		 * into a temporary list and handle them below.
 		 */
-		if (queue->src_id != conn->id && queue->expect_reply) {
+		if (queue->src_id != conn->id) {
 			list_add_tail(&queue->entry, &list);
 		} else {
 			kdbus_pool_free_range(conn->pool, queue->off);
@@ -1238,6 +1307,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->monitor_entry);
+	INIT_LIST_HEAD(&conn->reply_list);
 	INIT_WORK(&conn->work, kdbus_conn_work);
 	init_timer(&conn->timer);
 	conn->timer.expires = 0;

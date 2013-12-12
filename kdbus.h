@@ -346,7 +346,17 @@ enum kdbus_payload_type {
  * @cookie_reply:	For kernel-generated messages, this is the cookie
  * 			the message is a reply to
  * @timeout_ns:		For non-kernel-generated messages, this denotes the
- * 			message timeout in nanoseconds
+ * 			message timeout in nanoseconds. A message has to be
+ * 			received with KDBUS_CMD_MSG_RECV by the destination
+ * 			connection within this time frame. For messages that
+ * 			have KDBUS_MSG_FLAGS_EXPECT_REPLY set in @flags,
+ * 			this value also denotes the timeout for the reply to
+ * 			this message. If there is no reply, or the message is
+ * 			not received in time by the other side, a
+ * 			kernel-generated message with an attached
+ * 			KDBUS_ITEM_REPLY_TIMEOUT item is sent to @src_id.
+ * 			A 0-value is only valid if KDBUS_MSG_FLAGS_EXPECT_REPLY
+ * 			is unset in @flags.
  * @items:		A list of kdbus_items containing the message payload
  */
 struct kdbus_msg {

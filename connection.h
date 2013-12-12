@@ -32,6 +32,8 @@
  * @names_lock:		Well-known names lock
  * @names_list:		List of well-known names
  * @names_queue_list:	Well-known names this connection waits for
+ * @reply_list:		List of connections this connection expects
+ * 			a reply from.
  * @names:		Number of owned well-known names
  * @work:		Support for poll()
  * @timer:		Message reply timeout handling
@@ -53,6 +55,7 @@ struct kdbus_conn {
 	struct list_head monitor_entry;
 	struct list_head names_list;
 	struct list_head names_queue_list;
+	struct list_head reply_list;
 	size_t names;
 	struct work_struct work;
 	struct timer_list timer;
