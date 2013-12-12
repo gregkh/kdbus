@@ -82,7 +82,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 
 	/* find and reference namespace */
 	ns = kdbus_ns_find_by_major(MAJOR(inode->i_rdev));
-	if (!ns && ns->disconnected) {
+	if (!ns || ns->disconnected) {
 		kfree(handle);
 		return -ESHUTDOWN;
 	}
