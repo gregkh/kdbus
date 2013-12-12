@@ -145,17 +145,19 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 				     struct list_head *notification_list)
 {
 	struct kdbus_name_queue_item *q;
+	u64 flags;
 
 	if (list_empty(&e->queue_list)) {
 		/* if the name has a starter connection, hand it back */
 		if (e->starter && e->starter != e->conn) {
-			e->flags = KDBUS_NAME_ALLOW_REPLACEMENT |
-				   KDBUS_NAME_STARTER;
+			u64 flags = KDBUS_NAME_ALLOW_REPLACEMENT |
+				    KDBUS_NAME_STARTER;
 			kdbus_notify_name_change(e->conn->ep,
 						 KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->starter->id,
-						 e->flags, e->name,
-						 notification_list);
+						 e->flags, flags,
+						 e->name, notification_list);
+			e->flags = flags;
 			kdbus_name_entry_remove_owner(e);
 			kdbus_name_entry_set_owner(e, e->starter);
 			return;
@@ -165,7 +167,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 		kdbus_notify_name_change(e->conn->ep,
 					 KDBUS_ITEM_NAME_REMOVE,
 					 e->conn->id, 0,
-					 e->flags, e->name,
+					 e->flags, 0, e->name,
 					 notification_list);
 		kdbus_name_entry_remove_owner(e);
 		kdbus_name_entry_free(e);
@@ -176,10 +178,11 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	q = list_first_entry(&e->queue_list,
 			     struct kdbus_name_queue_item,
 			     entry_entry);
+	flags = q->flags & ~KDBUS_NAME_QUEUE;
 	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, q->conn->id,
-				 q->flags, e->name, notification_list);
-	e->flags = q->flags & ~KDBUS_NAME_QUEUE;
+				 q->flags, flags, e->name, notification_list);
+	e->flags = flags;
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, q->conn);
 	kdbus_name_queue_item_free(q);
@@ -318,7 +321,8 @@ static int kdbus_name_handle_conflict(struct kdbus_name_registry *reg,
 
 		kdbus_notify_name_change(conn->ep,
 					 KDBUS_ITEM_NAME_CHANGE,
-					 e->conn->id, conn->id, *flags,
+					 e->conn->id, conn->id,
+					 e->flags, *flags,
 					 e->name, notification_list);
 		kdbus_name_entry_remove_owner(e);
 		kdbus_name_entry_set_owner(e, conn);
@@ -448,8 +452,9 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
 
-	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD, 0,
-				 e->conn->id, e->flags, e->name,
+	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD,
+				 0, e->conn->id,
+				 0, e->flags, e->name,
 				 &notification_list);
 
 	if (entry)

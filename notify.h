@@ -16,7 +16,8 @@
 struct kdbus_ep;
 
 int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
-			     u64 old_id, u64 new_id, u64 flags,
+			     u64 old_id, u64 new_id,
+			     u64 old_flags, u64 new_flags,
 			     const char *name, struct list_head *queue_list);
 int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
 			   u64 id, u64 flags);

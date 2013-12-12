@@ -116,7 +116,8 @@ int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
  * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
-			     u64 old_id, u64 new_id, u64 flags,
+			     u64 old_id, u64 new_id,
+			     u64 old_flags, u64 new_flags,
 			     const char *name,
 			     struct list_head *queue_list)
 {
@@ -144,7 +145,10 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 
 	item->name_change.old_id = old_id;
 	item->name_change.new_id = new_id;
-	item->name_change.flags = flags;
+
+	item->name_change.old_flags = old_flags;
+	item->name_change.new_flags = new_flags;
+
 	strcpy(item->name_change.name, name);
 
 	list_add_tail(&kmsg->queue_entry, queue_list);
