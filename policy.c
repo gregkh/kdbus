@@ -33,7 +33,6 @@
  * @send_access_hash:	Hashtable of send access elements
  * @entries_lock:	Mutex to protect the database's access entries
  * @cache_lock:		Mutex to protect the database's cache
- * @work:		Work struct for proecessing time-out scans
  */
 struct kdbus_policy_db {
 	DECLARE_HASHTABLE(entries_hash, 6);

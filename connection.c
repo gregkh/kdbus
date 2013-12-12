@@ -49,9 +49,9 @@
  * @fds:		Offset to array where to update the installed fd number
  * @fds_fp:		Array passed files queued up for this message
  * @fds_count:		Number of files
- * @deadline_ns:	Timeout for this message, used replies/method calls
+ * @deadline_ns:	Timeout for this message, used for replies
  * @src_id:		The ID of the sender
- * @cookie:		Message cookie, used for replies/method calls
+ * @cookie:		Message cookie, used for replies
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -73,8 +73,7 @@ struct kdbus_conn_queue {
 
 /**
  * struct kdbus_conn_reply_entry - an entry of kdbus_conn's list of replies
- * @entry:		The list_head entry of the connection's
- * 			reply_list
+ * @entry:		The list_head entry of the connection's reply_from_list
  * @conn:		The counterpart connection that is expected to answer
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The expected reply cookie
@@ -702,10 +701,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
 	}
 
-	/*
-	 * If the message expects a reply, add a
-	 * kdbus_conn_reply_entry
-	 */
+	/* If the message expects a reply, add a kdbus_conn_reply_entry */
 	if (conn_src && (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)) {
 		struct kdbus_conn_reply_entry *reply;
 

@@ -28,7 +28,7 @@
 
 /**
  * struct kdbus_match_db - message filters
- * @entries:		List of matches
+ * @entries_list:	List of matches
  * @entries_lock:	Match data lock
  */
 struct kdbus_match_db {

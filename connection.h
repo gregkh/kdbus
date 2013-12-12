@@ -29,7 +29,6 @@
  * @msg_list:		Queue of messages
  * @hentry:		Entry in ID <-> connection map
  * @monitor_entry:	The connection is a monitor
- * @names_lock:		Well-known names lock
  * @names_list:		List of well-known names
  * @names_queue_list:	Well-known names this connection waits for
  * @reply_list:		List of connections this connection expects

@@ -136,7 +136,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 /**
  * kdbus_ep_new() - create a new endpoint
  * @bus:		The bus this endpoint will be created for
- * @namespace:		The namespace of the bus; needed separately when
+ * @ns:			The namespace of the bus; needed separately when
  * 			creating the default endpoint for a new bus
  * @name:		The name of the endpoint
  * @mode:		The access mode for the device node
