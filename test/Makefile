@@ -7,7 +7,7 @@ TESTS= \
 	test-kdbus-daemon \
 	test-kdbus-fuzz \
 	test-kdbus-benchmark \
-	test-kdbus-starter \
+	test-kdbus-activator \
 	test-kdbus-monitor \
 	test-kdbus-chat
 

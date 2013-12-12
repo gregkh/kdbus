@@ -3,6 +3,7 @@
 #include <time.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <stdint.h>
@@ -15,7 +16,7 @@
 #include "kdbus-enum.h"
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
-static struct conn *make_starter(const char *path, const char *name)
+static struct conn *make_activator(const char *path, const char *name)
 {
 	int fd, ret;
 	struct kdbus_cmd_hello *hello;
@@ -29,7 +30,7 @@ static struct conn *make_starter(const char *path, const char *name)
 	hello = alloca(size);
 	memset(hello, 0, size);
 
-	printf("-- opening STARTER bus connection %s\n", path);
+	printf("-- opening ACTIVATOR bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
 	if (fd < 0) {
 		fprintf(stderr, "--- error %d (%m)\n", fd);
@@ -38,11 +39,11 @@ static struct conn *make_starter(const char *path, const char *name)
 
 	hello->size = size;
 	hello->pool_size = POOL_SIZE;
-	hello->conn_flags = KDBUS_HELLO_STARTER;
+	hello->conn_flags = KDBUS_HELLO_ACTIVATOR;
 
 	item = hello->items;
 	item->size = KDBUS_ITEM_SIZE(slen);
-	item->type = KDBUS_ITEM_STARTER_NAME;
+	item->type = KDBUS_ITEM_ACTIVATOR_NAME;
 	strcpy(item->str, name);
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, hello);
@@ -50,7 +51,7 @@ static struct conn *make_starter(const char *path, const char *name)
 		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
-	printf("-- Our peer ID for starter %s: %llu\n", name, (unsigned long long) hello->id);
+	printf("-- Our peer ID for activator %s: %llu\n", name, (unsigned long long) hello->id);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {
@@ -77,9 +78,9 @@ int main(int argc, char *argv[])
 	} __attribute__ ((__aligned__(8))) bus_make;
 	int fdc, ret;
 	char *bus;
-	struct conn *starter, *conn_a;
+	struct conn *activator, *conn_a;
 	struct pollfd fds[2];
-	int starter_done = 0;
+	bool activator_done = false;
 
 	printf("-- opening /dev/kdbus/control\n");
 	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
@@ -108,23 +109,23 @@ int main(int argc, char *argv[])
 	if (asprintf(&bus, "/dev/kdbus/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
-	starter = make_starter(bus, "foo.test.starter");
+	activator = make_activator(bus, "foo.test.activator");
 
 	conn_a = connect_to_bus(bus);
-	if (!starter || !conn_a)
+	if (!activator || !conn_a)
 		return EXIT_FAILURE;
 
-	upload_policy(conn_a->fd, "foo.test.starter");
+	upload_policy(conn_a->fd, "foo.test.activator");
 	add_match_empty(conn_a->fd);
 
 	name_list(conn_a, KDBUS_NAME_LIST_NAMES |
 			KDBUS_NAME_LIST_UNIQUE |
-			KDBUS_NAME_LIST_STARTERS |
+			KDBUS_NAME_LIST_ACTIVATORS |
 			KDBUS_NAME_LIST_QUEUED);
 
-	msg_send(conn_a, "foo.test.starter", 0xdeafbeef, KDBUS_DST_ID_NAME);
+	msg_send(conn_a, "foo.test.activator", 0xdeafbeef, KDBUS_DST_ID_NAME);
 
-	fds[0].fd = starter->fd;
+	fds[0].fd = activator->fd;
 	fds[1].fd = conn_a->fd;
 
 	printf("-- entering poll loop ...\n");
@@ -142,13 +143,13 @@ int main(int argc, char *argv[])
 
 		name_list(conn_a, KDBUS_NAME_LIST_NAMES);
 
-		if ((fds[0].revents & POLLIN) && !starter_done) {
+		if ((fds[0].revents & POLLIN) && !activator_done) {
 			printf("Starter was called back!\n");
-			ret = name_acquire(conn_a, "foo.test.starter", KDBUS_NAME_REPLACE_EXISTING);
+			ret = name_acquire(conn_a, "foo.test.activator", KDBUS_NAME_REPLACE_EXISTING);
 			if (ret != 0)
 				break;
 
-			starter_done = 1;
+			activator_done = true;
 		}
 
 		if (fds[1].revents & POLLIN) {
@@ -158,9 +159,9 @@ int main(int argc, char *argv[])
 	}
 
 	printf("-- closing bus connections\n");
-	close(starter->fd);
+	close(activator->fd);
 	close(conn_a->fd);
-	free(starter);
+	free(activator);
 	free(conn_a);
 
 	printf("-- closing bus master\n");

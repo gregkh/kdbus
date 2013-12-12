@@ -148,18 +148,18 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	u64 flags;
 
 	if (list_empty(&e->queue_list)) {
-		/* if the name has a starter connection, hand it back */
-		if (e->flags & KDBUS_NAME_STARTER && e->starter != e->conn) {
+		/* if the name has an activator connection, hand it back */
+		if (e->flags & KDBUS_NAME_ACTIVATOR && e->activator != e->conn) {
 			u64 flags = KDBUS_NAME_ALLOW_REPLACEMENT |
-				    KDBUS_NAME_STARTER;
+				    KDBUS_NAME_ACTIVATOR;
 			kdbus_notify_name_change(e->conn->ep,
 						 KDBUS_ITEM_NAME_CHANGE,
-						 e->conn->id, e->starter->id,
+						 e->conn->id, e->activator->id,
 						 e->flags, flags,
 						 e->name, notification_list);
 			e->flags = flags;
 			kdbus_name_entry_remove_owner(e);
-			kdbus_name_entry_set_owner(e, e->starter);
+			kdbus_name_entry_set_owner(e, e->activator);
 			return;
 		}
 
@@ -293,8 +293,8 @@ static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 	int ret;
 
 	/* move already queued messages from the activator connection */
-	if (e->flags & KDBUS_NAME_STARTER) {
-		ret = kdbus_conn_move_messages(conn, e->starter);
+	if (e->flags & KDBUS_NAME_ACTIVATOR) {
+		ret = kdbus_conn_move_messages(conn, e->activator);
 		if (ret < 0)
 			return ret;
 	}
@@ -395,14 +395,14 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		/* starters can only own a single name */
-		if (conn->flags & KDBUS_HELLO_STARTER) {
+		/* an activator can only own a single name */
+		if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
 			ret = -EALREADY;
 			goto exit_unlock;
 		}
 
 		/* take over the name of an activator connection */
-		if (e->flags & KDBUS_NAME_STARTER) {
+		if (e->flags & KDBUS_NAME_ACTIVATOR) {
 			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
 							  &notification_list);
 			goto exit_unlock;
@@ -441,9 +441,9 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	if (conn->flags & KDBUS_HELLO_STARTER) {
-		e->starter = kdbus_conn_ref(conn);
-		flags = KDBUS_NAME_ALLOW_REPLACEMENT|KDBUS_NAME_STARTER;
+	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
+		e->activator = kdbus_conn_ref(conn);
+		flags = KDBUS_NAME_ALLOW_REPLACEMENT|KDBUS_NAME_ACTIVATOR;
 	}
 
 	e->flags = flags;
@@ -698,14 +698,14 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 		struct kdbus_name_entry *e;
 		bool added = false;
 
-		/* skip starters */
-		if (!(flags & KDBUS_NAME_LIST_STARTERS) &&
-		    c->flags & KDBUS_HELLO_STARTER)
+		/* skip activators */
+		if (!(flags & KDBUS_NAME_LIST_ACTIVATORS) &&
+		    c->flags & KDBUS_HELLO_ACTIVATOR)
 			continue;
 
 		/* all names the connection owns */
 		if (flags & KDBUS_NAME_LIST_NAMES ||
-		    c->flags & KDBUS_HELLO_STARTER) {
+		    c->flags & KDBUS_HELLO_ACTIVATOR) {
 			list_for_each_entry(e, &c->names_list, conn_entry) {
 				ret = kdbus_name_list_write(conn, c, &p,
 							    e, write);

@@ -12,5 +12,5 @@ test/test-kdbus-namespace
 test/test-kdbus-fuzz
 test/test-kdbus-benchmark
 test/test-kdbus-monitor
-test/test-kdbus-starter
+test/test-kdbus-activator
 test/test-kdbus-chat

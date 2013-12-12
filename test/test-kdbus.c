@@ -404,8 +404,8 @@ static int check_hello(struct kdbus_check_env *env)
 	fd = open(env->buspath, O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(fd >= 0);
 
-	/* no STARTER flag without a name */
-	hello.conn_flags = KDBUS_HELLO_STARTER;
+	/* no ACTIVATOR flag without a name */
+	hello.conn_flags = KDBUS_HELLO_ACTIVATOR;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 

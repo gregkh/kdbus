@@ -34,7 +34,7 @@
  * @new_flags:		flags from KDBUS_NAME_* the name entry has now
  * @name:		Well-known name
  *
- * Sent from kernel to userspace when the owner or starter of
+ * Sent from kernel to userspace when the owner or activator of
  * a well-known name changes.
  *
  * Attached to:
@@ -55,7 +55,7 @@ struct kdbus_notify_name_change {
  * @id:			New or former owner of the name
  * @flags:		flags field from KDBUS_HELLO_*
  *
- * Sent from kernel to userspace when the owner or starter of
+ * Sent from kernel to userspace when the owner or activator of
  * a well-known name changes.
  *
  * Attached to:
@@ -207,7 +207,7 @@ struct kdbus_policy {
  * @KDBUS_ITEM_POLICY_NAME:	Policy in struct kdbus_policy
  * @KDBUS_ITEM_POLICY_ACCESS:	Policy in struct kdbus_policy
  * @KDBUS_ITEM_NAME:		Well-know name with flags
- * @KDBUS_ITEM_STARTER_NAME:	Well-known name for the starter
+ * @KDBUS_ITEM_ACTIVATOR_NAME:	Well-known name for the activator
  * @KDBUS_ITEM_TIMESTAMP:	Timestamp
  * @KDBUS_ITEM_CREDS:		Process credential
  * @KDBUS_ITEM_PID_COMM:	Process ID "comm" identifier
@@ -244,7 +244,7 @@ enum kdbus_item_type {
 
 	_KDBUS_ITEM_ATTACH_BASE	= 0x600,
 	KDBUS_ITEM_NAME		= _KDBUS_ITEM_ATTACH_BASE,
-	KDBUS_ITEM_STARTER_NAME,
+	KDBUS_ITEM_ACTIVATOR_NAME,
 	KDBUS_ITEM_TIMESTAMP,
 	KDBUS_ITEM_CREDS,
 	KDBUS_ITEM_PID_COMM,
@@ -414,13 +414,13 @@ struct kdbus_cmd_policy {
 
 /**
  * enum kdbus_hello_flags - flags for struct kdbus_cmd_hello
- * @KDBUS_HELLO_STARTER:		The connection registers a name for activation
+ * @KDBUS_HELLO_ACTIVATOR:		The connection registers a name for activation
  * 				by well-know name
  * @KDBUS_HELLO_ACCEPT_FD:	The connection allows the receiving of
  * 				any passed file descriptors
  */
 enum kdbus_hello_flags {
-	KDBUS_HELLO_STARTER		=  1 <<  0,
+	KDBUS_HELLO_ACTIVATOR		=  1 <<  0,
 	KDBUS_HELLO_ACCEPT_FD		=  1 <<  1,
 };
 
@@ -542,14 +542,14 @@ struct kdbus_cmd_ns_make {
  * @KDBUS_NAME_ALLOW_REPLACEMENT:	Allow the replacement of the name
  * @KDBUS_NAME_QUEUE:			Name should be queued if busy
  * @KDBUS_NAME_IN_QUEUE:		Name is queued
- * @KDBUS_NAME_STARTER:			Name is owned by a starter connection
+ * @KDBUS_NAME_ACTIVATOR:		Name is owned by a activator connection
  */
 enum kdbus_name_flags {
 	KDBUS_NAME_REPLACE_EXISTING		= 1 <<  0,
 	KDBUS_NAME_ALLOW_REPLACEMENT		= 1 <<  1,
 	KDBUS_NAME_QUEUE			= 1 <<  2,
 	KDBUS_NAME_IN_QUEUE			= 1 <<  3,
-	KDBUS_NAME_STARTER			= 1 <<  4,
+	KDBUS_NAME_ACTIVATOR			= 1 <<  4,
 };
 
 /**
@@ -575,13 +575,13 @@ struct kdbus_cmd_name {
  * enum kdbus_name_list_flags - what to include into the returned list
  * @KDBUS_NAME_LIST_UNIQUE:	All active connections
  * @KDBUS_NAME_LIST_NAMES:	All known well-known names
- * @KDBUS_NAME_LIST_STARTERS:	All connections which are starter connections
+ * @KDBUS_NAME_LIST_ACTIVATORS:	All activator connections
  * @KDBUS_NAME_LIST_QUEUED:	All queued-up names
  */
 enum kdbus_name_list_flags {
 	KDBUS_NAME_LIST_UNIQUE		= 1 <<  0,
 	KDBUS_NAME_LIST_NAMES		= 1 <<  1,
-	KDBUS_NAME_LIST_STARTERS	= 1 <<  2,
+	KDBUS_NAME_LIST_ACTIVATORS	= 1 <<  2,
 	KDBUS_NAME_LIST_QUEUED		= 1 <<  3,
 };
 

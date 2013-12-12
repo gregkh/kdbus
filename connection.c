@@ -545,13 +545,13 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		if (!name_entry)
 			return -ESRCH;
 
-		if (!name_entry->conn && name_entry->starter)
-			c = kdbus_conn_ref(name_entry->starter);
+		if (!name_entry->conn && name_entry->activator)
+			c = kdbus_conn_ref(name_entry->activator);
 		else
 			c = kdbus_conn_ref(name_entry->conn);
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (c->flags & KDBUS_HELLO_STARTER)) {
+		    (c->flags & KDBUS_HELLO_ACTIVATOR)) {
 			ret = -EADDRNOTAVAIL;
 			goto exit_unref;
 		}
@@ -564,10 +564,10 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 			return -ENXIO;
 
 		/*
-		 * A starter connection is not allowed to be addressed
+		 * A activator connection is not allowed to be addressed
 		 * via its unique id.
 		 */
-		if (c->flags & KDBUS_HELLO_STARTER) {
+		if (c->flags & KDBUS_HELLO_ACTIVATOR) {
 			ret = -ENXIO;
 			goto exit_unref;
 		}
@@ -624,10 +624,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				continue;
 
 			/*
-			 * starter connections will not receive any
+			 * activator connections will not receive any
 			 * broadcast messages.
 			 */
-			if (conn_dst->flags & KDBUS_HELLO_STARTER)
+			if (conn_dst->flags & KDBUS_HELLO_ACTIVATOR)
 				continue;
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
@@ -1083,7 +1083,7 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  *
  * Move all messages from one connection to another. This is used when
  * an ordinary connection is taking over a well-known name from a
- * starter connection.
+ * activator connection.
  *
  * Returns: 0 on success, negative errno on failure.
  */
@@ -1094,7 +1094,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	LIST_HEAD(msg_list);
 	int ret = 0;
 
-	if (!(conn_src->flags & KDBUS_HELLO_STARTER))
+	if (!(conn_src->flags & KDBUS_HELLO_ACTIVATOR))
 		return -EINVAL;
 
 	if (conn_src == conn_dst)
@@ -1216,7 +1216,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	 * any name.
 	 */
 	if (cmd_info->flags & KDBUS_ATTACH_NAMES &&
-	    !(owner_conn->flags & KDBUS_HELLO_STARTER)) {
+	    !(owner_conn->flags & KDBUS_HELLO_ACTIVATOR)) {
 		ret = kdbus_meta_append(&meta, owner_conn, KDBUS_ATTACH_NAMES);
 		if (ret < 0)
 			goto exit_unref_owner_conn;
@@ -1282,17 +1282,17 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	struct kdbus_conn *conn;
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
-	const char *starter_name = NULL;
+	const char *activator_name = NULL;
 
 	KDBUS_ITEM_FOREACH(item, hello, items) {
 		switch (item->type) {
-		case KDBUS_ITEM_STARTER_NAME:
-			if (!(hello->conn_flags & KDBUS_HELLO_STARTER))
+		case KDBUS_ITEM_ACTIVATOR_NAME:
+			if (!(hello->conn_flags & KDBUS_HELLO_ACTIVATOR))
 				return -EINVAL;
 
-			if (starter_name)
+			if (activator_name)
 				return -EINVAL;
-			starter_name = item->str;
+			activator_name = item->str;
 			break;
 
 		default:
@@ -1300,7 +1300,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		}
 	}
 
-	if ((hello->conn_flags & KDBUS_HELLO_STARTER) && !starter_name)
+	if ((hello->conn_flags & KDBUS_HELLO_ACTIVATOR) && !activator_name)
 		return -EINVAL;
 
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
@@ -1367,9 +1367,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->flags = hello->conn_flags;
 	conn->attach_flags = hello->attach_flags;
 
-	if (starter_name) {
+	if (activator_name) {
 		ret = kdbus_name_acquire(bus->name_registry, conn,
-					 starter_name, 0, NULL);
+					 activator_name, 0, NULL);
 		if (ret < 0)
 			goto exit_unref;
 	}

@@ -33,7 +33,7 @@ struct kdbus_name_registry {
  * @conn_entry:		Entry in connection
  * @hentry:		Entry in registry map
  * @conn:		Connection owning the name
- * @starter:		Connection of the starter queuing incoming messages
+ * @activator:		Connection of the activator queuing incoming messages
  */
 struct kdbus_name_entry {
 	char			*name;
@@ -42,7 +42,7 @@ struct kdbus_name_entry {
 	struct list_head	conn_entry;
 	struct hlist_node	hentry;
 	struct kdbus_conn	*conn;
-	struct kdbus_conn	*starter;
+	struct kdbus_conn	*activator;
 };
 
 int kdbus_name_registry_new(struct kdbus_name_registry **reg);

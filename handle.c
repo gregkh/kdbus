@@ -640,7 +640,7 @@ static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
 		return -EPERM;
 
-	if (handle->conn->flags & KDBUS_HELLO_STARTER)
+	if (handle->conn->flags & KDBUS_HELLO_ACTIVATOR)
 		return -EPERM;
 
 	return kdbus_pool_mmap(handle->conn->pool, vma);
