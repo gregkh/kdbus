@@ -131,17 +131,17 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
 	return 0;
 }
 
-static int kdbus_meta_append_cred(struct kdbus_meta *meta,
-				  const struct kdbus_creds *creds)
+static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 {
+	struct kdbus_creds creds = {};
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
 
-	if (!creds) {
-		struct kdbus_creds c = {};
-		kdbus_creds_fill_current(&c);
-		creds = &c;
-	}
+	creds.uid = from_kuid(current_user_ns(), current_uid());
+	creds.gid = from_kgid(current_user_ns(), current_gid());
+	creds.pid = task_pid_vnr(current);
+	creds.tid = task_tgid_vnr(current);
+	creds.starttime = timespec_to_ns(&current->start_time);
 
 	item = kdbus_meta_append_item(meta, size);
 	if (IS_ERR(item))
@@ -348,28 +348,9 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
 #endif
 
 /**
- * kdbus_creds_fill_from_current - Fill a kdbus_creds struct based on 'current'
- * @creds:		Destination buffer to store the creds to
- *
- * This function fills the passed credential buffer with information obtained
- * from the currently active task.
- */
-void kdbus_creds_fill_current(struct kdbus_creds *creds)
-{
-	creds->uid = from_kuid(current_user_ns(), current_uid());
-	creds->gid = from_kgid(current_user_ns(), current_gid());
-	creds->pid = task_pid_vnr(current);
-	creds->tid = task_tgid_vnr(current);
-	creds->starttime = timespec_to_ns(&current->start_time);
-}
-
-/**
  * kdbus_meta_append() - collect metadata from current process
  * @meta:		Metadata object
- * @conn:		Current connection
- * @creds:		The creds to use when composing the metadata. Values
- * 			are obtained from the current task if this parameter
- * 			is NULL
+ * @conn:		Current connection to read names from
  * @which:		KDBUS_ATTACH_* flags which typ of data to attach
  *
  * Collect the data specified in flags and allocate or extend
@@ -379,14 +360,9 @@ void kdbus_creds_fill_current(struct kdbus_creds *creds)
  */
 int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
-		      const struct kdbus_creds *creds,
 		      u64 which)
 {
 	int ret = 0;
-
-	/* kernel-generated messages */
-	if (!conn)
-		return 0;
 
 	/* all metadata already added */
 	if ((which & meta->attached) == which)
@@ -411,14 +387,14 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 	if (which & KDBUS_ATTACH_CREDS &&
 	    !(meta->attached & KDBUS_ATTACH_CREDS)) {
-		ret = kdbus_meta_append_cred(meta, creds);
+		ret = kdbus_meta_append_cred(meta);
 		if (ret < 0)
 			goto exit;
 
 		meta->attached |= KDBUS_ATTACH_CREDS;
 	}
 
-	if (which & KDBUS_ATTACH_NAMES &&
+	if (which & KDBUS_ATTACH_NAMES && conn &&
 	    !(meta->attached & KDBUS_ATTACH_NAMES)) {
 		ret = kdbus_meta_append_src_names(meta, conn);
 		if (ret < 0)

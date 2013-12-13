@@ -374,7 +374,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	}
 
 	/* space for metadata/credential items */
-	if (kmsg->meta.size > 0 && kmsg->meta.ns == conn->meta.ns) {
+	if (kmsg->meta.size > 0 && kmsg->meta.ns == conn->meta->ns) {
 		meta = msg_size;
 		msg_size += kmsg->meta.size;
 	}
@@ -660,8 +660,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 * receivers after that will see all of the added
 			 * data, even when they did not ask for it.
 			 */
-			kdbus_meta_append(&kmsg->meta, conn_src, NULL,
-					  conn_dst->attach_flags);
+			if (conn_src)
+				kdbus_meta_append(&kmsg->meta, conn_src,
+						  conn_dst->attach_flags);
 
 			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
 		}
@@ -739,10 +740,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		mutex_unlock(&conn_src->lock);
 	}
 
-	ret = kdbus_meta_append(&kmsg->meta, conn_src, NULL,
-				conn_dst->attach_flags);
-	if (ret < 0)
-		goto exit_unref;
+	if (conn_src) {
+		ret = kdbus_meta_append(&kmsg->meta, conn_src,
+					conn_dst->attach_flags);
+		if (ret < 0)
+			goto exit_unref;
+	}
 
 	/* Eaves-dropping (monitor) connections get all messages */
 	mutex_lock(&ep->bus->lock);
@@ -1066,7 +1069,6 @@ static void __kdbus_conn_free(struct kref *kref)
 		kdbus_conn_reply_entry_free(reply);
 
 	kdbus_match_db_free(conn->match_db);
-	kdbus_meta_free(&conn->meta);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
 	kfree(conn);
@@ -1232,8 +1234,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	info.flags = owner_conn->flags;
 
 	/* do not leak namespace-specific credentials */
-	if (conn->meta.ns == owner_conn->meta.ns)
-		info.size += owner_conn->meta.size;
+	if (conn->meta->ns == owner_conn->meta->ns)
+		info.size += owner_conn->meta->size;
 
 	/*
 	 * Unlike the rest of the values which are cached at
@@ -1243,8 +1245,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	 */
 	if (cmd_info->flags & KDBUS_ATTACH_NAMES &&
 	    !(owner_conn->flags & KDBUS_HELLO_ACTIVATOR)) {
-		ret = kdbus_meta_append(&meta, owner_conn, NULL,
-					KDBUS_ATTACH_NAMES);
+		ret = kdbus_meta_append(&meta, owner_conn, KDBUS_ATTACH_NAMES);
 		if (ret < 0)
 			goto exit_unref_owner_conn;
 
@@ -1260,12 +1261,12 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		goto exit_free;
 	pos = off + sizeof(struct kdbus_conn_info);
 
-	if (conn->meta.ns == owner_conn->meta.ns) {
-		ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta.data,
-				       owner_conn->meta.size);
+	if (conn->meta->ns == owner_conn->meta->ns) {
+		ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta->data,
+				       owner_conn->meta->size);
 		if (ret < 0)
 			goto exit_free;
-		pos += owner_conn->meta.size;
+		pos += owner_conn->meta->size;
 	}
 
 	if (meta.size > 0) {
@@ -1297,13 +1298,14 @@ exit_unref_owner_conn:
  * kdbus_conn_new() - create a new connection
  * @ep:			The endpoint the connection is connected to
  * @hello:		The kdbus_cmd_hello as passed in by the user
+ * @meta:		The metadata gathered at open() time of the handle
  * @c:			Returned connection
  *
  * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_cmd_hello *hello,
-		   const struct kdbus_creds *creds,
+		   struct kdbus_meta *meta,
 		   struct kdbus_conn **c)
 {
 	struct kdbus_conn *conn;
@@ -1375,19 +1377,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
-	/* cache the metadata/credentials of the creator of the connection */
-	ret = kdbus_meta_append(&conn->meta, conn, creds,
-				KDBUS_ATTACH_CREDS |
-				KDBUS_ATTACH_COMM |
-				KDBUS_ATTACH_EXE |
-				KDBUS_ATTACH_CMDLINE |
-				KDBUS_ATTACH_CGROUP |
-				KDBUS_ATTACH_CAPS |
-				KDBUS_ATTACH_SECLABEL |
-				KDBUS_ATTACH_AUDIT);
-	if (ret < 0)
-		goto exit_unref;
-
 	/* notify about the new active connection */
 	ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD,
 				     conn->id, conn->flags,
@@ -1405,6 +1394,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		if (ret < 0)
 			goto exit_unref;
 	}
+
+	conn->meta = meta;
 
 	*c = conn;
 	return 0;

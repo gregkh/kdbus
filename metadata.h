@@ -39,10 +39,8 @@ struct kdbus_meta {
 
 struct kdbus_conn;
 
-void kdbus_creds_fill_current(struct kdbus_creds *creds);
 int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
-		      const struct kdbus_creds *creds,
 		      u64 which);
 void kdbus_meta_free(struct kdbus_meta *meta);
 #endif

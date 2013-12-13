@@ -49,6 +49,7 @@ enum kdbus_handle_type {
  * struct kdbus_handle - a handle to the kdbus system
  * @type:	Type of this handle (KDBUS_HANDLE_*)
  * @ns:		Namespace for this handle
+ * @meta:	Cached connection creator's metadata/credentials
  * @ns_owner:	The namespace this handle owns, in case @type
  * 		is KDBUS_HANDLE_CONTROL_NS_OWNER
  * @bus_owner:	The bus this handle owns, in case @type
@@ -62,7 +63,7 @@ enum kdbus_handle_type {
 struct kdbus_handle {
 	enum kdbus_handle_type type;
 	struct kdbus_ns *ns;
-	struct kdbus_creds creds;
+	struct kdbus_meta meta;
 	union {
 		struct kdbus_ns *ns_owner;
 		struct kdbus_bus *bus_owner;
@@ -108,10 +109,21 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	/* create endpoint connection */
 	handle->type = KDBUS_HANDLE_EP;
 	handle->ep = kdbus_ep_ref(ep);
+
+	/* cache the metadata/credentials of the creator of the connection */
+	ret = kdbus_meta_append(&handle->meta, NULL,
+				KDBUS_ATTACH_CREDS |
+				KDBUS_ATTACH_COMM |
+				KDBUS_ATTACH_EXE |
+				KDBUS_ATTACH_CMDLINE |
+				KDBUS_ATTACH_CGROUP |
+				KDBUS_ATTACH_CAPS |
+				KDBUS_ATTACH_SECLABEL |
+				KDBUS_ATTACH_AUDIT);
+	if (ret < 0)
+		goto exit_unlock;
+
 	mutex_unlock(&handle->ns->lock);
-
-	kdbus_creds_fill_current(&handle->creds);
-
 	return 0;
 
 exit_unlock:
@@ -154,6 +166,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 	}
 
+	kdbus_meta_free(&handle->meta);
 	kdbus_ns_unref(handle->ns);
 	kfree(handle);
 
@@ -357,7 +370,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_conn_new(handle->ep, hello, &handle->creds,
+		ret = kdbus_conn_new(handle->ep, hello, &handle->meta,
 				     &handle->conn);
 		if (ret < 0)
 			break;

@@ -62,7 +62,7 @@ struct kdbus_conn {
 	struct work_struct work;
 	struct timer_list timer;
 	struct kdbus_match_db *match_db;
-	struct kdbus_meta meta;
+	struct kdbus_meta *meta;
 	unsigned int msg_count;
 	struct kdbus_pool *pool;
 };
@@ -73,7 +73,7 @@ struct kdbus_name_registry;
 
 int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_cmd_hello *hello,
-		   const struct kdbus_creds *creds,
+		   struct kdbus_meta *meta,
 		   struct kdbus_conn **conn);
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
