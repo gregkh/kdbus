@@ -349,6 +349,10 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
 
 /**
  * kdbus_creds_fill_from_current - Fill a kdbus_creds struct based on 'current'
+ * @creds:		Destination buffer to store the creds to
+ *
+ * This function fills the passed credential buffer with information obtained
+ * from the currently active task.
  */
 void kdbus_creds_fill_current(struct kdbus_creds *creds)
 {
@@ -363,8 +367,9 @@ void kdbus_creds_fill_current(struct kdbus_creds *creds)
  * kdbus_meta_append() - collect metadata from current process
  * @meta:		Metadata object
  * @conn:		Current connection
- * @creds:		The creds to use in the metadata. Values are obtained
- * 			from the current task if this parameter is NULL
+ * @creds:		The creds to use when composing the metadata. Values
+ * 			are obtained from the current task if this parameter
+ * 			is NULL
  * @which:		KDBUS_ATTACH_* flags which typ of data to attach
  *
  * Collect the data specified in flags and allocate or extend
