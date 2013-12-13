@@ -35,7 +35,7 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 id,
 
 	BUG_ON(id == 0);
 
-	ret = kdbus_kmsg_new(KDBUS_ITEM_SIZE(0), &kmsg);
+	ret = kdbus_kmsg_new(0, &kmsg);
 	if (ret < 0)
 		return ret;
 

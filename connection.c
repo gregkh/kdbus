@@ -384,6 +384,11 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 	/* allocate the needed space in the pool of the receiver */
 	mutex_lock(&conn->lock);
+	if (conn->disconnected) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
+
 	if (!capable(CAP_IPC_OWNER) &&
 	    conn->msg_count > KDBUS_CONN_MAX_MSGS) {
 		ret = -ENOBUFS;
@@ -456,6 +461,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	/* link the message into the receiver's queue */
 	list_add_tail(&queue->entry, &conn->msg_list);
 	conn->msg_count++;
+
 	mutex_unlock(&conn->lock);
 
 	/* wake up poll() */
@@ -499,6 +505,8 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 		if (reply->deadline_ns <= now) {
 			kdbus_notify_reply_timeout(conn->ep, reply->conn->id,
 						   reply->cookie, &notify_list);
+			//FIXME: conn->lock is held, but entry_free might
+			//       call disconnect which takes it too
 			kdbus_conn_reply_entry_free(reply);
 		}
 	}
@@ -516,6 +524,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 static void kdbus_conn_work(struct work_struct *work)
 {
 	struct kdbus_conn *conn = container_of(work, struct kdbus_conn, work);
+
 	kdbus_conn_scan_timeout(conn);
 }
 
@@ -674,6 +683,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * If there's any matching entry, allow the message to
 		 * be sent, and remove the entry.
 		 */
+		mutex_lock(&conn_dst->lock);
 		list_for_each_entry(reply, &conn_dst->reply_list, entry) {
 			if (reply->conn == conn_src &&
 			    reply->cookie == msg->cookie_reply) {
@@ -682,6 +692,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				break;
 			}
 		}
+		mutex_unlock(&conn_dst->lock);
 
 		/* ... otherwise, ask the policy DB for permission */
 		if (!allowed && ep->policy_db) {
@@ -721,7 +732,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		reply->conn = kdbus_conn_ref(conn_dst);
 		atomic_inc(&reply->conn->reply_count);
 		reply->cookie = msg->cookie;
+
+		mutex_lock(&conn_src->lock);
 		list_add(&reply->entry, &conn_src->reply_list);
+		mutex_unlock(&conn_src->lock);
 	}
 
 	ret = kdbus_meta_append(&kmsg->meta, conn_src, conn_dst->attach_flags);
@@ -769,11 +783,12 @@ void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list)
 }
 
 /**
- * kdbus_conn_kmsg_send() - send a list of previously collected messages
+ * kdbus_conn_kmsg_list_send() - send a list of previously collected messages
  * @ep:			The endpoint to use for sending
  * @kmsg_list:		List head of kmsg objects to send.
  *
  * The list is cleared and freed after sending.
+ *
  * Returns 0 on success.
  */
 int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
@@ -911,18 +926,20 @@ int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 	int ret;
 
 	mutex_lock(&conn->lock);
-	if (conn->msg_count == 0) {
-		if (unlikely(conn->ep->disconnected))
-			ret = -ECONNRESET;
-		else
-			ret = -EAGAIN;
+	if (unlikely(conn->ep->disconnected)) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
 
+	if (conn->msg_count == 0) {
+		ret = -EAGAIN;
 		goto exit_unlock;
 	}
 
 	/* return the address of the next message in the pool */
 	queue = list_first_entry(&conn->msg_list,
 				 struct kdbus_conn_queue, entry);
+
 	off = queue->off;
 	if (copy_to_user(buf, &off, sizeof(__u64))) {
 		ret = -EFAULT;
@@ -1011,6 +1028,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 		mutex_lock(&bus->lock);
 		hash_for_each(bus->conn_hash, i, c, hentry) {
 
+			mutex_lock(&c->lock);
 			list_for_each_entry_safe(reply, reply_tmp, &c->reply_list, entry) {
 				if (conn != reply->conn)
 					continue;
@@ -1019,6 +1037,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 							reply->cookie,
 							&notify_list);
 			}
+			mutex_unlock(&c->lock);
 		}
 		mutex_unlock(&bus->lock);
 	}
