@@ -10,20 +10,20 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
 #include <linux/device.h>
-#include <linux/idr.h>
 #include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
+#include <linux/idr.h>
 #include <linux/init.h>
-#include <linux/uaccess.h>
+#include <linux/module.h>
+#include <linux/sched.h>
 #include <linux/sizes.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
-#include "endpoint.h"
 #include "bus.h"
-#include "policy.h"
+#include "endpoint.h"
 #include "namespace.h"
+#include "policy.h"
 
 /* endpoints are by default owned by the bus owner */
 static char *kdbus_devnode_ep(struct device *dev, umode_t *mode,

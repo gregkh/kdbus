@@ -10,20 +10,20 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
 #include <linux/device.h>
-#include <linux/idr.h>
 #include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
+#include <linux/idr.h>
 #include <linux/init.h>
-#include <linux/uaccess.h>
+#include <linux/module.h>
+#include <linux/sched.h>
 #include <linux/sizes.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
-#include "internal.h"
-#include "handle.h"
-#include "namespace.h"
 #include "bus.h"
+#include "handle.h"
+#include "internal.h"
+#include "namespace.h"
 
 /* map of majors to namespaces */
 static DEFINE_IDR(kdbus_ns_major_idr);

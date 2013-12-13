@@ -10,21 +10,21 @@
  * your option) any later version.
  */
 
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
-#include <linux/mutex.h>
-#include <linux/init.h>
 #include <linux/device.h>
+#include <linux/fs.h>
 #include <linux/hash.h>
-#include <linux/uaccess.h>
+#include <linux/init.h>
+#include <linux/mutex.h>
+#include <linux/sched.h>
 #include <linux/sizes.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
-#include "match.h"
+#include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "match.h"
 #include "message.h"
-#include "bus.h"
 
 /**
  * struct kdbus_match_db - message filters

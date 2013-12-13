@@ -10,30 +10,30 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
 #include <linux/device.h>
-#include <linux/idr.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sizes.h>
-#include <linux/sched.h>
-#include <linux/mutex.h>
-#include <linux/init.h>
-#include <linux/poll.h>
 #include <linux/file.h>
+#include <linux/fs.h>
+#include <linux/idr.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
+#include <linux/poll.h>
+#include <linux/sched.h>
+#include <linux/sizes.h>
+#include <linux/slab.h>
 
+#include "bus.h"
 #include "connection.h"
+#include "endpoint.h"
+#include "handle.h"
+#include "match.h"
+#include "memfd.h"
 #include "message.h"
 #include "metadata.h"
-#include "memfd.h"
-#include "notify.h"
-#include "namespace.h"
-#include "endpoint.h"
-#include "bus.h"
-#include "match.h"
 #include "names.h"
+#include "namespace.h"
+#include "notify.h"
 #include "policy.h"
-#include "handle.h"
 
 enum kdbus_handle_type {
 	_KDBUS_HANDLE_NULL,

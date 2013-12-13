@@ -10,27 +10,27 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
-#include <linux/device.h>
-#include <linux/idr.h>
-#include <linux/slab.h>
-#include <linux/file.h>
-#include <linux/sched.h>
-#include <linux/mutex.h>
-#include <linux/init.h>
-#include <linux/poll.h>
+#include <linux/capability.h>
 #include <linux/cgroup.h>
 #include <linux/cred.h>
-#include <linux/capability.h>
+#include <linux/device.h>
+#include <linux/file.h>
+#include <linux/idr.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
+#include <linux/poll.h>
+#include <linux/sched.h>
 #include <linux/sizes.h>
+#include <linux/slab.h>
 
-#include "message.h"
-#include "connection.h"
 #include "bus.h"
+#include "connection.h"
 #include "endpoint.h"
-#include "policy.h"
-#include "names.h"
 #include "match.h"
+#include "message.h"
+#include "names.h"
+#include "policy.h"
 
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 

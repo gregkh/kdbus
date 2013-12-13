@@ -10,21 +10,21 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
 #include <linux/device.h>
-#include <linux/idr.h>
 #include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
-#include <linux/mutex.h>
+#include <linux/idr.h>
 #include <linux/init.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/poll.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
 
-#include "notify.h"
 #include "bus.h"
+#include "connection.h"
 #include "endpoint.h"
 #include "message.h"
-#include "connection.h"
+#include "notify.h"
 
 static int kdbus_notify_reply(struct kdbus_ep *ep, u64 id,
 			      u64 cookie, u64 msg_type,

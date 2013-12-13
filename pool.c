@@ -10,22 +10,22 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
+#include <linux/aio.h>
+#include <linux/file.h>
 #include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sizes.h>
-#include <linux/sched.h>
+#include <linux/highmem.h>
 #include <linux/init.h>
 #include <linux/mm.h>
-#include <linux/highmem.h>
-#include <linux/rbtree.h>
-#include <linux/file.h>
-#include <linux/shmem_fs.h>
-#include <linux/aio.h>
+#include <linux/module.h>
 #include <linux/pagemap.h>
+#include <linux/rbtree.h>
+#include <linux/sched.h>
+#include <linux/shmem_fs.h>
+#include <linux/sizes.h>
+#include <linux/slab.h>
 
-#include "pool.h"
 #include "message.h"
+#include "pool.h"
 
 /**
  * struct kdbus_pool - the receiver's buffer

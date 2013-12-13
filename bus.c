@@ -10,22 +10,22 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
 #include <linux/device.h>
 #include <linux/fs.h>
-#include <linux/idr.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
-#include <linux/init.h>
 #include <linux/hashtable.h>
-#include <linux/uaccess.h>
-#include <linux/sizes.h>
+#include <linux/idr.h>
+#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/random.h>
+#include <linux/sched.h>
+#include <linux/sizes.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
 #include "bus.h"
 #include "connection.h"
-#include "names.h"
 #include "endpoint.h"
+#include "names.h"
 #include "namespace.h"
 
 bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)

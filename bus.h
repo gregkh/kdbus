@@ -13,8 +13,8 @@
 #ifndef __KDBUS_BUS_H
 #define __KDBUS_BUS_H
 
-#include <linux/idr.h>
 #include <linux/hashtable.h>
+#include <linux/idr.h>
 
 #include "internal.h"
 

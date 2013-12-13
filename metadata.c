@@ -10,24 +10,24 @@
  * your option) any later version.
  */
 
-#include <linux/slab.h>
-#include <linux/file.h>
-#include <linux/sched.h>
-#include <linux/mutex.h>
-#include <linux/init.h>
-#include <linux/poll.h>
+#include <linux/audit.h>
+#include <linux/capability.h>
 #include <linux/cgroup.h>
 #include <linux/cred.h>
-#include <linux/capability.h>
-#include <linux/sizes.h>
-#include <linux/audit.h>
-#include <linux/security.h>
+#include <linux/file.h>
+#include <linux/init.h>
 #include <linux/kref.h>
+#include <linux/mutex.h>
 #include <linux/pid_namespace.h>
+#include <linux/poll.h>
+#include <linux/sched.h>
+#include <linux/security.h>
+#include <linux/sizes.h>
+#include <linux/slab.h>
 
 #include "connection.h"
-#include "names.h"
 #include "metadata.h"
+#include "names.h"
 
 /**
  * kdbus_meta_free() - release metadata

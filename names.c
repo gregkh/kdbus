@@ -10,24 +10,24 @@
  * your option) any later version.
  */
 
-#include <linux/module.h>
-#include <linux/device.h>
-#include <linux/idr.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
-#include <linux/mutex.h>
-#include <linux/init.h>
-#include <linux/hash.h>
-#include <linux/uaccess.h>
 #include <linux/ctype.h>
+#include <linux/device.h>
+#include <linux/fs.h>
+#include <linux/hash.h>
+#include <linux/idr.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
-#include "names.h"
+#include "bus.h"
 #include "connection.h"
+#include "endpoint.h"
+#include "names.h"
 #include "notify.h"
 #include "policy.h"
-#include "bus.h"
-#include "endpoint.h"
 
 /**
  * struct kdbus_name_queue_item - a queue item for a name

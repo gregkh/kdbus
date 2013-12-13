@@ -14,8 +14,8 @@
 #define __KDBUS_CONNECTION_H
 
 #include "internal.h"
-#include "pool.h"
 #include "metadata.h"
+#include "pool.h"
 
 /**
  * struct kdbus_conn - connection to a bus
