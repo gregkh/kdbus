@@ -660,7 +660,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 * receivers after that will see all of the added
 			 * data, even when they did not ask for it.
 			 */
-			kdbus_meta_append(&kmsg->meta, conn_src, conn_dst->attach_flags);
+			kdbus_meta_append(&kmsg->meta, conn_src, NULL,
+					  conn_dst->attach_flags);
 
 			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
 		}
@@ -738,7 +739,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		mutex_unlock(&conn_src->lock);
 	}
 
-	ret = kdbus_meta_append(&kmsg->meta, conn_src, conn_dst->attach_flags);
+	ret = kdbus_meta_append(&kmsg->meta, conn_src, NULL,
+				conn_dst->attach_flags);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -1241,7 +1243,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	 */
 	if (cmd_info->flags & KDBUS_ATTACH_NAMES &&
 	    !(owner_conn->flags & KDBUS_HELLO_ACTIVATOR)) {
-		ret = kdbus_meta_append(&meta, owner_conn, KDBUS_ATTACH_NAMES);
+		ret = kdbus_meta_append(&meta, owner_conn, NULL,
+					KDBUS_ATTACH_NAMES);
 		if (ret < 0)
 			goto exit_unref_owner_conn;
 
@@ -1372,7 +1375,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
 	/* cache the metadata/credentials of the creator of the connection */
-	ret = kdbus_meta_append(&conn->meta, conn,
+	ret = kdbus_meta_append(&conn->meta, conn, NULL,
 				KDBUS_ATTACH_CREDS |
 				KDBUS_ATTACH_COMM |
 				KDBUS_ATTACH_EXE |
