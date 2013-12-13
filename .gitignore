@@ -6,6 +6,7 @@ Module.symvers
 *.o
 *.swp
 .tmp_versions
+tags
 test/test-kdbus
 test/test-kdbus-daemon
 test/test-kdbus-namespace
