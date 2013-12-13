@@ -87,6 +87,7 @@ struct kdbus_conn_reply_entry {
 
 static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
 {
+	atomic_dec(&reply->conn->reply_count);
 	kdbus_conn_unref(reply->conn);
 	list_del(&reply->entry);
 	kfree(reply);
@@ -542,6 +543,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
 		const struct kdbus_name_entry *name_entry;
 
+		BUG_ON(!kmsg->dst_name);
 		name_entry = kdbus_name_lookup(bus->name_registry,
 					       kmsg->dst_name);
 		if (!name_entry)
@@ -717,6 +719,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		INIT_LIST_HEAD(&reply->entry);
 		reply->deadline_ns = deadline_ns;
 		reply->conn = kdbus_conn_ref(conn_dst);
+		atomic_inc(&reply->conn->reply_count);
 		reply->cookie = msg->cookie;
 		list_add(&reply->entry, &conn_src->reply_list);
 	}
@@ -967,7 +970,6 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 {
 	struct kdbus_conn_queue *queue, *tmp;
 	struct kdbus_bus *bus;
-	LIST_HEAD(list);
 	LIST_HEAD(notify_list);
 
 	mutex_lock(&conn->lock);
@@ -990,30 +992,35 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	/* clean up any messages still left on this endpoint */
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
-		list_del(&queue->entry);
-
-		/*
-		 * We cannot hold "lock" and enqueue new messages with
-		 * kdbus_notify_reply_dead(); move these messages
-		 * into a temporary list and handle them below.
-		 */
-		if (queue->src_id != conn->id) {
-			list_add_tail(&queue->entry, &list);
-		} else {
-			kdbus_pool_free_range(conn->pool, queue->off);
-			kdbus_conn_queue_cleanup(queue);
-		}
-	}
-	mutex_unlock(&conn->lock);
-
-	list_for_each_entry_safe(queue, tmp, &list, entry) {
 		if (queue->src_id > 0)
 			kdbus_notify_reply_dead(conn->ep, queue->src_id,
 						queue->cookie, &notify_list);
-		mutex_lock(&conn->lock);
+
+		list_del(&queue->entry);
 		kdbus_pool_free_range(conn->pool, queue->off);
-		mutex_unlock(&conn->lock);
 		kdbus_conn_queue_cleanup(queue);
+	}
+	mutex_unlock(&conn->lock);
+
+	/* if we die while other connections wait for our reply, notify them */
+	if (unlikely(atomic_read(&conn->reply_count) > 0)) {
+		struct kdbus_conn *c;
+		int i;
+		struct kdbus_conn_reply_entry *reply, *reply_tmp;
+
+		mutex_lock(&bus->lock);
+		hash_for_each(bus->conn_hash, i, c, hentry) {
+
+			list_for_each_entry_safe(reply, reply_tmp, &c->reply_list, entry) {
+				if (conn != reply->conn)
+					continue;
+
+				kdbus_notify_reply_dead(conn->ep, c->id,
+							reply->cookie,
+							&notify_list);
+			}
+		}
+		mutex_unlock(&bus->lock);
 	}
 
 	kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_REMOVE,
@@ -1313,6 +1320,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->monitor_entry);
 	INIT_LIST_HEAD(&conn->reply_list);
+	atomic_set(&conn->reply_count, 0);
 	INIT_WORK(&conn->work, kdbus_conn_work);
 	init_timer(&conn->timer);
 	conn->timer.expires = 0;
