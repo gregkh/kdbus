@@ -472,6 +472,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
 	struct kdbus_conn_queue *queue, *queue_tmp;
 	struct kdbus_conn_reply_entry *reply, *reply_tmp;
+	LIST_HEAD(notify_list);
 	u64 deadline = -1;
 	struct timespec ts;
 	u64 now;
@@ -496,11 +497,13 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
 		if (reply->deadline_ns <= now) {
 			kdbus_notify_reply_timeout(conn->ep, reply->conn->id,
-						   reply->cookie);
+						   reply->cookie, &notify_list);
 			kdbus_conn_reply_entry_free(reply);
 		}
 	}
 	mutex_unlock(&conn->lock);
+
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	if (deadline != -1) {
 		u64 usecs = deadline - now;
@@ -765,22 +768,19 @@ void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list)
 /**
  * kdbus_conn_kmsg_send() - send a list of previously collected messages
  * @ep:			The endpoint to use for sending
- * @conn_src:		The sending connection, or NULL in case
- * 			of kernel-generated messages
  * @kmsg_list:		List head of kmsg objects to send.
  *
  * The list is cleared and freed after sending.
  * Returns 0 on success.
  */
 int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
-			      struct kdbus_conn *conn_src,
 			      struct list_head *kmsg_list)
 {
 	struct kdbus_kmsg *kmsg;
 	int ret = 0;
 
 	list_for_each_entry(kmsg, kmsg_list, queue_entry) {
-		ret = kdbus_conn_kmsg_send(ep, conn_src, kmsg);
+		ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
 		if (ret < 0)
 			break;
 	}
@@ -966,8 +966,9 @@ exit_unlock:
 void kdbus_conn_disconnect(struct kdbus_conn *conn)
 {
 	struct kdbus_conn_queue *queue, *tmp;
-	struct list_head list;
 	struct kdbus_bus *bus;
+	LIST_HEAD(list);
+	LIST_HEAD(notify_list);
 
 	mutex_lock(&conn->lock);
 	if (conn->disconnected) {
@@ -987,7 +988,6 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	mutex_unlock(&bus->lock);
 
 	/* clean up any messages still left on this endpoint */
-	INIT_LIST_HEAD(&list);
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
 		list_del(&queue->entry);
@@ -1007,8 +1007,9 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	mutex_unlock(&conn->lock);
 
 	list_for_each_entry_safe(queue, tmp, &list, entry) {
-		kdbus_notify_reply_dead(conn->ep, queue->src_id,
-					queue->cookie);
+		if (queue->src_id > 0)
+			kdbus_notify_reply_dead(conn->ep, queue->src_id,
+						queue->cookie, &notify_list);
 		mutex_lock(&conn->lock);
 		kdbus_pool_free_range(conn->pool, queue->off);
 		mutex_unlock(&conn->lock);
@@ -1016,7 +1017,8 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	}
 
 	kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_REMOVE,
-			       conn->id, conn->flags);
+			       conn->id, conn->flags, &notify_list);
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	del_timer(&conn->timer);
 	cancel_work_sync(&conn->work);
@@ -1274,11 +1276,12 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_cmd_hello *hello,
 		   struct kdbus_conn **c)
 {
-	int ret;
 	struct kdbus_conn *conn;
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
 	const char *activator_name = NULL;
+	LIST_HEAD(notify_list);
+	int ret;
 
 	KDBUS_ITEM_FOREACH(item, hello, items) {
 		switch (item->type) {
@@ -1356,9 +1359,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* notify about the new active connection */
 	ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD,
-				     conn->id, conn->flags);
+				     conn->id, conn->flags,
+				     &notify_list);
 	if (ret < 0)
 		goto exit_unref;
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	conn->flags = hello->conn_flags;
 	conn->attach_flags = hello->attach_flags;

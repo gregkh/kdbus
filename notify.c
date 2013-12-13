@@ -26,24 +26,18 @@
 #include "message.h"
 #include "connection.h"
 
-static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
-			      u64 cookie, u64 msg_type)
+static int kdbus_notify_reply(struct kdbus_ep *ep, u64 id,
+			      u64 cookie, u64 msg_type,
+			      struct list_head *queue_list)
 {
-	struct kdbus_conn *dst_conn;
 	struct kdbus_kmsg *kmsg;
-	struct kdbus_item *item;
 	int ret;
 
-	mutex_lock(&ep->bus->lock);
-	dst_conn = kdbus_bus_find_conn_by_id(ep->bus, src_id);
-	mutex_unlock(&ep->bus->lock);
-
-	if (!dst_conn)
-		return -ENXIO;
+	BUG_ON(id == 0);
 
 	ret = kdbus_kmsg_new(KDBUS_ITEM_SIZE(0), &kmsg);
 	if (ret < 0)
-		goto exit_unref_conn;
+		return ret;
 
 	/*
 	 * a kernel-generated notification can only contain one
@@ -51,56 +45,60 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 src_id,
 	 * faster lookup in the match db.
 	 */
 	kmsg->notification_type = msg_type;
-
-	kmsg->msg.dst_id = src_id;
+	kmsg->msg.dst_id = id;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
 	kmsg->msg.cookie_reply = cookie;
+	kmsg->msg.items[0].type = msg_type;
 
-	item = kmsg->msg.items;
-	item->type = msg_type;
-
-	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
-	kdbus_kmsg_free(kmsg);
-
-exit_unref_conn:
-	kdbus_conn_unref(dst_conn);
-
+	list_add_tail(&kmsg->queue_entry, queue_list);
 	return ret;
 }
 
 /**
- * kdbus_notify_reply_timeout() - send a timeout reply
+ * kdbus_notify_reply_timeout() - queue a timeout reply
  * @ep:			The endpoint to use for sending
- * @src_id:		The id to use as sender address
+ * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
+ * @queue_list:		A queue list for the newly generated kdbus_kmsg.
+ * 			The caller has to free all items in the list using
+ * 			kdbus_kmsg_free(). Maybe NULL, in which case this
+ * 			function does nothing.
  *
- * Sends a message that has a KDBUS_ITEM_REPLY_TIMEOUT item attached.
+ * Queues a message that has a KDBUS_ITEM_REPLY_TIMEOUT item attached.
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 src_id, u64 cookie)
+int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 id, u64 cookie,
+			       struct list_head *queue_list)
 {
-	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_ITEM_REPLY_TIMEOUT);
+	return kdbus_notify_reply(ep, id, cookie, KDBUS_ITEM_REPLY_TIMEOUT,
+				  queue_list);
 }
 
 /**
- * kdbus_notify_reply_dead() - send a 'dead' reply
+ * kdbus_notify_reply_dead() - queue a 'dead' reply
  * @ep:			The endpoint to use for sending
- * @src_id:		The id to use as sender address
+ * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
+ * @queue_list:		A queue list for the newly generated kdbus_kmsg.
+ * 			The caller has to free all items in the list using
+ * 			kdbus_kmsg_free(). Maybe NULL, in which case this
+ * 			function does nothing.
  *
- * Sends a message that has a KDBUS_ITEM_REPLY_DEAD item attached.
+ * Queues a message that has a KDBUS_ITEM_REPLY_DEAD item attached.
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 src_id, u64 cookie)
+int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 id, u64 cookie,
+			    struct list_head *queue_list)
 {
-	return kdbus_notify_reply(ep, src_id, cookie, KDBUS_ITEM_REPLY_DEAD);
+	return kdbus_notify_reply(ep, id, cookie, KDBUS_ITEM_REPLY_DEAD,
+				  queue_list);
 }
 
 /**
- * kdbus_notify_name_change() - send a notification about a name owner change
+ * kdbus_notify_name_change() - queue a notification about a name owner change
  * @ep:			The endpoint to use for sending
  * @type:		The type if the notification; KDBUS_ITEM_NAME_ADD,
  * 			KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
@@ -124,9 +122,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 			     const char *name,
 			     struct list_head *queue_list)
 {
-	struct kdbus_kmsg *kmsg = NULL;
-	struct kdbus_item *item;
-	struct kdbus_msg *msg;
+	struct kdbus_kmsg *kmsg;
 	size_t extra_size;
 	int ret;
 
@@ -138,61 +134,51 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 	if (ret < 0)
 		return ret;
 
+	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
+	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->notification_type = type;
-	msg = &kmsg->msg;
-	msg->dst_id = KDBUS_DST_ID_BROADCAST;
-	msg->src_id = KDBUS_SRC_ID_KERNEL;
-
-	item = msg->items;
-	item->type = type;
-
-	item->name_change.old_id = old_id;
-	item->name_change.new_id = new_id;
-
-	item->name_change.old_flags = old_flags;
-	item->name_change.new_flags = new_flags;
-
-	strcpy(item->name_change.name, name);
+	kmsg->msg.items[0].type = type;
+	kmsg->msg.items[0].name_change.old_id = old_id;
+	kmsg->msg.items[0].name_change.old_flags = old_flags;
+	kmsg->msg.items[0].name_change.new_id = new_id;
+	kmsg->msg.items[0].name_change.new_flags = new_flags;
+	strcpy(kmsg->msg.items[0].name_change.name, name);
 
 	list_add_tail(&kmsg->queue_entry, queue_list);
-
 	return ret;
 }
 
 /**
- * kdbus_notify_id_change() - send a notification about a unique ID change
+ * kdbus_notify_id_change() - queue a notification about a unique ID change
  * @ep:			The endpoint to use for sending
  * @type:		The type if the notification; KDBUS_MATCH_ID_ADD or
  * 			KDBUS_MATCH_ID_REMOVE
  * @id:			The id of the connection that was added or removed
  * @flags:		The flags to pass in the KDBUS_ITEM flags field
+ * @queue_list:		A queue list for the newly generated kdbus_kmsg.
+ * 			The caller has to free all items in the list using
+ * 			kdbus_kmsg_free(). Maybe NULL, in which case this
+ * 			function does nothing.
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type,
-			   u64 id, u64 flags)
+int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type, u64 id, u64 flags,
+			   struct list_head *queue_list)
 {
-	struct kdbus_kmsg *kmsg = NULL;
-	struct kdbus_item *item;
-	struct kdbus_msg *msg;
+	struct kdbus_kmsg *kmsg;
 	int ret;
 
 	ret = kdbus_kmsg_new(sizeof(struct kdbus_notify_id_change), &kmsg);
 	if (ret < 0)
 		return ret;
 
+	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
+	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->notification_type = type;
-	msg = &kmsg->msg;
-	msg->dst_id = KDBUS_DST_ID_BROADCAST;
-	msg->src_id = KDBUS_SRC_ID_KERNEL;
+	kmsg->msg.items[0].type = type;
+	kmsg->msg.items[0].id_change.id = id;
+	kmsg->msg.items[0].id_change.flags = flags;
 
-	item = msg->items;
-	item->type = type;
-	item->id_change.id = id;
-	item->id_change.flags = flags;
-
-	ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
-	kdbus_kmsg_free(kmsg);
-
+	list_add_tail(&kmsg->queue_entry, queue_list);
 	return ret;
 }

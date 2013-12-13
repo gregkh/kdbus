@@ -142,7 +142,7 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 }
 
 static void kdbus_name_entry_release(struct kdbus_name_entry *e,
-				     struct list_head *notification_list)
+				     struct list_head *notify_list)
 {
 	struct kdbus_name_queue_item *q;
 	u64 flags;
@@ -156,7 +156,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 						 KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->activator->id,
 						 e->flags, flags,
-						 e->name, notification_list);
+						 e->name, notify_list);
 			e->flags = flags;
 			kdbus_name_entry_remove_owner(e);
 			kdbus_name_entry_set_owner(e, e->activator);
@@ -168,7 +168,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 					 KDBUS_ITEM_NAME_REMOVE,
 					 e->conn->id, 0,
 					 e->flags, 0, e->name,
-					 notification_list);
+					 notify_list);
 		kdbus_name_entry_remove_owner(e);
 		kdbus_name_entry_free(e);
 		return;
@@ -181,7 +181,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	flags = q->flags & ~KDBUS_NAME_QUEUE;
 	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, q->conn->id,
-				 e->flags, flags, e->name, notification_list);
+				 e->flags, flags, e->name, notify_list);
 	e->flags = flags;
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, q->conn);
@@ -190,13 +190,13 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 
 static int kdbus_name_release(struct kdbus_name_entry *e,
 			      struct kdbus_conn *conn,
-			      struct list_head *notification_list)
+			      struct list_head *notify_list)
 {
 	struct kdbus_name_queue_item *q_tmp, *q;
 
 	/* Is the connection already the real owner of the name? */
 	if (e->conn == conn) {
-		kdbus_name_entry_release(e, notification_list);
+		kdbus_name_entry_release(e, notify_list);
 		return 0;
 	}
 
@@ -227,7 +227,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e_tmp, *e;
 	struct kdbus_name_queue_item *q_tmp, *q;
-	LIST_HEAD(notification_list);
+	LIST_HEAD(notify_list);
 	LIST_HEAD(names_queue_list);
 	LIST_HEAD(names_list);
 
@@ -240,10 +240,10 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
-		kdbus_name_entry_release(e, &notification_list);
+		kdbus_name_entry_release(e, &notify_list);
 	mutex_unlock(&reg->entries_lock);
 
-	kdbus_conn_kmsg_list_send(conn->ep, NULL, &notification_list);
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 }
 
 /**
@@ -288,7 +288,7 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
 				      struct kdbus_name_entry *e, u64 flags,
-				      struct list_head *notification_list)
+				      struct list_head *notify_list)
 {
 	int ret;
 
@@ -303,7 +303,7 @@ static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 				 KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, conn->id,
 				 e->flags, flags,
-				 e->name, notification_list);
+				 e->name, notify_list);
 
 	/* hand over ownership */
 	kdbus_name_entry_remove_owner(e);
@@ -380,7 +380,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_name_entry **entry)
 {
 	struct kdbus_name_entry *e = NULL;
-	LIST_HEAD(notification_list);
+	LIST_HEAD(notify_list);
 	int ret = 0;
 	u32 hash;
 
@@ -404,7 +404,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* take over the name of an activator connection */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
 			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
-							  &notification_list);
+							  &notify_list);
 			goto exit_unlock;
 		}
 
@@ -412,7 +412,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		if ((flags & KDBUS_NAME_REPLACE_EXISTING) &&
 		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
 			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
-							 &notification_list);
+							 &notify_list);
 			goto exit_unlock;
 		}
 
@@ -454,14 +454,14 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD,
 				 0, e->conn->id,
 				 0, e->flags, e->name,
-				 &notification_list);
+				 &notify_list);
 
 	if (entry)
 		*entry = e;
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
-	kdbus_conn_kmsg_list_send(conn->ep, NULL, &notification_list);
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	return ret;
 }
@@ -480,7 +480,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name *cmd_name;
-	LIST_HEAD(notification_list);
+	LIST_HEAD(notify_list);
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -546,12 +546,12 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
-		kdbus_conn_kmsg_list_free(&notification_list);
+		kdbus_conn_kmsg_list_free(&notify_list);
 		kdbus_name_entry_release(e, NULL);
 	}
 
 exit_unref_conn:
-	kdbus_conn_kmsg_list_send(conn->ep, NULL, &notification_list);
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 	kdbus_conn_unref(conn);
 
 exit_free:
@@ -574,7 +574,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e;
 	struct kdbus_cmd_name *cmd_name;
-	LIST_HEAD(notification_list);
+	LIST_HEAD(notify_list);
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -626,14 +626,13 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 		kdbus_conn_ref(conn);
 	}
 
-	ret = kdbus_name_release(e, conn, &notification_list);
+	ret = kdbus_name_release(e, conn, &notify_list);
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 
 	if (conn) {
-		kdbus_conn_kmsg_list_send(conn->ep, NULL,
-					  &notification_list);
+		kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 		kdbus_conn_unref(conn);
 	}
 
