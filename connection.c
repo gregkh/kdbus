@@ -1303,6 +1303,7 @@ exit_unref_owner_conn:
  */
 int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_cmd_hello *hello,
+		   const struct kdbus_creds *creds,
 		   struct kdbus_conn **c)
 {
 	struct kdbus_conn *conn;
@@ -1375,7 +1376,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
 	/* cache the metadata/credentials of the creator of the connection */
-	ret = kdbus_meta_append(&conn->meta, conn, NULL,
+	ret = kdbus_meta_append(&conn->meta, conn, creds,
 				KDBUS_ATTACH_CREDS |
 				KDBUS_ATTACH_COMM |
 				KDBUS_ATTACH_EXE |

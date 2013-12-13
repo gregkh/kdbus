@@ -24,6 +24,7 @@
 
 #include "connection.h"
 #include "message.h"
+#include "metadata.h"
 #include "memfd.h"
 #include "notify.h"
 #include "namespace.h"
@@ -61,6 +62,7 @@ enum kdbus_handle_type {
 struct kdbus_handle {
 	enum kdbus_handle_type type;
 	struct kdbus_ns *ns;
+	struct kdbus_creds creds;
 	union {
 		struct kdbus_ns *ns_owner;
 		struct kdbus_bus *bus_owner;
@@ -107,6 +109,9 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	handle->type = KDBUS_HANDLE_EP;
 	handle->ep = kdbus_ep_ref(ep);
 	mutex_unlock(&handle->ns->lock);
+
+	kdbus_creds_fill_current(&handle->creds);
+
 	return 0;
 
 exit_unlock:
@@ -352,7 +357,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_conn_new(handle->ep, hello, &handle->conn);
+		ret = kdbus_conn_new(handle->ep, hello, &handle->creds,
+				     &handle->conn);
 		if (ret < 0)
 			break;
 
