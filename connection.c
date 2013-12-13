@@ -699,7 +699,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 * timeout of the actual message, and has nothing to do with a potential
 	 * reply that may be expected.
 	 */
-	if (msg->timeout_ns) {
+	if (msg->src_id != KDBUS_SRC_ID_KERNEL && msg->timeout_ns > 0) {
 		struct timespec ts;
 
 		ktime_get_ts(&ts);
@@ -744,7 +744,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ret < 0)
 		goto exit_unref;
 
-	if (msg->timeout_ns)
+	if (deadline_ns > 0)
 		kdbus_conn_timeout_schedule_scan(conn_dst);
 
 exit_unref:
