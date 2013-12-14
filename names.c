@@ -149,9 +149,9 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 
 	if (list_empty(&e->queue_list)) {
 		/* if the name has an activator connection, hand it back */
-		if (e->flags & KDBUS_NAME_ACTIVATOR && e->activator != e->conn) {
-			u64 flags = KDBUS_NAME_ALLOW_REPLACEMENT |
-				    KDBUS_NAME_ACTIVATOR;
+		if (e->activator && e->activator != e->conn) {
+			u64 flags = KDBUS_NAME_ACTIVATOR;
+
 			kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->activator->id,
 						 e->flags, flags,
@@ -401,7 +401,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* take over the name of an activator connection */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
 			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
-							  &notify_list);
+							 &notify_list);
 			goto exit_unlock;
 		}
 
@@ -440,7 +440,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
 		e->activator = kdbus_conn_ref(conn);
-		flags = KDBUS_NAME_ALLOW_REPLACEMENT|KDBUS_NAME_ACTIVATOR;
+		flags = KDBUS_NAME_ACTIVATOR;
 	}
 
 	e->flags = flags;
