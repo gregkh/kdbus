@@ -480,6 +480,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	struct kdbus_conn_queue *queue, *queue_tmp;
 	struct kdbus_conn_reply_entry *reply, *reply_tmp;
 	LIST_HEAD(notify_list);
+	LIST_HEAD(reply_list);
 	u64 deadline = -1;
 	struct timespec ts;
 	u64 now;
@@ -496,23 +497,30 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			kdbus_pool_free_range(conn->pool, queue->off);
 			list_del(&queue->entry);
 			kdbus_conn_queue_cleanup(queue);
-		} else if (queue->deadline_ns < deadline) {
-			deadline = queue->deadline_ns;
+			continue;
 		}
+
+		if (queue->deadline_ns < deadline)
+			deadline = queue->deadline_ns;
 	}
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
-		if (reply->deadline_ns <= now) {
+		if (reply->deadline_ns > now)
+			continue;
+
+		/* dead connections cleared the timeout */
+		if (reply->deadline_ns > 0)
 			kdbus_notify_reply_timeout(conn->ep, reply->conn->id,
 						   reply->cookie, &notify_list);
-			//FIXME: conn->lock is held, but entry_free might
-			//       call disconnect which takes it too
-			kdbus_conn_reply_entry_free(reply);
-		}
+
+		list_move_tail(&reply->entry, &reply_list);
 	}
 	mutex_unlock(&conn->lock);
 
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+
+	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
+		kdbus_conn_reply_entry_free(reply);
 
 	if (deadline != -1) {
 		u64 usecs = deadline - now;
@@ -1041,6 +1049,10 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 				kdbus_notify_reply_dead(conn->ep, c->id,
 							reply->cookie,
 							&notify_list);
+
+				/* mark entry as handled, and trigger timeout */
+				reply->deadline_ns = 0;
+				kdbus_conn_timeout_schedule_scan(c);
 			}
 			mutex_unlock(&c->lock);
 		}
