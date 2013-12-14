@@ -152,8 +152,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 		if (e->flags & KDBUS_NAME_ACTIVATOR && e->activator != e->conn) {
 			u64 flags = KDBUS_NAME_ALLOW_REPLACEMENT |
 				    KDBUS_NAME_ACTIVATOR;
-			kdbus_notify_name_change(e->conn->ep,
-						 KDBUS_ITEM_NAME_CHANGE,
+			kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->activator->id,
 						 e->flags, flags,
 						 e->name, notify_list);
@@ -164,8 +163,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 		}
 
 		/* release the name */
-		kdbus_notify_name_change(e->conn->ep,
-					 KDBUS_ITEM_NAME_REMOVE,
+		kdbus_notify_name_change(KDBUS_ITEM_NAME_REMOVE,
 					 e->conn->id, 0,
 					 e->flags, 0, e->name,
 					 notify_list);
@@ -179,7 +177,7 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 			     struct kdbus_name_queue_item,
 			     entry_entry);
 	flags = q->flags & ~KDBUS_NAME_QUEUE;
-	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_CHANGE,
+	kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, q->conn->id,
 				 e->flags, flags, e->name, notify_list);
 	e->flags = flags;
@@ -299,8 +297,7 @@ static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 			return ret;
 	}
 
-	kdbus_notify_name_change(conn->ep,
-				 KDBUS_ITEM_NAME_CHANGE,
+	kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, conn->id,
 				 e->flags, flags,
 				 e->name, notify_list);
@@ -451,7 +448,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
 
-	kdbus_notify_name_change(e->conn->ep, KDBUS_ITEM_NAME_ADD,
+	kdbus_notify_name_change(KDBUS_ITEM_NAME_ADD,
 				 0, e->conn->id,
 				 0, e->flags, e->name,
 				 &notify_list);

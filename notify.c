@@ -26,8 +26,7 @@
 #include "message.h"
 #include "notify.h"
 
-static int kdbus_notify_reply(struct kdbus_ep *ep, u64 id,
-			      u64 cookie, u64 msg_type,
+static int kdbus_notify_reply(u64 id, u64 cookie, u64 msg_type,
 			      struct list_head *queue_list)
 {
 	struct kdbus_kmsg *kmsg;
@@ -57,7 +56,6 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 id,
 
 /**
  * kdbus_notify_reply_timeout() - queue a timeout reply
- * @ep:			The endpoint to use for sending
  * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
@@ -69,16 +67,14 @@ static int kdbus_notify_reply(struct kdbus_ep *ep, u64 id,
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 id, u64 cookie,
-			       struct list_head *queue_list)
+int kdbus_notify_reply_timeout(u64 id, u64 cookie, struct list_head *queue_list)
 {
-	return kdbus_notify_reply(ep, id, cookie, KDBUS_ITEM_REPLY_TIMEOUT,
+	return kdbus_notify_reply(id, cookie, KDBUS_ITEM_REPLY_TIMEOUT,
 				  queue_list);
 }
 
 /**
  * kdbus_notify_reply_dead() - queue a 'dead' reply
- * @ep:			The endpoint to use for sending
  * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
@@ -90,16 +86,14 @@ int kdbus_notify_reply_timeout(struct kdbus_ep *ep, u64 id, u64 cookie,
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 id, u64 cookie,
-			    struct list_head *queue_list)
+int kdbus_notify_reply_dead(u64 id, u64 cookie, struct list_head *queue_list)
 {
-	return kdbus_notify_reply(ep, id, cookie, KDBUS_ITEM_REPLY_DEAD,
+	return kdbus_notify_reply(id, cookie, KDBUS_ITEM_REPLY_DEAD,
 				  queue_list);
 }
 
 /**
  * kdbus_notify_name_change() - queue a notification about a name owner change
- * @ep:			The endpoint to use for sending
  * @type:		The type if the notification; KDBUS_ITEM_NAME_ADD,
  * 			KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
  * @old_id:		The id of the connection that used to own the name
@@ -116,7 +110,7 @@ int kdbus_notify_reply_dead(struct kdbus_ep *ep, u64 id, u64 cookie,
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
+int kdbus_notify_name_change(u64 type,
 			     u64 old_id, u64 new_id,
 			     u64 old_flags, u64 new_flags,
 			     const char *name,
@@ -150,7 +144,6 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
 
 /**
  * kdbus_notify_id_change() - queue a notification about a unique ID change
- * @ep:			The endpoint to use for sending
  * @type:		The type if the notification; KDBUS_MATCH_ID_ADD or
  * 			KDBUS_MATCH_ID_REMOVE
  * @id:			The id of the connection that was added or removed
@@ -162,7 +155,7 @@ int kdbus_notify_name_change(struct kdbus_ep *ep, u64 type,
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_notify_id_change(struct kdbus_ep *ep, u64 type, u64 id, u64 flags,
+int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
 			   struct list_head *queue_list)
 {
 	struct kdbus_kmsg *kmsg;

@@ -510,7 +510,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 
 		/* dead connections cleared the timeout */
 		if (reply->deadline_ns > 0)
-			kdbus_notify_reply_timeout(conn->ep, reply->conn->id,
+			kdbus_notify_reply_timeout(reply->conn->id,
 						   reply->cookie, &notify_list);
 
 		list_move_tail(&reply->entry, &reply_list);
@@ -1023,7 +1023,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
 		if (queue->src_id > 0)
-			kdbus_notify_reply_dead(conn->ep, queue->src_id,
+			kdbus_notify_reply_dead(queue->src_id,
 						queue->cookie, &notify_list);
 
 		list_del(&queue->entry);
@@ -1046,8 +1046,7 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 				if (conn != reply->conn)
 					continue;
 
-				kdbus_notify_reply_dead(conn->ep, c->id,
-							reply->cookie,
+				kdbus_notify_reply_dead(c->id, reply->cookie,
 							&notify_list);
 
 				/* mark entry as handled, and trigger timeout */
@@ -1059,8 +1058,8 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 		mutex_unlock(&bus->lock);
 	}
 
-	kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_REMOVE,
-			       conn->id, conn->flags, &notify_list);
+	kdbus_notify_id_change(KDBUS_ITEM_ID_REMOVE, conn->id, conn->flags,
+			       &notify_list);
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	del_timer(&conn->timer);
@@ -1390,8 +1389,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
 	/* notify about the new active connection */
-	ret = kdbus_notify_id_change(conn->ep, KDBUS_ITEM_ID_ADD,
-				     conn->id, conn->flags,
+	ret = kdbus_notify_id_change(KDBUS_ITEM_ID_ADD, conn->id, conn->flags,
 				     &notify_list);
 	if (ret < 0)
 		goto exit_unref;
