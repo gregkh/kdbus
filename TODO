@@ -2,12 +2,13 @@ Doc:
   - endpoint.c
 
 External API:
-  - actually return compatible/incompatible flags
+  - actually return compatible/incompatible flags to users
   - rules for: which unknown items to ignore in userspace?
   - review all different structures of custom ioctls and items if they
     can be somehow unified
   - pids and namespaces, ref struct pid of connection?
-  - move monitor to MATCH?
+  - replace current monitor logic with specific "HELLO MONITOR" connections
+     - allow to subscribe to PIDs
 
 Internal:
   - limit the number of connections per uid
