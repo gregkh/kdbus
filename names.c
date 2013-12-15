@@ -496,7 +496,8 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_name))
 		return PTR_ERR(cmd_name);
 
-	if (!kdbus_name_is_valid(cmd_name->name)) {
+	if (!kdbus_check_strlen(cmd_name, name) ||
+	    !kdbus_name_is_valid(cmd_name->name)) {
 		ret = -EINVAL;
 		goto exit_free;
 	}

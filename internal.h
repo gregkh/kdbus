@@ -85,6 +85,20 @@
 })
 
 /**
+ * kdbus_check_strlen - check length of a string at the end a structure
+ * @_p:			A pointer to a structure that has a size member and
+ * 			a variable string at its end
+ * @_s:			The name of the dynamically sized string member
+ *
+ * Returns: 1 if the string's end marker is withing the struct, or 0 otherwise.
+ */
+#define kdbus_check_strlen(_p, _s)					\
+({									\
+	size_t _max = (_p)->size - offsetof(typeof(*(_p)), _s);		\
+	_max == 0 || strnlen((_p)->_s, _max) != _max;			\
+})
+
+/**
  * kdbus_validate_nul - check the validity of a sized string
  * @s:			String
  * @l:			Length of string

@@ -1227,6 +1227,11 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	if (name) {
 		struct kdbus_name_entry *e;
 
+		if (!kdbus_check_strlen(cmd_info, name)) {
+			ret = -EINVAL;
+			goto exit_free;
+		}
+
 		e = kdbus_name_lookup(conn->ep->bus->name_registry, name);
 		if (!e) {
 			ret = -ENOENT;
