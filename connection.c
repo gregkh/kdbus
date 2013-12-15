@@ -1198,13 +1198,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	if (IS_ERR(cmd_info))
 		return PTR_ERR(cmd_info);
 
-	if (cmd_info->id != 0) {
-		struct kdbus_bus *bus = conn->ep->bus;
-
-		mutex_lock(&bus->lock);
-		owner_conn = kdbus_bus_find_conn_by_id(bus, cmd_info->id);
-		mutex_unlock(&bus->lock);
-	} else {
+	if (cmd_info->id == 0) {
 		if (size == sizeof(struct kdbus_cmd_conn_info)) {
 			ret = -EINVAL;
 			goto exit_free;
@@ -1217,6 +1211,12 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 		name = cmd_info->name;
 		hash = kdbus_str_hash(name);
+	} else {
+		struct kdbus_bus *bus = conn->ep->bus;
+
+		mutex_lock(&bus->lock);
+		owner_conn = kdbus_bus_find_conn_by_id(bus, cmd_info->id);
+		mutex_unlock(&bus->lock);
 	}
 
 	/*
