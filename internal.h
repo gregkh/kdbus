@@ -78,10 +78,10 @@
  *
  * Returns: the result of copy_to_user()
  */
-#define kdbus_offset_set_user(_s, _b, _t)					\
-({										\
-	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), offset);	\
-	copy_to_user(_sz, _s, sizeof(__u64));					\
+#define kdbus_offset_set_user(_s, _b, _t)				\
+({									\
+	u64 __user *_sz = (void __user *)(_b) + offsetof(_t, offset);	\
+	copy_to_user(_sz, _s, sizeof(__u64));				\
 })
 
 /**
