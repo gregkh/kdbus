@@ -561,6 +561,31 @@ static int check_name_queue(struct kdbus_check_env *env)
 	return CHECK_OK;
 }
 
+static int check_conn_info(struct kdbus_check_env *env)
+{
+	int ret;
+	struct {
+		struct kdbus_cmd_conn_info cmd_info;
+		char name[64];
+	} __attribute__ ((__aligned__(8))) buf;
+
+	buf.cmd_info.size = sizeof(struct kdbus_cmd_conn_info);
+	buf.cmd_info.flags = 0;
+	buf.cmd_info.id = env->conn->hello.id;
+
+	ret = ioctl(env->conn->fd, KDBUS_CMD_CONN_INFO, &buf);
+	ASSERT_RETURN(ret == 0);
+
+	/* try to pass a name that is longer than the buffer's size */
+	strcpy(buf.cmd_info.name, "foo.bar.bla");
+	buf.cmd_info.id = 0;
+	buf.cmd_info.size = sizeof(struct kdbus_cmd_conn_info) + 10;
+	ret = ioctl(env->conn->fd, KDBUS_CMD_CONN_INFO, &buf);
+	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+
+	return CHECK_OK;
+}
+
 static int check_msg_basic(struct kdbus_check_env *env)
 {
 	struct kdbus_conn *conn;
@@ -696,6 +721,7 @@ static const struct kdbus_check checks[] = {
 	{ "name queue",		check_name_queue,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "message basic",	check_msg_basic,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "message free",	check_msg_free,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
+	{ "connection info",	check_conn_info,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "ns make",		check_nsmake,		0					},
 	{ NULL, NULL, 0 }
 };
