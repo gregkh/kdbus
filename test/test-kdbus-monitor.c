@@ -98,12 +98,12 @@ static int dump_packet(struct conn *conn, int fd)
 			if (item->vec.offset != ~0ULL) {
 				to_write = item->vec.size;
 				data_to_write = (void *) msg + item->vec.offset;
-			}
-			/*add data padding to file*/
-			else {
+			} else {
+				/*add data padding to file*/
 				to_write = item->vec.size % 8;
 				data_to_write = "\0\0\0\0\0\0\0";
 			}
+
 			size = write(fd, data_to_write, to_write);
 			if (size != to_write) {
 				fprintf(stderr, "Unable to write: %m\n");
@@ -141,7 +141,6 @@ int main(int argc, char **argv)
 	int output_fd;
 	int ret;
 	char *bus, *file;
-	struct kdbus_cmd_monitor cmd_monitor;
 	struct pollfd fd;
 
 	if (argc < 3) {
@@ -158,15 +157,9 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	conn = connect_to_bus(bus);
-	if (!conn)
-		return EXIT_FAILURE;
-
-	cmd_monitor.id = 0;;
-	cmd_monitor.flags = KDBUS_MONITOR_ENABLE;
-	ret = ioctl(conn->fd, KDBUS_CMD_MONITOR, &cmd_monitor);
-	if (ret < 0) {
-		fprintf(stderr, "Unable to set monitor mode on bus: %m\n");
+	conn = connect_to_bus(bus, KDBUS_HELLO_MONITOR);
+	if (!conn) {
+		fprintf(stderr, "Unable to connect as monitor: %m\n");
 		return EXIT_FAILURE;
 	}
 

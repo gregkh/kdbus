@@ -27,7 +27,6 @@ static unsigned int ioctl_cmds[] = {
 	KDBUS_CMD_CONN_INFO,
 	KDBUS_CMD_MATCH_ADD,
 	KDBUS_CMD_MATCH_REMOVE,
-	KDBUS_CMD_MONITOR,
 	KDBUS_CMD_EP_POLICY_SET,
 };
 
@@ -58,8 +57,6 @@ static const char *ioctl_name(unsigned int ioctl)
 		return "MATCH_ADD";
 	case KDBUS_CMD_MATCH_REMOVE:
 		return "MATCH_REMOVE";
-	case KDBUS_CMD_MONITOR:
-		return "MONITOR";
 	case KDBUS_CMD_EP_POLICY_SET:
 		return "EP_POLICY_SET";
 	default:
@@ -122,7 +119,7 @@ static int make_bus(void)
 		return EXIT_FAILURE;
 
 	for (ret = 0; ret < random() % 20; ret++) {
-		struct conn *conn = connect_to_bus(bus);
+		struct conn *conn = connect_to_bus(bus, 0);
 		if (conn)
 			add_fd(conn->fd);
 	}

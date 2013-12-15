@@ -3,12 +3,11 @@ Doc:
 
 External API:
   - actually return compatible/incompatible flags to users
-  - rules for: which unknown items to ignore in userspace?
+  - rules for:
+      -unknown items to ignore in userspace lib?
+      -unknown items to ignore if SEND sees them?
   - review all different structures of custom ioctls and items if they
     can be somehow unified
-  - pids and namespaces, ref struct pid of connection?
-  - replace current monitor logic with specific "HELLO MONITOR" connections
-     - allow to subscribe to PIDs
 
 Internal:
   - limit the number of connections per uid

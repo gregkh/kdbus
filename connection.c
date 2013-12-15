@@ -585,10 +585,10 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 			return -ENXIO;
 
 		/*
-		 * A activator connection is not allowed to be addressed
-		 * via its unique id.
+		 * Special-purpose connections are not allowed to be addressed
+		 * via their unique IDs.
 		 */
-		if (c->flags & KDBUS_HELLO_ACTIVATOR) {
+		if (c->flags & (KDBUS_HELLO_ACTIVATOR|KDBUS_HELLO_MONITOR)) {
 			ret = -ENXIO;
 			goto exit_unref;
 		}
@@ -645,7 +645,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				continue;
 
 			/*
-			 * activator connections will not receive any
+			 * Activator connections will not receive any
 			 * broadcast messages.
 			 */
 			if (conn_dst->flags & KDBUS_HELLO_ACTIVATOR)
@@ -755,11 +755,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 	}
 
-	/* Eaves-dropping (monitor) connections get all messages */
+	/* monitor connections get all messages */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(conn, &ep->bus->monitors_list, monitor_entry) {
-		/* the monitor connection is addressed, deliver it below */
-		if (conn->id == conn_dst->id)
+
+		/* filter messages */
+		if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
+					       conn_src, kmsg))
 			continue;
 
 		/* ignore errors of misbehaving monitor connections */
@@ -1326,6 +1328,10 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	LIST_HEAD(notify_list);
 	int ret;
 
+	if (hello->conn_flags & KDBUS_HELLO_ACTIVATOR &&
+	    hello->conn_flags & KDBUS_HELLO_MONITOR)
+		return -EINVAL;
+
 	KDBUS_ITEM_FOREACH(item, hello, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_ACTIVATOR_NAME:
@@ -1354,7 +1360,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->msg_list);
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
-	INIT_LIST_HEAD(&conn->monitor_entry);
 	INIT_LIST_HEAD(&conn->reply_list);
 	atomic_set(&conn->reply_count, 0);
 	INIT_WORK(&conn->work, kdbus_conn_work);
@@ -1363,6 +1368,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->timer.function = kdbus_conn_timer_func;
 	conn->timer.data = (unsigned long) conn;
 	add_timer(&conn->timer);
+
+	/* init entry, so we can unconditionally remove it */
+	INIT_LIST_HEAD(&conn->monitor_entry);
 
 	ret = kdbus_pool_new(&conn->pool, hello->pool_size);
 	if (ret < 0)
@@ -1403,6 +1411,12 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 					 activator_name, 0, NULL);
 		if (ret < 0)
 			goto exit_unref;
+	}
+
+	if (hello->conn_flags & KDBUS_HELLO_MONITOR) {
+		mutex_lock(&bus->lock);
+		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
+		mutex_unlock(&bus->lock);
 	}
 
 	conn->meta = meta;

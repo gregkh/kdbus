@@ -27,7 +27,7 @@
 #include "kdbus-enum.h"
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
-struct conn *connect_to_bus(const char *path)
+struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 {
 	int fd, ret;
 	struct kdbus_cmd_hello __attribute__ ((__aligned__(8))) hello;
@@ -42,7 +42,7 @@ struct conn *connect_to_bus(const char *path)
 		return NULL;
 	}
 
-	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
+	hello.conn_flags = hello_flags | KDBUS_HELLO_ACCEPT_FD;
 
 	hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
 			     KDBUS_ATTACH_CREDS |
