@@ -1412,8 +1412,10 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->attach_flags = hello->attach_flags;
 
 	if (activator_name) {
+		u64 flags = 0;
+
 		ret = kdbus_name_acquire(bus->name_registry, conn,
-					 activator_name, 0, NULL);
+					 activator_name, &flags, NULL);
 		if (ret < 0)
 			goto exit_unref;
 	}
