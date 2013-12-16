@@ -265,7 +265,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 }
 
 static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
-				 struct kdbus_name_entry *e)
+				  struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
 
@@ -286,7 +286,7 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
 /* called with entries_lock held */
 static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
-				      struct kdbus_name_entry *e, u64 *flags,
+				      struct kdbus_name_entry *e, u64 flags,
 				      struct list_head *notify_list)
 {
 	int ret;
@@ -300,13 +300,13 @@ static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 
 	kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, conn->id,
-				 e->flags, *flags,
+				 e->flags, flags,
 				 e->name, notify_list);
 
 	/* hand over ownership */
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, conn);
-	e->flags = *flags;
+	e->flags = flags;
 
 	return 0;
 }
@@ -401,7 +401,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 		/* take over the name of an activator connection */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
-			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
+			ret = kdbus_name_handle_takeover(reg, conn, e, *flags,
 							 &notify_list);
 			goto exit_unlock;
 		}
@@ -409,7 +409,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* take over the name if both parties agree */
 		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
-			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
+			ret = kdbus_name_handle_takeover(reg, conn, e, *flags,
 							 &notify_list);
 			goto exit_unlock;
 		}
@@ -465,7 +465,7 @@ exit_unlock:
 }
 
 /**
- * kdbus_name_acquire() - acquire a name from a ioctl command buffer
+ * kdbus_cmd_name_acquire() - acquire a name from a ioctl command buffer
  * @reg:		The name registry
  * @conn:		The connection to pin this entry to
  * @buf:		The __user buffer as passed in by the ioctl
@@ -497,6 +497,9 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_name))
 		return PTR_ERR(cmd_name);
 
+	if (cmd_name->flags & (KDBUS_NAME_IN_QUEUE|KDBUS_NAME_ACTIVATOR))
+		return -EINVAL;
+
 	if (!kdbus_check_strlen(cmd_name, name) ||
 	    !kdbus_name_is_valid(cmd_name->name)) {
 		ret = -EINVAL;
@@ -527,7 +530,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		kdbus_conn_ref(conn);
 	}
 
-	cmd_name->flags &= ~KDBUS_NAME_IN_QUEUE;
 	hash = kdbus_str_hash(cmd_name->name);
 
 	if (conn->ep->policy_db) {
@@ -543,6 +545,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (ret < 0)
 		goto exit_unref_conn;
 
+	/* return flags to the caller */
 	if (copy_to_user(buf, cmd_name, size)) {
 		ret = -EFAULT;
 		kdbus_conn_kmsg_list_free(&notify_list);
@@ -555,7 +558,6 @@ exit_unref_conn:
 
 exit_free:
 	kfree(cmd_name);
-
 	return ret;
 }
 
