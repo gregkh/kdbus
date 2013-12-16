@@ -264,7 +264,7 @@ static int check_nsmake(struct kdbus_check_env *env)
 		uint64_t n_size;
 		uint64_t n_type;
 		char name[64];
-	} __attribute__ ((__aligned__(8))) ns_make;
+	} ns_make;
 	int ret;
 
 	fd = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
@@ -312,7 +312,7 @@ static int check_busmake(struct kdbus_check_env *env)
 		uint64_t n_size;
 		uint64_t n_type;
 		char name[64];
-	} __attribute__ ((__aligned__(8))) bus_make;
+	} bus_make;
 	char s[PATH_MAX];
 	int ret;
 
@@ -567,7 +567,7 @@ static int check_conn_info(struct kdbus_check_env *env)
 	struct {
 		struct kdbus_cmd_conn_info cmd_info;
 		char name[64];
-	} __attribute__ ((__aligned__(8))) buf;
+	} buf;
 
 	buf.cmd_info.size = sizeof(struct kdbus_cmd_conn_info);
 	buf.cmd_info.flags = 0;
@@ -657,7 +657,7 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 			uint64_t n_size;
 			uint64_t n_type;
 			char name[64];
-		} __attribute__ ((__aligned__(8))) bus_make;
+		} bus_make;
 		unsigned int i;
 		char n[32];
 		int ret;

@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 		uint64_t n_size;
 		uint64_t n_type;
 		char name[64];
-	} __attribute__ ((__aligned__(8))) bus_make;
+	} bus_make;
 	int fdc, ret;
 	char *bus;
 	struct conn *activator, *conn_a;

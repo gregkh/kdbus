@@ -30,7 +30,7 @@
 struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 {
 	int fd, ret;
-	struct kdbus_cmd_hello __attribute__ ((__aligned__(8))) hello;
+	struct kdbus_cmd_hello hello;
 	struct conn *conn;
 
 	memset(&hello, 0, sizeof(hello));
@@ -571,7 +571,7 @@ int upload_policy(int fd, const char *name)
 
 void add_match_empty(int fd)
 {
-	struct kdbus_cmd_match __attribute__ ((__aligned__(8))) cmd_match;
+	struct kdbus_cmd_match cmd_match;
 	int ret;
 
 	memset(&cmd_match, 0, sizeof(cmd_match));
