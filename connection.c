@@ -1201,12 +1201,12 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	if (cmd_info->id == 0) {
 		if (size == sizeof(struct kdbus_cmd_conn_info)) {
 			ret = -EINVAL;
-			goto exit_free;
+			goto exit;
 		}
 
 		if (!kdbus_name_is_valid(cmd_info->name)) {
 			ret = -EINVAL;
-			goto exit_free;
+			goto exit;
 		}
 
 		name = cmd_info->name;
@@ -1229,13 +1229,13 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 		if (!kdbus_check_strlen(cmd_info, name)) {
 			ret = -EINVAL;
-			goto exit_free;
+			goto exit;
 		}
 
 		e = kdbus_name_lookup(conn->ep->bus->name_registry, name);
 		if (!e) {
 			ret = -ENOENT;
-			goto exit_free;
+			goto exit;
 		}
 
 		if (e->conn)
@@ -1244,7 +1244,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 	if (!owner_conn) {
 		ret = -ENXIO;
-		goto exit_free;
+		goto exit;
 	}
 
 	info.size = sizeof(struct kdbus_conn_info);
@@ -1265,14 +1265,14 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	    !(owner_conn->flags & KDBUS_HELLO_ACTIVATOR)) {
 		ret = kdbus_meta_append(&meta, owner_conn, KDBUS_ATTACH_NAMES);
 		if (ret < 0)
-			goto exit_unref_owner_conn;
+			goto exit;
 
 		info.size += meta.size;
 	}
 
 	ret = kdbus_pool_alloc_range(conn->pool, info.size, &off);
 	if (ret < 0)
-		goto exit_unref_owner_conn;
+		goto exit;
 
 	ret = kdbus_pool_write(conn->pool, off, &info, sizeof(info));
 	if (ret < 0)
@@ -1304,7 +1304,7 @@ exit_free:
 	if (ret < 0)
 		kdbus_pool_free_range(conn->pool, off);
 
-exit_unref_owner_conn:
+exit:
 	kdbus_meta_free(&meta);
 	kdbus_conn_unref(owner_conn);
 	kfree(cmd_info);
