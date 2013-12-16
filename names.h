@@ -50,7 +50,7 @@ void kdbus_name_registry_free(struct kdbus_name_registry *reg);
 
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
-		       const char *name, u64 flags,
+		       const char *name, u64 *flags,
 		       struct kdbus_name_entry **entry);
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,

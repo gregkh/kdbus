@@ -545,7 +545,7 @@ static int check_name_queue(struct kdbus_check_env *env)
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	ASSERT_RETURN(ret == 0);
 
-	ASSERT_RETURN(cmd_name->flags & KDBUS_NAME_QUEUE);
+	ASSERT_RETURN(cmd_name->flags & KDBUS_NAME_IN_QUEUE);
 
 	/* release name from 1st connection */
 	cmd_name->flags = 0;

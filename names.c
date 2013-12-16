@@ -264,7 +264,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 	return e;
 }
 
-static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
+static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
 				 struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
@@ -274,10 +274,11 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 		return -ENOMEM;
 
 	q->conn = conn;
-	q->flags = flags;
+	q->flags = *flags;
 
 	list_add_tail(&q->entry_entry, &e->queue_list);
 	list_add_tail(&q->conn_entry, &conn->names_queue_list);
+	*flags |= KDBUS_NAME_IN_QUEUE;
 
 	return 0;
 }
@@ -285,7 +286,7 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 /* called with entries_lock held */
 static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 				      struct kdbus_conn *conn,
-				      struct kdbus_name_entry *e, u64 flags,
+				      struct kdbus_name_entry *e, u64 *flags,
 				      struct list_head *notify_list)
 {
 	int ret;
@@ -299,13 +300,13 @@ static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
 
 	kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, conn->id,
-				 e->flags, flags,
+				 e->flags, *flags,
 				 e->name, notify_list);
 
 	/* hand over ownership */
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, conn);
-	e->flags = flags;
+	e->flags = *flags;
 
 	return 0;
 }
@@ -373,7 +374,7 @@ bool kdbus_name_is_valid(const char *p)
  */
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
-		       const char *name, u64 flags,
+		       const char *name, u64 *flags,
 		       struct kdbus_name_entry **entry)
 {
 	struct kdbus_name_entry *e = NULL;
@@ -406,7 +407,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		}
 
 		/* take over the name if both parties agree */
-		if ((flags & KDBUS_NAME_REPLACE_EXISTING) &&
+		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
 			ret = kdbus_name_handle_takeover(reg, conn, e, flags,
 							 &notify_list);
@@ -414,7 +415,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		}
 
 		/* add it to the queue waiting for the name */
-		if (flags & KDBUS_NAME_QUEUE) {
+		if (*flags & KDBUS_NAME_QUEUE) {
 			ret = kdbus_name_queue_conn(conn, flags, e);
 			goto exit_unlock;
 		}
@@ -440,10 +441,10 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
 		e->activator = kdbus_conn_ref(conn);
-		flags = KDBUS_NAME_ACTIVATOR;
+		*flags = KDBUS_NAME_ACTIVATOR;
 	}
 
-	e->flags = flags;
+	e->flags = *flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
@@ -538,7 +539,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	}
 
 	ret = kdbus_name_acquire(reg, conn, cmd_name->name,
-				 cmd_name->flags, &e);
+				 &cmd_name->flags, &e);
 	if (ret < 0)
 		goto exit_unref_conn;
 
