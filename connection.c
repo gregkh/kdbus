@@ -224,14 +224,13 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 	KDBUS_ITEM_FOREACH(item, &kmsg->msg, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
-			const size_t size = KDBUS_ITEM_HEADER_SIZE +
-					    sizeof(struct kdbus_vec);
-			char tmp[size];
+			char tmp[KDBUS_ITEM_HEADER_SIZE +
+				 sizeof(struct kdbus_vec)];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
 
 			/* add item */
 			it->type = KDBUS_ITEM_PAYLOAD_OFF;
-			it->size = size;
+			it->size = sizeof(tmp);
 
 			/* a NULL address specifies a \0-bytes record */
 			if (KDBUS_PTR(item->vec.address))
@@ -239,7 +238,8 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			else
 				it->vec.offset = ~0ULL;
 			it->vec.size = item->vec.size;
-			ret = kdbus_pool_write(conn->pool, off + items, it, size);
+			ret = kdbus_pool_write(conn->pool, off + items,
+					       it, it->size);
 			if (ret < 0)
 				return ret;
 			items += KDBUS_ALIGN8(it->size);
@@ -276,19 +276,19 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 		}
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			const size_t size = KDBUS_ITEM_HEADER_SIZE +
-					    sizeof(struct kdbus_memfd);
-			char tmp[size];
+			char tmp[KDBUS_ITEM_HEADER_SIZE +
+				 sizeof(struct kdbus_memfd)];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
 			struct file *fp;
 			size_t memfd;
 
 			/* add item */
 			it->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-			it->size = size;
+			it->size = sizeof(tmp);
 			it->memfd.size = item->memfd.size;
 			it->memfd.fd = -1;
-			ret = kdbus_pool_write(conn->pool, off + items, it, size);
+			ret = kdbus_pool_write(conn->pool, off + items,
+					       it, it->size);
 			if (ret < 0)
 				return ret;
 
@@ -429,13 +429,13 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 	/* add a FDS item; the array content will be updated at RECV time */
 	if (kmsg->fds_count > 0) {
-		const size_t size = KDBUS_ITEM_HEADER_SIZE;
-		char tmp[size];
+		char tmp[KDBUS_ITEM_HEADER_SIZE];
 		struct kdbus_item *it = (struct kdbus_item *)tmp;
 
 		it->type = KDBUS_ITEM_FDS;
-		it->size = size + (kmsg->fds_count * sizeof(int));
-		ret = kdbus_pool_write(conn->pool, off + fds, it, size);
+		it->size = KDBUS_ITEM_HEADER_SIZE +
+			   (kmsg->fds_count * sizeof(int));
+		ret = kdbus_pool_write(conn->pool, off + fds, it, it->size);
 		if (ret < 0)
 			goto exit_pool_free;
 
