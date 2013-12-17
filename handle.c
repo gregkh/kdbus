@@ -185,8 +185,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 				     void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_cmd_bus_make *bus_make = NULL;
-	struct kdbus_cmd_ns_make *ns_make = NULL;
+	struct kdbus_cmd_make *make = NULL;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
 	umode_t mode = 0600;
@@ -195,6 +194,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE: {
 		kgid_t gid = KGIDT_INIT(0);
+		size_t bloom_size;
 		char *name;
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
@@ -202,23 +202,23 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_bus_make_user(buf, &bus_make, &name);
+		ret = kdbus_bus_make_user(buf, &make, &name, &bloom_size);
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(bus_make->flags)) {
+		if (!kdbus_check_flags(make->flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (bus_make->flags & KDBUS_MAKE_ACCESS_WORLD) {
+		if (make->flags & KDBUS_MAKE_ACCESS_WORLD) {
 			mode = 0666;
-		} else if (bus_make->flags & KDBUS_MAKE_ACCESS_GROUP) {
+		} else if (make->flags & KDBUS_MAKE_ACCESS_GROUP) {
 			mode = 0660;
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_bus_new(handle->ns, bus_make, name,
+		ret = kdbus_bus_new(handle->ns, make, name, bloom_size,
 				    mode, current_fsuid(), gid, &bus);
 		if (ret < 0)
 			break;
@@ -242,16 +242,16 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_ns_make_user(buf, &ns_make, &name);
+		ret = kdbus_ns_make_user(buf, &make, &name);
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(ns_make->flags)) {
+		if (!kdbus_check_flags(make->flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (ns_make->flags & KDBUS_MAKE_ACCESS_WORLD)
+		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
 
 		ret = kdbus_ns_new(kdbus_ns_init, name, mode, &ns);
@@ -282,8 +282,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kfree(bus_make);
-	kfree(ns_make);
+	kfree(make);
 	return ret;
 }
 
@@ -292,7 +291,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 				  void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_cmd_ep_make *m = NULL;
+	struct kdbus_cmd_make *make = NULL;
 	struct kdbus_cmd_hello *hello = NULL;
 	long ret = 0;
 
@@ -307,25 +306,25 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_ep_make_user(buf, &m, &n);
+		ret = kdbus_ep_make_user(buf, &make, &n);
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(m->flags)) {
+		if (!kdbus_check_flags(make->flags)) {
 			ret = -ENOTSUPP;
 			break;
 		}
 
-		if (m->flags & KDBUS_MAKE_ACCESS_WORLD) {
+		if (make->flags & KDBUS_MAKE_ACCESS_WORLD) {
 			mode = 0666;
-		} else if (m->flags & KDBUS_MAKE_ACCESS_GROUP) {
+		} else if (make->flags & KDBUS_MAKE_ACCESS_GROUP) {
 			mode = 0660;
 			gid = current_fsgid();
 		}
 
 		ret = kdbus_ep_new(handle->ep->bus, handle->ep->bus->ns, n,
 				   mode, current_fsuid(), gid,
-				   m->flags & KDBUS_MAKE_POLICY_OPEN);
+				   make->flags & KDBUS_MAKE_POLICY_OPEN);
 
 		handle->type = KDBUS_HANDLE_EP_OWNER;
 		break;
@@ -390,7 +389,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kfree(m);
+	kfree(make);
 	kfree(hello);
 
 	return ret;

@@ -258,7 +258,7 @@ static int check_nsmake(struct kdbus_check_env *env)
 {
 	int fd, fd2;
 	struct {
-		struct kdbus_cmd_ns_make head;
+		struct kdbus_cmd_make head;
 
 		/* name item */
 		uint64_t n_size;
@@ -277,7 +277,7 @@ static int check_nsmake(struct kdbus_check_env *env)
 	/* create a new namespace */
 	snprintf(ns_make.name, sizeof(ns_make.name), "blah");
 	ns_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(ns_make.name) + 1;
-	ns_make.head.size = sizeof(struct kdbus_cmd_ns_make) + ns_make.n_size;
+	ns_make.head.size = sizeof(struct kdbus_cmd_make) + ns_make.n_size;
 	ret = ioctl(fd, KDBUS_CMD_NS_MAKE, &ns_make);
 	if (ret < 0 && errno == EPERM)
 		return CHECK_SKIP;
@@ -306,7 +306,14 @@ static int check_nsmake(struct kdbus_check_env *env)
 static int check_busmake(struct kdbus_check_env *env)
 {
 	struct {
-		struct kdbus_cmd_bus_make head;
+		struct kdbus_cmd_make head;
+
+		/* bloom size item */
+		struct {
+			uint64_t size;
+			uint64_t type;
+			uint64_t bloom_size;
+		} bs;
 
 		/* name item */
 		uint64_t n_size;
@@ -320,7 +327,10 @@ static int check_busmake(struct kdbus_check_env *env)
 	ASSERT_RETURN(env->control_fd >= 0);
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.head.bloom_size = 64;
+
+	bus_make.bs.size = sizeof(bus_make.bs);
+	bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
+	bus_make.bs.bloom_size = 64;
 
 	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
 
@@ -328,7 +338,7 @@ static int check_busmake(struct kdbus_check_env *env)
 	/* check some illegal names */
 	snprintf(bus_make.name, sizeof(bus_make.name), "foo");
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + bus_make.n_size;
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 #endif
@@ -336,7 +346,9 @@ static int check_busmake(struct kdbus_check_env *env)
 	/* create a new bus */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah", getuid());
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + bus_make.n_size;
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+			     sizeof(uint64_t) * 3 +
+			     bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
 	snprintf(s, sizeof(s), "/dev/kdbus/%u-blah/bus", getuid());
@@ -651,7 +663,14 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 {
 	if (c->flags & CHECK_CREATE_BUS) {
 		struct {
-			struct kdbus_cmd_bus_make head;
+			struct kdbus_cmd_make head;
+
+			/* bloom size item */
+			struct {
+				uint64_t size;
+				uint64_t type;
+				uint64_t bloom_size;
+			} bs;
 
 			/* name item */
 			uint64_t n_size;
@@ -666,7 +685,9 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 		ASSERT_RETURN(env->control_fd >= 0);
 
 		memset(&bus_make, 0, sizeof(bus_make));
-		bus_make.head.bloom_size = 64;
+		bus_make.bs.size = sizeof(bus_make.bs);
+		bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
+		bus_make.bs.bloom_size = 64;
 
 		for (i = 0; i < sizeof(n); i++)
 			n[i] = 'a' + (random() % ('z' - 'a'));
@@ -676,7 +697,8 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 		bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
 		bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 
-		bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
+		bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+				     sizeof(bus_make.bs) +
 				     bus_make.n_size;
 
 		ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);

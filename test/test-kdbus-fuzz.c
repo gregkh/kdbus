@@ -80,7 +80,18 @@ static void add_fd(int fd)
 static int make_bus(void)
 {
 	struct {
-		struct kdbus_cmd_bus_make head;
+		struct kdbus_cmd_make head;
+
+		/* bloom size item */
+		struct {
+			uint64_t size;
+			uint64_t type;
+			uint64_t bloom_size;
+		} bs;
+
+		/* name item */
+		uint64_t n_size;
+		uint64_t n_type;
 		char name[64];
 	} bus_make;
 	char name[10];
@@ -105,8 +116,11 @@ static int make_bus(void)
 	memset(&bus_make, 0, sizeof(bus_make));
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s", getuid(), name);
 	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
-	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) + strlen(bus_make.name) + 1;
-	bus_make.head.bloom_size = 64;
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) + strlen(bus_make.name) + 1;
+
+	bus_make.bs.size = sizeof(bus_make.bs);
+	bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
+	bus_make.bs.bloom_size = 64;
 
 	printf("-- creating bus '%s'\n", bus_make.name);
 	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &bus_make);

@@ -68,10 +68,10 @@ struct kdbus_bus {
 	u8 id128[16];
 };
 
-int kdbus_bus_make_user(void __user *buf,
-			struct kdbus_cmd_bus_make **make, char **name);
-int kdbus_bus_new(struct kdbus_ns *ns,
-		  struct kdbus_cmd_bus_make *make, const char *name,
+int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
+			char **name, size_t *bsize);
+int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_make *make,
+		  const char *name, size_t bloom_size,
 		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);

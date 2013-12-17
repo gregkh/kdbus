@@ -205,7 +205,14 @@ handle_echo_reply(struct conn *conn)
 int main(int argc, char *argv[])
 {
 	struct {
-		struct kdbus_cmd_bus_make head;
+		struct kdbus_cmd_make head;
+
+		/* bloom size item */
+		struct {
+			uint64_t size;
+			uint64_t type;
+			uint64_t bloom_size;
+		} bs;
 
 		/* name item */
 		uint64_t n_size;
@@ -231,13 +238,16 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.head.bloom_size = 64;
+	bus_make.bs.size = sizeof(bus_make.bs);
+	bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
+	bus_make.bs.bloom_size = 64;
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 
-	bus_make.head.size = sizeof(struct kdbus_cmd_bus_make) +
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+			     sizeof(bus_make.bs) +
 			     bus_make.n_size;
 
 	printf("-- creating bus '%s'\n", bus_make.name);

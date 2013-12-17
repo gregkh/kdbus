@@ -309,18 +309,18 @@ exit_unlock:
  * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_ns_make_user(void __user *buf,
-			struct kdbus_cmd_ns_make **make, char **name)
+			struct kdbus_cmd_make **make, char **name)
 {
 	u64 size;
-	struct kdbus_cmd_ns_make *m;
+	struct kdbus_cmd_make *m;
 	const struct kdbus_item *item;
 	const char *n = NULL;
 	int ret;
 
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_ns_make))
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_make))
 		return -EFAULT;
 
-	if (size < sizeof(struct kdbus_cmd_ns_make) || size > KDBUS_MAKE_MAX_SIZE)
+	if (size < sizeof(struct kdbus_cmd_make) || size > KDBUS_MAKE_MAX_SIZE)
 		return -EMSGSIZE;
 
 	m = memdup_user(buf, size);
