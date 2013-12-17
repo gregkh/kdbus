@@ -22,6 +22,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 
 #include "memfd.h"
 
