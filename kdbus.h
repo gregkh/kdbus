@@ -45,10 +45,8 @@ struct kdbus_notify_id_change {
 
 /**
  * struct kdbus_notify_name_change - name registry change message
- * @old_id:		Former owner of a name
- * @new_id:		New owner of a name
- * @old_flags:		flags from KDBUS_NAME_* the name entry used to have
- * @new_flags:		flags from KDBUS_NAME_* the name entry has now
+ * @old:		ID and flags of former owner of a name
+ * @new:		ID and flags of new owner of a name
  * @name:		Well-known name
  *
  * Sent from kernel to userspace when the owner or activator of
