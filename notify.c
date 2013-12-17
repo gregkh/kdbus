@@ -131,10 +131,10 @@ int kdbus_notify_name_change(u64 type,
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->notification_type = type;
 	kmsg->msg.items[0].type = type;
-	kmsg->msg.items[0].name_change.old_id = old_id;
-	kmsg->msg.items[0].name_change.old_flags = old_flags;
-	kmsg->msg.items[0].name_change.new_id = new_id;
-	kmsg->msg.items[0].name_change.new_flags = new_flags;
+	kmsg->msg.items[0].name_change.old.id = old_id;
+	kmsg->msg.items[0].name_change.old.flags = old_flags;
+	kmsg->msg.items[0].name_change.new.id = new_id;
+	kmsg->msg.items[0].name_change.new.flags = new_flags;
 	strcpy(kmsg->msg.items[0].name_change.name, name);
 
 	list_add_tail(&kmsg->queue_entry, queue_list);

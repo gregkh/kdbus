@@ -27,6 +27,23 @@
 #define KDBUS_DST_ID_BROADCAST		(~0ULL)
 
 /**
+ * struct kdbus_notify_id_change - name registry change message
+ * @id:			New or former owner of the name
+ * @flags:		flags field from KDBUS_HELLO_*
+ *
+ * Sent from kernel to userspace when the owner or activator of
+ * a well-known name changes.
+ *
+ * Attached to:
+ *   KDBUS_ITEM_ID_ADD
+ *   KDBUS_ITEM_ID_REMOVE
+ */
+struct kdbus_notify_id_change {
+	__u64 id;
+	__u64 flags;
+};
+
+/**
  * struct kdbus_notify_name_change - name registry change message
  * @old_id:		Former owner of a name
  * @new_id:		New owner of a name
@@ -43,28 +60,9 @@
  *   KDBUS_ITEM_NAME_CHANGE
  */
 struct kdbus_notify_name_change {
-	__u64 old_id;
-	__u64 new_id;
-	__u64 old_flags;
-	__u64 new_flags;
+	struct kdbus_notify_id_change old;
+	struct kdbus_notify_id_change new;
 	char name[0];
-};
-
-/**
- * struct kdbus_notify_id_change - name registry change message
- * @id:			New or former owner of the name
- * @flags:		flags field from KDBUS_HELLO_*
- *
- * Sent from kernel to userspace when the owner or activator of
- * a well-known name changes.
- *
- * Attached to:
- *   KDBUS_ITEM_ID_ADD
- *   KDBUS_ITEM_ID_REMOVE
- */
-struct kdbus_notify_id_change {
-	__u64 id;
-	__u64 flags;
 };
 
 /**
