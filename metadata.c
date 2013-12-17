@@ -209,7 +209,6 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta)
 	if (exe_path) {
 		char *tmp;
 		char *pathname;
-		size_t len;
 
 		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 		if (!tmp) {
@@ -219,7 +218,7 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta)
 
 		pathname = d_path(exe_path, tmp, PAGE_SIZE);
 		if (!IS_ERR(pathname)) {
-			len = tmp + PAGE_SIZE - pathname;
+			size_t len = tmp + PAGE_SIZE - pathname;
 			ret = kdbus_meta_append_data(meta, KDBUS_ITEM_EXE,
 						     pathname, len);
 		}

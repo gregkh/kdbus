@@ -694,7 +694,6 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 	int ret;
 
 	hash_for_each(conn->ep->bus->conn_hash, i, c, hentry) {
-		struct kdbus_name_entry *e;
 		bool added = false;
 
 		/* skip activators */
@@ -705,6 +704,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 		/* all names the connection owns */
 		if (flags & KDBUS_NAME_LIST_NAMES ||
 		    c->flags & KDBUS_HELLO_ACTIVATOR) {
+			struct kdbus_name_entry *e;
+
 			list_for_each_entry(e, &c->names_list, conn_entry) {
 				ret = kdbus_name_list_write(conn, c, &p,
 							    e, write);
