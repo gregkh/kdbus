@@ -248,11 +248,11 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	}
 
 	/* get dynamic major */
-	n->major = register_chrdev(0, "kdbus", &kdbus_device_ops);
-	if (n->major < 0) {
-		ret = n->major;
+	ret = register_chrdev(0, "kdbus", &kdbus_device_ops);
+	if (ret < 0)
 		goto exit_unlock;
-	}
+
+	n->major = ret;
 
 	/* kdbus_device_ops' dev_t finds the namespace in the major map,
 	 * and the bus in the minor map of that namespace */
