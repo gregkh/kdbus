@@ -425,7 +425,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (!conn->ep->policy_db) {
 			ret = kdbus_policy_db_new(&conn->ep->policy_db);
 			if (ret < 0)
-				return ret;
+				break;
 		}
 
 		ret = kdbus_cmd_policy_set_from_user(conn->ep->policy_db, buf);
