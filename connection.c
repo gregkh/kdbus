@@ -1081,7 +1081,18 @@ exit_unlock:
 	return ret;
 }
 
-void kdbus_conn_disconnect(struct kdbus_conn *conn)
+/**
+ * kdbus_conn_disconnect() - disconnect a connection
+ * @conn:			The connection to disconnect
+ * @ensure_msg_list_empty:	Flag to indicate if the call should fail in
+ * 				case the connection's message list is not
+ * 				empty
+ *
+ * Returns 0 on success.
+ * If @ensure_msg_list_empty is true, and the connection has pending messages,
+ * -EAGAIN is returned.
+ */
+int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 {
 	struct kdbus_conn_queue *queue, *tmp;
 	struct kdbus_bus *bus;
@@ -1090,7 +1101,12 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	mutex_lock(&conn->lock);
 	if (conn->disconnected) {
 		mutex_unlock(&conn->lock);
-		return;
+		return -EALREADY;
+	}
+
+	if (ensure_msg_list_empty && !list_empty(&conn->msg_list)) {
+		mutex_unlock(&conn->lock);
+		return -EAGAIN;
 	}
 
 	conn->disconnected = true;
@@ -1151,6 +1167,8 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 	del_timer(&conn->timer);
 	cancel_work_sync(&conn->work);
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
+
+	return 0;
 }
 
 static void __kdbus_conn_free(struct kref *kref)
@@ -1158,7 +1176,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 	struct kdbus_conn_reply_entry *reply, *reply_tmp;
 
-	kdbus_conn_disconnect(conn);
+	kdbus_conn_disconnect(conn, false);
 	if (conn->ep->policy_db)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 

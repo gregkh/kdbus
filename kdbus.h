@@ -748,6 +748,7 @@ enum kdbus_ioctl_type {
 	KDBUS_CMD_EP_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x20, struct kdbus_cmd_make),
 
 	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOC_MAGIC, 0x30, struct kdbus_cmd_hello),
+	KDBUS_CMD_BYEBYE =		_IO  (KDBUS_IOC_MAGIC, 0x31),
 
 	KDBUS_CMD_MSG_SEND =		_IOW (KDBUS_IOC_MAGIC, 0x40, struct kdbus_msg),
 	KDBUS_CMD_MSG_RECV =		_IOR (KDBUS_IOC_MAGIC, 0x41, __u64 *),

@@ -43,6 +43,7 @@ enum kdbus_handle_type {
 	KDBUS_HANDLE_EP,		/* new fd of a bus node */
 	KDBUS_HANDLE_EP_CONNECTED,	/* connection after HELLO */
 	KDBUS_HANDLE_EP_OWNER,		/* fd to hold an endpoint */
+	KDBUS_HANDLE_DISCONNECTED,	/* handle is disconnected */
 };
 
 /**
@@ -158,7 +159,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_HANDLE_EP_CONNECTED:
-		kdbus_conn_disconnect(handle->conn);
+		kdbus_conn_disconnect(handle->conn, false);
 		kdbus_conn_unref(handle->conn);
 		break;
 
@@ -405,6 +406,14 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	long ret = 0;
 
 	switch (cmd) {
+	case KDBUS_CMD_BYEBYE:
+		ret = kdbus_conn_disconnect(conn, true);
+		if (ret == 0) {
+			kdbus_conn_unref(conn);
+			handle->type = KDBUS_HANDLE_DISCONNECTED;
+		}
+		break;
+
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {

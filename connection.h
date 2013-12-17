@@ -77,7 +77,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_conn **conn);
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
-void kdbus_conn_disconnect(struct kdbus_conn *conn);
+int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty);
 
 int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf);
 int kdbus_conn_drop_msg(struct kdbus_conn *conn);
