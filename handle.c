@@ -499,7 +499,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_MSG_RECV: {
+	case KDBUS_CMD_MSG_RECV:
 		/* receive a pointer to a queued message */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
@@ -508,7 +508,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		ret = kdbus_conn_recv_msg(conn, buf);
 		break;
-	}
 
 	case KDBUS_CMD_FREE: {
 		u64 off;
