@@ -22,6 +22,7 @@
 #include <linux/security.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
+#include <asm/uaccess.h>
 
 #include "connection.h"
 #include "metadata.h"
