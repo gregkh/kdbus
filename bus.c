@@ -183,7 +183,8 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	int ret;
 
 	/* enforce "$UID-" prefix */
-	snprintf(prefix, sizeof(prefix), "%u-", from_kuid(current_user_ns(), uid));
+	snprintf(prefix, sizeof(prefix), "%u-",
+		 from_kuid(current_user_ns(), uid));
 	if (strncmp(name, prefix, strlen(prefix) != 0))
 		return -EINVAL;
 
@@ -301,7 +302,8 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 				goto exit;
 			}
 
-			if (item->size > KDBUS_ITEM_HEADER_SIZE + KDBUS_MAKE_MAX_LEN + 1) {
+			if (item->size > KDBUS_ITEM_HEADER_SIZE +
+					 KDBUS_MAKE_MAX_LEN + 1) {
 				ret = -ENAMETOOLONG;
 				goto exit;
 			}

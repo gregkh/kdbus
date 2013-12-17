@@ -58,7 +58,7 @@ struct kdbus_policy_db_cache_entry {
  * @type:		One of KDBUS_POLICY_ACCESS_* types
  * @bits:		Access to grant. One of KDBUS_POLICY_*
  * @id:			For KDBUS_POLICY_ACCESS_USER, the uid
- * 			For KDBUS_POLICY_ACCESS_GROUP, the gid
+ *			For KDBUS_POLICY_ACCESS_GROUP, the gid
  * @list:		List entry item for the entry's list
  *
  * This is the internal version of struct kdbus_policy_access.
@@ -75,7 +75,7 @@ struct kdbus_policy_db_entry_access {
  * @name:		The name to match the policy entry against
  * @hentry:		The hash entry for the database's entries_hash
  * @access_list:	List head for keeping tracks of the entry's
- * 			access items.
+ *			access items.
  */
 struct kdbus_policy_db_entry {
 	char			*name;
@@ -145,8 +145,9 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db)
 	return 0;
 }
 
-static inline u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
-					 struct kdbus_conn *conn)
+static inline u64
+kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
+			     struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_entry_access *a;
 	u64 uid = from_kuid(current_user_ns(), current_uid());
@@ -245,7 +246,7 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 
 /**
  * kdbus_policy_db_check_send_access() - check if one connection is allowed
- * 				       to send a message to another connection
+ *				       to send a message to another connection
  * @db:			The policy database
  * @conn_src:		The source connection
  * @conn_dst:		The destination connection
@@ -323,7 +324,7 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
 
 /**
  * kdbus_policy_db_check_own_access() - check whether a policy is allowed
- * 					to own a name
+ *					to own a name
  * @db:		The policy database
  * @conn:	The connection to check
  * @name:	The name to check

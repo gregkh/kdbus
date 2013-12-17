@@ -112,7 +112,8 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
  *
  * Returns: 0 on success, negative errno on failure.
  */
-static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg)
+static int kdbus_msg_scan_items(struct kdbus_conn *conn,
+				struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;

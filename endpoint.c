@@ -137,7 +137,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  * kdbus_ep_new() - create a new endpoint
  * @bus:		The bus this endpoint will be created for
  * @ns:			The namespace of the bus; needed separately when
- * 			creating the default endpoint for a new bus
+ *			creating the default endpoint for a new bus
  * @name:		The name of the endpoint
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
@@ -274,7 +274,8 @@ int kdbus_ep_make_user(void __user *buf,
 				goto exit;
 			}
 
-			if (item->size > KDBUS_ITEM_HEADER_SIZE + KDBUS_MAKE_MAX_LEN + 1) {
+			if (item->size > KDBUS_ITEM_HEADER_SIZE +
+					 KDBUS_MAKE_MAX_LEN + 1) {
 				ret = -ENAMETOOLONG;
 				goto exit;
 			}

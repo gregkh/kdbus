@@ -242,7 +242,10 @@ static int kdbus_memfd_mmap(struct file *file, struct vm_area_struct *vma)
 			goto exit;
 		}
 
-		/* extend the size of the shmem file to the size of the mapping */
+		/*
+		 * Extend the size of the shmem file to the
+		 * size of the mapping
+		 */
 		size = (vma->vm_end - vma->vm_start) +
 		       (vma->vm_pgoff << PAGE_SHIFT);
 		inode = file_inode(mf->fp);
@@ -345,7 +348,8 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		up_read(&mm->mmap_sem);
 		break;
 	}
-default:
+
+	default:
 		ret = -ENOTTY;
 		break;
 	}

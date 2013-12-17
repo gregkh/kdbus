@@ -51,14 +51,14 @@ enum kdbus_handle_type {
  * @ns:		Namespace for this handle
  * @meta:	Cached connection creator's metadata/credentials
  * @ns_owner:	The namespace this handle owns, in case @type
- * 		is KDBUS_HANDLE_CONTROL_NS_OWNER
+ *		is KDBUS_HANDLE_CONTROL_NS_OWNER
  * @bus_owner:	The bus this handle owns, in case @type
- * 		is KDBUS_HANDLE_CONTROL_BUS_OWNER
+ *		is KDBUS_HANDLE_CONTROL_BUS_OWNER
  * @conn	The connection this handle owns, in case @type
- * 		is KDBUS_HANDLE_EP, after HELLO it is
- * 		KDBUS_HANDLE_EP_CONNECTED
+ *		is KDBUS_HANDLE_EP, after HELLO it is
+ *		KDBUS_HANDLE_EP_CONNECTED
  * @ep		The endpoint this handle owns, in case @type
- * 		is KDBUS_HANDLE_EP or KDBUS_HANDLE_EP_OWNER
+ *		is KDBUS_HANDLE_EP or KDBUS_HANDLE_EP_OWNER
  */
 struct kdbus_handle {
 	enum kdbus_handle_type type;

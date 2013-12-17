@@ -41,9 +41,9 @@ struct kdbus_match_db {
  * @type:		The type of the item (KDBUS_MATCH_*)
  * @name:		The name tp match against, if @type is KDBUS_MATCH_BLOOM
  * @bloom:		The bloom filter to match against, if @type is
- * 			KDBUS_MATCH_SRC_NAME or KDBUS_MATCH_NAME_*
+ *			KDBUS_MATCH_SRC_NAME or KDBUS_MATCH_NAME_*
  * @id:			The ID to match against, if @type is KDBUS_MATCH_ID_ADD
- * 			or KDBUS_MATCH_ID_REMOVE
+ *			or KDBUS_MATCH_ID_REMOVE
  * @list_entry:		Entry in struct kdbus_match_db
  */
 struct kdbus_match_db_entry_item {
@@ -62,7 +62,7 @@ struct kdbus_match_db_entry_item {
  * @id:			The ID of the destination connection of this entry
  * @cookie:		User-supplied cookie to lookup the entry
  * @src_id:		The ID of the source connection to match against,
- * 			or KDBUS_MATCH_SRC_ID_ANY.
+ *			or KDBUS_MATCH_SRC_ID_ANY.
  * @list_entry:		The list entry element for the db list
  * @items_list:		The list head for tracking items to this entry
  */
@@ -343,7 +343,7 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
 /**
  * kdbus_match_db_add() - add an entry to the match database
  * @conn:		The connection that was used in the ioctl call
- * @buf:		The __user buffer that was provided along with the ioctl call
+ * @buf:		The __user buffer that was provided by the ioctl call
  *
  * Returns 0 in success, any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
@@ -463,7 +463,7 @@ exit_free:
 /**
  * kdbus_match_db_remove() - remove an entry from the match database
  * @conn:		The connection that was used in the ioctl call
- * @buf:		The __user buffer that was provided along with the ioctl call
+ * @buf:		The __user buffer that was provided by the ioctl call
  *
  * Returns 0 in success, any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_MATCH_REMOVE

@@ -43,7 +43,8 @@
  * @entry:		Entry in the connection's list
  * @off:		Offset into the shmem file in the receiver's pool
  * @size:		The number of bytes used in the pool
- * @memfds:		Arrays of offsets where to update the installed fd number
+ * @memfds:		Arrays of offsets where to update the installed
+ * 			fd number
  * @memfds_fp:		Array memfd files queued up for this message
  * @memfds_count:	Number of memfds
  * @fds:		Offset to array where to update the installed fd number
@@ -415,7 +416,8 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		goto exit_pool_free;
 
 	/* update the size */
-	ret = kdbus_pool_write(conn->pool, off, &msg_size, sizeof(kmsg->msg.size));
+	ret = kdbus_pool_write(conn->pool, off, &msg_size,
+			       sizeof(kmsg->msg.size));
 	if (ret < 0)
 		goto exit_pool_free;
 
@@ -1127,7 +1129,8 @@ void kdbus_conn_disconnect(struct kdbus_conn *conn)
 		hash_for_each(bus->conn_hash, i, c, hentry) {
 
 			mutex_lock(&c->lock);
-			list_for_each_entry_safe(reply, reply_tmp, &c->reply_list, entry) {
+			list_for_each_entry_safe(reply, reply_tmp,
+						 &c->reply_list, entry) {
 				if (conn != reply->conn)
 					continue;
 
