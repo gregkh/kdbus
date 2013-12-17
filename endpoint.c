@@ -182,6 +182,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 	i = idr_alloc(&ns->idr, e, 1, 0, GFP_KERNEL);
 	if (i <= 0) {
 		ret = i;
+		mutex_unlock(&ns->lock);
 		goto exit;
 	}
 	e->minor = i;
