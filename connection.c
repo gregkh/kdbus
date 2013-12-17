@@ -435,7 +435,8 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		it->type = KDBUS_ITEM_FDS;
 		it->size = KDBUS_ITEM_HEADER_SIZE +
 			   (kmsg->fds_count * sizeof(int));
-		ret = kdbus_pool_write(conn->pool, off + fds, it, it->size);
+		ret = kdbus_pool_write(conn->pool, off + fds,
+				       it, KDBUS_ITEM_HEADER_SIZE);
 		if (ret < 0)
 			goto exit_pool_free;
 
