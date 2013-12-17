@@ -685,7 +685,6 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	return 0;
 }
 
-
 static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 			       size_t *pos, bool write)
 {

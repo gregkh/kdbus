@@ -1417,7 +1417,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	KDBUS_ITEM_FOREACH(item, hello, items) {
 		switch (item->type) {
-		case KDBUS_ITEM_ACTIVATOR_NAME:
+		case KDBUS_ITEM_NAME:
 			if (!(hello->conn_flags & KDBUS_HELLO_ACTIVATOR))
 				return -EINVAL;
 

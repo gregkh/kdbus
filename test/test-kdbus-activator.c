@@ -43,7 +43,7 @@ static struct conn *make_activator(const char *path, const char *name)
 
 	item = hello->items;
 	item->size = KDBUS_ITEM_SIZE(slen);
-	item->type = KDBUS_ITEM_ACTIVATOR_NAME;
+	item->type = KDBUS_ITEM_NAME;
 	strcpy(item->str, name);
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, hello);
