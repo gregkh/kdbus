@@ -257,8 +257,10 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 				 * null-bytes to the buffer which the \0-bytes
 				 * record would have shifted the alignment.
 				 */
-				kdbus_pool_write_user(conn->pool, off + vec_data,
-						      "\0\0\0\0\0\0\0", pad);
+				kdbus_pool_write_user(conn->pool,
+						      off + vec_data,
+						      (char __user *)
+							"\0\0\0\0\0\0\0", pad);
 				vec_data += pad;
 				break;
 			}
