@@ -785,23 +785,22 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	ret = kdbus_pool_write(conn->pool, pos,
 			       &list, sizeof(struct kdbus_name_list));
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_pool_free;
 	pos += sizeof(struct kdbus_name_list);
 
 	/* copy data */
 	ret = kdbus_name_list_all(conn, cmd_list->flags, &pos, true);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_pool_free;
 
 	/* return allocated data */
-	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_name_list)) {
+	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_name_list))
 		ret = -EFAULT;
-		goto exit_unlock;
-	}
 
-exit_unlock:
+exit_pool_free:
 	if (ret < 0)
 		kdbus_pool_free_range(conn->pool, off);
+exit_unlock:
 	mutex_unlock(&reg->entries_lock);
 	mutex_unlock(&conn->ep->bus->lock);
 	kfree(cmd_list);
