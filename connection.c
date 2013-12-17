@@ -629,7 +629,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
-	struct kdbus_conn *conn;
+	struct kdbus_conn *c;
 	u64 deadline_ns = 0;
 	int ret;
 
@@ -757,15 +757,15 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	/* monitor connections get all messages */
 	mutex_lock(&ep->bus->lock);
-	list_for_each_entry(conn, &ep->bus->monitors_list, monitor_entry) {
+	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry) {
 
 		/* filter messages */
-		if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
+		if (!kdbus_match_db_match_kmsg(c->match_db,
 					       conn_src, kmsg))
 			continue;
 
 		/* ignore errors of misbehaving monitor connections */
-		kdbus_conn_queue_insert(conn, kmsg, 0);
+		kdbus_conn_queue_insert(c, kmsg, 0);
 	}
 	mutex_unlock(&ep->bus->lock);
 
