@@ -16,10 +16,8 @@
 #include <linux/cred.h>
 #include <linux/file.h>
 #include <linux/init.h>
-#include <linux/kref.h>
 #include <linux/mutex.h>
 #include <linux/pid_namespace.h>
-#include <linux/poll.h>
 #include <linux/sched.h>
 #include <linux/security.h>
 #include <linux/sizes.h>

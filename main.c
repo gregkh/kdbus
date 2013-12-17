@@ -15,10 +15,7 @@
 #include <linux/idr.h>
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
-#include <linux/poll.h>
 #include <linux/sched.h>
-#include <linux/slab.h>
 
 #include "internal.h"
 #include "namespace.h"

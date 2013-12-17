@@ -15,11 +15,9 @@
 #include <linux/cred.h>
 #include <linux/device.h>
 #include <linux/file.h>
-#include <linux/idr.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/poll.h>
 #include <linux/sched.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
