@@ -123,16 +123,19 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 	bool has_bloom = false;
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
+		size_t payload_size;
+
 		if (!KDBUS_ITEM_VALID(item, msg))
 			return -EINVAL;
 
 		if (++items_count > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 
+		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
+
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC:
-			if (item->size != KDBUS_ITEM_HEADER_SIZE +
-					  sizeof(struct kdbus_vec))
+			if (payload_size != sizeof(struct kdbus_vec))
 				return -EINVAL;
 
 			/* empty payload is invalid */
@@ -153,8 +156,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			break;
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD:
-			if (item->size != KDBUS_ITEM_HEADER_SIZE +
-					  sizeof(struct kdbus_memfd))
+			if (payload_size != sizeof(struct kdbus_memfd))
 				return -EINVAL;
 
 			/* do not allow to broadcast file descriptors */
@@ -183,7 +185,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(int);
+			n = payload_size / sizeof(int);
 			if (n > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
@@ -203,11 +205,11 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 				return -EBADMSG;
 
 			/* allow only bloom sizes of a multiple of 64bit */
-			if (!KDBUS_IS_ALIGNED8(item->size - KDBUS_ITEM_HEADER_SIZE))
+			if (!KDBUS_IS_ALIGNED8(payload_size))
 				return -EFAULT;
 
 			/* do not allow mismatching bloom filter sizes */
-			if (item->size - KDBUS_ITEM_HEADER_SIZE != conn->ep->bus->bloom_size)
+			if (payload_size != conn->ep->bus->bloom_size)
 				return -EDOM;
 
 			kmsg->bloom = item->data64;
@@ -220,7 +222,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn, struct kdbus_kmsg *kmsg
 			has_name = true;
 
 			/* enforce NUL-terminated strings */
-			if (!kdbus_validate_nul(item->str, item->size - KDBUS_ITEM_HEADER_SIZE))
+			if (!kdbus_validate_nul(item->str, payload_size))
 				return -EINVAL;
 
 			if (!kdbus_name_is_valid(item->str))
