@@ -188,8 +188,10 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 
 static bool kdbus_check_flags(u64 kernel_flags)
 {
-	/* The higher 32bit are considered 'incompatible
-	 * flags'. Refuse them all for now */
+	/*
+	 * The higher 32bit are considered 'incompatible
+	 * flags'. Refuse them all for now
+	 */
 	return kernel_flags <= 0xFFFFFFFFULL;
 }
 
