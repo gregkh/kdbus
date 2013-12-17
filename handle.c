@@ -531,6 +531,14 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
+	case KDBUS_CMD_MSG_DROP:
+		ret = kdbus_conn_drop_msg(conn);
+		break;
+
+	case KDBUS_CMD_MSG_SRC:
+		ret = kdbus_conn_src_msg(conn, buf);
+		break;
+
 	case KDBUS_CMD_MEMFD_NEW: {
 		int fd;
 		int __user *addr = buf;

@@ -927,7 +927,7 @@ remove_unused:
 
 /**
  * kdbus_conn_recv_msg - receive a message from the queue
- * @conn:		Connection to receive from
+ * @conn:		Connection to work on
  * @buf:		The returned offset to the message in the pool
  *
  * Returns: 0 on success, negative errno on failure.
@@ -935,7 +935,6 @@ remove_unused:
 int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 {
 	struct kdbus_conn_queue *queue;
-	u64 off;
 	int *memfds = NULL;
 	unsigned int i;
 	int ret;
@@ -955,8 +954,7 @@ int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 	queue = list_first_entry(&conn->msg_list,
 				 struct kdbus_conn_queue, entry);
 
-	off = queue->off;
-	if (copy_to_user(buf, &off, sizeof(__u64))) {
+	if (copy_to_user(buf, &queue->off, sizeof(__u64))) {
 		ret = -EFAULT;
 		goto exit_unlock;
 	}
@@ -980,8 +978,8 @@ int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 
 	kfree(memfds);
 
-	conn->msg_count--;
 	list_del(&queue->entry);
+	conn->msg_count--;
 	mutex_unlock(&conn->lock);
 
 	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
@@ -992,6 +990,81 @@ exit_rewind:
 	for (i = 0; i < queue->memfds_count; i++)
 		sys_close(memfds[i]);
 	kfree(memfds);
+
+exit_unlock:
+	mutex_unlock(&conn->lock);
+	return ret;
+}
+
+/**
+ * kdbus_conn_drop_msg - receive a message from the queue
+ * @conn:		Connection to work on
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
+int kdbus_conn_drop_msg(struct kdbus_conn *conn)
+{
+	struct kdbus_conn_queue *queue;
+	int ret;
+
+	mutex_lock(&conn->lock);
+	if (unlikely(conn->ep->disconnected)) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
+
+	if (conn->msg_count == 0) {
+		ret = -EAGAIN;
+		goto exit_unlock;
+	}
+
+	queue = list_first_entry(&conn->msg_list,
+				 struct kdbus_conn_queue, entry);
+	list_del(&queue->entry);
+	conn->msg_count--;
+	mutex_unlock(&conn->lock);
+
+	kdbus_conn_queue_cleanup(queue);
+	kdbus_pool_free_range(conn->pool, queue->off);
+	return 0;
+
+exit_unlock:
+	mutex_unlock(&conn->lock);
+	return ret;
+}
+
+/**
+ * kdbus_conn_src_msg - return the sender of a message in the queue
+ * @conn:		Connection to work on
+ * @buf:		The ID of the sender of the next message in the queue
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
+int kdbus_conn_src_msg(struct kdbus_conn *conn, __u64 __user *buf)
+{
+	struct kdbus_conn_queue *queue;
+	int ret;
+
+	mutex_lock(&conn->lock);
+	if (unlikely(conn->ep->disconnected)) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
+
+	if (conn->msg_count == 0) {
+		ret = -EAGAIN;
+		goto exit_unlock;
+	}
+
+	queue = list_first_entry(&conn->msg_list,
+				 struct kdbus_conn_queue, entry);
+	if (copy_to_user(buf, &queue->src_id, sizeof(__u64))) {
+		ret = -EFAULT;
+		goto exit_unlock;
+	}
+
+	mutex_unlock(&conn->lock);
+	return 0;
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
