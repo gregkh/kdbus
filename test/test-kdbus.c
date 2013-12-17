@@ -424,6 +424,47 @@ static int check_hello(struct kdbus_check_env *env)
 	return CHECK_OK;
 }
 
+static int check_byebye(struct kdbus_check_env *env)
+{
+	struct kdbus_conn *conn;
+	uint64_t off;
+	int ret;
+
+	/* create a 2nd connection */
+	conn = make_conn(env->buspath);
+	ASSERT_RETURN(conn != NULL);
+
+	add_match_empty(conn->fd);
+	add_match_empty(env->conn->fd);
+
+	/* send over 1st connection */
+	ret = send_message(env->conn, NULL, 0, KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	/* say byebye on the 2nd, which must fail */
+	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
+	ASSERT_RETURN(ret == -1 && errno == EAGAIN);
+
+	/* receive the message */
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ASSERT_RETURN(ret == 0);
+
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
+	ASSERT_RETURN(ret == 0);
+
+	/* and try again */
+	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
+	ASSERT_RETURN(ret == 0);
+
+	/* a 2nd try should result in -EBADFD */
+	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
+	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+
+	free_conn(conn);
+
+	return CHECK_OK;
+}
+
 static int check_name_basic(struct kdbus_check_env *env)
 {
 	struct kdbus_cmd_name *cmd_name;
@@ -738,6 +779,7 @@ void check_unprepare_env(const struct kdbus_check *c, struct kdbus_check_env *en
 static const struct kdbus_check checks[] = {
 	{ "bus make",		check_busmake,		0					},
 	{ "hello",		check_hello,		CHECK_CREATE_BUS			},
+	{ "byebye",		check_byebye,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name basics",	check_name_basic,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name conflict",	check_name_conflict,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name queue",		check_name_queue,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
