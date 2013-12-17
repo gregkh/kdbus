@@ -410,19 +410,19 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	/* copy the message header */
 	ret = kdbus_pool_write(conn->pool, off, &kmsg->msg, size);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_pool_free;
 
 	/* update the size */
 	ret = kdbus_pool_write(conn->pool, off, &msg_size, sizeof(kmsg->msg.size));
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_pool_free;
 
 	/* add PAYLOAD items */
 	if (payloads > 0) {
 		ret = kdbus_conn_payload_add(conn, queue, kmsg,
 					     off, payloads, vec_data);
 		if (ret < 0)
-			goto exit_unlock;
+			goto exit_pool_free;
 	}
 
 	/* add a FDS item; the array content will be updated at RECV time */
@@ -435,11 +435,11 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		it->size = size + (kmsg->fds_count * sizeof(int));
 		ret = kdbus_pool_write(conn->pool, off + fds, it, size);
 		if (ret < 0)
-			goto exit_unlock;
+			goto exit_pool_free;
 
 		ret = kdbus_conn_fds_ref(queue, kmsg->fds, kmsg->fds_count);
 		if (ret < 0)
-			goto exit_unlock;
+			goto exit_pool_free;
 
 		/* remember the array to update at RECV */
 		queue->fds = fds + offsetof(struct kdbus_item, fds);
@@ -451,7 +451,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		ret = kdbus_pool_write(conn->pool, off + meta,
 				       kmsg->meta.data, kmsg->meta.size);
 		if (ret < 0)
-			goto exit_unlock;
+			goto exit_pool_free;
 	}
 
 	/* remember the offset to the message */
@@ -468,10 +468,12 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	wake_up_interruptible(&conn->ep->wait);
 	return 0;
 
+exit_pool_free:
+	kdbus_pool_free_range(conn->pool, off);
+
 exit_unlock:
 	mutex_unlock(&conn->lock);
 	kdbus_conn_queue_cleanup(queue);
-	kdbus_pool_free_range(conn->pool, off);
 	return ret;
 }
 
