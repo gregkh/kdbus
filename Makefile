@@ -28,9 +28,6 @@ test::
 module:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)
 
-coccicheck:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) coccicheck
-
 clean:
 	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
 	rm -f Module.markers Module.symvers modules.order
@@ -39,6 +36,17 @@ clean:
 
 check:
 	test/test-kdbus
+
+install: module
+	mkdir -p /lib/modules/$(shell uname -r)/kernel/drivers/kdbus/
+	cp -f kdbus.ko /lib/modules/$(shell uname -r)/kernel/drivers/kdbus/
+	depmod $(shell name -r)
+
+uninstall:
+	rm -f /lib/modules/$(shell uname -r)/kernel/drivers/kdbus/kdbus.ko
+
+coccicheck:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) coccicheck
 
 tt: all
 	sudo sh -c 'dmesg -c > /dev/null'
