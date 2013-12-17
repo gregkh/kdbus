@@ -65,7 +65,9 @@ extern struct bus_type kdbus_subsys;
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
 struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns);
-int kdbus_ns_make_user(void __user *buf, struct kdbus_cmd_make **make, char **name);
+int kdbus_ns_new(struct kdbus_ns *parent, const char *name,
+		 umode_t mode, struct kdbus_ns **ns);
+int kdbus_ns_make_user(void __user *buf,
+		       struct kdbus_cmd_make **make, char **name);
 struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major);
 #endif
