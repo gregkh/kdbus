@@ -330,10 +330,14 @@ int kdbus_ns_make_user(void __user *buf,
 	}
 
 	KDBUS_ITEM_FOREACH(item, m, items) {
+		size_t payload_size;
+
 		if (!KDBUS_ITEM_VALID(item, m)) {
 			ret = -EINVAL;
 			goto exit;
 		}
+
+		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
 
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
@@ -342,18 +346,17 @@ int kdbus_ns_make_user(void __user *buf,
 				goto exit;
 			}
 
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
+			if (payload_size < 2) {
 				ret = -EINVAL;
 				goto exit;
 			}
 
-			if (item->size > KDBUS_ITEM_HEADER_SIZE + KDBUS_MAKE_MAX_LEN + 1) {
+			if (payload_size > KDBUS_MAKE_MAX_LEN + 1) {
 				ret = -ENAMETOOLONG;
 				goto exit;
 			}
 
-			if (!kdbus_validate_nul(item->str,
-						item->size - KDBUS_ITEM_HEADER_SIZE)) {
+			if (!kdbus_validate_nul(item->str, payload_size)) {
 				ret = -EINVAL;
 				goto exit;
 			}
