@@ -198,9 +198,9 @@ static int kdbus_pool_alloc_slice(struct kdbus_pool *pool,
 		if (slice_size < s->size) {
 			found = n;
 			n = n->rb_left;
-		} else if (slice_size > s->size)
+		} else if (slice_size > s->size) {
 			n = n->rb_right;
-		else {
+		} else {
 			found = n;
 			break;
 		}
