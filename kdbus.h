@@ -518,11 +518,11 @@ struct kdbus_cmd_make {
  * @KDBUS_NAME_ACTIVATOR:		Name is owned by a activator connection
  */
 enum kdbus_name_flags {
-	KDBUS_NAME_REPLACE_EXISTING		= 1 <<  0,
-	KDBUS_NAME_ALLOW_REPLACEMENT		= 1 <<  1,
-	KDBUS_NAME_QUEUE			= 1 <<  2,
-	KDBUS_NAME_IN_QUEUE			= 1 <<  3,
-	KDBUS_NAME_ACTIVATOR			= 1 <<  4,
+	KDBUS_NAME_REPLACE_EXISTING	= 1 <<  0,
+	KDBUS_NAME_ALLOW_REPLACEMENT	= 1 <<  1,
+	KDBUS_NAME_QUEUE		= 1 <<  2,
+	KDBUS_NAME_IN_QUEUE		= 1 <<  3,
+	KDBUS_NAME_ACTIVATOR		= 1 <<  4,
 };
 
 /**
