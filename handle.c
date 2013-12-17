@@ -36,15 +36,26 @@
 #include "notify.h"
 #include "policy.h"
 
+/**
+ * enum kdbus_handle_type - type a handle can be of
+ * @_KDBUS_HANDLE_NULL:			internal null marker
+ * @KDBUS_HANDLE_CONTROL:		new fd of a control node
+ * @KDBUS_HANDLE_CONTROL_NS_OWNER:	fd to hold a namespace
+ * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	fd to hold a bus
+ * @KDBUS_HANDLE_EP:			new fd of a bus node
+ * @KDBUS_HANDLE_EP_CONNECTED:		connection after HELLO
+ * @KDBUS_HANDLE_EP_OWNER:		fd to hold an endpoint
+ * @KDBUS_HANDLE_DISCONNECTED:		handle is disconnected
+ */
 enum kdbus_handle_type {
 	_KDBUS_HANDLE_NULL,
-	KDBUS_HANDLE_CONTROL,		/* new fd of a control node */
-	KDBUS_HANDLE_CONTROL_NS_OWNER,	/* fd to hold a namespace */
-	KDBUS_HANDLE_CONTROL_BUS_OWNER,	/* fd to hold a bus */
-	KDBUS_HANDLE_EP,		/* new fd of a bus node */
-	KDBUS_HANDLE_EP_CONNECTED,	/* connection after HELLO */
-	KDBUS_HANDLE_EP_OWNER,		/* fd to hold an endpoint */
-	KDBUS_HANDLE_DISCONNECTED,	/* handle is disconnected */
+	KDBUS_HANDLE_CONTROL,
+	KDBUS_HANDLE_CONTROL_NS_OWNER,
+	KDBUS_HANDLE_CONTROL_BUS_OWNER,
+	KDBUS_HANDLE_EP,
+	KDBUS_HANDLE_EP_CONNECTED,
+	KDBUS_HANDLE_EP_OWNER,
+	KDBUS_HANDLE_DISCONNECTED,
 };
 
 /**
