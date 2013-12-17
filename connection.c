@@ -116,11 +116,11 @@ static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
 
 /* grab references of passed-in FDS for the queued message */
 static int kdbus_conn_fds_ref(struct kdbus_conn_queue *queue,
-			 const int *fds, unsigned int fds_count)
+			      const int *fds, unsigned int fds_count)
 {
 	unsigned int i;
 
-	queue->fds_fp = kmalloc(fds_count * sizeof(struct file *), GFP_KERNEL);
+	queue->fds_fp = kcalloc(fds_count, sizeof(struct file *), GFP_KERNEL);
 	if (!queue->fds_fp)
 		return -ENOMEM;
 
@@ -209,15 +209,13 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 	int ret;
 
 	if (kmsg->memfds_count > 0) {
-		size_t size;
-
-		size = kmsg->memfds_count * sizeof(size_t);
-		queue->memfds = kmalloc(size, GFP_KERNEL);
+		queue->memfds = kcalloc(kmsg->memfds_count,
+					sizeof(size_t), GFP_KERNEL);
 		if (!queue->memfds)
 			return -ENOMEM;
 
-		size = kmsg->memfds_count * sizeof(struct file *);
-		queue->memfds_fp = kzalloc(size, GFP_KERNEL);
+		queue->memfds_fp = kcalloc(kmsg->memfds_count,
+					   sizeof(struct file *), GFP_KERNEL);
 		if (!queue->memfds_fp)
 			return -ENOMEM;
 	}
