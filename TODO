@@ -1,6 +1,3 @@
-Doc:
-  - endpoint.c
-
 External API:
   - actually return compatible/incompatible flags to users
   - rules for:
