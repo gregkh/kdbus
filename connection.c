@@ -508,7 +508,10 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 		if (reply->deadline_ns > now)
 			continue;
 
-		/* dead connections cleared the timeout */
+		/*
+		 * The connection died and cleared the timeout; the
+		 * was already sent; just clean up.
+		 */
 		if (reply->deadline_ns > 0)
 			kdbus_notify_reply_timeout(reply->conn->id,
 						   reply->cookie, &notify_list);
@@ -695,12 +698,14 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		mutex_lock(&conn_dst->lock);
 		list_for_each_entry(reply, &conn_dst->reply_list, entry) {
-			if (reply->conn == conn_src &&
-			    reply->cookie == msg->cookie_reply) {
-				kdbus_conn_reply_entry_free(reply);
-				allowed = true;
-				break;
-			}
+			if (reply->conn != conn_src)
+				continue;
+			if (reply->cookie != msg->cookie)
+				continue;
+
+			kdbus_conn_reply_entry_free(reply);
+			allowed = true;
+			break;
 		}
 		mutex_unlock(&conn_dst->lock);
 
