@@ -233,7 +233,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 
 			/* a NULL address specifies a \0-bytes record */
 			if (KDBUS_PTR(item->vec.address))
-				it->vec.offset = off + vec_data;
+				it->vec.offset = vec_data;
 			else
 				it->vec.offset = ~0ULL;
 			it->vec.size = item->vec.size;

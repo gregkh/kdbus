@@ -117,7 +117,8 @@ struct kdbus_timestamp {
  * struct kdbus_vec - I/O vector for kdbus payload items
  * @size:		The size of the vector
  * @address:		Memory address for memory addresses
- * @offset:		Offset in the in-message payload memory
+ * @offset:		Offset in the in-message payload memory,
+ * 			relative to the message head
  *
  * Attached to:
  *   KDBUS_ITEM_PAYLOAD_VEC
@@ -193,7 +194,7 @@ struct kdbus_policy {
 /**
  * enum kdbus_item_type - item types to chain data in a list
  * @KDBUS_ITEM_PAYLOAD_VEC:	Vector to data
- * @KDBUS_ITEM_PAYLOAD_OFF:	Data at returned offset in the pool
+ * @KDBUS_ITEM_PAYLOAD_OFF:	Data at returned offset to message head
  * @KDBUS_ITEM_PAYLOAD_MEMFD:	Data as sealed memfd
  * @KDBUS_ITEM_FDS:		Attached file descriptors
  * @KDBUS_ITEM_BLOOM:		For broadcasts, carries bloom filter
