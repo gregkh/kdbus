@@ -80,7 +80,6 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 {
 	struct kdbus_bus *bus, *tmp;
 
-
 	mutex_lock(&ns->lock);
 	if (ns->disconnected) {
 		mutex_unlock(&ns->lock);
@@ -304,7 +303,7 @@ exit_unlock:
  * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_ns_make_user(void __user *buf,
-			struct kdbus_cmd_make **make, char **name)
+		       struct kdbus_cmd_make **make, char **name)
 {
 	u64 size;
 	struct kdbus_cmd_make *m;
