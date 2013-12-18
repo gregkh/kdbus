@@ -439,10 +439,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
+	if (conn->flags & KDBUS_HELLO_ACTIVATOR)
 		e->activator = kdbus_conn_ref(conn);
-		*flags = KDBUS_NAME_ACTIVATOR;
-	}
 
 	e->flags = *flags;
 	INIT_LIST_HEAD(&e->queue_list);

@@ -1514,7 +1514,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->attach_flags = hello->attach_flags;
 
 	if (activator_name) {
-		u64 flags = 0;
+		u64 flags = KDBUS_NAME_ACTIVATOR;
 
 		ret = kdbus_name_acquire(bus->name_registry, conn,
 					 activator_name, &flags, NULL);
