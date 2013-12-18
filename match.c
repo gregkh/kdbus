@@ -332,8 +332,10 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
 	if (cmd_match->id == 0)
 		cmd_match->id = conn->id;
 	else if (cmd_match->id != conn->id &&
-		 !kdbus_bus_uid_is_privileged(conn->ep->bus))
-			return -EPERM;
+		 !kdbus_bus_uid_is_privileged(conn->ep->bus)) {
+		kfree(cmd_match);
+		return -EPERM;
+	}
 
 	*m = cmd_match;
 
