@@ -273,6 +273,7 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 
 	q->conn = conn;
 	q->flags = flags;
+	q->entry = e;
 
 	list_add_tail(&q->entry_entry, &e->queue_list);
 	list_add_tail(&q->conn_entry, &conn->names_queue_list);
