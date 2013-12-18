@@ -476,6 +476,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
 			   void __user *buf)
 {
+	u64 allowed;
 	struct kdbus_name_entry *e = NULL;
 	struct kdbus_cmd_name *cmd_name;
 	LIST_HEAD(notify_list);
@@ -497,7 +498,11 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (IS_ERR(cmd_name))
 		return PTR_ERR(cmd_name);
 
-	if (cmd_name->flags & (KDBUS_NAME_IN_QUEUE|KDBUS_NAME_ACTIVATOR))
+	/* refuse improper flags when requesting */
+	allowed = KDBUS_NAME_REPLACE_EXISTING|
+		  KDBUS_NAME_ALLOW_REPLACEMENT|
+		  KDBUS_NAME_QUEUE;
+	if ((cmd_name->flags & ~allowed) != 0)
 		return -EINVAL;
 
 	if (!kdbus_check_strlen(cmd_name, name) ||
