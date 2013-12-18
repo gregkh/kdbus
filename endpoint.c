@@ -154,7 +154,6 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 {
 	struct kdbus_ep *e;
 	int ret;
-	int i;
 
 	e = kdbus_ep_find(bus, name);
 	if (e) {
@@ -181,13 +180,12 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 
 	mutex_lock(&ns->lock);
 	/* register minor in our endpoint map */
-	i = idr_alloc(&ns->idr, e, 1, 0, GFP_KERNEL);
-	if (i <= 0) {
-		ret = i;
+	ret = idr_alloc(&ns->idr, e, 1, 0, GFP_KERNEL);
+	if (ret <= 0) {
 		mutex_unlock(&ns->lock);
 		goto exit;
 	}
-	e->minor = i;
+	e->minor = ret;
 	mutex_unlock(&ns->lock);
 
 	/* register bus endpoint device */
