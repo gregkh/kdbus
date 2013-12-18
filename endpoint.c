@@ -295,8 +295,10 @@ int kdbus_ep_make_user(void __user *buf,
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, m))
-		return -EINVAL;
+	if (!KDBUS_ITEM_END(item, m)) {
+		ret = -EINVAL;
+		goto exit;
+	}
 
 	if (!n) {
 		ret = -EBADMSG;
