@@ -20,11 +20,6 @@
 #include "internal.h"
 #include "namespace.h"
 
-/* kdbus sysfs subsystem */
-struct bus_type kdbus_subsys = {
-	.name = "kdbus",
-};
-
 static int __init kdbus_init(void)
 {
 	int ret;

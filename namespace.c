@@ -37,6 +37,11 @@ struct kdbus_ns *kdbus_ns_init;
 /* kdbus subsystem lock */
 static DEFINE_MUTEX(kdbus_subsys_lock);
 
+/* kdbus sysfs subsystem */
+struct bus_type kdbus_subsys = {
+	.name = "kdbus",
+};
+
 /* control nodes are world accessible */
 static char *kdbus_devnode_control(struct device *dev, umode_t *mode,
 				   kuid_t *uid, kgid_t *gid)
