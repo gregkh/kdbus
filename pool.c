@@ -25,7 +25,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#include "message.h"
 #include "pool.h"
 
 /**

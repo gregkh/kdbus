@@ -190,14 +190,14 @@ static bool kdbus_check_flags(u64 kernel_flags)
 {
 	/*
 	 * The higher 32bit are considered 'incompatible
-	 * flags'. Refuse them all for now
+	 * flags'. Refuse them all for now.
 	 */
 	return kernel_flags <= 0xFFFFFFFFULL;
 }
 
 /* kdbus control device commands */
 static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
-				     void __user *buf)
+				       void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_cmd_make *make = NULL;
@@ -582,7 +582,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 }
 
 static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
-			     unsigned long arg)
+			       unsigned long arg)
 {
 	struct kdbus_handle *handle = file->private_data;
 	void __user *argp = (void __user *)arg;
