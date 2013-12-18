@@ -182,6 +182,8 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 	/* register minor in our endpoint map */
 	ret = idr_alloc(&ns->idr, e, 1, 0, GFP_KERNEL);
 	if (ret < 0) {
+		if (ret == -ENOSPC);
+			ret = -EEXIST;
 		mutex_unlock(&ns->lock);
 		goto exit;
 	}

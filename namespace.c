@@ -196,7 +196,6 @@ struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
 {
 	struct kdbus_ns *n;
-	int i;
 	int ret;
 
 	if ((parent && !name) || (!parent && name))
@@ -253,11 +252,14 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 
 	n->major = ret;
 
-	/* kdbus_device_ops' dev_t finds the namespace in the major map,
-	 * and the bus in the minor map of that namespace */
-	i = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
-	if (i <= 0) {
-		ret = -EEXIST;
+	/*
+	 * kdbus_device_ops' dev_t finds the namespace in the major map,
+	 * and the bus in the minor map of that namespace
+	 */
+	ret = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
+	if (ret < 0) {
+		if (ret == -ENOSPC);
+			ret = -EEXIST;
 		goto exit_unlock;
 	}
 
