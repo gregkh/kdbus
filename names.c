@@ -145,7 +145,6 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 				     struct list_head *notify_list)
 {
 	struct kdbus_name_queue_item *q;
-	u64 flags;
 
 	if (list_empty(&e->queue_list)) {
 		/* if the name has an activator connection, hand it back */
@@ -176,11 +175,10 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	q = list_first_entry(&e->queue_list,
 			     struct kdbus_name_queue_item,
 			     entry_entry);
-	flags = q->flags & ~KDBUS_NAME_QUEUE;
 	kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, q->conn->id,
-				 e->flags, flags, e->name, notify_list);
-	e->flags = flags;
+				 e->flags, q->flags, e->name, notify_list);
+	e->flags = q->flags;
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, q->conn);
 	kdbus_name_queue_item_free(q);
@@ -283,24 +281,19 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 }
 
 /* called with entries_lock held */
-static int kdbus_name_handle_takeover(struct kdbus_name_registry *reg,
-				      struct kdbus_conn *conn,
-				      struct kdbus_name_entry *e, u64 flags,
-				      struct list_head *notify_list)
+static int kdbus_name_replace_owner(struct kdbus_name_registry *reg,
+				    struct kdbus_conn *conn,
+				    struct kdbus_name_entry *e, u64 flags,
+				    struct list_head *notify_list)
 {
 	int ret;
 
-	/* move already queued messages from the activator connection */
-	if (e->flags & KDBUS_NAME_ACTIVATOR) {
-		ret = kdbus_conn_move_messages(conn, e->activator);
-		if (ret < 0)
-			return ret;
-	}
-
-	kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
-				 e->conn->id, conn->id,
-				 e->flags, flags,
-				 e->name, notify_list);
+	ret = kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
+				       e->conn->id, conn->id,
+				       e->flags, flags,
+				       e->name, notify_list);
+	if (ret < 0)
+		return ret;
 
 	/* hand over ownership */
 	kdbus_name_entry_remove_owner(e);
@@ -400,25 +393,41 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 		/* take over the name of an activator connection */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
-			ret = kdbus_name_handle_takeover(reg, conn, e, *flags,
-							 &notify_list);
+
+			/* take over already queued messages from the activator connection */
+			ret = kdbus_conn_move_messages(conn, e->activator);
+			if (ret < 0)
+				goto exit_unlock;
+
+			ret = kdbus_name_replace_owner(reg, conn, e, *flags,
+						       &notify_list);
 			goto exit_unlock;
 		}
 
 		/* take over the name if both parties agree */
 		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
-			ret = kdbus_name_handle_takeover(reg, conn, e, *flags,
-							 &notify_list);
+
+			/*
+			 * Move name back to the queue, in case we take it away
+			 * from a connection which asked for queuing.
+			 */
+			if (e->flags & KDBUS_NAME_QUEUE) {
+				ret = kdbus_name_queue_conn(e->conn, e->flags, e);
+				if (ret < 0)
+					goto exit_unlock;
+			}
+
+			ret = kdbus_name_replace_owner(reg, conn, e, *flags,
+						       &notify_list);
 			goto exit_unlock;
 		}
 
 		/* add it to the queue waiting for the name */
 		if (*flags & KDBUS_NAME_QUEUE) {
-
-			/* clear incoming flag, add to queue, set outgoing flag */
-			*flags &= ~KDBUS_NAME_QUEUE;
 			ret = kdbus_name_queue_conn(conn, *flags, e);
+
+			/* tell the caller that we queued it */
 			*flags |= KDBUS_NAME_IN_QUEUE;
 
 			goto exit_unlock;
