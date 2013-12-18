@@ -118,7 +118,7 @@ int kdbus_notify_name_change(u64 type,
 	if (!queue_list)
 		return 0;
 
-	extra_size = sizeof(struct kdbus_notify_name_change) + strlen(name);
+	extra_size = sizeof(struct kdbus_notify_name_change) + strlen(name) + 1;
 	ret = kdbus_kmsg_new(extra_size, &kmsg);
 	if (ret < 0)
 		return ret;
