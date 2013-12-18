@@ -174,8 +174,10 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 	init_waitqueue_head(&e->wait);
 
 	e->name = kstrdup(name, GFP_KERNEL);
-	if (!e->name)
-		return -ENOMEM;
+	if (!e->name) {
+		ret = -ENOMEM;
+		goto exit;
+	}
 
 	mutex_lock(&ns->lock);
 	/* register minor in our endpoint map */
