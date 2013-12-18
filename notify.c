@@ -111,6 +111,7 @@ int kdbus_notify_name_change(u64 type,
 			     const char *name,
 			     struct list_head *queue_list)
 {
+	size_t name_len;
 	struct kdbus_kmsg *kmsg;
 	size_t extra_size;
 	int ret;
@@ -118,7 +119,8 @@ int kdbus_notify_name_change(u64 type,
 	if (!queue_list)
 		return 0;
 
-	extra_size = sizeof(struct kdbus_notify_name_change) + strlen(name) + 1;
+	name_len = strlen(name) + 1;
+	extra_size = sizeof(struct kdbus_notify_name_change) + name_len;
 	ret = kdbus_kmsg_new(extra_size, &kmsg);
 	if (ret < 0)
 		return ret;
@@ -131,7 +133,7 @@ int kdbus_notify_name_change(u64 type,
 	kmsg->msg.items[0].name_change.old.flags = old_flags;
 	kmsg->msg.items[0].name_change.new.id = new_id;
 	kmsg->msg.items[0].name_change.new.flags = new_flags;
-	strcpy(kmsg->msg.items[0].name_change.name, name);
+	memcpy(kmsg->msg.items[0].name_change.name, name, name_len);
 
 	list_add_tail(&kmsg->queue_entry, queue_list);
 	return ret;
