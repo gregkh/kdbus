@@ -107,7 +107,10 @@ int main(int argc, char *argv[])
 	if (r != -ESRCH)
 		return EXIT_FAILURE;
 
-	name_list(conn_b, KDBUS_NAME_LIST_UNIQUE | KDBUS_NAME_LIST_NAMES);
+	name_list(conn_b, KDBUS_NAME_LIST_UNIQUE|
+			  KDBUS_NAME_LIST_NAMES|
+			  KDBUS_NAME_LIST_QUEUED|
+			  KDBUS_NAME_LIST_ACTIVATORS);
 
 	add_match_empty(conn_a->fd);
 	add_match_empty(conn_b->fd);
@@ -145,7 +148,10 @@ int main(int argc, char *argv[])
 			msg_send(conn_b, NULL, 0xc0000000 | cookie++, conn_a->id);
 		}
 
-		name_list(conn_b, KDBUS_NAME_LIST_UNIQUE | KDBUS_NAME_LIST_NAMES);
+		name_list(conn_b, KDBUS_NAME_LIST_UNIQUE|
+				  KDBUS_NAME_LIST_NAMES|
+				  KDBUS_NAME_LIST_QUEUED|
+				  KDBUS_NAME_LIST_ACTIVATORS);
 
 		if (count > 10)
 			break;
