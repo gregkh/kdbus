@@ -499,6 +499,10 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name))
 		return -EFAULT;
 
+	/* monitor connection may not own names */
+	if (conn->flags & KDBUS_HELLO_MONITOR)
+		return -EPERM;
+
 	if ((size < sizeof(struct kdbus_cmd_name)) ||
 	    (size > (sizeof(struct kdbus_cmd_name) + KDBUS_NAME_MAX_LEN + 1)))
 		return -EMSGSIZE;
