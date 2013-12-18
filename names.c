@@ -737,7 +737,7 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 		if (flags & KDBUS_NAME_LIST_QUEUED) {
 			struct kdbus_name_queue_item *q;
 
-			list_for_each_entry(q, &c->names_queue_list, entry_entry) {
+			list_for_each_entry(q, &c->names_queue_list, conn_entry) {
 				ret = kdbus_name_list_write(conn, c, &p,
 							    q->entry, write);
 				if (ret < 0)
