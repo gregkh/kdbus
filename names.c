@@ -264,7 +264,7 @@ struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 	return e;
 }
 
-static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
+static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 				  struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
@@ -274,11 +274,10 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 *flags,
 		return -ENOMEM;
 
 	q->conn = conn;
-	q->flags = *flags;
+	q->flags = flags;
 
 	list_add_tail(&q->entry_entry, &e->queue_list);
 	list_add_tail(&q->conn_entry, &conn->names_queue_list);
-	*flags |= KDBUS_NAME_IN_QUEUE;
 
 	return 0;
 }
@@ -416,7 +415,12 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 		/* add it to the queue waiting for the name */
 		if (*flags & KDBUS_NAME_QUEUE) {
-			ret = kdbus_name_queue_conn(conn, flags, e);
+
+			/* clear incoming flag, add to queue, set outgoing flag */
+			*flags &= ~KDBUS_NAME_QUEUE;
+			ret = kdbus_name_queue_conn(conn, *flags, e);
+			*flags |= KDBUS_NAME_IN_QUEUE;
+
 			goto exit_unlock;
 		}
 
