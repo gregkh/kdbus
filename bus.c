@@ -332,8 +332,10 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, m))
-		return -EINVAL;
+	if (!KDBUS_ITEM_END(item, m)) {
+		ret = -EINVAL;
+		goto exit;
+	}
 
 	if (!n) {
 		ret = -EBADMSG;
