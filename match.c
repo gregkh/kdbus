@@ -427,8 +427,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		case KDBUS_MATCH_NAME_ADD:
 		case KDBUS_MATCH_NAME_REMOVE:
 		case KDBUS_MATCH_NAME_CHANGE:
-			if (size > 0) {
-				ei->name = kstrdup(item->str, GFP_KERNEL);
+			if (size > sizeof(struct kdbus_notify_name_change)) {
+				ei->name = kstrdup(item->name_change.name,
+						   GFP_KERNEL);
 				if (!ei->name)
 					ret = -ENOMEM;
 			}
