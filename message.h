@@ -18,7 +18,9 @@
 
 /**
  * struct kdbus_kmsg - internal message handling data
- * @notification_type:	Short-cut for faster lookup
+ * @notify_type:	Short-cut for faster lookup
+ * @notify_id:		Short-cut for faster lookup
+ * @notify_name:	Short-cut for faster lookup
  * @dst_name:		Short-cut to msg for faster lookup
  * @bloom:		Short-cut to msg for faster lookup
  * @bloom_size:		Short-cut to msg for faster lookup
@@ -32,7 +34,9 @@
  * @msg:		Message from or to userspace
  */
 struct kdbus_kmsg {
-	u64 notification_type;
+	u64 notify_type;
+	u64 notify_id;
+	const char *notify_name;
 	const char *dst_name;
 	const u64 *bloom;
 	unsigned int bloom_size;

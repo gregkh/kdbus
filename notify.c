@@ -38,7 +38,7 @@ static int kdbus_notify_reply(u64 id, u64 cookie, u64 msg_type,
 	 * struct kdbus_item, so make a shortcut here for
 	 * faster lookup in the match db.
 	 */
-	kmsg->notification_type = msg_type;
+	kmsg->notify_type = msg_type;
 	kmsg->msg.dst_id = id;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
@@ -127,13 +127,14 @@ int kdbus_notify_name_change(u64 type,
 
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
-	kmsg->notification_type = type;
+	kmsg->notify_type = type;
 	kmsg->msg.items[0].type = type;
 	kmsg->msg.items[0].name_change.old.id = old_id;
 	kmsg->msg.items[0].name_change.old.flags = old_flags;
 	kmsg->msg.items[0].name_change.new.id = new_id;
 	kmsg->msg.items[0].name_change.new.flags = new_flags;
 	memcpy(kmsg->msg.items[0].name_change.name, name, name_len);
+	kmsg->notify_name = kmsg->msg.items[0].name_change.name;
 
 	list_add_tail(&kmsg->queue_entry, queue_list);
 	return ret;
@@ -164,7 +165,8 @@ int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
 
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
-	kmsg->notification_type = type;
+	kmsg->notify_type = type;
+	kmsg->notify_id = id;
 	kmsg->msg.items[0].type = type;
 	kmsg->msg.items[0].id_change.id = id;
 	kmsg->msg.items[0].id_change.flags = flags;

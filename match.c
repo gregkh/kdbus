@@ -232,7 +232,7 @@ static
 bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 				      struct kdbus_kmsg *kmsg)
 {
-	u64 type = kmsg->notification_type;
+	u64 msg_type = kmsg->notify_type;
 	struct kdbus_match_db_entry *e;
 	bool matched = false;
 
@@ -241,41 +241,58 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
 		struct kdbus_match_db_entry_item *ei;
 
 		list_for_each_entry(ei, &e->items_list, list_entry) {
-			if (ei->id == 0 ||
-			    ei->id == KDBUS_MATCH_SRC_ID_ANY ||
-			    ei->id == e->src_id) {
-
-				if (ei->type == KDBUS_MATCH_ID_ADD &&
-				    type == KDBUS_ITEM_ID_ADD) {
-					matched = true;
-					break;
-				}
-
-				if (ei->type == KDBUS_MATCH_ID_REMOVE &&
-				    type == KDBUS_ITEM_ID_REMOVE) {
-					matched = true;
-					break;
-				}
-			}
-
-			if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
-			    e->src_id != 0)
+			/* the kernel has no source connection */
+			if (e->src_id > 0)
 				continue;
 
-			if (ei->type == KDBUS_MATCH_NAME_ADD &&
-			    type == KDBUS_ITEM_NAME_ADD) {
-				matched = true;
+			/* match entry against type of message */
+			switch(ei->type) {
+			case KDBUS_MATCH_ID_ADD:
+				if (msg_type != KDBUS_ITEM_ID_ADD)
+					continue;
 				break;
+
+			case KDBUS_MATCH_ID_REMOVE:
+				if (msg_type != KDBUS_ITEM_ID_REMOVE)
+					continue;
+				break;
+
+			case KDBUS_MATCH_NAME_ADD:
+				if (msg_type != KDBUS_ITEM_NAME_ADD)
+					continue;
+				break;
+
+			case KDBUS_MATCH_NAME_CHANGE:
+				if (msg_type != KDBUS_ITEM_NAME_CHANGE)
+					continue;
+				break;
+
+			case KDBUS_MATCH_NAME_REMOVE:
+				if (msg_type != KDBUS_ITEM_NAME_REMOVE)
+					continue;
+				break;
+
+			default:
+				BUG_ON(1);
 			}
 
-			if (ei->type == KDBUS_MATCH_NAME_CHANGE &&
-			    type == KDBUS_ITEM_NAME_CHANGE) {
+			/* the types match, now check the value */
+			switch(ei->type) {
+			case KDBUS_MATCH_ID_ADD:
+			case KDBUS_MATCH_ID_REMOVE:
+				if (ei->id > 0 && ei->id != kmsg->notify_id)
+					continue;
+
 				matched = true;
 				break;
-			}
 
-			if (ei->type == KDBUS_MATCH_NAME_REMOVE &&
-			    type == KDBUS_ITEM_NAME_REMOVE) {
+			case KDBUS_MATCH_NAME_ADD:
+			case KDBUS_MATCH_NAME_CHANGE:
+			case KDBUS_MATCH_NAME_REMOVE:
+				if (ei->name &&
+				    strcmp(ei->name, kmsg->notify_name) != 0)
+					continue;
+
 				matched = true;
 				break;
 			}
