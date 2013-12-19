@@ -66,7 +66,7 @@ struct kdbus_check {
 		return CHECK_ERR;	\
 	}
 
-static struct kdbus_conn *make_conn(const char *buspath)
+static struct kdbus_conn *make_conn(const char *buspath, uint64_t flags)
 {
 	int ret;
 	struct kdbus_conn *conn;
@@ -85,7 +85,7 @@ static struct kdbus_conn *make_conn(const char *buspath)
 		return NULL;
 	}
 
-	conn->hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
+	conn->hello.conn_flags = flags;
 
 	conn->hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
 				   KDBUS_ATTACH_CREDS |
@@ -431,7 +431,7 @@ static int check_byebye(struct kdbus_check_env *env)
 	int ret;
 
 	/* create a 2nd connection */
-	conn = make_conn(env->buspath);
+	conn = make_conn(env->buspath, 0);
 	ASSERT_RETURN(conn != NULL);
 
 	add_match_empty(conn->fd);
@@ -459,6 +459,39 @@ static int check_byebye(struct kdbus_check_env *env)
 	/* a 2nd try should result in -EBADFD */
 	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+
+	free_conn(conn);
+
+	return CHECK_OK;
+}
+
+static int check_monitor(struct kdbus_check_env *env)
+{
+	struct kdbus_cmd_name *cmd_name;
+	struct kdbus_conn *conn;
+	size_t size;
+	char *name;
+	int ret;
+
+	conn = make_conn(env->buspath, KDBUS_HELLO_MONITOR);
+	ASSERT_RETURN(conn != NULL);
+
+	/* taking a name must fail */
+	name = "foo.bla.blaz";
+	ret = upload_policy(env->conn->fd, name);
+	ASSERT_RETURN(ret == 0);
+
+	size = sizeof(*cmd_name) + strlen(name) + 1;
+	cmd_name = alloca(size);
+
+	memset(cmd_name, 0, size);
+	strcpy(cmd_name->name, name);
+	cmd_name->size = size;
+	cmd_name->flags = 0;
+
+	/* check that we can acquire a name */
+	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ASSERT_RETURN(ret == -1 && errno == EPERM);
 
 	free_conn(conn);
 
@@ -531,7 +564,7 @@ static int check_name_conflict(struct kdbus_check_env *env)
 	cmd_name->flags = 0;
 
 	/* create a 2nd connection */
-	conn = make_conn(env->buspath);
+	conn = make_conn(env->buspath, 0);
 	ASSERT_RETURN(conn != NULL);
 
 	/* allow the new connection to own the same name */
@@ -579,7 +612,7 @@ static int check_name_queue(struct kdbus_check_env *env)
 	cmd_name->flags = KDBUS_NAME_ALLOW_REPLACEMENT;
 
 	/* create a 2nd connection */
-	conn = make_conn(env->buspath);
+	conn = make_conn(env->buspath, 0);
 	ASSERT_RETURN(conn != NULL);
 
 	/* allow the new connection to own the same name */
@@ -649,7 +682,7 @@ static int check_msg_basic(struct kdbus_check_env *env)
 	int ret;
 
 	/* create a 2nd connection */
-	conn = make_conn(env->buspath);
+	conn = make_conn(env->buspath, 0);
 	ASSERT_RETURN(conn != NULL);
 
 	add_match_empty(conn->fd);
@@ -750,7 +783,7 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 	}
 
 	if (c->flags & CHECK_CREATE_CONN) {
-		env->conn = make_conn(env->buspath);
+		env->conn = make_conn(env->buspath, 0);
 		if (!env->conn)
 			return EXIT_FAILURE;
 	}
@@ -780,6 +813,7 @@ static const struct kdbus_check checks[] = {
 	{ "bus make",		check_busmake,		0					},
 	{ "hello",		check_hello,		CHECK_CREATE_BUS			},
 	{ "byebye",		check_byebye,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
+	{ "monitor",		check_monitor,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name basics",	check_name_basic,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name conflict",	check_name_conflict,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "name queue",		check_name_queue,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
