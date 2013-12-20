@@ -1090,7 +1090,7 @@ exit_unlock:
  *
  * Returns 0 on success.
  * If @ensure_msg_list_empty is true, and the connection has pending messages,
- * -EAGAIN is returned.
+ * -EBUSY is returned.
  */
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 {
@@ -1106,7 +1106,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 
 	if (ensure_msg_list_empty && !list_empty(&conn->msg_list)) {
 		mutex_unlock(&conn->lock);
-		return -EAGAIN;
+		return -EBUSY;
 	}
 
 	conn->disconnected = true;

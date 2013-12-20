@@ -765,6 +765,8 @@ enum kdbus_ioctl_type {
  * @EBADFD:		A bus connection is in a corrupted state.
  * @EBADMSG:		Passed data contains a combination of conflicting or
  * 			inconsistent types.
+ * @EBUSY:		The user tried to say BYEBYE to a connection, but the
+ * 			connection had a non-empty message list.
  * @ECONNRESET:		A connection is shut down, no further operations are
  * 			possible.
  * @ECOMM:		A peer does not accept the file descriptors addressed

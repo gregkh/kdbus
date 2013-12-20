@@ -443,7 +443,7 @@ static int check_byebye(struct kdbus_check_env *env)
 
 	/* say byebye on the 2nd, which must fail */
 	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
-	ASSERT_RETURN(ret == -1 && errno == EAGAIN);
+	ASSERT_RETURN(ret == -1 && errno == EBUSY);
 
 	/* receive the message */
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
