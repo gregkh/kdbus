@@ -35,8 +35,10 @@
  */
 struct kdbus_kmsg {
 	u64 notify_type;
-	u64 notify_id;
+	u64 notify_old_id;
+	u64 notify_new_id;
 	const char *notify_name;
+
 	const char *dst_name;
 	const u64 *bloom;
 	unsigned int bloom_size;

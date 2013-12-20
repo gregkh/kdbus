@@ -571,15 +571,21 @@ int upload_policy(int fd, const char *name)
 
 void add_match_empty(int fd)
 {
-	struct kdbus_cmd_match cmd_match;
+	struct {
+		struct kdbus_cmd_match cmd;
+		struct kdbus_item item;
+	} buf;
 	int ret;
 
-	memset(&cmd_match, 0, sizeof(cmd_match));
+	memset(&buf, 0, sizeof(buf));
 
-	cmd_match.size = sizeof(cmd_match);
-	cmd_match.src_id = KDBUS_MATCH_SRC_ID_ANY;
+	buf.item.size = sizeof(uint64_t) * 3;
+	buf.item.type = KDBUS_ITEM_ID;
+	buf.item.id = KDBUS_MATCH_ID_ANY;
 
-	ret = ioctl(fd, KDBUS_CMD_MATCH_ADD, &cmd_match);
+	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
+
+	ret = ioctl(fd, KDBUS_CMD_MATCH_ADD, &buf);
 	if (ret < 0)
 		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
 }

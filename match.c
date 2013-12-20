@@ -37,76 +37,77 @@ struct kdbus_match_db {
 };
 
 /**
- * struct kdbus_match_db_entry_item - a match databate entry item
- * @type:		The type of the item (KDBUS_MATCH_*)
- * @name:		The name tp match against, if @type is KDBUS_MATCH_BLOOM
- * @bloom:		The bloom filter to match against, if @type is
- *			KDBUS_MATCH_SRC_NAME or KDBUS_MATCH_NAME_*
- * @id:			The ID to match against, if @type is KDBUS_MATCH_ID_ADD
- *			or KDBUS_MATCH_ID_REMOVE
- * @list_entry:		Entry in struct kdbus_match_db
+ * struct kdbus_match_entry - a match database entry
+ * @cookie:		User-supplied cookie to lookup the entry
+ * @list_entry:		The list entry element for the db list
+ * @rules_list:		The list head for tracking rules of this entry
  */
-struct kdbus_match_db_entry_item {
-	u64 type;
-	union {
-		char	*name;
-		u64	*bloom;
-		u64	id;
-	};
-
+struct kdbus_match_entry {
+	u64			cookie;
 	struct list_head	list_entry;
+	struct list_head	rules_list;
 };
 
 /**
- * struct kdbus_match_db_entry - a match database entry
- * @id:			The ID of the destination connection of this entry
- * @cookie:		User-supplied cookie to lookup the entry
- * @src_id:		The ID of the source connection to match against,
- *			or KDBUS_MATCH_SRC_ID_ANY.
- * @list_entry:		The list entry element for the db list
- * @items_list:		The list head for tracking items to this entry
+ * struct kdbus_match_rule - a rule appended to a match entry
+ * @type:		An item type to match agains
+ * @name:		Name to match against
+ * @bloom:		Bloom filter to match against
+ * @old_id:		For KDBUS_ITEM_ID_REMOVE and KDBUS_ITEM_NAME_REMOVE or
+ * 			KDBUS_ITEM_NAME_CHANGE, stores a connection ID
+ * @src_id:		For KDBUS_ITEM_ID, stores a connection ID
+ * @new_id:		For KDBUS_ITEM_ID_ADD, KDBUS_ITEM_NAME_ADD or
+ * 			KDBUS_ITEM_NAME_CHANGE, stores a connection ID
+ * @rules_entry:	List entry to the entry's rules list
  */
-struct kdbus_match_db_entry {
-	u64			id;
-	u64			cookie;
-	u64			src_id;
-	struct list_head	list_entry;
-	struct list_head	items_list;
+struct kdbus_match_rule {
+	u64			type;
+	union {
+		char		*name;
+		u64		*bloom;
+	};
+	union {
+		u64		old_id;
+		u64		src_id;
+	};
+	u64			new_id;
+
+	struct list_head	rules_entry;
 };
 
-static void
-kdbus_match_db_entry_item_free(struct kdbus_match_db_entry_item *item)
+static void kdbus_match_rule_free(struct kdbus_match_rule *rule)
 {
-	switch (item->type) {
-	case KDBUS_MATCH_BLOOM:
-		kfree(item->bloom);
+	switch (rule->type) {
+	case KDBUS_ITEM_BLOOM:
+		kfree(rule->bloom);
 		break;
 
-	case KDBUS_MATCH_SRC_NAME:
-	case KDBUS_MATCH_NAME_ADD:
-	case KDBUS_MATCH_NAME_REMOVE:
-	case KDBUS_MATCH_NAME_CHANGE:
-		kfree(item->name);
+	case KDBUS_ITEM_NAME:
+	case KDBUS_ITEM_NAME_ADD:
+	case KDBUS_ITEM_NAME_REMOVE:
+	case KDBUS_ITEM_NAME_CHANGE:
+		kfree(rule->name);
 		break;
 
-	case KDBUS_MATCH_ID_ADD:
-	case KDBUS_MATCH_ID_REMOVE:
+	case KDBUS_ITEM_ID:
+	case KDBUS_ITEM_ID_ADD:
+	case KDBUS_ITEM_ID_REMOVE:
 		break;
+
+	default:
+		BUG();
 	}
 
-	list_del(&item->list_entry);
-	kfree(item);
+	list_del(&rule->rules_entry);
+	kfree(rule);
 }
 
-static void kdbus_match_db_entry_free(struct kdbus_match_db_entry *e)
+void kdbus_match_entry_free(struct kdbus_match_entry *entry)
 {
-	struct kdbus_match_db_entry_item *ei, *ei_tmp;
+	struct kdbus_match_rule *r, *tmp;
 
-	list_for_each_entry_safe(ei, ei_tmp, &e->items_list, list_entry)
-		kdbus_match_db_entry_item_free(ei);
-
-	list_del(&e->list_entry);
-	kfree(e);
+	list_for_each_entry_safe(r, tmp, &entry->rules_list, rules_entry)
+		kdbus_match_rule_free(r);
 }
 
 /**
@@ -115,11 +116,11 @@ static void kdbus_match_db_entry_free(struct kdbus_match_db_entry *e)
  */
 void kdbus_match_db_free(struct kdbus_match_db *db)
 {
-	struct kdbus_match_db_entry *e, *tmp;
+	struct kdbus_match_entry *entry, *tmp;
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry_safe(e, tmp, &db->entries_list, list_entry)
-		kdbus_match_db_entry_free(e);
+	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
+		kdbus_match_entry_free(entry);
 	mutex_unlock(&db->entries_lock);
 
 	kfree(db);
@@ -147,23 +148,9 @@ int kdbus_match_db_new(struct kdbus_match_db **db)
 }
 
 static inline
-bool kdbus_match_db_test_bloom(const u64 *filter,
-			       const u64 *mask,
-			       unsigned int n)
-{
-	size_t i;
-
-	for (i = 0; i < n; i++)
-		if ((filter[i] & mask[i]) != mask[i])
-			return false;
-
-	return true;
-}
-
-static inline
-bool kdbus_match_db_test_src_names(const char *haystack,
-				   size_t haystack_size,
-				   const char *needle)
+bool kdbus_match_name(const char *haystack,
+		      size_t haystack_size,
+		      const char *needle)
 {
 	size_t i;
 
@@ -174,136 +161,101 @@ bool kdbus_match_db_test_src_names(const char *haystack,
 	return false;
 }
 
-static
-bool kdbus_match_db_match_item(struct kdbus_match_db_entry *e,
-			       struct kdbus_conn *conn_src,
-			       struct kdbus_kmsg *kmsg)
+static inline
+bool kdbus_match_bloom(const u64 *filter, const u64 *mask,
+		       const struct kdbus_conn *conn)
 {
-	struct kdbus_match_db_entry_item *ei;
+	unsigned int i;
 
-	list_for_each_entry(ei, &e->items_list, list_entry) {
-		if (kmsg->bloom && ei->type == KDBUS_MATCH_BLOOM) {
-			size_t n = conn_src->ep->bus->bloom_size / sizeof(u64);
-
-			if (kdbus_match_db_test_bloom(kmsg->bloom,
-						      ei->bloom, n))
-				continue;
-
+	for (i = 0; i < conn->ep->bus->bloom_size / sizeof(u64); i++)
+		if ((filter[i] & mask[i]) != mask[i])
 			return false;
-		}
-
-		if (kmsg->meta.src_names && ei->type == KDBUS_MATCH_SRC_NAME) {
-			if (kdbus_match_db_test_src_names(kmsg->meta.src_names,
-							  kmsg->meta.src_names_len,
-							  ei->name))
-				continue;
-
-			return false;
-		}
-	}
 
 	return true;
 }
 
-static
-bool kdbus_match_db_match_with_src(struct kdbus_match_db *db,
-				   struct kdbus_conn *conn_src,
-				   struct kdbus_kmsg *kmsg)
+static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
+			      struct kdbus_conn *conn_src,
+			      struct kdbus_kmsg *kmsg)
 {
-	struct kdbus_match_db_entry *e;
-	bool matched = false;
+	struct kdbus_match_rule *r;
 
-	mutex_lock(&db->entries_lock);
-	list_for_each_entry(e, &db->entries_list, list_entry) {
-		if (e->src_id != KDBUS_MATCH_SRC_ID_ANY &&
-		    e->src_id != conn_src->id)
-			continue;
+	/*
+	 * Walk all the rules and bail out immediately
+	 * if any of them is unsatisfied.
+	 */
 
-		matched = kdbus_match_db_match_item(e, conn_src, kmsg);
-		if (matched)
-			break;
-	}
-	mutex_unlock(&db->entries_lock);
+	list_for_each_entry(r, &entry->rules_list, rules_entry) {
 
-	return matched;
-}
+		if (conn_src == NULL) {
+			/* kernel notifications */
 
-static
-bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
-				      struct kdbus_kmsg *kmsg)
-{
-	u64 msg_type = kmsg->notify_type;
-	struct kdbus_match_db_entry *e;
-	bool matched = false;
+			if (kmsg->notify_type != r->type)
+				return false;
 
-	mutex_lock(&db->entries_lock);
-	list_for_each_entry(e, &db->entries_list, list_entry) {
-		struct kdbus_match_db_entry_item *ei;
+			switch(r->type) {
+			case KDBUS_ITEM_ID_ADD:
+				if (r->new_id != KDBUS_MATCH_ID_ANY &&
+				    r->new_id != kmsg->notify_new_id)
+					return false;
 
-		list_for_each_entry(ei, &e->items_list, list_entry) {
-			/* the kernel has no source connection */
-			if (e->src_id > 0)
-				continue;
-
-			/* match entry against type of message */
-			switch(ei->type) {
-			case KDBUS_MATCH_ID_ADD:
-				if (msg_type != KDBUS_ITEM_ID_ADD)
-					continue;
 				break;
 
-			case KDBUS_MATCH_ID_REMOVE:
-				if (msg_type != KDBUS_ITEM_ID_REMOVE)
-					continue;
+			case KDBUS_ITEM_ID_REMOVE:
+				if (r->old_id != KDBUS_MATCH_ID_ANY &&
+				    r->old_id != kmsg->notify_old_id)
+					return false;
+
 				break;
 
-			case KDBUS_MATCH_NAME_ADD:
-				if (msg_type != KDBUS_ITEM_NAME_ADD)
-					continue;
-				break;
+			case KDBUS_ITEM_NAME_ADD:
+			case KDBUS_ITEM_NAME_CHANGE:
+			case KDBUS_ITEM_NAME_REMOVE:
+				if ((r->old_id != KDBUS_MATCH_ID_ANY &&
+				     r->old_id != kmsg->notify_old_id) ||
+				    (r->new_id != KDBUS_MATCH_ID_ANY &&
+				     r->new_id != kmsg->notify_new_id) ||
+				    (r->name && kmsg->notify_name &&
+				     strcmp(r->name, kmsg->notify_name) != 0))
+					return false;
 
-			case KDBUS_MATCH_NAME_CHANGE:
-				if (msg_type != KDBUS_ITEM_NAME_CHANGE)
-					continue;
-				break;
-
-			case KDBUS_MATCH_NAME_REMOVE:
-				if (msg_type != KDBUS_ITEM_NAME_REMOVE)
-					continue;
 				break;
 
 			default:
-				BUG_ON(1);
+				return false;
 			}
+		} else {
+			/* messages from userspace */
 
-			/* the types match, now check the value */
-			switch(ei->type) {
-			case KDBUS_MATCH_ID_ADD:
-			case KDBUS_MATCH_ID_REMOVE:
-				if (ei->id > 0 && ei->id != kmsg->notify_id)
-					continue;
-
-				matched = true;
+			switch(r->type) {
+			case KDBUS_ITEM_BLOOM:
+				if (!kdbus_match_bloom(kmsg->bloom,
+						       r->bloom, conn_src))
+					return false;
 				break;
 
-			case KDBUS_MATCH_NAME_ADD:
-			case KDBUS_MATCH_NAME_CHANGE:
-			case KDBUS_MATCH_NAME_REMOVE:
-				if (ei->name &&
-				    strcmp(ei->name, kmsg->notify_name) != 0)
-					continue;
+			case KDBUS_ITEM_ID:
+				if (r->src_id != conn_src->id &&
+				    r->src_id != KDBUS_MATCH_ID_ANY)
+					return false;
 
-				matched = true;
 				break;
+
+			case KDBUS_ITEM_NAME:
+				if (!kdbus_match_name(kmsg->meta.src_names,
+						      kmsg->meta.src_names_len,
+						      r->name))
+					return false;
+
+				break;
+
+			default:
+				return false;
 			}
 		}
-
-		if (matched)
-			break;
 	}
-	mutex_unlock(&db->entries_lock);
 
-	return matched;
+	return true;
 }
 
 /**
@@ -313,15 +265,27 @@ bool kdbus_match_db_match_from_kernel(struct kdbus_match_db *db,
  * @kmsg:		The kmsg to perform the match on
  *
  * Returns true in if there was a matching database entry, false otherwise.
+
+ * This function will walk through all the database entries previously uploaded
+ * with kdbus_match_db_add(). As soon as any of them has an all-satisfied rule
+ * set, this function will return true.
  */
 bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,
 			       struct kdbus_kmsg *kmsg)
 {
-	if (conn_src)
-		return kdbus_match_db_match_with_src(db, conn_src, kmsg);
-	else
-		return kdbus_match_db_match_from_kernel(db, kmsg);
+	struct kdbus_match_entry *entry;
+	bool matched = false;
+
+	mutex_lock(&db->entries_lock);
+	list_for_each_entry(entry, &db->entries_list, list_entry) {
+		matched = kdbus_match_rules(entry, conn_src, kmsg);
+		if (matched)
+			break;
+	}
+	mutex_unlock(&db->entries_lock);
+
+	return matched;
 }
 
 static int cmd_match_from_user(const struct kdbus_conn *conn,
@@ -367,14 +331,38 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
  * Returns 0 in success, any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
  * interface.
+ *
+ * One call to this function (or one ioctl(KDBUS_CMD_MATCH_ADD), respectively,
+ * adds one new database entry with n rules attached to it. Each rule is
+ * described with an kdbus_item, and an entry is considered matching if all
+ * its rules are satisfied.
+ *
+ * The items attached to a kdbus_cmd_match struct have the following mapping:
+ *
+ * KDBUS_ITEM_BLOOM:		Denotes a bloom mask
+ * KDBUS_ITEM_NAME:		Denotes a connection's source name
+ * KDBUS_ITEM_ID:		Denotes a connection's ID
+ * KDBUS_ITEM_NAME_ADD:
+ * KDBUS_ITEM_NAME_REMOVE:
+ * KDBUS_ITEM_NAME_CHANGE:	Describe kdbus_notify_name_change prototypes
+ * KDBUS_ITEM_ID_ADD:
+ * KDBUS_ITEM_ID_REMOVE:	Describe kdbus_notify_id_change prototypes
+ *
+ * For kdbus_notify_{id,name}_change structs, only the ID and name fields
+ * are looked at at when adding an entry. The flags are unused.
+ *
+ * Also note that KDBUS_ITEM_BLOOM, KDBUS_ITEM_NAME and KDBUS_ITEM_ID are
+ * used to match messages from userspace, while the others apply to kernel-
+ * generated notifications.
  */
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
 	struct kdbus_conn *target_conn = NULL;
-	struct kdbus_match_db *db;
+	struct kdbus_match_entry *entry = NULL;
 	struct kdbus_cmd_match *cmd_match;
+	struct kdbus_match_db *db;
 	struct kdbus_item *item;
-	struct kdbus_match_db_entry *e;
+	LIST_HEAD(list);
 	int ret;
 
 	ret = cmd_match_from_user(conn, buf, true, &cmd_match);
@@ -398,85 +386,127 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		db = conn->match_db;
 	}
 
-	e = kzalloc(sizeof(*e), GFP_KERNEL);
-	if (!e) {
+	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+	if (!entry) {
 		ret = -ENOMEM;
 		goto exit_free;
 	}
 
-	mutex_lock(&db->entries_lock);
-	INIT_LIST_HEAD(&e->items_list);
-	e->id = cmd_match->id;
-	e->src_id = cmd_match->src_id;
-	e->cookie = cmd_match->cookie;
+	entry->cookie = cmd_match->cookie;
+
+	INIT_LIST_HEAD(&entry->rules_list);
 
 	KDBUS_ITEM_FOREACH(item, cmd_match, items) {
-		struct kdbus_match_db_entry_item *ei;
-		size_t size;
+		struct kdbus_match_rule *rule;
+		size_t size = item->size - offsetof(struct kdbus_item, data);
 
 		if (!KDBUS_ITEM_VALID(item, cmd_match)) {
 			ret = -EINVAL;
 			break;
 		}
 
-		ei = kzalloc(sizeof(*ei), GFP_KERNEL);
-		if (!ei) {
+		rule = kzalloc(sizeof(*rule), GFP_KERNEL);
+		if (!rule) {
 			ret = -ENOMEM;
 			break;
 		}
 
-		ei->type = item->type;
-		size = item->size - offsetof(struct kdbus_item, data);
+		rule->type = item->type;
 
 		switch (item->type) {
-		case KDBUS_MATCH_BLOOM:
+		case KDBUS_ITEM_BLOOM:
 			if (size != conn->ep->bus->bloom_size) {
 				ret = -EBADMSG;
 				break;
 			}
 
-			ei->bloom = kmemdup(item->data, size, GFP_KERNEL);
-			if (!ei->bloom)
+			rule->bloom = kmemdup(item->data, size, GFP_KERNEL);
+			if (!rule->bloom) {
 				ret = -ENOMEM;
+				break;
+			}
+
 			break;
 
-		case KDBUS_MATCH_SRC_NAME:
-		case KDBUS_MATCH_NAME_ADD:
-		case KDBUS_MATCH_NAME_REMOVE:
-		case KDBUS_MATCH_NAME_CHANGE:
+		case KDBUS_ITEM_NAME:
+			if (size == 0) {
+				ret = -EINVAL;
+				break;
+			}
+
+			rule->name = kstrdup(item->str, GFP_KERNEL);
+			if (!rule->name)
+				ret = -ENOMEM;
+
+			break;
+
+		case KDBUS_ITEM_ID:
+			if (size < sizeof(u64)) {
+				ret = -EINVAL;
+				break;
+			}
+
+			rule->src_id = item->id;
+			break;
+
+		case KDBUS_ITEM_NAME_ADD:
+		case KDBUS_ITEM_NAME_REMOVE:
+		case KDBUS_ITEM_NAME_CHANGE: {
+			if (size < sizeof(struct kdbus_notify_name_change)) {
+				ret = -EINVAL;
+				break;
+			}
+
+			rule->old_id = item->name_change.old.id;
+			rule->new_id = item->name_change.new.id;
+
 			if (size > sizeof(struct kdbus_notify_name_change)) {
-				ei->name = kstrdup(item->name_change.name,
-						   GFP_KERNEL);
-				if (!ei->name)
+				rule->name = kstrdup(item->name_change.name,
+						     GFP_KERNEL);
+				if (!rule->name)
 					ret = -ENOMEM;
 			}
+
+			break;
+		}
+
+		case KDBUS_ITEM_ID_ADD:
+		case KDBUS_ITEM_ID_REMOVE:
+			if (size < sizeof(struct kdbus_notify_id_change)) {
+				ret = -EINVAL;
+				break;
+			}
+
+			if (item->type == KDBUS_ITEM_ID_ADD)
+				rule->new_id = item->id_change.id;
+			else
+				rule->old_id = item->id_change.id;
+
 			break;
 
-		case KDBUS_MATCH_ID_ADD:
-		case KDBUS_MATCH_ID_REMOVE:
-			ei->id = item->id;
+		default:
+			ret = -EINVAL;
 			break;
 		}
 
 		if (ret < 0)
 			break;
 
-		list_add_tail(&ei->list_entry, &e->items_list);
+		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
 
 	if (ret == 0 && !KDBUS_ITEM_END(item, cmd_match))
 		ret = -EINVAL;
 
-	if (ret >= 0)
-		list_add_tail(&e->list_entry, &db->entries_list);
+	if (ret == 0)
+		list_add_tail(&entry->list_entry, &db->entries_list);
 	else
-		kdbus_match_db_entry_free(e);
-
-	mutex_unlock(&db->entries_lock);
+		kdbus_match_entry_free(entry);
 
 exit_free:
 	kdbus_conn_unref(target_conn);
 	kfree(cmd_match);
+
 	return ret;
 }
 
@@ -494,7 +524,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 	struct kdbus_conn *target_conn = NULL;
 	struct kdbus_match_db *db;
 	struct kdbus_cmd_match *cmd_match = NULL;
-	struct kdbus_match_db_entry *e, *tmp;
+	struct kdbus_match_entry *entry, *tmp;
 	int ret;
 
 	ret = cmd_match_from_user(conn, buf, false, &cmd_match);
@@ -519,10 +549,9 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 	}
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry_safe(e, tmp, &db->entries_list, list_entry)
-		if (e->cookie == cmd_match->cookie &&
-		    e->id == cmd_match->id)
-			kdbus_match_db_entry_free(e);
+	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
+		if (entry->cookie == cmd_match->cookie)
+			kdbus_match_entry_free(entry);
 	mutex_unlock(&db->entries_lock);
 
 	kdbus_conn_unref(target_conn);

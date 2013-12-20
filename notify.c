@@ -142,8 +142,8 @@ int kdbus_notify_name_change(u64 type,
 
 /**
  * kdbus_notify_id_change() - queue a notification about a unique ID change
- * @type:		The type if the notification; KDBUS_MATCH_ID_ADD or
- * 			KDBUS_MATCH_ID_REMOVE
+ * @type:		The type if the notification; KDBUS_ITEM_ID_ADD or
+ * 			KDBUS_ITEM_ID_REMOVE
  * @id:			The id of the connection that was added or removed
  * @flags:		The flags to pass in the KDBUS_ITEM flags field
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
@@ -166,7 +166,20 @@ int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->notify_type = type;
-	kmsg->notify_id = id;
+
+	switch (type) {
+		case KDBUS_ITEM_ID_ADD:
+			kmsg->notify_new_id = id;
+			break;
+
+		case KDBUS_ITEM_ID_REMOVE:
+			kmsg->notify_old_id = id;
+			break;
+
+		default:
+			BUG();
+	}
+
 	kmsg->msg.items[0].type = type;
 	kmsg->msg.items[0].id_change.id = id;
 	kmsg->msg.items[0].id_change.flags = flags;
