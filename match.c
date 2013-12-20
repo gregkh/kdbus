@@ -102,7 +102,7 @@ static void kdbus_match_rule_free(struct kdbus_match_rule *rule)
 	kfree(rule);
 }
 
-void kdbus_match_entry_free(struct kdbus_match_entry *entry)
+static void kdbus_match_entry_free(struct kdbus_match_entry *entry)
 {
 	struct kdbus_match_rule *r, *tmp;
 
