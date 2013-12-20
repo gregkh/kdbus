@@ -128,6 +128,8 @@ int kdbus_notify_name_change(u64 type,
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->notify_type = type;
+	kmsg->notify_old_id = old_id;
+	kmsg->notify_new_id = new_id;
 	kmsg->msg.items[0].type = type;
 	kmsg->msg.items[0].name_change.old.id = old_id;
 	kmsg->msg.items[0].name_change.old.flags = old_flags;
