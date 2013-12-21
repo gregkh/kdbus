@@ -723,8 +723,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 			continue;
 
 		/* all names the connection owns */
-		if (flags & KDBUS_NAME_LIST_NAMES ||
-		    flags & KDBUS_NAME_LIST_ACTIVATORS) {
+		if (flags & (KDBUS_NAME_LIST_NAMES |
+			     KDBUS_NAME_LIST_ACTIVATORS)) {
 			struct kdbus_name_entry *e;
 
 			list_for_each_entry(e, &c->names_list, conn_entry) {
@@ -736,6 +736,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 								    e, write);
 					if (ret < 0)
 						return ret;
+
+					added = true;
 				}
 
 				if (flags & KDBUS_NAME_LIST_NAMES ||
@@ -744,9 +746,9 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 								    e, write);
 					if (ret < 0)
 						return ret;
-				}
 
-				added = true;
+					added = true;
+				}
 			}
 		}
 
