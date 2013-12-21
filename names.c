@@ -724,20 +724,23 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 
 		/* all names the connection owns */
 		if (flags & KDBUS_NAME_LIST_NAMES ||
-		    c->flags & KDBUS_HELLO_ACTIVATOR) {
+		    flags & KDBUS_NAME_LIST_ACTIVATORS) {
 			struct kdbus_name_entry *e;
 
 			list_for_each_entry(e, &c->names_list, conn_entry) {
 				struct kdbus_conn *a = e->activator;
 
-				ret = kdbus_name_list_write(conn, c, &p,
-							    e, write);
-				if (ret < 0)
-					return ret;
-
 				if ((flags & KDBUS_NAME_LIST_ACTIVATORS) &&
 				    a && a != c) {
 					ret = kdbus_name_list_write(conn, a, &p,
+								    e, write);
+					if (ret < 0)
+						return ret;
+				}
+
+				if (flags & KDBUS_NAME_LIST_NAMES ||
+				    c->flags & KDBUS_HELLO_ACTIVATOR) {
+					ret = kdbus_name_list_write(conn, c, &p,
 								    e, write);
 					if (ret < 0)
 						return ret;
