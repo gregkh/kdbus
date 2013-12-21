@@ -728,10 +728,19 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 			struct kdbus_name_entry *e;
 
 			list_for_each_entry(e, &c->names_list, conn_entry) {
+				struct kdbus_conn *a = e->activator;
+
 				ret = kdbus_name_list_write(conn, c, &p,
 							    e, write);
 				if (ret < 0)
 					return ret;
+
+				if (a != c) {
+					ret = kdbus_name_list_write(conn, a, &p,
+								    e, write);
+					if (ret < 0)
+						return ret;
+				}
 
 				added = true;
 			}
