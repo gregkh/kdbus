@@ -332,6 +332,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	struct kdbus_conn_queue *queue;
 	u64 msg_size;
 	size_t size;
+	size_t dst_name_len = 0;
 	size_t payloads = 0;
 	size_t fds = 0;
 	size_t meta = 0;
@@ -358,6 +359,12 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	else
 		size = offsetof(struct kdbus_msg, items);
 	msg_size = size;
+
+	/* let the receiver know where the message was addressed to */
+	if (kmsg->dst_name) {
+		dst_name_len = strlen(kmsg->dst_name) + 1;
+		msg_size += KDBUS_ITEM_SIZE(dst_name_len);
+	}
 
 	/* space for PAYLOAD items */
 	if ((kmsg->vecs_count + kmsg->memfds_count) > 0) {
@@ -418,6 +425,19 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 			       sizeof(kmsg->msg.size));
 	if (ret < 0)
 		goto exit_pool_free;
+
+	if (dst_name_len  > 0) {
+		char tmp[KDBUS_ITEM_HEADER_SIZE + dst_name_len];
+		struct kdbus_item *it = (struct kdbus_item *)tmp;
+
+		it->size = KDBUS_ITEM_HEADER_SIZE + dst_name_len;
+		it->type = KDBUS_ITEM_DST_NAME;
+		memcpy(it->str, kmsg->dst_name, dst_name_len);
+
+		ret = kdbus_pool_write(conn->pool, off + size, it, it->size);
+		if (ret < 0)
+			goto exit_pool_free;
+	}
 
 	/* add PAYLOAD items */
 	if (payloads > 0) {
