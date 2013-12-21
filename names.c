@@ -735,7 +735,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 				if (ret < 0)
 					return ret;
 
-				if (a != c) {
+				if ((flags & KDBUS_NAME_LIST_ACTIVATORS) &&
+				    a && a != c) {
 					ret = kdbus_name_list_write(conn, a, &p,
 								    e, write);
 					if (ret < 0)
