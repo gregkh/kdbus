@@ -793,6 +793,8 @@ enum kdbus_ioctl_type {
  * 			size.
  * @ENOBUFS:		There is no space left for the submitted data to fit
  * 			into the receiver's pool.
+ * @ENOENT:		The name to query information about is currently not on
+ *			the bus.
  * @ENOMEM:		Out of memory.
  * @ENOSYS:		The requested functionality is not available.
  * @ENOTCONN:		The addressed peer is not an active connection.
