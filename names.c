@@ -709,10 +709,9 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 			       size_t *pos, bool write)
 {
-	size_t p = *pos;
-	int i;
 	struct kdbus_conn *c;
-	int ret;
+	size_t p = *pos;
+	int ret, i;
 
 	hash_for_each(conn->ep->bus->conn_hash, i, c, hentry) {
 		bool added = false;
