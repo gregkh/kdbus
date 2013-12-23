@@ -667,8 +667,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		mutex_lock(&ep->bus->lock);
 		hash_for_each(ep->bus->conn_hash, i, conn_dst, hentry) {
-			bool disconnected = false;
-
 			if (conn_dst->id == msg->src_id)
 				continue;
 
@@ -681,13 +679,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
 						       conn_src, kmsg))
-				continue;
-
-			mutex_lock(&conn_dst->lock);
-			disconnected = conn_dst->disconnected;
-			mutex_unlock(&conn_dst->lock);
-
-			if (unlikely(disconnected))
 				continue;
 
 			/*
