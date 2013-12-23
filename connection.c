@@ -785,18 +785,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 	}
 
-	/* monitor connections get all messages */
+	/*
+	 * Monitor connections get all messages; ignore possible errors 
+	 * when sending messages to monitor connections.
+	 */
 	mutex_lock(&ep->bus->lock);
-	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry) {
-
-		/* filter messages */
-		if (!kdbus_match_db_match_kmsg(c->match_db,
-					       conn_src, kmsg))
-			continue;
-
-		/* ignore errors of misbehaving monitor connections */
+	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry)
 		kdbus_conn_queue_insert(c, kmsg, 0);
-	}
 	mutex_unlock(&ep->bus->lock);
 
 	ret = kdbus_conn_queue_insert(conn_dst, kmsg, deadline_ns);
