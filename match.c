@@ -147,22 +147,7 @@ int kdbus_match_db_new(struct kdbus_match_db **db)
 	return 0;
 }
 
-static inline
-bool kdbus_match_name(const char *haystack,
-		      size_t haystack_size,
-		      const char *needle)
-{
-	size_t i;
-
-	for (i = 0; i < haystack_size; i += strlen(haystack) + 1)
-		if (strcmp(haystack + i, needle) == 0)
-			return true;
-
-	return false;
-}
-
-static inline
-bool kdbus_match_bloom(const u64 *filter, const u64 *mask,
+static bool kdbus_match_bloom(const u64 *filter, const u64 *mask,
 		       const struct kdbus_conn *conn)
 {
 	unsigned int i;
@@ -242,9 +227,7 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 				break;
 
 			case KDBUS_ITEM_NAME:
-				if (!kdbus_match_name(kmsg->meta.src_names,
-						      kmsg->meta.src_names_len,
-						      r->name))
+				if (!kdbus_conn_has_name(conn_src, r->name))
 					return false;
 
 				break;

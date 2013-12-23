@@ -1543,3 +1543,28 @@ exit_unref:
 	kdbus_conn_unref(conn);
 	return ret;
 }
+
+
+/**
+ * kdbus_conn_has_name() - check if a connection owns a name
+ * @conn:		Connection
+ * @name:		Well-know name to check for
+ *
+ * Returns true if the name is currently owned by the connection.
+ */
+bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
+{
+	struct kdbus_name_entry *e;
+	bool match = false;
+
+	mutex_lock(&conn->lock);
+	list_for_each_entry(e, &conn->names_list, conn_entry) {
+		if (strcmp(e->name, name) == 0) {
+			match = true;
+			break;
+		}
+	}
+	mutex_unlock(&conn->lock);
+
+	return match;
+}

@@ -92,4 +92,5 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
 			      struct list_head *kmsg_list);
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src);
+bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 #endif

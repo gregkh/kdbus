@@ -20,8 +20,6 @@
  * @data:		Allocated buffer
  * @size:		Number of bytes used
  * @allocated_size:	Size of buffer
- * @src_names:		List of \0-separated well-known names
- * @src_names_len:	Length of list
  *
  * Used to collect and store connection metadata in a pre-compiled
  * buffer containing struct kdbus_item.
@@ -32,9 +30,6 @@ struct kdbus_meta {
 	struct kdbus_item *data;
 	size_t size;
 	size_t allocated_size;
-
-	const char *src_names;
-	size_t src_names_len;
 };
 
 struct kdbus_conn;

@@ -163,7 +163,6 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 		return 0;
 
 	mutex_lock(&conn->lock);
-
 	list_for_each_entry(e, &conn->names_list, conn_entry) {
 		struct kdbus_item *item;
 		size_t len;
@@ -183,7 +182,6 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 		item->name.flags = e->flags;
 		memcpy(item->name.name, e->name, len);
 	}
-
 	mutex_unlock(&conn->lock);
 
 	return ret;
