@@ -145,9 +145,8 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db)
 	return 0;
 }
 
-static inline u64
-kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
-			     struct kdbus_conn *conn)
+static u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
+					struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_entry_access *a;
 	u64 uid = from_kuid(current_user_ns(), current_uid());
