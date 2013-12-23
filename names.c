@@ -528,7 +528,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	}
 
 	/* privileged users can act on behalf of someone else */
-	if (cmd_name->id != 0) {
+	if (cmd_name->owner_id != 0) {
 		struct kdbus_conn *new_conn;
 		struct kdbus_bus *bus = conn->ep->bus;
 
@@ -538,7 +538,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		}
 
 		mutex_lock(&bus->lock);
-		new_conn = kdbus_bus_find_conn_by_id(bus, cmd_name->id);
+		new_conn = kdbus_bus_find_conn_by_id(bus, cmd_name->owner_id);
 		mutex_unlock(&bus->lock);
 
 		if (!new_conn) {
@@ -628,7 +628,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	}
 
 	/* privileged users can act on behalf of someone else */
-	if (cmd_name->id > 0) {
+	if (cmd_name->owner_id > 0) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		if (!kdbus_bus_uid_is_privileged(bus)) {
@@ -637,7 +637,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 		}
 
 		mutex_lock(&bus->lock);
-		conn = kdbus_bus_find_conn_by_id(bus, cmd_name->id);
+		conn = kdbus_bus_find_conn_by_id(bus, cmd_name->owner_id);
 		mutex_unlock(&bus->lock);
 
 		if (!conn) {
@@ -680,7 +680,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	if (write) {
 		struct kdbus_cmd_name n = {
 			.size = len + nlen,
-			.id = c->id,
+			.owner_id = c->id,
 			.flags = e ? e->flags : 0,
 			.conn_flags = c->flags,
 		};

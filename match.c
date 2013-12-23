@@ -310,9 +310,9 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
 		return PTR_ERR(cmd_match);
 
 	/* privileged users can act on behalf of someone else */
-	if (cmd_match->id == 0)
-		cmd_match->id = conn->id;
-	else if (cmd_match->id != conn->id &&
+	if (cmd_match->owner_id == 0)
+		cmd_match->owner_id = conn->id;
+	else if (cmd_match->owner_id != conn->id &&
 		 !kdbus_bus_uid_is_privileged(conn->ep->bus)) {
 		kfree(cmd_match);
 		return -EPERM;
@@ -369,11 +369,12 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 	if (ret < 0)
 		return ret;
 
-	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
+	if (cmd_match->owner_id != 0 && cmd_match->owner_id != conn->id) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		mutex_lock(&bus->lock);
-		target_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
+		target_conn = kdbus_bus_find_conn_by_id(bus,
+							cmd_match->owner_id);
 		mutex_unlock(&bus->lock);
 
 		if (!target_conn) {
@@ -531,11 +532,12 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 	if (ret < 0)
 		return ret;
 
-	if (cmd_match->id != 0 && cmd_match->id != conn->id) {
+	if (cmd_match->owner_id != 0 && cmd_match->owner_id != conn->id) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		mutex_lock(&bus->lock);
-		target_conn = kdbus_bus_find_conn_by_id(bus, cmd_match->id);
+		target_conn = kdbus_bus_find_conn_by_id(bus,
+							cmd_match->owner_id);
 		mutex_unlock(&bus->lock);
 
 		if (!target_conn) {

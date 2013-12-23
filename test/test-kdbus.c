@@ -146,7 +146,7 @@ static int conn_is_name_owner(const struct kdbus_conn *conn, uint64_t flags, con
 		if (name->size == sizeof(struct kdbus_cmd_name))
 			continue;
 
-		if (name->id == conn->hello.id && strcmp(n, name->name) == 0) {
+		if (name->owner_id == conn->hello.id && strcmp(n, name->name) == 0) {
 			found = 1;
 			break;
 		}
