@@ -81,7 +81,16 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
 	return item;
 }
 
-static int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
+/**
+ * kdbus_meta_append_data() - append given raw data to metadata object
+ * @meta:		Metadata object
+ * @type:		KDBUS_ITEM_* type
+ * @data:		pointer to data to copy from
+ * @len:		number of bytes to copy
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
+int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 				  const void *buf, size_t len)
 {
 	struct kdbus_item *item;

@@ -631,9 +631,9 @@ struct kdbus_conn_info {
  * struct kdbus_cmd_match - struct to add or remove matches
  * @size:		The total size of the struct
  * @owner_id:		Privileged users may (de)register matches on behalf
- * 			of other peers. In other cases, set to 0.
+ * 			of other peers
  * @cookie:		Userspace supplied cookie. When removing, the cookie
- * 			identifies the match to remove.
+ * 			identifies the match to remove
  * @items:		A list of items for additional information
  *
  * This structure is used with the KDBUS_CMD_ADD_MATCH and
