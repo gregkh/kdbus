@@ -35,6 +35,7 @@
 void kdbus_meta_free(struct kdbus_meta *meta)
 {
 	kfree(meta->data);
+	memset(meta, 0, sizeof(struct kdbus_meta));
 }
 
 static struct kdbus_item *
