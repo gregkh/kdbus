@@ -22,6 +22,7 @@
  * @notify_id:		Short-cut for faster lookup
  * @notify_name:	Short-cut for faster lookup
  * @dst_name:		Short-cut to msg for faster lookup
+ * @dst_name_id:	Short-cut to msg for faster lookup
  * @bloom:		Short-cut to msg for faster lookup
  * @bloom_size:		Short-cut to msg for faster lookup
  * @fds:		Array of file descriptors to pass
@@ -40,6 +41,7 @@ struct kdbus_kmsg {
 	const char *notify_name;
 
 	const char *dst_name;
+	u64 dst_name_id;
 	const u64 *bloom;
 	unsigned int bloom_size;
 	const int *fds;

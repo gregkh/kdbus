@@ -19,15 +19,19 @@
  * struct kdbus_name_registry - names registered for a bus
  * @entries_hash:	Map of entries
  * @entries_lock:	Registry data lock
+ * @name_id_next:	Next sequence number to assign to a name entry
  */
 struct kdbus_name_registry {
 	DECLARE_HASHTABLE(entries_hash, 6);
 	struct mutex		entries_lock;
+	u64 name_id_next;
 };
 
 /**
  * struct kdbus_name_entry - well-know name entry
  * @name:		The well-known name
+ * @name_id:		Sequence number of name entry to be able to uniquely
+ * 			identify a name over its registration lifetime
  * @flags:		KDBUS_NAME_* flags
  * @queue_list:		List of queued waiters for the well-known name
  * @conn_entry:		Entry in connection
@@ -37,6 +41,7 @@ struct kdbus_name_registry {
  */
 struct kdbus_name_entry {
 	char			*name;
+	u64			name_id;
 	u64			flags;
 	struct list_head	queue_list;
 	struct list_head	conn_entry;

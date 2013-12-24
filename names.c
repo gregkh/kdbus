@@ -88,6 +88,7 @@ int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 
 	hash_init(r->entries_hash);
 	mutex_init(&r->entries_lock);
+	r->name_id_next = 1;
 
 	*reg = r;
 
@@ -141,7 +142,7 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 	mutex_unlock(&conn->lock);
 }
 
-static void kdbus_name_entry_release(struct kdbus_name_entry *e,
+static int kdbus_name_entry_release(struct kdbus_name_entry *e,
 				     struct list_head *notify_list)
 {
 	struct kdbus_name_queue_item *q;
@@ -150,15 +151,29 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 		/* if the name has an activator connection, hand it back */
 		if (e->activator && e->activator != e->conn) {
 			u64 flags = KDBUS_NAME_ACTIVATOR;
+			int ret;
 
 			kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 						 e->conn->id, e->activator->id,
 						 e->flags, flags,
 						 e->name, notify_list);
+
+			/*
+			 * Move messages still queued in the old connection
+			 * and addressed to that name to the new connection.
+			 * This allows a race and loss-free name and message
+			 * takeover and exit-on-idle services.
+			 */
+			ret = kdbus_conn_move_messages(e->activator, e->conn,
+						       e->name_id);
+			if (ret < 0)
+				return ret;
+
 			e->flags = flags;
 			kdbus_name_entry_remove_owner(e);
 			kdbus_name_entry_set_owner(e, e->activator);
-			return;
+
+			return 0;
 		}
 
 		/* release the name */
@@ -168,7 +183,8 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 					 notify_list);
 		kdbus_name_entry_remove_owner(e);
 		kdbus_name_entry_free(e);
-		return;
+
+		return 0;
 	}
 
 	/* give it to first waiter in the queue */
@@ -182,6 +198,8 @@ static void kdbus_name_entry_release(struct kdbus_name_entry *e,
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, q->conn);
 	kdbus_name_queue_item_free(q);
+
+	return 0;
 }
 
 static int kdbus_name_release(struct kdbus_name_entry *e,
@@ -395,8 +413,11 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* take over the name of an activator connection */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
 
-			/* take over already queued messages from the activator connection */
-			ret = kdbus_conn_move_messages(conn, e->activator);
+			/*
+			 * Take over the messages queued in the activator
+			 * connection, the activator itself never reads them.
+			 */
+			ret = kdbus_conn_move_messages(conn, e->activator, 0);
 			if (ret < 0)
 				goto exit_unlock;
 
@@ -458,6 +479,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	e->flags = *flags;
 	INIT_LIST_HEAD(&e->queue_list);
+	e->name_id = reg->name_id_next++;
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
 

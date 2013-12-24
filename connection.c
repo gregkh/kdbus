@@ -53,6 +53,8 @@
  * @deadline_ns:	Timeout for this message, used for replies
  * @src_id:		The ID of the sender
  * @cookie:		Message cookie, used for replies
+ * @src_name_id:	The sequence number of the name this message is
+ * 			addressed to, 0 for messages sent to an ID
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -70,6 +72,7 @@ struct kdbus_conn_queue {
 	u64 deadline_ns;
 	u64 src_id;
 	u64 cookie;
+	u64 dst_name_id;
 };
 
 /**
@@ -364,6 +367,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	if (kmsg->dst_name) {
 		dst_name_len = strlen(kmsg->dst_name) + 1;
 		msg_size += KDBUS_ITEM_SIZE(dst_name_len);
+		queue->dst_name_id = kmsg->dst_name_id;
 	}
 
 	/* space for PAYLOAD items */
@@ -577,7 +581,7 @@ static void kdbus_conn_timer_func(unsigned long val)
 
 /* find and pin destination connection */
 static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
-				   const struct kdbus_kmsg *kmsg,
+				   struct kdbus_kmsg *kmsg,
 				   struct kdbus_conn **conn)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
@@ -593,6 +597,14 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 					       kmsg->dst_name);
 		if (!name_entry)
 			return -ESRCH;
+
+		/*
+		 * Record the sequence number of the registered name;
+		 * it will be passed on to the queue, in case messages
+		 * addressed to a name need to be moved from or to
+		 * activator connections of the same name.
+		 */
+		kmsg->dst_name_id = name_entry->name_id;
 
 		if (!name_entry->conn && name_entry->activator)
 			c = kdbus_conn_ref(name_entry->activator);
@@ -625,7 +637,6 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 	mutex_lock(&c->lock);
 	disconnected = c->disconnected;
 	mutex_unlock(&c->lock);
-
 	if (disconnected) {
 		ret = -ECONNRESET;
 		goto exit_unref;
@@ -1229,6 +1240,8 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  * kdbus_conn_move_messages() - move a message from one connection to another
  * @conn_dst:		Connection to copy to
  * @conn_src:		Connection to copy from
+ * @name_id:		Filter for the sequence number of the registered
+ * 			name, 0 means no filtering.
  *
  * Move all messages from one connection to another. This is used when
  * an ordinary connection is taking over a well-known name from a
@@ -1237,9 +1250,10 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
-			     struct kdbus_conn *conn_src)
+			     struct kdbus_conn *conn_src,
+			     u64 name_id)
 {
-	struct kdbus_conn_queue *queue, *tmp;
+	struct kdbus_conn_queue *q, *tmp;
 	LIST_HEAD(msg_list);
 	int ret = 0;
 
@@ -1255,13 +1269,18 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	mutex_unlock(&conn_src->lock);
 
 	mutex_lock(&conn_dst->lock);
-	list_for_each_entry_safe(queue, tmp, &msg_list, entry) {
+	list_for_each_entry_safe(q, tmp, &msg_list, entry) {
+
+		/* filter messages for a specific name */
+		if (name_id > 0 && q->dst_name_id != name_id)
+			continue;
+
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
-				      &queue->off, queue->size);
+				      &q->off, q->size);
 		if (ret < 0)
 			goto exit_unlock_dst;
 
-		list_add_tail(&queue->entry, &conn_dst->msg_list);
+		list_add_tail(&q->entry, &conn_dst->msg_list);
 		conn_dst->msg_count++;
 	}
 

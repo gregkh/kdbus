@@ -1,6 +1,4 @@
 Features:
-  - move queued messages addressed to a name back to the
-    name's activator if the current owner goes away
   - allow to update the metadata subscription bit mask
   - support the creation of anonymous buses
 
