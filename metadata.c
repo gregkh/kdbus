@@ -29,13 +29,41 @@
 #include "names.h"
 
 /**
+ * kdbus_meta_new() - create new metadata object
+ * @meta:		New metadata object
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
+int kdbus_meta_new(struct kdbus_meta **meta)
+{
+	struct kdbus_meta *m;
+
+	m = kzalloc(sizeof(struct kdbus_meta), GFP_KERNEL);
+	if (!m)
+		return -ENOMEM;
+
+	/*
+	 * Remember the PID namespace our credentials belong to; we
+	 * need to prevent leaking authorization and security-relevant
+	 * data across different namespaces.
+	 */
+	m->ns = task_active_pid_ns(current);
+
+	*meta = m;
+	return 0;
+}
+
+/**
  * kdbus_meta_free() - release metadata
  * @meta:		Metadata object
  */
 void kdbus_meta_free(struct kdbus_meta *meta)
 {
+	if (!meta)
+		return;
+
 	kfree(meta->data);
-	memset(meta, 0, sizeof(struct kdbus_meta));
+	kfree(meta);
 }
 
 static struct kdbus_item *
@@ -364,14 +392,6 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	/* all metadata already added */
 	if ((which & meta->attached) == which)
 		return 0;
-
-	/*
-	 * Remember the PID namespace our credentials belong to; we
-	 * need to prevent leaking authorization and security-relevant
-	 * data across different namespaces.
-	 */
-	if (!meta->ns)
-		meta->ns = task_active_pid_ns(current);
 
 	if (which & KDBUS_ATTACH_TIMESTAMP &&
 	    !(meta->attached & KDBUS_ATTACH_TIMESTAMP)) {

@@ -39,7 +39,10 @@
  * @work:		Support for poll()
  * @timer:		Message reply timeout handling
  * @match_db:		Subscription filter to broadcast messages
- * @meta:		Cached connection creator's metadata/credentials
+ * @meta:		Active connection creator's metadata/credentials,
+ * 			either from the handle of from HELLO
+ * @owner_meta:		The connection's metadata/credentials supplied by
+ * 			HELLO
  * @msg_count:		Number of queued messages
  * @pool:		The user's buffer to receive messages
  */
@@ -63,6 +66,7 @@ struct kdbus_conn {
 	struct timer_list timer;
 	struct kdbus_match_db *match_db;
 	struct kdbus_meta *meta;
+	struct kdbus_meta *owner_meta;
 	unsigned int msg_count;
 	struct kdbus_pool *pool;
 };

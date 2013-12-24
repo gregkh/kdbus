@@ -39,7 +39,7 @@
  */
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
-	kdbus_meta_free(&kmsg->meta);
+	kdbus_meta_free(kmsg->meta);
 	kfree(kmsg);
 }
 
@@ -50,20 +50,25 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **m)
+int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
 {
+	struct kdbus_kmsg *m;
 	size_t size;
-	struct kdbus_kmsg *kmsg;
+	int ret;
 
 	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
-	kmsg = kzalloc(size, GFP_KERNEL);
-	if (!kmsg)
+	m = kzalloc(size, GFP_KERNEL);
+	if (!m)
 		return -ENOMEM;
 
-	kmsg->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
-	kmsg->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
+	ret = kdbus_meta_new(&m->meta);
+	if (ret < 0)
+		return ret;
 
-	*m = kmsg;
+	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
+	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
+
+	*kmsg = m;
 	return 0;
 }
 
@@ -238,9 +243,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
  */
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 			     struct kdbus_msg __user *msg,
-			     struct kdbus_kmsg **m)
+			     struct kdbus_kmsg **kmsg)
 {
-	struct kdbus_kmsg *kmsg;
+	struct kdbus_kmsg *m;
 	u64 size, alloc_size;
 	int ret;
 
@@ -255,34 +260,38 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 
 	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;
 
-	kmsg = kmalloc(alloc_size, GFP_KERNEL);
-	if (!kmsg)
+	m = kmalloc(alloc_size, GFP_KERNEL);
+	if (!m)
 		return -ENOMEM;
-	memset(kmsg, 0, KDBUS_KMSG_HEADER_SIZE);
+	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
 
-	if (copy_from_user(&kmsg->msg, msg, size)) {
+	if (copy_from_user(&m->msg, msg, size)) {
 		ret = -EFAULT;
 		goto exit_free;
 	}
 
 	/* check validity and gather some values for processing */
-	if (kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY &&
-	    kmsg->msg.timeout_ns == 0) {
+	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY &&
+	    m->msg.timeout_ns == 0) {
 		ret = -EINVAL;
 		goto exit_free;
 	}
 
-	ret = kdbus_msg_scan_items(conn, kmsg);
+	ret = kdbus_msg_scan_items(conn, m);
+	if (ret < 0)
+		goto exit_free;
+
+	ret = kdbus_meta_new(&m->meta);
 	if (ret < 0)
 		goto exit_free;
 
 	/* patch-in the source of this message */
-	kmsg->msg.src_id = conn->id;
+	m->msg.src_id = conn->id;
 
-	*m = kmsg;
+	*kmsg = m;
 	return 0;
 
 exit_free:
-	kdbus_kmsg_free(kmsg);
+	kdbus_kmsg_free(m);
 	return ret;
 }

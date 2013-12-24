@@ -76,7 +76,7 @@ enum kdbus_handle_type {
 struct kdbus_handle {
 	enum kdbus_handle_type type;
 	struct kdbus_ns *ns;
-	struct kdbus_meta meta;
+	struct kdbus_meta *meta;
 	union {
 		struct kdbus_ns *ns_owner;
 		struct kdbus_bus *bus_owner;
@@ -124,7 +124,11 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	handle->ep = kdbus_ep_ref(ep);
 
 	/* cache the metadata/credentials of the creator of the connection */
-	ret = kdbus_meta_append(&handle->meta, NULL,
+	ret = kdbus_meta_new(&handle->meta);
+	if (ret < 0)
+		goto exit_unlock;
+
+	ret = kdbus_meta_append(handle->meta, NULL,
 				KDBUS_ATTACH_CREDS |
 				KDBUS_ATTACH_COMM |
 				KDBUS_ATTACH_EXE |
@@ -179,7 +183,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 	}
 
-	kdbus_meta_free(&handle->meta);
+	kdbus_meta_free(handle->meta);
 	kdbus_ns_unref(handle->ns);
 	kfree(handle);
 
@@ -301,79 +305,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	return ret;
 }
 
-static int kdbus_handle_hello(struct kdbus_handle *handle,
-			      struct kdbus_cmd_hello *hello)
-{
-	const struct kdbus_item *item;
-	const struct kdbus_creds *creds = NULL;
-	const char *seclabel = NULL;
-
-	if (!kdbus_check_flags(hello->conn_flags))
-		return -ENOTSUPP;
-
-	if (hello->pool_size == 0 ||
-	    !IS_ALIGNED(hello->pool_size, PAGE_SIZE))
-		return -EFAULT;
-
-	KDBUS_ITEM_FOREACH(item, hello, items) {
-		if (!KDBUS_ITEM_VALID(item, hello))
-			return -EFAULT;
-
-		switch (item->type) {
-		case KDBUS_ITEM_CREDS:
-			if (!capable(CAP_IPC_OWNER))
-				return -EPERM;
-
-			if (item->size !=
-			    KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds)))
-				return -EINVAL;
-
-			creds = &item->creds;
-			break;
-
-		case KDBUS_ITEM_SECLABEL:
-			if (!capable(CAP_IPC_OWNER))
-				return -EPERM;
-
-			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE))
-				return -EINVAL;
-
-			seclabel = item->data;
-			break;
-		}
-	}
-
-	/* privileged processes can impersonate somebody else */
-	if (creds || seclabel) {
-		int ret;
-
-		/*
-		 * Replace the connection's metadata gathered at open()
-		 * time, with the information provided with the HELLO call.
-		 */
-		kdbus_meta_free(&handle->meta);
-
-		ret = kdbus_meta_append_data(&handle->meta,
-				KDBUS_ITEM_SECLABEL, item->data,
-				item->size - KDBUS_ITEM_HEADER_SIZE);
-		if (ret < 0)
-			return ret;
-
-		ret = kdbus_meta_append_data(&handle->meta,
-				KDBUS_ITEM_CREDS, &item->creds,
-				item->size - KDBUS_ITEM_HEADER_SIZE);
-		if (ret < 0)
-			return ret;
-	}
-
-	if (!KDBUS_ITEM_END(item, hello))
-		return -EINVAL;
-
-	return kdbus_conn_new(handle->ep, hello, &handle->meta,
-			      &handle->conn);
-}
-
 /* kdbus endpoint make commands */
 static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 				  void __user *buf)
@@ -446,7 +377,18 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 		hello = v;
 
-		ret = kdbus_handle_hello(handle, hello);
+		if (!kdbus_check_flags(hello->conn_flags)) {
+			ret = -ENOTSUPP;
+			break;
+		}
+
+		if (hello->pool_size == 0 ||
+		    !IS_ALIGNED(hello->pool_size, PAGE_SIZE)) {
+			ret = -EFAULT;
+			break;
+		}
+
+		ret = kdbus_conn_new(handle->ep, hello, handle->meta, &handle->conn);
 		if (ret < 0)
 			break;
 

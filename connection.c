@@ -386,9 +386,9 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	}
 
 	/* space for metadata/credential items */
-	if (kmsg->meta.size > 0 && kmsg->meta.ns == conn->meta->ns) {
+	if (kmsg->meta->size > 0 && kmsg->meta->ns == conn->meta->ns) {
 		meta = msg_size;
-		msg_size += kmsg->meta.size;
+		msg_size += kmsg->meta->size;
 	}
 
 	/* data starts after the message */
@@ -476,7 +476,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	/* append message metadata/credential items */
 	if (meta > 0) {
 		ret = kdbus_pool_write(conn->pool, off + meta,
-				       kmsg->meta.data, kmsg->meta.size);
+				       kmsg->meta->data, kmsg->meta->size);
 		if (ret < 0)
 			goto exit_pool_free;
 	}
@@ -699,7 +699,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 * data, even when they did not ask for it.
 			 */
 			if (conn_src)
-				kdbus_meta_append(&kmsg->meta, conn_src,
+				kdbus_meta_append(kmsg->meta, conn_src,
 						  conn_dst->attach_flags);
 
 			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
@@ -781,7 +781,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (conn_src) {
-		ret = kdbus_meta_append(&kmsg->meta, conn_src,
+		ret = kdbus_meta_append(kmsg->meta, conn_src,
 					conn_dst->attach_flags);
 		if (ret < 0)
 			goto exit_unref;
@@ -1200,6 +1200,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
 		kdbus_conn_reply_entry_free(reply);
 
+	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
@@ -1307,7 +1308,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	struct kdbus_conn *owner_conn = NULL;
 	size_t off, pos;
 	char *name = NULL;
-	struct kdbus_meta meta = {};
+	struct kdbus_meta *meta = NULL;
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -1390,11 +1391,15 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	 */
 	if (cmd_info->flags & KDBUS_ATTACH_NAMES &&
 	    !(owner_conn->flags & KDBUS_HELLO_ACTIVATOR)) {
-		ret = kdbus_meta_append(&meta, owner_conn, KDBUS_ATTACH_NAMES);
+		ret = kdbus_meta_new(&meta);
 		if (ret < 0)
 			goto exit;
 
-		info.size += meta.size;
+		ret = kdbus_meta_append(meta, owner_conn, KDBUS_ATTACH_NAMES);
+		if (ret < 0)
+			goto exit;
+
+		info.size += meta->size;
 	}
 
 	ret = kdbus_pool_alloc_range(conn->pool, info.size, &off);
@@ -1414,12 +1419,12 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		pos += owner_conn->meta->size;
 	}
 
-	if (meta.size > 0) {
-		ret = kdbus_pool_write(conn->pool, pos, meta.data, meta.size);
+	if (meta) {
+		ret = kdbus_pool_write(conn->pool, pos, meta->data, meta->size);
 		if (ret < 0)
 			goto exit_free;
 
-		pos += meta.size;
+		pos += meta->size;
 	}
 
 	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_conn_info)) {
@@ -1432,7 +1437,7 @@ exit_free:
 		kdbus_pool_free_range(conn->pool, off);
 
 exit:
-	kdbus_meta_free(&meta);
+	kdbus_meta_free(meta);
 	kdbus_conn_unref(owner_conn);
 	kfree(cmd_info);
 
@@ -1457,6 +1462,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
 	const char *activator_name = NULL;
+	const struct kdbus_creds *creds = NULL;
+	const char *seclabel = NULL;
+	size_t seclabel_len = 0;
 	LIST_HEAD(notify_list);
 	int ret;
 
@@ -1475,8 +1483,26 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			activator_name = item->str;
 			break;
 
-		default:
-			return -ENOTSUPP;
+		case KDBUS_ITEM_CREDS:
+			/* privileged processes can impersonate somebody else */
+			if (!capable(CAP_IPC_OWNER))
+				return -EPERM;
+
+			if (item->size !=
+			    KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds)))
+				return -EINVAL;
+
+			creds = &item->creds;
+			break;
+
+		case KDBUS_ITEM_SECLABEL:
+			/* privileged processes can impersonate somebody else */
+			if (!capable(CAP_IPC_OWNER))
+				return -EPERM;
+
+			seclabel = item->str;
+			seclabel_len = item->size - KDBUS_ITEM_HEADER_SIZE;
+			break;
 		}
 	}
 
@@ -1553,7 +1579,34 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		mutex_unlock(&bus->lock);
 	}
 
-	conn->meta = meta;
+	/* privileged processes can impersonate somebody else */
+	if (creds || seclabel) {
+		ret = kdbus_meta_new(&conn->owner_meta);
+		if (ret < 0)
+			goto exit_unref;
+
+		if (creds) {
+			ret = kdbus_meta_append_data(conn->owner_meta,
+					KDBUS_ITEM_CREDS,
+					creds, sizeof(struct kdbus_creds));
+			if (ret < 0)
+				goto exit_unref;
+		}
+
+		if (seclabel) {
+			ret = kdbus_meta_append_data(conn->owner_meta,
+						     KDBUS_ITEM_SECLABEL,
+						     seclabel, seclabel_len);
+			if (ret < 0)
+				goto exit_unref;
+		}
+
+		/* use the information provided with the HELLO call */
+		conn->meta = conn->owner_meta;
+	} else {
+		/* use the connection's metadata gathered at open() */
+		conn->meta = meta;
+	}
 
 	*c = conn;
 	return 0;

@@ -34,6 +34,7 @@ struct kdbus_meta {
 
 struct kdbus_conn;
 
+int kdbus_meta_new(struct kdbus_meta **meta);
 int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 			   const void *buf, size_t len);
 int kdbus_meta_append(struct kdbus_meta *meta,
