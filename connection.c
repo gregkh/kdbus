@@ -1266,11 +1266,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	LIST_HEAD(msg_list);
 	int ret = 0;
 
-	if (!(conn_src->flags & KDBUS_HELLO_ACTIVATOR))
-		return -EINVAL;
-
-	if (conn_src == conn_dst)
-		return -EINVAL;
+	BUG_ON(conn_src == conn_dst);
 
 	mutex_lock(&conn_src->lock);
 	list_splice_init(&conn_src->msg_list, &msg_list);
