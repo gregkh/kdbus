@@ -209,10 +209,8 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 	struct kdbus_name_queue_item *q_tmp, *q;
 
 	/* Is the connection already the real owner of the name? */
-	if (e->conn == conn) {
-		kdbus_name_entry_release(e, notify_list);
-		return 0;
-	}
+	if (e->conn == conn)
+		return kdbus_name_entry_release(e, notify_list);
 
 	/*
 	 * Otherwise, walk the list of queued entries and search for
