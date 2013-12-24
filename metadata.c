@@ -92,7 +92,7 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
  * Returns: 0 on success, negative errno on failure.
  */
 int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
-				  const void *buf, size_t len)
+				  const void *data, size_t len)
 {
 	struct kdbus_item *item;
 	u64 size;
@@ -107,7 +107,7 @@ int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
-	memcpy(item->data, buf, len);
+	memcpy(item->data, data, len);
 
 	return 0;
 }
@@ -143,8 +143,6 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
 static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 {
 	struct kdbus_creds creds = {};
-	struct kdbus_item *item;
-	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
 
 	creds.uid = from_kuid(current_user_ns(), current_uid());
 	creds.gid = from_kgid(current_user_ns(), current_gid());
@@ -152,15 +150,8 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 	creds.tid = task_tgid_vnr(current);
 	creds.starttime = timespec_to_ns(&current->start_time);
 
-	item = kdbus_meta_append_item(meta, size);
-	if (IS_ERR(item))
-		return PTR_ERR(item);
-
-	item->type = KDBUS_ITEM_CREDS;
-	item->size = size;
-	memcpy(&item->creds, &creds, sizeof(struct kdbus_creds));
-
-	return 0;
+	return kdbus_meta_append_data(meta, KDBUS_ITEM_CREDS,
+				      &creds, sizeof(struct kdbus_creds));
 }
 
 static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
