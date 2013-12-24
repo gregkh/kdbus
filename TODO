@@ -1,6 +1,7 @@
 Features:
   - allow to update the metadata subscription bit mask
   - support the creation of anonymous buses
+  - implement EP_MAKE
 
 External API:
   - actually return compatible/incompatible flags to users

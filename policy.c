@@ -131,6 +131,8 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db)
 {
 	struct kdbus_policy_db *d;
 
+	BUG_ON(*db);
+
 	d = kzalloc(sizeof(*d), GFP_KERNEL);
 	if (!d)
 		return -ENOMEM;

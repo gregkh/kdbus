@@ -386,7 +386,8 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	}
 
 	/* space for metadata/credential items */
-	if (kmsg->meta->size > 0 && kmsg->meta->ns == conn->meta->ns) {
+	if (kmsg->meta && kmsg->meta->size > 0 &&
+	    kmsg->meta->ns == conn->meta->ns) {
 		meta = msg_size;
 		msg_size += kmsg->meta->size;
 	}
@@ -671,6 +672,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn *c;
 	u64 deadline_ns = 0;
 	int ret;
+
+	/* non-kernel senders append credentials/metadata */
+	if (conn_src) {
+		ret = kdbus_meta_new(&kmsg->meta);
+		if (ret < 0)
+			return ret;
+	}
 
 	/* broadcast message */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
@@ -1467,6 +1475,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	size_t seclabel_len = 0;
 	LIST_HEAD(notify_list);
 	int ret;
+
+	BUG_ON(*c);
 
 	if (hello->conn_flags & KDBUS_HELLO_ACTIVATOR &&
 	    hello->conn_flags & KDBUS_HELLO_MONITOR)

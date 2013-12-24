@@ -63,25 +63,28 @@ enum kdbus_handle_type {
  * @type:	Type of this handle (KDBUS_HANDLE_*)
  * @ns:		Namespace for this handle
  * @meta:	Cached connection creator's metadata/credentials
+ * @ep		The endpoint this handle owns, in case @type
+ *		is KDBUS_HANDLE_EP
  * @ns_owner:	The namespace this handle owns, in case @type
  *		is KDBUS_HANDLE_CONTROL_NS_OWNER
  * @bus_owner:	The bus this handle owns, in case @type
  *		is KDBUS_HANDLE_CONTROL_BUS_OWNER
+ * @ep_owner	The endpoint this handle owns, in case @type
+ *		is KDBUS_HANDLE_EP_OWNER
  * @conn	The connection this handle owns, in case @type
  *		is KDBUS_HANDLE_EP, after HELLO it is
  *		KDBUS_HANDLE_EP_CONNECTED
- * @ep		The endpoint this handle owns, in case @type
- *		is KDBUS_HANDLE_EP or KDBUS_HANDLE_EP_OWNER
  */
 struct kdbus_handle {
 	enum kdbus_handle_type type;
 	struct kdbus_ns *ns;
 	struct kdbus_meta *meta;
+	struct kdbus_ep *ep;
 	union {
 		struct kdbus_ns *ns_owner;
 		struct kdbus_bus *bus_owner;
+		struct kdbus_ep *ep_owner;
 		struct kdbus_conn *conn;
-		struct kdbus_ep *ep;
 	};
 };
 
@@ -166,8 +169,8 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_HANDLE_EP_OWNER:
-		kdbus_ep_disconnect(handle->ep);
-		kdbus_ep_unref(handle->ep);
+		kdbus_ep_disconnect(handle->ep_owner);
+		kdbus_ep_unref(handle->ep_owner);
 		break;
 
 	case KDBUS_HANDLE_EP:
@@ -341,6 +344,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
+		//FIXME: what to do with the holder connection now?
 		ret = kdbus_ep_new(handle->ep->bus, handle->ep->bus->ns, n,
 				   mode, current_fsuid(), gid,
 				   make->flags & KDBUS_MAKE_POLICY_OPEN);
@@ -509,7 +513,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MSG_SEND: {
 		/* submit a message which will be queued in the receiver */
-		struct kdbus_kmsg *kmsg;
+		struct kdbus_kmsg *kmsg = NULL;
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;

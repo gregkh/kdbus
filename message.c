@@ -54,16 +54,13 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
 {
 	struct kdbus_kmsg *m;
 	size_t size;
-	int ret;
+
+	BUG_ON(*kmsg);
 
 	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	m = kzalloc(size, GFP_KERNEL);
 	if (!m)
 		return -ENOMEM;
-
-	ret = kdbus_meta_new(&m->meta);
-	if (ret < 0)
-		return ret;
 
 	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
@@ -249,6 +246,8 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	u64 size, alloc_size;
 	int ret;
 
+	BUG_ON(*kmsg);
+
 	if (!KDBUS_IS_ALIGNED8((unsigned long)msg))
 		return -EFAULT;
 
@@ -278,10 +277,6 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_msg_scan_items(conn, m);
-	if (ret < 0)
-		goto exit_free;
-
-	ret = kdbus_meta_new(&m->meta);
 	if (ret < 0)
 		goto exit_free;
 

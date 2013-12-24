@@ -38,6 +38,8 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 {
 	struct kdbus_meta *m;
 
+	BUG_ON(*meta);
+
 	m = kzalloc(sizeof(struct kdbus_meta), GFP_KERNEL);
 	if (!m)
 		return -ENOMEM;

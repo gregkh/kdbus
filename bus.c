@@ -182,6 +182,8 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	struct kdbus_bus *b;
 	int ret;
 
+	BUG_ON(*bus);
+
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-",
 		 from_kuid(current_user_ns(), uid));

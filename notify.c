@@ -24,7 +24,7 @@
 static int kdbus_notify_reply(u64 id, u64 cookie, u64 msg_type,
 			      struct list_head *queue_list)
 {
-	struct kdbus_kmsg *kmsg;
+	struct kdbus_kmsg *kmsg = NULL;
 	int ret;
 
 	BUG_ON(id == 0);
@@ -111,8 +111,8 @@ int kdbus_notify_name_change(u64 type,
 			     const char *name,
 			     struct list_head *queue_list)
 {
+	struct kdbus_kmsg *kmsg = NULL;
 	size_t name_len;
-	struct kdbus_kmsg *kmsg;
 	size_t extra_size;
 	int ret;
 
@@ -158,7 +158,7 @@ int kdbus_notify_name_change(u64 type,
 int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
 			   struct list_head *queue_list)
 {
-	struct kdbus_kmsg *kmsg;
+	struct kdbus_kmsg *kmsg = NULL;
 	int ret;
 
 	ret = kdbus_kmsg_new(sizeof(struct kdbus_notify_id_change), &kmsg);

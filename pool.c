@@ -294,6 +294,8 @@ int kdbus_pool_new(struct kdbus_pool **pool, size_t size)
 	struct kdbus_slice *s;
 	int ret;
 
+	BUG_ON(*pool);
+
 	p = kzalloc(sizeof(struct kdbus_pool), GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;

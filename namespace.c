@@ -198,6 +198,8 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	struct kdbus_ns *n;
 	int ret;
 
+	BUG_ON(*ns);
+
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
 
