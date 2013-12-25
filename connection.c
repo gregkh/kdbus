@@ -1060,10 +1060,11 @@ int kdbus_conn_drop_msg(struct kdbus_conn *conn)
 				 struct kdbus_conn_queue, entry);
 	list_del(&queue->entry);
 	conn->msg_count--;
+
+	kdbus_pool_free_range(conn->pool, queue->off);
 	mutex_unlock(&conn->lock);
 
 	kdbus_conn_queue_cleanup(queue);
-	kdbus_pool_free_range(conn->pool, queue->off);
 	return 0;
 
 exit_unlock:
