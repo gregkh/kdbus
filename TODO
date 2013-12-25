@@ -1,7 +1,11 @@
 Features:
+  - make kdbus.ko loadable a second time with a different:
+      /dev/kdbus/, /sys/bus/kdbus/ name
+    to be able to run test environments while the first one
+    is in use by the system
   - allow to update the metadata subscription bit mask
   - support the creation of anonymous buses
-  - implement EP_MAKE
+  - implement the EP_MAKE logic
 
 External API:
   - actually return compatible/incompatible flags to users
