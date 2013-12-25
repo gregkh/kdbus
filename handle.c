@@ -38,14 +38,14 @@
 
 /**
  * enum kdbus_handle_type - type a handle can be of
- * @_KDBUS_HANDLE_NULL:			internal null marker
- * @KDBUS_HANDLE_CONTROL:		new fd of a control node
- * @KDBUS_HANDLE_CONTROL_NS_OWNER:	fd to hold a namespace
- * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	fd to hold a bus
- * @KDBUS_HANDLE_EP:			new fd of a bus node
- * @KDBUS_HANDLE_EP_CONNECTED:		connection after HELLO
- * @KDBUS_HANDLE_EP_OWNER:		fd to hold an endpoint
- * @KDBUS_HANDLE_DISCONNECTED:		handle is disconnected
+ * @_KDBUS_HANDLE_NULL:			Uninitialized/invalid
+ * @KDBUS_HANDLE_CONTROL:		New file descriptor of a control node
+ * @KDBUS_HANDLE_CONTROL_NS_OWNER:	File descriptor to hold a namespace
+ * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	File descriptor to hold a bus
+ * @KDBUS_HANDLE_EP:			New file descriptor of a bus node
+ * @KDBUS_HANDLE_EP_CONNECTED:		A bus connection after HELLO
+ * @KDBUS_HANDLE_EP_OWNER:		File descriptor to hold an endpoint
+ * @KDBUS_HANDLE_DISCONNECTED:		Handle is disconnected
  */
 enum kdbus_handle_type {
 	_KDBUS_HANDLE_NULL,
@@ -63,7 +63,7 @@ enum kdbus_handle_type {
  * @type:	Type of this handle (KDBUS_HANDLE_*)
  * @ns:		Namespace for this handle
  * @meta:	Cached connection creator's metadata/credentials
- * @ep		The endpoint this handle owns, in case @type
+ * @ep:		The endpoint this handle owns, in case @type
  *		is KDBUS_HANDLE_EP
  * @ns_owner:	The namespace this handle owns, in case @type
  *		is KDBUS_HANDLE_CONTROL_NS_OWNER
@@ -344,7 +344,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		//FIXME: what to do with the holder connection now?
 		ret = kdbus_ep_new(handle->ep->bus, handle->ep->bus->ns, n,
 				   mode, current_fsuid(), gid,
 				   make->flags & KDBUS_MAKE_POLICY_OPEN);
@@ -617,7 +616,7 @@ static unsigned int kdbus_handle_poll(struct file *file,
 	unsigned int mask = 0;
 	bool disconnected;
 
-	/* Only an endpoint can read/write data */
+	/* Only a connected endpoint can read/write data */
 	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
 		return POLLERR | POLLHUP;
 

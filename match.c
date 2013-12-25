@@ -247,11 +247,11 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
  * @conn_src:		The connection object originating the message
  * @kmsg:		The kmsg to perform the match on
  *
- * Returns true in if there was a matching database entry, false otherwise.
-
  * This function will walk through all the database entries previously uploaded
  * with kdbus_match_db_add(). As soon as any of them has an all-satisfied rule
  * set, this function will return true.
+ *
+ * Returns true in if there was a matching database entry, false otherwise.
  */
 bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,

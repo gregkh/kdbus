@@ -46,7 +46,7 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 /**
  * kdbus_kmsg_new() - allocate message
  * @extra_size:		additional size to reserve for data
- * @m:			Returned Message
+ * @kmsg:			Returned Message
  *
  * Returns: 0 on success, negative errno on failure.
  */
@@ -234,7 +234,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
  * kdbus_kmsg_new_from_user() - copy message from user memory
  * @conn:		Connection
  * @msg:		User-provided message
- * @m:			Copy of message
+ * @kmsg:		Copy of message
  *
  * Returns: 0 on success, negative errno on failure.
  */

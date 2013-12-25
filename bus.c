@@ -163,6 +163,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
  * @make:		Pointer to a struct kdbus_cmd_make containing the
  *			details for the bus creation
  * @name:		Name of the bus
+ * @bloom_size:		Size of the bloom filter on this bus
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node

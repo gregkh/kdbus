@@ -52,7 +52,7 @@
  * @fds_count:		Number of files
  * @src_id:		The ID of the sender
  * @cookie:		Message cookie, used for replies
- * @src_name_id:	The sequence number of the name this message is
+ * @dst_name_id:	The sequence number of the name this message is
  * 			addressed to, 0 for messages sent to an ID
  */
 struct kdbus_conn_queue {

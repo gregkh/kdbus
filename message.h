@@ -19,7 +19,8 @@
 /**
  * struct kdbus_kmsg - internal message handling data
  * @notify_type:	Short-cut for faster lookup
- * @notify_id:		Short-cut for faster lookup
+ * @notify_old_id:	Short-cut for faster lookup
+ * @notify_new_id:	Short-cut for faster lookup
  * @notify_name:	Short-cut for faster lookup
  * @dst_name:		Short-cut to msg for faster lookup
  * @dst_name_id:	Short-cut to msg for faster lookup
