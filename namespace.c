@@ -39,7 +39,7 @@ static DEFINE_MUTEX(kdbus_subsys_lock);
 
 /* kdbus sysfs subsystem */
 struct bus_type kdbus_subsys = {
-	.name = "kdbus",
+	.name = KBUILD_MODNAME,
 };
 
 /* control nodes are world accessible */
@@ -111,7 +111,7 @@ void kdbus_ns_disconnect(struct kdbus_ns *ns)
 	}
 	if (ns->major > 0) {
 		idr_remove(&kdbus_ns_major_idr, ns->major);
-		unregister_chrdev(ns->major, "kdbus");
+		unregister_chrdev(ns->major, KBUILD_MODNAME);
 		ns->major = 0;
 	}
 }
@@ -219,7 +219,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	/* compose name and path of base directory in /dev */
 	if (!parent) {
 		/* initial namespace */
-		n->devpath = kstrdup("kdbus", GFP_KERNEL);
+		n->devpath = kstrdup(KBUILD_MODNAME, GFP_KERNEL);
 		if (!n->devpath) {
 			ret = -ENOMEM;
 			goto exit_unlock;
@@ -248,7 +248,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	}
 
 	/* get dynamic major */
-	ret = register_chrdev(0, "kdbus", &kdbus_device_ops);
+	ret = register_chrdev(0, KBUILD_MODNAME, &kdbus_device_ops);
 	if (ret < 0)
 		goto exit_unlock;
 

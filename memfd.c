@@ -108,7 +108,7 @@ int kdbus_memfd_new(int *fd)
 	mutex_init(&mf->lock);
 
 	/* allocate a new unlinked shmem file */
-	shmemfp = shmem_file_setup("kdbus-memfd", 0, 0);
+	shmemfp = shmem_file_setup(KBUILD_MODNAME "-memfd", 0, 0);
 	if (IS_ERR(shmemfp)) {
 		ret = PTR_ERR(shmemfp);
 		goto exit;

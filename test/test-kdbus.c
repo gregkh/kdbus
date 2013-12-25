@@ -253,7 +253,6 @@ static int send_message(const struct kdbus_conn *conn,
 }
 
 /* -----------------------------------8<------------------------------- */
-
 static int check_nsmake(struct kdbus_check_env *env)
 {
 	int fd, fd2;
@@ -267,7 +266,7 @@ static int check_nsmake(struct kdbus_check_env *env)
 	} ns_make;
 	int ret;
 
-	fd = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	fd = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(fd >= 0);
 
 	memset(&ns_make, 0, sizeof(ns_make));
@@ -283,20 +282,20 @@ static int check_nsmake(struct kdbus_check_env *env)
 		return CHECK_SKIP;
 	ASSERT_RETURN(ret == 0);
 
-	ASSERT_RETURN(access("/dev/kdbus/ns/blah/control", F_OK) == 0);
+	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/ns/blah/control", F_OK) == 0);
 
 	/* can't use the same fd for ns make twice */
 	ret = ioctl(fd, KDBUS_CMD_NS_MAKE, &ns_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
 	/* can't register the same name twice */
-	fd2 = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	fd2 = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 	ret = ioctl(fd2, KDBUS_CMD_NS_MAKE, &ns_make);
 	ASSERT_RETURN(ret == -1 && errno == EEXIST);
 	close(fd2);
 
 	close(fd);
-	ASSERT_RETURN(access("/dev/kdbus/ns/blah/control", F_OK) < 0);
+	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/ns/blah/control", F_OK) < 0);
 
 	return CHECK_OK;
 }
@@ -323,7 +322,7 @@ static int check_busmake(struct kdbus_check_env *env)
 	char s[PATH_MAX];
 	int ret;
 
-	env->control_fd = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	env->control_fd = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(env->control_fd >= 0);
 
 	memset(&bus_make, 0, sizeof(bus_make));
@@ -351,7 +350,7 @@ static int check_busmake(struct kdbus_check_env *env)
 			     bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
-	snprintf(s, sizeof(s), "/dev/kdbus/%u-blah/bus", getuid());
+	snprintf(s, sizeof(s), "/dev/" KBUILD_MODNAME "/%u-blah/bus", getuid());
 	ASSERT_RETURN(access(s, F_OK) == 0);
 
 #if 0
@@ -1052,7 +1051,7 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 		char n[32];
 		int ret;
 
-		env->control_fd = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+		env->control_fd = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 		ASSERT_RETURN(env->control_fd >= 0);
 
 		memset(&bus_make, 0, sizeof(bus_make));
@@ -1075,7 +1074,7 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 		ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 		ASSERT_RETURN(ret == 0);
 
-		ret = asprintf(&env->buspath, "/dev/kdbus/%s/bus", bus_make.name);
+		ret = asprintf(&env->buspath, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name);
 		ASSERT_RETURN(ret >= 0);
 	}
 

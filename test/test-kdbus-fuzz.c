@@ -99,8 +99,8 @@ static int make_bus(void)
 	unsigned int i;
 	int ret, fdc;
 
-	printf("-- opening /dev/kdbus/control\n");
-	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	printf("-- opening /dev/" KBUILD_MODNAME "/control\n");
+	fdc = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 	if (fdc < 0) {
 		fprintf(stderr, "--- error %d (%m)\n", fdc);
 		return EXIT_FAILURE;
@@ -129,7 +129,7 @@ static int make_bus(void)
 		return EXIT_FAILURE;
 	}
 
-	if (asprintf(&bus, "/dev/kdbus/%s/bus", bus_make.name) < 0)
+	if (asprintf(&bus, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
 	for (ret = 0; ret < random() % 20; ret++) {

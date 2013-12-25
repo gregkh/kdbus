@@ -300,7 +300,7 @@ int kdbus_pool_new(struct kdbus_pool **pool, size_t size)
 	if (!p)
 		return -ENOMEM;
 
-	f = shmem_file_setup("kdbus-pool", size, 0);
+	f = shmem_file_setup(KBUILD_MODNAME "-pool", size, 0);
 	if (IS_ERR(f)) {
 		ret = PTR_ERR(f);
 		goto exit_free_p;

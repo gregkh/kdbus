@@ -15,7 +15,7 @@ all: $(TESTS)
 
 %.o: %.c ../kdbus.h
 	@echo '  TARGET_CC $@'
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) -DKBUILD_MODNAME=\"$(KBUILD_MODNAME)\" -c $< -o $@
 
 test-%: $(TEST_COMMON) test-%.o
 	@echo '  TARGET_LD $@'

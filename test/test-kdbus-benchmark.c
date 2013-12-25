@@ -230,8 +230,8 @@ int main(int argc, char *argv[])
 	for (i = 0; i < sizeof(stress_payload); i++)
 		stress_payload[i] = i;
 
-	printf("-- opening /dev/kdbus/control\n");
-	fdc = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	printf("-- opening /dev/" KBUILD_MODNAME "/control\n");
+	fdc = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 	if (fdc < 0) {
 		fprintf(stderr, "--- error %d (%m)\n", fdc);
 		return EXIT_FAILURE;
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	if (asprintf(&bus, "/dev/kdbus/%s/bus", bus_make.name) < 0)
+	if (asprintf(&bus, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
 	conn_a = connect_to_bus(bus, 0);

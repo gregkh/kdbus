@@ -40,9 +40,9 @@ int main(int argc, char *argv[])
 
 	printf("Starting Test Bus Daemon (press ENTER to exit)\n");
 
-	fd_owner = open("/dev/kdbus/control", O_RDWR|O_CLOEXEC);
+	fd_owner = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 	if (fd_owner < 0) {
-		fprintf(stderr, "/dev/kdbus/control: %m\n");
+		fprintf(stderr, "/dev/" KBUILD_MODNAME "/control: %m\n");
 		return EXIT_FAILURE;
 	}
 
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 	}
 	printf("  Created bus '%s'\n", bus_make.name);
 
-	if (asprintf(&bus, "/dev/kdbus/%s/bus", bus_make.name) < 0)
+	if (asprintf(&bus, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
 	conn = connect_to_bus(bus, 0);
