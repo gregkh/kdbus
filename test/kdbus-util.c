@@ -212,12 +212,19 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 	const struct kdbus_item *item = msg->items;
 	char buf_src[32];
 	char buf_dst[32];
+	uint64_t timeout = 0;
+	uint64_t cookie_reply = 0;
 
-	printf("MESSAGE: %s (%llu bytes) flags=0x%08llx, %s → %s, cookie=%llu, timeout=%llu\n",
-		enum_PAYLOAD(msg->payload_type), (unsigned long long) msg->size,
-		(unsigned long long) msg->flags,
+	if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
+		timeout = msg->timeout_ns;
+	else
+		cookie_reply = msg->cookie_reply;
+
+	printf("MESSAGE: %s (%llu bytes) flags=0x%08llx, %s → %s, cookie=%llu, timeout=%llu cookie_reply=%llu\n",
+		enum_PAYLOAD(msg->payload_type), (unsigned long long)msg->size,
+		(unsigned long long)msg->flags,
 		msg_id(msg->src_id, buf_src), msg_id(msg->dst_id, buf_dst),
-		(unsigned long long) msg->cookie, (unsigned long long) msg->timeout_ns);
+		(unsigned long long)msg->cookie, (unsigned long long)timeout, (unsigned long long)cookie_reply);
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {

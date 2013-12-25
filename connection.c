@@ -50,7 +50,6 @@
  * @fds:		Offset to array where to update the installed fd number
  * @fds_fp:		Array passed files queued up for this message
  * @fds_count:		Number of files
- * @deadline_ns:	Timeout for this message, used for replies
  * @src_id:		The ID of the sender
  * @cookie:		Message cookie, used for replies
  * @src_name_id:	The sequence number of the name this message is
@@ -69,7 +68,6 @@ struct kdbus_conn_queue {
 	struct file **fds_fp;
 	unsigned int fds_count;
 
-	u64 deadline_ns;
 	u64 src_id;
 	u64 cookie;
 	u64 dst_name_id;
@@ -329,8 +327,7 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
-				   struct kdbus_kmsg *kmsg,
-				   u64 deadline_ns)
+				   struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn_queue *queue;
 	u64 msg_size;
@@ -352,7 +349,6 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		return -ENOMEM;
 
 	/* copy message properties we need for the queue management */
-	queue->deadline_ns = deadline_ns;
 	queue->src_id = kmsg->msg.src_id;
 	queue->cookie = kmsg->msg.cookie;
 
@@ -507,11 +503,10 @@ exit_unlock:
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
-	struct kdbus_conn_queue *queue, *queue_tmp;
 	struct kdbus_conn_reply_entry *reply, *reply_tmp;
 	LIST_HEAD(notify_list);
 	LIST_HEAD(reply_list);
-	u64 deadline = -1;
+	u64 deadline = ~0ULL;
 	struct timespec ts;
 	u64 now;
 
@@ -519,34 +514,34 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	now = timespec_to_ns(&ts);
 
 	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(queue, queue_tmp, &conn->msg_list, entry) {
-		if (queue->deadline_ns == 0)
-			continue;
+	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
+		if (reply->deadline_ns <= now) {
 
-		if (queue->deadline_ns <= now) {
-			kdbus_pool_free_range(conn->pool, queue->off);
-			list_del(&queue->entry);
-			kdbus_conn_queue_cleanup(queue);
+			/*
+			 * Move to temporary cleanup list; we cannot unref and
+			 * possibly cleanup a connection that is holding a ref
+			 * back to us, while we are locking ourselves.
+			 */
+			list_move_tail(&reply->entry, &reply_list);
+
+			/*
+			 * A zero deadline means the connection died, was
+			 * cleaned up already and the notify sent.
+			 */
+			if (reply->deadline_ns == 0)
+				continue;
+
+			kdbus_notify_reply_timeout(reply->conn->id,
+						   reply->cookie,
+						   &notify_list);
 			continue;
 		}
 
-		if (queue->deadline_ns < deadline)
-			deadline = queue->deadline_ns;
-	}
-
-	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
-		if (reply->deadline_ns > now)
+		/* remember next timeout */
+		if (reply->deadline_ns < deadline) {
+			deadline = reply->deadline_ns;
 			continue;
-
-		/*
-		 * The connection died and cleared the timeout; the
-		 * was already sent; just clean up.
-		 */
-		if (reply->deadline_ns > 0)
-			kdbus_notify_reply_timeout(reply->conn->id,
-						   reply->cookie, &notify_list);
-
-		list_move_tail(&reply->entry, &reply_list);
+		}
 	}
 	mutex_unlock(&conn->lock);
 
@@ -555,8 +550,10 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
 		kdbus_conn_reply_entry_free(reply);
 
-	if (deadline != -1) {
+	/* rearm timer with next timeout */
+	if (deadline != (~0ULL)) {
 		u64 usecs = deadline - now;
+
 		do_div(usecs, 1000ULL);
 		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
 	}
@@ -670,7 +667,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_conn *c;
-	u64 deadline_ns = 0;
 	int ret;
 
 	/* non-kernel senders append credentials/metadata */
@@ -710,7 +706,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				kdbus_meta_append(kmsg->meta, conn_src,
 						  conn_dst->attach_flags);
 
-			kdbus_conn_queue_insert(conn_dst, kmsg, 0);
+			kdbus_conn_queue_insert(conn_dst, kmsg);
 		}
 		mutex_unlock(&ep->bus->lock);
 
@@ -757,22 +753,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 	}
 
-	/*
-	 * If the message has a timeout value set, calculate the deadline here,
-	 * based on the current time. Note that this only takes care for the
-	 * timeout of the actual message, and has nothing to do with a potential
-	 * reply that may be expected.
-	 */
-	if (msg->src_id != KDBUS_SRC_ID_KERNEL && msg->timeout_ns > 0) {
-		struct timespec ts;
-
-		ktime_get_ts(&ts);
-		deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
-	}
-
 	/* If the message expects a reply, add a kdbus_conn_reply_entry */
 	if (conn_src && (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)) {
 		struct kdbus_conn_reply_entry *reply;
+		struct timespec ts;
 
 		reply = kzalloc(sizeof(*reply), GFP_KERNEL);
 		if (!reply) {
@@ -781,14 +765,19 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 
 		INIT_LIST_HEAD(&reply->entry);
-		reply->deadline_ns = deadline_ns;
 		reply->conn = kdbus_conn_ref(conn_dst);
 		atomic_inc(&reply->conn->reply_count);
 		reply->cookie = msg->cookie;
 
+		/* calculate the deadline based on the current time */
+		ktime_get_ts(&ts);
+		reply->deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
+
 		mutex_lock(&conn_src->lock);
 		list_add(&reply->entry, &conn_src->reply_list);
 		mutex_unlock(&conn_src->lock);
+
+		kdbus_conn_timeout_schedule_scan(conn_dst);
 	}
 
 	if (conn_src) {
@@ -804,15 +793,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry)
-		kdbus_conn_queue_insert(c, kmsg, 0);
+		kdbus_conn_queue_insert(c, kmsg);
 	mutex_unlock(&ep->bus->lock);
 
-	ret = kdbus_conn_queue_insert(conn_dst, kmsg, deadline_ns);
+	ret = kdbus_conn_queue_insert(conn_dst, kmsg);
 	if (ret < 0)
 		goto exit_unref;
-
-	if (deadline_ns > 0)
-		kdbus_conn_timeout_schedule_scan(conn_dst);
 
 exit_unref:
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
