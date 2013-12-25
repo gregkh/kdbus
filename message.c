@@ -269,9 +269,16 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	/* check validity and gather some values for processing */
+	/* requests for replies need a timeout */
 	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY &&
 	    m->msg.timeout_ns == 0) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
+
+	/* replies cannot request a reply themselves */
+	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY &&
+	    m->msg.cookie_reply > 0) {
 		ret = -EINVAL;
 		goto exit_free;
 	}

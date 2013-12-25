@@ -80,7 +80,7 @@ struct kdbus_conn_queue {
  * @entry:		The list_head entry of the connection's reply_from_list
  * @conn:		The counterpart connection that is expected to answer
  * @deadline_ns:	The deadline of the reply, in nanoseconds
- * @cookie:		The expected reply cookie
+ * @cookie:		The cookie of the requesting message
  */
 struct kdbus_conn_reply_entry {
 	struct list_head entry;
@@ -724,25 +724,28 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	if (conn_src) {
 		bool allowed = false;
-		struct kdbus_conn_reply_entry *reply;
+		struct kdbus_conn_reply_entry *r;
 
 		/*
 		 * Walk the list of connection we expect a reply from.
 		 * If there's any matching entry, allow the message to
 		 * be sent, and remove the entry.
 		 */
-		mutex_lock(&conn_dst->lock);
-		list_for_each_entry(reply, &conn_dst->reply_list, entry) {
-			if (reply->conn != conn_src)
-				continue;
-			if (reply->cookie != msg->cookie)
-				continue;
+		if (msg->cookie_reply > 0) {
+			mutex_lock(&conn_dst->lock);
+			list_for_each_entry(r, &conn_dst->reply_list, entry) {
+				if (r->conn != conn_src)
+					continue;
 
-			kdbus_conn_reply_entry_free(reply);
-			allowed = true;
-			break;
+				if (r->cookie != msg->cookie_reply)
+					continue;
+
+				kdbus_conn_reply_entry_free(r);
+				allowed = true;
+				break;
+			}
+			mutex_unlock(&conn_dst->lock);
 		}
-		mutex_unlock(&conn_dst->lock);
 
 		/* ... otherwise, ask the policy DB for permission */
 		if (!allowed && ep->policy_db) {
