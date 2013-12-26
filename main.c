@@ -35,7 +35,7 @@ static int __init kdbus_init(void)
 	ret = kdbus_ns_new(NULL, NULL, 0666, &kdbus_ns_init);
 	if (ret < 0) {
 		bus_unregister(&kdbus_subsys);
-		pr_err("failed to initialize ret=%i\n", ret);
+		pr_err("kdbus failed to initialize module, error=%i\n", ret);
 		return ret;
 	}
 
