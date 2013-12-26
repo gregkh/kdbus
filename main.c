@@ -10,6 +10,7 @@
  * your option) any later version.
  */
 
+#define pr_fmt(fmt)    KBUILD_MODNAME ": " fmt
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/idr.h>
@@ -35,11 +36,11 @@ static int __init kdbus_init(void)
 	ret = kdbus_ns_new(NULL, NULL, 0666, &kdbus_ns_init);
 	if (ret < 0) {
 		bus_unregister(&kdbus_subsys);
-		pr_err("kdbus failed to initialize module, error=%i\n", ret);
+		pr_err("failed to initialize, error=%i\n", ret);
 		return ret;
 	}
 
-	pr_info("kdbus initialized\n");
+	pr_info("initialized\n");
 	return 0;
 }
 
