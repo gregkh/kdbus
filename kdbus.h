@@ -202,7 +202,6 @@ struct kdbus_policy {
  * @KDBUS_ITEM_BLOOM:		For broadcasts, carries bloom filter
  * @KDBUS_ITEM_BLOOM_SIZE:	Desired bloom size, used by KDBUS_CMD_BUS_MAKE
  * @KDBUS_ITEM_DST_NAME:	Destination's well-known name
- * @KDBUS_ITEM_PRIORITY:	Queue priority for message
  * @KDBUS_ITEM_MAKE_NAME:	Name of namespace, bus, endpoint
  * @_KDBUS_ITEM_POLICY_BASE:	Start of policy items
  * @KDBUS_ITEM_POLICY_NAME:	Policy in struct kdbus_policy
@@ -239,7 +238,6 @@ enum kdbus_item_type {
 	KDBUS_ITEM_BLOOM,
 	KDBUS_ITEM_BLOOM_SIZE,
 	KDBUS_ITEM_DST_NAME,
-	KDBUS_ITEM_PRIORITY,
 	KDBUS_ITEM_MAKE_NAME,
 
 	_KDBUS_ITEM_POLICY_BASE	= 0x400,
