@@ -129,7 +129,7 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
-	item->vec.address = (uint64_t) stress_payload;
+	item->vec.address = (uintptr_t) stress_payload;
 	item->vec.size = sizeof(stress_payload);
 	item = KDBUS_ITEM_NEXT(item);
 

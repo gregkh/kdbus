@@ -214,20 +214,20 @@ static int send_message(const struct kdbus_conn *conn,
 
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
-	item->vec.address = (uint64_t)&ref1;
+	item->vec.address = (uintptr_t)&ref1;
 	item->vec.size = sizeof(ref1);
 	item = KDBUS_ITEM_NEXT(item);
 
 	/* data padding for ref1 */
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
-	item->vec.address = (uint64_t)NULL;
+	item->vec.address = (uintptr_t)NULL;
 	item->vec.size =  KDBUS_ALIGN8(sizeof(ref1)) - sizeof(ref1);
 	item = KDBUS_ITEM_NEXT(item);
 
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
-	item->vec.address = (uint64_t)&ref2;
+	item->vec.address = (uintptr_t)&ref2;
 	item->vec.size = sizeof(ref2);
 	item = KDBUS_ITEM_NEXT(item);
 
