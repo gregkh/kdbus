@@ -135,7 +135,7 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 
 	item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
-	item->memfd.size = 16;
+	item->memfd.size = sizeof(struct timeval);
 	item->memfd.fd = memfd;
 	item = KDBUS_ITEM_NEXT(item);
 
