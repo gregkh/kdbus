@@ -269,6 +269,12 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
+	/* do not accept kernel-generated messages */
+	if (m->msg.payload_type == 0) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
+
 	/* requests for replies need a timeout */
 	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY &&
 	    m->msg.timeout_ns == 0) {
