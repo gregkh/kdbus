@@ -108,8 +108,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				return -EINVAL;
 
 			vecs_size += item->vec.size;
-			if (!capable(CAP_IPC_OWNER) &&
-			    vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+			if (vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE &&
+			    !kdbus_bus_uid_is_privileged(conn->ep->bus))
 				return -EMSGSIZE;
 
 			/* \0-bytes records store only the alignment bytes */

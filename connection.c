@@ -398,8 +398,8 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	if (!capable(CAP_IPC_OWNER) &&
-	    conn->msg_count > KDBUS_CONN_MAX_MSGS) {
+	if (conn->msg_count > KDBUS_CONN_MAX_MSGS &&
+	    !kdbus_bus_uid_is_privileged(conn->ep->bus)) {
 		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
@@ -1481,7 +1481,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 		case KDBUS_ITEM_CREDS:
 			/* privileged processes can impersonate somebody else */
-			if (!capable(CAP_IPC_OWNER))
+			if (!kdbus_bus_uid_is_privileged(bus))
 				return -EPERM;
 
 			if (item->size !=
@@ -1493,7 +1493,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 		case KDBUS_ITEM_SECLABEL:
 			/* privileged processes can impersonate somebody else */
-			if (!capable(CAP_IPC_OWNER))
+			if (!kdbus_bus_uid_is_privileged(bus))
 				return -EPERM;
 
 			seclabel = item->str;

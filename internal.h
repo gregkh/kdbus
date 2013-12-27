@@ -30,7 +30,7 @@
 #define KDBUS_MATCH_MAX_SIZE		SZ_32K		/* maximum size of match data */
 #define KDBUS_POLICY_MAX_SIZE		SZ_32K		/* maximum size of policy data */
 
-#define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages on the bus */
+#define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages per connection */
 #define KDBUS_CONN_MAX_NAMES		64		/* maximum number of well-known names */
 #define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K		/* maximum number of allocated bytes on the bus */
 
