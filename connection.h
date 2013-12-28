@@ -33,8 +33,8 @@
  * @names_queue_list:	Well-known names this connection waits for
  * @reply_list:		List of connections this connection expects
  * 			a reply from.
- * @reply_count:	Number of replies expected by others to be
- * 			received from this connection
+ * @reply_count:	Number of requests this connection has issued, and
+ * 			waits for replies from the peer
  * @names:		Number of owned well-known names
  * @work:		Support for poll()
  * @timer:		Message reply timeout handling

@@ -15,24 +15,44 @@
 
 #include "kdbus.h"
 
-/* limits enforced by the interfaces */
-#define KDBUS_MSG_MAX_SIZE		SZ_8K		/* maximum size of message header and items */
-#define KDBUS_MSG_MAX_ITEMS		128		/* maximum number of message items */
-#define KDBUS_MSG_MAX_FDS		256		/* maximum number of passed file descriptors */
-#define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_8M		/* maximum message payload size */
+/* maximum size of message header and items */
+#define KDBUS_MSG_MAX_SIZE		SZ_8K
 
-#define KDBUS_NAME_MAX_LEN		255		/* maximum length of well-known bus name */
+/* maximum number of message items */
+#define KDBUS_MSG_MAX_ITEMS		128
 
-#define KDBUS_MAKE_MAX_LEN		63		/* maximum length of bus, ns, ep name */
-#define KDBUS_MAKE_MAX_SIZE		SZ_32K		/* maximum size of make data */
+/* maximum number of passed file descriptors */
+#define KDBUS_MSG_MAX_FDS		256
 
-#define KDBUS_HELLO_MAX_SIZE		SZ_32K		/* maximum size of hello data */
-#define KDBUS_MATCH_MAX_SIZE		SZ_32K		/* maximum size of match data */
-#define KDBUS_POLICY_MAX_SIZE		SZ_32K		/* maximum size of policy data */
+/* maximum message payload size */
+#define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_2M
 
-#define KDBUS_CONN_MAX_MSGS		64		/* maximum number of queued messages per connection */
-#define KDBUS_CONN_MAX_NAMES		64		/* maximum number of well-known names */
-#define KDBUS_CONN_MAX_ALLOCATED_BYTES	SZ_64K		/* maximum number of allocated bytes on the bus */
+/* maximum length of well-known bus name */
+#define KDBUS_NAME_MAX_LEN		255
+
+/* maximum length of bus, ns, ep name */
+#define KDBUS_MAKE_MAX_LEN		63
+
+/* maximum size of make data */
+#define KDBUS_MAKE_MAX_SIZE		SZ_32K
+
+/* maximum size of hello data */
+#define KDBUS_HELLO_MAX_SIZE		SZ_32K
+
+/* maximum size of match data */
+#define KDBUS_MATCH_MAX_SIZE		SZ_32K
+
+/* maximum size of policy data */
+#define KDBUS_POLICY_MAX_SIZE		SZ_32K
+
+/* maximum number of queued messages per connection */
+#define KDBUS_CONN_MAX_MSGS		64
+
+/* maximum number of well-known names */
+#define KDBUS_CONN_MAX_NAMES		64
+
+/* maximum number of queud requests waiting ot a reply */
+#define KDBUS_CONN_MAX_REQUESTS_PENDING	64
 
 /* all exported addresses are 64 bit */
 #define KDBUS_PTR(addr) ((void __user *)(uintptr_t)(addr))

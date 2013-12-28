@@ -90,8 +90,8 @@ struct kdbus_conn_reply_entry {
 static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
 {
 	atomic_dec(&reply->conn->reply_count);
-	kdbus_conn_unref(reply->conn);
 	list_del(&reply->entry);
+	kdbus_conn_unref(reply->conn);
 	kfree(reply);
 }
 
@@ -758,6 +758,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		struct kdbus_conn_reply_entry *reply;
 		struct timespec ts;
 
+		if (atomic_read(&conn_src->reply_count) >
+		    KDBUS_CONN_MAX_REQUESTS_PENDING) {
+			ret = -EMLINK;
+			goto exit_unref;
+		}
+
 		reply = kzalloc(sizeof(*reply), GFP_KERNEL);
 		if (!reply) {
 			ret = -ENOMEM;
@@ -766,7 +772,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		INIT_LIST_HEAD(&reply->entry);
 		reply->conn = kdbus_conn_ref(conn_dst);
-		atomic_inc(&reply->conn->reply_count);
 		reply->cookie = msg->cookie;
 
 		/* calculate the deadline based on the current time */
@@ -775,6 +780,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		mutex_lock(&conn_src->lock);
 		list_add(&reply->entry, &conn_src->reply_list);
+		atomic_inc(&reply->conn->reply_count);
 		mutex_unlock(&conn_src->lock);
 
 		kdbus_conn_timeout_schedule_scan(conn_dst);

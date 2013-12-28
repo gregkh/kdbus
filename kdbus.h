@@ -789,6 +789,8 @@ enum kdbus_ioctl_type {
  * 			refused to send as KDBUS_MSG_PAYLOAD_MEMFD.
  * @EMFILE:		Too many file descriptors have been supplied with a
  * 			message.
+ * @EMLINK:		Too many requests from this connection to other peers
+ *			are queued and waiting for a reply
  * @EMSGSIZE:		The supplied data is larger than the allowed maximum
  * 			size.
  * @ENAMETOOLONG:	The requested name is larger than the allowed maximum
