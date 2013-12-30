@@ -32,17 +32,17 @@
  * @names_list:		List of well-known names
  * @names_queue_list:	Well-known names this connection waits for
  * @reply_list:		List of connections this connection expects
- * 			a reply from.
+ *			a reply from.
  * @reply_count:	Number of requests this connection has issued, and
- * 			waits for replies from the peer
+ *			waits for replies from the peer
  * @names:		Number of owned well-known names
  * @work:		Support for poll()
  * @timer:		Message reply timeout handling
  * @match_db:		Subscription filter to broadcast messages
  * @meta:		Active connection creator's metadata/credentials,
- * 			either from the handle of from HELLO
+ *			either from the handle of from HELLO
  * @owner_meta:		The connection's metadata/credentials supplied by
- * 			HELLO
+ *			HELLO
  * @msg_count:		Number of queued messages
  * @pool:		The user's buffer to receive messages
  */

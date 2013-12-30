@@ -31,7 +31,7 @@ struct kdbus_name_registry {
  * struct kdbus_name_entry - well-know name entry
  * @name:		The well-known name
  * @name_id:		Sequence number of name entry to be able to uniquely
- * 			identify a name over its registration lifetime
+ *			identify a name over its registration lifetime
  * @flags:		KDBUS_NAME_* flags
  * @queue_list:		List of queued waiters for the well-known name
  * @conn_entry:		Entry in connection
