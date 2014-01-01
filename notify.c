@@ -54,9 +54,9 @@ static int kdbus_notify_reply(u64 id, u64 cookie, u64 msg_type,
  * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- * 			The caller has to free all items in the list using
- * 			kdbus_kmsg_free(). Maybe NULL, in which case this
- * 			function does nothing.
+ *			The caller has to free all items in the list using
+ *			kdbus_kmsg_free(). Maybe NULL, in which case this
+ *			function does nothing.
  *
  * Queues a message that has a KDBUS_ITEM_REPLY_TIMEOUT item attached.
  *
@@ -73,9 +73,9 @@ int kdbus_notify_reply_timeout(u64 id, u64 cookie, struct list_head *queue_list)
  * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- * 			The caller has to free all items in the list using
- * 			kdbus_kmsg_free(). Maybe NULL, in which case this
- * 			function does nothing.
+ *			The caller has to free all items in the list using
+ *			kdbus_kmsg_free(). Maybe NULL, in which case this
+ *			function does nothing.
  *
  * Queues a message that has a KDBUS_ITEM_REPLY_DEAD item attached.
  *
@@ -90,18 +90,18 @@ int kdbus_notify_reply_dead(u64 id, u64 cookie, struct list_head *queue_list)
 /**
  * kdbus_notify_name_change() - queue a notification about a name owner change
  * @type:		The type if the notification; KDBUS_ITEM_NAME_ADD,
- * 			KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
+ *			KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
  * @old_id:		The id of the connection that used to own the name
  * @new_id:		The id of the new owner connection
  * @old_flags:		The flags to pass in the KDBUS_ITEM flags field for
- *                      the old owner
+ *			the old owner
  * @new_flags:		The flags to pass in the KDBUS_ITEM flags field for
- *                      the new owner
+ *			the new owner
  * @name:		The name that was removed or assigned to a new owner
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- * 			The caller has to free all items in the list using
- * 			kdbus_kmsg_free(). Maybe NULL, in which case this
- * 			function does nothing.
+ *			The caller has to free all items in the list using
+ *			kdbus_kmsg_free(). Maybe NULL, in which case this
+ *			function does nothing.
  *
  * Returns: 0 on success, negative errno on failure.
  */
@@ -145,13 +145,13 @@ int kdbus_notify_name_change(u64 type,
 /**
  * kdbus_notify_id_change() - queue a notification about a unique ID change
  * @type:		The type if the notification; KDBUS_ITEM_ID_ADD or
- * 			KDBUS_ITEM_ID_REMOVE
+ *			KDBUS_ITEM_ID_REMOVE
  * @id:			The id of the connection that was added or removed
  * @flags:		The flags to pass in the KDBUS_ITEM flags field
  * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- * 			The caller has to free all items in the list using
- * 			kdbus_kmsg_free(). Maybe NULL, in which case this
- * 			function does nothing.
+ *			The caller has to free all items in the list using
+ *			kdbus_kmsg_free(). Maybe NULL, in which case this
+ *			function does nothing.
  *
  * Returns: 0 on success, negative errno on failure.
  */
