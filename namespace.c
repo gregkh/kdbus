@@ -260,7 +260,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 	 */
 	ret = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
 	if (ret < 0) {
-		if (ret == -ENOSPC);
+		if (ret == -ENOSPC)
 			ret = -EEXIST;
 		goto exit_unlock;
 	}
