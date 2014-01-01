@@ -209,7 +209,8 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 		}
 
 		item->type = KDBUS_ITEM_NAME;
-		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_name) + len;
+		item->size = KDBUS_ITEM_HEADER_SIZE +
+				sizeof(struct kdbus_name) + len;
 		item->name.flags = e->flags;
 		memcpy(item->name.name, e->name, len);
 	}
@@ -274,7 +275,8 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 		if (len > PAGE_SIZE)
 			len = PAGE_SIZE;
 
-		ret = copy_from_user(tmp, (const char __user *) mm->arg_start, len);
+		ret = copy_from_user(tmp, (const char __user *)mm->arg_start,
+				     len);
 		if (ret == 0)
 			ret = kdbus_meta_append_data(meta, KDBUS_ITEM_CMDLINE,
 						     tmp, len);
@@ -367,7 +369,8 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
 		return ret;
 
 	if (label && len > 0)
-		ret = kdbus_meta_append_data(meta, KDBUS_ITEM_SECLABEL, label, len);
+		ret = kdbus_meta_append_data(meta, KDBUS_ITEM_SECLABEL,
+					     label, len);
 	security_release_secctx(label, len);
 
 	return ret;

@@ -145,7 +145,8 @@ struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
 	return NULL;
 }
 
-static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent, const char *name)
+static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent,
+				      const char *name)
 {
 	struct kdbus_ns *ns = NULL;
 	struct kdbus_ns *n;
@@ -193,7 +194,8 @@ struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct kdbus_ns **ns)
+int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
+		 struct kdbus_ns **ns)
 {
 	struct kdbus_ns *n;
 	int ret;
@@ -234,7 +236,8 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode, struct
 			goto exit_unlock;
 		}
 
-		n->devpath = kasprintf(GFP_KERNEL, "%s/ns/%s", parent->devpath, name);
+		n->devpath = kasprintf(GFP_KERNEL, "%s/ns/%s",
+				       parent->devpath, name);
 		if (!n->devpath) {
 			ret = -ENOMEM;
 			goto exit_unlock;

@@ -433,7 +433,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			 * from a connection which asked for queuing.
 			 */
 			if (e->flags & KDBUS_NAME_QUEUE) {
-				ret = kdbus_name_queue_conn(e->conn, e->flags, e);
+				ret = kdbus_name_queue_conn(e->conn,
+							    e->flags, e);
 				if (ret < 0)
 					goto exit_unlock;
 			}

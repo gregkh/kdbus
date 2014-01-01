@@ -391,7 +391,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_conn_new(handle->ep, hello, handle->meta, &handle->conn);
+		ret = kdbus_conn_new(handle->ep, hello, handle->meta,
+				     &handle->conn);
 		if (ret < 0)
 			break;
 
