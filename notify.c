@@ -170,16 +170,16 @@ int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
 	kmsg->notify_type = type;
 
 	switch (type) {
-		case KDBUS_ITEM_ID_ADD:
-			kmsg->notify_new_id = id;
-			break;
+	case KDBUS_ITEM_ID_ADD:
+		kmsg->notify_new_id = id;
+		break;
 
-		case KDBUS_ITEM_ID_REMOVE:
-			kmsg->notify_old_id = id;
-			break;
+	case KDBUS_ITEM_ID_REMOVE:
+		kmsg->notify_old_id = id;
+		break;
 
-		default:
-			BUG();
+	default:
+		BUG();
 	}
 
 	kmsg->msg.items[0].type = type;
