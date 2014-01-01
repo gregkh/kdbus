@@ -54,10 +54,10 @@ struct kdbus_match_entry {
  * @name:		Name to match against
  * @bloom:		Bloom filter to match against
  * @old_id:		For KDBUS_ITEM_ID_REMOVE and KDBUS_ITEM_NAME_REMOVE or
- * 			KDBUS_ITEM_NAME_CHANGE, stores a connection ID
+ *			KDBUS_ITEM_NAME_CHANGE, stores a connection ID
  * @src_id:		For KDBUS_ITEM_ID, stores a connection ID
  * @new_id:		For KDBUS_ITEM_ID_ADD, KDBUS_ITEM_NAME_ADD or
- * 			KDBUS_ITEM_NAME_CHANGE, stores a connection ID
+ *			KDBUS_ITEM_NAME_CHANGE, stores a connection ID
  * @rules_entry:	List entry to the entry's rules list
  */
 struct kdbus_match_rule {
@@ -178,7 +178,7 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 			if (kmsg->notify_type != r->type)
 				return false;
 
-			switch(r->type) {
+			switch (r->type) {
 			case KDBUS_ITEM_ID_ADD:
 				if (r->new_id != KDBUS_MATCH_ID_ANY &&
 				    r->new_id != kmsg->notify_new_id)
@@ -212,7 +212,7 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 		} else {
 			/* messages from userspace */
 
-			switch(r->type) {
+			switch (r->type) {
 			case KDBUS_ITEM_BLOOM:
 				if (!kdbus_match_bloom(kmsg->bloom,
 						       r->bloom, conn_src))

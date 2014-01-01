@@ -562,7 +562,7 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
  * @dst_pool:		The receiver's pool to copy to
  * @src_pool:		The receiver's pool to copy from
  * @off:		Offset of allocated memory in the source pool,
- * 			Updated with the offset in the destination pool
+ *			Updated with the offset in the destination pool
  * @len:		Number of bytes to copy
  *
  * Move memory from one pool to another. Memory will be allocated in the

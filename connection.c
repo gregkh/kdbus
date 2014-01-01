@@ -44,7 +44,7 @@
  * @off:		Offset into the shmem file in the receiver's pool
  * @size:		The number of bytes used in the pool
  * @memfds:		Arrays of offsets where to update the installed
- * 			fd number
+ *			fd number
  * @memfds_fp:		Array memfd files queued up for this message
  * @memfds_count:	Number of memfds
  * @fds:		Offset to array where to update the installed fd number
@@ -53,7 +53,7 @@
  * @src_id:		The ID of the sender
  * @cookie:		Message cookie, used for replies
  * @dst_name_id:	The sequence number of the name this message is
- * 			addressed to, 0 for messages sent to an ID
+ *			addressed to, 0 for messages sent to an ID
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -794,7 +794,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	/*
-	 * Monitor connections get all messages; ignore possible errors 
+	 * Monitor connections get all messages; ignore possible errors
 	 * when sending messages to monitor connections.
 	 */
 	mutex_lock(&ep->bus->lock);
@@ -1106,8 +1106,8 @@ exit_unlock:
  * kdbus_conn_disconnect() - disconnect a connection
  * @conn:			The connection to disconnect
  * @ensure_msg_list_empty:	Flag to indicate if the call should fail in
- * 				case the connection's message list is not
- * 				empty
+ *				case the connection's message list is not
+ *				empty
  *
  * Returns 0 on success.
  * If @ensure_msg_list_empty is true, and the connection has pending messages,
@@ -1246,7 +1246,7 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  * @conn_dst:		Connection to copy to
  * @conn_src:		Connection to copy from
  * @name_id:		Filter for the sequence number of the registered
- * 			name, 0 means no filtering.
+ *			name, 0 means no filtering.
  *
  * Move all messages from one connection to another. This is used when
  * an ordinary connection is taking over a well-known name from a
