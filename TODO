@@ -1,4 +1,6 @@
 Features:
+  - also attach queued names to metadata?
+
   - whitelist chars in bus names, they show up in /dev
 
   - account and limit number of messages a connection can have in-flight
