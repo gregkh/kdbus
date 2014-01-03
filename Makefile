@@ -39,7 +39,7 @@ check:
 install: module
 	mkdir -p /lib/modules/$(shell uname -r)/kernel/drivers/kdbus$(EXT)/
 	cp -f kdbus$(EXT).ko /lib/modules/$(shell uname -r)/kernel/drivers/kdbus$(EXT)/
-	depmod $(shell name -r)
+	depmod $(shell uname -r)
 
 uninstall:
 	rm -f /lib/modules/$(shell uname -r)/kernel/drivers/kdbus/kdbus$(EXT).ko
