@@ -314,6 +314,10 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 				goto exit;
 			}
 
+			ret = kdbus_devname_valid(item->str);
+			if (ret < 0)
+				goto exit;
+
 			n = item->str;
 			break;
 

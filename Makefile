@@ -12,7 +12,8 @@ kdbus$(EXT)-y := \
 	notify.o \
 	namespace.o \
 	policy.o \
-	pool.o
+	pool.o \
+	util.o
 
 obj-m += kdbus$(EXT).o
 

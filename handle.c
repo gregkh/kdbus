@@ -22,7 +22,6 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
-#include <linux/ctype.h>
 
 #include "bus.h"
 #include "connection.h"
@@ -203,29 +202,6 @@ static bool kdbus_check_flags(u64 kernel_flags)
 	return kernel_flags <= 0xFFFFFFFFULL;
 }
 
-static int kdbus_handle_name_valid(const char *name)
-{
-	unsigned int i;
-	size_t len;
-
-	len = strlen(name);
-	if (len == 0)
-		return -EINVAL;
-
-	for (i = 0; i < len; i++) {
-		if (isalpha(name[i]))
-			continue;
-		if (isdigit(name[i]))
-			continue;
-		if (i > 0 && i + 1 < len && strchr("-.", name[i]))
-			continue;
-
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 /* kdbus control device commands */
 static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 				       void __user *buf)
@@ -249,10 +225,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		}
 
 		ret = kdbus_bus_make_user(buf, &make, &name, &bloom_size);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_handle_name_valid(name);
 		if (ret < 0)
 			break;
 
@@ -293,10 +265,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		}
 
 		ret = kdbus_ns_make_user(buf, &make, &name);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_handle_name_valid(name);
 		if (ret < 0)
 			break;
 
@@ -361,10 +329,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		ret = kdbus_ep_make_user(buf, &make, &name);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_handle_name_valid(name);
 		if (ret < 0)
 			break;
 

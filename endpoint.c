@@ -288,6 +288,10 @@ int kdbus_ep_make_user(void __user *buf,
 				goto exit;
 			}
 
+			ret = kdbus_devname_valid(item->str);
+			if (ret < 0)
+				goto exit;
+
 			n = item->str;
 			continue;
 
