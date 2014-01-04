@@ -25,7 +25,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#include "internal.h"
+#include "util.h"
 #include "pool.h"
 
 /**

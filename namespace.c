@@ -20,9 +20,10 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include "defaults.h"
+#include "util.h"
 #include "bus.h"
 #include "handle.h"
-#include "internal.h"
 #include "namespace.h"
 
 /* map of majors to namespaces */
