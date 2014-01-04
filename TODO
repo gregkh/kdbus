@@ -8,6 +8,8 @@ Features:
      - ns creation
      - ep prefixing
 
+  - attach seclabel to names?
+
   - also attach queued names to metadata?
 
   - account and limit number of messages a connection can have in-flight
