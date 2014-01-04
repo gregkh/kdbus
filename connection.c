@@ -1625,7 +1625,6 @@ exit_unref:
 	return ret;
 }
 
-
 /**
  * kdbus_conn_has_name() - check if a connection owns a name
  * @conn:		Connection

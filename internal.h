@@ -80,7 +80,7 @@
  * kdbus_size_get_user - read the size variable from user memory
  * @_s:			Size variable
  * @_b:			Buffer to read from
- * @_t:			Structure "size" is embedded in
+ * @_t:			Structure, "size" is a member of
  *
  * Returns: the result of copy_from_user()
  */
@@ -94,7 +94,7 @@
  * kdbus_offset_set_user - write the offset variable to user memory
  * @_s:			Offset variable
  * @_b:			Buffer to write to
- * @_t:			Structure "offset" is embedded in
+ * @_t:			Structure, "offset" is a member of
  *
  * Returns: the result of copy_to_user()
  */

@@ -274,7 +274,6 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 	u64 bsize = 0;
 	int ret;
 
-
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_make))
 		return -EFAULT;
 
