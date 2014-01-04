@@ -1198,7 +1198,7 @@ static int arg_loop = 0;
 
 int main(int argc, char *argv[])
 {
-	int c, ret;
+	int c, ret = -EINVAL;
 
 	enum {
 		ARG_VERSION = 0x100,
@@ -1224,7 +1224,7 @@ int main(int argc, char *argv[])
 
 		default:
 			printf("Unknown option code %c", c);
-			return -EINVAL;
+			return ret;
 		}
 	}
 
@@ -1235,5 +1235,5 @@ int main(int argc, char *argv[])
 	for (c = 0; c < arg_count; c++)
 		ret = run_tests();
 
-	return ret > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+	return ret;
 }
