@@ -1,4 +1,13 @@
 Features:
+  - check guards for all privileged-only operations:
+     - activation
+     - monitor
+     - impersonation
+     - name register
+     - $UID prefix
+     - ns creation
+     - ep prefixing
+
   - also attach queued names to metadata?
 
   - account and limit number of messages a connection can have in-flight
