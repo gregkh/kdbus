@@ -442,6 +442,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		/* mangling policy is a privileged operation */
+		if (!kdbus_bus_uid_is_privileged(bus)) {
+			ret = -EFAULT;
+			break;
+		}
+
 		if (!conn->ep->policy_db) {
 			ret = kdbus_policy_db_new(&conn->ep->policy_db);
 			if (ret < 0)
