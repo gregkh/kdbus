@@ -1198,7 +1198,8 @@ static int arg_loop = 0;
 
 int main(int argc, char *argv[])
 {
-	int c, ret = -EINVAL;
+	int c;
+	int r, ret = 0;
 
 	enum {
 		ARG_VERSION = 0x100,
@@ -1207,13 +1208,12 @@ int main(int argc, char *argv[])
 	static const struct option options[] = {
 		{ "count",	required_argument,	NULL, 'c'	},
 		{ "loop",	no_argument,		NULL, 'l'	},
-		{ NULL,		0,			NULL, 0		}
+		{}
 	};
 
 	while ((c = getopt_long(argc, argv, "c:l", options, NULL)) >= 0) {
 
 		switch (c) {
-
 		case 'c':
 			arg_count = atoi(optarg);
 			break;
@@ -1224,7 +1224,7 @@ int main(int argc, char *argv[])
 
 		default:
 			printf("Unknown option code %c", c);
-			return ret;
+			return EXIT_FAILURE;
 		}
 	}
 
@@ -1232,8 +1232,11 @@ int main(int argc, char *argv[])
 		for(;;)
 			run_tests();
 
-	for (c = 0; c < arg_count; c++)
-		ret = run_tests();
+	for (c = 0; c < arg_count; c++) {
+		r = run_tests();
+		if (r < 0)
+			ret = r;
+	}
 
 	return ret;
 }
