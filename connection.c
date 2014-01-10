@@ -531,7 +531,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 			if (reply->deadline_ns == 0)
 				continue;
 
-			kdbus_notify_reply_timeout(reply->conn->id,
+			kdbus_notify_reply_timeout(conn->id,
 						   reply->cookie,
 						   &notify_list);
 			continue;
