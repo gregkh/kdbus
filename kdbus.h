@@ -801,7 +801,6 @@ enum kdbus_ioctl_type {
  *			the bus.
  * @ENOMEM:		Out of memory.
  * @ENOSYS:		The requested functionality is not available.
- * @ENOTCONN:		The addressed peer is not an active connection.
  * @ENOTSUPP:		The feature negotiation failed, a not supported feature
  *			was requested, or an unknown item type was received.
  * @ENOTTY:		An unknown ioctl command was received.
