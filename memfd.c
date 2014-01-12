@@ -126,7 +126,7 @@ int kdbus_memfd_new(int *fd)
 	 * invisible shmem inode. We rely on the fact that nothing else
 	 * can create a new file for the shmem inode, like by opening the
 	 * fd in /proc/$PID/fd/ */
-	fp = anon_inode_getfile("[" KBUILD_MODNAME "]",
+	fp = anon_inode_getfile("[" KBUILD_MODNAME "-memfd]",
 				&kdbus_memfd_fops, mf, O_RDWR);
 	if (IS_ERR(fp)) {
 		ret = PTR_ERR(fp);
