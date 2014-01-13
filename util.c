@@ -20,7 +20,7 @@
 
 /**
  * kdbus_devname_valid - validate names showing up in /dev
- * @name:		Name of namepspace, bus, endpoint
+ * @name:		Name of namespace, bus, endpoint
  *
  * Returns: 0 if the given name is valid, otherwise negative errno
  */
