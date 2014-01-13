@@ -279,7 +279,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 		goto exit_unlock;
 	}
 
-	dev_set_name(n->dev, "%s/%s", n->devpath, "control");
+	dev_set_name(n->dev, "%s/control", n->devpath);
 	n->dev->bus = &kdbus_subsys;
 	n->dev->type = &kdbus_devtype_control;
 	n->dev->devt = MKDEV(n->major, 0);
