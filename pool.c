@@ -88,21 +88,6 @@ struct kdbus_slice {
 	bool free;
 };
 
-static void __maybe_unused kdbus_pool_slices_dump(struct kdbus_pool *pool,
-						  const char *str)
-{
-	struct kdbus_slice *s;
-
-	pr_info("=== dump start '%s' pool=%p size=%zu ===\n",
-		str, pool, pool->size);
-
-	list_for_each_entry(s, &pool->slices, entry)
-		pr_info("  slice=%p free=%u, off=%zu size=%zu\n",
-			s, s->free, s->off, s->size);
-
-	pr_info("=== dump end '%s' pool=%p ===\n", str, pool);
-}
-
 static struct kdbus_slice *kdbus_pool_slice_new(size_t off, size_t size)
 {
 	struct kdbus_slice *slice;
