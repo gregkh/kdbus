@@ -13,6 +13,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <getopt.h>
+#include <stdbool.h>
 
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -133,7 +134,7 @@ static int conn_is_name_owner(const struct kdbus_conn *conn, uint64_t flags, con
 	struct kdbus_cmd_name_list cmd_list;
 	struct kdbus_name_list *list;
 	struct kdbus_cmd_name *name;
-	int found = 0;
+	bool found = false;
 	int ret;
 
 	cmd_list.flags = flags;
@@ -147,7 +148,7 @@ static int conn_is_name_owner(const struct kdbus_conn *conn, uint64_t flags, con
 			continue;
 
 		if (name->owner_id == conn->hello.id && strcmp(n, name->name) == 0) {
-			found = 1;
+			found = true;
 			break;
 		}
 	}
