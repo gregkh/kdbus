@@ -88,7 +88,6 @@ int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 
 	hash_init(r->entries_hash);
 	mutex_init(&r->entries_lock);
-	r->name_id_next = 1;
 
 	*reg = r;
 
@@ -478,7 +477,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	e->flags = *flags;
 	INIT_LIST_HEAD(&e->queue_list);
-	e->name_id = reg->name_id_next++;
+	e->name_id = ++reg->name_seq_last;
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
 

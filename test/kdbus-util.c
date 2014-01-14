@@ -350,8 +350,9 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		}
 
 		case KDBUS_ITEM_TIMESTAMP:
-			printf("  +%s (%llu bytes) realtime=%lluns monotonic=%lluns\n",
+			printf("  +%s (%llu bytes) seq=%llu realtime=%lluns monotonic=%lluns\n",
 			       enum_MSG(item->type), item->size,
+			       (unsigned long long)item->timestamp.seqnum,
 			       (unsigned long long)item->timestamp.realtime_ns,
 			       (unsigned long long)item->timestamp.monotonic_ns);
 			break;

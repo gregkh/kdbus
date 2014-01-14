@@ -24,6 +24,7 @@
 #include <linux/uaccess.h>
 
 #include "bus.h"
+#include "namespace.h"
 #include "connection.h"
 #include "endpoint.h"
 #include "match.h"
@@ -287,6 +288,10 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 
 	/* patch-in the source of this message */
+	if (m->msg.src_id > 0 && m->msg.src_id != conn->id) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
 	m->msg.src_id = conn->id;
 
 	*kmsg = m;

@@ -27,9 +27,8 @@
  * @name:		The bus name
  * @id:			ID of this bus in the namespace
  * @lock:		Bus data lock
- * @ep_id_next:		Next endpoint id sequence number
- * @conn_id_next:	Next connection id sequence number
- * @msg_id_next:	Next message id sequence number
+ * @ep_seq_last:	Last used endpoint id sequence number
+ * @conn_seq_last:	Last used connection id sequence number
  * @conn_idr:		Map of connection device minor nummbers
  * @conn_hash:		Map of connection IDs
  * @ep_list:		Endpoints on this bus
@@ -54,9 +53,8 @@ struct kdbus_bus {
 	const char *name;
 	u64 id;
 	struct mutex lock;
-	u64 ep_id_next;
-	u64 conn_id_next;
-	u64 msg_id_next;
+	u64 ep_seq_last;
+	u64 conn_seq_last;
 	struct idr conn_idr;
 	DECLARE_HASHTABLE(conn_hash, 6);
 	struct list_head ep_list;

@@ -14,10 +14,12 @@
 #define __KDBUS_MESSAGE_H
 
 #include "util.h"
+#include "namespace.h"
 #include "metadata.h"
 
 /**
  * struct kdbus_kmsg - internal message handling data
+ * @seq:		Namespace-global message sequence number
  * @notify_type:	Short-cut for faster lookup
  * @notify_old_id:	Short-cut for faster lookup
  * @notify_new_id:	Short-cut for faster lookup
@@ -36,6 +38,7 @@
  * @msg:		Message from or to userspace
  */
 struct kdbus_kmsg {
+	u64 seq;
 	u64 notify_type;
 	u64 notify_old_id;
 	u64 notify_new_id;

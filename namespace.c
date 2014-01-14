@@ -30,7 +30,7 @@
 static DEFINE_IDR(kdbus_ns_major_idr);
 
 /* next namespace id sequence number */
-static u64 kdbus_ns_id_next;
+static u64 kdbus_ns_seq_last;
 
 /* kdbus initial namespace */
 struct kdbus_ns *kdbus_ns_init;
@@ -216,6 +216,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 	n->mode = mode;
 	idr_init(&n->idr);
 	mutex_init(&n->lock);
+	atomic_set(&n->msg_seq_last, 0);
 
 	mutex_lock(&kdbus_subsys_lock);
 
@@ -270,7 +271,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 	}
 
 	/* get id for this namespace */
-	n->id = kdbus_ns_id_next++;
+	n->id = ++kdbus_ns_seq_last;
 
 	/* register control device for this namespace */
 	n->dev = kzalloc(sizeof(struct device), GFP_KERNEL);

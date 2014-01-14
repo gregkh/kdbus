@@ -205,7 +205,6 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	b->uid_owner = uid;
 	b->bus_flags = make->flags;
 	b->bloom_size = bloom_size;
-	b->conn_id_next = 1; /* connection 0 == kernel */
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
@@ -239,7 +238,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 
 	/* link into namespace */
 	mutex_lock(&ns->lock);
-	b->id = ns->bus_id_next++;
+	b->id = ++ns->bus_seq_last;
 	list_add_tail(&b->ns_entry, &ns->bus_list);
 	b->ns = kdbus_ns_ref(ns);
 	mutex_unlock(&ns->lock);

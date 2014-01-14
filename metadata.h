@@ -13,6 +13,8 @@
 #ifndef __KDBUS_METADATA_H
 #define __KDBUS_METADATA_H
 
+#include "message.h"
+
 /**
  * struct kdbus_meta - metadata buffer
  * @attached:		Flags for already attached data
@@ -39,6 +41,7 @@ int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 			   const void *buf, size_t len);
 int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
+		      u64 seq,
 		      u64 which);
 void kdbus_meta_free(struct kdbus_meta *meta);
 #endif

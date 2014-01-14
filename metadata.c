@@ -25,6 +25,7 @@
 #include <linux/uaccess.h>
 
 #include "connection.h"
+#include "message.h"
 #include "metadata.h"
 #include "names.h"
 
@@ -148,7 +149,8 @@ static int kdbus_meta_append_str(struct kdbus_meta *meta, u64 type,
 	return kdbus_meta_append_data(meta, type, str, strlen(str) + 1);
 }
 
-static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
+static int kdbus_meta_append_timestamp(struct kdbus_meta *meta,
+				       u64 seq)
 {
 	struct kdbus_item *item;
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
@@ -160,6 +162,9 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta)
 
 	item->type = KDBUS_ITEM_TIMESTAMP;
 	item->size = size;
+
+	if (seq > 0)
+		item->timestamp.seqnum = seq;
 
 	ktime_get_ts(&ts);
 	item->timestamp.monotonic_ns = timespec_to_ns(&ts);
@@ -381,6 +386,7 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
  * kdbus_meta_append() - collect metadata from current process
  * @meta:		Metadata object
  * @conn:		Current connection to read names from
+ * @seq:		Message sequence number
  * @which:		KDBUS_ATTACH_* flags which typ of data to attach
  *
  * Collect the data specified in flags and allocate or extend
@@ -390,6 +396,7 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
  */
 int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
+		      u64 seq,
 		      u64 which)
 {
 	int ret = 0;
@@ -400,7 +407,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 	if (which & KDBUS_ATTACH_TIMESTAMP &&
 	    !(meta->attached & KDBUS_ATTACH_TIMESTAMP)) {
-		ret = kdbus_meta_append_timestamp(meta);
+		ret = kdbus_meta_append_timestamp(meta, seq);
 		if (ret < 0)
 			goto exit;
 	}

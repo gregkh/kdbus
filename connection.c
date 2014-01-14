@@ -669,8 +669,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn *c;
 	int ret;
 
+	/* assign namespace-global message sequence number */
+	BUG_ON(kmsg->seq > 0);
+	kmsg->seq = atomic_inc_return(&ep->bus->ns->msg_seq_last);
+
 	/* non-kernel senders append credentials/metadata */
 	if (conn_src) {
+
 		ret = kdbus_meta_new(&kmsg->meta);
 		if (ret < 0)
 			return ret;
@@ -704,6 +709,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 */
 			if (conn_src)
 				kdbus_meta_append(kmsg->meta, conn_src,
+						  kmsg->seq,
 						  conn_dst->attach_flags);
 
 			kdbus_conn_queue_insert(conn_dst, kmsg);
@@ -787,7 +793,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (conn_src) {
-		ret = kdbus_meta_append(kmsg->meta, conn_src,
+		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 					conn_dst->attach_flags);
 		if (ret < 0)
 			goto exit_unref;
@@ -1395,7 +1401,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		if (ret < 0)
 			goto exit;
 
-		ret = kdbus_meta_append(meta, owner_conn, KDBUS_ATTACH_NAMES);
+		ret = kdbus_meta_append(meta, owner_conn, 0,
+					KDBUS_ATTACH_NAMES);
 		if (ret < 0)
 			goto exit;
 
@@ -1551,7 +1558,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* link into bus; get new id for this connection */
 	mutex_lock(&bus->lock);
-	conn->id = bus->conn_id_next++;
+	conn->id = ++bus->conn_seq_last;
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
 	mutex_unlock(&bus->lock);
 

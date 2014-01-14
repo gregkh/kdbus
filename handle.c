@@ -131,7 +131,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	if (ret < 0)
 		goto exit_unlock;
 
-	ret = kdbus_meta_append(handle->meta, NULL,
+	ret = kdbus_meta_append(handle->meta, NULL, 0,
 				KDBUS_ATTACH_CREDS |
 				KDBUS_ATTACH_COMM |
 				KDBUS_ATTACH_EXE |

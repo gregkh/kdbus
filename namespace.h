@@ -13,6 +13,8 @@
 #ifndef __KDBUS_NS_H
 #define __KDBUS_NS_H
 
+#include <linux/idr.h>
+
 /**
  * struct kdbus_namespace - namespace for buses
  * @kref:		Reference counter
@@ -27,7 +29,8 @@
  * @idr:		Map of endpoint minors to buses
  * @dev:		Control device node, minor == 0
  * @lock:		Namespace data lock
- * @bus_id_next:	Next bus id sequence number
+ * @bus_seq_last:	Last used bus id sequence number
+ * @msg_seq_last:	Last used message id sequence number
  * @ns_entry:		Entry in parent namespace
  * @bus_list:		Buses in this namespace
  *
@@ -54,7 +57,8 @@ struct kdbus_ns {
 	struct idr idr;
 	struct device *dev;
 	struct mutex lock;
-	u64 bus_id_next;
+	u64 bus_seq_last;
+	atomic_t msg_seq_last;
 	struct list_head ns_entry;
 	struct list_head bus_list;
 };

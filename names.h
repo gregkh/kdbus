@@ -19,12 +19,12 @@
  * struct kdbus_name_registry - names registered for a bus
  * @entries_hash:	Map of entries
  * @entries_lock:	Registry data lock
- * @name_id_next:	Next sequence number to assign to a name entry
+ * @name_seq_last:	Last used sequence number to assign to a name entry
  */
 struct kdbus_name_registry {
 	DECLARE_HASHTABLE(entries_hash, 6);
 	struct mutex		entries_lock;
-	u64 name_id_next;
+	u64 name_seq_last;
 };
 
 /**

@@ -102,6 +102,7 @@ struct kdbus_audit {
 
 /**
  * struct kdbus_timestamp
+ * @seqnum:		Global per-namespace message sequence number
  * @monotonic_ns:	Monotonic timestamp, in nanoseconds
  * @realtime_ns:	Realtime timestamp, in nanoseconds
  *
@@ -109,6 +110,7 @@ struct kdbus_audit {
  *   KDBUS_ITEM_TIMESTAMP
  */
 struct kdbus_timestamp {
+	__u64 seqnum;
 	__u64 monotonic_ns;
 	__u64 realtime_ns;
 };
