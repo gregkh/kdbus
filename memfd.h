@@ -16,5 +16,5 @@
 bool kdbus_is_memfd(const struct file *fp);
 bool kdbus_is_memfd_sealed(const struct file *fp);
 u64 kdbus_memfd_size(const struct file *fp);
-int kdbus_memfd_new(int *fd);
+int kdbus_memfd_new(const char *name, size_t size, int *fd);
 #endif

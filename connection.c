@@ -37,6 +37,7 @@
 #include "namespace.h"
 #include "notify.h"
 #include "policy.h"
+#include "util.h"
 
 /**
  * struct kdbus_conn_queue - messages waiting to be read
@@ -1214,6 +1215,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
+	kfree(conn->name);
 	kfree(conn);
 }
 
@@ -1469,6 +1471,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
 	const char *activator_name = NULL;
+	const char *conn_name = NULL;
 	const struct kdbus_creds *creds = NULL;
 	const char *seclabel = NULL;
 	size_t seclabel_len = 0;
@@ -1496,6 +1499,14 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 			if (activator_name)
 				return -EINVAL;
+
+			if (!kdbus_validate_nul(item->str,
+					item->size - KDBUS_ITEM_HEADER_SIZE))
+				return -EINVAL;
+
+			if (!kdbus_name_is_valid(item->str))
+				return -EINVAL;
+
 			activator_name = item->str;
 			break;
 
@@ -1516,8 +1527,35 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (!kdbus_bus_uid_is_privileged(bus))
 				return -EPERM;
 
+			if (!kdbus_validate_nul(item->str,
+					item->size - KDBUS_ITEM_HEADER_SIZE))
+				return -EINVAL;
+
+			if (!kdbus_name_is_valid(item->str))
+				return -EINVAL;
+
 			seclabel = item->str;
 			seclabel_len = item->size - KDBUS_ITEM_HEADER_SIZE;
+			break;
+
+		case KDBUS_ITEM_CONN_NAME:
+			/* human-readable connection name (debugging) */
+			if (conn_name)
+				return -EINVAL;
+
+			if (item->size > KDBUS_SYSNAME_MAX_LEN +
+					 KDBUS_ITEM_HEADER_SIZE + 1)
+				return -ENAMETOOLONG;
+
+			if (!kdbus_validate_nul(item->str,
+					item->size - KDBUS_ITEM_HEADER_SIZE))
+				return -EINVAL;
+
+			ret = kdbus_sysname_is_valid(item->str);
+			if (ret < 0)
+				return ret;
+
+			conn_name = item->str;
 			break;
 		}
 	}
@@ -1528,6 +1566,14 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn)
 		return -ENOMEM;
+
+	if (conn_name) {
+		conn->name = kstrdup(conn_name, GFP_KERNEL);
+		if (!conn->name) {
+			kfree(conn);
+			return -ENOMEM;
+		}
+	}
 
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);
@@ -1546,7 +1592,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);
 
-	ret = kdbus_pool_new(&conn->pool, hello->pool_size);
+	ret = kdbus_pool_new(conn->name, hello->pool_size, &conn->pool);
 	if (ret < 0)
 		goto exit_unref;
 

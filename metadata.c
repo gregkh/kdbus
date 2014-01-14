@@ -491,6 +491,15 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 			goto exit;
 	}
 #endif
+
+	if (which & KDBUS_ATTACH_CONN_NAME &&
+	    !(meta->attached & KDBUS_ATTACH_CONN_NAME)) {
+		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CONN_NAME,
+					    conn->name);
+		if (ret < 0)
+			goto exit;
+	}
+
 	/*
 	 * We tried to add everything we got asked for; do not get
 	 * here again for the same question.

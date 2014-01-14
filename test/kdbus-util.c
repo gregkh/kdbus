@@ -30,10 +30,15 @@
 struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 {
 	int fd, ret;
-	struct kdbus_cmd_hello hello;
+	struct {
+		struct kdbus_cmd_hello hello;
+		uint64_t size;
+		uint64_t type;
+		char comm[16];
+	} h;
 	struct conn *conn;
 
-	memset(&hello, 0, sizeof(hello));
+	memset(&h, 0, sizeof(h));
 
 	printf("-- opening bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
@@ -42,9 +47,9 @@ struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 		return NULL;
 	}
 
-	hello.conn_flags = hello_flags | KDBUS_HELLO_ACCEPT_FD;
+	h.hello.conn_flags = hello_flags | KDBUS_HELLO_ACCEPT_FD;
 
-	hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
+	h.hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
 			     KDBUS_ATTACH_CREDS |
 			     KDBUS_ATTACH_NAMES |
 			     KDBUS_ATTACH_COMM |
@@ -53,22 +58,27 @@ struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 			     KDBUS_ATTACH_CAPS |
 			     KDBUS_ATTACH_CGROUP |
 			     KDBUS_ATTACH_SECLABEL |
-			     KDBUS_ATTACH_AUDIT;
+			     KDBUS_ATTACH_AUDIT |
+			     KDBUS_ATTACH_CONN_NAME;
 
-	hello.size = sizeof(struct kdbus_cmd_hello);
-	hello.pool_size = POOL_SIZE;
+	h.type = KDBUS_ITEM_CONN_NAME;
+	h.size = KDBUS_ITEM_HEADER_SIZE + sizeof(h.comm);
+	strcpy(h.comm, "this-is-my-name");
 
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
+	h.hello.size = sizeof(h);
+	h.hello.pool_size = POOL_SIZE;
+
+	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
 	if (ret < 0) {
 		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
 	printf("-- Our peer ID for %s: %llu -- bus uuid: '%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x'\n",
-		path, (unsigned long long)hello.id,
-		hello.id128[0],  hello.id128[1],  hello.id128[2],  hello.id128[3],
-		hello.id128[4],  hello.id128[5],  hello.id128[6],  hello.id128[7],
-		hello.id128[8],  hello.id128[9],  hello.id128[10], hello.id128[11],
-		hello.id128[12], hello.id128[13], hello.id128[14], hello.id128[15]);
+		path, (unsigned long long)h.hello.id,
+		h.hello.id128[0],  h.hello.id128[1],  h.hello.id128[2],  h.hello.id128[3],
+		h.hello.id128[4],  h.hello.id128[5],  h.hello.id128[6],  h.hello.id128[7],
+		h.hello.id128[8],  h.hello.id128[9],  h.hello.id128[10], h.hello.id128[11],
+		h.hello.id128[12], h.hello.id128[13], h.hello.id128[14], h.hello.id128[15]);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {
@@ -84,7 +94,7 @@ struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 	}
 
 	conn->fd = fd;
-	conn->id = hello.id;
+	conn->id = h.hello.id;
 	return conn;
 }
 
@@ -109,11 +119,24 @@ int msg_send(const struct conn *conn,
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_ITEM_HEADER_SIZE + 64;
 	else {
-		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
+		struct {
+			struct kdbus_cmd_memfd_make cmd;
+			uint64_t size;
+			uint64_t type;
+			char name[16];
+		} m = {};
+
+		m.cmd.size = sizeof(m);
+		m.cmd.file_size = 1024 * 1024;
+		m.cmd.items[0].type = KDBUS_ITEM_MEMFD_NAME;
+		m.cmd.items[0].size = KDBUS_ITEM_HEADER_SIZE + sizeof(m.name);
+		strcpy(m.name, "my-name-is-nice");
+		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &m);
 		if (ret < 0) {
 			fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
 			return EXIT_FAILURE;
 		}
+		memfd = m.cmd.fd;
 
 		if (write(memfd, "kdbus memfd 1234567", 19) != 19) {
 			fprintf(stderr, "writing to memfd failed: %m\n");
@@ -283,6 +306,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		case KDBUS_ITEM_CGROUP:
 		case KDBUS_ITEM_SECLABEL:
 		case KDBUS_ITEM_DST_NAME:
+		case KDBUS_ITEM_CONN_NAME:
 			printf("  +%s (%llu bytes) '%s' (%zu)\n",
 			       enum_MSG(item->type), item->size, item->str, strlen(item->str));
 			break;

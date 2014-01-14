@@ -105,5 +105,5 @@ static inline unsigned int kdbus_str_hash(const char *str)
 	return full_name_hash(str, strlen(str));
 }
 
-int kdbus_devname_valid(const char *name);
+int kdbus_sysname_is_valid(const char *name);
 #endif

@@ -180,8 +180,12 @@ static int send_message(const struct kdbus_conn *conn,
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_ITEM_HEADER_SIZE + 64;
 	else {
-		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
+		struct kdbus_cmd_memfd_make mfd;
+
+		mfd.size = sizeof(struct kdbus_cmd_memfd_make);
+		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &mfd);
 		ASSERT_RETURN(ret == 0);
+		memfd = mfd.fd;
 
 		ASSERT_RETURN(write(memfd, "kdbus memfd 1234567", 19) == 19);
 

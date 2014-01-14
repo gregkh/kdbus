@@ -15,7 +15,7 @@
 
 struct kdbus_pool;
 
-int kdbus_pool_new(struct kdbus_pool **pool, size_t size);
+int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool);
 void kdbus_pool_free(struct kdbus_pool *pool);
 
 int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off);

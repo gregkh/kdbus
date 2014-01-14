@@ -275,7 +275,7 @@ int kdbus_ep_make_user(void __user *buf,
 			}
 
 			if (item->size > KDBUS_ITEM_HEADER_SIZE +
-					 KDBUS_MAKE_MAX_LEN + 1) {
+					 KDBUS_SYSNAME_MAX_LEN + 1) {
 				ret = -ENAMETOOLONG;
 				goto exit;
 			}
@@ -286,16 +286,12 @@ int kdbus_ep_make_user(void __user *buf,
 				goto exit;
 			}
 
-			ret = kdbus_devname_valid(item->str);
+			ret = kdbus_sysname_is_valid(item->str);
 			if (ret < 0)
 				goto exit;
 
 			n = item->str;
 			continue;
-
-		default:
-			ret = -ENOTSUPP;
-			goto exit;
 		}
 	}
 

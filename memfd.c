@@ -31,14 +31,17 @@ static const struct file_operations kdbus_memfd_fops;
 
 /**
  * struct kdbus_memfile - protectable shared memory file
- * @sealed:		Flag if the content is writable
+ * @name:		Name of the (deleted) file which shows up in
+ *			/proc, used for debugging
  * @lock:		Locking
  * @fp:			Shared memory backing file
+ * @sealed:		Flag if the content is writable
  */
 struct kdbus_memfile {
-	bool sealed;
+	const char *name;
 	struct mutex lock;
 	struct file *fp;
+	bool sealed;
 };
 
 /**
@@ -90,13 +93,18 @@ u64 kdbus_memfd_size(const struct file *fp)
 
 /**
  * kdbus_memfd_new() - create and install a memfd and file descriptor
- * @fd:			installed file descriptor
+ * @name:		Name of the (deleted) file which shows up in
+ *			/proc, used for debugging
+ * @size:		Initial size of the file
+ * @fd:			Installed file descriptor
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_memfd_new(int *fd)
+int kdbus_memfd_new(const char *name, size_t size, int *fd)
 {
 	struct kdbus_memfile *mf;
+	const char *shmem_name = NULL;
+	const char *anon_name = NULL;
 	struct file *shmemfp;
 	struct file *fp;
 	int f;
@@ -108,8 +116,19 @@ int kdbus_memfd_new(int *fd)
 
 	mutex_init(&mf->lock);
 
+	if (name) {
+		mf->name = kstrdup(name, GFP_KERNEL);
+		shmem_name = kasprintf(GFP_KERNEL, KBUILD_MODNAME "-memfd:%s", name);
+		anon_name = kasprintf(GFP_KERNEL, "[" KBUILD_MODNAME "-memfd:%s]", name);
+		if (!mf->name || !shmem_name || !anon_name) {
+			ret = -ENOMEM;
+			goto exit;
+		}
+	}
+
 	/* allocate a new unlinked shmem file */
-	shmemfp = shmem_file_setup(KBUILD_MODNAME "-memfd", 0, 0);
+	shmemfp = shmem_file_setup(name ? shmem_name : KBUILD_MODNAME "-memfd",
+				   size, 0);
 	if (IS_ERR(shmemfp)) {
 		ret = PTR_ERR(shmemfp);
 		goto exit;
@@ -126,7 +145,7 @@ int kdbus_memfd_new(int *fd)
 	 * invisible shmem inode. We rely on the fact that nothing else
 	 * can create a new file for the shmem inode, like by opening the
 	 * fd in /proc/$PID/fd/ */
-	fp = anon_inode_getfile("[" KBUILD_MODNAME "-memfd]",
+	fp = anon_inode_getfile(name ? anon_name : "[" KBUILD_MODNAME "-memfd]",
 				&kdbus_memfd_fops, mf, O_RDWR);
 	if (IS_ERR(fp)) {
 		ret = PTR_ERR(fp);
@@ -137,6 +156,8 @@ int kdbus_memfd_new(int *fd)
 	fp->f_mapping = shmemfp->f_mapping;
 	fd_install(f, fp);
 
+	kfree(anon_name);
+	kfree(shmem_name);
 	*fd = f;
 	return 0;
 
@@ -145,6 +166,9 @@ exit_fd:
 exit_shmem:
 	fput(shmemfp);
 exit:
+	kfree(anon_name);
+	kfree(shmem_name);
+	kfree(mf->name);
 	kfree(mf);
 	return ret;
 }
@@ -154,6 +178,7 @@ static int kdbus_memfd_release(struct inode *ignored, struct file *file)
 	struct kdbus_memfile *mf = file->private_data;
 
 	fput(mf->fp);
+	kfree(mf->name);
 	kfree(mf);
 	return 0;
 }

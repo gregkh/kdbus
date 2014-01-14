@@ -302,7 +302,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 			}
 
 			if (item->size > KDBUS_ITEM_HEADER_SIZE +
-					 KDBUS_MAKE_MAX_LEN + 1) {
+					 KDBUS_SYSNAME_MAX_LEN + 1) {
 				ret = -ENAMETOOLONG;
 				goto exit;
 			}
@@ -313,7 +313,7 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 				goto exit;
 			}
 
-			ret = kdbus_devname_valid(item->str);
+			ret = kdbus_sysname_is_valid(item->str);
 			if (ret < 0)
 				goto exit;
 
@@ -328,10 +328,6 @@ int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 
 			bsize = item->data64[0];
 			break;
-
-		default:
-			ret = -ENOTSUPP;
-			goto exit;
 		}
 	}
 

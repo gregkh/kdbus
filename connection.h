@@ -22,6 +22,7 @@
  * struct kdbus_conn - connection to a bus
  * @kref:		Reference count
  * @disconnected:	Invalidated data
+ * @name:		Human-readable connection name, used for debugging
  * @ep:			The endpoint this connection belongs to
  * @id:			Connection ID
  * @flags:		KDBUS_HELLO_* flags
@@ -50,6 +51,7 @@
 struct kdbus_conn {
 	struct kref kref;
 	bool disconnected;
+	const char *name;
 	struct kdbus_ep *ep;
 	u64 id;
 	u64 flags;

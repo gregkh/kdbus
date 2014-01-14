@@ -83,6 +83,7 @@ static int
 send_echo_request(struct conn *conn, uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
+	struct kdbus_cmd_memfd_make mfd = {};
 	struct kdbus_item *item;
 	uint64_t size;
 	int memfd = -1;
@@ -94,11 +95,13 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 	size = sizeof(struct kdbus_msg);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &memfd);
+	mfd.size = sizeof(struct kdbus_cmd_memfd_make);
+	ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &mfd);
 	if (ret < 0) {
 		fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
 		return EXIT_FAILURE;
 	}
+	memfd = mfd.fd;
 
 	if (write(memfd, &now, sizeof(now)) != sizeof(now)) {
 		fprintf(stderr, "writing to memfd failed: %m\n");

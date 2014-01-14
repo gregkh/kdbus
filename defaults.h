@@ -29,7 +29,7 @@
 #define KDBUS_NAME_MAX_LEN		255
 
 /* maximum length of bus, ns, ep name */
-#define KDBUS_MAKE_MAX_LEN		63
+#define KDBUS_SYSNAME_MAX_LEN		63
 
 /* maximum size of make data */
 #define KDBUS_MAKE_MAX_SIZE		SZ_32K

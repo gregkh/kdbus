@@ -14,7 +14,6 @@
 #define __KDBUS_MESSAGE_H
 
 #include "util.h"
-#include "namespace.h"
 #include "metadata.h"
 
 /**

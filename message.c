@@ -196,9 +196,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 			kmsg->dst_name = item->str;
 			break;
-
-		default:
-			return -ENOTSUPP;
 		}
 	}
 

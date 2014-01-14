@@ -13,8 +13,6 @@
 #ifndef __KDBUS_METADATA_H
 #define __KDBUS_METADATA_H
 
-#include "message.h"
-
 /**
  * struct kdbus_meta - metadata buffer
  * @attached:		Flags for already attached data

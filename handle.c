@@ -22,6 +22,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/syscalls.h>
 
 #include "bus.h"
 #include "connection.h"
@@ -199,7 +200,94 @@ static bool kdbus_check_flags(u64 kernel_flags)
 	 * The higher 32bit are considered 'incompatible
 	 * flags'. Refuse them all for now.
 	 */
-	return kernel_flags <= 0xFFFFFFFFULL;
+	return kernel_flags <= 0xffffffffULL;
+}
+
+static int kdbus_handle_memfd(void __user *buf)
+{
+	u64 size;
+	struct kdbus_cmd_memfd_make *m = NULL;
+	const struct kdbus_item *item;
+	const char *n = NULL;
+	int fd;
+	int __user *addr;
+	int ret;
+
+	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+		return -EFAULT;
+
+	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_info))
+		return -EFAULT;
+
+	if (size < sizeof(struct kdbus_cmd_memfd_make))
+		return -EINVAL;
+
+	if (size > sizeof(struct kdbus_cmd_memfd_make) + KDBUS_MAKE_MAX_SIZE)
+		return -EMSGSIZE;
+
+	m = memdup_user(buf, size);
+	if (IS_ERR(m))
+		return PTR_ERR(m);
+
+	KDBUS_ITEM_FOREACH(item, m, items) {
+		if (!KDBUS_ITEM_VALID(item, m)) {
+			ret = -EINVAL;
+			goto exit;
+		}
+
+		switch (item->type) {
+		case KDBUS_ITEM_MEMFD_NAME:
+			if (n) {
+				ret = -EEXIST;
+				goto exit;
+			}
+
+			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
+				ret = -EINVAL;
+				goto exit;
+			}
+
+			if (item->size > KDBUS_ITEM_HEADER_SIZE +
+					 KDBUS_SYSNAME_MAX_LEN + 1) {
+				ret = -ENAMETOOLONG;
+				goto exit;
+			}
+
+			if (!kdbus_validate_nul(item->str,
+					item->size - KDBUS_ITEM_HEADER_SIZE)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+
+			ret = kdbus_sysname_is_valid(item->str);
+			if (ret < 0)
+				goto exit;
+
+			n = item->str;
+			break;
+		}
+	}
+
+	if (!KDBUS_ITEM_END(item, m)) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	ret = kdbus_memfd_new(n, m->file_size, &fd);
+	if (ret < 0)
+		goto exit;
+
+	/* return fd number to caller */
+	addr = buf + offsetof(struct kdbus_cmd_memfd_make, fd);
+	if (put_user(fd, addr)) {
+		sys_close(fd);
+		ret = -EFAULT;
+		goto exit;
+	}
+
+exit:
+	kfree(m);
+	return ret;
 }
 
 /* kdbus control device commands */
@@ -286,25 +374,15 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_MEMFD_NEW: {
-		int fd;
-		int __user *addr = buf;
-
-		ret = kdbus_memfd_new(&fd);
-		if (ret < 0)
-			break;
-
-		if (put_user(fd, addr))
-			ret = -EFAULT;
+	case KDBUS_CMD_MEMFD_NEW:
+		ret = kdbus_handle_memfd(buf);
 		break;
-	}
 
 	default:
 		ret = -ENOTTY;
 		break;
 	}
 
-	kfree(make);
 	return ret;
 }
 
@@ -571,18 +649,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_conn_src_msg(conn, buf);
 		break;
 
-	case KDBUS_CMD_MEMFD_NEW: {
-		int fd;
-		int __user *addr = buf;
-
-		ret = kdbus_memfd_new(&fd);
-		if (ret < 0)
-			break;
-
-		if (put_user(fd, addr))
-			ret = -EFAULT;
+	case KDBUS_CMD_MEMFD_NEW:
+		ret = kdbus_handle_memfd(buf);
 		break;
-	}
 
 	default:
 		ret = -ENOTTY;

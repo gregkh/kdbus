@@ -284,12 +284,14 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
 
 /**
  * kdbus_pool_new() - create a new pool
- * @pool:		Newly allocated pool
+ * @name:		Name of the (deleted) file which shows up in
+ *			/proc, used for debugging
  * @size:		Maximum size of the pool
+ * @pool:		Newly allocated pool
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_pool_new(struct kdbus_pool **pool, size_t size)
+int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool)
 {
 	struct kdbus_pool *p;
 	struct file *f;
@@ -302,10 +304,22 @@ int kdbus_pool_new(struct kdbus_pool **pool, size_t size)
 	if (!p)
 		return -ENOMEM;
 
-	f = shmem_file_setup(KBUILD_MODNAME "-pool", size, 0);
+	if (name) {
+		char *n;
+
+		n = kasprintf(GFP_KERNEL, KBUILD_MODNAME "-conn:%s", name);
+		if (!n) {
+			ret = -ENOMEM;
+			goto exit_free;
+		}
+		f = shmem_file_setup(n, size, 0);
+		kfree(n);
+	} else {
+		f = shmem_file_setup(KBUILD_MODNAME "-conn", size, 0);
+	}
 	if (IS_ERR(f)) {
 		ret = PTR_ERR(f);
-		goto exit_free_p;
+		goto exit_free;
 	}
 
 	/* allocate first slice spanning the entire pool */
@@ -331,7 +345,7 @@ int kdbus_pool_new(struct kdbus_pool **pool, size_t size)
 
 exit_put_shmem:
 	fput(f);
-exit_free_p:
+exit_free:
 	kfree(p);
 	return ret;
 }
