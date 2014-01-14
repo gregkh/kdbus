@@ -58,7 +58,7 @@ struct kdbus_ns {
 	struct device *dev;
 	struct mutex lock;
 	u64 bus_seq_last;
-	atomic_t msg_seq_last;
+	atomic64_t msg_seq_last;
 	struct list_head ns_entry;
 	struct list_head bus_list;
 };

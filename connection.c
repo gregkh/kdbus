@@ -672,11 +672,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	/* assign namespace-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
-	kmsg->seq = atomic_inc_return(&ep->bus->ns->msg_seq_last);
+	kmsg->seq = atomic64_inc_return(&ep->bus->ns->msg_seq_last);
 
 	/* non-kernel senders append credentials/metadata */
 	if (conn_src) {
-
 		ret = kdbus_meta_new(&kmsg->meta);
 		if (ret < 0)
 			return ret;

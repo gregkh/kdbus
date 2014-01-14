@@ -216,7 +216,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 	n->mode = mode;
 	idr_init(&n->idr);
 	mutex_init(&n->lock);
-	atomic_set(&n->msg_seq_last, 0);
+	atomic64_set(&n->msg_seq_last, 0);
 
 	mutex_lock(&kdbus_subsys_lock);
 
