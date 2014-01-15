@@ -206,6 +206,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 	if (ret < 0) {
 		put_device(e->dev);
 		e->dev = NULL;
+		goto exit;
 	}
 
 	/* install policy */
