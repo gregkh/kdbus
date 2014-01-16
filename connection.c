@@ -516,33 +516,31 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
-		if (reply->deadline_ns <= now) {
 
-			/*
-			 * Move to temporary cleanup list; we cannot unref and
-			 * possibly cleanup a connection that is holding a ref
-			 * back to us, while we are locking ourselves.
-			 */
-			list_move_tail(&reply->entry, &reply_list);
+		if (reply->deadline_ns > now) {
+			/* remember next timeout */
+			if (deadline > reply->deadline_ns)
+				deadline = reply->deadline_ns;
 
-			/*
-			 * A zero deadline means the connection died, was
-			 * cleaned up already and the notify sent.
-			 */
-			if (reply->deadline_ns == 0)
-				continue;
-
-			kdbus_notify_reply_timeout(conn->id,
-						   reply->cookie,
-						   &notify_list);
 			continue;
 		}
 
-		/* remember next timeout */
-		if (reply->deadline_ns < deadline) {
-			deadline = reply->deadline_ns;
+		/*
+		 * Move to temporary cleanup list; we cannot unref and
+		 * possibly cleanup a connection that is holding a ref
+		 * back to us, while we are locking ourselves.
+		 */
+		list_move_tail(&reply->entry, &reply_list);
+
+		/*
+		 * A zero deadline means the connection died, was
+		 * cleaned up already and the notify sent.
+		 */
+		if (reply->deadline_ns == 0)
 			continue;
-		}
+
+		kdbus_notify_reply_timeout(conn->id, reply->cookie,
+					   &notify_list);
 	}
 	mutex_unlock(&conn->lock);
 
