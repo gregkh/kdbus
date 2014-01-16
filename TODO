@@ -11,6 +11,12 @@ Features:
 
   - attach seclabel to names?
 
+  - attach policy to names? Where/how to store names from policy but
+    otherwise inactive names (name laceholders).
+
+  - find a way to specify "name prefix wildcards" like:
+     "com.expample.foo.* can be owned by uid foo"
+
   - also attach queued names to metadata?
 
   - account and limit number of messages a connection can have in-flight
@@ -18,12 +24,11 @@ Features:
     messages in-flight, but only 10 of them for the same connection
 
   - limit the number of buses an ordinary user can create
+  - limit the number of connections per uid
 
   - allow to update the metadata subscription bit mask
 
   - support the creation of anonymous buses
-
-  - limit the number of connections per uid
 
   - actually return compatible/incompatible flags to users
 
