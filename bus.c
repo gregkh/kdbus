@@ -209,6 +209,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
 	INIT_LIST_HEAD(&b->monitors_list);
+	atomic64_set(&b->conn_seq_last, 0);
 
 	/* generate unique ID for this bus */
 	get_random_bytes(b->id128, sizeof(b->id128));

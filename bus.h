@@ -54,7 +54,7 @@ struct kdbus_bus {
 	u64 id;
 	struct mutex lock;
 	u64 ep_seq_last;
-	u64 conn_seq_last;
+	atomic64_t conn_seq_last;
 	struct idr conn_idr;
 	DECLARE_HASHTABLE(conn_hash, 6);
 	struct list_head ep_list;

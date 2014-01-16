@@ -1600,9 +1600,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->ep = kdbus_ep_ref(ep);
 
 	/* get new id for this connection */
-	mutex_lock(&bus->lock);
-	conn->id = ++bus->conn_seq_last;
-	mutex_unlock(&bus->lock);
+	conn->id = atomic64_inc_return(&bus->conn_seq_last);
 
 	/* return properties of this connection to the caller */
 	hello->bus_flags = bus->bus_flags;
