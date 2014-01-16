@@ -17,7 +17,8 @@ TESTS= \
 	test-kdbus-activator \
 	test-kdbus-monitor \
 	test-kdbus-chat \
-	test-kdbus-timeout
+	test-kdbus-timeout \
+	test-kdbus-prio
 
 all: $(TESTS)
 

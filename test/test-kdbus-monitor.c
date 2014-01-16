@@ -46,7 +46,8 @@ static void usage(const char *argv0)
 static int dump_packet(struct conn *conn, int fd)
 {
 	int ret;
-	uint64_t off, size;
+	struct kdbus_cmd_recv recv = {};
+	uint64_t size;
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;
 	struct timeval now;
@@ -58,13 +59,13 @@ static int dump_packet(struct conn *conn, int fd)
 	entry.tv_sec = now.tv_sec;
 	entry.tv_usec = now.tv_usec;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	if (ret < 0) {
 		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
-	msg = (struct kdbus_msg *)(conn->buf + off);
+	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
 	item = msg->items;
 	size = msg->size;
 
@@ -113,7 +114,7 @@ static int dump_packet(struct conn *conn, int fd)
 		}
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &recv.offset);
 	if (ret < 0) {
 		fprintf(stderr, "error free message: %d (%m)\n", ret);
 		return EXIT_FAILURE;

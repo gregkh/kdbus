@@ -42,6 +42,8 @@
 /**
  * struct kdbus_conn_queue - messages waiting to be read
  * @entry:		Entry in the connection's list
+ * @prio_node:		Entry in the priority queue tree
+ * @prio_entry:		Queue tree node entry in the list of one priority
  * @off:		Offset into the shmem file in the receiver's pool
  * @size:		The number of bytes used in the pool
  * @memfds:		Arrays of offsets where to update the installed
@@ -58,6 +60,9 @@
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
+	struct rb_node prio_node;
+	struct list_head prio_entry;
+	s64 priority;
 	size_t off;
 	size_t size;
 
@@ -319,6 +324,86 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 	return 0;
 }
 
+/* add queue entry to connection, maintain priority queue */
+static void kdbus_conn_queue_add(struct kdbus_conn *conn,
+				 struct kdbus_conn_queue *queue)
+{
+	struct rb_node **n;
+	struct rb_node *pn = NULL;
+	bool highest = true;
+
+	/* sort into priority queue tree */
+	n = &conn->msg_prio_queue.rb_node;
+	while (*n) {
+		struct kdbus_conn_queue *q;
+
+		pn = *n;
+		q = rb_entry(pn, struct kdbus_conn_queue, prio_node);
+
+		/* existing node for this priority, add to its list */
+		if (likely(queue->priority == q->priority)) {
+			list_add_tail(&queue->prio_entry, &q->prio_entry);
+			goto prio_done;
+		}
+
+		if (queue->priority < q->priority) {
+			n = &pn->rb_left;
+		} else {
+			n = &pn->rb_right;
+			highest = false;
+		}
+	}
+
+	/* cache highest-priority entry */
+	if (highest)
+		conn->msg_prio_highest = &queue->prio_node;
+
+	/* new node for this priority */
+	rb_link_node(&queue->prio_node, pn, n);
+	rb_insert_color(&queue->prio_node, &conn->msg_prio_queue);
+	INIT_LIST_HEAD(&queue->prio_entry);
+
+prio_done:
+	/* add to unsorted fifo list */
+	list_add_tail(&queue->entry, &conn->msg_list);
+	conn->msg_count++;
+}
+
+/* remove queue entry from connection, maintain priority queue */
+static void kdbus_conn_queue_remove(struct kdbus_conn *conn,
+				    struct kdbus_conn_queue *queue)
+{
+	conn->msg_count--;
+	list_del(&queue->entry);
+
+	if (list_empty(&queue->prio_entry)) {
+		/*
+		 * Single entry for this priority, update cached
+		 * highest-priority entry, remove the tree node.
+		 */
+		if (conn->msg_prio_highest == &queue->prio_node)
+			conn->msg_prio_highest = rb_next(&queue->prio_node);
+
+		rb_erase(&queue->prio_node, &conn->msg_prio_queue);
+	} else {
+		struct kdbus_conn_queue *q;
+
+		/*
+		 * Multiple entries for this priority entry, get next one in
+		 * the list. Update cached highest-priority entry, store the
+		 * new one as the tree node.
+		 */
+		q = list_first_entry(&queue->prio_entry,
+				     struct kdbus_conn_queue, prio_entry);
+		list_del(&queue->prio_entry);
+
+		if (conn->msg_prio_highest == &queue->prio_node)
+			conn->msg_prio_highest = &q->prio_node;
+
+		rb_replace_node(&queue->prio_node, &q->prio_node, &conn->msg_prio_queue);
+	}
+}
+
 static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 {
 	kdbus_conn_memfds_unref(queue);
@@ -479,13 +564,13 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 			goto exit_pool_free;
 	}
 
-	/* remember the offset to the message */
+	/* copy some properties of the message to the queue entry */
 	queue->off = off;
 	queue->size = want;
+	queue->priority = kmsg->msg.priority;
 
 	/* link the message into the receiver's queue */
-	list_add_tail(&queue->entry, &conn->msg_list);
-	conn->msg_count++;
+	kdbus_conn_queue_add(conn, queue);
 
 	mutex_unlock(&conn->lock);
 
@@ -774,7 +859,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 
-		INIT_LIST_HEAD(&reply->entry);
 		reply->conn = kdbus_conn_ref(conn_dst);
 		reply->cookie = msg->cookie;
 
@@ -966,12 +1050,14 @@ remove_unused:
  *
  * Returns: 0 on success, negative errno on failure.
  */
-int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
+int kdbus_conn_recv_msg(struct kdbus_conn *conn,
+			struct kdbus_cmd_recv __user *recv_user)
 {
-	struct kdbus_conn_queue *queue;
+	struct kdbus_cmd_recv recv;
+	struct kdbus_conn_queue *queue = NULL;
 	int *memfds = NULL;
 	unsigned int i;
-	int ret;
+	int ret = 0;
 
 	mutex_lock(&conn->lock);
 	if (unlikely(conn->ep->disconnected)) {
@@ -984,14 +1070,57 @@ int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 		goto exit_unlock;
 	}
 
-	/* return the address of the next message in the pool */
-	queue = list_first_entry(&conn->msg_list,
-				 struct kdbus_conn_queue, entry);
-
-	if (copy_to_user(buf, &queue->off, sizeof(__u64))) {
+	if (copy_from_user(&recv, recv_user,
+			   sizeof(struct kdbus_cmd_recv))) {
 		ret = -EFAULT;
 		goto exit_unlock;
 	}
+
+	if (recv.offset > 0) {
+		ret = -EINVAL;
+		goto exit_unlock;
+	}
+
+	if (recv.flags & KDBUS_RECV_USE_PRIORITY) {
+		/* get next message with highest priority */
+		queue = rb_entry(conn->msg_prio_highest,
+				 struct kdbus_conn_queue, prio_node);
+
+		/* no entry with the requested priority */
+		if (queue->priority > recv.priority) {
+			ret = -ENOMSG;
+			goto exit_unlock;
+		}
+
+	} else {
+		/* ignore the priority, return the next entry in the queue */
+		queue = list_first_entry(&conn->msg_list,
+					 struct kdbus_conn_queue, entry);
+	}
+
+	BUG_ON(!queue);
+
+	/* just drop the message */
+	if (recv.flags & KDBUS_RECV_DROP) {
+		kdbus_conn_queue_remove(conn, queue);
+		kdbus_pool_free_range(conn->pool, queue->off);
+		kdbus_conn_queue_cleanup(queue);
+		goto exit_unlock;
+	}
+
+	/* return the address of the next message in the pool */
+	if (copy_to_user(&recv_user->offset, &queue->off, sizeof(__u64))) {
+		ret = -EFAULT;
+		goto exit_unlock;
+	}
+
+	/*
+	 * Just return the location of the next message. Do not install
+	 * file descriptors or anything else. This is usually used to
+	 * determine the sender of the next queued message.
+	 */
+	if (recv.flags & KDBUS_RECV_PEEK)
+		goto exit_unlock;
 
 	/*
 	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
@@ -1012,8 +1141,7 @@ int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf)
 
 	kfree(memfds);
 
-	list_del(&queue->entry);
-	conn->msg_count--;
+	kdbus_conn_queue_remove(conn, queue);
 	mutex_unlock(&conn->lock);
 
 	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
@@ -1024,82 +1152,6 @@ exit_rewind:
 	for (i = 0; i < queue->memfds_count; i++)
 		sys_close(memfds[i]);
 	kfree(memfds);
-
-exit_unlock:
-	mutex_unlock(&conn->lock);
-	return ret;
-}
-
-/**
- * kdbus_conn_drop_msg - receive a message from the queue
- * @conn:		Connection to work on
- *
- * Returns: 0 on success, negative errno on failure.
- */
-int kdbus_conn_drop_msg(struct kdbus_conn *conn)
-{
-	struct kdbus_conn_queue *queue;
-	int ret;
-
-	mutex_lock(&conn->lock);
-	if (unlikely(conn->ep->disconnected)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
-	if (conn->msg_count == 0) {
-		ret = -EAGAIN;
-		goto exit_unlock;
-	}
-
-	queue = list_first_entry(&conn->msg_list,
-				 struct kdbus_conn_queue, entry);
-	list_del(&queue->entry);
-	conn->msg_count--;
-
-	kdbus_pool_free_range(conn->pool, queue->off);
-	mutex_unlock(&conn->lock);
-
-	kdbus_conn_queue_cleanup(queue);
-	return 0;
-
-exit_unlock:
-	mutex_unlock(&conn->lock);
-	return ret;
-}
-
-/**
- * kdbus_conn_src_msg - return the sender of a message in the queue
- * @conn:		Connection to work on
- * @buf:		The ID of the sender of the next message in the queue
- *
- * Returns: 0 on success, negative errno on failure.
- */
-int kdbus_conn_src_msg(struct kdbus_conn *conn, __u64 __user *buf)
-{
-	struct kdbus_conn_queue *queue;
-	int ret;
-
-	mutex_lock(&conn->lock);
-	if (unlikely(conn->ep->disconnected)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
-	if (conn->msg_count == 0) {
-		ret = -EAGAIN;
-		goto exit_unlock;
-	}
-
-	queue = list_first_entry(&conn->msg_list,
-				 struct kdbus_conn_queue, entry);
-	if (copy_to_user(buf, &queue->src_id, sizeof(__u64))) {
-		ret = -EFAULT;
-		goto exit_unlock;
-	}
-
-	mutex_unlock(&conn->lock);
-	return 0;
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
@@ -1269,11 +1321,14 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 	BUG_ON(conn_src == conn_dst);
 
+	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
 	list_splice_init(&conn_src->msg_list, &msg_list);
+	conn_src->msg_prio_queue = RB_ROOT;
 	conn_src->msg_count = 0;
 	mutex_unlock(&conn_src->lock);
 
+	/* insert messages into destination */
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry_safe(q, tmp, &msg_list, entry) {
 
@@ -1286,8 +1341,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		if (ret < 0)
 			goto exit_unlock_dst;
 
-		list_add_tail(&q->entry, &conn_dst->msg_list);
-		conn_dst->msg_count++;
+		kdbus_conn_queue_add(conn_dst, q);
 	}
 
 exit_unlock_dst:
@@ -1575,6 +1629,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);
 	INIT_LIST_HEAD(&conn->msg_list);
+	conn->msg_prio_queue = RB_ROOT;
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->reply_list);

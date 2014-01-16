@@ -103,6 +103,7 @@ int msg_send(const struct conn *conn,
 		    uint64_t cookie,
 		    uint64_t flags,
 		    uint64_t timeout,
+		    int64_t priority,
 		    uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
@@ -166,6 +167,7 @@ int msg_send(const struct conn *conn,
 	memset(msg, 0, size);
 	msg->flags = flags;
 	msg->timeout_ns = timeout;
+	msg->priority = priority;
 	msg->size = size;
 	msg->src_id = conn->id;
 	msg->dst_id = name ? 0 : dst_id;
@@ -247,11 +249,12 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 	else
 		cookie_reply = msg->cookie_reply;
 
-	printf("MESSAGE: %s (%llu bytes) flags=0x%08llx, %s → %s, cookie=%llu, timeout=%llu cookie_reply=%llu\n",
+	printf("MESSAGE: %s (%llu bytes) flags=0x%08llx, %s → %s, cookie=%llu, timeout=%llu cookie_reply=%llu priority=%lli\n",
 		enum_PAYLOAD(msg->payload_type), (unsigned long long)msg->size,
 		(unsigned long long)msg->flags,
 		msg_id(msg->src_id, buf_src), msg_id(msg->dst_id, buf_dst),
-		(unsigned long long)msg->cookie, (unsigned long long)timeout, (unsigned long long)cookie_reply);
+		(unsigned long long)msg->cookie, (unsigned long long)timeout, (unsigned long long)cookie_reply,
+		(long long)msg->priority);
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
 		if (item->size < KDBUS_ITEM_HEADER_SIZE) {
@@ -422,23 +425,25 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 
 int msg_recv(struct conn *conn)
 {
-	uint64_t off;
+	struct kdbus_cmd_recv recv = {};
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	if (ret < 0) {
+		ret = -errno;
 		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
-		return EXIT_FAILURE;
+		return ret;
 	}
 
-	msg = (struct kdbus_msg *)(conn->buf + off);
+	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
 	msg_dump(conn, msg);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &recv.offset);
 	if (ret < 0) {
+		ret = -errno;
 		fprintf(stderr, "error free message: %d (%m)\n", ret);
-		return EXIT_FAILURE;
+		return ret;
 	}
 
 	return 0;

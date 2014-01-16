@@ -445,7 +445,7 @@ static int check_hello(struct kdbus_check_env *env)
 static int check_byebye(struct kdbus_check_env *env)
 {
 	struct kdbus_conn *conn;
-	uint64_t off;
+	struct kdbus_cmd_recv recv = {};
 	int ret;
 
 	/* create a 2nd connection */
@@ -464,10 +464,10 @@ static int check_byebye(struct kdbus_check_env *env)
 	ASSERT_RETURN(ret == -1 && errno == EBUSY);
 
 	/* receive the message */
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &recv.offset);
 	ASSERT_RETURN(ret == 0);
 
 	/* and try again */
@@ -703,7 +703,7 @@ static int check_match_id_add(struct kdbus_check_env *env)
 	struct kdbus_conn *conn;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	uint64_t off;
+	struct kdbus_cmd_recv recv = {};
 	int ret;
 
 	memset(&buf, 0, sizeof(buf));
@@ -723,10 +723,10 @@ static int check_match_id_add(struct kdbus_check_env *env)
 	ASSERT_RETURN(conn != NULL);
 
 	/* 1st connection should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + off);
+	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
 	item = &msg->items[0];
 	ASSERT_RETURN(item->type == KDBUS_ITEM_ID_ADD);
 	ASSERT_RETURN(item->id_change.id == conn->hello.id);
@@ -749,7 +749,7 @@ static int check_match_id_remove(struct kdbus_check_env *env)
 	struct kdbus_conn *conn;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	uint64_t off;
+	struct kdbus_cmd_recv recv = {};
 	size_t id;
 	int ret;
 
@@ -773,10 +773,10 @@ static int check_match_id_remove(struct kdbus_check_env *env)
 	free_conn(conn);
 
 	/* 1st connection should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + off);
+	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
 	item = &msg->items[0];
 	ASSERT_RETURN(item->type == KDBUS_ITEM_ID_REMOVE);
 	ASSERT_RETURN(item->id_change.id == id);
@@ -798,7 +798,8 @@ static int check_match_name_add(struct kdbus_check_env *env)
 	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	uint64_t size, off;
+	uint64_t size;
+	struct kdbus_cmd_recv recv = {};
 	char *name;
 	int ret;
 
@@ -830,10 +831,10 @@ static int check_match_name_add(struct kdbus_check_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + off);
+	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
 	item = &msg->items[0];
 	ASSERT_RETURN(item->type == KDBUS_ITEM_NAME_ADD);
 	ASSERT_RETURN(item->name_change.old.id == 0);
@@ -857,7 +858,8 @@ static int check_match_name_remove(struct kdbus_check_env *env)
 	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	uint64_t size, off;
+	uint64_t size;
+	struct kdbus_cmd_recv recv = {};
 	char *name;
 	int ret;
 
@@ -893,10 +895,10 @@ static int check_match_name_remove(struct kdbus_check_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + off);
+	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
 	item = &msg->items[0];
 	ASSERT_RETURN(item->type == KDBUS_ITEM_NAME_REMOVE);
 	ASSERT_RETURN(item->name_change.old.id == env->conn->hello.id);
@@ -921,7 +923,8 @@ static int check_match_name_change(struct kdbus_check_env *env)
 	struct kdbus_item *item;
 	struct kdbus_conn *conn;
 	struct kdbus_msg *msg;
-	uint64_t size, off;
+	uint64_t size;
+	struct kdbus_cmd_recv recv = {};
 	char *name;
 	int ret;
 
@@ -972,10 +975,10 @@ static int check_match_name_change(struct kdbus_check_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + off);
+	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
 	item = &msg->items[0];
 	ASSERT_RETURN(item->type == KDBUS_ITEM_NAME_CHANGE);
 	ASSERT_RETURN(item->name_change.old.id == env->conn->hello.id);
@@ -993,7 +996,7 @@ static int check_msg_basic(struct kdbus_check_env *env)
 	struct kdbus_msg *msg;
 	uint64_t cookie = 0x1234abcd5678eeff;
 	struct pollfd fd;
-	uint64_t off;
+	struct kdbus_cmd_recv recv = {};
 	int ret;
 
 	/* create a 2nd connection */
@@ -1015,13 +1018,13 @@ static int check_msg_basic(struct kdbus_check_env *env)
 	ret = poll(&fd, 1, 100);
 	ASSERT_RETURN(ret > 0 && (fd.revents & POLLIN));
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(conn->buf + off);
+	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
 	ASSERT_RETURN(msg->cookie == cookie);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &recv.offset);
 	ASSERT_RETURN(ret == 0);
 
 	free_conn(conn);

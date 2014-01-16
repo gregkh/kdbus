@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 	add_match_empty(conn_b->fd);
 
 	cookie = 0;
-	msg_send(conn_b, NULL, 0xc0000000 | cookie, 0, 0, KDBUS_DST_ID_BROADCAST);
+	msg_send(conn_b, NULL, 0xc0000000 | cookie, 0, 0, 0, KDBUS_DST_ID_BROADCAST);
 
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;
@@ -140,12 +140,12 @@ int main(int argc, char *argv[])
 				name_release(conn_a, "foo.bar.baz");
 
 			msg_recv(conn_a);
-			msg_send(conn_a, NULL, 0xc0000000 | cookie++, 0, 0, conn_b->id);
+			msg_send(conn_a, NULL, 0xc0000000 | cookie++, 0, 0, 0, conn_b->id);
 		}
 
 		if (fds[1].revents & POLLIN) {
 			msg_recv(conn_b);
-			msg_send(conn_b, NULL, 0xc0000000 | cookie++, 0, 0, conn_a->id);
+			msg_send(conn_b, NULL, 0xc0000000 | cookie++, 0, 0, 0, conn_a->id);
 		}
 
 		name_list(conn_b, KDBUS_NAME_LIST_UNIQUE|

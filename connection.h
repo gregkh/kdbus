@@ -29,6 +29,8 @@
  * @attach_flags:	KDBUS_ATTACH_* flags
  * @lock:		Connection data lock
  * @msg_list:		Queue of messages
+ * @msg_prio_queue:	Tree of messages, sorted by priority
+ * @prio_highest:	Cached entry for highest priority (lowest value) node
  * @hentry:		Entry in ID <-> connection map
  * @monitor_entry:	The connection is a monitor
  * @names_list:		List of well-known names
@@ -58,6 +60,8 @@ struct kdbus_conn {
 	u64 attach_flags;
 	struct mutex lock;
 	struct list_head msg_list;
+	struct rb_root msg_prio_queue;
+	struct rb_node *msg_prio_highest;
 	struct hlist_node hentry;
 	struct list_head monitor_entry;
 	struct list_head names_list;
@@ -86,9 +90,8 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty);
 
-int kdbus_conn_recv_msg(struct kdbus_conn *conn, __u64 __user *buf);
-int kdbus_conn_drop_msg(struct kdbus_conn *conn);
-int kdbus_conn_src_msg(struct kdbus_conn *conn, __u64 __user *buf);
+int kdbus_conn_recv_msg(struct kdbus_conn *conn,
+			struct kdbus_cmd_recv __user *recv);
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			void __user *buf);
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,

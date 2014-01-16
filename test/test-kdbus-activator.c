@@ -42,7 +42,7 @@ static struct conn *make_activator(const char *path, const char *name)
 	hello->conn_flags = KDBUS_HELLO_ACTIVATOR;
 
 	item = hello->items;
-	item->size = KDBUS_ITEM_SIZE(slen);
+	item->size = KDBUS_ITEM_HEADER_SIZE + slen;
 	item->type = KDBUS_ITEM_NAME;
 	strcpy(item->str, name);
 
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 			KDBUS_NAME_LIST_ACTIVATORS |
 			KDBUS_NAME_LIST_QUEUED);
 
-	msg_send(conn_a, "foo.test.activator", 0xdeafbeef, 0, 0, KDBUS_DST_ID_NAME);
+	msg_send(conn_a, "foo.test.activator", 0xdeafbeef, 0, 0, 0, KDBUS_DST_ID_NAME);
 
 	fds[0].fd = activator->fd;
 	fds[1].fd = conn_a->fd;
