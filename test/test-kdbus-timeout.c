@@ -14,6 +14,34 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
+static uint64_t expected = 0;
+
+int timeout_msg_recv(struct conn *conn)
+{
+	uint64_t off;
+	struct kdbus_msg *msg;
+	int ret;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &off);
+	if (ret < 0) {
+		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
+		return EXIT_FAILURE;
+	}
+
+	msg = (struct kdbus_msg *)(conn->buf + off);
+	msg_dump(conn, msg);
+	expected &= ~(1ULL << msg->cookie_reply);
+	printf("Got message timeout for cookie %llu\n", msg->cookie_reply);
+
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &off);
+	if (ret < 0) {
+		fprintf(stderr, "error free message: %d (%m)\n", ret);
+		return EXIT_FAILURE;
+	}
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	struct {
@@ -31,10 +59,11 @@ int main(int argc, char *argv[])
 		uint64_t n_type;
 		char name[64];
 	} bus_make;
-	int fdc, ret, cookie;
+	int fdc, ret;
 	char *bus;
 	struct conn *conn_a, *conn_b;
-	struct pollfd fds[2];
+	struct pollfd fds[1];
+	int i, n_msgs = 4;
 
 	printf("-- opening /dev/" KBUILD_MODNAME "/control\n");
 	fdc = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
@@ -72,18 +101,17 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	cookie = 0;
-	fds[0].fd = conn_a->fd;
-	fds[1].fd = conn_b->fd;
+	fds[0].fd = conn_b->fd;
 
-	/* send messages that expects a reply (within 1 sec), but never answer it */
-	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 4000 * 1000 * 1000ULL, conn_a->id);
-	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 1000 * 1000 * 1000ULL, conn_a->id);
-	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 2000 * 1000 * 1000ULL, conn_a->id);
-	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 3000 * 1000 * 1000ULL, conn_a->id);
+	/* send messages that expect a reply (within 1 sec), but never answer it */
+	for (i = 0; i < n_msgs; i++) {
+		printf("Sending message with cookie %u ...\n", i);
+		msg_send(conn_b, NULL, i, KDBUS_MSG_FLAGS_EXPECT_REPLY, (i + 1) * 100ULL * 1000ULL, conn_a->id);
+		expected |= 1ULL << i;
+	}
 
 	for (;;) {
-		int i, nfds = sizeof(fds) / sizeof(fds[0]);
+		int nfds = sizeof(fds) / sizeof(fds[0]);
 
 		for (i = 0; i < nfds; i++) {
 			fds[i].events = POLLIN | POLLPRI | POLLHUP;
@@ -91,28 +119,33 @@ int main(int argc, char *argv[])
 		}
 
 		printf("--- entering poll\n");
-		ret = poll(fds, nfds, 5000);
+		ret = poll(fds, nfds, (n_msgs + 1) * 100);
 		if (ret == 0)
 			printf("--- timeout\n");
 		if (ret <= 0)
 			break;
 
 		if (fds[0].revents & POLLIN)
-			msg_recv(conn_a);
+			timeout_msg_recv(conn_b);
 
-		if (fds[1].revents & POLLIN)
-			msg_recv(conn_b);
+		if (expected == 0)
+			break;
 	}
 
-	printf("-- closing bus connections\n");
+	if (expected != 0) {
+		for (i = 0; i < 64; i++)
+			if (expected & (1ULL << i))
+				printf("No timeout notification received for cookie %u\n", i);
+	} else {
+		printf("Timeout notifications received for all messages. Good.\n");
+	}
+
 	close(conn_a->fd);
 	close(conn_b->fd);
 	free(conn_a);
 	free(conn_b);
-
-	printf("-- closing bus master\n");
 	close(fdc);
 	free(bus);
 
-	return EXIT_SUCCESS;
+	return expected ? EXIT_FAILURE : EXIT_SUCCESS;
 }
