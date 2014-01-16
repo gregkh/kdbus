@@ -29,7 +29,6 @@ int timeout_msg_recv(struct conn *conn)
 	}
 
 	msg = (struct kdbus_msg *)(conn->buf + off);
-	msg_dump(conn, msg);
 	expected &= ~(1ULL << msg->cookie_reply);
 	printf("Got message timeout for cookie %llu\n", msg->cookie_reply);
 
@@ -59,11 +58,10 @@ static int run_test(void)
 		uint64_t n_type;
 		char name[64];
 	} bus_make;
-	int fdc, ret;
 	char *bus;
 	struct conn *conn_a, *conn_b;
-	struct pollfd fds[1];
-	int i, n_msgs = 4;
+	struct pollfd fd;
+	int fdc, ret, i, n_msgs = 4;
 
 	printf("-- opening /dev/" KBUILD_MODNAME "/control\n");
 	fdc = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
@@ -101,7 +99,7 @@ static int run_test(void)
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	fds[0].fd = conn_b->fd;
+	fd.fd = conn_b->fd;
 
 	/* send messages that expect a reply (within 1 sec), but never answer it */
 	for (i = 0; i < n_msgs; i++) {
@@ -111,21 +109,16 @@ static int run_test(void)
 	}
 
 	for (;;) {
-		int nfds = sizeof(fds) / sizeof(fds[0]);
+		fd.events = POLLIN | POLLPRI | POLLHUP;
+		fd.revents = 0;
 
-		for (i = 0; i < nfds; i++) {
-			fds[i].events = POLLIN | POLLPRI | POLLHUP;
-			fds[i].revents = 0;
-		}
-
-		printf("--- entering poll\n");
-		ret = poll(fds, nfds, (n_msgs + 1) * 100);
+		ret = poll(&fd, 1, (n_msgs + 1) * 100);
 		if (ret == 0)
 			printf("--- timeout\n");
 		if (ret <= 0)
 			break;
 
-		if (fds[0].revents & POLLIN)
+		if (fd.revents & POLLIN)
 			timeout_msg_recv(conn_b);
 
 		if (expected == 0)
