@@ -35,8 +35,6 @@ int main(int argc, char *argv[])
 	char *bus;
 	struct conn *conn_a, *conn_b;
 	struct pollfd fds[2];
-	int count;
-	int r;
 
 	printf("-- opening /dev/" KBUILD_MODNAME "/control\n");
 	fdc = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
@@ -46,6 +44,7 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
+	bus_make.head.flags = KDBUS_MAKE_POLICY_OPEN;
 	bus_make.bs.size = sizeof(bus_make.bs);
 	bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
 	bus_make.bs.bloom_size = 64;
@@ -73,57 +72,17 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	r = upload_policy(conn_a->fd, "foo.bar.test");
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = upload_policy(conn_a->fd, "foo.bar.baz");
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = upload_policy(conn_a->fd, "foo.bar.double");
-	if (r < 0)
-		return EXIT_FAILURE;
-
-	r = name_acquire(conn_a, "foo.bar.test", KDBUS_NAME_ALLOW_REPLACEMENT);
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = name_acquire(conn_a, "foo.bar.baz", 0);
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
-	if (r < 0)
-		return EXIT_FAILURE;
-
-	r = name_acquire(conn_a, "foo.bar.double", 0);
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = name_acquire(conn_a, "foo.bar.double", 0);
-	if (r != -EALREADY)
-		return EXIT_FAILURE;
-
-	r = name_release(conn_a, "foo.bar.double");
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = name_release(conn_a, "foo.bar.double");
-	if (r != -ESRCH)
-		return EXIT_FAILURE;
-
-	name_list(conn_b, KDBUS_NAME_LIST_UNIQUE|
-			  KDBUS_NAME_LIST_NAMES|
-			  KDBUS_NAME_LIST_QUEUED|
-			  KDBUS_NAME_LIST_ACTIVATORS);
-
-	add_match_empty(conn_a->fd);
-	add_match_empty(conn_b->fd);
-
 	cookie = 0;
-	msg_send(conn_b, NULL, 0xc0000000 | cookie, 0, 0, KDBUS_DST_ID_BROADCAST);
-
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;
 
-	printf("-- entering poll loop ...\n");
+	/* send messages that expects a reply (within 1 sec), but never answer it */
+	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 4000 * 1000 * 1000ULL, conn_a->id);
+	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 1000 * 1000 * 1000ULL, conn_a->id);
+	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 2000 * 1000 * 1000ULL, conn_a->id);
+	msg_send(conn_b, NULL, ++cookie, KDBUS_MSG_FLAGS_EXPECT_REPLY, 3000 * 1000 * 1000ULL, conn_a->id);
 
-	for (count = 0;; count++) {
+	for (;;) {
 		int i, nfds = sizeof(fds) / sizeof(fds[0]);
 
 		for (i = 0; i < nfds; i++) {
@@ -131,30 +90,18 @@ int main(int argc, char *argv[])
 			fds[i].revents = 0;
 		}
 
-		ret = poll(fds, nfds, 3000);
+		printf("--- entering poll\n");
+		ret = poll(fds, nfds, 5000);
+		if (ret == 0)
+			printf("--- timeout\n");
 		if (ret <= 0)
 			break;
 
-		if (fds[0].revents & POLLIN) {
-			if (count > 2)
-				name_release(conn_a, "foo.bar.baz");
-
+		if (fds[0].revents & POLLIN)
 			msg_recv(conn_a);
-			msg_send(conn_a, NULL, 0xc0000000 | cookie++, 0, 0, conn_b->id);
-		}
 
-		if (fds[1].revents & POLLIN) {
+		if (fds[1].revents & POLLIN)
 			msg_recv(conn_b);
-			msg_send(conn_b, NULL, 0xc0000000 | cookie++, 0, 0, conn_a->id);
-		}
-
-		name_list(conn_b, KDBUS_NAME_LIST_UNIQUE|
-				  KDBUS_NAME_LIST_NAMES|
-				  KDBUS_NAME_LIST_QUEUED|
-				  KDBUS_NAME_LIST_ACTIVATORS);
-
-		if (count > 10)
-			break;
 	}
 
 	printf("-- closing bus connections\n");

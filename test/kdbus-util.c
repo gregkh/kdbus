@@ -101,6 +101,8 @@ struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 int msg_send(const struct conn *conn,
 		    const char *name,
 		    uint64_t cookie,
+		    uint64_t flags,
+		    uint64_t timeout,
 		    uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
@@ -162,6 +164,8 @@ int msg_send(const struct conn *conn,
 	}
 
 	memset(msg, 0, size);
+	msg->flags = flags;
+	msg->timeout_ns = timeout;
 	msg->size = size;
 	msg->src_id = conn->id;
 	msg->dst_id = name ? 0 : dst_id;
@@ -250,7 +254,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		(unsigned long long)msg->cookie, (unsigned long long)timeout, (unsigned long long)cookie_reply);
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
-		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
+		if (item->size < KDBUS_ITEM_HEADER_SIZE) {
 			printf("  +%s (%llu bytes) invalid data record\n", enum_MSG(item->type), item->size);
 			break;
 		}

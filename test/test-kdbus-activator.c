@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 			KDBUS_NAME_LIST_ACTIVATORS |
 			KDBUS_NAME_LIST_QUEUED);
 
-	msg_send(conn_a, "foo.test.activator", 0xdeafbeef, KDBUS_DST_ID_NAME);
+	msg_send(conn_a, "foo.test.activator", 0xdeafbeef, 0, 0, KDBUS_DST_ID_NAME);
 
 	fds[0].fd = activator->fd;
 	fds[1].fd = conn_a->fd;
