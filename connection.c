@@ -787,7 +787,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		atomic_inc(&reply->conn->reply_count);
 		mutex_unlock(&conn_src->lock);
 
-		kdbus_conn_timeout_schedule_scan(conn_dst);
+		kdbus_conn_timeout_schedule_scan(conn_src);
 	}
 
 	if (conn_src) {
