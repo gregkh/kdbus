@@ -42,7 +42,7 @@ int timeout_msg_recv(struct conn *conn)
 	return 0;
 }
 
-int main(int argc, char *argv[])
+static int run_test(void)
 {
 	struct {
 		struct kdbus_cmd_make head;
@@ -148,4 +148,12 @@ int main(int argc, char *argv[])
 	free(bus);
 
 	return expected ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+
+int main(int argc, char *argv[])
+{
+	if (argc > 1)
+		while (run_test() == 0);
+
+	return run_test();
 }
