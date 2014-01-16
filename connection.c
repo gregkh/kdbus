@@ -1567,8 +1567,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (conn_name) {
 		conn->name = kstrdup(conn_name, GFP_KERNEL);
 		if (!conn->name) {
-			kfree(conn);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto exit_free_conn;
 		}
 	}
 
@@ -1591,18 +1591,17 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	ret = kdbus_pool_new(conn->name, hello->pool_size, &conn->pool);
 	if (ret < 0)
-		goto exit_unref;
+		goto exit_free_conn;
 
 	ret = kdbus_match_db_new(&conn->match_db);
 	if (ret < 0)
-		goto exit_unref;
+		goto exit_free_pool;
 
 	conn->ep = kdbus_ep_ref(ep);
 
-	/* link into bus; get new id for this connection */
+	/* get new id for this connection */
 	mutex_lock(&bus->lock);
 	conn->id = ++bus->conn_seq_last;
-	hash_add(bus->conn_hash, &conn->hentry, conn->id);
 	mutex_unlock(&bus->lock);
 
 	/* return properties of this connection to the caller */
@@ -1617,7 +1616,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	ret = kdbus_notify_id_change(KDBUS_ITEM_ID_ADD, conn->id, conn->flags,
 				     &notify_list);
 	if (ret < 0)
-		goto exit_unref;
+		goto exit_unref_ep;
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	conn->flags = hello->conn_flags;
@@ -1629,7 +1628,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		ret = kdbus_name_acquire(bus->name_registry, conn,
 					 activator_name, &flags, NULL);
 		if (ret < 0)
-			goto exit_unref;
+			goto exit_free_pool;
 	}
 
 	if (hello->conn_flags & KDBUS_HELLO_MONITOR) {
@@ -1642,14 +1641,14 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (creds || seclabel) {
 		ret = kdbus_meta_new(&conn->owner_meta);
 		if (ret < 0)
-			goto exit_unref;
+			goto exit_release_names;
 
 		if (creds) {
 			ret = kdbus_meta_append_data(conn->owner_meta,
 					KDBUS_ITEM_CREDS,
 					creds, sizeof(struct kdbus_creds));
 			if (ret < 0)
-				goto exit_unref;
+				goto exit_free_meta;
 		}
 
 		if (seclabel) {
@@ -1657,7 +1656,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 						     KDBUS_ITEM_SECLABEL,
 						     seclabel, seclabel_len);
 			if (ret < 0)
-				goto exit_unref;
+				goto exit_free_meta;
 		}
 
 		/* use the information provided with the HELLO call */
@@ -1667,11 +1666,27 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		conn->meta = meta;
 	}
 
+	/* link into bus */
+	mutex_lock(&bus->lock);
+	hash_add(bus->conn_hash, &conn->hentry, conn->id);
+	mutex_unlock(&bus->lock);
+
 	*c = conn;
 	return 0;
 
-exit_unref:
-	kdbus_conn_unref(conn);
+exit_free_meta:
+	kdbus_meta_free(conn->owner_meta);
+exit_release_names:
+	kdbus_name_remove_by_conn(bus->name_registry, conn);
+exit_unref_ep:
+	kdbus_ep_unref(conn->ep);
+	kdbus_match_db_free(conn->match_db);
+exit_free_pool:
+	kdbus_pool_free(conn->pool);
+exit_free_conn:
+	kfree(conn->name);
+	kfree(conn);
+
 	return ret;
 }
 
