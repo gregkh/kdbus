@@ -737,6 +737,230 @@ exit_unref:
 	return ret;
 }
 
+static int kdbus_conn_fds_install(struct kdbus_conn *conn,
+				  struct kdbus_conn_queue *queue)
+{
+	size_t size;
+	unsigned int i;
+	int *fds;
+	int ret;
+
+	/* get array of file descriptors */
+	size = queue->fds_count * sizeof(int);
+	fds = kmalloc(size, GFP_KERNEL);
+	if (!fds)
+		return -ENOMEM;
+
+	/* allocate new file descriptors in the receiver's process */
+	for (i = 0; i < queue->fds_count; i++) {
+		fds[i] = get_unused_fd();
+		if (fds[i] < 0) {
+			ret = fds[i];
+			goto remove_unused;
+		}
+	}
+
+	/* copy the array into the message item */
+	ret = kdbus_pool_write(conn->pool, queue->off + queue->fds, fds, size);
+	if (ret < 0)
+		goto remove_unused;
+
+	/* install files in the receiver's process */
+	for (i = 0; i < queue->fds_count; i++)
+		fd_install(fds[i], get_file(queue->fds_fp[i]));
+
+	kfree(fds);
+	return 0;
+
+remove_unused:
+	for (i = 0; i < queue->fds_count; i++) {
+		if (fds[i] < 0)
+			break;
+
+		put_unused_fd(fds[i]);
+	}
+
+	kfree(fds);
+	return ret;
+}
+
+static int kdbus_conn_memfds_install(struct kdbus_conn *conn,
+				     struct kdbus_conn_queue *queue,
+				     int **memfds)
+{
+	size_t size;
+	int *fds;
+	unsigned int i;
+	int ret = 0;
+
+	size = queue->memfds_count * sizeof(int);
+	fds = kmalloc(size, GFP_KERNEL);
+	if (!fds)
+		return -ENOMEM;
+
+	/* allocate new file descriptors in the receiver's process */
+	for (i = 0; i < queue->memfds_count; i++) {
+		fds[i] = get_unused_fd();
+		if (fds[i] < 0) {
+			ret = fds[i];
+			goto remove_unused;
+		}
+	}
+
+	/*
+	 * Update the file descriptor number in the items. We remembered
+	 * the locations of the values in the buffer.
+	 */
+	for (i = 0; i < queue->memfds_count; i++) {
+		ret = kdbus_pool_write(conn->pool,
+				       queue->off + queue->memfds[i],
+				       &fds[i], sizeof(int));
+		if (ret < 0)
+			goto remove_unused;
+	}
+
+	/* install files in the receiver's process */
+	for (i = 0; i < queue->memfds_count; i++)
+		fd_install(fds[i], get_file(queue->memfds_fp[i]));
+
+	*memfds = fds;
+	return 0;
+
+remove_unused:
+	for (i = 0; i < queue->memfds_count; i++) {
+		if (fds[i] < 0)
+			break;
+
+		put_unused_fd(fds[i]);
+	}
+
+	kfree(fds);
+	*memfds = NULL;
+	return ret;
+}
+
+static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
+			       struct kdbus_cmd_recv *recv)
+{
+	struct kdbus_conn_queue *queue = NULL;
+	int *memfds = NULL;
+	unsigned int i;
+	int ret = 0;
+
+	if (recv->flags & KDBUS_RECV_USE_PRIORITY) {
+		/* get next message with highest priority */
+		queue = rb_entry(conn->msg_prio_highest,
+				 struct kdbus_conn_queue, prio_node);
+
+		/* no entry with the requested priority */
+		if (queue->priority > recv->priority)
+			return -ENOMSG;
+	} else {
+		/* ignore the priority, return the next entry in the queue */
+		queue = list_first_entry(&conn->msg_list,
+					 struct kdbus_conn_queue, entry);
+	}
+
+	BUG_ON(!queue);
+
+	/* just drop the message */
+	if (recv->flags & KDBUS_RECV_DROP) {
+		kdbus_conn_queue_remove(conn, queue);
+		kdbus_pool_free_range(conn->pool, queue->off);
+		kdbus_conn_queue_cleanup(queue);
+		return 0;
+	}
+
+	/* Give the offset back to the caller. */
+	recv->offset = queue->off;
+
+	/*
+	 * Just return the location of the next message. Do not install
+	 * file descriptors or anything else. This is usually used to
+	 * determine the sender of the next queued message.
+	 */
+	if (recv->flags & KDBUS_RECV_PEEK)
+		return 0;
+
+	/*
+	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
+	 * the list of file descriptors to be able to cleanup on error.
+	 */
+	if (queue->memfds_count > 0) {
+		ret = kdbus_conn_memfds_install(conn, queue, &memfds);
+		if (ret < 0)
+			return ret;
+	}
+
+	/* install KDBUS_MSG_FDS file descriptors */
+	if (queue->fds_count > 0) {
+		ret = kdbus_conn_fds_install(conn, queue);
+		if (ret < 0)
+			goto exit_rewind;
+	}
+
+	kfree(memfds);
+	kdbus_conn_queue_remove(conn, queue);
+	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
+	kdbus_conn_queue_cleanup(queue);
+
+	return 0;
+
+exit_rewind:
+	for (i = 0; i < queue->memfds_count; i++)
+		sys_close(memfds[i]);
+	kfree(memfds);
+
+	return ret;
+}
+
+/**
+ * kdbus_conn_recv_msg_user - receive a message from the queue
+ * @conn:		Connection to work on
+ * @recv_user:		A struct kdbus_cmd_recv containing the command details
+ *
+ * Returns: 0 on success, negative errno on failure.
+ */
+int kdbus_conn_recv_msg_user(struct kdbus_conn *conn,
+			     struct kdbus_cmd_recv __user *recv_buf)
+{
+	struct kdbus_cmd_recv recv;
+	int ret;
+
+	mutex_lock(&conn->lock);
+	if (unlikely(conn->ep->disconnected)) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
+
+	if (conn->msg_count == 0) {
+		ret = -EAGAIN;
+		goto exit_unlock;
+	}
+
+	if (copy_from_user(&recv, recv_buf, sizeof(struct kdbus_cmd_recv))) {
+		ret = -EFAULT;
+		goto exit_unlock;
+	}
+
+	if (recv.offset > 0) {
+		ret = -EINVAL;
+		goto exit_unlock;
+	}
+
+	ret = kdbus_conn_recv_msg(conn, &recv);
+	if (ret < 0)
+		goto exit_unlock;
+
+	/* return the address of the next message in the pool */
+	if (copy_to_user(&recv_buf->offset, &recv.offset, sizeof(__u64)))
+		ret = -EFAULT;
+
+exit_unlock:
+	mutex_unlock(&conn->lock);
+	return ret;
+}
+
 /**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
@@ -939,223 +1163,6 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
 
 	kdbus_conn_kmsg_list_free(kmsg_list);
 
-	return ret;
-}
-
-static int kdbus_conn_fds_install(struct kdbus_conn *conn,
-				  struct kdbus_conn_queue *queue)
-{
-	size_t size;
-	unsigned int i;
-	int *fds;
-	int ret;
-
-	/* get array of file descriptors */
-	size = queue->fds_count * sizeof(int);
-	fds = kmalloc(size, GFP_KERNEL);
-	if (!fds)
-		return -ENOMEM;
-
-	/* allocate new file descriptors in the receiver's process */
-	for (i = 0; i < queue->fds_count; i++) {
-		fds[i] = get_unused_fd();
-		if (fds[i] < 0) {
-			ret = fds[i];
-			goto remove_unused;
-		}
-	}
-
-	/* copy the array into the message item */
-	ret = kdbus_pool_write(conn->pool, queue->off + queue->fds, fds, size);
-	if (ret < 0)
-		goto remove_unused;
-
-	/* install files in the receiver's process */
-	for (i = 0; i < queue->fds_count; i++)
-		fd_install(fds[i], get_file(queue->fds_fp[i]));
-
-	kfree(fds);
-	return 0;
-
-remove_unused:
-	for (i = 0; i < queue->fds_count; i++) {
-		if (fds[i] < 0)
-			break;
-
-		put_unused_fd(fds[i]);
-	}
-
-	kfree(fds);
-	return ret;
-}
-
-static int kdbus_conn_memfds_install(struct kdbus_conn *conn,
-				     struct kdbus_conn_queue *queue,
-				     int **memfds)
-{
-	size_t size;
-	int *fds;
-	unsigned int i;
-	int ret = 0;
-
-	size = queue->memfds_count * sizeof(int);
-	fds = kmalloc(size, GFP_KERNEL);
-	if (!fds)
-		return -ENOMEM;
-
-	/* allocate new file descriptors in the receiver's process */
-	for (i = 0; i < queue->memfds_count; i++) {
-		fds[i] = get_unused_fd();
-		if (fds[i] < 0) {
-			ret = fds[i];
-			goto remove_unused;
-		}
-	}
-
-	/*
-	 * Update the file descriptor number in the items. We remembered
-	 * the locations of the values in the buffer.
-	 */
-	for (i = 0; i < queue->memfds_count; i++) {
-		ret = kdbus_pool_write(conn->pool,
-				       queue->off + queue->memfds[i],
-				       &fds[i], sizeof(int));
-		if (ret < 0)
-			goto remove_unused;
-	}
-
-	/* install files in the receiver's process */
-	for (i = 0; i < queue->memfds_count; i++)
-		fd_install(fds[i], get_file(queue->memfds_fp[i]));
-
-	*memfds = fds;
-	return 0;
-
-remove_unused:
-	for (i = 0; i < queue->memfds_count; i++) {
-		if (fds[i] < 0)
-			break;
-
-		put_unused_fd(fds[i]);
-	}
-
-	kfree(fds);
-	*memfds = NULL;
-	return ret;
-}
-
-/**
- * kdbus_conn_recv_msg - receive a message from the queue
- * @conn:		Connection to work on
- * @recv_user:		The returned offset to the message in the pool
- *
- * Returns: 0 on success, negative errno on failure.
- */
-int kdbus_conn_recv_msg(struct kdbus_conn *conn,
-			struct kdbus_cmd_recv __user *recv_user)
-{
-	struct kdbus_cmd_recv recv;
-	struct kdbus_conn_queue *queue = NULL;
-	int *memfds = NULL;
-	unsigned int i;
-	int ret = 0;
-
-	mutex_lock(&conn->lock);
-	if (unlikely(conn->ep->disconnected)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
-	if (conn->msg_count == 0) {
-		ret = -EAGAIN;
-		goto exit_unlock;
-	}
-
-	if (copy_from_user(&recv, recv_user,
-			   sizeof(struct kdbus_cmd_recv))) {
-		ret = -EFAULT;
-		goto exit_unlock;
-	}
-
-	if (recv.offset > 0) {
-		ret = -EINVAL;
-		goto exit_unlock;
-	}
-
-	if (recv.flags & KDBUS_RECV_USE_PRIORITY) {
-		/* get next message with highest priority */
-		queue = rb_entry(conn->msg_prio_highest,
-				 struct kdbus_conn_queue, prio_node);
-
-		/* no entry with the requested priority */
-		if (queue->priority > recv.priority) {
-			ret = -ENOMSG;
-			goto exit_unlock;
-		}
-
-	} else {
-		/* ignore the priority, return the next entry in the queue */
-		queue = list_first_entry(&conn->msg_list,
-					 struct kdbus_conn_queue, entry);
-	}
-
-	BUG_ON(!queue);
-
-	/* just drop the message */
-	if (recv.flags & KDBUS_RECV_DROP) {
-		kdbus_conn_queue_remove(conn, queue);
-		kdbus_pool_free_range(conn->pool, queue->off);
-		kdbus_conn_queue_cleanup(queue);
-		goto exit_unlock;
-	}
-
-	/* return the address of the next message in the pool */
-	if (copy_to_user(&recv_user->offset, &queue->off, sizeof(__u64))) {
-		ret = -EFAULT;
-		goto exit_unlock;
-	}
-
-	/*
-	 * Just return the location of the next message. Do not install
-	 * file descriptors or anything else. This is usually used to
-	 * determine the sender of the next queued message.
-	 */
-	if (recv.flags & KDBUS_RECV_PEEK)
-		goto exit_unlock;
-
-	/*
-	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
-	 * the list of file descriptors to be able to cleanup on error.
-	 */
-	if (queue->memfds_count > 0) {
-		ret = kdbus_conn_memfds_install(conn, queue, &memfds);
-		if (ret < 0)
-			goto exit_unlock;
-	}
-
-	/* install KDBUS_MSG_FDS file descriptors */
-	if (queue->fds_count > 0) {
-		ret = kdbus_conn_fds_install(conn, queue);
-		if (ret < 0)
-			goto exit_rewind;
-	}
-
-	kfree(memfds);
-
-	kdbus_conn_queue_remove(conn, queue);
-	mutex_unlock(&conn->lock);
-
-	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
-	kdbus_conn_queue_cleanup(queue);
-	return 0;
-
-exit_rewind:
-	for (i = 0; i < queue->memfds_count; i++)
-		sys_close(memfds[i]);
-	kfree(memfds);
-
-exit_unlock:
-	mutex_unlock(&conn->lock);
 	return ret;
 }
 

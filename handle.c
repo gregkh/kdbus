@@ -620,7 +620,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_conn_recv_msg(conn, buf);
+		ret = kdbus_conn_recv_msg_user(conn, buf);
 		break;
 
 	case KDBUS_CMD_FREE: {
