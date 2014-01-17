@@ -414,7 +414,8 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
-				   struct kdbus_kmsg *kmsg)
+				   struct kdbus_kmsg *kmsg,
+				   u64 *offset)
 {
 	struct kdbus_conn_queue *queue;
 	u64 msg_size;
@@ -574,6 +575,9 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	kdbus_conn_queue_add(conn, queue);
 
 	mutex_unlock(&conn->lock);
+
+	if (offset)
+		*offset = off;
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn->ep->wait);
@@ -976,6 +980,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_conn *c;
+	u64 offset;
 	int ret;
 
 	/* assign namespace-global message sequence number */
@@ -1020,7 +1025,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						  kmsg->seq,
 						  conn_dst->attach_flags);
 
-			kdbus_conn_queue_insert(conn_dst, kmsg);
+			kdbus_conn_queue_insert(conn_dst, kmsg, NULL);
 		}
 		mutex_unlock(&ep->bus->lock);
 
@@ -1112,10 +1117,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry)
-		kdbus_conn_queue_insert(c, kmsg);
+		kdbus_conn_queue_insert(c, kmsg, NULL);
 	mutex_unlock(&ep->bus->lock);
 
-	ret = kdbus_conn_queue_insert(conn_dst, kmsg);
+	ret = kdbus_conn_queue_insert(conn_dst, kmsg, &offset);
 	if (ret < 0)
 		goto exit_unref;
 
