@@ -609,6 +609,19 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 
 		ret = kdbus_conn_kmsg_send(conn->ep, conn, kmsg);
+		if (ret < 0)
+			break;
+
+		/* store the offset of the reply back to userspace */
+		if (kmsg->msg.flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
+			u8 *off = (u8 *) buf +
+				  offsetof(struct kdbus_msg, offset_reply);
+
+			if (copy_to_user(off, &kmsg->msg.offset_reply,
+					 sizeof(u64)))
+				ret = -EFAULT;
+		}
+
 		kdbus_kmsg_free(kmsg);
 		break;
 	}
