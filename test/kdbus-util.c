@@ -221,6 +221,22 @@ int msg_send(const struct conn *conn,
 
 	if (memfd >= 0)
 		close(memfd);
+
+	if (flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
+		struct kdbus_msg *reply;
+
+		printf("SYNC REPLY @offset %llu:\n", msg->offset_reply);
+		reply = (struct kdbus_msg *)(conn->buf + msg->offset_reply);
+		msg_dump(conn, reply);
+
+		ret = ioctl(conn->fd, KDBUS_CMD_FREE, &msg->offset_reply);
+		if (ret < 0) {
+			ret = -errno;
+			fprintf(stderr, "error free message: %d (%m)\n", ret);
+			return ret;
+		}
+	}
+
 	free(msg);
 
 	return 0;

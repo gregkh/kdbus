@@ -6,6 +6,7 @@ CFLAGS		+= -std=gnu99 -Wall -Wextra -g \
 		   -Wcast-align \
 		   -Wsign-compare \
 		   -Wno-missing-field-initializers
+LDFLAGS		:= -lpthread
 TEST_COMMON	:= kdbus-enum.o kdbus-util.o
 CC		:= $(CROSS_COMPILE)gcc
 
@@ -18,6 +19,7 @@ TESTS= \
 	test-kdbus-monitor \
 	test-kdbus-chat \
 	test-kdbus-timeout \
+	test-kdbus-sync \
 	test-kdbus-prio
 
 all: $(TESTS)
@@ -28,7 +30,7 @@ all: $(TESTS)
 
 test-%: $(TEST_COMMON) test-%.o
 	@echo '  TARGET_LD $@'
-	@$(CC) $(CFLAGS) $^ -o $@
+	@$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
 clean::
 	rm -f *.o $(TESTS)

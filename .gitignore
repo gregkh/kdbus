@@ -17,3 +17,4 @@ test/test-kdbus-activator
 test/test-kdbus-chat
 test/test-kdbus-timeout
 test/test-kdbus-prio
+test/test-kdbus-sync
