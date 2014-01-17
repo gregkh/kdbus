@@ -33,7 +33,7 @@
  * @f:			The backing shmem file
  * @size:		The size of the file
  * @busy:		The currently used size
- * @lock		Pool data lock
+ * @lock:		Pool data lock
  * @slices:		All slices sorted by address
  * @slices_busy:	Tree of allocated slices
  * @slices_free:	Tree of free slices

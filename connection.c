@@ -44,6 +44,7 @@
  * @entry:		Entry in the connection's list
  * @prio_node:		Entry in the priority queue tree
  * @prio_entry:		Queue tree node entry in the list of one priority
+ * @priority:		Queueing priority of the message
  * @off:		Offset into the shmem file in the receiver's pool
  * @size:		The number of bytes used in the pool
  * @memfds:		Arrays of offsets where to update the installed
@@ -1046,7 +1047,7 @@ remove_unused:
 /**
  * kdbus_conn_recv_msg - receive a message from the queue
  * @conn:		Connection to work on
- * @buf:		The returned offset to the message in the pool
+ * @recv_user:		The returned offset to the message in the pool
  *
  * Returns: 0 on success, negative errno on failure.
  */

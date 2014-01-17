@@ -10,14 +10,12 @@ Features:
      - policy, policy for custom endpoints
 
   - attach seclabel to names?
-
   - attach policy to names? Where/how to store names from policy but
     otherwise inactive names (name laceholders).
-
   - find a way to specify "name prefix wildcards" like:
      "com.expample.foo.* can be owned by uid foo"
 
-  - also attach queued names to metadata?
+  - also attach queued names to message metadata?
 
   - account and limit number of messages a connection can have in-flight
     for another connection, like a connection can have a maximum of 100

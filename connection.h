@@ -30,7 +30,7 @@
  * @lock:		Connection data lock
  * @msg_list:		Queue of messages
  * @msg_prio_queue:	Tree of messages, sorted by priority
- * @prio_highest:	Cached entry for highest priority (lowest value) node
+ * @msg_prio_highest:	Cached entry for highest priority (lowest value) node
  * @hentry:		Entry in ID <-> connection map
  * @monitor_entry:	The connection is a monitor
  * @names_list:		List of well-known names
@@ -91,7 +91,7 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty);
 
 int kdbus_conn_recv_msg(struct kdbus_conn *conn,
-			struct kdbus_cmd_recv __user *recv);
+			struct kdbus_cmd_recv __user *recv_user);
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			void __user *buf);
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
