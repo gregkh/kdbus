@@ -387,10 +387,10 @@ struct kdbus_msg {
  *				usually used to determine the activating
  *				connection of a bus name.
  * @KDBUS_RECV_DROP:		Drop and free the next queued message and all
- *				its ressources without actually receiveing it.
+ *				its resources without actually receiving it.
  * @KDBUS_RECV_USE_PRIORITY:	Only de-queue messages with the specified or
- * 				higher priority; if not set, the priority field
- * 				is ignored.
+ * 				higher priority (lowest values); if not set,
+ * 				the priority value is ignored.
  */
 enum kdbus_recv_flags {
 	KDBUS_RECV_PEEK		= 1 <<  0,
