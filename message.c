@@ -280,6 +280,16 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
+	/*
+	 * KDBUS_MSG_FLAGS_EXPECT_REPLY is only valid together with
+	 * KDBUS_MSG_FLAGS_WAIT_FOR_REPLY
+	 */
+	if ((m->msg.flags & KDBUS_MSG_FLAGS_SYNC_REPLY) &&
+	    !((m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY))) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
+
 	ret = kdbus_msg_scan_items(conn, m);
 	if (ret < 0)
 		goto exit_free;

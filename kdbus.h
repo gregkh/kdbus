@@ -330,12 +330,23 @@ struct kdbus_item {
  *					cookie identifies the message and the
  *					respective reply carries the cookie
  *					in cookie_reply
+ * @KDBUS_MSG_FLAGS_SYNC_REPLY:		Wait for destination connection to
+ * 					reply to this message. The
+ * 					KDBUS_CMD_MSG_SEND ioctl() will block
+ * 					until the reply is received, and
+ * 					offset_reply in struct kdbus_msg will
+ * 					yield the offset in the sender's pool
+ * 					where the reply can be found.
+ * 					This flag is only valid if
+ * 					@KDBUS_MSG_FLAGS_EXPECT_REPLY is set as
+ * 					well.
  * @KDBUS_MSG_FLAGS_NO_AUTO_START:	Do not start a service, if the addressed
  *					name is not currently active
  */
 enum kdbus_msg_flags {
 	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1 << 0,
-	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1 << 1,
+	KDBUS_MSG_FLAGS_SYNC_REPLY	= 1 << 1,
+	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1 << 2,
 };
 
 /**
@@ -365,6 +376,9 @@ enum kdbus_payload_type {
  * @cookie_reply:	A reply to the requesting message with the same
  *			cookie. The requesting connection can match its
  *			request and the reply with this value
+ * @offset_reply:	If KDBUS_MSG_FLAGS_WAIT_FOR_REPLY, this field will
+ *			contain the offset in the sender's pool where the
+ *			reply is stored.
  * @items:		A list of kdbus_items containing the message payload
  */
 struct kdbus_msg {
@@ -378,6 +392,7 @@ struct kdbus_msg {
 	union {
 		__u64 timeout_ns;
 		__u64 cookie_reply;
+		__u64 offset_reply;
 	};
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
