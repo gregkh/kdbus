@@ -1136,12 +1136,18 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			kdbus_conn_timeout_schedule_scan(conn_src);
 	}
 
+	BUG_ON(reply_wait && reply_wake);
+
 	if (conn_src) {
 		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 					conn_dst->attach_flags);
 		if (ret < 0)
 			goto exit_unref;
 	}
+
+	ret = kdbus_conn_queue_insert(conn_dst, kmsg, &offset);
+	if (ret < 0)
+		goto exit_unref;
 
 	/*
 	 * Monitor connections get all messages; ignore possible errors
