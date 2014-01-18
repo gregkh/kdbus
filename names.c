@@ -144,59 +144,61 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 static int kdbus_name_entry_release(struct kdbus_name_entry *e,
 				     struct list_head *notify_list)
 {
-	struct kdbus_name_queue_item *q;
+	/* give it to first waiter in the queue */
+	if (!list_empty(&e->queue_list)) {
+		struct kdbus_name_queue_item *q;
 
-	if (list_empty(&e->queue_list)) {
-		/* if the name has an activator connection, hand it back */
-		if (e->activator && e->activator != e->conn) {
-			u64 flags = KDBUS_NAME_ACTIVATOR;
-			int ret;
-
-			kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
-						 e->conn->id, e->activator->id,
-						 e->flags, flags,
-						 e->name, notify_list);
-
-			/*
-			 * Move messages still queued in the old connection
-			 * and addressed to that name to the new connection.
-			 * This allows a race and loss-free name and message
-			 * takeover and exit-on-idle services.
-			 */
-			ret = kdbus_conn_move_messages(e->activator, e->conn,
-						       e->name_id);
-			if (ret < 0)
-				return ret;
-
-			e->flags = flags;
-			kdbus_name_entry_remove_owner(e);
-			kdbus_name_entry_set_owner(e, e->activator);
-
-			return 0;
-		}
-
-		/* release the name */
-		kdbus_notify_name_change(KDBUS_ITEM_NAME_REMOVE,
-					 e->conn->id, 0,
-					 e->flags, 0, e->name,
-					 notify_list);
+		q = list_first_entry(&e->queue_list,
+				     struct kdbus_name_queue_item,
+				     entry_entry);
+		kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
+					 e->conn->id, q->conn->id,
+					 e->flags, q->flags, e->name, notify_list);
+		e->flags = q->flags;
 		kdbus_name_entry_remove_owner(e);
-		kdbus_name_entry_free(e);
+		kdbus_name_entry_set_owner(e, q->conn);
+		kdbus_name_queue_item_free(q);
 
 		return 0;
 	}
 
-	/* give it to first waiter in the queue */
-	q = list_first_entry(&e->queue_list,
-			     struct kdbus_name_queue_item,
-			     entry_entry);
-	kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
-				 e->conn->id, q->conn->id,
-				 e->flags, q->flags, e->name, notify_list);
-	e->flags = q->flags;
+	/* hand it back to the active activator connection */
+	if (e->activator && e->activator != e->conn &&
+	    kdbus_conn_active(e->activator)) {
+		u64 flags = KDBUS_NAME_ACTIVATOR;
+		int ret;
+
+		kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
+					 e->conn->id, e->activator->id,
+					 e->flags, flags,
+					 e->name, notify_list);
+
+		/*
+		 * Move messages still queued in the old connection
+		 * and addressed to that name to the new connection.
+		 * This allows a race and loss-free name and message
+		 * takeover and exit-on-idle services.
+		 */
+		ret = kdbus_conn_move_messages(e->activator, e->conn,
+					       e->name_id);
+		if (ret < 0)
+			return ret;
+
+		e->flags = flags;
+		kdbus_name_entry_remove_owner(e);
+		kdbus_name_entry_set_owner(e, e->activator);
+
+		return 0;
+	}
+
+	/* release the name */
+	kdbus_notify_name_change(KDBUS_ITEM_NAME_REMOVE,
+				 e->conn->id, 0,
+				 e->flags, 0, e->name,
+				 notify_list);
 	kdbus_name_entry_remove_owner(e);
-	kdbus_name_entry_set_owner(e, q->conn);
-	kdbus_name_queue_item_free(q);
+	kdbus_conn_unref(e->activator);
+	kdbus_name_entry_free(e);
 
 	return 0;
 }

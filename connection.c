@@ -689,7 +689,6 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c;
-	bool disconnected;
 	int ret = 0;
 
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
@@ -737,10 +736,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		}
 	}
 
-	mutex_lock(&c->lock);
-	disconnected = c->disconnected;
-	mutex_unlock(&c->lock);
-	if (disconnected) {
+	if (!kdbus_conn_active(c)) {
 		ret = -ECONNRESET;
 		goto exit_unref;
 	}
@@ -1332,6 +1328,23 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
 
 	return 0;
+}
+
+/**
+ * kdbus_conn_active() - connection is not disconnected
+ * @conn:		Connection to check
+ *
+ * Returns: true if the connection is still active
+ */
+bool kdbus_conn_active(struct kdbus_conn *conn)
+{
+	bool active;
+
+	mutex_lock(&conn->lock);
+	active = !conn->disconnected;
+	mutex_unlock(&conn->lock);
+
+	return active;
 }
 
 static void __kdbus_conn_free(struct kref *kref)
