@@ -888,9 +888,14 @@ enum kdbus_ioctl_type {
  *			receiver's pool does not represent a queued message.
  * @EPERM:		The policy prevented an operation. The requested
  *			resource is owned by another entity.
+ * @EPIPE:		When sending a message, a synchronous reply from the
+ *			receiving connection was expected but the connection
+ *			died before answering.
  * @ESHUTDOWN:		A namespace or endpoint is currently shutting down;
  *			no further operations will be possible.
  * @ESRCH:		A requested well-known bus name is not found.
+ * @ETIMEDOUT:		A synchronous wait for a message reply did not arrive
+ *			within the specified time frame.
  * @ETXTBSY:		A kdbus memfd file cannot be sealed or the seal removed,
  *			because it is shared with other processes or still
  *			mmap()ed.
