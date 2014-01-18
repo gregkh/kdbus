@@ -49,6 +49,7 @@
  *			HELLO
  * @msg_count:		Number of queued messages
  * @pool:		The user's buffer to receive messages
+ * @user:		Owner of the connection;
  */
 struct kdbus_conn {
 	struct kref kref;
@@ -76,6 +77,7 @@ struct kdbus_conn {
 	struct kdbus_meta *owner_meta;
 	unsigned int msg_count;
 	struct kdbus_pool *pool;
+	struct kdbus_ns_user *user;
 };
 
 struct kdbus_kmsg;

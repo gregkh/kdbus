@@ -13,6 +13,7 @@
 #ifndef __KDBUS_NS_H
 #define __KDBUS_NS_H
 
+#include <linux/hashtable.h>
 #include <linux/idr.h>
 
 /**
@@ -33,6 +34,7 @@
  * @msg_seq_last:	Last used message id sequence number
  * @ns_entry:		Entry in parent namespace
  * @bus_list:		Buses in this namespace
+ * @user_hash:		Accounting of user resources
  *
  * A namespace provides a "control" device node. Every namespace has its
  * own major number for its endpoint device nodes.
@@ -61,6 +63,25 @@ struct kdbus_ns {
 	atomic64_t msg_seq_last;
 	struct list_head ns_entry;
 	struct list_head bus_list;
+	DECLARE_HASHTABLE(user_hash, 6);
+};
+
+/**
+ * struct kdbus_ns_user - resource accounting for users
+ * @kref:		Reference counter
+ * @ns:			Namespace of the user
+ * @hentry:		Entry in namespace user map
+ * @uid:		UID of the user
+ * @buses:		Number of buses the user has created
+ * @connections:	Number of connections the user has created
+ */
+struct kdbus_ns_user {
+	struct kref kref;
+	struct kdbus_ns *ns;
+	struct hlist_node hentry;
+	kuid_t uid;
+	atomic_t buses;
+	atomic_t connections;
 };
 
 extern struct kdbus_ns *kdbus_ns_init;
@@ -74,4 +95,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name,
 int kdbus_ns_make_user(void __user *buf,
 		       struct kdbus_cmd_make **make, char **name);
 struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major);
+
+struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid);
+struct kdbus_ns_user *kdbus_ns_user_unref(struct kdbus_ns_user *user);
 #endif

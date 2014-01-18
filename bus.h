@@ -38,6 +38,7 @@
  * @ns_entry:		Namespace's list of buses
  * @monitors_list:	Connections that monitor this bus
  * @id128:		Unique random 128 bit ID of this bus
+ * @user:		Owner of the connection;
  *
  * A bus provides a "bus" endpoint / device node.
  *
@@ -64,6 +65,7 @@ struct kdbus_bus {
 	struct list_head ns_entry;
 	struct list_head monitors_list;
 	u8 id128[16];
+	struct kdbus_ns_user *user;
 };
 
 int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,

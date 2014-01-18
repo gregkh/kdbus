@@ -1359,6 +1359,10 @@ static void __kdbus_conn_free(struct kref *kref)
 	struct kdbus_conn_reply_entry *reply, *reply_tmp;
 
 	kdbus_conn_disconnect(conn, false);
+
+	atomic_dec(&conn->user->connections);
+	kdbus_ns_user_unref(conn->user);
+
 	if (conn->ep->policy_db)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 
@@ -1824,6 +1828,20 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		conn->meta = meta;
 	}
 
+	/* account the connection against the user */
+	conn->user = kdbus_ns_user_ref(ep->bus->ns, ep->bus->uid_owner);
+	if (!conn->user) {
+		ret = -ENOMEM;
+		goto exit_free_meta;
+	}
+
+	if (!capable(CAP_IPC_OWNER) &&
+	    atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
+		atomic_dec(&conn->user->connections);
+		ret = -EMFILE;
+		goto exit_unref_user;
+	}
+
 	/* link into bus */
 	mutex_lock(&bus->lock);
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
@@ -1832,6 +1850,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	*c = conn;
 	return 0;
 
+exit_unref_user:
+	kdbus_ns_user_unref(conn->user);
 exit_free_meta:
 	kdbus_meta_free(conn->owner_meta);
 exit_release_names:
@@ -1850,7 +1870,7 @@ exit_free_conn:
 }
 
 /**
- * kdbus_conn_has_name() - check if a connection owns a name
+ * kdbus_conn_has_name() - check if a connection owns r name
  * @conn:		Connection
  * @name:		Well-know name to check for
  *

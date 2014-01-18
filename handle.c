@@ -401,6 +401,12 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		kgid_t gid = KGIDT_INIT(0);
 		char *name;
 
+		/* creating custom endpoints is a privileged operation */
+		if (!kdbus_bus_uid_is_privileged(handle->ep->bus)) {
+			ret = -EFAULT;
+			break;
+		}
+
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
 			break;

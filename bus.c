@@ -57,6 +57,10 @@ static void __kdbus_bus_free(struct kref *kref)
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
 	kdbus_bus_disconnect(bus);
+
+	atomic_dec(&bus->user->buses);
+	kdbus_ns_user_unref(bus->user);
+
 	if (bus->name_registry)
 		kdbus_name_registry_free(bus->name_registry);
 	kdbus_ns_unref(bus->ns);
@@ -236,6 +240,21 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 			   b->bus_flags & KDBUS_MAKE_POLICY_OPEN);
 	if (ret < 0)
 		goto exit;
+
+	/* account the bus against the user */
+	b->user = kdbus_ns_user_ref(ns, uid);
+	if (!b->user) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	if (!capable(CAP_IPC_OWNER) &&
+	    atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
+		atomic_dec(&b->user->buses);
+		b->user = kdbus_ns_user_unref(b->user);
+		ret = -EMFILE;
+		goto exit;
+	}
 
 	/* link into namespace */
 	mutex_lock(&ns->lock);

@@ -392,3 +392,61 @@ exit:
 	kfree(m);
 	return ret;
 }
+
+struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
+{
+	struct kdbus_ns_user *u;
+
+	/* find uid and reference it */
+	mutex_lock(&ns->lock);
+	hash_for_each_possible(ns->user_hash, u, hentry, uid) {
+		if (u->uid != uid)
+			continue;
+
+		kref_get(&u->kref);
+		mutex_unlock(&ns->lock);
+		return u;
+	}
+	mutex_unlock(&ns->lock);
+
+	/* allocate a new user */
+	u = kzalloc(GFP_KERNEL, sizeof(struct kdbus_ns_user));
+	if (!u)
+		return NULL;
+
+	kref_init(&u->kref);
+	u->ns = kdbus_ns_ref(ns);
+	u->uid = uid;
+	atomic_set(&u->buses, 0);
+	atomic_set(&u->connections, 0);
+
+	/* link into namespace */
+	mutex_lock(&ns->lock);
+	hash_add(ns->user_hash, &u->hentry, u->uid);
+	mutex_unlock(&ns->lock);
+
+printk("new user %u\n", u->uid);
+	return u;
+}
+
+static void __kdbus_ns_user_free(struct kref *kref)
+{
+	struct kdbus_ns_user *user = container_of(kref, struct kdbus_ns_user,
+						  kref);
+
+	BUG_ON(atomic_read(&user->buses) > 0);
+	BUG_ON(atomic_read(&user->connections) > 0);
+
+	mutex_lock(&user->ns->lock);
+	hash_del(&user->hentry);
+	mutex_unlock(&user->ns->lock);
+	kdbus_ns_unref(user->ns);
+printk("user %u done\n", user->uid);
+	kfree(user);
+}
+
+struct kdbus_ns_user *kdbus_ns_user_unref(struct kdbus_ns_user *user)
+{
+	kref_put(&user->kref, __kdbus_ns_user_free);
+	return NULL;
+}

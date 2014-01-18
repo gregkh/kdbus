@@ -52,4 +52,10 @@
 /* maximum number of queud requests waiting ot a reply */
 #define KDBUS_CONN_MAX_REQUESTS_PENDING	64
 
+/* maximum number of connections per user in one namespace */
+#define KDBUS_USER_MAX_CONN		256
+
+/* maximum number of buses per user in one namespace */
+#define KDBUS_USER_MAX_BUSES		16
+
 #endif

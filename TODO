@@ -21,9 +21,6 @@ Features:
     for another connection, like a connection can have a maximum of 100
     messages in-flight, but only 10 of them for the same connection
 
-  - limit the number of buses an ordinary user can create
-  - limit the number of connections per uid
-
   - allow to update the metadata subscription bit mask
 
   - support the creation of anonymous buses
