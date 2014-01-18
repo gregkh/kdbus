@@ -1870,7 +1870,7 @@ exit_free_conn:
 }
 
 /**
- * kdbus_conn_has_name() - check if a connection owns r name
+ * kdbus_conn_has_name() - check if a connection owns a name
  * @conn:		Connection
  * @name:		Well-know name to check for
  *
