@@ -474,9 +474,9 @@ static int check_byebye(struct kdbus_check_env *env)
 	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
 	ASSERT_RETURN(ret == 0);
 
-	/* a 2nd try should result in -EBADFD */
+	/* a 2nd try should result in -EALREADY */
 	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
-	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+	ASSERT_RETURN(ret == -1 && errno == EALREADY);
 
 	free_conn(conn);
 

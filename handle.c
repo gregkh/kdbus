@@ -507,10 +507,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
 		ret = kdbus_conn_disconnect(conn, true);
-		if (ret == 0) {
-			kdbus_conn_unref(conn);
-			handle->type = KDBUS_HANDLE_DISCONNECTED;
-		}
 		break;
 
 	case KDBUS_CMD_EP_POLICY_SET:
