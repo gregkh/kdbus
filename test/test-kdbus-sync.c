@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
 		uint64_t n_type;
 		char name[64];
 	} bus_make;
-	struct kdbus_msg *msg;
 	pthread_t thread;
 	int fdc, ret;
 	char *bus;
