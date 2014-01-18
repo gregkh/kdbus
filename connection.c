@@ -1152,18 +1152,17 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kdbus_conn_queue_insert(c, kmsg, NULL);
 	mutex_unlock(&ep->bus->lock);
 
-	ret = kdbus_conn_queue_insert(conn_dst, kmsg, &offset);
-	if (ret < 0)
-		goto exit_unref;
-
-	BUG_ON(reply_wait && reply_wake);
-
 	if (reply_wait) {
 		u64 us = msg->timeout_ns;
 		struct kdbus_cmd_recv recv = {};
 
 		do_div(us, 1000ULL);
 
+		/*
+		 * Block until the reply arrives. reply_wait is left untouched
+		 * by the timeout scans that might be conducted for other,
+		 * asynchronous replies of conn_src.
+		 */
 		if (!wait_event_interruptible_timeout(reply_wait->wait,
 						      !reply_wait->waiting,
 						      usecs_to_jiffies(us))) {
