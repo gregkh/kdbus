@@ -49,7 +49,7 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
  * @extra_size:		additional size to reserve for data
  * @kmsg:			Returned Message
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
 {
@@ -75,7 +75,7 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
  * @conn:		Connection
  * @kmsg:		Message
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				struct kdbus_kmsg *kmsg)
@@ -234,7 +234,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
  * @msg:		User-provided message
  * @kmsg:		Copy of message
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 			     struct kdbus_msg __user *msg,

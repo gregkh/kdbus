@@ -935,7 +935,7 @@ exit_rewind:
  * @conn:		Connection to work on
  * @recv_user:		A struct kdbus_cmd_recv containing the command details
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_conn_recv_msg_user(struct kdbus_conn *conn,
 			     struct kdbus_cmd_recv __user *recv_buf)
@@ -983,7 +983,7 @@ exit_unlock:
  * @conn_src:		Connection, kernel-generated messages do not have one
  * @kmsg:		Message to send
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
@@ -1221,7 +1221,7 @@ void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list)
  *
  * The list is cleared and freed after sending.
  *
- * Returns 0 on success.
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
 			      struct list_head *kmsg_list)
@@ -1247,9 +1247,10 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
  *				case the connection's message list is not
  *				empty
  *
- * Returns 0 on success.
  * If @ensure_msg_list_empty is true, and the connection has pending messages,
  * -EBUSY is returned.
+ *
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 {
@@ -1334,7 +1335,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
  * kdbus_conn_active() - connection is not disconnected
  * @conn:		Connection to check
  *
- * Returns: true if the connection is still active
+ * Return: true if the connection is still active
  */
 bool kdbus_conn_active(struct kdbus_conn *conn)
 {
@@ -1371,7 +1372,7 @@ static void __kdbus_conn_free(struct kref *kref)
  * kdbus_conn_ref() - take a connection reference
  * @conn:		Connection
  *
- * Returns: the connection itself
+ * Return: the connection itself
  */
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
 {
@@ -1386,7 +1387,7 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
  * When the last reference is dropped, the connection's internal structure
  * is freed.
  *
- * Returns: NULL
+ * Return: NULL
  */
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
 {
@@ -1408,7 +1409,7 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  * an ordinary connection is taking over a well-known name from a
  * activator connection.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src,
@@ -1456,7 +1457,7 @@ exit_unlock_dst:
  * @conn:		Connection
  * @buf:		The returned offset to the message in the pool
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			void __user *buf)
@@ -1610,7 +1611,7 @@ exit:
  * @meta:		The metadata gathered at open() time of the handle
  * @c:			Returned connection
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_cmd_hello *hello,
@@ -1847,7 +1848,7 @@ exit_free_conn:
  * @conn:		Connection
  * @name:		Well-know name to check for
  *
- * Returns true if the name is currently owned by the connection.
+ * Return: true if the name is currently owned by the connection
  */
 bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 {

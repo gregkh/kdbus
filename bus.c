@@ -71,7 +71,7 @@ static void __kdbus_bus_free(struct kref *kref)
  * Release a reference. If the reference count drops to 0, the bus will be
  * freed.
  *
- * Returns: NULL
+ * Return: NULL
  */
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 {
@@ -172,7 +172,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
  * This function will allocate a new kdbus_bus and link it to the given
  * namespace.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_bus_new(struct kdbus_ns *ns,
 		  struct kdbus_cmd_make *make, const char *name,
@@ -262,7 +262,7 @@ exit:
  * This function is part of the connection ioctl() interface and will parse
  * the user-supplied data.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
 			char **name, size_t *bloom_size)

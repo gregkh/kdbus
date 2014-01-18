@@ -33,7 +33,7 @@
  * kdbus_meta_new() - create new metadata object
  * @meta:		New metadata object
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_new(struct kdbus_meta **meta)
 {
@@ -120,7 +120,7 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
  * @data:		pointer to data to copy from
  * @len:		number of bytes to copy
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 				  const void *data, size_t len)
@@ -392,7 +392,7 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
  * Collect the data specified in flags and allocate or extend
  * the buffer in the metadata object.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,

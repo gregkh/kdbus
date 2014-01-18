@@ -43,7 +43,7 @@
  * @_b:			Buffer to read from
  * @_t:			Structure, "size" is a member of
  *
- * Returns: the result of copy_from_user()
+ * Return: the result of copy_from_user()
  */
 #define kdbus_size_get_user(_s, _b, _t)						\
 ({										\
@@ -57,7 +57,7 @@
  * @_b:			Buffer to write to
  * @_t:			Structure, "offset" is a member of
  *
- * Returns: the result of copy_to_user()
+ * Return: the result of copy_to_user()
  */
 #define kdbus_offset_set_user(_s, _b, _t)				\
 ({									\
@@ -71,7 +71,7 @@
  * 			a variable string at its end
  * @_s:			The name of the dynamically sized string member
  *
- * Returns: 1 if the string's end marker is withing the struct, or 0 otherwise.
+ * Return: 1 if the string's end marker is withing the struct, or 0 otherwise.
  */
 #define kdbus_check_strlen(_p, _s)					\
 ({									\
@@ -87,7 +87,7 @@
  * Validate that a given string matches the given size, and the
  * string is \0 terminated.
  *
- * Returns: true if the given string is valid
+ * Return: true if the given string is valid
  */
 static inline bool kdbus_validate_nul(const char *s, size_t l)
 {
@@ -98,7 +98,7 @@ static inline bool kdbus_validate_nul(const char *s, size_t l)
  * kdbus_str_hash - calculate a hash
  * @str:		String
  *
- * Returns: hash value
+ * Return: hash value
  */
 static inline unsigned int kdbus_str_hash(const char *str)
 {

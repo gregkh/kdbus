@@ -76,7 +76,7 @@ void kdbus_name_registry_free(struct kdbus_name_registry *reg)
  * kdbus_name_registry_new() - create a new name registry
  * @reg:		The returned name registry
  *
- * Returns 0 on success, -ENOMEM if memory allocation failed.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 {
@@ -264,7 +264,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
  * @reg:		The name registry
  * @name:		The name to look up
  *
- * Returns the name entry, if found. Otherwise, NULL is returned.
+ * Return: name entry if found, otherwise NULL.
  */
 struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
 					   const char *name)
@@ -380,7 +380,7 @@ bool kdbus_name_is_valid(const char *p)
  * @flags:		Acquisition flags (KDBUS_NAME_*)
  * @entry:		Return pointer for the entry (may be NULL)
  *
- * Returns 0 on success, other values on error.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
@@ -504,7 +504,7 @@ exit_unlock:
  * @conn:		The connection to pin this entry to
  * @buf:		The __user buffer as passed in by the ioctl
  *
- * Returns 0 on success, other values on error.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
@@ -610,7 +610,7 @@ exit_free:
  * @conn:		The connection that holds the name
  * @buf:		The __user buffer as passed in by the ioctl
  *
- * Returns 0 on success, other values on error.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
@@ -805,7 +805,7 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
  * @conn:		The connection holding the name entries
  * @buf:		The __user buffer as passed in by the ioctl
  *
- * Returns 0 on success, other values on error.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,

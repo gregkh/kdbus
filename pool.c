@@ -274,7 +274,7 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
  * @size:		Maximum size of the pool
  * @pool:		Newly allocated pool
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool)
 {
@@ -359,7 +359,7 @@ void kdbus_pool_free(struct kdbus_pool *pool)
  * kdbus_pool_remain() - the number of free bytes in the pool
  * @pool:		The receiver's pool
  *
- * Returns: the number of unallocated bytes in the pool
+ * Return: the number of unallocated bytes in the pool
  */
 size_t kdbus_pool_remain(struct kdbus_pool *pool)
 {
@@ -382,7 +382,7 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
  * The returned offset is used for kdbus_pool_free() to
  * free the allocated memory.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off)
 {
@@ -407,7 +407,7 @@ int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off)
  * The offset was returned by the call to kdbus_pool_alloc_range(), the
  * memory is returned to the pool.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_pool_free_range(struct kdbus_pool *pool, size_t off)
 {
@@ -541,7 +541,7 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
  * The user memory at @data will be copied to the @off in the allocated
  * memory in the pool.
  *
- * Returns: the numbers of bytes copied, negative errno on failure.
+ * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
 			      void __user *data, size_t len)
@@ -560,7 +560,7 @@ ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
  * The user memory at @data will be copied to the @off in the allocated
  * memory in the pool.
  *
- * Returns: the numbers of bytes copied, negative errno on failure.
+ * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 			 void *data, size_t len)
@@ -588,7 +588,7 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
  * destination pool, the memory copied over, and the free()d in source
  * pool.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_pool_move(struct kdbus_pool *dst_pool,
 		    struct kdbus_pool *src_pool,
@@ -660,7 +660,7 @@ void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
  * @pool:		The receiver's pool
  * @vma:		passed by mmap() syscall
  *
- * Returns: the result of the mmap() call, negative errno on failure.
+ * Return: the result of the mmap() call, negative errno on failure.
  */
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma)
 {

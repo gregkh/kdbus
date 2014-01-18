@@ -130,7 +130,7 @@ void kdbus_match_db_free(struct kdbus_match_db *db)
  * kdbus_match_db_new() - create a new match database
  * @db:			Pointer location for the returned database
  *
- * Returns 0 on success, any other value in case of errors.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_match_db_new(struct kdbus_match_db **db)
 {
@@ -251,7 +251,7 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
  * with kdbus_match_db_add(). As soon as any of them has an all-satisfied rule
  * set, this function will return true.
  *
- * Returns true in if there was a matching database entry, false otherwise.
+ * Return: true if there was a matching database entry, false otherwise.
  */
 bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,
@@ -311,7 +311,6 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
  * @conn:		The connection that was used in the ioctl call
  * @buf:		The __user buffer that was provided by the ioctl call
  *
- * Returns 0 in success, any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
  * interface.
  *
@@ -337,6 +336,8 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
  * Also note that KDBUS_ITEM_BLOOM, KDBUS_ITEM_NAME and KDBUS_ITEM_ID are
  * used to match messages from userspace, while the others apply to kernel-
  * generated notifications.
+
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 {
@@ -499,9 +500,10 @@ exit_free:
  * @conn:		The connection that was used in the ioctl call
  * @buf:		The __user buffer that was provided by the ioctl call
  *
- * Returns 0 in success, any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_MATCH_REMOVE
  * ioctl interface.
+ *
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 {

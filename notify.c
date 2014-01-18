@@ -60,7 +60,7 @@ static int kdbus_notify_reply(u64 id, u64 cookie, u64 msg_type,
  *
  * Queues a message that has a KDBUS_ITEM_REPLY_TIMEOUT item attached.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_notify_reply_timeout(u64 id, u64 cookie, struct list_head *queue_list)
 {
@@ -79,7 +79,7 @@ int kdbus_notify_reply_timeout(u64 id, u64 cookie, struct list_head *queue_list)
  *
  * Queues a message that has a KDBUS_ITEM_REPLY_DEAD item attached.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_notify_reply_dead(u64 id, u64 cookie, struct list_head *queue_list)
 {
@@ -103,7 +103,7 @@ int kdbus_notify_reply_dead(u64 id, u64 cookie, struct list_head *queue_list)
  *			kdbus_kmsg_free(). Maybe NULL, in which case this
  *			function does nothing.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_notify_name_change(u64 type,
 			     u64 old_id, u64 new_id,
@@ -153,7 +153,7 @@ int kdbus_notify_name_change(u64 type,
  *			kdbus_kmsg_free(). Maybe NULL, in which case this
  *			function does nothing.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
 			   struct list_head *queue_list)

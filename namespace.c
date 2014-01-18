@@ -70,7 +70,7 @@ static struct device_type kdbus_devtype_control = {
  * kdbus_ns_ref() - take a namespace reference
  * @ns	:		Namespace
  *
- * Returns: the namespace itself
+ * Return: the namespace itself
  */
 struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
 {
@@ -135,7 +135,7 @@ static void __kdbus_ns_free(struct kref *kref)
  * When the last reference is dropped, the namespace internal structure
  * is freed.
  *
- * Returns: NULL
+ * Return: NULL
  */
 struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
 {
@@ -171,7 +171,7 @@ static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent,
  * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
  * the namepace can't be found.
  *
- * Returns: the namespace, or NULL if not found
+ * Return: the namespace, or NULL if not found
  */
 struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
 {
@@ -193,7 +193,7 @@ struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
  * @mode:		The access mode for the "control" device node
  * @ns:			The returned namespace
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 		 struct kdbus_ns **ns)
@@ -314,7 +314,7 @@ exit_unlock:
  * @make:		The returned copy of user data
  * @name:		The name of the namespace to create
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_ns_make_user(void __user *buf,
 		       struct kdbus_cmd_make **make, char **name)

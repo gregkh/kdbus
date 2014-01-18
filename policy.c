@@ -125,7 +125,7 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
  * kdbus_policy_db_new() - create a new policy database
  * @db:		The location where to store the new database
  *
- * Return 0 on success, or any other value in case of errors.
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_policy_db_new(struct kdbus_policy_db **db)
 {
@@ -252,8 +252,7 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
  * @conn_src:		The source connection
  * @conn_dst:		The destination connection
  *
- * Returns 0 if access is granted, -EPERM in case it's not, any any other
- * value in case of errors during adding the cache item internally.
+ * Return: 0 if access is granted, -EPERM if not, negative errno on failure
  */
 int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_src,
@@ -330,7 +329,7 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
  * @conn:	The connection to check
  * @name:	The name to check
  *
- * Returns true if the connection is allowed to own the name, false otherwise.
+ * Return: true if the connection is allowed to own the name, false otherwise
  */
 bool kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn,
@@ -435,9 +434,10 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
  * @db:		The policy database
  * @buf:	The __user buffer that was provided by the ioctl() call
  *
- * Returns 0 on success, or any other value in case of errors.
  * This function is used in the context of the KDBUS_CMD_EP_POLICY_SET
  * ioctl().
+ *
+ * Return: 0 on success, negative errno on failure
  */
 int kdbus_cmd_policy_set_from_user(struct kdbus_policy_db *db, void __user *buf)
 {

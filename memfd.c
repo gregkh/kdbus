@@ -48,7 +48,7 @@ struct kdbus_memfile {
  * kdbus_is_memfd() - check if a file is one of our memfds
  * @fp:			File to check
  *
- * Returns: true if the file is a memfd
+ * Return: true if the file is a memfd
  */
 bool kdbus_is_memfd(const struct file *fp)
 {
@@ -59,7 +59,7 @@ bool kdbus_is_memfd(const struct file *fp)
  * kdbus_is_memfd_sealed() - check if a memfd is protected
  * @fp:			Memfd file to check
  *
- * Returns: true if the memfd is protected
+ * Return: true if the memfd is protected
  */
 bool kdbus_is_memfd_sealed(const struct file *fp)
 {
@@ -77,7 +77,7 @@ bool kdbus_is_memfd_sealed(const struct file *fp)
  * kdbus_memfd_size() - return the actual size of a memfd
  * @fp:			Memfd file to check
  *
- * Returns: the actual size of the file in bytes
+ * Return: the actual size of the file in bytes
  */
 u64 kdbus_memfd_size(const struct file *fp)
 {
@@ -98,7 +98,7 @@ u64 kdbus_memfd_size(const struct file *fp)
  * @size:		Initial size of the file
  * @fd:			Installed file descriptor
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_memfd_new(const char *name, size_t size, int *fd)
 {

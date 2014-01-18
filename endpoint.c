@@ -147,7 +147,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  * This function will create a new enpoint with the given
  * name and properties for a given bus.
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 		 umode_t mode, kuid_t uid, kgid_t gid, bool policy_open)
@@ -236,7 +236,7 @@ exit:
  * @make:		The returned copy of user data
  * @name:		The name of the endpoint to create
  *
- * Returns: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative errno on failure.
  */
 int kdbus_ep_make_user(void __user *buf,
 		       struct kdbus_cmd_make **make, char **name)
