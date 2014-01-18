@@ -1128,7 +1128,16 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		atomic_inc(&reply->conn->reply_count);
 		mutex_unlock(&conn_src->lock);
 
-		kdbus_conn_timeout_schedule_scan(conn_src);
+		/*
+		 * For async operation, schedule the scan now. It won't do
+		 * any real work at this point, but walk the list of all
+		 * pending replies and re-arm the timer to the closest
+		 * entry.
+		 * For synchronous operation, the timeout will be handled
+		 * by wait_event_interruptible_timeout().
+		 */
+		if (!reply_wait)
+			kdbus_conn_timeout_schedule_scan(conn_src);
 	}
 
 	if (conn_src) {
