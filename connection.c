@@ -1842,6 +1842,7 @@ exit_unref_ep:
 exit_free_pool:
 	kdbus_pool_free(conn->pool);
 exit_free_conn:
+	del_timer(&conn->timer);
 	kfree(conn->name);
 	kfree(conn);
 
