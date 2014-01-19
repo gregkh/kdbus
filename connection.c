@@ -96,18 +96,32 @@ struct kdbus_conn_reply_entry {
 	u64 deadline_ns;
 	u64 cookie;
 	wait_queue_head_t wait;
-	bool waiting;
+	bool waiting:1;
+	bool sync:1;
 	u64 offset;
 };
 
 static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
 {
-	reply->waiting = false;
-	wake_up_interruptible(&reply->wait);
 	atomic_dec(&reply->conn->reply_count);
 	list_del(&reply->entry);
 	kdbus_conn_unref(reply->conn);
 	kfree(reply);
+}
+
+static void kdbus_conn_reply_entry_finish(struct kdbus_conn *conn,
+					  struct kdbus_conn_reply_entry *reply,
+					  u64 offset)
+{
+	if (reply->sync) {
+		mutex_lock(&conn->lock);
+		reply->waiting = false;
+		reply->offset = offset;
+		mutex_unlock(&conn->lock);
+		wake_up_interruptible(&reply->wait);
+	} else {
+		kdbus_conn_reply_entry_free(reply);
+	}
 }
 
 static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
@@ -620,7 +634,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 		 * the timeout is handled by wait_event_*_timeout(),
 		 * so we don't have to care for it here.
 		 */
-		if (reply->waiting)
+		if (reply->sync)
 			continue;
 
 		if (reply->deadline_ns > now) {
@@ -1052,7 +1066,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		return ret;
 
 	if (conn_src) {
-		bool allowed = false;
 		struct kdbus_conn_reply_entry *r;
 
 		/*
@@ -1071,15 +1084,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 					continue;
 
 				reply_wake = r;
-				allowed = true;
 				break;
 			}
-
 			mutex_unlock(&conn_dst->lock);
 		}
 
 		/* ... otherwise, ask the policy DB for permission */
-		if (!allowed && ep->policy_db) {
+		if (!reply_wake && ep->policy_db) {
 			ret = kdbus_policy_db_check_send_access(ep->policy_db,
 								conn_src,
 								conn_dst);
@@ -1105,19 +1116,20 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 
-		init_waitqueue_head(&reply->wait);
 		reply->conn = kdbus_conn_ref(conn_dst);
 		reply->cookie = msg->cookie;
 
 		if (msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
+			init_waitqueue_head(&reply->wait);
 			reply->offset = ~0ULL;
+			reply->sync = true;
 			reply->waiting = true;
 			reply_wait = reply;
+		} else {
+			/* calculate the deadline based on the current time */
+			ktime_get_ts(&ts);
+			reply->deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
 		}
-
-		/* calculate the deadline based on the current time */
-		ktime_get_ts(&ts);
-		reply->deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
 
 		mutex_lock(&conn_src->lock);
 		list_add(&reply->entry, &conn_src->reply_list);
@@ -1160,7 +1172,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	if (reply_wait) {
 		u64 us = msg->timeout_ns;
-		struct kdbus_cmd_recv recv = {};
+		struct kdbus_cmd_recv recv;
 
 		do_div(us, 1000ULL);
 
@@ -1171,18 +1183,23 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		if (!wait_event_interruptible_timeout(reply_wait->wait,
 						      !reply_wait->waiting,
-						      usecs_to_jiffies(us))) {
+						      usecs_to_jiffies(us)))
 			ret = -ETIMEDOUT;
-			goto exit_unref;
-		}
 
-		if (reply_wait->offset == ~0ULL) {
-			ret = -EPIPE;
-			goto exit_unref;
-		}
-
-		kmsg->msg.offset_reply = reply_wait->offset;
 		recv.offset = reply_wait->offset;
+		recv.flags = 0;
+
+		if (ret == 0 && reply_wait->offset == ~0ULL)
+			ret = -EPIPE;
+
+		mutex_lock(&conn_src->lock);
+		kdbus_conn_reply_entry_free(reply_wait);
+		mutex_unlock(&conn_src->lock);
+
+		if (ret < 0)
+			goto exit_unref;
+
+		kmsg->msg.offset_reply = recv.offset;
 
 		ret = kdbus_conn_recv_msg(conn_src, &recv);
 		if (ret < 0)
@@ -1194,10 +1211,8 @@ exit_unref:
 	 * reply_wake is only non-NULL if it refers to a handled reply,
 	 * and kdbus_conn_reply_entry_free() will wake up the wait queue.
 	 */
-	if (reply_wake) {
-		reply_wake->offset = offset;
-		kdbus_conn_reply_entry_free(reply_wake);
-	}
+	if (reply_wake)
+		kdbus_conn_reply_entry_finish(conn_src, reply_wake, offset);
 
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
@@ -1367,7 +1382,7 @@ static void __kdbus_conn_free(struct kref *kref)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
-		kdbus_conn_reply_entry_free(reply);
+		kdbus_conn_reply_entry_finish(conn, reply, ~0ULL);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
