@@ -40,6 +40,28 @@
 #include "util.h"
 
 /**
+ * struct kdbus_conn_reply_entry - an entry of kdbus_conn's list of replies
+ * @entry:		The list_head entry of the connection's reply_from_list
+ * @conn:		The counterpart connection that is expected to answer
+ * @deadline_ns:	The deadline of the reply, in nanoseconds
+ * @cookie:		The cookie of the requesting message
+ * @wait:		The waitqueue for synchronous I/O
+ * @waiting:		The reply block is waiting for synchronous I/O
+ * @sync:		The reply block is operating in synchronous I/O mode
+ * @offset:		The offset in the sender's pool where the reply is stored
+ */
+struct kdbus_conn_reply_entry {
+	struct list_head entry;
+	struct kdbus_conn *conn;
+	u64 deadline_ns;
+	u64 cookie;
+	wait_queue_head_t wait;
+	bool waiting:1;
+	bool sync:1;
+	u64 offset;
+};
+
+/**
  * struct kdbus_conn_queue - messages waiting to be read
  * @entry:		Entry in the connection's list
  * @prio_node:		Entry in the priority queue tree
@@ -58,6 +80,7 @@
  * @cookie:		Message cookie, used for replies
  * @dst_name_id:	The sequence number of the name this message is
  *			addressed to, 0 for messages sent to an ID
+ * @reply:		The reply block if a reply to this message is expected.
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -78,27 +101,8 @@ struct kdbus_conn_queue {
 	u64 src_id;
 	u64 cookie;
 	u64 dst_name_id;
-};
 
-/**
- * struct kdbus_conn_reply_entry - an entry of kdbus_conn's list of replies
- * @entry:		The list_head entry of the connection's reply_from_list
- * @conn:		The counterpart connection that is expected to answer
- * @deadline_ns:	The deadline of the reply, in nanoseconds
- * @cookie:		The cookie of the requesting message
- * @wait:		The waitqueue for synchronous I/O
- * @waiting:		The reply block is waiting for synchronous I/O
- * @offset:		The offset in the sender's pool where the reply is stored
- */
-struct kdbus_conn_reply_entry {
-	struct list_head entry;
-	struct kdbus_conn *conn;
-	u64 deadline_ns;
-	u64 cookie;
-	wait_queue_head_t wait;
-	bool waiting:1;
-	bool sync:1;
-	u64 offset;
+	struct kdbus_conn_reply_entry *reply;
 };
 
 static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
@@ -1177,6 +1181,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		do_div(us, 1000ULL);
 
 		/*
+		 * Remember the the reply associated with this queue entry,
+		 * so we can move the reply entry's connection when a
+		 * connection moves from an activator to an implementor.
+		 */
+		queue->reply = reply_wait;
+
+		/*
 		 * Block until the reply arrives. reply_wait is left untouched
 		 * by the timeout scans that might be conducted for other,
 		 * asynchronous replies of conn_src.
@@ -1466,6 +1477,14 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			goto exit_unlock_dst;
 
 		kdbus_conn_queue_add(conn_dst, q);
+
+		/*
+		 * If the queue entry has an associated reply entry, move its
+		 * * connection pointer, so the connection that has taken over
+		 * is allowed to answer.
+		 */
+		if (q->reply)
+			q->reply->conn = conn_dst;
 	}
 
 exit_unlock_dst:
