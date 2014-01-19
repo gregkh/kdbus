@@ -1012,7 +1012,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
 	struct kdbus_conn_queue *queue;
-	u64 offset = ~0ULL;
 	int ret;
 
 	/* assign namespace-global message sequence number */
