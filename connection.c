@@ -437,7 +437,7 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 				   struct kdbus_kmsg *kmsg,
-				   u64 *offset)
+				   struct kdbus_conn_queue **q)
 {
 	struct kdbus_conn_queue *queue;
 	u64 msg_size;
@@ -598,8 +598,8 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 	mutex_unlock(&conn->lock);
 
-	if (offset)
-		*offset = off;
+	if (q)
+		*q = queue;
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn->ep->wait);
@@ -1006,8 +1006,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply_entry *reply_wait = NULL;
 	struct kdbus_conn_reply_entry *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_conn *conn_dst = NULL;
-	struct kdbus_conn *c;
+	struct kdbus_conn *c, *conn_dst = NULL;
+	struct kdbus_conn_queue *queue;
 	u64 offset = ~0ULL;
 	int ret;
 
@@ -1157,7 +1157,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 	}
 
-	ret = kdbus_conn_queue_insert(conn_dst, kmsg, &offset);
+	ret = kdbus_conn_queue_insert(conn_dst, kmsg, &queue);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -1212,7 +1212,7 @@ exit_unref:
 	 * and kdbus_conn_reply_entry_free() will wake up the wait queue.
 	 */
 	if (reply_wake)
-		kdbus_conn_reply_entry_finish(conn_src, reply_wake, offset);
+		kdbus_conn_reply_entry_finish(conn_src, reply_wake, queue->off);
 
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
