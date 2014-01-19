@@ -441,7 +441,8 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 				   struct kdbus_kmsg *kmsg,
-				   struct kdbus_conn_queue **q)
+				   struct kdbus_conn_reply_entry *reply,
+				   u64 *offset)
 {
 	struct kdbus_conn_queue *queue;
 	u64 msg_size;
@@ -596,14 +597,15 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	queue->off = off;
 	queue->size = want;
 	queue->priority = kmsg->msg.priority;
+	queue->reply = reply;
 
 	/* link the message into the receiver's queue */
 	kdbus_conn_queue_add(conn, queue);
 
 	mutex_unlock(&conn->lock);
 
-	if (q)
-		*q = queue;
+	if (offset)
+		*offset = queue->off;
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn->ep->wait);
@@ -1011,7 +1013,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply_entry *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
-	struct kdbus_conn_queue *queue;
+	u64 offset = ~0ULL;
 	int ret;
 
 	/* assign namespace-global message sequence number */
@@ -1056,7 +1058,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						  kmsg->seq,
 						  conn_dst->attach_flags);
 
-			kdbus_conn_queue_insert(conn_dst, kmsg, NULL);
+			kdbus_conn_queue_insert(conn_dst, kmsg, NULL, NULL);
 		}
 		mutex_unlock(&ep->bus->lock);
 
@@ -1160,7 +1162,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 	}
 
-	ret = kdbus_conn_queue_insert(conn_dst, kmsg, &queue);
+	/*
+	 * Remember the the reply associated with this queue entry, so we can
+	 * move the reply entry's connection when a onnection moves from an
+	 * activator to an implementor.
+	 */
+	ret = kdbus_conn_queue_insert(conn_dst, kmsg, reply_wait, &offset);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -1170,7 +1177,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry)
-		kdbus_conn_queue_insert(c, kmsg, NULL);
+		kdbus_conn_queue_insert(c, kmsg, NULL, NULL);
 	mutex_unlock(&ep->bus->lock);
 
 	if (reply_wait) {
@@ -1178,13 +1185,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		struct kdbus_cmd_recv recv;
 
 		do_div(us, 1000ULL);
-
-		/*
-		 * Remember the the reply associated with this queue entry,
-		 * so we can move the reply entry's connection when a
-		 * connection moves from an activator to an implementor.
-		 */
-		queue->reply = reply_wait;
 
 		/*
 		 * Block until the reply arrives. reply_wait is left untouched
@@ -1222,7 +1222,7 @@ exit_unref:
 	 * and kdbus_conn_reply_entry_free() will wake up the wait queue.
 	 */
 	if (reply_wake)
-		kdbus_conn_reply_entry_finish(conn_src, reply_wake, queue->off);
+		kdbus_conn_reply_entry_finish(conn_src, reply_wake, offset);
 
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
