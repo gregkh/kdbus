@@ -425,7 +425,6 @@ struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
 	hash_add(ns->user_hash, &u->hentry, u->uid);
 	mutex_unlock(&ns->lock);
 
-printk("new user %u\n", u->uid);
 	return u;
 }
 
@@ -441,7 +440,6 @@ static void __kdbus_ns_user_free(struct kref *kref)
 	hash_del(&user->hentry);
 	mutex_unlock(&user->ns->lock);
 	kdbus_ns_unref(user->ns);
-printk("user %u done\n", user->uid);
 	kfree(user);
 }
 
