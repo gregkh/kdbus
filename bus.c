@@ -41,10 +41,12 @@ bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
 
 /**
  * kdbus_bus_ref() - increase the reference counter of a kdbus_bus
- * @bus:		The bus to unref
+ * @bus:		The bus to reference
  *
  * Every user of a bus, except for its creator, must add a reference to the
  * kdbus_bus using this function.
+ *
+ * Return: the bus itself
  */
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
 {
@@ -215,16 +217,8 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	INIT_LIST_HEAD(&b->monitors_list);
 	atomic64_set(&b->conn_seq_last, 0);
 
-	/* generate unique ID for this bus */
-	get_random_bytes(b->id128, sizeof(b->id128));
-
-	/* Set UUID version to 4 --- truly random generation */
-	b->id128[6] &= 0x0f;
-	b->id128[6] |= 0x40;
-
-	/* Set the UUID variant to DCE */
-	b->id128[8] &= 0x3f;
-	b->id128[8] |= 0x80;
+	/* generate unique bus id */
+	generate_random_uuid(b->id128);
 
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
