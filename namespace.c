@@ -399,8 +399,8 @@ struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
 
 	/* find uid and reference it */
 	mutex_lock(&ns->lock);
-	hash_for_each_possible(ns->user_hash, u, hentry, uid) {
-		if (u->uid != uid)
+	hash_for_each_possible(ns->user_hash, u, hentry, __kuid_val(uid)) {
+		if (!uid_eq(u->uid, uid))
 			continue;
 
 		kref_get(&u->kref);
@@ -422,7 +422,7 @@ struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
 
 	/* link into namespace */
 	mutex_lock(&ns->lock);
-	hash_add(ns->user_hash, &u->hentry, u->uid);
+	hash_add(ns->user_hash, &u->hentry, __kuid_val(u->uid));
 	mutex_unlock(&ns->lock);
 
 	return u;
