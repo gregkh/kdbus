@@ -1657,7 +1657,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 {
 	struct kdbus_cmd_conn_update *cmd_update;
 	struct kdbus_item *item;
-	int ret = 0;
 	u64 size;
 
 	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_update))
@@ -1678,14 +1677,12 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 		case KDBUS_ITEM_ATTACH_FLAGS:
 			conn->attach_flags = item->data64[0];
 			break;
-		default:
-			ret = -EINVAL;
-			break;
 		}
 	}
 
 	kfree(cmd_update);
-	return ret;
+
+	return 0;
 }
 
 /**
