@@ -398,7 +398,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		      u64 seq,
 		      u64 which)
 {
-	int ret = 0;
+	int ret;
 
 	/* all metadata already added */
 	if ((which & meta->attached) == which)
@@ -408,21 +408,21 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_TIMESTAMP)) {
 		ret = kdbus_meta_append_timestamp(meta, seq);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 	if (which & KDBUS_ATTACH_CREDS &&
 	    !(meta->attached & KDBUS_ATTACH_CREDS)) {
 		ret = kdbus_meta_append_cred(meta);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 	if (which & KDBUS_ATTACH_NAMES && conn &&
 	    !(meta->attached & KDBUS_ATTACH_NAMES)) {
 		ret = kdbus_meta_append_src_names(meta, conn);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 	if (which & KDBUS_ATTACH_COMM &&
@@ -432,12 +432,12 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		get_task_comm(comm, current->group_leader);
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_TID_COMM, comm);
 		if (ret < 0)
-			goto exit;
+			return ret;
 
 		get_task_comm(comm, current);
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_PID_COMM, comm);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 	if (which & KDBUS_ATTACH_EXE &&
@@ -445,14 +445,14 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 		ret = kdbus_meta_append_exe(meta);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 	if (which & KDBUS_ATTACH_CMDLINE &&
 	    !(meta->attached & KDBUS_ATTACH_CMDLINE)) {
 		ret = kdbus_meta_append_cmdline(meta);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 	/* we always return a 4 elements, the element size is 1/4  */
@@ -460,7 +460,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_CAPS)) {
 		ret = kdbus_meta_append_caps(meta);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 #ifdef CONFIG_CGROUPS
@@ -469,7 +469,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_CGROUP)) {
 		ret = kdbus_meta_append_cgroup(meta);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 #endif
 
@@ -478,7 +478,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_AUDIT)) {
 		ret = kdbus_meta_append_audit(meta);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 #endif
 
@@ -487,7 +487,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	    !(meta->attached & KDBUS_ATTACH_SECLABEL)) {
 		ret = kdbus_meta_append_seclabel(meta);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 #endif
 
@@ -496,7 +496,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CONN_NAME,
 					    conn->name);
 		if (ret < 0)
-			goto exit;
+			return ret;
 	}
 
 	/*
@@ -505,6 +505,5 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	 */
 	meta->attached |= which;
 
-exit:
-	return ret;
+	return 0;
 }
