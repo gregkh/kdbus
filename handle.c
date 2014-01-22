@@ -214,7 +214,7 @@ static int kdbus_memdup_user(void __user *user_ptr,
 	if (!KDBUS_IS_ALIGNED8((uintptr_t) user_ptr))
 		return -EFAULT;
 
-	if (copy_from_user(&size, user_ptr, sizeof(__u64)))
+	if (copy_from_user(&size, user_ptr, sizeof(size)))
 		return -EFAULT;
 
 	if (size < size_min)
