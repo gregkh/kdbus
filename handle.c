@@ -332,7 +332,14 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		size_t bloom_size;
 		char *name;
 
-		ret = kdbus_bus_make_user(buf, &make, &name, &bloom_size);
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_make),
+					KDBUS_MAKE_MAX_SIZE);
+		if (ret < 0)
+			break;
+
+		make = p;
+		ret = kdbus_bus_make_user(make, &name, &bloom_size);
 		if (ret < 0)
 			break;
 

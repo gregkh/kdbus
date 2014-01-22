@@ -267,7 +267,6 @@ exit:
 
 /**
  * kdbus_bus_make_user() - create a kdbus_cmd_make from user-supplied data
- * @buf:		The user supplied data from the ioctl() call
  * @make:		Reference to the location where to store the result
  * @name:		Shortcut to the requested name
  * @bloom_size:		The bloom filter size as denoted in the make items
@@ -277,100 +276,63 @@ exit:
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
+int kdbus_bus_make_user(struct kdbus_cmd_make *make,
 			char **name, size_t *bloom_size)
 {
-	u64 size;
-	struct kdbus_cmd_make *m;
 	const char *n = NULL;
 	const struct kdbus_item *item;
 	u64 bsize = 0;
 	int ret;
 
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_make))
-		return -EFAULT;
-
-	if (size < sizeof(struct kdbus_cmd_make) || size > KDBUS_MAKE_MAX_SIZE)
-		return -EMSGSIZE;
-
-	m = memdup_user(buf, size);
-	if (IS_ERR(m))
-		return PTR_ERR(m);
-
-	KDBUS_ITEM_FOREACH(item, m, items) {
-		if (!KDBUS_ITEM_VALID(item, m)) {
-			ret = -EINVAL;
-			goto exit;
-		}
+	KDBUS_ITEM_FOREACH(item, make, items) {
+		if (!KDBUS_ITEM_VALID(item, make))
+			return -EINVAL;
 
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
-			if (n) {
-				ret = -EEXIST;
-				goto exit;
-			}
+			if (n)
+				return -EEXIST;
 
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
-				ret = -EINVAL;
-				goto exit;
-			}
+			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2)
+				return -EINVAL;
 
 			if (item->size > KDBUS_ITEM_HEADER_SIZE +
-					 KDBUS_SYSNAME_MAX_LEN + 1) {
-				ret = -ENAMETOOLONG;
-				goto exit;
-			}
+					 KDBUS_SYSNAME_MAX_LEN + 1)
+				return -ENAMETOOLONG;
 
 			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE)) {
-				ret = -EINVAL;
-				goto exit;
-			}
+					item->size - KDBUS_ITEM_HEADER_SIZE))
+				return -EINVAL;
 
 			ret = kdbus_sysname_is_valid(item->str);
 			if (ret < 0)
-				goto exit;
+				return ret;
 
 			n = item->str;
 			break;
 
 		case KDBUS_ITEM_BLOOM_SIZE:
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + sizeof(u64)) {
-				ret = -EINVAL;
-				goto exit;
-			}
+			if (item->size < KDBUS_ITEM_HEADER_SIZE + sizeof(u64))
+				return -EINVAL;
 
 			bsize = item->data64[0];
 			break;
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, m)) {
-		ret = -EINVAL;
-		goto exit;
-	}
+	if (!KDBUS_ITEM_END(item, make))
+		return -EINVAL;
 
-	if (!n) {
-		ret = -EBADMSG;
-		goto exit;
-	}
+	if (!n)
+		return -EBADMSG;
 
-	if (!KDBUS_IS_ALIGNED8(bsize)) {
-		ret = -EINVAL;
-		goto exit;
-	}
+	if (!KDBUS_IS_ALIGNED8(bsize))
+		return -EINVAL;
 
-	if (bsize < 8 || bsize > SZ_16K) {
-		ret = -EINVAL;
-		goto exit;
-	}
+	if (bsize < 8 || bsize > SZ_16K)
+		return -EINVAL;
 
-	*make = m;
 	*name = (char *)n;
 	*bloom_size = (size_t)bsize;
 	return 0;
-
-exit:
-	kfree(m);
-	return ret;
 }

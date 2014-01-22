@@ -68,7 +68,7 @@ struct kdbus_bus {
 	struct kdbus_ns_user *user;
 };
 
-int kdbus_bus_make_user(void __user *buf, struct kdbus_cmd_make **make,
+int kdbus_bus_make_user(struct kdbus_cmd_make *make,
 			char **name, size_t *bsize);
 int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_make *make,
 		  const char *name, size_t bloom_size,
