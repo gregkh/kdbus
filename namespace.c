@@ -310,87 +310,56 @@ exit_unlock:
 
 /**
  * kdbus_ns_make_user() - create namespace data from user data
- * @buf:		User data
- * @make:		The returned copy of user data
+ * @cmd:		The command as passed in by the ioctl
  * @name:		The name of the namespace to create
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_ns_make_user(void __user *buf,
-		       struct kdbus_cmd_make **make, char **name)
+int kdbus_ns_make_user(struct kdbus_cmd_make *cmd, char **name)
 {
-	u64 size;
-	struct kdbus_cmd_make *m;
 	const struct kdbus_item *item;
 	const char *n = NULL;
 	int ret;
 
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_make))
-		return -EFAULT;
-
-	if (size < sizeof(struct kdbus_cmd_make) || size > KDBUS_MAKE_MAX_SIZE)
-		return -EMSGSIZE;
-
-	m = memdup_user(buf, size);
-	if (IS_ERR(m))
-		return PTR_ERR(m);
-
-	KDBUS_ITEM_FOREACH(item, m, items) {
+	KDBUS_ITEM_FOREACH(item, cmd, items) {
 		size_t payload_size;
 
-		if (!KDBUS_ITEM_VALID(item, m)) {
-			ret = -EINVAL;
-			goto exit;
-		}
+		if (!KDBUS_ITEM_VALID(item, cmd))
+			return -EINVAL;
 
 		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
 
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
-			if (n) {
-				ret = -EEXIST;
-				goto exit;
-			}
+			if (n)
+				return -EEXIST;
 
-			if (payload_size < 2) {
-				ret = -EINVAL;
-				goto exit;
-			}
+			if (payload_size < 2)
+				return -EINVAL;
 
-			if (payload_size > KDBUS_SYSNAME_MAX_LEN + 1) {
-				ret = -ENAMETOOLONG;
-				goto exit;
-			}
+			if (payload_size > KDBUS_SYSNAME_MAX_LEN + 1)
+				return -ENAMETOOLONG;
 
-			if (!kdbus_validate_nul(item->str, payload_size)) {
-				ret = -EINVAL;
-				goto exit;
-			}
+			if (!kdbus_validate_nul(item->str, payload_size))
+				return -EINVAL;
 
 			ret = kdbus_sysname_is_valid(item->str);
 			if (ret < 0)
-				goto exit;
+				return ret;
 
 			n = item->str;
 			continue;
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, m))
+	if (!KDBUS_ITEM_END(item, cmd))
 		return -EINVAL;
 
-	if (!name) {
-		ret = -EBADMSG;
-		goto exit;
-	}
+	if (!name)
+		return -EBADMSG;
 
-	*make = m;
 	*name = (char *)n;
 	return 0;
-
-exit:
-	kfree(m);
-	return ret;
 }
 
 struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)

@@ -92,8 +92,7 @@ struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns);
 void kdbus_ns_disconnect(struct kdbus_ns *ns);
 int kdbus_ns_new(struct kdbus_ns *parent, const char *name,
 		 umode_t mode, struct kdbus_ns **ns);
-int kdbus_ns_make_user(void __user *buf,
-		       struct kdbus_cmd_make **make, char **name);
+int kdbus_ns_make_user(struct kdbus_cmd_make *cmd, char **name);
 struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major);
 
 struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid);

@@ -316,10 +316,11 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 				       void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_cmd_make *make = NULL;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_ns *ns = NULL;
+	struct kdbus_cmd_make *make;
 	umode_t mode = 0600;
+	void *p = NULL;
 	int ret;
 
 	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
@@ -366,7 +367,14 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_ns_make_user(buf, &make, &name);
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_make),
+					KDBUS_MAKE_MAX_SIZE);
+		if (ret < 0)
+			break;
+
+		make = p;
+		ret = kdbus_ns_make_user(make, &name);
 		if (ret < 0)
 			break;
 
@@ -396,6 +404,8 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		ret = -ENOTTY;
 		break;
 	}
+
+	kfree(p);
 
 	return ret;
 }
