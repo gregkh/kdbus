@@ -239,9 +239,8 @@ static int kdbus_handle_memfd(void __user *buf)
 	struct kdbus_cmd_memfd_make *m = NULL;
 	const struct kdbus_item *item;
 	const char *n = NULL;
-	int fd;
 	int __user *addr;
-	int ret;
+	int fd, ret;
 
 	ret = kdbus_memdup_user(buf, (void **) &m, NULL,
 				sizeof(struct kdbus_cmd_memfd_make),
@@ -317,8 +316,8 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 {
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_bus *bus = NULL;
-	struct kdbus_ns *ns = NULL;
 	struct kdbus_cmd_make *make;
+	struct kdbus_ns *ns = NULL;
 	umode_t mode = 0600;
 	void *p = NULL;
 	int ret;
@@ -717,10 +716,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		u64 off;
 
 		/* free the memory used in the receiver's pool */
-		if (copy_from_user(&off, buf, sizeof(__u64))) {
-			ret = -EFAULT;
-			break;
-		}
+		if (copy_from_user(&off, buf, sizeof(__u64)))
+			return -EFAULT;
 
 		ret = kdbus_pool_free_range(conn->pool, off);
 		break;
