@@ -362,6 +362,14 @@ int kdbus_ns_make_user(struct kdbus_cmd_make *cmd, char **name)
 	return 0;
 }
 
+/**
+ * kdbus_ns_user_ref() - get a kdbus_ns_user object in a namespace
+ * @ns:		The namespace
+ * @uid:	The uid of the user
+ *
+ * Return: a kdbus_ns_user, either freshly allocated or with the reference
+ * counter increased. In case of memory allocation failure, NULL is returned.
+ */
 struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
 {
 	struct kdbus_ns_user *u;
