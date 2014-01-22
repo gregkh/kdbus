@@ -301,16 +301,14 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	umode_t mode = 0600;
 	int ret;
 
+	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+		return -EFAULT;
+
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE: {
 		kgid_t gid = KGIDT_INIT(0);
 		size_t bloom_size;
 		char *name;
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
 
 		ret = kdbus_bus_make_user(buf, &make, &name, &bloom_size);
 		if (ret < 0)
@@ -344,11 +342,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 
 		if (!capable(CAP_IPC_OWNER)) {
 			ret = -EPERM;
-			break;
-		}
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
 			break;
 		}
 
@@ -395,6 +388,9 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	struct kdbus_cmd_hello *hello = NULL;
 	long ret = 0;
 
+	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+		return -EFAULT;
+
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
 		umode_t mode = 0;
@@ -403,11 +399,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		/* creating custom endpoints is a privileged operation */
 		if (!kdbus_bus_uid_is_privileged(handle->ep->bus)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
 			ret = -EFAULT;
 			break;
 		}
@@ -440,11 +431,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		/* turn this fd into a connection. */
 		size_t size;
 		void *v;
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
 
 		if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_hello)) {
 			ret = -EFAULT;
@@ -510,6 +496,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	struct kdbus_bus *bus = conn->ep->bus;
 	long ret = 0;
 
+	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+		return -EFAULT;
+
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
 		ret = kdbus_conn_disconnect(conn, true);
@@ -517,11 +506,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		/* mangling policy is a privileged operation */
 		if (!kdbus_bus_uid_is_privileged(bus)) {
 			ret = -EFAULT;
@@ -539,82 +523,42 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, buf);
 		break;
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_cmd_name_release(bus->name_registry, conn, buf);
 		break;
 
 	case KDBUS_CMD_NAME_LIST:
 		/* query current IDs and names */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
 		break;
 
 	case KDBUS_CMD_CONN_INFO:
 		/* return the properties of a connection */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_cmd_conn_info(conn, buf);
 		break;
 
 	case KDBUS_CMD_CONN_UPDATE:
 		/* update flags for a connection */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_cmd_conn_update(conn, buf);
 		break;
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_match_db_add(conn, buf);
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_match_db_remove(conn, buf);
 		break;
 
 	case KDBUS_CMD_MSG_SEND: {
 		/* submit a message which will be queued in the receiver */
 		struct kdbus_kmsg *kmsg = NULL;
-
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
 
 		ret = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
 		if (ret < 0)
@@ -642,11 +586,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MSG_RECV:
 		/* handle a queued message */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		ret = kdbus_conn_recv_msg_user(conn, buf);
 		break;
 
@@ -654,11 +593,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		u64 off;
 
 		/* free the memory used in the receiver's pool */
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		if (copy_from_user(&off, buf, sizeof(__u64))) {
 			ret = -EFAULT;
 			break;
