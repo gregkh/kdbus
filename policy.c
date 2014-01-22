@@ -430,7 +430,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_cmd_policy_set_from_user() - set a connection's policy rules
+ * kdbus_cmd_policy_set() - set a connection's policy rules
  * @db:		The policy database
  * @buf:	The __user buffer that was provided by the ioctl() call
  *
@@ -439,7 +439,7 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_cmd_policy_set_from_user(struct kdbus_policy_db *db, void __user *buf)
+int kdbus_cmd_policy_set(struct kdbus_policy_db *db, void __user *buf)
 {
 	struct kdbus_cmd_policy *cmd;
 	u64 size;

@@ -518,7 +518,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 				break;
 		}
 
-		ret = kdbus_cmd_policy_set_from_user(conn->ep->policy_db, buf);
+		ret = kdbus_cmd_policy_set(conn->ep->policy_db, buf);
 		break;
 
 	case KDBUS_CMD_NAME_ACQUIRE:
