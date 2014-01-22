@@ -209,6 +209,7 @@ struct kdbus_policy {
  * @KDBUS_ITEM_DST_NAME:	Destination's well-known name
  * @KDBUS_ITEM_MAKE_NAME:	Name of namespace, bus, endpoint
  * @KDBUS_ITEM_MEMFD_NAME:	The human readable name of a memfd (debugging)
+ * @KDBUS_ITEM_ATTACH_FLAGS:	Attach flags for connection (update only)
  * @_KDBUS_ITEM_POLICY_BASE:	Start of policy items
  * @KDBUS_ITEM_POLICY_NAME:	Policy in struct kdbus_policy
  * @KDBUS_ITEM_POLICY_ACCESS:	Policy in struct kdbus_policy
@@ -247,6 +248,7 @@ enum kdbus_item_type {
 	KDBUS_ITEM_DST_NAME,
 	KDBUS_ITEM_MAKE_NAME,
 	KDBUS_ITEM_MEMFD_NAME,
+	KDBUS_ITEM_ATTACH_FLAGS,
 
 	_KDBUS_ITEM_POLICY_BASE	= 0x1000,
 	KDBUS_ITEM_POLICY_NAME = _KDBUS_ITEM_POLICY_BASE,
@@ -693,12 +695,14 @@ struct kdbus_conn_info {
 
 /**
  * struct kdbus_cmd_conn_update - update flags of a connection
- * @attach_flags:	The new attach flags
+ * @size:		The total size of the struct
+ * @items:		A list of struct kdbus_item
  *
  * This struct is used with the KDBUS_CMD_CONN_UPDATE ioctl.
  */
 struct kdbus_cmd_conn_update {
-	__u64 attach_flags;
+	__u64 size;
+	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
 /**
