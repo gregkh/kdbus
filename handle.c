@@ -323,9 +323,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	void *p = NULL;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-		return -EFAULT;
-
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE: {
 		kgid_t gid = KGIDT_INIT(0);
@@ -424,9 +421,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	struct kdbus_handle *handle = file->private_data;
 	void *p = NULL;
 	long ret = 0;
-
-	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-		return -EFAULT;
 
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
@@ -530,9 +524,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	void *p = NULL;
 	long ret = 0;
 	u64 size;
-
-	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-		return -EFAULT;
 
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
@@ -660,7 +651,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 						KDBUS_MATCH_MAX_SIZE);
 		if (ret < 0)
 			break;
-
 
 		ret = kdbus_match_db_add(conn, p);
 		break;
