@@ -422,7 +422,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 				  void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_cmd_hello *hello = NULL;
 	void *p = NULL;
 	long ret = 0;
 
@@ -475,26 +474,15 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_HELLO: {
 		/* turn this fd into a connection. */
-		size_t size;
-		void *v;
+		struct kdbus_cmd_hello *hello;
 
-		if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_hello)) {
-			ret = -EFAULT;
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_hello),
+					KDBUS_HELLO_MAX_SIZE);
+		if (ret < 0)
 			break;
-		}
 
-		if (size < sizeof(struct kdbus_cmd_hello) ||
-		    size > KDBUS_HELLO_MAX_SIZE) {
-			ret = -EMSGSIZE;
-			break;
-		}
-
-		v = memdup_user(buf, size);
-		if (IS_ERR(v)) {
-			ret = PTR_ERR(v);
-			break;
-		}
-		hello = v;
+		hello = p;
 
 		if (!kdbus_check_flags(hello->conn_flags)) {
 			ret = -ENOTSUPP;
@@ -514,7 +502,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		handle->type = KDBUS_HANDLE_EP_CONNECTED;
 
-		if (copy_to_user(buf, hello, sizeof(struct kdbus_cmd_hello))) {
+		if (copy_to_user(buf, p, sizeof(struct kdbus_cmd_hello))) {
 			kdbus_conn_unref(handle->conn);
 			ret = -EFAULT;
 		}
@@ -528,7 +516,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	}
 
 	kfree(p);
-	kfree(hello);
 
 	return ret;
 }
