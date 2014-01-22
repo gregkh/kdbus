@@ -1646,6 +1646,26 @@ exit:
 }
 
 /**
+ * kdbus_conn_update() - update flags for a connection
+ * @conn:		Connection
+ * @buf:		The struct containing the new flags
+ *
+ * Return: 0 on success, negative errno on failure.
+ */
+int kdbus_cmd_conn_update(struct kdbus_conn *conn,
+			  void __user *buf)
+{
+	struct kdbus_cmd_conn_update cmd_update;
+
+	if (copy_from_user(&cmd_update, buf, sizeof(cmd_update)))
+		return -EFAULT;
+
+	conn->attach_flags = cmd_update.attach_flags;
+
+	return 0;
+}
+
+/**
  * kdbus_conn_new() - create a new connection
  * @ep:			The endpoint the connection is connected to
  * @hello:		The kdbus_cmd_hello as passed in by the user

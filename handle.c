@@ -577,6 +577,16 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_cmd_conn_info(conn, buf);
 		break;
 
+	case KDBUS_CMD_CONN_UPDATE:
+		/* update flags for a connection */
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
+			ret = -EFAULT;
+			break;
+		}
+
+		ret = kdbus_cmd_conn_update(conn, buf);
+		break;
+
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {

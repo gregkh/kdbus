@@ -692,6 +692,16 @@ struct kdbus_conn_info {
 };
 
 /**
+ * struct kdbus_cmd_conn_update - update flags of a connection
+ * @attach_flags:	The new attach flags
+ *
+ * This struct is used with the KDBUS_CMD_CONN_UPDATE ioctl.
+ */
+struct kdbus_cmd_conn_update {
+	__u64 attach_flags;
+} __attribute__((aligned(8)));
+
+/**
  * struct kdbus_cmd_match - struct to add or remove matches
  * @size:		The total size of the struct
  * @owner_id:		Privileged users may (de)register matches on behalf
@@ -767,6 +777,7 @@ struct kdbus_cmd_memfd_make {
  *				stored at registration time and does not
  *				necessarily represent the connected process or
  *				the actual state of the process.
+ * @KDBUS_CMD_CONN_UPDATE:	Update flags for a connection.
  * @KDBUS_CMD_MATCH_ADD:	Install a match which broadcast messages should
  *				be delivered to the connection.
  * @KDBUS_CMD_MATCH_REMOVE:	Remove a current match for broadcast messages.
@@ -817,6 +828,7 @@ enum kdbus_ioctl_type {
 	KDBUS_CMD_NAME_LIST =		_IOWR(KDBUS_IOC_MAGIC, 0x52, struct kdbus_cmd_name_list),
 
 	KDBUS_CMD_CONN_INFO =		_IOWR(KDBUS_IOC_MAGIC, 0x60, struct kdbus_cmd_conn_info),
+	KDBUS_CMD_CONN_UPDATE =		_IOW (KDBUS_IOC_MAGIC, 0x61, struct kdbus_cmd_conn_update),
 
 	KDBUS_CMD_MATCH_ADD =		_IOW (KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_match),
 	KDBUS_CMD_MATCH_REMOVE =	_IOW (KDBUS_IOC_MAGIC, 0x71, struct kdbus_cmd_match),

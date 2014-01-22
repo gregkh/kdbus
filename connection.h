@@ -97,6 +97,8 @@ int kdbus_conn_recv_msg_user(struct kdbus_conn *conn,
 			     struct kdbus_cmd_recv __user *recv);
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			void __user *buf);
+int kdbus_cmd_conn_update(struct kdbus_conn *conn,
+			  void __user *buf);
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
