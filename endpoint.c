@@ -232,85 +232,52 @@ exit:
 
 /**
  * kdbus_ep_make_user() - create endpoint data from user data
- * @buf:		User data
  * @make:		The returned copy of user data
  * @name:		The name of the endpoint to create
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_ep_make_user(void __user *buf,
-		       struct kdbus_cmd_make **make, char **name)
+int kdbus_ep_make_user(struct kdbus_cmd_make *make, char **name)
 {
-	u64 size;
-	struct kdbus_cmd_make *m;
 	const struct kdbus_item *item;
 	const char *n = NULL;
 	int ret;
 
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_make))
-		return -EFAULT;
-
-	if (size < sizeof(struct kdbus_cmd_make) || size > KDBUS_MAKE_MAX_SIZE)
-		return -EMSGSIZE;
-
-	m = memdup_user(buf, size);
-	if (IS_ERR(m))
-		return PTR_ERR(m);
-
-	KDBUS_ITEM_FOREACH(item, m, items) {
-		if (!KDBUS_ITEM_VALID(item, m)) {
-			ret = -EINVAL;
-			goto exit;
-		}
+	KDBUS_ITEM_FOREACH(item, make, items) {
+		if (!KDBUS_ITEM_VALID(item, make))
+			return -EINVAL;
 
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
-			if (n) {
-				ret = -EEXIST;
-				goto exit;
-			}
+			if (n)
+				return -EEXIST;
 
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
-				ret = -EINVAL;
-				goto exit;
-			}
+			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2)
+				return -EINVAL;
 
 			if (item->size > KDBUS_ITEM_HEADER_SIZE +
-					 KDBUS_SYSNAME_MAX_LEN + 1) {
-				ret = -ENAMETOOLONG;
-				goto exit;
-			}
+					 KDBUS_SYSNAME_MAX_LEN + 1)
+				return -ENAMETOOLONG;
 
 			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE)) {
-				ret = -EINVAL;
-				goto exit;
-			}
+					item->size - KDBUS_ITEM_HEADER_SIZE))
+				return -EINVAL;
 
 			ret = kdbus_sysname_is_valid(item->str);
 			if (ret < 0)
-				goto exit;
+				return ret;
 
 			n = item->str;
 			continue;
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, m)) {
-		ret = -EINVAL;
-		goto exit;
-	}
+	if (!KDBUS_ITEM_END(item, make))
+		return -EINVAL;
 
-	if (!n) {
-		ret = -EBADMSG;
-		goto exit;
-	}
+	if (!n)
+		return -EBADMSG;
 
-	*make = m;
 	*name = (char *)n;
 	return 0;
-
-exit:
-	kfree(m);
-	return ret;
 }

@@ -422,8 +422,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 				  void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_cmd_make *make = NULL;
 	struct kdbus_cmd_hello *hello = NULL;
+	void *p = NULL;
 	long ret = 0;
 
 	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
@@ -431,6 +431,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_EP_MAKE: {
+		struct kdbus_cmd_make *make;
 		umode_t mode = 0;
 		kgid_t gid = KGIDT_INIT(0);
 		char *name;
@@ -441,7 +442,14 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_ep_make_user(buf, &make, &name);
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_make),
+					KDBUS_MAKE_MAX_SIZE);
+		if (ret < 0)
+			break;
+
+		make = p;
+		ret = kdbus_ep_make_user(make, &name);
 		if (ret < 0)
 			break;
 
@@ -519,7 +527,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kfree(make);
+	kfree(p);
 	kfree(hello);
 
 	return ret;
