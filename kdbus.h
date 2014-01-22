@@ -209,7 +209,8 @@ struct kdbus_policy {
  * @KDBUS_ITEM_DST_NAME:	Destination's well-known name
  * @KDBUS_ITEM_MAKE_NAME:	Name of namespace, bus, endpoint
  * @KDBUS_ITEM_MEMFD_NAME:	The human readable name of a memfd (debugging)
- * @KDBUS_ITEM_ATTACH_FLAGS:	Attach flags for connection (update only)
+ * @KDBUS_ITEM_ATTACH_FLAGS:	Attach-flags, used for updating which metadata
+ *				a connection subscribes to
  * @_KDBUS_ITEM_POLICY_BASE:	Start of policy items
  * @KDBUS_ITEM_POLICY_NAME:	Policy in struct kdbus_policy
  * @KDBUS_ITEM_POLICY_ACCESS:	Policy in struct kdbus_policy
@@ -781,7 +782,8 @@ struct kdbus_cmd_memfd_make {
  *				stored at registration time and does not
  *				necessarily represent the connected process or
  *				the actual state of the process.
- * @KDBUS_CMD_CONN_UPDATE:	Update flags for a connection.
+ * @KDBUS_CMD_CONN_UPDATE:	Update the properties of a connection. Used to
+ *				update the metadata subscription.
  * @KDBUS_CMD_MATCH_ADD:	Install a match which broadcast messages should
  *				be delivered to the connection.
  * @KDBUS_CMD_MATCH_REMOVE:	Remove a current match for broadcast messages.

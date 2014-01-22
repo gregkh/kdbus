@@ -336,7 +336,7 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
  * Also note that KDBUS_ITEM_BLOOM, KDBUS_ITEM_NAME and KDBUS_ITEM_ID are
  * used to match messages from userspace, while the others apply to kernel-
  * generated notifications.
-
+ *
  * Return: 0 on success, negative errno on failure
  */
 int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)

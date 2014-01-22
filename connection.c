@@ -952,7 +952,7 @@ exit_rewind:
 /**
  * kdbus_conn_recv_msg_user - receive a message from the queue
  * @conn:		Connection to work on
- * @recv_user:		A struct kdbus_cmd_recv containing the command details
+ * @recv_buf:		A struct kdbus_cmd_recv containing the command details
  *
  * Return: 0 on success, negative errno on failure
  */
