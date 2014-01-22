@@ -203,7 +203,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 		return -EEXIST;
 	}
 
-	b = kzalloc(sizeof(struct kdbus_bus), GFP_KERNEL);
+	b = kzalloc(sizeof(*b), GFP_KERNEL);
 	if (!b)
 		return -ENOMEM;
 

@@ -92,7 +92,7 @@ static struct kdbus_slice *kdbus_pool_slice_new(size_t off, size_t size)
 {
 	struct kdbus_slice *slice;
 
-	slice = kzalloc(sizeof(struct kdbus_slice), GFP_KERNEL);
+	slice = kzalloc(sizeof(*slice), GFP_KERNEL);
 	if (!slice)
 		return NULL;
 
@@ -285,7 +285,7 @@ int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool)
 
 	BUG_ON(*pool);
 
-	p = kzalloc(sizeof(struct kdbus_pool), GFP_KERNEL);
+	p = kzalloc(sizeof(*p), GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;
 

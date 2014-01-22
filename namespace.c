@@ -206,7 +206,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
 
-	n = kzalloc(sizeof(struct kdbus_ns), GFP_KERNEL);
+	n = kzalloc(sizeof(*n), GFP_KERNEL);
 	if (!n)
 		return -ENOMEM;
 
@@ -274,7 +274,7 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 	n->id = ++kdbus_ns_seq_last;
 
 	/* register control device for this namespace */
-	n->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
+	n->dev = kzalloc(sizeof(*n->dev), GFP_KERNEL);
 	if (!n->dev) {
 		ret = -ENOMEM;
 		goto exit_unlock;

@@ -96,7 +96,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	struct kdbus_ep *ep;
 	int ret;
 
-	handle = kzalloc(sizeof(struct kdbus_handle), GFP_KERNEL);
+	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
 	if (!handle)
 		return -ENOMEM;
 
@@ -242,7 +242,7 @@ static int kdbus_handle_memfd(void __user *buf)
 	int __user *addr;
 	int fd, ret;
 
-	ret = kdbus_memdup_user(buf, (void **) &m, NULL,
+	ret = kdbus_memdup_user(buf, (void **)&m, NULL,
 				sizeof(struct kdbus_cmd_memfd_make),
 				sizeof(struct kdbus_cmd_memfd_make) +
 					KDBUS_MAKE_MAX_SIZE);
@@ -681,7 +681,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		/* store the offset of the reply back to userspace */
 		if (kmsg->msg.flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
-			u8 *off = (u8 *) buf +
+			u8 *off = (u8 *)buf +
 				  offsetof(struct kdbus_msg, offset_reply);
 
 			if (copy_to_user(off, &kmsg->msg.offset_reply,

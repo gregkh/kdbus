@@ -41,7 +41,7 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 
 	BUG_ON(*meta);
 
-	m = kzalloc(sizeof(struct kdbus_meta), GFP_KERNEL);
+	m = kzalloc(sizeof(*m), GFP_KERNEL);
 	if (!m)
 		return -ENOMEM;
 
@@ -103,7 +103,6 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
 		kfree(meta->data);
 		meta->data = data;
 		meta->allocated_size = size;
-
 	}
 
 	/* insert new record */
@@ -244,7 +243,7 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta)
 		char *tmp;
 		char *pathname;
 
-		tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+		tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 		if (!tmp) {
 			path_put(exe_path);
 			return -ENOMEM;
@@ -270,7 +269,7 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 	char *tmp;
 	int ret = 0;
 
-	tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 	if (!tmp)
 		return -ENOMEM;
 
@@ -324,7 +323,7 @@ static int kdbus_meta_append_cgroup(struct kdbus_meta *meta)
 	char *tmp;
 	int ret;
 
-	tmp = (char *) __get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 	if (!tmp)
 		return -ENOMEM;
 

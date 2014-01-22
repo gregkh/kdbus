@@ -161,7 +161,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 		return -EEXIST;
 	}
 
-	e = kzalloc(sizeof(struct kdbus_ep), GFP_KERNEL);
+	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e)
 		return -ENOMEM;
 
@@ -191,7 +191,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 	mutex_unlock(&ns->lock);
 
 	/* register bus endpoint device */
-	e->dev = kzalloc(sizeof(struct device), GFP_KERNEL);
+	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);
 	if (!e->dev) {
 		ret = -ENOMEM;
 		goto exit;

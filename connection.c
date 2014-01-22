@@ -460,7 +460,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
 		return -ECOMM;
 
-	queue = kzalloc(sizeof(struct kdbus_conn_queue), GFP_KERNEL);
+	queue = kzalloc(sizeof(*queue), GFP_KERNEL);
 	if (!queue)
 		return -ENOMEM;
 
@@ -699,7 +699,7 @@ static void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
 
 static void kdbus_conn_timer_func(unsigned long val)
 {
-	struct kdbus_conn *conn = (struct kdbus_conn *) val;
+	struct kdbus_conn *conn = (struct kdbus_conn *)val;
 	kdbus_conn_timeout_schedule_scan(conn);
 }
 

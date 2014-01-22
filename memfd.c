@@ -110,7 +110,7 @@ int kdbus_memfd_new(const char *name, size_t size, int *fd)
 	int f;
 	int ret;
 
-	mf = kzalloc(sizeof(struct kdbus_memfile), GFP_KERNEL);
+	mf = kzalloc(sizeof(*mf), GFP_KERNEL);
 	if (!mf)
 		return -ENOMEM;
 

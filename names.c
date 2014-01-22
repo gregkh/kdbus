@@ -347,7 +347,8 @@ bool kdbus_name_is_valid(const char *p)
 			if (dot)
 				return false;
 
-			found_dot = dot = true;
+			found_dot = true;
+			dot = true;
 		} else {
 			bool good;
 
