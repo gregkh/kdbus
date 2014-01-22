@@ -89,6 +89,7 @@ struct kdbus_conn_queue {
 	s64 priority;
 	size_t off;
 	size_t size;
+	bool expect_reply:1;
 
 	size_t *memfds;
 	struct file **memfds_fp;
@@ -599,6 +600,10 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	queue->size = want;
 	queue->priority = kmsg->msg.priority;
 	queue->reply = reply;
+
+	if (queue->src_id != KDBUS_SRC_ID_KERNEL &&
+	    kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
+		queue->expect_reply = true;
 
 	/* link the message into the receiver's queue */
 	kdbus_conn_queue_add(conn, queue);
@@ -1305,7 +1310,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	/* clean up any messages still left on this endpoint */
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
-		if (queue->src_id > 0)
+		if (queue->expect_reply)
 			kdbus_notify_reply_dead(queue->src_id,
 						queue->cookie, &notify_list);
 
