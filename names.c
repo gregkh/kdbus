@@ -502,105 +502,75 @@ exit_unlock:
  * kdbus_cmd_name_acquire() - acquire a name from a ioctl command buffer
  * @reg:		The name registry
  * @conn:		The connection to pin this entry to
- * @buf:		The __user buffer as passed in by the ioctl
+ * @cmd:		The command as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
-			   void __user *buf)
+			   struct kdbus_cmd_name *cmd)
 {
-	u64 allowed;
 	struct kdbus_name_entry *e = NULL;
-	struct kdbus_cmd_name *cmd_name;
 	LIST_HEAD(notify_list);
-	u64 size;
-	u32 hash;
+	u64 allowed;
 	int ret = 0;
-
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name))
-		return -EFAULT;
+	u32 hash;
 
 	/* monitor connection may not own names */
 	if (conn->flags & KDBUS_HELLO_MONITOR)
 		return -EPERM;
 
-	if ((size < sizeof(struct kdbus_cmd_name)) ||
-	    (size > (sizeof(struct kdbus_cmd_name) + KDBUS_NAME_MAX_LEN + 1)))
-		return -EMSGSIZE;
-
 	if (conn->names > KDBUS_CONN_MAX_NAMES)
 		return -E2BIG;
-
-	cmd_name = memdup_user(buf, size);
-	if (IS_ERR(cmd_name))
-		return PTR_ERR(cmd_name);
 
 	/* refuse improper flags when requesting */
 	allowed = KDBUS_NAME_REPLACE_EXISTING|
 		  KDBUS_NAME_ALLOW_REPLACEMENT|
 		  KDBUS_NAME_QUEUE;
-	if ((cmd_name->flags & ~allowed) != 0)
+	if ((cmd->flags & ~allowed) != 0)
 		return -EINVAL;
 
-	if (!kdbus_check_strlen(cmd_name, name) ||
-	    !kdbus_name_is_valid(cmd_name->name)) {
-		ret = -EINVAL;
-		goto exit_free;
-	}
+	if (!kdbus_check_strlen(cmd, name) ||
+	    !kdbus_name_is_valid(cmd->name))
+		return -EINVAL;
 
 	/* privileged users can act on behalf of someone else */
-	if (cmd_name->owner_id != 0) {
+	if (cmd->owner_id != 0) {
 		struct kdbus_conn *new_conn;
 		struct kdbus_bus *bus = conn->ep->bus;
 
-		if (!kdbus_bus_uid_is_privileged(bus)) {
-			ret = -EPERM;
-			goto exit_free;
-		}
+		if (!kdbus_bus_uid_is_privileged(bus))
+			return -EPERM;
 
 		mutex_lock(&bus->lock);
-		new_conn = kdbus_bus_find_conn_by_id(bus, cmd_name->owner_id);
+		new_conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
 		mutex_unlock(&bus->lock);
 
-		if (!new_conn) {
-			ret = -ENXIO;
-			goto exit_free;
-		}
+		if (!new_conn)
+			return -ENXIO;
 
 		conn = new_conn;
 	} else {
 		kdbus_conn_ref(conn);
 	}
 
-	hash = kdbus_str_hash(cmd_name->name);
+	hash = kdbus_str_hash(cmd->name);
 
 	if (conn->ep->policy_db) {
 		if (!kdbus_policy_db_check_own_access(conn->ep->policy_db,
-						      conn, cmd_name->name)) {
+						      conn, cmd->name)) {
 			ret = -EPERM;
 			goto exit_unref_conn;
 		}
 	}
 
-	ret = kdbus_name_acquire(reg, conn, cmd_name->name,
-				 &cmd_name->flags, &e);
-	if (ret < 0)
-		goto exit_unref_conn;
-
-	/* return flags to the caller */
-	if (copy_to_user(buf, cmd_name, size)) {
-		ret = -EFAULT;
-		kdbus_conn_kmsg_list_free(&notify_list);
-		kdbus_name_entry_release(e, NULL);
-	}
+	ret = kdbus_name_acquire(reg, conn, cmd->name,
+				 &cmd->flags, &e);
 
 exit_unref_conn:
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 	kdbus_conn_unref(conn);
 
-exit_free:
-	kfree(cmd_name);
 	return ret;
 }
 
@@ -608,41 +578,26 @@ exit_free:
  * kdbus_cmd_name_release() - release a name entry from a ioctl command buffer
  * @reg:		The name registry
  * @conn:		The connection that holds the name
- * @buf:		The __user buffer as passed in by the ioctl
+ * @cmd:		The command as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
-			   void __user *buf)
+			   struct kdbus_cmd_name *cmd)
 {
 	struct kdbus_name_entry *e;
-	struct kdbus_cmd_name *cmd_name;
 	LIST_HEAD(notify_list);
-	u64 size;
-	u32 hash;
 	int ret = 0;
+	u32 hash;
 
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_name))
-		return -EFAULT;
+	if (!kdbus_name_is_valid(cmd->name))
+		return -EINVAL;
 
-	if ((size < sizeof(struct kdbus_cmd_name)) ||
-	    (size > (sizeof(struct kdbus_cmd_name) + KDBUS_NAME_MAX_LEN + 1)))
-		return -EMSGSIZE;
-
-	cmd_name = memdup_user(buf, size);
-	if (IS_ERR(cmd_name))
-		return PTR_ERR(cmd_name);
-
-	if (!kdbus_name_is_valid(cmd_name->name)) {
-		ret = -EINVAL;
-		goto exit_free;
-	}
-
-	hash = kdbus_str_hash(cmd_name->name);
+	hash = kdbus_str_hash(cmd->name);
 
 	mutex_lock(&reg->entries_lock);
-	e = __kdbus_name_lookup(reg, hash, cmd_name->name);
+	e = __kdbus_name_lookup(reg, hash, cmd->name);
 	if (!e) {
 		ret = -ESRCH;
 		conn = NULL;
@@ -650,7 +605,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	}
 
 	/* privileged users can act on behalf of someone else */
-	if (cmd_name->owner_id > 0) {
+	if (cmd->owner_id > 0) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		if (!kdbus_bus_uid_is_privileged(bus)) {
@@ -659,7 +614,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 		}
 
 		mutex_lock(&bus->lock);
-		conn = kdbus_bus_find_conn_by_id(bus, cmd_name->owner_id);
+		conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
 		mutex_unlock(&bus->lock);
 
 		if (!conn) {
@@ -680,8 +635,6 @@ exit_unlock:
 		kdbus_conn_unref(conn);
 	}
 
-exit_free:
-	kfree(cmd_name);
 	return ret;
 }
 
@@ -803,23 +756,18 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
  * kdbus_cmd_name_list() - list names of a connection
  * @reg:		The name registry
  * @conn:		The connection holding the name entries
- * @buf:		The __user buffer as passed in by the ioctl
+ * @cmd:		The command as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
-			void __user *buf)
+			struct kdbus_cmd_name_list *cmd)
 {
-	struct kdbus_cmd_name_list *cmd_list;
 	struct kdbus_name_list list = {};
 	size_t size;
 	size_t off, pos;
 	int ret;
-
-	cmd_list = memdup_user(buf, sizeof(struct kdbus_cmd_name_list));
-	if (IS_ERR(cmd_list))
-		return PTR_ERR(cmd_list);
 
 	mutex_lock(&reg->entries_lock);
 	mutex_lock(&conn->ep->bus->lock);
@@ -828,7 +776,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	size = sizeof(struct kdbus_name_list);
 
 	/* size of records */
-	ret = kdbus_name_list_all(conn, cmd_list->flags, &size, false);
+	ret = kdbus_name_list_all(conn, cmd->flags, &size, false);
 	if (ret < 0)
 		goto exit_unlock;
 
@@ -847,13 +795,11 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	pos += sizeof(struct kdbus_name_list);
 
 	/* copy data */
-	ret = kdbus_name_list_all(conn, cmd_list->flags, &pos, true);
+	ret = kdbus_name_list_all(conn, cmd->flags, &pos, true);
 	if (ret < 0)
 		goto exit_pool_free;
 
-	/* return allocated data */
-	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_name_list))
-		ret = -EFAULT;
+	cmd->offset = off;
 
 exit_pool_free:
 	if (ret < 0)
@@ -861,7 +807,6 @@ exit_pool_free:
 exit_unlock:
 	mutex_unlock(&conn->ep->bus->lock);
 	mutex_unlock(&reg->entries_lock);
-	kfree(cmd_list);
 
 	return ret;
 }

@@ -361,9 +361,18 @@ exit_unlock:
 	return allowed;
 }
 
-static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
-				 const struct kdbus_cmd_policy *cmd,
-				 u64 size)
+/**
+ * kdbus_cmd_policy_set() - set a connection's policy rules
+ * @db:		The policy database
+ * @cmd:	The command struct as provided by the ioctl
+ *
+ * This function is used in the context of the KDBUS_CMD_EP_POLICY_SET
+ * ioctl().
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+int kdbus_cmd_policy_set(struct kdbus_policy_db *db,
+			 const struct kdbus_cmd_policy *cmd)
 {
 	const struct kdbus_item *item;
 	struct kdbus_policy_db_entry *current_entry = NULL;
@@ -427,39 +436,4 @@ static int kdbus_policy_db_parse(struct kdbus_policy_db *db,
 		return -EINVAL;
 
 	return 0;
-}
-
-/**
- * kdbus_cmd_policy_set() - set a connection's policy rules
- * @db:		The policy database
- * @buf:	The __user buffer that was provided by the ioctl() call
- *
- * This function is used in the context of the KDBUS_CMD_EP_POLICY_SET
- * ioctl().
- *
- * Return: 0 on success, negative errno on failure
- */
-int kdbus_cmd_policy_set(struct kdbus_policy_db *db, void __user *buf)
-{
-	struct kdbus_cmd_policy *cmd;
-	u64 size;
-	int ret;
-
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_policy))
-		return -EFAULT;
-
-	if (size <= sizeof(struct kdbus_cmd_policy))
-		return -EINVAL;
-
-	if (size > KDBUS_POLICY_MAX_SIZE)
-		return -EMSGSIZE;
-
-	cmd = memdup_user(buf, size);
-	if (IS_ERR(cmd))
-		return PTR_ERR(cmd);
-
-	ret = kdbus_policy_db_parse(db, cmd, size);
-	kfree(cmd);
-
-	return ret;
 }

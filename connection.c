@@ -950,16 +950,15 @@ exit_rewind:
 }
 
 /**
- * kdbus_conn_recv_msg_user - receive a message from the queue
+ * kdbus_cmd_msg_recv - receive a message from the queue
  * @conn:		Connection to work on
- * @recv_buf:		A struct kdbus_cmd_recv containing the command details
+ * @recv:		The command as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_conn_recv_msg_user(struct kdbus_conn *conn,
-			     struct kdbus_cmd_recv __user *recv_buf)
+int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
+		       struct kdbus_cmd_recv *recv)
 {
-	struct kdbus_cmd_recv recv;
 	int ret;
 
 	mutex_lock(&conn->lock);
@@ -973,23 +972,14 @@ int kdbus_conn_recv_msg_user(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	if (copy_from_user(&recv, recv_buf, sizeof(struct kdbus_cmd_recv))) {
-		ret = -EFAULT;
-		goto exit_unlock;
-	}
-
-	if (recv.offset > 0) {
+	if (recv->offset > 0) {
 		ret = -EINVAL;
 		goto exit_unlock;
 	}
 
-	ret = kdbus_conn_recv_msg(conn, &recv);
+	ret = kdbus_conn_recv_msg(conn, recv);
 	if (ret < 0)
 		goto exit_unlock;
-
-	/* return the address of the next message in the pool */
-	if (copy_to_user(&recv_buf->offset, &recv.offset, sizeof(__u64)))
-		ret = -EFAULT;
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
@@ -1496,36 +1486,22 @@ exit_unlock_dst:
 /**
  * kdbus_cmd_conn_info() - retrieve info about a connection
  * @conn:		Connection
- * @buf:		The returned offset to the message in the pool
+ * @cmd_info:		The cómmand as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
-			void __user *buf)
+			struct kdbus_cmd_conn_info *cmd_info,
+			size_t size)
 {
-	struct kdbus_cmd_conn_info *cmd_info;
 	struct kdbus_conn_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
 	size_t off, pos;
 	char *name = NULL;
 	struct kdbus_meta *meta = NULL;
 	u64 flags;
-	u64 size;
 	u32 hash;
 	int ret = 0;
-
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_info))
-		return -EFAULT;
-
-	if (size < sizeof(struct kdbus_cmd_conn_info))
-		return -EINVAL;
-
-	if (size > sizeof(struct kdbus_cmd_conn_info) + KDBUS_NAME_MAX_LEN + 1)
-		return -EMSGSIZE;
-
-	cmd_info = memdup_user(buf, size);
-	if (IS_ERR(cmd_info))
-		return PTR_ERR(cmd_info);
 
 	if (cmd_info->id == 0) {
 		if (size == sizeof(struct kdbus_cmd_conn_info)) {
@@ -1629,10 +1605,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		pos += meta->size;
 	}
 
-	if (kdbus_offset_set_user(&off, buf, struct kdbus_cmd_conn_info)) {
-		ret = -EFAULT;
-		goto exit_free;
-	}
+	/* write back the offset */
+	cmd_info->offset = off;
 
 exit_free:
 	if (ret < 0)
@@ -1641,7 +1615,6 @@ exit_free:
 exit:
 	kdbus_meta_free(meta);
 	kdbus_conn_unref(owner_conn);
-	kfree(cmd_info);
 
 	return ret;
 }
@@ -1649,29 +1622,14 @@ exit:
 /**
  * kdbus_conn_update() - update flags for a connection
  * @conn:		Connection
- * @buf:		The struct containing the new flags
+ * @cmd_update:		The command as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  void __user *buf)
+			  struct kdbus_cmd_conn_update *cmd_update)
 {
-	struct kdbus_cmd_conn_update *cmd_update;
 	struct kdbus_item *item;
-	u64 size;
-
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_update))
-		return -EFAULT;
-
-	if (size < sizeof(struct kdbus_cmd_conn_update))
-		return -EINVAL;
-
-	if (size > KDBUS_HELLO_MAX_SIZE)
-		return -EMSGSIZE;
-
-	cmd_update = memdup_user(buf, size);
-	if (IS_ERR(cmd_update))
-		return PTR_ERR(cmd_update);
 
 	KDBUS_ITEM_FOREACH(item, cmd_update, items) {
 		switch (item->type) {
@@ -1680,8 +1638,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			break;
 		}
 	}
-
-	kfree(cmd_update);
 
 	return 0;
 }

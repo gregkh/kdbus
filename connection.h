@@ -93,12 +93,13 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty);
 bool kdbus_conn_active(struct kdbus_conn *conn);
 
-int kdbus_conn_recv_msg_user(struct kdbus_conn *conn,
-			     struct kdbus_cmd_recv __user *recv);
+int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
+		       struct kdbus_cmd_recv *recv);
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
-			void __user *buf);
+			struct kdbus_cmd_conn_info *cmd_info,
+			size_t size);
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  void __user *buf);
+			  struct kdbus_cmd_conn_update *cmd_update);
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);

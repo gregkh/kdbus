@@ -19,8 +19,10 @@ struct kdbus_match_db;
 
 int kdbus_match_db_new(struct kdbus_match_db **db);
 void kdbus_match_db_free(struct kdbus_match_db *db);
-int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf);
-int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf);
+int kdbus_match_db_add(struct kdbus_conn *conn,
+		       struct kdbus_cmd_match *cmd);
+int kdbus_match_db_remove(struct kdbus_conn *conn,
+			  struct kdbus_cmd_match *cmd);
 bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,
 			       struct kdbus_kmsg *kmsg);

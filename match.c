@@ -271,45 +271,10 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 	return matched;
 }
 
-static int cmd_match_from_user(const struct kdbus_conn *conn,
-			       void __user *buf, bool items,
-			       struct kdbus_cmd_match **m)
-{
-	struct kdbus_cmd_match *cmd_match;
-	u64 size;
-
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_match))
-		return -EFAULT;
-
-	if (size < sizeof(*cmd_match) || size > KDBUS_MATCH_MAX_SIZE)
-		return -EMSGSIZE;
-
-	/* remove does not accept any items */
-	if (!items && size != sizeof(*cmd_match))
-		return -EMSGSIZE;
-
-	cmd_match = memdup_user(buf, size);
-	if (IS_ERR(cmd_match))
-		return PTR_ERR(cmd_match);
-
-	/* privileged users can act on behalf of someone else */
-	if (cmd_match->owner_id == 0)
-		cmd_match->owner_id = conn->id;
-	else if (cmd_match->owner_id != conn->id &&
-		 !kdbus_bus_uid_is_privileged(conn->ep->bus)) {
-		kfree(cmd_match);
-		return -EPERM;
-	}
-
-	*m = cmd_match;
-
-	return 0;
-}
-
 /**
  * kdbus_match_db_add() - add an entry to the match database
  * @conn:		The connection that was used in the ioctl call
- * @buf:		The __user buffer that was provided by the ioctl call
+ * @cmd:		The command as provided by the ioctl call
  *
  * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
  * interface.
@@ -339,26 +304,29 @@ static int cmd_match_from_user(const struct kdbus_conn *conn,
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
+int kdbus_match_db_add(struct kdbus_conn *conn,
+		       struct kdbus_cmd_match *cmd)
 {
 	struct kdbus_conn *target_conn = NULL;
 	struct kdbus_match_entry *entry = NULL;
-	struct kdbus_cmd_match *cmd_match;
 	struct kdbus_match_db *db;
 	struct kdbus_item *item;
 	LIST_HEAD(list);
-	int ret;
+	int ret = 0;
 
-	ret = cmd_match_from_user(conn, buf, true, &cmd_match);
-	if (ret < 0)
-		return ret;
+	/* privileged users can act on behalf of someone else */
+	if (cmd->owner_id == 0)
+		cmd->owner_id = conn->id;
+	else if (cmd->owner_id != conn->id &&
+		 !kdbus_bus_uid_is_privileged(conn->ep->bus))
+		return -EPERM;
 
-	if (cmd_match->owner_id != 0 && cmd_match->owner_id != conn->id) {
+	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		mutex_lock(&bus->lock);
 		target_conn = kdbus_bus_find_conn_by_id(bus,
-							cmd_match->owner_id);
+							cmd->owner_id);
 		mutex_unlock(&bus->lock);
 
 		if (!target_conn) {
@@ -377,15 +345,15 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		goto exit_free;
 	}
 
-	entry->cookie = cmd_match->cookie;
+	entry->cookie = cmd->cookie;
 
 	INIT_LIST_HEAD(&entry->rules_list);
 
-	KDBUS_ITEM_FOREACH(item, cmd_match, items) {
+	KDBUS_ITEM_FOREACH(item, cmd, items) {
 		struct kdbus_match_rule *rule;
 		size_t size = item->size - offsetof(struct kdbus_item, data);
 
-		if (!KDBUS_ITEM_VALID(item, cmd_match)) {
+		if (!KDBUS_ITEM_VALID(item, cmd)) {
 			ret = -EINVAL;
 			break;
 		}
@@ -480,7 +448,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
 
-	if (ret == 0 && !KDBUS_ITEM_END(item, cmd_match))
+	if (ret == 0 && !KDBUS_ITEM_END(item, cmd))
 		ret = -EINVAL;
 
 	if (ret == 0)
@@ -490,7 +458,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn, void __user *buf)
 
 exit_free:
 	kdbus_conn_unref(target_conn);
-	kfree(cmd_match);
 
 	return ret;
 }
@@ -505,30 +472,29 @@ exit_free:
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
+int kdbus_match_db_remove(struct kdbus_conn *conn,
+			  struct kdbus_cmd_match *cmd)
 {
 	struct kdbus_conn *target_conn = NULL;
 	struct kdbus_match_db *db;
-	struct kdbus_cmd_match *cmd_match = NULL;
 	struct kdbus_match_entry *entry, *tmp;
-	int ret;
 
-	ret = cmd_match_from_user(conn, buf, false, &cmd_match);
-	if (ret < 0)
-		return ret;
+	/* privileged users can act on behalf of someone else */
+	if (cmd->owner_id == 0)
+		cmd->owner_id = conn->id;
+	else if (cmd->owner_id != conn->id &&
+		 !kdbus_bus_uid_is_privileged(conn->ep->bus))
+		return -EPERM;
 
-	if (cmd_match->owner_id != 0 && cmd_match->owner_id != conn->id) {
+	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
 		struct kdbus_bus *bus = conn->ep->bus;
 
 		mutex_lock(&bus->lock);
-		target_conn = kdbus_bus_find_conn_by_id(bus,
-							cmd_match->owner_id);
+		target_conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
 		mutex_unlock(&bus->lock);
 
-		if (!target_conn) {
-			kfree(cmd_match);
+		if (!target_conn)
 			return -ENXIO;
-		}
 
 		db = target_conn->match_db;
 	} else {
@@ -537,12 +503,11 @@ int kdbus_match_db_remove(struct kdbus_conn *conn, void __user *buf)
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
-		if (entry->cookie == cmd_match->cookie)
+		if (entry->cookie == cmd->cookie)
 			kdbus_match_entry_free(entry);
 	mutex_unlock(&db->entries_lock);
 
 	kdbus_conn_unref(target_conn);
-	kfree(cmd_match);
 
 	return 0;
 }

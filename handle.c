@@ -203,9 +203,39 @@ static bool kdbus_check_flags(u64 kernel_flags)
 	return kernel_flags <= 0xffffffffULL;
 }
 
+static int kdbus_memdup_user(void __user *user_ptr,
+			     void **out, u64 *size_out,
+			     size_t size_min,
+			     size_t size_max)
+{
+	void *ptr = NULL;
+	u64 size;
+
+	if (!KDBUS_IS_ALIGNED8((uintptr_t) user_ptr))
+		return -EFAULT;
+
+	if (copy_from_user(&size, user_ptr, sizeof(__u64)))
+		return -EFAULT;
+
+	if (size < size_min)
+		return -EINVAL;
+
+	if (size > size_max)
+		return -EMSGSIZE;
+
+	ptr = memdup_user(user_ptr, size);
+	if (IS_ERR(ptr))
+		return PTR_ERR(ptr);
+
+	*out = ptr;
+	if (size_out)
+		*size_out = size;
+
+	return 0;
+}
+
 static int kdbus_handle_memfd(void __user *buf)
 {
-	u64 size;
 	struct kdbus_cmd_memfd_make *m = NULL;
 	const struct kdbus_item *item;
 	const char *n = NULL;
@@ -213,21 +243,12 @@ static int kdbus_handle_memfd(void __user *buf)
 	int __user *addr;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-		return -EFAULT;
-
-	if (kdbus_size_get_user(&size, buf, struct kdbus_cmd_conn_info))
-		return -EFAULT;
-
-	if (size < sizeof(struct kdbus_cmd_memfd_make))
-		return -EINVAL;
-
-	if (size > sizeof(struct kdbus_cmd_memfd_make) + KDBUS_MAKE_MAX_SIZE)
-		return -EMSGSIZE;
-
-	m = memdup_user(buf, size);
-	if (IS_ERR(m))
-		return PTR_ERR(m);
+	ret = kdbus_memdup_user(buf, (void **) &m, NULL,
+				sizeof(struct kdbus_cmd_memfd_make),
+				sizeof(struct kdbus_cmd_memfd_make) +
+					KDBUS_MAKE_MAX_SIZE);
+	if (ret < 0)
+		return ret;
 
 	KDBUS_ITEM_FOREACH(item, m, items) {
 		if (!KDBUS_ITEM_VALID(item, m)) {
@@ -494,7 +515,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_conn *conn = handle->conn;
 	struct kdbus_bus *bus = conn->ep->bus;
+	void *p = NULL;
 	long ret = 0;
+	u64 size;
 
 	if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
 		return -EFAULT;
@@ -506,6 +529,13 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_EP_POLICY_SET:
 		/* upload a policy for this endpoint */
+
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_policy),
+					KDBUS_POLICY_MAX_SIZE);
+		if (ret < 0)
+			break;
+
 		/* mangling policy is a privileged operation */
 		if (!kdbus_bus_uid_is_privileged(bus)) {
 			ret = -EFAULT;
@@ -518,42 +548,120 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 				break;
 		}
 
-		ret = kdbus_cmd_policy_set(conn->ep->policy_db, buf);
+		ret = kdbus_cmd_policy_set(conn->ep->policy_db, p);
 		break;
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
-		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, buf);
+
+		ret = kdbus_memdup_user(buf, &p, &size,
+					sizeof(struct kdbus_cmd_name),
+					sizeof(struct kdbus_cmd_name) +
+						KDBUS_NAME_MAX_LEN + 1);
+		if (ret < 0)
+			break;
+
+		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, p);
+		if (ret < 0)
+			break;
+
+		/* return flags to the caller */
+		if (copy_to_user(buf, p, size))
+			ret = -EFAULT;
+
 		break;
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
-		ret = kdbus_cmd_name_release(bus->name_registry, conn, buf);
+
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_name),
+					sizeof(struct kdbus_cmd_name) +
+						KDBUS_NAME_MAX_LEN + 1);
+		if (ret < 0)
+			break;
+
+		ret = kdbus_cmd_name_release(bus->name_registry, conn, p);
 		break;
 
-	case KDBUS_CMD_NAME_LIST:
+	case KDBUS_CMD_NAME_LIST: {
+		struct kdbus_cmd_name_list *cmd;
+
 		/* query current IDs and names */
-		ret = kdbus_cmd_name_list(bus->name_registry, conn, buf);
-		break;
+		p = memdup_user(buf, sizeof(struct kdbus_cmd_name_list));
+		if (IS_ERR(p))
+			return PTR_ERR(p);
 
-	case KDBUS_CMD_CONN_INFO:
-		/* return the properties of a connection */
-		ret = kdbus_cmd_conn_info(conn, buf);
+		cmd = p;
+		ret = kdbus_cmd_name_list(bus->name_registry, conn, cmd);
+		if (ret < 0)
+			break;
+
+		/* return allocated data */
+		if (kdbus_offset_set_user(&cmd->offset, buf,
+					  struct kdbus_cmd_name_list))
+			ret = -EFAULT;
+
 		break;
+	}
+
+	case KDBUS_CMD_CONN_INFO: {
+		struct kdbus_cmd_conn_info *cmd;
+
+		/* return the properties of a connection */
+		ret = kdbus_memdup_user(buf, &p, &size,
+					sizeof(struct kdbus_cmd_conn_info),
+					sizeof(struct kdbus_cmd_conn_info) +
+						KDBUS_NAME_MAX_LEN + 1);
+		if (ret < 0)
+			break;
+
+		cmd = p;
+		ret = kdbus_cmd_conn_info(conn, cmd, size);
+		if (ret < 0)
+			break;
+
+		if (kdbus_offset_set_user(&cmd->offset, buf,
+					  struct kdbus_cmd_conn_info))
+			ret = -EFAULT;
+
+		break;
+	}
 
 	case KDBUS_CMD_CONN_UPDATE:
 		/* update flags for a connection */
-		ret = kdbus_cmd_conn_update(conn, buf);
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_conn_update),
+					sizeof(struct kdbus_cmd_conn_info) +
+						KDBUS_CONN_UPDATE_MAX_SIZE);
+		if (ret < 0)
+			break;
+
+		ret = kdbus_cmd_conn_update(conn, p);
 		break;
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
-		ret = kdbus_match_db_add(conn, buf);
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_match),
+					sizeof(struct kdbus_cmd_match) +
+						KDBUS_MATCH_MAX_SIZE);
+		if (ret < 0)
+			break;
+
+
+		ret = kdbus_match_db_add(conn, p);
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
-		ret = kdbus_match_db_remove(conn, buf);
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_match),
+					sizeof(struct kdbus_cmd_match));
+		if (ret < 0)
+			break;
+
+		ret = kdbus_match_db_remove(conn, p);
 		break;
 
 	case KDBUS_CMD_MSG_SEND: {
@@ -584,10 +692,24 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_MSG_RECV:
+	case KDBUS_CMD_MSG_RECV: {
+		struct kdbus_cmd_recv cmd;
+
 		/* handle a queued message */
-		ret = kdbus_conn_recv_msg_user(conn, buf);
+		if (copy_from_user(&cmd, buf, sizeof(struct kdbus_cmd_recv)))
+			return -EFAULT;
+
+		ret = kdbus_cmd_msg_recv(conn, &cmd);
+		if (ret < 0)
+			break;
+
+		/* return the address of the next message in the pool */
+		if (kdbus_offset_set_user(&cmd.offset, buf,
+					  struct kdbus_cmd_recv))
+			ret = -EFAULT;
+
 		break;
+	}
 
 	case KDBUS_CMD_FREE: {
 		u64 off;
@@ -610,6 +732,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = -ENOTTY;
 		break;
 	}
+
+	kfree(p);
 
 	return ret;
 }
