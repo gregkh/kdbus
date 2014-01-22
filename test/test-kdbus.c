@@ -404,7 +404,7 @@ static int check_hello(struct kdbus_check_env *env)
 	/* a size of 0 must return EMSGSIZE */
 	hello.size = 1;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EMSGSIZE);
+	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
 	hello.size = sizeof(struct kdbus_cmd_hello);
 
