@@ -69,6 +69,7 @@ struct kdbus_conn_reply_entry {
  * @priority:		Queueing priority of the message
  * @off:		Offset into the shmem file in the receiver's pool
  * @size:		The number of bytes used in the pool
+ * @expect_reply:	The queue item tracks a message that awaits a reply
  * @memfds:		Arrays of offsets where to update the installed
  *			fd number
  * @memfds_fp:		Array memfd files queued up for this message
