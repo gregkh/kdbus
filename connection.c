@@ -1509,6 +1509,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	size_t off, pos;
 	char *name = NULL;
 	struct kdbus_meta *meta = NULL;
+	u64 flags;
 	u64 size;
 	u32 hash;
 	int ret = 0;
@@ -1584,19 +1585,19 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		info.size += owner_conn->meta->size;
 
 	/*
-	 * Unlike the rest of the values which are cached at
-	 * connection creation time, the names are appended here
-	 * because at creation time a connection does not have
-	 * any name.
+	 * Unlike the rest of the values which are cached at connection
+	 * creation time, some values need to be appended here because
+	 * at creation time a connection does not have names and other
+	 * properties.
 	 */
-	if (cmd_info->flags & KDBUS_ATTACH_NAMES &&
-	    !(owner_conn->flags & KDBUS_HELLO_ACTIVATOR)) {
+	flags = cmd_info->flags & (KDBUS_ATTACH_NAMES |
+				   KDBUS_ATTACH_CONN_NAME);
+	if (flags > 0) {
 		ret = kdbus_meta_new(&meta);
 		if (ret < 0)
 			goto exit;
 
-		ret = kdbus_meta_append(meta, owner_conn, 0,
-					KDBUS_ATTACH_NAMES);
+		ret = kdbus_meta_append(meta, owner_conn, 0, flags);
 		if (ret < 0)
 			goto exit;
 
