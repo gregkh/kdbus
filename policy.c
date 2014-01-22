@@ -179,7 +179,7 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 					       struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
-	struct kdbus_policy_db_entry *db_entry;
+	struct kdbus_policy_db_entry *e;
 	u64 access;
 	u32 hash;
 	int ret = -EPERM;
@@ -194,11 +194,11 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	mutex_lock(&conn_src->lock);
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
 		hash = kdbus_str_hash(name_entry->name);
-		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
-			if (strcmp(db_entry->name, name_entry->name) != 0)
+		hash_for_each_possible(db->entries_hash, e, hentry, hash) {
+			if (strcmp(e->name, name_entry->name) != 0)
 				continue;
 
-			access = kdbus_collect_entry_accesses(db_entry, conn_src);
+			access = kdbus_collect_entry_accesses(e, conn_src);
 			if (access & KDBUS_POLICY_SEND) {
 				ret = 0;
 				break;
@@ -213,11 +213,11 @@ static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		hash = kdbus_str_hash(name_entry->name);
-		hash_for_each_possible(db->entries_hash, db_entry, hentry, hash) {
-			if (strcmp(db_entry->name, name_entry->name) != 0)
+		hash_for_each_possible(db->entries_hash, e, hentry, hash) {
+			if (strcmp(e->name, name_entry->name) != 0)
 				continue;
 
-			access = kdbus_collect_entry_accesses(db_entry, conn_dst);
+			access = kdbus_collect_entry_accesses(e, conn_dst);
 			if (access & KDBUS_POLICY_RECV) {
 				ret = 0;
 				break;

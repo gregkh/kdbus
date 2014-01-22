@@ -47,7 +47,8 @@
  * @wait:		The waitqueue for synchronous I/O
  * @waiting:		The reply block is waiting for synchronous I/O
  * @sync:		The reply block is operating in synchronous I/O mode
- * @offset:		The offset in the sender's pool where the reply is stored
+ * @offset:		The offset in the sender's pool where the reply
+ *			is stored
  */
 struct kdbus_conn_reply_entry {
 	struct list_head entry;
@@ -426,7 +427,8 @@ static void kdbus_conn_queue_remove(struct kdbus_conn *conn,
 		if (conn->msg_prio_highest == &queue->prio_node)
 			conn->msg_prio_highest = &q->prio_node;
 
-		rb_replace_node(&queue->prio_node, &q->prio_node, &conn->msg_prio_queue);
+		rb_replace_node(&queue->prio_node, &q->prio_node,
+				&conn->msg_prio_queue);
 	}
 }
 
@@ -1122,7 +1124,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		} else {
 			/* calculate the deadline based on the current time */
 			ktime_get_ts(&ts);
-			reply->deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
+			reply->deadline_ns = timespec_to_ns(&ts) +
+					     msg->timeout_ns;
 		}
 
 		mutex_lock(&conn_src->lock);

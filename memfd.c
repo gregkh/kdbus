@@ -118,8 +118,10 @@ int kdbus_memfd_new(const char *name, size_t size, int *fd)
 
 	if (name) {
 		mf->name = kstrdup(name, GFP_KERNEL);
-		shmem_name = kasprintf(GFP_KERNEL, KBUILD_MODNAME "-memfd:%s", name);
-		anon_name = kasprintf(GFP_KERNEL, "[" KBUILD_MODNAME "-memfd:%s]", name);
+		shmem_name = kasprintf(GFP_KERNEL,
+				       KBUILD_MODNAME "-memfd:%s", name);
+		anon_name = kasprintf(GFP_KERNEL,
+				      "[" KBUILD_MODNAME "-memfd:%s]", name);
 		if (!mf->name || !shmem_name || !anon_name) {
 			ret = -ENOMEM;
 			goto exit;

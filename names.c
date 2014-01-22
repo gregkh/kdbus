@@ -153,7 +153,8 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e,
 				     entry_entry);
 		kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
 					 e->conn->id, q->conn->id,
-					 e->flags, q->flags, e->name, notify_list);
+					 e->flags, q->flags, e->name,
+					 notify_list);
 		e->flags = q->flags;
 		kdbus_name_entry_remove_owner(e);
 		kdbus_name_entry_set_owner(e, q->conn);
@@ -730,7 +731,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 		if (flags & KDBUS_NAME_LIST_QUEUED) {
 			struct kdbus_name_queue_item *q;
 
-			list_for_each_entry(q, &c->names_queue_list, conn_entry) {
+			list_for_each_entry(q, &c->names_queue_list,
+					    conn_entry) {
 				ret = kdbus_name_list_write(conn, c, &p,
 							    q->entry, write);
 				if (ret < 0)
