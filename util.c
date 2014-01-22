@@ -38,7 +38,7 @@ int kdbus_sysname_is_valid(const char *name)
 			continue;
 		if (isdigit(name[i]))
 			continue;
-		if (i > 0 && i + 1 < len && strchr("-.", name[i]))
+		if (i > 0 && i + 1 < len && strchr("_-.", name[i]))
 			continue;
 
 		return -EINVAL;
