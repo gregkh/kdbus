@@ -379,7 +379,7 @@ struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
 	mutex_unlock(&ns->lock);
 
 	/* allocate a new user */
-	u = kzalloc(sizeof(struct kdbus_ns_user), GFP_KERNEL);
+	u = kzalloc(sizeof(*u), GFP_KERNEL);
 	if (!u)
 		return NULL;
 
