@@ -680,7 +680,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		/* store the offset of the reply back to userspace */
 		if (kmsg->msg.flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
-			u8 *off = (u8 *)buf +
+			u8 *off = (u8 __user *)buf +
 				  offsetof(struct kdbus_msg, offset_reply);
 
 			if (copy_to_user(off, &kmsg->msg.offset_reply,
