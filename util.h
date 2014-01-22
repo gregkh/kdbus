@@ -80,18 +80,19 @@
 })
 
 /**
- * kdbus_validate_nul - check the validity of a sized string
+ * kdbus_item_validate_nul - check the validity of an item containing a string
  * @s:			String
  * @l:			Length of string
  *
- * Validate that a given string matches the given size, and the
+ * Validate that a string in a given item matches the given size, and the
  * string is \0 terminated.
  *
- * Return: true if the given string is valid
+ * Return: true if the string in given item is valid
  */
-static inline bool kdbus_validate_nul(const char *s, size_t l)
+static inline bool kdbus_item_validate_nul(const struct kdbus_item *item)
 {
-	return l > 0 && memchr(s, '\0', l) == s + l - 1;
+	size_t l = item->size - KDBUS_ITEM_HEADER_SIZE;
+	return l > 0 && memchr(item->str, '\0', l) == item->str + l - 1;
 }
 
 /**

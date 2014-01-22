@@ -259,8 +259,7 @@ int kdbus_ep_make_user(struct kdbus_cmd_make *make, char **name)
 					 KDBUS_SYSNAME_MAX_LEN + 1)
 				return -ENAMETOOLONG;
 
-			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE))
+			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
 			ret = kdbus_sysname_is_valid(item->str);

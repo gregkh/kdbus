@@ -1692,8 +1692,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (activator_name)
 				return -EINVAL;
 
-			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE))
+			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
 			if (!kdbus_name_is_valid(item->str))
@@ -1719,8 +1718,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (!kdbus_bus_uid_is_privileged(bus))
 				return -EPERM;
 
-			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE))
+			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
 			if (!kdbus_name_is_valid(item->str))
@@ -1739,8 +1737,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 					 KDBUS_ITEM_HEADER_SIZE + 1)
 				return -ENAMETOOLONG;
 
-			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE))
+			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
 			ret = kdbus_sysname_is_valid(item->str);

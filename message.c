@@ -188,7 +188,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			has_name = true;
 
 			/* enforce NUL-terminated strings */
-			if (!kdbus_validate_nul(item->str, payload_size))
+			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
 			if (!kdbus_name_is_valid(item->str))

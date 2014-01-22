@@ -273,8 +273,7 @@ static int kdbus_handle_memfd(void __user *buf)
 				goto exit;
 			}
 
-			if (!kdbus_validate_nul(item->str,
-					item->size - KDBUS_ITEM_HEADER_SIZE)) {
+			if (!kdbus_item_validate_nul(item)) {
 				ret = -EINVAL;
 				goto exit;
 			}

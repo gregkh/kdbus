@@ -340,7 +340,7 @@ int kdbus_ns_make_user(struct kdbus_cmd_make *cmd, char **name)
 			if (payload_size > KDBUS_SYSNAME_MAX_LEN + 1)
 				return -ENAMETOOLONG;
 
-			if (!kdbus_validate_nul(item->str, payload_size))
+			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
 			ret = kdbus_sysname_is_valid(item->str);
