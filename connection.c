@@ -1743,9 +1743,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
-			if (!kdbus_name_is_valid(item->str))
-				return -EINVAL;
-
 			seclabel = item->str;
 			seclabel_len = item->size - KDBUS_ITEM_HEADER_SIZE;
 			break;
