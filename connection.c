@@ -1338,10 +1338,24 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				if (conn != reply->conn)
 					continue;
 
+				/*
+				 * For synchronous replies, trigger the waitq
+				 * now. The item will be deallocated once the
+				 * waiting side has been woken up.
+				 */
+				if (reply->sync) {
+					kdbus_conn_reply_entry_finish(reply,
+								      ~0ULL);
+					continue;
+				}
+
+				/*
+				 * In asyncronous cases, send a 'connection
+				 * dead' notification, mark entry as handled,
+				 * and trigger timeout.
+				 */
 				kdbus_notify_reply_dead(c->id, reply->cookie,
 							&notify_list);
-
-				/* mark entry as handled, and trigger timeout */
 				reply->deadline_ns = 0;
 				kdbus_conn_timeout_schedule_scan(c);
 			}
