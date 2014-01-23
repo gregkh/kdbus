@@ -25,6 +25,9 @@
 /* maximum message payload size */
 #define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_2M
 
+/* maximum size of blook filter bits */
+#define KDBUS_BUS_BLOOM_MAX_SIZE	SZ_4K
+
 /* maximum length of well-known bus name */
 #define KDBUS_NAME_MAX_LEN		255
 

@@ -328,7 +328,7 @@ int kdbus_bus_make_user(struct kdbus_cmd_make *make,
 	if (!KDBUS_IS_ALIGNED8(bsize))
 		return -EINVAL;
 
-	if (bsize < 8 || bsize > SZ_16K)
+	if (bsize < 8 || bsize > KDBUS_BUS_BLOOM_MAX_SIZE)
 		return -EINVAL;
 
 	*name = (char *)n;
