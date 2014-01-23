@@ -40,7 +40,7 @@
 
 /**
  * struct kdbus_conn_reply_entry - an entry of kdbus_conn's list of replies
- * @entry:		The list_head entry of the connection's reply_from_list
+ * @entry:		The list_head entry of the connection's reply_list
  * @conn:		The counterpart connection that is expected to answer
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
