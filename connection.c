@@ -115,15 +115,14 @@ static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
 	kfree(reply);
 }
 
-static void kdbus_conn_reply_entry_finish(struct kdbus_conn *conn,
-					  struct kdbus_conn_reply_entry *reply,
+static void kdbus_conn_reply_entry_finish(struct kdbus_conn_reply_entry *reply,
 					  u64 offset)
 {
 	if (reply->sync) {
-		mutex_lock(&conn->lock);
+		mutex_lock(&reply->conn->lock);
 		reply->waiting = false;
 		reply->offset = offset;
-		mutex_unlock(&conn->lock);
+		mutex_unlock(&reply->conn->lock);
 		wake_up_interruptible(&reply->wait);
 	} else {
 		kdbus_conn_reply_entry_free(reply);
@@ -909,8 +908,7 @@ static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
 		if (queue->reply)
-			kdbus_conn_reply_entry_finish(conn, queue->reply,
-						      ~0ULL);
+			kdbus_conn_reply_entry_finish(queue->reply, ~0ULL);
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
@@ -1224,7 +1222,7 @@ exit_unref:
 	 * and kdbus_conn_reply_entry_free() will wake up the wait queue.
 	 */
 	if (reply_wake)
-		kdbus_conn_reply_entry_finish(conn_src, reply_wake, offset);
+		kdbus_conn_reply_entry_finish(reply_wake, offset);
 
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
@@ -1394,7 +1392,7 @@ static void __kdbus_conn_free(struct kref *kref)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
-		kdbus_conn_reply_entry_finish(conn, reply, ~0ULL);
+		kdbus_conn_reply_entry_finish(reply, ~0ULL);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
