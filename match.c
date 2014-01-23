@@ -465,7 +465,7 @@ exit_free:
 /**
  * kdbus_match_db_remove() - remove an entry from the match database
  * @conn:		The connection that was used in the ioctl call
- * @buf:		The __user buffer that was provided by the ioctl call
+ * @cmd:		Pointer to the match data structure
  *
  * This function is used in the context of the KDBUS_CMD_MATCH_REMOVE
  * ioctl interface.

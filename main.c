@@ -42,7 +42,6 @@ static int __init kdbus_init(void)
 	}
 
 	pr_info("initialized\n");
-
 	return 0;
 }
 

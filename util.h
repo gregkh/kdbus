@@ -81,8 +81,7 @@
 
 /**
  * kdbus_item_validate_nul - check the validity of an item containing a string
- * @s:			String
- * @l:			Length of string
+ * @item:		Item to check
  *
  * Validate that a string in a given item matches the given size, and the
  * string is \0 terminated.

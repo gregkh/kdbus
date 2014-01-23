@@ -1511,7 +1511,8 @@ exit_unlock_dst:
 /**
  * kdbus_cmd_conn_info() - retrieve info about a connection
  * @conn:		Connection
- * @cmd_info:		The cómmand as passed in by the ioctl
+ * @cmd_info:		The command as passed in by the ioctl
+ * @size:		Size of the passed data structure
  *
  * Return: 0 on success, negative errno on failure.
  */
