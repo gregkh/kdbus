@@ -588,6 +588,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_NAME_LIST: {
 		struct kdbus_cmd_name_list *cmd;
 
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+			return -EFAULT;
+
 		/* query current IDs and names */
 		p = memdup_user(buf, sizeof(struct kdbus_cmd_name_list));
 		if (IS_ERR(p))
@@ -695,6 +698,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_MSG_RECV: {
 		struct kdbus_cmd_recv cmd;
 
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+			return -EFAULT;
+
 		/* handle a queued message */
 		if (copy_from_user(&cmd, buf, sizeof(struct kdbus_cmd_recv)))
 			return -EFAULT;
@@ -713,6 +719,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_FREE: {
 		u64 off;
+
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+			return -EFAULT;
 
 		/* free the memory used in the receiver's pool */
 		if (copy_from_user(&off, buf, sizeof(__u64)))
