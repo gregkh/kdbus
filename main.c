@@ -43,8 +43,6 @@ static int __init kdbus_init(void)
 
 	pr_info("initialized\n");
 
-printk("sizeof(struct kdbus_ns_user) %u\n", sizeof(struct kdbus_ns_user));
-
 	return 0;
 }
 
