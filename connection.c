@@ -923,9 +923,15 @@ static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
 	 * Just return the location of the next message. Do not install
 	 * file descriptors or anything else. This is usually used to
 	 * determine the sender of the next queued message.
+	 *
+	 * File descriptor numbers referenced in the message items
+	 * are undefined, they are only valid with the full receive
+	 * not with peek.
 	 */
-	if (recv->flags & KDBUS_RECV_PEEK)
+	if (recv->flags & KDBUS_RECV_PEEK) {
+		kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
 		return 0;
+	}
 
 	/*
 	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return

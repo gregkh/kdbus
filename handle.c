@@ -671,6 +671,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		/* submit a message which will be queued in the receiver */
 		struct kdbus_kmsg *kmsg = NULL;
 
+		if (handle->conn->flags & KDBUS_HELLO_ACTIVATOR) {
+			ret = -EPERM;
+			break;
+		}
+
 		ret = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
 		if (ret < 0)
 			break;
@@ -803,9 +808,6 @@ static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 	struct kdbus_handle *handle = file->private_data;
 
 	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
-		return -EPERM;
-
-	if (handle->conn->flags & KDBUS_HELLO_ACTIVATOR)
 		return -EPERM;
 
 	return kdbus_pool_mmap(handle->conn->pool, vma);
