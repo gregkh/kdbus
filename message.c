@@ -273,11 +273,18 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	/* requests for replies need a timeout */
-	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY &&
-	    m->msg.timeout_ns == 0) {
-		ret = -EINVAL;
-		goto exit_free;
+	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
+		/* requests for replies need a timeout */
+		if (m->msg.timeout_ns == 0) {
+			ret = -EINVAL;
+			goto exit_free;
+		}
+
+		/* replies may not be expected for broadcasts */
+		if (m->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
+			ret = -ENOTUNIQ;
+			goto exit_free;
+		}
 	}
 
 	/*
