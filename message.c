@@ -268,7 +268,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	}
 
 	/* do not accept kernel-generated messages */
-	if (m->msg.payload_type == 0) {
+	if (m->msg.payload_type == KDBUS_PAYLOAD_KERNEL) {
 		ret = -EINVAL;
 		goto exit_free;
 	}
