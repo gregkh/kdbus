@@ -908,6 +908,10 @@ static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
+		if (queue->reply)
+			kdbus_conn_reply_entry_finish(conn, queue->reply,
+						      ~0ULL);
+
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
 		kdbus_conn_queue_cleanup(queue);
