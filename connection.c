@@ -1860,7 +1860,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* return properties of this connection to the caller */
 	hello->bus_flags = bus->bus_flags;
-	hello->bloom_size = bus->bloom_size;
+	hello->bloom = bus->bloom;
 	hello->id = conn->id;
 
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));

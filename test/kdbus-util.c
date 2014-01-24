@@ -120,7 +120,7 @@ int msg_send(const struct conn *conn,
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
-		size += KDBUS_ITEM_HEADER_SIZE + 64;
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 	else {
 		struct {
 			struct kdbus_cmd_memfd_make cmd;
@@ -203,8 +203,9 @@ int msg_send(const struct conn *conn,
 	item = KDBUS_ITEM_NEXT(item);
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
-		item->type = KDBUS_ITEM_BLOOM;
-		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
+		item->type = KDBUS_ITEM_BLOOM_FILTER;
+		item->size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
+		item->bloom_filter.generation = 0;
 	} else {
 		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
 		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);

@@ -324,7 +324,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE: {
 		kgid_t gid = KGIDT_INIT(0);
-		size_t bloom_size;
+		struct kdbus_bloom_parameter bloom;
 		char *name;
 
 		ret = kdbus_memdup_user(buf, &p, NULL,
@@ -334,7 +334,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		make = p;
-		ret = kdbus_bus_make_user(make, &name, &bloom_size);
+		ret = kdbus_bus_make_user(make, &name, &bloom);
 		if (ret < 0)
 			break;
 
@@ -350,7 +350,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_bus_new(handle->ns, make, name, bloom_size,
+		ret = kdbus_bus_new(handle->ns, make, name, &bloom,
 				    mode, current_fsuid(), gid, &bus);
 		if (ret < 0)
 			break;

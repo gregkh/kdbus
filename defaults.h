@@ -25,7 +25,7 @@
 /* maximum message payload size */
 #define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_2M
 
-/* maximum size of blook filter bits */
+/* maximum size of bloom bit field in bytes */
 #define KDBUS_BUS_BLOOM_MAX_SIZE	SZ_4K
 
 /* maximum length of well-known bus name */
@@ -55,7 +55,7 @@
 /* maximum number of well-known names */
 #define KDBUS_CONN_MAX_NAMES		64
 
-/* maximum number of queud requests waiting ot a reply */
+/* maximum number of queud requests waiting for a reply */
 #define KDBUS_CONN_MAX_REQUESTS_PENDING	64
 
 /* maximum number of connections per user in one namespace */

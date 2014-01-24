@@ -178,7 +178,7 @@ static int send_message(const struct kdbus_conn *conn,
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
-		size += KDBUS_ITEM_HEADER_SIZE + 64;
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 	else {
 		struct kdbus_cmd_memfd_make mfd;
 
@@ -237,8 +237,9 @@ static int send_message(const struct kdbus_conn *conn,
 	item = KDBUS_ITEM_NEXT(item);
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
-		item->type = KDBUS_ITEM_BLOOM;
-		item->size = KDBUS_ITEM_HEADER_SIZE + 64;
+		item->type = KDBUS_ITEM_BLOOM_FILTER;
+		item->size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
+		item->bloom_filter.generation = 0;
 	} else {
 		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
 		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
@@ -316,7 +317,7 @@ static int check_busmake(struct kdbus_check_env *env)
 		struct {
 			uint64_t size;
 			uint64_t type;
-			uint64_t bloom_size;
+			struct kdbus_bloom_parameter bloom;
 		} bs;
 
 		/* name item */
@@ -333,23 +334,24 @@ static int check_busmake(struct kdbus_check_env *env)
 	memset(&bus_make, 0, sizeof(bus_make));
 
 	bus_make.bs.size = sizeof(bus_make.bs);
-	bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
-	bus_make.bs.bloom_size = 64;
+	bus_make.bs.type = KDBUS_ITEM_BLOOM_PARAMETER;
+	bus_make.bs.bloom.size = 64;
+	bus_make.bs.bloom.n_hash = 1;
 
 	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
 
 	/* missing uid prefix */
 	snprintf(bus_make.name, sizeof(bus_make.name), "foo");
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) + bus_make.n_size;
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) + sizeof(bus_make.bs) +
+			     bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
 	/* non alphanumeric character */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah@123", getuid());
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
-			     sizeof(uint64_t) * 3 +
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) + sizeof(bus_make.bs) +
 			     bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
@@ -357,8 +359,7 @@ static int check_busmake(struct kdbus_check_env *env)
 	/* '-' at the end */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah-", getuid());
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
-			     sizeof(uint64_t) * 3 +
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) + sizeof(bus_make.bs) +
 			     bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
@@ -366,8 +367,7 @@ static int check_busmake(struct kdbus_check_env *env)
 	/* create a new bus */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah-1", getuid());
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
-			     sizeof(uint64_t) * 3 +
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) + sizeof(bus_make.bs) +
 			     bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
@@ -1061,7 +1061,7 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 			struct {
 				uint64_t size;
 				uint64_t type;
-				uint64_t bloom_size;
+				struct kdbus_bloom_parameter bloom;
 			} bs;
 
 			/* name item */
@@ -1078,8 +1078,9 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 
 		memset(&bus_make, 0, sizeof(bus_make));
 		bus_make.bs.size = sizeof(bus_make.bs);
-		bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
-		bus_make.bs.bloom_size = 64;
+		bus_make.bs.type = KDBUS_ITEM_BLOOM_PARAMETER;
+		bus_make.bs.bloom.size = 64;
+		bus_make.bs.bloom.n_hash = 1;
 
 		for (i = 0; i < sizeof(n); i++)
 			n[i] = 'a' + (random() % ('z' - 'a'));

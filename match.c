@@ -52,7 +52,7 @@ struct kdbus_match_entry {
  * struct kdbus_match_rule - a rule appended to a match entry
  * @type:		An item type to match agains
  * @name:		Name to match against
- * @bloom:		Bloom filter to match against
+ * @bloom:		Bloom mask to match a message's filter against
  * @old_id:		For KDBUS_ITEM_ID_REMOVE and KDBUS_ITEM_NAME_REMOVE or
  *			KDBUS_ITEM_NAME_CHANGE, stores a connection ID
  * @src_id:		For KDBUS_ITEM_ID, stores a connection ID
@@ -64,7 +64,7 @@ struct kdbus_match_rule {
 	u64			type;
 	union {
 		char		*name;
-		u64		*bloom;
+		u64		*bloom_mask;
 	};
 	union {
 		u64		old_id;
@@ -78,8 +78,8 @@ struct kdbus_match_rule {
 static void kdbus_match_rule_free(struct kdbus_match_rule *rule)
 {
 	switch (rule->type) {
-	case KDBUS_ITEM_BLOOM:
-		kfree(rule->bloom);
+	case KDBUS_ITEM_BLOOM_MASK:
+		kfree(rule->bloom_mask);
 		break;
 
 	case KDBUS_ITEM_NAME:
@@ -147,12 +147,13 @@ int kdbus_match_db_new(struct kdbus_match_db **db)
 	return 0;
 }
 
-static bool kdbus_match_bloom(const u64 *filter, const u64 *mask,
-		       const struct kdbus_conn *conn)
+static bool kdbus_match_bloom(const u64 *filter, u64 generation,
+			      const u64 *mask,
+			      const struct kdbus_conn *conn)
 {
 	unsigned int i;
 
-	for (i = 0; i < conn->ep->bus->bloom_size / sizeof(u64); i++)
+	for (i = 0; i < conn->ep->bus->bloom.size / sizeof(u64); i++)
 		if ((filter[i] & mask[i]) != mask[i])
 			return false;
 
@@ -213,9 +214,10 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 			/* messages from userspace */
 
 			switch (r->type) {
-			case KDBUS_ITEM_BLOOM:
-				if (!kdbus_match_bloom(kmsg->bloom,
-						       r->bloom, conn_src))
+			case KDBUS_ITEM_BLOOM_MASK:
+				if (!kdbus_match_bloom(kmsg->bloom_filter,
+						       kmsg->bloom_generation,
+						       r->bloom_mask, conn_src))
 					return false;
 				break;
 
@@ -286,7 +288,7 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
  *
  * The items attached to a kdbus_cmd_match struct have the following mapping:
  *
- * KDBUS_ITEM_BLOOM:		Denotes a bloom mask
+ * KDBUS_ITEM_BLOOM_MASK:	Denotes a bloom mask
  * KDBUS_ITEM_NAME:		Denotes a connection's source name
  * KDBUS_ITEM_ID:		Denotes a connection's ID
  * KDBUS_ITEM_NAME_ADD:
@@ -298,9 +300,9 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
  * For kdbus_notify_{id,name}_change structs, only the ID and name fields
  * are looked at at when adding an entry. The flags are unused.
  *
- * Also note that KDBUS_ITEM_BLOOM, KDBUS_ITEM_NAME and KDBUS_ITEM_ID are
- * used to match messages from userspace, while the others apply to kernel-
- * generated notifications.
+ * Also note that KDBUS_ITEM_BLOOM_MASK, KDBUS_ITEM_NAME and KDBUS_ITEM_ID
+ * are used to match messages from userspace, while the others apply to
+ * kernel-generated notifications.
  *
  * Return: 0 on success, negative errno on failure
  */
@@ -367,14 +369,15 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		rule->type = item->type;
 
 		switch (item->type) {
-		case KDBUS_ITEM_BLOOM:
-			if (size != conn->ep->bus->bloom_size) {
+		case KDBUS_ITEM_BLOOM_MASK:
+			if (size % conn->ep->bus->bloom.size > 0) {
 				ret = -EBADMSG;
 				break;
 			}
 
-			rule->bloom = kmemdup(item->data, size, GFP_KERNEL);
-			if (!rule->bloom) {
+			rule->bloom_mask = kmemdup(item->data,
+						   size, GFP_KERNEL);
+			if (!rule->bloom_mask) {
 				ret = -ENOMEM;
 				break;
 			}

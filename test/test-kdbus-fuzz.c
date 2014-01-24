@@ -86,7 +86,7 @@ static int make_bus(void)
 		struct {
 			uint64_t size;
 			uint64_t type;
-			uint64_t bloom_size;
+			struct kdbus_bloom_parameter bloom;
 		} bs;
 
 		/* name item */
@@ -119,8 +119,9 @@ static int make_bus(void)
 	bus_make.head.size = sizeof(struct kdbus_cmd_make) + strlen(bus_make.name) + 1;
 
 	bus_make.bs.size = sizeof(bus_make.bs);
-	bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
-	bus_make.bs.bloom_size = 64;
+	bus_make.bs.type = KDBUS_ITEM_BLOOM_PARAMETER;
+	bus_make.bs.bloom.size = 64;
+	bus_make.bs.bloom.n_hash = 1;
 
 	printf("-- creating bus '%s'\n", bus_make.name);
 	ret = ioctl(fdc, KDBUS_CMD_BUS_MAKE, &bus_make);

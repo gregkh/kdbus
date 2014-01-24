@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 		struct {
 			uint64_t size;
 			uint64_t type;
-			uint64_t bloom_size;
+			struct kdbus_bloom_parameter bloom;
 		} bs;
 
 		/* name item */
@@ -71,8 +71,9 @@ int main(int argc, char *argv[])
 	memset(&bus_make, 0, sizeof(bus_make));
 	bus_make.head.flags = KDBUS_MAKE_POLICY_OPEN;
 	bus_make.bs.size = sizeof(bus_make.bs);
-	bus_make.bs.type = KDBUS_ITEM_BLOOM_SIZE;
-	bus_make.bs.bloom_size = 64;
+	bus_make.bs.type = KDBUS_ITEM_BLOOM_PARAMETER;
+	bus_make.bs.bloom.size = 64;
+	bus_make.bs.bloom.n_hash = 1;
 
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-testbus", getuid());
 	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;

@@ -169,7 +169,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
  * @make:		Pointer to a struct kdbus_cmd_make containing the
  *			details for the bus creation
  * @name:		Name of the bus
- * @bloom_size:		Size of the bloom filter on this bus
+ * @bloom:		Bloom parameters for this bus
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
@@ -182,8 +182,9 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
  */
 int kdbus_bus_new(struct kdbus_ns *ns,
 		  struct kdbus_cmd_make *make, const char *name,
-		  size_t bloom_size, umode_t mode, kuid_t uid,
-		  kgid_t gid, struct kdbus_bus **bus)
+		  const struct kdbus_bloom_parameter *bloom,
+		  umode_t mode, kuid_t uid, kgid_t gid,
+		  struct kdbus_bus **bus)
 {
 	struct kdbus_bus *b;
 	char prefix[16];
@@ -210,7 +211,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	kref_init(&b->kref);
 	b->uid_owner = uid;
 	b->bus_flags = make->flags;
-	b->bloom_size = bloom_size;
+	b->bloom = *bloom;
 	mutex_init(&b->lock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
@@ -269,7 +270,7 @@ exit:
  * kdbus_bus_make_user() - create a kdbus_cmd_make from user-supplied data
  * @make:		Reference to the location where to store the result
  * @name:		Shortcut to the requested name
- * @bloom_size:		The bloom filter size as denoted in the make items
+ * @bloom:		Bloom parameters for this bus
  *
  * This function is part of the connection ioctl() interface and will parse
  * the user-supplied data.
@@ -277,27 +278,30 @@ exit:
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_bus_make_user(struct kdbus_cmd_make *make,
-			char **name, size_t *bloom_size)
+			char **name, struct kdbus_bloom_parameter *bloom)
 {
 	const struct kdbus_item *item;
 	const char *n = NULL;
-	u64 bsize = 0;
+	const struct kdbus_bloom_parameter *bl = NULL;
 	int ret;
 
 	KDBUS_ITEM_FOREACH(item, make, items) {
+		size_t payload_size;
+
 		if (!KDBUS_ITEM_VALID(item, make))
 			return -EINVAL;
+
+		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
 
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
 			if (n)
 				return -EEXIST;
 
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2)
+			if (payload_size < 2)
 				return -EINVAL;
 
-			if (item->size > KDBUS_ITEM_HEADER_SIZE +
-					 KDBUS_SYSNAME_MAX_LEN + 1)
+			if (payload_size > KDBUS_SYSNAME_MAX_LEN + 1)
 				return -ENAMETOOLONG;
 
 			if (!kdbus_item_validate_nul(item))
@@ -310,11 +314,11 @@ int kdbus_bus_make_user(struct kdbus_cmd_make *make,
 			n = item->str;
 			break;
 
-		case KDBUS_ITEM_BLOOM_SIZE:
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + sizeof(u64))
+		case KDBUS_ITEM_BLOOM_PARAMETER:
+			if (payload_size != sizeof(*bl))
 				return -EINVAL;
 
-			bsize = item->data64[0];
+			bl = &item->bloom_parameter;
 			break;
 		}
 	}
@@ -325,13 +329,14 @@ int kdbus_bus_make_user(struct kdbus_cmd_make *make,
 	if (!n)
 		return -EBADMSG;
 
-	if (!KDBUS_IS_ALIGNED8(bsize))
+	if (bl->size < 8 || bl->size > KDBUS_BUS_BLOOM_MAX_SIZE)
 		return -EINVAL;
-
-	if (bsize < 8 || bsize > KDBUS_BUS_BLOOM_MAX_SIZE)
+	if (!KDBUS_IS_ALIGNED8(bl->size))
+		return -EINVAL;
+	if (bl->n_hash < 1)
 		return -EINVAL;
 
 	*name = (char *)n;
-	*bloom_size = (size_t)bsize;
+	*bloom = *bl;
 	return 0;
 }

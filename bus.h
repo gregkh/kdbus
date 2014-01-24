@@ -33,10 +33,10 @@
  * @conn_hash:		Map of connection IDs
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
- * @bloom_size:		Bloom filter size
  * @name_registry:	Namespace's list of buses
  * @ns_entry:		Namespace's list of buses
  * @monitors_list:	Connections that monitor this bus
+ * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
  * @user:		Owner of the connection;
  *
@@ -60,19 +60,21 @@ struct kdbus_bus {
 	DECLARE_HASHTABLE(conn_hash, 8);
 	struct list_head ep_list;
 	u64 bus_flags;
-	size_t bloom_size;
 	struct kdbus_name_registry *name_registry;
 	struct list_head ns_entry;
 	struct list_head monitors_list;
+	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
 	struct kdbus_ns_user *user;
 };
 
 int kdbus_bus_make_user(struct kdbus_cmd_make *make,
-			char **name, size_t *bsize);
-int kdbus_bus_new(struct kdbus_ns *ns, struct kdbus_cmd_make *make,
-		  const char *name, size_t bloom_size,
-		  umode_t mode, kuid_t uid, kgid_t gid, struct kdbus_bus **bus);
+			char **name, struct kdbus_bloom_parameter *bloom);
+int kdbus_bus_new(struct kdbus_ns *ns,
+		  struct kdbus_cmd_make *make, const char *name,
+		  const struct kdbus_bloom_parameter *bloom,
+		  umode_t mode, kuid_t uid, kgid_t gid,
+		  struct kdbus_bus **bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 void kdbus_bus_disconnect(struct kdbus_bus *bus);

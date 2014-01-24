@@ -160,7 +160,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			break;
 		}
 
-		case KDBUS_ITEM_BLOOM:
+		case KDBUS_ITEM_BLOOM_FILTER: {
+			u64 bloom_size;
+
 			/* do not allow multiple bloom filters */
 			if (has_bloom)
 				return -EEXIST;
@@ -170,16 +172,24 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
 				return -EBADMSG;
 
-			/* allow only bloom sizes of a multiple of 64bit */
-			if (!KDBUS_IS_ALIGNED8(payload_size))
+			if (payload_size < sizeof(struct kdbus_bloom_filter))
+				return -EBADMSG;
+
+			bloom_size = payload_size -
+				     offsetof(struct kdbus_bloom_filter, data);
+
+			/* allow only bloom filter sizes of a multiple of 64bit */
+			if (!KDBUS_IS_ALIGNED8(bloom_size))
 				return -EFAULT;
 
 			/* do not allow mismatching bloom filter sizes */
-			if (payload_size != conn->ep->bus->bloom_size)
+			if (bloom_size != conn->ep->bus->bloom.size)
 				return -EDOM;
 
-			kmsg->bloom = item->data64;
+			kmsg->bloom_generation = item->bloom_filter.generation;
+			kmsg->bloom_filter = item->bloom_filter.data;
 			break;
+		}
 
 		case KDBUS_ITEM_DST_NAME:
 			/* do not allow multiple names */
