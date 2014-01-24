@@ -16,6 +16,7 @@
 #include <linux/hashtable.h>
 #include <linux/idr.h>
 #include <linux/init.h>
+#include <linux/math64.h>
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -686,9 +687,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 
 	/* rearm timer with next timeout */
 	if (deadline != (~0ULL)) {
-		u64 usecs = deadline - now;
-
-		do_div(usecs, 1000ULL);
+		u64 usecs = div_u64(deadline - now, 1000ULL);
 		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
 	}
 }
@@ -1230,10 +1229,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	mutex_unlock(&ep->bus->lock);
 
 	if (reply_wait) {
-		u64 us = msg->timeout_ns;
+		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
 		struct kdbus_cmd_recv recv;
-
-		do_div(us, 1000ULL);
 
 		/*
 		 * Block until the reply arrives. reply_wait is left untouched
@@ -1242,7 +1239,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		if (!wait_event_interruptible_timeout(reply_wait->wait,
 						      !reply_wait->waiting,
-						      usecs_to_jiffies(us)))
+						      usecs_to_jiffies(usecs)))
 			ret = -ETIMEDOUT;
 
 		recv.offset = reply_wait->offset;
