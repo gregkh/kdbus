@@ -965,7 +965,7 @@ exit_rewind:
 }
 
 /**
- * kdbus_cmd_msg_recv - receive a message from the queue
+ * kdbus_cmd_msg_recv() - receive a message from the queue
  * @conn:		Connection to work on
  * @recv:		The command as passed in by the ioctl
  *

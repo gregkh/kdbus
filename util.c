@@ -19,7 +19,7 @@
 #include "util.h"
 
 /**
- * kdbus_sysname_valid - validate names showing up in /proc, /sys and /dev
+ * kdbus_sysname_valid() - validate names showing up in /proc, /sys and /dev
  * @name:		Name of namespace, bus, endpoint
  *
  * Return: 0 if the given name is valid, otherwise negative errno

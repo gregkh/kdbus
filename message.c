@@ -71,7 +71,7 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
 }
 
 /*
- * kdbus_msg_scan_items - validate incoming data and prepare parsing
+ * kdbus_msg_scan_items() - validate incoming data and prepare parsing
  * @conn:		Connection
  * @kmsg:		Message
  *
