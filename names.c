@@ -649,12 +649,12 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	size_t p = *pos;
 	const size_t len = sizeof(struct kdbus_cmd_name);
 	size_t nlen = 0;
-	int ret = 0;
 
 	if (e)
 		nlen = strlen(e->name) + 1;
 
 	if (write) {
+		int ret;
 		struct kdbus_cmd_name n = {
 			.size = len + nlen,
 			.owner_id = c->id,
