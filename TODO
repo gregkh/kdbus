@@ -1,4 +1,6 @@
 Features:
+  - teach kdbus_match_bloom() to look for multi-generation bloom masks
+
   - make sure that our namespace/kuid/pidns creds passing/deny logic
     is what we want in the long run
 
