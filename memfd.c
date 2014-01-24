@@ -142,10 +142,12 @@ int kdbus_memfd_new(const char *name, size_t size, int *fd)
 		goto exit_shmem;
 	}
 
-	/* The anonymous exported inode ops cannot reach the otherwise
+	/*
+	 * The anonymous exported inode ops cannot reach the otherwise
 	 * invisible shmem inode. We rely on the fact that nothing else
 	 * can create a new file for the shmem inode, like by opening the
-	 * fd in /proc/$PID/fd/ */
+	 * fd in /proc/$PID/fd/
+	 */
 	fp = anon_inode_getfile(name ? anon_name : "[" KBUILD_MODNAME "-memfd]",
 				&kdbus_memfd_fops, mf, O_RDWR);
 	if (IS_ERR(fp)) {
