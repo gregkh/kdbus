@@ -118,8 +118,7 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 
 static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 {
-	struct kdbus_ep *ep = NULL;
-	struct kdbus_ep *e;
+	struct kdbus_ep *e, *ep = NULL;
 
 	mutex_lock(&bus->lock);
 	list_for_each_entry(e, &bus->ep_list, bus_entry) {

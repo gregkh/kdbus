@@ -112,8 +112,7 @@ int kdbus_notify_name_change(u64 type,
 			     struct list_head *queue_list)
 {
 	struct kdbus_kmsg *kmsg = NULL;
-	size_t name_len;
-	size_t extra_size;
+	size_t name_len, extra_size;
 	int ret;
 
 	if (!queue_list)

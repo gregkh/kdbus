@@ -175,9 +175,8 @@ static int kdbus_pool_alloc_slice(struct kdbus_pool *pool,
 				  size_t size, struct kdbus_slice **slice)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
-	struct rb_node *n;
+	struct rb_node *n, *found = NULL;
 	struct kdbus_slice *s;
-	struct rb_node *found = NULL;
 
 	/* search a free slice with the closest matching size */
 	n = pool->slices_free.rb_node;
@@ -278,9 +277,9 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
  */
 int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool)
 {
+	struct kdbus_slice *s;
 	struct kdbus_pool *p;
 	struct file *f;
-	struct kdbus_slice *s;
 	int ret;
 
 	BUG_ON(*pool);
@@ -440,9 +439,9 @@ exit_unlock:
 static int kdbus_pool_copy_file(struct page *p, size_t start,
 				struct file *f, size_t off, size_t count)
 {
+	loff_t o = off;
 	char *kaddr;
 	ssize_t n;
-	loff_t o = off;
 
 	kaddr = kmap(p);
 	n = f->f_op->read(f, (char __force __user *)kaddr + start, count, &o);
@@ -459,8 +458,8 @@ static int kdbus_pool_copy_file(struct page *p, size_t start,
 static int kdbus_pool_copy_data(struct page *p, size_t start,
 				void __user *from, size_t count)
 {
-	char *kaddr;
 	unsigned long remain;
+	char *kaddr;
 
 	if (fault_in_pages_readable(from, count) < 0)
 		return -EFAULT;

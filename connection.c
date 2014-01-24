@@ -360,8 +360,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 static void kdbus_conn_queue_add(struct kdbus_conn *conn,
 				 struct kdbus_conn_queue *queue)
 {
-	struct rb_node **n;
-	struct rb_node *pn = NULL;
+	struct rb_node **n, *pn = NULL;
 	bool highest = true;
 
 	/* sort into priority queue tree */
@@ -784,10 +783,9 @@ exit_unref:
 static int kdbus_conn_fds_install(struct kdbus_conn *conn,
 				  struct kdbus_conn_queue *queue)
 {
-	size_t size;
 	unsigned int i;
-	int *fds;
-	int ret;
+	int ret, *fds;
+	size_t size;
 
 	/* get array of file descriptors */
 	size = queue->fds_count * sizeof(int);
@@ -832,10 +830,9 @@ static int kdbus_conn_memfds_install(struct kdbus_conn *conn,
 				     struct kdbus_conn_queue *queue,
 				     int **memfds)
 {
-	size_t size;
-	int *fds;
+	int *fds, ret = 0;
 	unsigned int i;
-	int ret = 0;
+	size_t size;
 
 	size = queue->memfds_count * sizeof(int);
 	fds = kmalloc(size, GFP_KERNEL);
@@ -1566,14 +1563,14 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_conn_info *cmd_info,
 			size_t size)
 {
-	struct kdbus_conn_info info = {};
 	struct kdbus_conn *owner_conn = NULL;
-	size_t off, pos;
-	char *name = NULL;
+	struct kdbus_conn_info info = {};
 	struct kdbus_meta *meta = NULL;
+	char *name = NULL;
+	size_t off, pos;
+	int ret = 0;
 	u64 flags;
 	u32 hash;
-	int ret = 0;
 
 	if (cmd_info->id == 0) {
 		if (size == sizeof(struct kdbus_cmd_conn_info)) {

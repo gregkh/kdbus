@@ -102,13 +102,12 @@ u64 kdbus_memfd_size(const struct file *fp)
  */
 int kdbus_memfd_new(const char *name, size_t size, int *fd)
 {
-	struct kdbus_memfile *mf;
 	const char *shmem_name = NULL;
 	const char *anon_name = NULL;
+	struct kdbus_memfile *mf;
 	struct file *shmemfp;
 	struct file *fp;
-	int f;
-	int ret;
+	int f, ret;
 
 	mf = kzalloc(sizeof(*mf), GFP_KERNEL);
 	if (!mf)

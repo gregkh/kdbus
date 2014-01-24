@@ -185,8 +185,8 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 		  size_t bloom_size, umode_t mode, kuid_t uid,
 		  kgid_t gid, struct kdbus_bus **bus)
 {
-	char prefix[16];
 	struct kdbus_bus *b;
+	char prefix[16];
 	int ret;
 
 	BUG_ON(*bus);
@@ -279,8 +279,8 @@ exit:
 int kdbus_bus_make_user(struct kdbus_cmd_make *make,
 			char **name, size_t *bloom_size)
 {
-	const char *n = NULL;
 	const struct kdbus_item *item;
+	const char *n = NULL;
 	u64 bsize = 0;
 	int ret;
 

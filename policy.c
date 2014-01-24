@@ -89,8 +89,8 @@ struct kdbus_policy_db_entry {
  */
 void kdbus_policy_db_free(struct kdbus_policy_db *db)
 {
-	struct kdbus_policy_db_entry *e;
 	struct kdbus_policy_db_cache_entry *ce;
+	struct kdbus_policy_db_entry *e;
 	struct hlist_node *tmp;
 	unsigned int i;
 
@@ -258,9 +258,9 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 				      struct kdbus_conn *conn_src,
 				      struct kdbus_conn *conn_dst)
 {
-	int ret = 0;
-	unsigned int hash = 0;
 	struct kdbus_policy_db_cache_entry *ce;
+	unsigned int hash = 0;
+	int ret = 0;
 
 	/*
 	 * If there was a positive match for these two connections before,
@@ -374,8 +374,8 @@ exit_unlock:
 int kdbus_cmd_policy_set(struct kdbus_policy_db *db,
 			 const struct kdbus_cmd_policy *cmd)
 {
-	const struct kdbus_item *item;
 	struct kdbus_policy_db_entry *current_entry = NULL;
+	const struct kdbus_item *item;
 
 	KDBUS_ITEM_FOREACH(item, cmd, policies) {
 		if (!KDBUS_ITEM_VALID(item, cmd))

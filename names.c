@@ -239,10 +239,10 @@ static int kdbus_name_release(struct kdbus_name_entry *e,
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn)
 {
-	struct kdbus_name_entry *e_tmp, *e;
 	struct kdbus_name_queue_item *q_tmp, *q;
-	LIST_HEAD(notify_list);
+	struct kdbus_name_entry *e_tmp, *e;
 	LIST_HEAD(names_queue_list);
+	LIST_HEAD(notify_list);
 	LIST_HEAD(names_list);
 
 	mutex_lock(&conn->lock);
@@ -339,8 +339,8 @@ static int kdbus_name_replace_owner(struct kdbus_name_registry *reg,
  */
 bool kdbus_name_is_valid(const char *p)
 {
-	const char *q;
 	bool dot, found_dot;
+	const char *q;
 
 	for (dot = true, q = p; *q; q++) {
 		if (*q == '.') {
@@ -646,8 +646,8 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 				 struct kdbus_name_entry *e,
 				 bool write)
 {
-	size_t p = *pos;
 	const size_t len = sizeof(struct kdbus_cmd_name);
+	size_t p = *pos;
 	size_t nlen = 0;
 
 	if (e)
@@ -768,8 +768,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_cmd_name_list *cmd)
 {
 	struct kdbus_name_list list = {};
-	size_t size;
-	size_t off, pos;
+	size_t size, off, pos;
 	int ret;
 
 	mutex_lock(&reg->entries_lock);

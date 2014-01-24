@@ -82,11 +82,11 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
-	size_t vecs_size = 0;
 	unsigned int items_count = 0;
-	bool has_fds = false;
-	bool has_name = false;
+	size_t vecs_size = 0;
 	bool has_bloom = false;
+	bool has_name = false;
+	bool has_fds = false;
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
 		size_t payload_size;

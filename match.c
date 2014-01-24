@@ -476,8 +476,8 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 			  struct kdbus_cmd_match *cmd)
 {
 	struct kdbus_conn *target_conn = NULL;
-	struct kdbus_match_db *db;
 	struct kdbus_match_entry *entry, *tmp;
+	struct kdbus_match_db *db;
 
 	/* privileged users can act on behalf of someone else */
 	if (cmd->owner_id == 0)
