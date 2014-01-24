@@ -1003,6 +1003,48 @@ exit_unlock:
 }
 
 /**
+ * kdbus_cmd_msg_cancel() - cancel all pending sync requests
+ * 			    with the given cookie
+ * @conn:		The connection
+ * @cookie:		The cookie
+ *
+ * Return: 0 on success, or -ENOENT if no pending request with that
+ * cookie was found.
+ */
+int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
+			 u64 cookie)
+{
+	struct kdbus_conn_reply_entry *reply, *reply_tmp;
+	struct kdbus_bus *bus = conn->ep->bus;
+	struct kdbus_conn *c;
+	bool found = false;
+	int i;
+
+	if (atomic_read(&conn->reply_count) == 0)
+		return -ENOENT;
+
+	mutex_lock(&bus->lock);
+	hash_for_each(bus->conn_hash, i, c, hentry) {
+		mutex_lock(&c->lock);
+		list_for_each_entry_safe(reply, reply_tmp,
+					 &c->reply_list, entry) {
+
+			if (reply->sync &&
+			    conn == reply->conn &&
+			    cookie == reply->cookie) {
+				kdbus_conn_reply_entry_finish(reply,
+							      ~0ULL);
+				found = true;
+			}
+		}
+		mutex_unlock(&c->lock);
+	}
+	mutex_unlock(&bus->lock);
+
+	return found ? 0 : -ENOENT;
+}
+
+/**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
  * @conn_src:		Connection, kernel-generated messages do not have one

@@ -95,6 +95,8 @@ bool kdbus_conn_active(struct kdbus_conn *conn);
 
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv);
+int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
+			 u64 cookie);
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_conn_info *cmd_info,
 			size_t size);

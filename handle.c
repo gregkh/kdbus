@@ -722,6 +722,20 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
+	case KDBUS_CMD_MSG_CANCEL: {
+		u64 cookie;
+
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
+			return -EFAULT;
+
+		/* cancel sync message send requests by cookie */
+		if (copy_from_user(&cookie, buf, sizeof(cookie)))
+			return -EFAULT;
+
+		ret = kdbus_cmd_msg_cancel(conn, cookie);
+		break;
+	}
+
 	case KDBUS_CMD_FREE: {
 		u64 off;
 

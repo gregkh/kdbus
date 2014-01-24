@@ -768,6 +768,9 @@ struct kdbus_cmd_memfd_make {
  *				the kernel.
  * @KDBUS_CMD_MSG_RECV:		Receive a message from the kernel which is
  *				placed in the receiver's pool.
+ * @KDBUS_CMD_MSG_CANCEL:	Cancel a pending request of a message that
+ * 				blocks while waiting for a reply. The parameter
+ * 				denotes the cookie of the message in flight.
  * @KDBUS_CMD_FREE:		Release the allocated memory in the receiver's
  *				pool.
  * @KDBUS_CMD_NAME_ACQUIRE:	Request a well-known bus name to associate with
@@ -827,6 +830,7 @@ enum kdbus_ioctl_type {
 
 	KDBUS_CMD_MSG_SEND =		_IOW (KDBUS_IOC_MAGIC, 0x40, struct kdbus_msg),
 	KDBUS_CMD_MSG_RECV =		_IOWR(KDBUS_IOC_MAGIC, 0x41, struct kdbus_cmd_recv),
+	KDBUS_CMD_MSG_CANCEL =		_IOW (KDBUS_IOC_MAGIC, 0x43, __u64 *),
 	KDBUS_CMD_FREE =		_IOW (KDBUS_IOC_MAGIC, 0x42, __u64 *),
 
 	KDBUS_CMD_NAME_ACQUIRE =	_IOWR(KDBUS_IOC_MAGIC, 0x50, struct kdbus_cmd_name),
