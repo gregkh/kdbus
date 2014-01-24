@@ -686,7 +686,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 		kdbus_conn_reply_free(reply);
 
 	/* rearm timer with next timeout */
-	if (deadline != (~0ULL)) {
+	if (deadline != ~0ULL) {
 		u64 usecs = div_u64(deadline - now, 1000ULL);
 		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
 	}
