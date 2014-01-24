@@ -33,16 +33,16 @@
  * struct kdbus_name_queue_item - a queue item for a name
  * @conn:		The associated connection
  * @entry:		Name entry queuing up for
- * @flags:		The queuing flags
  * @entry_entry:	List element for the list in @entry
  * @conn_entry:		List element for the list in @conn
+ * @flags:		The queuing flags
  */
 struct kdbus_name_queue_item {
-	struct kdbus_conn	*conn;
+	struct kdbus_conn *conn;
 	struct kdbus_name_entry	*entry;
-	u64			flags;
-	struct list_head	entry_entry;
-	struct list_head	conn_entry;
+	struct list_head entry_entry;
+	struct list_head conn_entry;
+	u64 flags;
 };
 
 static void kdbus_name_entry_free(struct kdbus_name_entry *e)

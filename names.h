@@ -23,7 +23,7 @@
  */
 struct kdbus_name_registry {
 	DECLARE_HASHTABLE(entries_hash, 8);
-	struct mutex		entries_lock;
+	struct mutex entries_lock;
 	u64 name_seq_last;
 };
 
@@ -40,14 +40,14 @@ struct kdbus_name_registry {
  * @activator:		Connection of the activator queuing incoming messages
  */
 struct kdbus_name_entry {
-	char			*name;
-	u64			name_id;
-	u64			flags;
-	struct list_head	queue_list;
-	struct list_head	conn_entry;
-	struct hlist_node	hentry;
-	struct kdbus_conn	*conn;
-	struct kdbus_conn	*activator;
+	char *name;
+	u64 name_id;
+	u64 flags;
+	struct list_head queue_list;
+	struct list_head conn_entry;
+	struct hlist_node hentry;
+	struct kdbus_conn *conn;
+	struct kdbus_conn *activator;
 };
 
 int kdbus_name_registry_new(struct kdbus_name_registry **reg);
