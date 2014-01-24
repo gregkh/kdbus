@@ -1006,7 +1006,7 @@ exit_unlock:
 
 /**
  * kdbus_cmd_msg_cancel() - cancel all pending sync requests
- * 			    with the given cookie
+ *			    with the given cookie
  * @conn:		The connection
  * @cookie:		The cookie
  *
@@ -1390,7 +1390,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				 * waiting side has been woken up.
 				 */
 				if (reply->sync) {
-					kdbus_conn_reply_finish(reply, -EPIPE, 0);
+					kdbus_conn_reply_finish(reply,
+								-EPIPE, 0);
 					continue;
 				}
 
