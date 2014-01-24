@@ -47,6 +47,7 @@
  * @wait:		The waitqueue for synchronous I/O
  * @waiting:		The reply block is waiting for synchronous I/O
  * @sync:		The reply block is operating in synchronous I/O mode
+ * @err:		The error code for the syncronous reply
  * @offset:		The offset in the sender's pool where the reply
  *			is stored
  */
@@ -58,6 +59,7 @@ struct kdbus_conn_reply {
 	wait_queue_head_t wait;
 	bool waiting:1;
 	bool sync:1;
+	int err;
 	u64 offset;
 };
 
@@ -116,12 +118,13 @@ static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 }
 
 static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
-				    u64 offset)
+				    int err, u64 offset)
 {
 	if (reply->sync) {
 		mutex_lock(&reply->conn->lock);
 		reply->waiting = false;
 		reply->offset = offset;
+		reply->err = err;
 		mutex_unlock(&reply->conn->lock);
 		wake_up_interruptible(&reply->wait);
 	} else {
@@ -908,7 +911,7 @@ static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
 		if (queue->reply)
-			kdbus_conn_reply_finish(queue->reply, ~0ULL);
+			kdbus_conn_reply_finish(queue->reply, -EPIPE, 0);
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
@@ -1032,7 +1035,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			if (reply->sync &&
 			    conn == reply->conn &&
 			    cookie == reply->cookie) {
-				kdbus_conn_reply_finish(reply, ~0ULL);
+				kdbus_conn_reply_finish(reply, -ECANCELED, 0);
 				found = true;
 			}
 		}
@@ -1172,7 +1175,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		if (msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
 			init_waitqueue_head(&reply->wait);
-			reply->offset = ~0ULL;
 			reply->sync = true;
 			reply->waiting = true;
 			reply_wait = reply;
@@ -1246,8 +1248,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		recv.offset = reply_wait->offset;
 		recv.flags = 0;
 
-		if (ret == 0 && reply_wait->offset == ~0ULL)
-			ret = -EPIPE;
+		if (ret == 0 && reply_wait->err != 0)
+			ret = reply_wait->err;
 
 		mutex_lock(&conn_src->lock);
 		kdbus_conn_reply_free(reply_wait);
@@ -1269,7 +1271,7 @@ exit_unref:
 	 * and kdbus_conn_reply_free() will wake up the wait queue.
 	 */
 	if (reply_wake)
-		kdbus_conn_reply_finish(reply_wake, offset);
+		kdbus_conn_reply_finish(reply_wake, 0, offset);
 
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
@@ -1391,7 +1393,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				 * waiting side has been woken up.
 				 */
 				if (reply->sync) {
-					kdbus_conn_reply_finish(reply, ~0ULL);
+					kdbus_conn_reply_finish(reply, -EPIPE, 0);
 					continue;
 				}
 
@@ -1452,7 +1454,7 @@ static void __kdbus_conn_free(struct kref *kref)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
-		kdbus_conn_reply_finish(reply, ~0ULL);
+		kdbus_conn_reply_finish(reply, -EPIPE, 0);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
