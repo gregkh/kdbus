@@ -24,12 +24,12 @@
 #include <linux/uaccess.h>
 
 #include "bus.h"
-#include "namespace.h"
 #include "connection.h"
 #include "endpoint.h"
 #include "match.h"
 #include "message.h"
 #include "names.h"
+#include "namespace.h"
 #include "policy.h"
 
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)

@@ -25,8 +25,8 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#include "util.h"
 #include "pool.h"
+#include "util.h"
 
 /**
  * struct kdbus_pool - the receiver's buffer

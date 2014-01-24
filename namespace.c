@@ -20,11 +20,11 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#include "defaults.h"
-#include "util.h"
 #include "bus.h"
+#include "defaults.h"
 #include "handle.h"
 #include "namespace.h"
+#include "util.h"
 
 /* map of majors to namespaces */
 static DEFINE_IDR(kdbus_ns_major_idr);
