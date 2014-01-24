@@ -10,11 +10,10 @@
  * your option) any later version.
  */
 
+#include <linux/ctype.h>
+#include <linux/dcache.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
-#include <linux/ctype.h>
-#include <linux/fs.h>
 
 #include "util.h"
 
