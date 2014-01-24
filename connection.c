@@ -39,7 +39,7 @@
 #include "util.h"
 
 /**
- * struct kdbus_conn_reply_entry - an entry of kdbus_conn's list of replies
+ * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
  * @entry:		The list_head entry of the connection's reply_list
  * @conn:		The counterpart connection that is expected to answer
  * @deadline_ns:	The deadline of the reply, in nanoseconds
@@ -50,7 +50,7 @@
  * @offset:		The offset in the sender's pool where the reply
  *			is stored
  */
-struct kdbus_conn_reply_entry {
+struct kdbus_conn_reply {
 	struct list_head entry;
 	struct kdbus_conn *conn;
 	u64 deadline_ns;
@@ -104,10 +104,10 @@ struct kdbus_conn_queue {
 	u64 cookie;
 	u64 dst_name_id;
 
-	struct kdbus_conn_reply_entry *reply;
+	struct kdbus_conn_reply *reply;
 };
 
-static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
+static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 {
 	atomic_dec(&reply->conn->reply_count);
 	list_del(&reply->entry);
@@ -115,8 +115,8 @@ static void kdbus_conn_reply_entry_free(struct kdbus_conn_reply_entry *reply)
 	kfree(reply);
 }
 
-static void kdbus_conn_reply_entry_finish(struct kdbus_conn_reply_entry *reply,
-					  u64 offset)
+static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
+				    u64 offset)
 {
 	if (reply->sync) {
 		mutex_lock(&reply->conn->lock);
@@ -125,7 +125,7 @@ static void kdbus_conn_reply_entry_finish(struct kdbus_conn_reply_entry *reply,
 		mutex_unlock(&reply->conn->lock);
 		wake_up_interruptible(&reply->wait);
 	} else {
-		kdbus_conn_reply_entry_free(reply);
+		kdbus_conn_reply_free(reply);
 	}
 }
 
@@ -443,7 +443,7 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 				   struct kdbus_kmsg *kmsg,
-				   struct kdbus_conn_reply_entry *reply,
+				   struct kdbus_conn_reply *reply,
 				   u64 *offset)
 {
 	struct kdbus_conn_queue *queue;
@@ -628,7 +628,7 @@ exit_unlock:
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 {
-	struct kdbus_conn_reply_entry *reply, *reply_tmp;
+	struct kdbus_conn_reply *reply, *reply_tmp;
 	LIST_HEAD(notify_list);
 	LIST_HEAD(reply_list);
 	u64 deadline = ~0ULL;
@@ -679,7 +679,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
-		kdbus_conn_reply_entry_free(reply);
+		kdbus_conn_reply_free(reply);
 
 	/* rearm timer with next timeout */
 	if (deadline != (~0ULL)) {
@@ -908,7 +908,7 @@ static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
 		if (queue->reply)
-			kdbus_conn_reply_entry_finish(queue->reply, ~0ULL);
+			kdbus_conn_reply_finish(queue->reply, ~0ULL);
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
@@ -1014,7 +1014,7 @@ exit_unlock:
 int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			 u64 cookie)
 {
-	struct kdbus_conn_reply_entry *reply, *reply_tmp;
+	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_conn *c;
 	bool found = false;
@@ -1032,8 +1032,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			if (reply->sync &&
 			    conn == reply->conn &&
 			    cookie == reply->cookie) {
-				kdbus_conn_reply_entry_finish(reply,
-							      ~0ULL);
+				kdbus_conn_reply_finish(reply, ~0ULL);
 				found = true;
 			}
 		}
@@ -1056,8 +1055,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg)
 {
-	struct kdbus_conn_reply_entry *reply_wait = NULL;
-	struct kdbus_conn_reply_entry *reply_wake = NULL;
+	struct kdbus_conn_reply *reply_wait = NULL;
+	struct kdbus_conn_reply *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
 	u64 offset = ~0ULL;
@@ -1118,7 +1117,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		return ret;
 
 	if (conn_src) {
-		struct kdbus_conn_reply_entry *r;
+		struct kdbus_conn_reply *r;
 
 		/*
 		 * Walk the list of connection we expect a reply from.
@@ -1151,9 +1150,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 	}
 
-	/* If the message expects a reply, add a kdbus_conn_reply_entry */
+	/* If the message expects a reply, add a kdbus_conn_reply */
 	if (conn_src && (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)) {
-		struct kdbus_conn_reply_entry *reply;
+		struct kdbus_conn_reply *reply;
 		struct timespec ts;
 
 		if (atomic_read(&conn_src->reply_count) >
@@ -1251,7 +1250,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			ret = -EPIPE;
 
 		mutex_lock(&conn_src->lock);
-		kdbus_conn_reply_entry_free(reply_wait);
+		kdbus_conn_reply_free(reply_wait);
 		mutex_unlock(&conn_src->lock);
 
 		if (ret < 0)
@@ -1267,10 +1266,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 exit_unref:
 	/*
 	 * reply_wake is only non-NULL if it refers to a handled reply,
-	 * and kdbus_conn_reply_entry_free() will wake up the wait queue.
+	 * and kdbus_conn_reply_free() will wake up the wait queue.
 	 */
 	if (reply_wake)
-		kdbus_conn_reply_entry_finish(reply_wake, offset);
+		kdbus_conn_reply_finish(reply_wake, offset);
 
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
@@ -1375,7 +1374,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	if (unlikely(atomic_read(&conn->reply_count) > 0)) {
 		struct kdbus_conn *c;
 		int i;
-		struct kdbus_conn_reply_entry *reply, *reply_tmp;
+		struct kdbus_conn_reply *reply, *reply_tmp;
 
 		mutex_lock(&bus->lock);
 		hash_for_each(bus->conn_hash, i, c, hentry) {
@@ -1392,8 +1391,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				 * waiting side has been woken up.
 				 */
 				if (reply->sync) {
-					kdbus_conn_reply_entry_finish(reply,
-								      ~0ULL);
+					kdbus_conn_reply_finish(reply, ~0ULL);
 					continue;
 				}
 
@@ -1443,7 +1441,7 @@ bool kdbus_conn_active(struct kdbus_conn *conn)
 static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
-	struct kdbus_conn_reply_entry *reply, *reply_tmp;
+	struct kdbus_conn_reply *reply, *reply_tmp;
 
 	kdbus_conn_disconnect(conn, false);
 
@@ -1454,7 +1452,7 @@ static void __kdbus_conn_free(struct kref *kref)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
-		kdbus_conn_reply_entry_finish(reply, ~0ULL);
+		kdbus_conn_reply_finish(reply, ~0ULL);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
