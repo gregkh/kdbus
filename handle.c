@@ -707,7 +707,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			return -EFAULT;
 
 		/* handle a queued message */
-		if (copy_from_user(&cmd, buf, sizeof(struct kdbus_cmd_recv)))
+		if (copy_from_user(&cmd, buf, sizeof(cmd)))
 			return -EFAULT;
 
 		ret = kdbus_cmd_msg_recv(conn, &cmd);
@@ -729,7 +729,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			return -EFAULT;
 
 		/* free the memory used in the receiver's pool */
-		if (copy_from_user(&off, buf, sizeof(__u64)))
+		if (copy_from_user(&off, buf, sizeof(off)))
 			return -EFAULT;
 
 		ret = kdbus_pool_free_range(conn->pool, off);
