@@ -170,7 +170,7 @@ static bool kdbus_match_bloom(const struct kdbus_bloom_filter *filter,
 
 	/*
 	 * The message's filter carries a generation identifier, the
-	 * matche's mask possibly carries an array of multiple generations
+	 * match's mask possibly carries an array of multiple generations
 	 * of the mask. Select the mask with the closest match of the
 	 * filter's generation.
 	 */
@@ -178,7 +178,7 @@ static bool kdbus_match_bloom(const struct kdbus_bloom_filter *filter,
 
 	/*
 	 * The message's filter contains the messages properties,
-	 * the matche's mask contains the properties to look for in the
+	 * the match's mask contains the properties to look for in the
 	 * message. Check the mask bit field against the filter bit field,
 	 * if the message possibly carries the properties the connection
 	 * has subscribed to.
