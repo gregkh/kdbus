@@ -37,8 +37,8 @@
 struct kdbus_policy_db {
 	DECLARE_HASHTABLE(entries_hash, 6);
 	DECLARE_HASHTABLE(send_access_hash, 6);
-	struct mutex		entries_lock;
-	struct mutex		cache_lock;
+	struct mutex entries_lock;
+	struct mutex cache_lock;
 };
 
 /**
@@ -48,9 +48,9 @@ struct kdbus_policy_db {
  * @hentry:		The hash table entry for the database's entries_hash
  */
 struct kdbus_policy_db_cache_entry {
-	struct kdbus_conn	*conn_a;
-	struct kdbus_conn	*conn_b;
-	struct hlist_node	hentry;
+	struct kdbus_conn *conn_a;
+	struct kdbus_conn *conn_b;
+	struct hlist_node hentry;
 };
 
 /**
@@ -64,10 +64,10 @@ struct kdbus_policy_db_cache_entry {
  * This is the internal version of struct kdbus_policy_access.
  */
 struct kdbus_policy_db_entry_access {
-	u8			type;	/* USER, GROUP, WORLD */
-	u8			bits;	/* RECV, SEND, OWN */
-	u64			id;	/* uid, gid, 0 */
-	struct list_head	list;
+	u8 type;	/* USER, GROUP, WORLD */
+	u8 bits;	/* RECV, SEND, OWN */
+	u64 id;		/* uid, gid, 0 */
+	struct list_head list;
 };
 
 /**
@@ -78,9 +78,9 @@ struct kdbus_policy_db_entry_access {
  *			access items.
  */
 struct kdbus_policy_db_entry {
-	char			*name;
-	struct hlist_node	hentry;
-	struct list_head	access_list;
+	char *name;
+	struct hlist_node hentry;
+	struct list_head access_list;
 };
 
 /**

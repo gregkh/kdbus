@@ -32,8 +32,8 @@
  * @entries_lock:	Match data lock
  */
 struct kdbus_match_db {
-	struct list_head	entries_list;
-	struct mutex		entries_lock;
+	struct list_head entries_list;
+	struct mutex entries_lock;
 };
 
 /**
@@ -43,9 +43,9 @@ struct kdbus_match_db {
  * @rules_list:		The list head for tracking rules of this entry
  */
 struct kdbus_match_entry {
-	u64			cookie;
-	struct list_head	list_entry;
-	struct list_head	rules_list;
+	u64 cookie;
+	struct list_head list_entry;
+	struct list_head rules_list;
 };
 
 /**
@@ -61,18 +61,18 @@ struct kdbus_match_entry {
  * @rules_entry:	List entry to the entry's rules list
  */
 struct kdbus_match_rule {
-	u64			type;
+	u64 type;
 	union {
-		char		*name;
-		u64		*bloom_mask;
+		char *name;
+		u64 *bloom_mask;
 	};
 	union {
-		u64		old_id;
-		u64		src_id;
+		u64 old_id;
+		u64 src_id;
 	};
-	u64			new_id;
+	u64 new_id;
 
-	struct list_head	rules_entry;
+	struct list_head rules_entry;
 };
 
 static void kdbus_match_rule_free(struct kdbus_match_rule *rule)
@@ -172,7 +172,6 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 	 */
 
 	list_for_each_entry(r, &entry->rules_list, rules_entry) {
-
 		if (conn_src == NULL) {
 			/* kernel notifications */
 
