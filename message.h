@@ -25,7 +25,7 @@
  * @notify_name:	Short-cut for faster lookup
  * @dst_name:		Short-cut to msg for faster lookup
  * @dst_name_id:	Short-cut to msg for faster lookup
- * @bloom_filter:	Bloom filter bit field
+ * @bloom_filter:	Bloom filter to match message properties
  * @bloom_generation:	Generation of bloom element set
  * @fds:		Array of file descriptors to pass
  * @fds_count:		Number of file descriptors to pass
@@ -45,7 +45,7 @@ struct kdbus_kmsg {
 
 	const char *dst_name;
 	u64 dst_name_id;
-	const u64 *bloom_filter;
+	const struct kdbus_bloom_filter *bloom_filter;
 	u64 bloom_generation;
 	const int *fds;
 	unsigned int fds_count;

@@ -1,5 +1,6 @@
 Features:
-  - teach kdbus_match_bloom() to look for multi-generation bloom masks
+  - test kdbus_match_bloom() multi-generation bloom masks, we need to
+    be sure it works with old kernels when we update userspace tools
 
   - make sure that our namespace/kuid/pidns creds passing/deny logic
     is what we want in the long run

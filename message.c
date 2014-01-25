@@ -186,8 +186,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			if (bloom_size != conn->ep->bus->bloom.size)
 				return -EDOM;
 
-			kmsg->bloom_generation = item->bloom_filter.generation;
-			kmsg->bloom_filter = item->bloom_filter.data;
+			kmsg->bloom_filter = &item->bloom_filter;
 			break;
 		}
 
