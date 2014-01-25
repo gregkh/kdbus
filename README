@@ -10,7 +10,7 @@ Development repos:
   https://code.google.com/p/d-bus/
 
 See also:
-  https://review.tizen.org/git/?p=platform/upstream/glib.git;a=shortlog;h=refs/heads/kdbus-dev
+  https://review.tizen.org/git/?p=platform/upstream/glib.git;a=shortlog;h=refs/heads/kdbus-integration
   https://review.tizen.org/git/?p=platform/upstream/dbus.git;a=shortlog;h=refs/heads/kdbus-dev
 
 The code is LGPLv2+. We need to make sure, that we are able to freely

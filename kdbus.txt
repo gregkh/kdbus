@@ -3,8 +3,8 @@ communication (IPC).
 
 The focus of this document is an overview of the low-level, native kernel D-Bus
 transport called kdbus. Kdbus in the kernel acts similar to a device driver,
-all communication between processes take place over special device nodes in
-/dev/kdbus/.
+all communication between processes take place over special character device
+nodes in /dev/kdbus/.
 
 For the general D-Bus protocol specification, the payload format, the
 marshaling, the communication semantics, please refer to:
@@ -13,6 +13,9 @@ marshaling, the communication semantics, please refer to:
 For a kdbus specific userspace library implementation please refer to:
   http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-bus.h
   http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-memfd.h
+
+Article about D-Bus and kdbus:
+  http://lwn.net/Articles/580194/
 
 ===============================================================================
 Terminology
@@ -52,7 +55,7 @@ Terminology
     address messages to every other connection on the same bus by using
     the peer's connection id as the destination.
 
-  Well-known Names:
+  Well-known Name:
     A connection can, in addition to its implicit unique connection id, request
     the ownership of a textual well-known name. Well-known names are noted
     in reverse-domain notation like com.example.service. Connections offering
@@ -97,7 +100,7 @@ Note:
   kdbus could be implemented as a filesystem with a separate instance mounted
   for each namespace. For any future changes, this always needs to be kept
   in mind. Also the dependency on udev's userspace hookups or sysfs attribute
-  use should be limited for the same reason.
+  use should be limited to the absolute minimum for the same reason.
 
 ===============================================================================
 Data Structures
@@ -331,3 +334,38 @@ between the peers.
 
 The sealing of a kdbus_memfd can be removed again by the sender or the
 receiver, as soon as the kdbus_memfd is not shared anymore.
+
+===============================================================================
+Broadcast Messages
+===============================================================================
+A message addressed at the connection ID 0 is a broadcast message, delivered
+to all connected peers which installed a rule to match certain properties of
+the message. Without any rules installed in the connection, no broadcast
+message will de delivered to the connection.
+
+Matches are implemented as bloom filters. The sender adds certain properties of
+the message as elements to a bloom filter bit field, and sends that along with
+the broadcast message.
+
+The connection adds the message properties it is interested as elements to a
+bloom mask bit field, and uploads the mask to the match rules of the
+connection.
+
+The kernel will match the broadcast message's bloom filter against the
+connections bloom mask and decide if the message should be delivered to
+the connection.
+
+The kernel has no notion of any specific properties of the message, all it
+sees are the bit fields of the bloom filter and mask to match against. The
+use of bloom filters allows simple and efficient matching, wihthout exposing
+any message properties or internals to the kernel side. Clients need to deal
+with the fact that they might receive broadcasts which they did not subscribe
+to, the bloom filter might allow false-positives to pass the filter.
+
+To allow the future extension of the set of elements in the bloom filter, the
+filter specifies a "generation" number. A later generation must always contain
+all elements of the set of the previous generation, but can add new elements
+to the set. The match rules mask can carry an array with all previous
+generations of masks individually stored. When the filter and mask are matched
+by the kernel, the mask with the closest matching "generation" is selected
+as the index into the mask array.
