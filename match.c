@@ -174,7 +174,7 @@ static bool kdbus_match_bloom(const struct kdbus_bloom_filter *filter,
 	 * of the mask. Select the mask with the closest match of the
 	 * filter's generation.
 	 */
-	m = mask->data + (min(filter->generation, mask->generations) * n);
+	m = mask->data + (min(filter->generation, mask->generations - 1) * n);
 
 	/*
 	 * The message's filter contains the messages properties,
@@ -401,8 +401,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 		switch (item->type) {
 		case KDBUS_ITEM_BLOOM_MASK:
-			if (size % conn->ep->bus->bloom.size > 0) {
-				ret = -EBADMSG;
+			if (size < conn->ep->bus->bloom.size ||
+			    size % conn->ep->bus->bloom.size > 0) {
+				ret = -EDOM;
 				break;
 			}
 
@@ -414,8 +415,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			}
 
 			/* we get an array of n generations of bloom masks */
-			rule->bloom_mask.generations = size /
-						  conn->ep->bus->bloom.size;
+			rule->bloom_mask.generations =
+					size / conn->ep->bus->bloom.size;
 
 			break;
 
