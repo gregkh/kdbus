@@ -50,9 +50,9 @@
 #define KDBUS_POLICY_MAX_SIZE		SZ_32K
 
 /* maximum number of queued messages per connection */
-#define KDBUS_CONN_MAX_MSGS		64
+#define KDBUS_CONN_MAX_MSGS		256
 
-/* maximum number of well-known names */
+/* maximum number of well-known names per connection */
 #define KDBUS_CONN_MAX_NAMES		64
 
 /* maximum number of queud requests waiting for a reply */

@@ -3,7 +3,7 @@ Features:
     be sure it works with old kernels when we update userspace tools
 
   - make sure that our namespace/kuid/pidns creds passing/deny logic
-    is what we want in the long run
+    is what we want in the long run, interaction with userns?
 
   - use/prepare for something like this to manage the pool backing shmemfd:
       https://git.kernel.org/cgit/linux/kernel/git/minchan/linux.git/commit/?h=vrange-v10-rc5&id=0b40a69d4c5d9eb13352fd357d73a5fab3ee699d
@@ -22,7 +22,7 @@ Features:
 
   - attach seclabel to names?
   - attach policy to names? Where/how to store names from policy but
-    otherwise inactive names (name laceholders).
+    otherwise inactive names (name placeholders).
   - find a way to specify "name prefix wildcards" like:
      "com.expample.foo.* can be owned by uid foo"
 
