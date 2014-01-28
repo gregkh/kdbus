@@ -122,11 +122,9 @@ static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
 				    int err, u64 offset)
 {
 	if (reply->sync) {
-		mutex_lock(&reply->conn->lock);
 		reply->waiting = false;
 		reply->offset = offset;
 		reply->err = err;
-		mutex_unlock(&reply->conn->lock);
 		wake_up_interruptible(&reply->wait);
 	} else {
 		kdbus_conn_reply_free(reply);
