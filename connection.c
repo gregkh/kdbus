@@ -1449,7 +1449,7 @@ static void __kdbus_conn_free(struct kref *kref)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
-		kdbus_conn_reply_finish(reply, -EPIPE, 0);
+		kdbus_conn_reply_free(reply);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
