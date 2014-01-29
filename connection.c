@@ -787,13 +787,10 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 
 	/* the connection is already ref'ed at this point */
 	*conn = c;
-
-	/* nullify it so it won't be freed below */
-	c = NULL;
+	return 0;
 
 exit_unref:
 	kdbus_conn_unref(c);
-
 	return ret;
 }
 
@@ -1278,18 +1275,19 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			ret = -EPIPE;
 
 		if (ret == 0) {
-			ret = kdbus_conn_msg_install(conn_src, reply_wait->queue);
+			struct kdbus_conn_queue *queue = reply_wait->queue;
+
+			ret = kdbus_conn_msg_install(conn_src, queue);
 			if (ret < 0)
 				return ret;
 
-			kmsg->msg.offset_reply = reply_wait->queue->off;
-			kdbus_conn_queue_cleanup(reply_wait->queue);
+			kmsg->msg.offset_reply = queue->off;
+			kdbus_conn_queue_cleanup(queue);
 		}
 
 		mutex_lock(&conn_dst->lock);
 		kdbus_conn_reply_free(reply_wait);
 		mutex_unlock(&conn_dst->lock);
-
 	}
 
 exit_unref:
