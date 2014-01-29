@@ -1234,6 +1234,11 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (reply_wake && reply_wake->conn_waiting) {
+		/*
+		 * If we're reponding to a syncronous reply, allocate a
+		 * queue item and attach it to the reply tracking object.
+		 * The connection's queue will never get to see it.
+		 */
 		ret = kdbus_conn_queue_alloc(reply_wake->conn_waiting, kmsg,
 					     &reply_wake->queue);
 		if (ret < 0)
@@ -1241,6 +1246,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		kdbus_conn_reply_finish(reply_wake, 0);
 	} else {
+		/*
+		 * Otherwise, put it in the queue and wait for the connection
+		 * to dequeue and receive the message.
+		 */
 		ret = kdbus_conn_queue_insert(conn_dst, kmsg, reply_wait);
 		if (ret < 0)
 			goto exit_unref;
