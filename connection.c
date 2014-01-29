@@ -1283,7 +1283,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		if (ret == 0) {
 			struct kdbus_conn_queue *queue = reply_wait->queue;
 
+			mutex_lock(&conn_src->lock);
 			ret = kdbus_conn_msg_install(conn_src, queue);
+			mutex_unlock(&conn_src->lock);
 			if (ret < 0)
 				return ret;
 
@@ -1291,9 +1293,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			kdbus_conn_queue_cleanup(queue);
 		}
 
-		mutex_lock(&conn_dst->lock);
+		mutex_lock(&conn_src->lock);
 		kdbus_conn_reply_free(reply_wait);
-		mutex_unlock(&conn_dst->lock);
+		mutex_unlock(&conn_src->lock);
 	}
 
 exit_unref:
