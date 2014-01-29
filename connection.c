@@ -984,13 +984,10 @@ static int kdbus_conn_msg_recv(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_conn_msg_install(conn, queue);
-	if (ret < 0)
-		return ret;
-
 	kdbus_conn_queue_remove(conn, queue);
 	kdbus_conn_queue_cleanup(queue);
 
-	return 0;
+	return ret;
 }
 
 /**
