@@ -39,30 +39,7 @@
 #include "policy.h"
 #include "util.h"
 
-/**
- * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
- * @entry:		The list_head entry of the connection's reply_list
- * @conn:		The counterpart connection that is expected to answer
- * @deadline_ns:	The deadline of the reply, in nanoseconds
- * @cookie:		The cookie of the requesting message
- * @wait:		The waitqueue for synchronous I/O
- * @waiting:		The reply block is waiting for synchronous I/O
- * @sync:		The reply block is operating in synchronous I/O mode
- * @err:		The error code for the syncronous reply
- * @offset:		The offset in the sender's pool where the reply
- *			is stored
- */
-struct kdbus_conn_reply {
-	struct list_head entry;
-	struct kdbus_conn *conn;
-	u64 deadline_ns;
-	u64 cookie;
-	wait_queue_head_t wait;
-	bool waiting:1;
-	bool sync:1;
-	int err;
-	u64 offset;
-};
+struct kdbus_conn_reply;
 
 /**
  * struct kdbus_conn_queue - messages waiting to be read
@@ -110,6 +87,33 @@ struct kdbus_conn_queue {
 	struct kdbus_conn_reply *reply;
 };
 
+/**
+ * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
+ * @entry:		The list_head entry of the connection's reply_list
+ * @conn_waiting:	The connection that is waiting for the reply (sync)
+ * @conn:		The counterpart connection that is expected to answer
+ * @queue:		The queue item that is prepared by the replying
+ * 			connection
+ * @deadline_ns:	The deadline of the reply, in nanoseconds
+ * @cookie:		The cookie of the requesting message
+ * @wait:		The waitqueue for synchronous I/O
+ * @waiting:		The reply block is waiting for synchronous I/O
+ * @sync:		The reply block is operating in synchronous I/O mode
+ * @err:		The error code for the syncronous reply
+ */
+struct kdbus_conn_reply {
+	struct list_head entry;
+	struct kdbus_conn *conn_waiting;
+	struct kdbus_conn *conn;
+	struct kdbus_conn_queue *queue;
+	u64 deadline_ns;
+	u64 cookie;
+	wait_queue_head_t wait;
+	bool waiting:1;
+	bool sync:1;
+	int err;
+};
+
 static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 {
 	atomic_dec(&reply->conn->reply_count);
@@ -119,11 +123,13 @@ static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 }
 
 static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
-				    int err, u64 offset)
+				    int err)
 {
 	if (reply->sync) {
+		if (!reply->waiting)
+			return;
+
 		reply->waiting = false;
-		reply->offset = offset;
 		reply->err = err;
 		wake_up_interruptible(&reply->wait);
 	} else {
@@ -442,10 +448,9 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 }
 
 /* enqueue a message into the receiver's pool */
-static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
-				   struct kdbus_kmsg *kmsg,
-				   struct kdbus_conn_reply *reply,
-				   u64 *offset)
+static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
+				  struct kdbus_kmsg *kmsg,
+				  struct kdbus_conn_queue **q)
 {
 	struct kdbus_conn_queue *queue;
 	u64 msg_size;
@@ -600,22 +605,14 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	queue->off = off;
 	queue->size = want;
 	queue->priority = kmsg->msg.priority;
-	queue->reply = reply;
 
 	if (queue->src_id != KDBUS_SRC_ID_KERNEL &&
 	    kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
 		queue->expect_reply = true;
 
-	/* link the message into the receiver's queue */
-	kdbus_conn_queue_add(conn, queue);
-
 	mutex_unlock(&conn->lock);
 
-	if (offset)
-		*offset = queue->off;
-
-	/* wake up poll() */
-	wake_up_interruptible(&conn->ep->wait);
+	*q = queue;
 	return 0;
 
 exit_pool_free:
@@ -625,6 +622,36 @@ exit_unlock:
 	mutex_unlock(&conn->lock);
 	kdbus_conn_queue_cleanup(queue);
 	return ret;
+}
+
+/* enqueue a message into the receiver's pool */
+static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
+				   struct kdbus_kmsg *kmsg,
+				   struct kdbus_conn_reply *reply)
+{
+	struct kdbus_conn_queue *queue;
+	int ret;
+
+	ret = kdbus_conn_queue_alloc(conn, kmsg, &queue);
+	if (ret < 0)
+		return ret;
+
+	/*
+	 * Remember the the reply associated with this queue entry, so we can
+	 * move the reply entry's connection when a onnection moves from an
+	 * activator to an implementor.
+	 */
+	queue->reply = reply;
+
+	/* link the message into the receiver's queue */
+	mutex_lock(&conn->lock);
+	kdbus_conn_queue_add(conn, queue);
+	mutex_unlock(&conn->lock);
+
+	/* wake up poll() */
+	wake_up_interruptible(&conn->ep->wait);
+
+	return 0;
 }
 
 static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
@@ -878,13 +905,49 @@ remove_unused:
 	return ret;
 }
 
-static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
-			       struct kdbus_cmd_recv *recv)
+static int kdbus_conn_msg_install(struct kdbus_conn *conn,
+			          struct kdbus_conn_queue *queue)
 {
-	struct kdbus_conn_queue *queue = NULL;
 	int *memfds = NULL;
 	unsigned int i;
 	int ret = 0;
+
+	/*
+	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
+	 * the list of file descriptors to be able to cleanup on error.
+	 */
+	if (queue->memfds_count > 0) {
+		ret = kdbus_conn_memfds_install(conn, queue, &memfds);
+		if (ret < 0)
+			return ret;
+	}
+
+	/* install KDBUS_MSG_FDS file descriptors */
+	if (queue->fds_count > 0) {
+		ret = kdbus_conn_fds_install(conn, queue);
+		if (ret < 0)
+			goto exit_rewind;
+	}
+
+	kfree(memfds);
+	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
+
+	return 0;
+
+exit_rewind:
+	for (i = 0; i < queue->memfds_count; i++)
+		sys_close(memfds[i]);
+	kfree(memfds);
+
+	return ret;
+
+}
+
+static int kdbus_conn_msg_recv(struct kdbus_conn *conn,
+			       struct kdbus_cmd_recv *recv)
+{
+	struct kdbus_conn_queue *queue = NULL;
+	int ret;
 
 	if (recv->flags & KDBUS_RECV_USE_PRIORITY) {
 		/* get next message with highest priority */
@@ -904,10 +967,8 @@ static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		if (queue->reply) {
-			kdbus_conn_reply_finish(queue->reply, -EPIPE, 0);
-			queue->reply = NULL;
-		}
+		if (queue->reply)
+			kdbus_conn_reply_finish(queue->reply, -EPIPE);
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
@@ -932,36 +993,14 @@ static int kdbus_conn_recv_msg(struct kdbus_conn *conn,
 		return 0;
 	}
 
-	/*
-	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
-	 * the list of file descriptors to be able to cleanup on error.
-	 */
-	if (queue->memfds_count > 0) {
-		ret = kdbus_conn_memfds_install(conn, queue, &memfds);
-		if (ret < 0)
-			return ret;
-	}
+	ret = kdbus_conn_msg_install(conn, queue);
+	if (ret < 0)
+		return ret;
 
-	/* install KDBUS_MSG_FDS file descriptors */
-	if (queue->fds_count > 0) {
-		ret = kdbus_conn_fds_install(conn, queue);
-		if (ret < 0)
-			goto exit_rewind;
-	}
-
-	kfree(memfds);
 	kdbus_conn_queue_remove(conn, queue);
-	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
 	kdbus_conn_queue_cleanup(queue);
 
 	return 0;
-
-exit_rewind:
-	for (i = 0; i < queue->memfds_count; i++)
-		sys_close(memfds[i]);
-	kfree(memfds);
-
-	return ret;
 }
 
 /**
@@ -992,7 +1031,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_conn_recv_msg(conn, recv);
+	ret = kdbus_conn_msg_recv(conn, recv);
 	if (ret < 0)
 		goto exit_unlock;
 
@@ -1031,7 +1070,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			if (reply->sync &&
 			    conn == reply->conn &&
 			    cookie == reply->cookie) {
-				kdbus_conn_reply_finish(reply, -ECANCELED, 0);
+				kdbus_conn_reply_finish(reply, -ECANCELED);
 				found = true;
 			}
 		}
@@ -1058,7 +1097,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
-	u64 offset = ~0ULL;
 	int ret;
 
 	/* assign namespace-global message sequence number */
@@ -1103,7 +1141,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						  kmsg->seq,
 						  conn_dst->attach_flags);
 
-			kdbus_conn_queue_insert(conn_dst, kmsg, NULL, NULL);
+			kdbus_conn_queue_insert(conn_dst, kmsg, NULL);
 		}
 		mutex_unlock(&ep->bus->lock);
 
@@ -1166,6 +1204,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 
+		reply->conn_waiting = conn_src;
 		reply->conn = kdbus_conn_ref(conn_dst);
 		reply->cookie = msg->cookie;
 
@@ -1183,7 +1222,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		mutex_lock(&conn_src->lock);
 		list_add(&reply->entry, &conn_src->reply_list);
-		atomic_inc(&reply->conn->reply_count);
+		atomic_inc(&conn_dst->reply_count);
 		mutex_unlock(&conn_src->lock);
 
 		/*
@@ -1207,14 +1246,18 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 	}
 
-	/*
-	 * Remember the the reply associated with this queue entry, so we can
-	 * move the reply entry's connection when a onnection moves from an
-	 * activator to an implementor.
-	 */
-	ret = kdbus_conn_queue_insert(conn_dst, kmsg, reply_wait, &offset);
-	if (ret < 0)
-		goto exit_unref;
+	if (reply_wake) {
+		ret = kdbus_conn_queue_alloc(reply_wake->conn_waiting, kmsg,
+					     &reply_wake->queue);
+		if (ret < 0)
+			goto exit_unref;
+
+		kdbus_conn_reply_finish(reply_wake, 0);
+	} else {
+		ret = kdbus_conn_queue_insert(conn_dst, kmsg, reply_wait);
+		if (ret < 0)
+			goto exit_unref;
+	}
 
 	/*
 	 * Monitor connections get all messages; ignore possible errors
@@ -1222,12 +1265,11 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry)
-		kdbus_conn_queue_insert(c, kmsg, NULL, NULL);
+		kdbus_conn_queue_insert(c, kmsg, NULL);
 	mutex_unlock(&ep->bus->lock);
 
 	if (reply_wait) {
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
-		struct kdbus_cmd_recv recv;
 
 		/*
 		 * Block until the reply arrives. reply_wait is left untouched
@@ -1239,34 +1281,28 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						      usecs_to_jiffies(usecs)))
 			ret = -ETIMEDOUT;
 
-		recv.offset = reply_wait->offset;
-		recv.flags = 0;
-
 		if (ret == 0 && reply_wait->err != 0)
 			ret = reply_wait->err;
 
-		mutex_lock(&conn_src->lock);
+		if (!reply_wait->queue)
+			ret = -EPIPE;
+
+		if (ret == 0) {
+			ret = kdbus_conn_msg_install(conn_src, reply_wait->queue);
+			if (ret < 0)
+				return ret;
+
+			kmsg->msg.offset_reply = reply_wait->queue->off;
+			kdbus_conn_queue_cleanup(reply_wait->queue);
+		}
+
+		mutex_lock(&conn_dst->lock);
 		kdbus_conn_reply_free(reply_wait);
-		mutex_unlock(&conn_src->lock);
+		mutex_unlock(&conn_dst->lock);
 
-		if (ret < 0)
-			goto exit_unref;
-
-		kmsg->msg.offset_reply = recv.offset;
-
-		ret = kdbus_conn_recv_msg(conn_src, &recv);
-		if (ret < 0)
-			goto exit_unref;
 	}
 
 exit_unref:
-	/*
-	 * reply_wake is only non-NULL if it refers to a handled reply,
-	 * and kdbus_conn_reply_free() will wake up the wait queue.
-	 */
-	if (reply_wake)
-		kdbus_conn_reply_finish(reply_wake, 0, offset);
-
 	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
 
@@ -1387,8 +1423,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				 * waiting side has been woken up.
 				 */
 				if (reply->sync) {
-					kdbus_conn_reply_finish(reply,
-								-EPIPE, 0);
+					kdbus_conn_reply_finish(reply, -EPIPE);
 					continue;
 				}
 
