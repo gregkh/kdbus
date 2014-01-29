@@ -1232,7 +1232,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	if (reply_wake && reply_wake->conn_waiting) {
 		/*
-		 * If we're reponding to a syncronous reply, allocate a
+		 * If we're synchronously reponding to a message, allocate a
 		 * queue item and attach it to the reply tracking object.
 		 * The connection's queue will never get to see it.
 		 */
