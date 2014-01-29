@@ -49,7 +49,6 @@ struct kdbus_conn_reply;
  * @priority:		Queueing priority of the message
  * @off:		Offset into the shmem file in the receiver's pool
  * @size:		The number of bytes used in the pool
- * @expect_reply:	The queue item tracks a message that awaits a reply
  * @memfds:		Arrays of offsets where to update the installed
  *			fd number
  * @memfds_fp:		Array memfd files queued up for this message
@@ -70,7 +69,6 @@ struct kdbus_conn_queue {
 	s64 priority;
 	size_t off;
 	size_t size;
-	bool expect_reply:1;
 
 	size_t *memfds;
 	struct file **memfds_fp;
@@ -605,10 +603,6 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	queue->off = off;
 	queue->size = want;
 	queue->priority = kmsg->msg.priority;
-
-	if (queue->src_id != KDBUS_SRC_ID_KERNEL &&
-	    kmsg->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
-		queue->expect_reply = true;
 
 	mutex_unlock(&conn->lock);
 
@@ -1189,7 +1183,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	/* If the message expects a reply, add a kdbus_conn_reply */
 	if (conn_src && (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)) {
-		struct kdbus_conn_reply *reply;
 		struct timespec ts;
 
 		if (atomic_read(&conn_src->reply_count) >
@@ -1198,30 +1191,29 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 
-		reply = kzalloc(sizeof(*reply), GFP_KERNEL);
-		if (!reply) {
+		reply_wait = kzalloc(sizeof(*reply_wait), GFP_KERNEL);
+		if (!reply_wait) {
 			ret = -ENOMEM;
 			goto exit_unref;
 		}
 
-		reply->conn_waiting = conn_src;
-		reply->conn = kdbus_conn_ref(conn_dst);
-		reply->cookie = msg->cookie;
+		reply_wait->conn_waiting = conn_src;
+		reply_wait->conn = kdbus_conn_ref(conn_dst);
+		reply_wait->cookie = msg->cookie;
 
 		if (msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
-			init_waitqueue_head(&reply->wait);
-			reply->sync = true;
-			reply->waiting = true;
-			reply_wait = reply;
+			init_waitqueue_head(&reply_wait->wait);
+			reply_wait->sync = true;
+			reply_wait->waiting = true;
 		} else {
 			/* calculate the deadline based on the current time */
 			ktime_get_ts(&ts);
-			reply->deadline_ns = timespec_to_ns(&ts) +
-					     msg->timeout_ns;
+			reply_wait->deadline_ns = timespec_to_ns(&ts) +
+						  msg->timeout_ns;
 		}
 
 		mutex_lock(&conn_src->lock);
-		list_add(&reply->entry, &conn_src->reply_list);
+		list_add(&reply_wait->entry, &conn_src->reply_list);
 		atomic_inc(&conn_dst->reply_count);
 		mutex_unlock(&conn_src->lock);
 
@@ -1233,7 +1225,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * For synchronous operation, the timeout will be handled
 		 * by wait_event_interruptible_timeout().
 		 */
-		if (!reply_wait)
+		if (!reply_wait->sync)
 			kdbus_conn_timeout_schedule_scan(conn_src);
 	}
 
@@ -1268,7 +1260,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kdbus_conn_queue_insert(c, kmsg, NULL);
 	mutex_unlock(&ep->bus->lock);
 
-	if (reply_wait) {
+	if (reply_wait && reply_wait->sync) {
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
 
 		/*
@@ -1392,7 +1384,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	/* clean up any messages still left on this endpoint */
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
-		if (queue->expect_reply)
+		if (queue->reply)
 			kdbus_notify_reply_dead(queue->src_id,
 						queue->cookie, &notify_list);
 
