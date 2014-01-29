@@ -96,7 +96,6 @@ struct kdbus_conn_queue {
  * @cookie:		The cookie of the requesting message
  * @wait:		The waitqueue for synchronous I/O
  * @waiting:		The reply block is waiting for synchronous I/O
- * @sync:		The reply block is operating in synchronous I/O mode
  * @err:		The error code for the syncronous reply
  */
 struct kdbus_conn_reply {
@@ -108,7 +107,6 @@ struct kdbus_conn_reply {
 	u64 cookie;
 	wait_queue_head_t wait;
 	bool waiting:1;
-	bool sync:1;
 	int err;
 };
 
@@ -123,7 +121,7 @@ static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
 				    int err)
 {
-	if (reply->sync) {
+	if (reply->conn_waiting) {
 		if (!reply->waiting)
 			return;
 
@@ -668,7 +666,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 		 * the timeout is handled by wait_event_*_timeout(),
 		 * so we don't have to care for it here.
 		 */
-		if (reply->sync)
+		if (reply->conn_waiting)
 			continue;
 
 		if (reply->deadline_ns > now) {
@@ -1061,7 +1059,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		list_for_each_entry_safe(reply, reply_tmp,
 					 &c->reply_list, entry) {
 
-			if (reply->sync &&
+			if (reply->conn_waiting &&
 			    conn == reply->conn &&
 			    cookie == reply->cookie) {
 				kdbus_conn_reply_finish(reply, -ECANCELED);
@@ -1197,13 +1195,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 
-		reply_wait->conn_waiting = conn_src;
 		reply_wait->conn = kdbus_conn_ref(conn_dst);
 		reply_wait->cookie = msg->cookie;
 
 		if (msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
 			init_waitqueue_head(&reply_wait->wait);
-			reply_wait->sync = true;
+			reply_wait->conn_waiting = conn_src;
 			reply_wait->waiting = true;
 		} else {
 			/* calculate the deadline based on the current time */
@@ -1225,7 +1222,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * For synchronous operation, the timeout will be handled
 		 * by wait_event_interruptible_timeout().
 		 */
-		if (!reply_wait->sync)
+		if (!reply_wait->conn_waiting)
 			kdbus_conn_timeout_schedule_scan(conn_src);
 	}
 
@@ -1260,7 +1257,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kdbus_conn_queue_insert(c, kmsg, NULL);
 	mutex_unlock(&ep->bus->lock);
 
-	if (reply_wait && reply_wait->sync) {
+	if (reply_wait && reply_wait->conn_waiting) {
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
 
 		/*
@@ -1414,7 +1411,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				 * now. The item will be deallocated once the
 				 * waiting side has been woken up.
 				 */
-				if (reply->sync) {
+				if (reply->conn_waiting) {
 					kdbus_conn_reply_finish(reply, -EPIPE);
 					continue;
 				}
