@@ -630,7 +630,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 
 	/*
 	 * Remember the the reply associated with this queue entry, so we can
-	 * move the reply entry's connection when a onnection moves from an
+	 * move the reply entry's connection when a connection moves from an
 	 * activator to an implementor.
 	 */
 	queue->reply = reply;
@@ -847,9 +847,10 @@ static int kdbus_conn_memfds_install(struct kdbus_conn *conn,
 				     struct kdbus_conn_queue *queue,
 				     int **memfds)
 {
-	int *fds, ret = 0;
+	int *fds;
 	unsigned int i;
 	size_t size;
+	int ret = 0;
 
 	size = queue->memfds_count * sizeof(int);
 	fds = kmalloc(size, GFP_KERNEL);
@@ -1235,7 +1236,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 	}
 
-	if (reply_wake) {
+	if (reply_wake && reply_wake->conn_waiting) {
 		ret = kdbus_conn_queue_alloc(reply_wake->conn_waiting, kmsg,
 					     &reply_wake->queue);
 		if (ret < 0)
