@@ -1262,6 +1262,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	mutex_unlock(&ep->bus->lock);
 
 	if (reply_wait && reply_wait->conn_waiting) {
+		struct kdbus_conn_queue *queue;
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
 
 		/*
@@ -1269,31 +1270,25 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * by the timeout scans that might be conducted for other,
 		 * asynchronous replies of conn_src.
 		 */
-		if (!wait_event_interruptible_timeout(reply_wait->wait,
-						      !reply_wait->waiting,
-						      usecs_to_jiffies(usecs)))
+		if (wait_event_interruptible_timeout(reply_wait->wait,
+						     !reply_wait->waiting,
+						     usecs_to_jiffies(usecs)))
+			ret = reply_wait->err;
+		else
 			ret = -ETIMEDOUT;
 
-		if (ret == 0 && reply_wait->err != 0)
-			ret = reply_wait->err;
+		queue = reply_wait->queue;
 
-		if (!reply_wait->queue)
-			ret = -EPIPE;
+		mutex_lock(&conn_src->lock);
 
-		if (ret == 0) {
-			struct kdbus_conn_queue *queue = reply_wait->queue;
-
-			mutex_lock(&conn_src->lock);
-			ret = kdbus_conn_msg_install(conn_src, queue);
-			mutex_unlock(&conn_src->lock);
-			if (ret < 0)
-				return ret;
+		if (queue) {
+			if (ret == 0)
+				ret = kdbus_conn_msg_install(conn_src, queue);
 
 			kmsg->msg.offset_reply = queue->off;
 			kdbus_conn_queue_cleanup(queue);
 		}
 
-		mutex_lock(&conn_src->lock);
 		kdbus_conn_reply_free(reply_wait);
 		mutex_unlock(&conn_src->lock);
 	}
