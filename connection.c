@@ -659,6 +659,11 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	now = timespec_to_ns(&ts);
 
 	mutex_lock(&conn->lock);
+	if (unlikely(conn->disconnected)) {
+		mutex_unlock(&conn->lock);
+		return;
+	}
+
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
 
 		/*
@@ -1435,7 +1440,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 			       &notify_list);
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
-	del_timer(&conn->timer);
+	del_timer_sync(&conn->timer);
 	cancel_work_sync(&conn->work);
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
 
