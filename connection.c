@@ -1238,19 +1238,17 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		ret = kdbus_conn_queue_alloc(reply_wake->conn_waiting, kmsg,
 					     &reply_wake->queue);
-		if (ret < 0)
-			goto exit_unref;
-
-		kdbus_conn_reply_finish(reply_wake, 0);
+		kdbus_conn_reply_finish(reply_wake, ret);
 	} else {
 		/*
 		 * Otherwise, put it in the queue and wait for the connection
 		 * to dequeue and receive the message.
 		 */
 		ret = kdbus_conn_queue_insert(conn_dst, kmsg, reply_wait);
-		if (ret < 0)
-			goto exit_unref;
 	}
+
+	if (ret < 0)
+		goto exit_unref;
 
 	/*
 	 * Monitor connections get all messages; ignore possible errors
