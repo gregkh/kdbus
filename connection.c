@@ -962,8 +962,11 @@ static int kdbus_conn_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		if (queue->reply)
+		if (queue->reply) {
+			mutex_lock(&conn->lock);
 			kdbus_conn_reply_finish(queue->reply, -EPIPE);
+			mutex_unlock(&conn->lock);
+		}
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
