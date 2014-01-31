@@ -1147,6 +1147,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	if (conn_src) {
 		struct kdbus_conn_reply *r;
+		bool allowed = false;
 
 		/*
 		 * Walk the list of connection we expect a reply from.
@@ -1163,14 +1164,20 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				if (r->cookie != msg->cookie_reply)
 					continue;
 
-				reply_wake = r;
+				allowed = true;
+
+				if (r->conn_waiting)
+					reply_wake = r;
+				else
+					kdbus_conn_reply_free(r);
+
 				break;
 			}
 			mutex_unlock(&conn_dst->lock);
 		}
 
 		/* ... otherwise, ask the policy DB for permission */
-		if (!reply_wake && ep->policy_db) {
+		if (!allowed && ep->policy_db) {
 			ret = kdbus_policy_db_check_send_access(ep->policy_db,
 								conn_src,
 								conn_dst);
@@ -1235,7 +1242,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 	}
 
-	if (reply_wake && reply_wake->conn_waiting) {
+	if (reply_wake) {
 		/*
 		 * If we're synchronously responding to a message, allocate a
 		 * queue item and attach it to the reply tracking object.
