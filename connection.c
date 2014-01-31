@@ -1557,9 +1557,12 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
 	list_splice_init(&conn_src->msg_list, &msg_list);
-	BUG_ON(!list_empty(&conn_src->reply_list));
 	conn_src->msg_prio_queue = RB_ROOT;
 	conn_src->msg_count = 0;
+
+	list_for_each_entry_safe(reply, reply_tmp, &conn_src->reply_list, entry)
+		kdbus_conn_reply_finish(reply, -EPIPE);
+
 	mutex_unlock(&conn_src->lock);
 
 	/* insert messages into destination */
