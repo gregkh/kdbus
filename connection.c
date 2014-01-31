@@ -1397,7 +1397,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 			kdbus_notify_reply_dead(queue->src_id,
 						queue->cookie, &notify_list);
 
-		list_del(&queue->entry);
+		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
 		kdbus_conn_queue_cleanup(queue);
 	}
