@@ -1219,7 +1219,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		mutex_lock(&conn_src->lock);
 		list_add(&reply_wait->entry, &conn_src->reply_list);
 		atomic_inc(&conn_dst->reply_count);
-		mutex_unlock(&conn_src->lock);
 
 		/*
 		 * For async operation, schedule the scan now. It won't do
@@ -1231,6 +1230,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		if (!reply_wait->conn_waiting)
 			kdbus_conn_timeout_schedule_scan(conn_src);
+
+		mutex_unlock(&conn_src->lock);
 	}
 
 	BUG_ON(reply_wait && reply_wake);
