@@ -1290,10 +1290,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		else
 			ret = -ETIMEDOUT;
 
-		queue = reply_wait->queue;
-
 		mutex_lock(&conn_src->lock);
-
+		queue = reply_wait->queue;
 		if (queue) {
 			if (ret == 0)
 				ret = kdbus_conn_msg_install(conn_src, queue);

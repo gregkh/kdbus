@@ -1,4 +1,6 @@
 Features:
+  - disconnect connections when bus goes away
+
   - test kdbus_match_bloom() multi-generation bloom masks, we need to
     be sure it works with old kernels when we update userspace tools
 
