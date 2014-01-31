@@ -1365,6 +1365,7 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
  */
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 {
+	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *queue, *tmp;
 	struct kdbus_bus *bus;
 	LIST_HEAD(notify_list);
@@ -1390,6 +1391,9 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
 	mutex_unlock(&bus->lock);
+
+	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
+		kdbus_conn_reply_finish(reply, -ECANCELED);
 
 	/* clean up any messages still left on this endpoint */
 	mutex_lock(&conn->lock);
@@ -1475,7 +1479,6 @@ bool kdbus_conn_active(struct kdbus_conn *conn)
 static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
-	struct kdbus_conn_reply *reply, *reply_tmp;
 
 	kdbus_conn_disconnect(conn, false);
 
@@ -1484,9 +1487,6 @@ static void __kdbus_conn_free(struct kref *kref)
 
 	if (conn->ep->policy_db)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
-
-	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
-		kdbus_conn_reply_free(reply);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
