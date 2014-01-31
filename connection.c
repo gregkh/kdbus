@@ -1542,22 +1542,27 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src,
 			     u64 name_id)
 {
-	struct kdbus_conn_queue *q, *tmp;
+	struct kdbus_conn_reply *reply, *reply_tmp;
+	struct kdbus_conn_queue *q, *q_tmp;
+	struct kdbus_bus *bus;
+	struct kdbus_conn *c;
+	LIST_HEAD(reply_list);
 	LIST_HEAD(msg_list);
-	int ret = 0;
+	int i, ret = 0;
 
 	BUG_ON(conn_src == conn_dst);
 
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
 	list_splice_init(&conn_src->msg_list, &msg_list);
+	BUG_ON(!list_empty(&conn_src->reply_list));
 	conn_src->msg_prio_queue = RB_ROOT;
 	conn_src->msg_count = 0;
 	mutex_unlock(&conn_src->lock);
 
 	/* insert messages into destination */
 	mutex_lock(&conn_dst->lock);
-	list_for_each_entry_safe(q, tmp, &msg_list, entry) {
+	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
 
 		/* filter messages for a specific name */
 		if (name_id > 0 && q->dst_name_id != name_id)
@@ -1565,24 +1570,38 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
 				      &q->off, q->size);
-		if (ret < 0)
-			goto exit_unlock_dst;
+		if (ret < 0) {
+			mutex_unlock(&conn_dst->lock);
+			return ret;
+		}
 
 		kdbus_conn_queue_add(conn_dst, q);
-
-		/*
-		 * If the queue entry has an associated reply entry, move its
-		 * * connection pointer, so the connection that has taken over
-		 * is allowed to answer.
-		 */
-		if (q->reply) {
-			kdbus_conn_unref(q->reply->conn);
-			q->reply->conn = kdbus_conn_ref(conn_dst);
-		}
 	}
-
-exit_unlock_dst:
 	mutex_unlock(&conn_dst->lock);
+
+	/*
+	 * Walk the list of all connections on the bus, and see whether
+	 * anyone is waiting for a reply from conn_src. In such cases,
+	 * move it to the conn_dst.
+	 */
+	bus = conn_dst->ep->bus;
+	mutex_lock(&bus->lock);
+	hash_for_each(bus->conn_hash, i, c, hentry) {
+		/* conn_dst can't have a pending reply to itself */
+		if (c == conn_dst)
+			continue;
+
+		mutex_lock(&c->lock);
+		list_for_each_entry_safe(reply, reply_tmp,
+					 &c->reply_list, entry) {
+			if (reply->conn == conn_src) {
+				kdbus_conn_unref(reply->conn);
+				reply->conn = kdbus_conn_ref(conn_dst);
+			}
+		}
+		mutex_unlock(&c->lock);
+	}
+	mutex_unlock(&bus->lock);
 
 	wake_up_interruptible(&conn_dst->ep->wait);
 
