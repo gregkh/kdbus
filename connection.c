@@ -1547,7 +1547,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	struct kdbus_conn_queue *q, *q_tmp;
 	struct kdbus_bus *bus;
 	struct kdbus_conn *c;
-	LIST_HEAD(reply_list);
 	LIST_HEAD(msg_list);
 	int i, ret = 0;
 
@@ -1566,12 +1565,15 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
 
 		/* filter messages for a specific name */
-		if (name_id > 0 && q->dst_name_id != name_id)
+		if (name_id > 0 && q->dst_name_id != name_id) {
+			/*FIXME: plug leak */
 			continue;
+		}
 
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
 				      &q->off, q->size);
 		if (ret < 0) {
+			/*FIXME: plug leak */
 			mutex_unlock(&conn_dst->lock);
 			return ret;
 		}
