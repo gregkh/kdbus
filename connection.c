@@ -698,18 +698,19 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 		kdbus_notify_reply_timeout(conn->id, reply->cookie,
 					   &notify_list);
 	}
-	mutex_unlock(&conn->lock);
-
-	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
-
-	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
-		kdbus_conn_reply_free(reply);
 
 	/* rearm timer with next timeout */
 	if (deadline != ~0ULL) {
 		u64 usecs = div_u64(deadline - now, 1000ULL);
 		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
 	}
+
+	mutex_unlock(&conn->lock);
+
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+
+	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
+		kdbus_conn_reply_free(reply);
 }
 
 static void kdbus_conn_work(struct work_struct *work)
