@@ -88,24 +88,24 @@ struct kdbus_conn_queue {
 /**
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
  * @entry:		The list_head entry of the connection's reply_list
- * @conn_waiting:	The connection that is waiting for the reply (sync)
  * @conn:		The counterpart connection that is expected to answer
  * @queue:		The queue item that is prepared by the replying
  * 			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
  * @wait:		The waitqueue for synchronous I/O
- * @waiting:		The reply block is waiting for synchronous I/O
+ * @sync:		The reply block is waiting for synchronous I/O
+ * @waiting:		The condition to synchronously wait for
  * @err:		The error code for the syncronous reply
  */
 struct kdbus_conn_reply {
 	struct list_head entry;
-	struct kdbus_conn *conn_waiting;
 	struct kdbus_conn *conn;
 	struct kdbus_conn_queue *queue;
 	u64 deadline_ns;
 	u64 cookie;
 	wait_queue_head_t wait;
+	bool sync:1;
 	bool waiting:1;
 	int err;
 };
@@ -121,7 +121,7 @@ static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
 				    int err)
 {
-	if (reply->conn_waiting) {
+	if (reply->sync) {
 		if (!reply->waiting)
 			return;
 
@@ -665,13 +665,12 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	}
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
-
 		/*
 		 * If the reply block is waiting for synchronous I/O,
 		 * the timeout is handled by wait_event_*_timeout(),
 		 * so we don't have to care for it here.
 		 */
-		if (reply->conn_waiting)
+		if (reply->sync)
 			continue;
 
 		if (reply->deadline_ns > now) {
@@ -1059,7 +1058,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		list_for_each_entry_safe(reply, reply_tmp,
 					 &c->reply_list, entry) {
 
-			if (reply->conn_waiting &&
+			if (reply->sync &&
 			    conn == reply->conn &&
 			    cookie == reply->cookie) {
 				kdbus_conn_reply_finish(reply, -ECANCELED);
@@ -1089,7 +1088,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
+	bool sync;
 	int ret;
+
+	sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 
 	/* assign namespace-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
@@ -1166,7 +1168,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 				allowed = true;
 
-				if (r->conn_waiting)
+				if (r->sync)
 					reply_wake = r;
 				else
 					kdbus_conn_reply_free(r);
@@ -1205,9 +1207,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		reply_wait->conn = kdbus_conn_ref(conn_dst);
 		reply_wait->cookie = msg->cookie;
 
-		if (msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
+		if (sync) {
 			init_waitqueue_head(&reply_wait->wait);
-			reply_wait->conn_waiting = conn_src;
+			reply_wait->sync = true;
 			reply_wait->waiting = true;
 		} else {
 			/* calculate the deadline based on the current time */
@@ -1228,7 +1230,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * For synchronous operation, the timeout will be handled
 		 * by wait_event_interruptible_timeout().
 		 */
-		if (!reply_wait->conn_waiting)
+		if (!sync)
 			kdbus_conn_timeout_schedule_scan(conn_src);
 
 		mutex_unlock(&conn_src->lock);
@@ -1249,7 +1251,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * queue item and attach it to the reply tracking object.
 		 * The connection's queue will never get to see it.
 		 */
-		ret = kdbus_conn_queue_alloc(reply_wake->conn_waiting, kmsg,
+		ret = kdbus_conn_queue_alloc(conn_dst, kmsg,
 					     &reply_wake->queue);
 		kdbus_conn_reply_finish(reply_wake, ret);
 	} else {
@@ -1272,7 +1274,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kdbus_conn_queue_insert(c, kmsg, NULL);
 	mutex_unlock(&ep->bus->lock);
 
-	if (reply_wait && reply_wait->conn_waiting) {
+	if (sync) {
 		struct kdbus_conn_queue *queue;
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
 
@@ -1428,7 +1430,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				 * now. The item will be deallocated once the
 				 * waiting side has been woken up.
 				 */
-				if (reply->conn_waiting) {
+				if (reply->sync) {
 					kdbus_conn_reply_finish(reply, -EPIPE);
 					continue;
 				}
