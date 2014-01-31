@@ -1568,8 +1568,10 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		 * * connection pointer, so the connection that has taken over
 		 * is allowed to answer.
 		 */
-		if (q->reply)
-			q->reply->conn = conn_dst;
+		if (q->reply) {
+			kdbus_conn_unref(q->reply->conn);
+			q->reply->conn = kdbus_conn_ref(conn_dst);
+		}
 	}
 
 exit_unlock_dst:
