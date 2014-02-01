@@ -933,7 +933,6 @@ exit_rewind:
 	kfree(memfds);
 
 	return ret;
-
 }
 
 static int kdbus_conn_msg_recv(struct kdbus_conn *conn,
@@ -1056,7 +1055,6 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		mutex_lock(&c->lock);
 		list_for_each_entry_safe(reply, reply_tmp,
 					 &c->reply_list, entry) {
-
 			if (reply->sync &&
 			    conn == reply->conn &&
 			    cookie == reply->cookie) {
@@ -1431,7 +1429,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 
 		mutex_lock(&bus->lock);
 		hash_for_each(bus->conn_hash, i, c, hentry) {
-
 			mutex_lock(&c->lock);
 			list_for_each_entry_safe(reply, reply_tmp,
 						 &c->reply_list, entry) {
@@ -1581,7 +1578,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	/* insert messages into destination */
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
-
 		/* filter messages for a specific name */
 		if (name_id > 0 && q->dst_name_id != name_id) {
 			/*FIXME: plug leak */
