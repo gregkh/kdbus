@@ -20,19 +20,19 @@ Article about D-Bus and kdbus:
 ===============================================================================
 Terminology
 ===============================================================================
-  Namespace:
-    A namespace is a named object containing a number of buses. A system
+  Domain:
+    A domain is a named object containing a number of buses. A system
     container which contains its own init system and users usually also
-    runs in its own kdbus namespace. The /dev/kdbus/ns/<container-name>/
-    directory shows up inside the namespace as /dev/kdbus/. Every namespace
-    offers a "control" device node to create new buses or namespaces.
-    Namespaces have no connection to each other, cannot see or talk to
-    each other. Only from the initial namespace, given the process has the
-    needed access rights, the device nodes inside of other namespaces
+    runs in its own kdbus domain. The /dev/kdbus/domain/<container-name>/
+    directory shows up inside the domain as /dev/kdbus/. Every domain
+    offers a "control" device node to create new buses or domains.
+    Domains have no connection to each other, cannot see or talk to
+    each other. Only from the initial domain, given the process has the
+    needed access rights, the device nodes inside of other domains
     can be seen.
 
   Bus:
-    A bus is a named object inside a namespace. Clients exchange messages
+    A bus is a named object inside a domain. Clients exchange messages
     over a bus. Multiple buses themselves have no connection to each other,
     messages are only exchanged on the same bus. The default entry point to a
     bus, where clients establish the connection to, is the "bus" device node
@@ -98,7 +98,7 @@ Device Node Layout
 Note:
   The device node subdirectory layout is arranged that a future version of
   kdbus could be implemented as a filesystem with a separate instance mounted
-  for each namespace. For any future changes, this always needs to be kept
+  for each domain. For any future changes, this always needs to be kept
   in mind. Also the dependency on udev's userspace hookups or sysfs attribute
   use should be limited to the absolute minimum for the same reason.
 
@@ -106,7 +106,7 @@ Note:
 Data Structures
 ===============================================================================
   +-------------------------------------------------------------------------+
-  | Namespace (Init Namespace)                                              |
+  | Domain (Init Domain)                                                    |
   | /dev/kdbus/control                                                      |
   | +---------------------------------------------------------------------+ |
   | | Bus (System Bus)                                                    | |
@@ -134,8 +134,8 @@ Data Structures
   | | +-------------------------------+ +-------------------------------+ | |
   | +---------------------------------------------------------------------+ |
   +-------------------------------------------------------------------------+
-  | Namespace (Container; inside it, fedoracontainer/ becomes /dev/kdbus/)  |
-  | /dev/kdbus/ns/fedoracontainer/control                                   |
+  | Domain (Container; inside it, fedoracontainer/ becomes /dev/kdbus/)     |
+  | /dev/kdbus/domain/fedoracontainer/control                               |
   | +---------------------------------------------------------------------+ |
   | | Bus                                                                 | |
   | | ./0-system/                                                         | |
@@ -164,19 +164,19 @@ Data Structures
   +-------------------------------------------------------------------------+
 
 ===============================================================================
-Creation of new Namespaces and Buses
+Creation of new Domains and Buses
 ===============================================================================
-The initial kdbus namespace is unconditionally created by the kernel module. A
-namespace contains a "control" device node which allows to create a new bus or
-namespace. New namespaces do not have any buses created by default.
+The initial kdbus domain is unconditionally created by the kernel module. A
+domain contains a "control" device node which allows to create a new bus or
+domain. New domains do not have any buses created by default.
 
 Opening the control device node returns a file descriptor, it accepts the
 ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_NS_MAKE which specify the name of the new
-bus or namespace to create. The control file descriptor needs to be kept open
-for the entire life-time of the created bus or namespace, closing it will
-immediately cleanup the entire bus or namespace and all its associated
+bus or domain to create. The control file descriptor needs to be kept open
+for the entire life-time of the created bus or domain, closing it will
+immediately cleanup the entire bus or domain and all its associated
 resources and connections. Every control file descriptor can only be used once
-to create a new bus or namespace; from that point, it is not used for any
+to create a new bus or domain; from that point, it is not used for any
 further communication until the final close().
 
 ===============================================================================
