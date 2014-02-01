@@ -1580,21 +1580,17 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
 		/* filter messages for a specific name */
 		if (name_id > 0 && q->dst_name_id != name_id) {
-			/*FIXME: plug leak */
+			kdbus_conn_queue_cleanup(q);
 			continue;
 		}
 
+		q->reply = NULL;
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
 				      &q->off, q->size);
-		if (ret < 0) {
-			/*FIXME: plug leak */
-			mutex_unlock(&conn_dst->lock);
-			return ret;
-		}
-
-		q->reply = NULL;
-
-		kdbus_conn_queue_add(conn_dst, q);
+		if (ret < 0)
+			kdbus_conn_queue_cleanup(q);
+		else
+			kdbus_conn_queue_add(conn_dst, q);
 	}
 	mutex_unlock(&conn_dst->lock);
 
