@@ -171,7 +171,7 @@ domain contains a "control" device node which allows to create a new bus or
 domain. New domains do not have any buses created by default.
 
 Opening the control device node returns a file descriptor, it accepts the
-ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_NS_MAKE which specify the name of the new
+ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_DOMAIN_MAKE which specify the name of the new
 bus or domain to create. The control file descriptor needs to be kept open
 for the entire life-time of the created bus or domain, closing it will
 immediately cleanup the entire bus or domain and all its associated

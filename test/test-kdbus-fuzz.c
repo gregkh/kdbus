@@ -16,7 +16,7 @@
 
 static unsigned int ioctl_cmds[] = {
 	KDBUS_CMD_BUS_MAKE,
-	KDBUS_CMD_NS_MAKE,
+	KDBUS_CMD_DOMAIN_MAKE,
 	KDBUS_CMD_EP_MAKE,
 	KDBUS_CMD_HELLO,
 	KDBUS_CMD_MSG_SEND,
@@ -35,7 +35,7 @@ static const char *ioctl_name(unsigned int ioctl)
 	switch(ioctl) {
 	case KDBUS_CMD_BUS_MAKE:
 		return "BUS_MAKE";
-	case KDBUS_CMD_NS_MAKE:
+	case KDBUS_CMD_DOMAIN_MAKE:
 		return "NS_MAKE";
 	case KDBUS_CMD_EP_MAKE:
 		return "EP_MAKE";

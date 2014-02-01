@@ -10,8 +10,8 @@
  * your option) any later version.
  */
 
-#ifndef __KDBUS_NS_H
-#define __KDBUS_NS_H
+#ifndef __KDBUS_DOMAIN_H
+#define __KDBUS_DOMAIN_H
 
 #include <linux/hashtable.h>
 #include <linux/idr.h>
@@ -43,7 +43,7 @@
  * stays around for forver.
  *
  * A domain is created by opening the "control" device node of the
- * parent domain and issuing the KDBUS_CMD_NS_MAKE iotcl. Closing this
+ * parent domain and issuing the KDBUS_CMD_DOMAIN_MAKE iotcl. Closing this
  * file immediately destroys the entire domain.
  */
 struct kdbus_domain {

@@ -598,7 +598,7 @@ enum kdbus_make_flags {
  * @items:		Items describing details
  *
  * This structure is used with the KDBUS_CMD_BUS_MAKE, KDBUS_CMD_EP_MAKE and
- * KDBUS_CMD_NS_MAKE ioctls.
+ * KDBUS_CMD_DOMAIN_MAKE ioctls.
  */
 struct kdbus_cmd_make {
 	__u64 size;
@@ -781,7 +781,7 @@ struct kdbus_cmd_memfd_make {
  *				name. The bus is immediately shut down and
  *				cleaned up when the opened "control" device node
  *				is closed.
- * @KDBUS_CMD_NS_MAKE:		Similar to KDBUS_CMD_BUS_MAKE, but it creates a
+ * @KDBUS_CMD_DOMAIN_MAKE:		Similar to KDBUS_CMD_BUS_MAKE, but it creates a
  *				new kdbus domain.
  * @KDBUS_CMD_EP_MAKE:		Creates a new named special endpoint to talk to
  *				the bus. Such endpoints usually carry a more
@@ -853,7 +853,7 @@ struct kdbus_cmd_memfd_make {
  */
 enum kdbus_ioctl_type {
 	KDBUS_CMD_BUS_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x00, struct kdbus_cmd_make),
-	KDBUS_CMD_NS_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x10, struct kdbus_cmd_make),
+	KDBUS_CMD_DOMAIN_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x10, struct kdbus_cmd_make),
 	KDBUS_CMD_EP_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x20, struct kdbus_cmd_make),
 
 	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOC_MAGIC, 0x30, struct kdbus_cmd_hello),

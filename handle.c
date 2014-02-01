@@ -41,7 +41,7 @@
  * enum kdbus_handle_type - type a handle can be of
  * @_KDBUS_HANDLE_NULL:			Uninitialized/invalid
  * @KDBUS_HANDLE_CONTROL:		New file descriptor of a control node
- * @KDBUS_HANDLE_CONTROL_NS_OWNER:	File descriptor to hold a domain
+ * @KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:	File descriptor to hold a domain
  * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	File descriptor to hold a bus
  * @KDBUS_HANDLE_EP:			New file descriptor of a bus node
  * @KDBUS_HANDLE_EP_CONNECTED:		A bus connection after HELLO
@@ -51,7 +51,7 @@
 enum kdbus_handle_type {
 	_KDBUS_HANDLE_NULL,
 	KDBUS_HANDLE_CONTROL,
-	KDBUS_HANDLE_CONTROL_NS_OWNER,
+	KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
 	KDBUS_HANDLE_CONTROL_BUS_OWNER,
 	KDBUS_HANDLE_EP,
 	KDBUS_HANDLE_EP_CONNECTED,
@@ -67,7 +67,7 @@ enum kdbus_handle_type {
  * @ep:		The endpoint this handle owns, in case @type
  *		is KDBUS_HANDLE_EP
  * @domain_owner:	The domain this handle owns, in case @type
- *		is KDBUS_HANDLE_CONTROL_NS_OWNER
+ *		is KDBUS_HANDLE_CONTROL_DOMAIN_OWNER
  * @bus_owner:	The bus this handle owns, in case @type
  *		is KDBUS_HANDLE_CONTROL_BUS_OWNER
  * @ep_owner	The endpoint this handle owns, in case @type
@@ -159,7 +159,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 	struct kdbus_handle *handle = file->private_data;
 
 	switch (handle->type) {
-	case KDBUS_HANDLE_CONTROL_NS_OWNER:
+	case KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:
 		kdbus_domain_disconnect(handle->domain_owner);
 		kdbus_domain_unref(handle->domain_owner);
 		break;
@@ -361,7 +361,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_NS_MAKE: {
+	case KDBUS_CMD_DOMAIN_MAKE: {
 		char *name;
 
 		if (!capable(CAP_IPC_OWNER)) {
@@ -393,7 +393,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		/* turn the control fd into a new domain owner device */
-		handle->type = KDBUS_HANDLE_CONTROL_NS_OWNER;
+		handle->type = KDBUS_HANDLE_CONTROL_DOMAIN_OWNER;
 		handle->domain_owner = domain;
 		break;
 	}
