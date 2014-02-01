@@ -23,17 +23,17 @@
 #include "bus.h"
 #include "defaults.h"
 #include "handle.h"
-#include "namespace.h"
+#include "domain.h"
 #include "util.h"
 
 /* map of majors to namespaces */
-static DEFINE_IDR(kdbus_ns_major_idr);
+static DEFINE_IDR(kdbus_domain_major_idr);
 
-/* next namespace id sequence number */
-static u64 kdbus_ns_seq_last;
+/* next domain id sequence number */
+static u64 kdbus_domain_seq_last;
 
-/* kdbus initial namespace */
-struct kdbus_ns *kdbus_ns_init;
+/* kdbus initial domain */
+struct kdbus_domain *kdbus_domain_init;
 
 /* kdbus subsystem lock */
 static DEFINE_MUTEX(kdbus_subsys_lock);
@@ -47,10 +47,10 @@ struct bus_type kdbus_subsys = {
 static char *kdbus_devnode_control(struct device *dev, umode_t *mode,
 				   kuid_t *uid, kgid_t *gid)
 {
-	struct kdbus_ns *ns = dev_get_drvdata(dev);
+	struct kdbus_domain *domain = dev_get_drvdata(dev);
 
 	if (mode)
-		*mode = ns->mode;
+		*mode = domain->mode;
 
 	return NULL;
 }
@@ -67,141 +67,142 @@ static struct device_type kdbus_devtype_control = {
 };
 
 /**
- * kdbus_ns_ref() - take a namespace reference
- * @ns	:		Namespace
+ * kdbus_domain_ref() - take a domain reference
+ * @domain:		Namespace
  *
- * Return: the namespace itself
+ * Return: the domain itself
  */
-struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns)
+struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
 {
-	kref_get(&ns->kref);
-	return ns;
+	kref_get(&domain->kref);
+	return domain;
 }
 
 /**
- * kdbus_ns_disconnect() - invalidate a namespace
- * @ns	:		Namespace
+ * kdbus_domain_disconnect() - invalidate a domain
+ * @domain:		Namespace
  */
-void kdbus_ns_disconnect(struct kdbus_ns *ns)
+void kdbus_domain_disconnect(struct kdbus_domain *domain)
 {
 	struct kdbus_bus *bus, *tmp;
 
-	mutex_lock(&ns->lock);
-	if (ns->disconnected) {
-		mutex_unlock(&ns->lock);
+	mutex_lock(&domain->lock);
+	if (domain->disconnected) {
+		mutex_unlock(&domain->lock);
 		return;
 	}
 
-	ns->disconnected = true;
-	mutex_unlock(&ns->lock);
+	domain->disconnected = true;
+	mutex_unlock(&domain->lock);
 
 	mutex_lock(&kdbus_subsys_lock);
-	if (ns->parent)
-		list_del(&ns->ns_entry);
+	if (domain->parent)
+		list_del(&domain->domain_entry);
 	mutex_unlock(&kdbus_subsys_lock);
 
 	/* remove any buses attached to this endpoint */
-	list_for_each_entry_safe(bus, tmp, &ns->bus_list, ns_entry) {
+	list_for_each_entry_safe(bus, tmp, &domain->bus_list, domain_entry) {
 		kdbus_bus_disconnect(bus);
 		kdbus_bus_unref(bus);
 	}
 
-	if (ns->dev) {
-		device_unregister(ns->dev);
-		ns->dev = NULL;
+	if (domain->dev) {
+		device_unregister(domain->dev);
+		domain->dev = NULL;
 	}
-	if (ns->major > 0) {
-		idr_remove(&kdbus_ns_major_idr, ns->major);
-		unregister_chrdev(ns->major, KBUILD_MODNAME);
-		ns->major = 0;
+	if (domain->major > 0) {
+		idr_remove(&kdbus_domain_major_idr, domain->major);
+		unregister_chrdev(domain->major, KBUILD_MODNAME);
+		domain->major = 0;
 	}
 }
 
-static void __kdbus_ns_free(struct kref *kref)
+static void __kdbus_domain_free(struct kref *kref)
 {
-	struct kdbus_ns *ns = container_of(kref, struct kdbus_ns, kref);
+	struct kdbus_domain *domain =
+		container_of(kref, struct kdbus_domain, kref);
 
-	kdbus_ns_disconnect(ns);
-	kdbus_ns_unref(ns->parent);
-	kfree(ns->name);
-	kfree(ns->devpath);
-	kfree(ns);
+	kdbus_domain_disconnect(domain);
+	kdbus_domain_unref(domain->parent);
+	kfree(domain->name);
+	kfree(domain->devpath);
+	kfree(domain);
 }
 
 /**
- * kdbus_ns_unref() - drop a namespace reference
- * @ns	:		Namespace
+ * kdbus_domain_unref() - drop a domain reference
+ * @domain:		Namespace
  *
- * When the last reference is dropped, the namespace internal structure
+ * When the last reference is dropped, the domain internal structure
  * is freed.
  *
  * Return: NULL
  */
-struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns)
+struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
 {
-	if (!ns)
+	if (!domain)
 		return NULL;
 
-	kref_put(&ns->kref, __kdbus_ns_free);
+	kref_put(&domain->kref, __kdbus_domain_free);
 	return NULL;
 }
 
-static struct kdbus_ns *kdbus_ns_find(struct kdbus_ns const *parent,
+static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain const *parent,
 				      const char *name)
 {
-	struct kdbus_ns *ns = NULL;
-	struct kdbus_ns *n;
+	struct kdbus_domain *domain = NULL;
+	struct kdbus_domain *n;
 
-	list_for_each_entry(n, &parent->ns_list, ns_entry) {
+	list_for_each_entry(n, &parent->ns_list, domain_entry) {
 		if (strcmp(n->name, name))
 			continue;
 
-		ns = kdbus_ns_ref(n);
+		domain = kdbus_domain_ref(n);
 		break;
 	}
 
-	return ns;
+	return domain;
 }
 
 /**
- * kdbus_ns_find_by_major() - lookup a namespace by its major device number
+ * kdbus_domain_find_by_major() - lookup a domain by its major device number
  * @major:		Major number
  *
- * Looks up a namespace by major number. The returned namspace
+ * Looks up a domain by major number. The returned namspace
  * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
  * the namepace can't be found.
  *
- * Return: the namespace, or NULL if not found
+ * Return: the domain, or NULL if not found
  */
-struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major)
+struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major)
 {
-	struct kdbus_ns *ns;
+	struct kdbus_domain *domain;
 
 	mutex_lock(&kdbus_subsys_lock);
-	ns = idr_find(&kdbus_ns_major_idr, major);
-	if (ns)
-		kdbus_ns_ref(ns);
+	domain = idr_find(&kdbus_domain_major_idr, major);
+	if (domain)
+		kdbus_domain_ref(domain);
 	mutex_unlock(&kdbus_subsys_lock);
 
-	return ns;
+	return domain;
 }
 
 /**
- * kdbus_ns_new() - create a new namespace
- * @parent:		Parent namespace, NULL for initial one
- * @name:		Name of the namespace, NULL for the initial one
+ * kdbus_domain_new() - create a new domain
+ * @parent:		Parent domain, NULL for initial one
+ * @name:		Name of the domain, NULL for the initial one
  * @mode:		The access mode for the "control" device node
- * @ns:			The returned namespace
+ * @domain:			The returned domain
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
-		 struct kdbus_ns **ns)
+int kdbus_domain_new(struct kdbus_domain *parent, const char *name, umode_t mode,
+		 struct kdbus_domain **domain)
 {
-	struct kdbus_ns *n;
+	struct kdbus_domain *n;
 	int ret;
 
-	BUG_ON(*ns);
+	BUG_ON(*domain);
 
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
@@ -222,23 +223,23 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 
 	/* compose name and path of base directory in /dev */
 	if (!parent) {
-		/* initial namespace */
+		/* initial domain */
 		n->devpath = kstrdup(KBUILD_MODNAME, GFP_KERNEL);
 		if (!n->devpath) {
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
 	} else {
-		struct kdbus_ns *exists;
+		struct kdbus_domain *exists;
 
-		exists = kdbus_ns_find(parent, name);
+		exists = kdbus_domain_find(parent, name);
 		if (exists) {
-			kdbus_ns_unref(exists);
+			kdbus_domain_unref(exists);
 			ret = -EEXIST;
 			goto exit_unlock;
 		}
 
-		n->devpath = kasprintf(GFP_KERNEL, "%s/ns/%s",
+		n->devpath = kasprintf(GFP_KERNEL, "%s/domain/%s",
 				       parent->devpath, name);
 		if (!n->devpath) {
 			ret = -ENOMEM;
@@ -260,20 +261,20 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 	n->major = ret;
 
 	/*
-	 * kdbus_device_ops' dev_t finds the namespace in the major map,
-	 * and the bus in the minor map of that namespace
+	 * kdbus_device_ops' dev_t finds the domain in the major map,
+	 * and the bus in the minor map of that domain
 	 */
-	ret = idr_alloc(&kdbus_ns_major_idr, n, n->major, 0, GFP_KERNEL);
+	ret = idr_alloc(&kdbus_domain_major_idr, n, n->major, 0, GFP_KERNEL);
 	if (ret < 0) {
 		if (ret == -ENOSPC)
 			ret = -EEXIST;
 		goto exit_unlock;
 	}
 
-	/* get id for this namespace */
-	n->id = ++kdbus_ns_seq_last;
+	/* get id for this domain */
+	n->id = ++kdbus_domain_seq_last;
 
-	/* register control device for this namespace */
+	/* register control device for this domain */
 	n->dev = kzalloc(sizeof(*n->dev), GFP_KERNEL);
 	if (!n->dev) {
 		ret = -ENOMEM;
@@ -292,30 +293,30 @@ int kdbus_ns_new(struct kdbus_ns *parent, const char *name, umode_t mode,
 		goto exit_unlock;
 	}
 
-	/* link into parent namespace */
+	/* link into parent domain */
 	if (parent) {
-		n->parent = kdbus_ns_ref(parent);
-		list_add_tail(&n->ns_entry, &parent->ns_list);
+		n->parent = kdbus_domain_ref(parent);
+		list_add_tail(&n->domain_entry, &parent->ns_list);
 	}
 	mutex_unlock(&kdbus_subsys_lock);
 
-	*ns = n;
+	*domain = n;
 	return 0;
 
 exit_unlock:
 	mutex_unlock(&kdbus_subsys_lock);
-	kdbus_ns_unref(n);
+	kdbus_domain_unref(n);
 	return ret;
 }
 
 /**
- * kdbus_ns_make_user() - create namespace data from user data
+ * kdbus_domain_make_user() - create domain data from user data
  * @cmd:		The command as passed in by the ioctl
- * @name:		The name of the namespace to create
+ * @name:		The name of the domain to create
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_ns_make_user(struct kdbus_cmd_make *cmd, char **name)
+int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 {
 	const struct kdbus_item *item;
 	const char *n = NULL;
@@ -363,28 +364,28 @@ int kdbus_ns_make_user(struct kdbus_cmd_make *cmd, char **name)
 }
 
 /**
- * kdbus_ns_user_ref() - get a kdbus_ns_user object in a namespace
- * @ns:		The namespace
+ * kdbus_domain_user_ref() - get a kdbus_domain_user object in a domain
+ * @domain:		The domain
  * @uid:	The uid of the user
  *
- * Return: a kdbus_ns_user, either freshly allocated or with the reference
+ * Return: a kdbus_domain_user, either freshly allocated or with the reference
  * counter increased. In case of memory allocation failure, NULL is returned.
  */
-struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
+struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain, kuid_t uid)
 {
-	struct kdbus_ns_user *u;
+	struct kdbus_domain_user *u;
 
 	/* find uid and reference it */
-	mutex_lock(&ns->lock);
-	hash_for_each_possible(ns->user_hash, u, hentry, __kuid_val(uid)) {
+	mutex_lock(&domain->lock);
+	hash_for_each_possible(domain->user_hash, u, hentry, __kuid_val(uid)) {
 		if (!uid_eq(u->uid, uid))
 			continue;
 
 		kref_get(&u->kref);
-		mutex_unlock(&ns->lock);
+		mutex_unlock(&domain->lock);
 		return u;
 	}
-	mutex_unlock(&ns->lock);
+	mutex_unlock(&domain->lock);
 
 	/* allocate a new user */
 	u = kzalloc(sizeof(*u), GFP_KERNEL);
@@ -392,36 +393,36 @@ struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid)
 		return NULL;
 
 	kref_init(&u->kref);
-	u->ns = kdbus_ns_ref(ns);
+	u->domain = kdbus_domain_ref(domain);
 	u->uid = uid;
 	atomic_set(&u->buses, 0);
 	atomic_set(&u->connections, 0);
 
-	/* link into namespace */
-	mutex_lock(&ns->lock);
-	hash_add(ns->user_hash, &u->hentry, __kuid_val(u->uid));
-	mutex_unlock(&ns->lock);
+	/* link into domain */
+	mutex_lock(&domain->lock);
+	hash_add(domain->user_hash, &u->hentry, __kuid_val(u->uid));
+	mutex_unlock(&domain->lock);
 
 	return u;
 }
 
-static void __kdbus_ns_user_free(struct kref *kref)
+static void __kdbus_domain_user_free(struct kref *kref)
 {
-	struct kdbus_ns_user *user = container_of(kref, struct kdbus_ns_user,
+	struct kdbus_domain_user *user = container_of(kref, struct kdbus_domain_user,
 						  kref);
 
 	BUG_ON(atomic_read(&user->buses) > 0);
 	BUG_ON(atomic_read(&user->connections) > 0);
 
-	mutex_lock(&user->ns->lock);
+	mutex_lock(&user->domain->lock);
 	hash_del(&user->hentry);
-	mutex_unlock(&user->ns->lock);
-	kdbus_ns_unref(user->ns);
+	mutex_unlock(&user->domain->lock);
+	kdbus_domain_unref(user->domain);
 	kfree(user);
 }
 
-struct kdbus_ns_user *kdbus_ns_user_unref(struct kdbus_ns_user *user)
+struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *user)
 {
-	kref_put(&user->kref, __kdbus_ns_user_free);
+	kref_put(&user->kref, __kdbus_domain_user_free);
 	return NULL;
 }

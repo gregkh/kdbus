@@ -10,7 +10,7 @@ kdbus$(EXT)-y := \
 	metadata.o \
 	names.o \
 	notify.o \
-	namespace.o \
+	domain.o \
 	policy.o \
 	pool.o \
 	util.o

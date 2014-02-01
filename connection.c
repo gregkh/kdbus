@@ -34,7 +34,7 @@
 #include "message.h"
 #include "metadata.h"
 #include "names.h"
-#include "namespace.h"
+#include "domain.h"
 #include "notify.h"
 #include "policy.h"
 #include "util.h"
@@ -500,7 +500,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	/* space for metadata/credential items */
 	if (kmsg->meta && kmsg->meta->size > 0 &&
-	    kmsg->meta->ns == conn->meta->ns) {
+	    kmsg->meta->domain == conn->meta->domain) {
 		meta = msg_size;
 		msg_size += kmsg->meta->size;
 	}
@@ -1092,9 +1092,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 
-	/* assign namespace-global message sequence number */
+	/* assign domain-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
-	kmsg->seq = atomic64_inc_return(&ep->bus->ns->msg_seq_last);
+	kmsg->seq = atomic64_inc_return(&ep->bus->domain->msg_seq_last);
 
 	/* non-kernel senders append credentials/metadata */
 	if (conn_src) {
@@ -1498,7 +1498,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_conn_disconnect(conn, false);
 
 	atomic_dec(&conn->user->connections);
-	kdbus_ns_user_unref(conn->user);
+	kdbus_domain_user_unref(conn->user);
 
 	if (conn->ep->policy_db)
 		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
@@ -1705,8 +1705,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
-	/* do not leak namespace-specific credentials */
-	if (conn->meta->ns == owner_conn->meta->ns)
+	/* do not leak domain-specific credentials */
+	if (conn->meta->domain == owner_conn->meta->domain)
 		info.size += owner_conn->meta->size;
 
 	/*
@@ -1738,7 +1738,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		goto exit_free;
 	pos = off + sizeof(struct kdbus_conn_info);
 
-	if (conn->meta->ns == owner_conn->meta->ns) {
+	if (conn->meta->domain == owner_conn->meta->domain) {
 		ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta->data,
 				       owner_conn->meta->size);
 		if (ret < 0)
@@ -2001,7 +2001,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	/* account the connection against the user */
-	conn->user = kdbus_ns_user_ref(ep->bus->ns, ep->bus->uid_owner);
+	conn->user = kdbus_domain_user_ref(ep->bus->domain, ep->bus->uid_owner);
 	if (!conn->user) {
 		ret = -ENOMEM;
 		goto exit_free_meta;
@@ -2023,7 +2023,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	return 0;
 
 exit_unref_user:
-	kdbus_ns_user_unref(conn->user);
+	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
 	kdbus_meta_free(conn->owner_meta);
 exit_release_names:

@@ -46,11 +46,11 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 		return -ENOMEM;
 
 	/*
-	 * Remember the PID namespace our credentials belong to; we
+	 * Remember the PID domain our credentials belong to; we
 	 * need to prevent leaking authorization and security-relevant
 	 * data across different namespaces.
 	 */
-	m->ns = task_active_pid_ns(current);
+	m->domain = task_active_pid_ns(current);
 
 	*meta = m;
 	return 0;

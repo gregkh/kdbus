@@ -4,7 +4,7 @@ Features:
   - test kdbus_match_bloom() multi-generation bloom masks, we need to
     be sure it works with old kernels when we update userspace tools
 
-  - make sure that our namespace/kuid/pidns creds passing/deny logic
+  - make sure that our domain/kuid/pidns creds passing/deny logic
     is what we want in the long run, interaction with userns?
 
   - use/prepare for something like this to manage the pool backing shmemfd:
@@ -18,7 +18,7 @@ Features:
      - impersonation
      - name register
      - $UID prefix
-     - ns creation
+     - domain creation
      - ep prefixing
      - policy, policy for custom endpoints
 

@@ -23,7 +23,7 @@
  * @bus			bus behind this endpoint
  * @name		name of the endpoint
  * @id			id of this endpoint on the bus
- * @minor		minor of this endpoint in the namespace major
+ * @minor		minor of this endpoint in the domain major
  * @dev			device node of this endpoint
  * @mode		file mode of this endpoint device node
  * @uid			uid owning this endpoint
@@ -56,9 +56,9 @@ struct kdbus_ep {
 	bool policy_open:1;
 };
 
-struct kdbus_ns;
+struct kdbus_domain;
 
-int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
+int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_domain *domain, const char *name,
 		 umode_t mode, kuid_t uid, kgid_t gid, bool policy);
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep);

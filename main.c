@@ -20,7 +20,7 @@
 
 #include "defaults.h"
 #include "util.h"
-#include "namespace.h"
+#include "domain.h"
 
 static int __init kdbus_init(void)
 {
@@ -31,10 +31,10 @@ static int __init kdbus_init(void)
 		return ret;
 
 	/*
-	 * Create the initial namespace; it is world-accessible and
+	 * Create the initial domain; it is world-accessible and
 	 * provides the /dev/kdbus/control device node.
 	 */
-	ret = kdbus_ns_new(NULL, NULL, 0666, &kdbus_ns_init);
+	ret = kdbus_domain_new(NULL, NULL, 0666, &kdbus_domain_init);
 	if (ret < 0) {
 		bus_unregister(&kdbus_subsys);
 		pr_err("failed to initialize, error=%i\n", ret);
@@ -47,8 +47,8 @@ static int __init kdbus_init(void)
 
 static void __exit kdbus_exit(void)
 {
-	kdbus_ns_disconnect(kdbus_ns_init);
-	kdbus_ns_unref(kdbus_ns_init);
+	kdbus_domain_disconnect(kdbus_domain_init);
+	kdbus_domain_unref(kdbus_domain_init);
 	bus_unregister(&kdbus_subsys);
 }
 

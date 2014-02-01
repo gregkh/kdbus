@@ -17,13 +17,13 @@
 #include <linux/idr.h>
 
 /**
- * struct kdbus_namespace - namespace for buses
+ * struct kdbus_namespace - domain for buses
  * @kref:		Reference counter
  * @disconnected:	Invalidated data
- * @name:		Name of the namespace
- * @parent:		Parent namespace
+ * @name:		Name of the domain
+ * @parent:		Parent domain
  * @ns_list:		List of child namespaces
- * @id:			Global id of this namespace
+ * @id:			Global id of this domain
  * @devpath:		/dev base directory path
  * @major:		Device major number for all nodes
  * @mode:		Device node access mode
@@ -32,25 +32,25 @@
  * @lock:		Namespace data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
- * @ns_entry:		Entry in parent namespace
- * @bus_list:		Buses in this namespace
+ * @domain_entry:		Entry in parent domain
+ * @bus_list:		Buses in this domain
  * @user_hash:		Accounting of user resources
  *
- * A namespace provides a "control" device node. Every namespace has its
+ * A domain provides a "control" device node. Every domain has its
  * own major number for its endpoint device nodes.
  *
- * The initial namespace is created at initialization time, is unnamed and
+ * The initial domain is created at initialization time, is unnamed and
  * stays around for forver.
  *
- * A namespace is created by opening the "control" device node of the
- * parent namespace and issuing the KDBUS_CMD_NS_MAKE iotcl. Closing this
- * file immediately destroys the entire namespace.
+ * A domain is created by opening the "control" device node of the
+ * parent domain and issuing the KDBUS_CMD_NS_MAKE iotcl. Closing this
+ * file immediately destroys the entire domain.
  */
-struct kdbus_ns {
+struct kdbus_domain {
 	struct kref kref;
 	bool disconnected;
 	const char *name;
-	struct kdbus_ns *parent;
+	struct kdbus_domain *parent;
 	struct list_head ns_list;
 	u64 id;
 	const char *devpath;
@@ -61,40 +61,40 @@ struct kdbus_ns {
 	struct mutex lock;
 	u64 bus_seq_last;
 	atomic64_t msg_seq_last;
-	struct list_head ns_entry;
+	struct list_head domain_entry;
 	struct list_head bus_list;
 	DECLARE_HASHTABLE(user_hash, 6);
 };
 
 /**
- * struct kdbus_ns_user - resource accounting for users
+ * struct kdbus_domain_user - resource accounting for users
  * @kref:		Reference counter
- * @ns:			Namespace of the user
- * @hentry:		Entry in namespace user map
+ * @domain:			Namespace of the user
+ * @hentry:		Entry in domain user map
  * @uid:		UID of the user
  * @buses:		Number of buses the user has created
  * @connections:	Number of connections the user has created
  */
-struct kdbus_ns_user {
+struct kdbus_domain_user {
 	struct kref kref;
-	struct kdbus_ns *ns;
+	struct kdbus_domain *domain;
 	struct hlist_node hentry;
 	kuid_t uid;
 	atomic_t buses;
 	atomic_t connections;
 };
 
-extern struct kdbus_ns *kdbus_ns_init;
+extern struct kdbus_domain *kdbus_domain_init;
 extern struct bus_type kdbus_subsys;
 
-struct kdbus_ns *kdbus_ns_ref(struct kdbus_ns *ns);
-struct kdbus_ns *kdbus_ns_unref(struct kdbus_ns *ns);
-void kdbus_ns_disconnect(struct kdbus_ns *ns);
-int kdbus_ns_new(struct kdbus_ns *parent, const char *name,
-		 umode_t mode, struct kdbus_ns **ns);
-int kdbus_ns_make_user(struct kdbus_cmd_make *cmd, char **name);
-struct kdbus_ns *kdbus_ns_find_by_major(unsigned int major);
+struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
+struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
+void kdbus_domain_disconnect(struct kdbus_domain *domain);
+int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
+		 umode_t mode, struct kdbus_domain **domain);
+int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name);
+struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major);
 
-struct kdbus_ns_user *kdbus_ns_user_ref(struct kdbus_ns *ns, kuid_t uid);
-struct kdbus_ns_user *kdbus_ns_user_unref(struct kdbus_ns_user *user);
+struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain, kuid_t uid);
+struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *user);
 #endif

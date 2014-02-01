@@ -77,7 +77,7 @@ struct kdbus_conn {
 	struct kdbus_meta *owner_meta;
 	unsigned int msg_count;
 	struct kdbus_pool *pool;
-	struct kdbus_ns_user *user;
+	struct kdbus_domain_user *user;
 };
 
 struct kdbus_kmsg;

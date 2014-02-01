@@ -22,7 +22,7 @@
 
 #include "bus.h"
 #include "endpoint.h"
-#include "namespace.h"
+#include "domain.h"
 #include "policy.h"
 
 /* endpoints are by default owned by the bus owner */
@@ -84,7 +84,7 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 		ep->dev = NULL;
 	}
 	if (ep->minor > 0) {
-		idr_remove(&ep->bus->ns->idr, ep->minor);
+		idr_remove(&ep->bus->domain->idr, ep->minor);
 		ep->minor = 0;
 	}
 
@@ -135,7 +135,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 /**
  * kdbus_ep_new() - create a new endpoint
  * @bus:		The bus this endpoint will be created for
- * @ns:			The namespace of the bus; needed separately when
+ * @domain:			The domain of the bus; needed separately when
  *			creating the default endpoint for a new bus
  * @name:		The name of the endpoint
  * @mode:		The access mode for the device node
@@ -148,8 +148,9 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
-		 umode_t mode, kuid_t uid, kgid_t gid, bool policy_open)
+int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_domain *domain,
+		 const char *name, umode_t mode, kuid_t uid, kgid_t gid,
+		 bool policy_open)
 {
 	struct kdbus_ep *e;
 	int ret;
@@ -177,17 +178,17 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 		goto exit;
 	}
 
-	mutex_lock(&ns->lock);
+	mutex_lock(&domain->lock);
 	/* register minor in our endpoint map */
-	ret = idr_alloc(&ns->idr, e, 1, 0, GFP_KERNEL);
+	ret = idr_alloc(&domain->idr, e, 1, 0, GFP_KERNEL);
 	if (ret < 0) {
 		if (ret == -ENOSPC)
 			ret = -EEXIST;
-		mutex_unlock(&ns->lock);
+		mutex_unlock(&domain->lock);
 		goto exit;
 	}
 	e->minor = ret;
-	mutex_unlock(&ns->lock);
+	mutex_unlock(&domain->lock);
 
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);
@@ -196,10 +197,10 @@ int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_ns *ns, const char *name,
 		goto exit;
 	}
 
-	dev_set_name(e->dev, "%s/%s/%s", ns->devpath, bus->name, name);
+	dev_set_name(e->dev, "%s/%s/%s", domain->devpath, bus->name, name);
 	e->dev->bus = &kdbus_subsys;
 	e->dev->type = &kdbus_devtype_ep;
-	e->dev->devt = MKDEV(ns->major, e->minor);
+	e->dev->devt = MKDEV(domain->major, e->minor);
 	dev_set_drvdata(e->dev, e);
 	ret = device_register(e->dev);
 	if (ret < 0) {

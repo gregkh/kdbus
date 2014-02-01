@@ -33,7 +33,7 @@
 #include "message.h"
 #include "metadata.h"
 #include "names.h"
-#include "namespace.h"
+#include "domain.h"
 #include "notify.h"
 #include "policy.h"
 
@@ -41,7 +41,7 @@
  * enum kdbus_handle_type - type a handle can be of
  * @_KDBUS_HANDLE_NULL:			Uninitialized/invalid
  * @KDBUS_HANDLE_CONTROL:		New file descriptor of a control node
- * @KDBUS_HANDLE_CONTROL_NS_OWNER:	File descriptor to hold a namespace
+ * @KDBUS_HANDLE_CONTROL_NS_OWNER:	File descriptor to hold a domain
  * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	File descriptor to hold a bus
  * @KDBUS_HANDLE_EP:			New file descriptor of a bus node
  * @KDBUS_HANDLE_EP_CONNECTED:		A bus connection after HELLO
@@ -62,11 +62,11 @@ enum kdbus_handle_type {
 /**
  * struct kdbus_handle - a handle to the kdbus system
  * @type:	Type of this handle (KDBUS_HANDLE_*)
- * @ns:		Namespace for this handle
+ * @domain:		Namespace for this handle
  * @meta:	Cached connection creator's metadata/credentials
  * @ep:		The endpoint this handle owns, in case @type
  *		is KDBUS_HANDLE_EP
- * @ns_owner:	The namespace this handle owns, in case @type
+ * @domain_owner:	The domain this handle owns, in case @type
  *		is KDBUS_HANDLE_CONTROL_NS_OWNER
  * @bus_owner:	The bus this handle owns, in case @type
  *		is KDBUS_HANDLE_CONTROL_BUS_OWNER
@@ -78,11 +78,11 @@ enum kdbus_handle_type {
  */
 struct kdbus_handle {
 	enum kdbus_handle_type type;
-	struct kdbus_ns *ns;
+	struct kdbus_domain *domain;
 	struct kdbus_meta *meta;
 	struct kdbus_ep *ep;
 	union {
-		struct kdbus_ns *ns_owner;
+		struct kdbus_domain *domain_owner;
 		struct kdbus_bus *bus_owner;
 		struct kdbus_ep *ep_owner;
 		struct kdbus_conn *conn;
@@ -92,7 +92,7 @@ struct kdbus_handle {
 static int kdbus_handle_open(struct inode *inode, struct file *file)
 {
 	struct kdbus_handle *handle;
-	struct kdbus_ns *ns;
+	struct kdbus_domain *domain;
 	struct kdbus_ep *ep;
 	int ret;
 
@@ -100,13 +100,13 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	if (!handle)
 		return -ENOMEM;
 
-	/* find and reference namespace */
-	ns = kdbus_ns_find_by_major(MAJOR(inode->i_rdev));
-	if (!ns || ns->disconnected) {
+	/* find and reference domain */
+	domain = kdbus_domain_find_by_major(MAJOR(inode->i_rdev));
+	if (!domain || domain->disconnected) {
 		kfree(handle);
 		return -ESHUTDOWN;
 	}
-	handle->ns = ns;
+	handle->domain = domain;
 	file->private_data = handle;
 
 	/* control device node */
@@ -116,8 +116,8 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	}
 
 	/* find endpoint for device node */
-	mutex_lock(&handle->ns->lock);
-	ep = idr_find(&handle->ns->idr, MINOR(inode->i_rdev));
+	mutex_lock(&handle->domain->lock);
+	ep = idr_find(&handle->domain->idr, MINOR(inode->i_rdev));
 	if (!ep || ep->disconnected) {
 		ret = -ESHUTDOWN;
 		goto exit_unlock;
@@ -144,12 +144,12 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	if (ret < 0)
 		goto exit_unlock;
 
-	mutex_unlock(&handle->ns->lock);
+	mutex_unlock(&handle->domain->lock);
 	return 0;
 
 exit_unlock:
-	mutex_unlock(&handle->ns->lock);
-	kdbus_ns_unref(handle->ns);
+	mutex_unlock(&handle->domain->lock);
+	kdbus_domain_unref(handle->domain);
 	kfree(handle);
 	return ret;
 }
@@ -160,8 +160,8 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 
 	switch (handle->type) {
 	case KDBUS_HANDLE_CONTROL_NS_OWNER:
-		kdbus_ns_disconnect(handle->ns_owner);
-		kdbus_ns_unref(handle->ns_owner);
+		kdbus_domain_disconnect(handle->domain_owner);
+		kdbus_domain_unref(handle->domain_owner);
 		break;
 
 	case KDBUS_HANDLE_CONTROL_BUS_OWNER:
@@ -188,7 +188,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 	}
 
 	kdbus_meta_free(handle->meta);
-	kdbus_ns_unref(handle->ns);
+	kdbus_domain_unref(handle->domain);
 	kfree(handle);
 
 	return 0;
@@ -316,7 +316,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_cmd_make *make;
-	struct kdbus_ns *ns = NULL;
+	struct kdbus_domain *domain = NULL;
 	umode_t mode = 0600;
 	void *p = NULL;
 	int ret;
@@ -350,7 +350,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_bus_new(handle->ns, make, name, &bloom,
+		ret = kdbus_bus_new(handle->domain, make, name, &bloom,
 				    mode, current_fsuid(), gid, &bus);
 		if (ret < 0)
 			break;
@@ -376,7 +376,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		make = p;
-		ret = kdbus_ns_make_user(make, &name);
+		ret = kdbus_domain_make_user(make, &name);
 		if (ret < 0)
 			break;
 
@@ -388,13 +388,13 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
 
-		ret = kdbus_ns_new(kdbus_ns_init, name, mode, &ns);
+		ret = kdbus_domain_new(kdbus_domain_init, name, mode, &domain);
 		if (ret < 0)
 			break;
 
-		/* turn the control fd into a new ns owner device */
+		/* turn the control fd into a new domain owner device */
 		handle->type = KDBUS_HANDLE_CONTROL_NS_OWNER;
-		handle->ns_owner = ns;
+		handle->domain_owner = domain;
 		break;
 	}
 
@@ -456,7 +456,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_ep_new(handle->ep->bus, handle->ep->bus->ns,
+		ret = kdbus_ep_new(handle->ep->bus, handle->ep->bus->domain,
 				   name, mode, current_fsuid(), gid,
 				   make->flags & KDBUS_MAKE_POLICY_OPEN);
 

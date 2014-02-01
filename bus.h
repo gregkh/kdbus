@@ -19,13 +19,13 @@
 #include "util.h"
 
 /**
- * struct kdbus_bus - bus in a namespace
+ * struct kdbus_bus - bus in a domain
  * @kref:		Reference count
  * @disconnected:	Invalidated data
  * @uid_owner:		The uid of the owner of the bus
- * @ns:			Namespace of this bus
+ * @domain:			Namespace of this bus
  * @name:		The bus name
- * @id:			ID of this bus in the namespace
+ * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
  * @ep_seq_last:	Last used endpoint id sequence number
  * @conn_seq_last:	Last used connection id sequence number
@@ -34,7 +34,7 @@
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @name_registry:	Namespace's list of buses
- * @ns_entry:		Namespace's list of buses
+ * @domain_entry:		Namespace's list of buses
  * @monitors_list:	Connections that monitor this bus
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
@@ -50,7 +50,7 @@ struct kdbus_bus {
 	struct kref kref;
 	bool disconnected;
 	kuid_t uid_owner;
-	struct kdbus_ns *ns;
+	struct kdbus_domain *domain;
 	const char *name;
 	u64 id;
 	struct mutex lock;
@@ -61,16 +61,16 @@ struct kdbus_bus {
 	struct list_head ep_list;
 	u64 bus_flags;
 	struct kdbus_name_registry *name_registry;
-	struct list_head ns_entry;
+	struct list_head domain_entry;
 	struct list_head monitors_list;
 	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
-	struct kdbus_ns_user *user;
+	struct kdbus_domain_user *user;
 };
 
 int kdbus_bus_make_user(struct kdbus_cmd_make *make,
 			char **name, struct kdbus_bloom_parameter *bloom);
-int kdbus_bus_new(struct kdbus_ns *ns,
+int kdbus_bus_new(struct kdbus_domain *domain,
 		  struct kdbus_cmd_make *make, const char *name,
 		  const struct kdbus_bloom_parameter *bloom,
 		  umode_t mode, kuid_t uid, kgid_t gid,

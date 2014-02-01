@@ -279,7 +279,7 @@ static int check_nsmake(struct kdbus_check_env *env)
 
 	ns_make.n_type = KDBUS_ITEM_MAKE_NAME;
 
-	/* create a new namespace */
+	/* create a new domain */
 	snprintf(ns_make.name, sizeof(ns_make.name), "blah");
 	ns_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(ns_make.name) + 1;
 	ns_make.head.size = sizeof(struct kdbus_cmd_make) + ns_make.n_size;
@@ -288,9 +288,9 @@ static int check_nsmake(struct kdbus_check_env *env)
 		return CHECK_SKIP;
 	ASSERT_RETURN(ret == 0);
 
-	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/ns/blah/control", F_OK) == 0);
+	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/domain/blah/control", F_OK) == 0);
 
-	/* can't use the same fd for ns make twice */
+	/* can't use the same fd for domain make twice */
 	ret = ioctl(fd, KDBUS_CMD_NS_MAKE, &ns_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
@@ -301,7 +301,7 @@ static int check_nsmake(struct kdbus_check_env *env)
 	close(fd2);
 
 	close(fd);
-	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/ns/blah/control", F_OK) < 0);
+	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/domain/blah/control", F_OK) < 0);
 
 	return CHECK_OK;
 }
@@ -1144,7 +1144,7 @@ static const struct kdbus_check checks[] = {
 	{ "match name add",	check_match_name_add,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "match name remove",	check_match_name_remove,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "match name change",	check_match_name_change,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
-	{ "ns make",		check_nsmake,			0					},
+	{ "domain make",		check_nsmake,			0					},
 	{ NULL, NULL, 0 }
 };
 

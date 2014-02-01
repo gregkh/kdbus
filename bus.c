@@ -26,7 +26,7 @@
 #include "connection.h"
 #include "endpoint.h"
 #include "names.h"
-#include "namespace.h"
+#include "domain.h"
 
 bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
 {
@@ -61,11 +61,11 @@ static void __kdbus_bus_free(struct kref *kref)
 	kdbus_bus_disconnect(bus);
 
 	atomic_dec(&bus->user->buses);
-	kdbus_ns_user_unref(bus->user);
+	kdbus_domain_user_unref(bus->user);
 
 	if (bus->name_registry)
 		kdbus_name_registry_free(bus->name_registry);
-	kdbus_ns_unref(bus->ns);
+	kdbus_domain_unref(bus->domain);
 	kfree(bus->name);
 	kfree(bus);
 }
@@ -132,11 +132,11 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	bus->disconnected = true;
 	mutex_unlock(&bus->lock);
 
-	/* disconnect from namespace */
-	mutex_lock(&bus->ns->lock);
-	if (bus->ns)
-		list_del(&bus->ns_entry);
-	mutex_unlock(&bus->ns->lock);
+	/* disconnect from domain */
+	mutex_lock(&bus->domain->lock);
+	if (bus->domain)
+		list_del(&bus->domain_entry);
+	mutex_unlock(&bus->domain->lock);
 
 	/* remove all endpoints attached to this bus */
 	list_for_each_entry_safe(ep, tmp, &bus->ep_list, bus_entry) {
@@ -145,13 +145,13 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	}
 }
 
-static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
+static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain, const char *name)
 {
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_bus *b;
 
-	mutex_lock(&ns->lock);
-	list_for_each_entry(b, &ns->bus_list, ns_entry) {
+	mutex_lock(&domain->lock);
+	list_for_each_entry(b, &domain->bus_list, domain_entry) {
 		if (strcmp(b->name, name))
 			continue;
 
@@ -159,13 +159,13 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
 		break;
 	}
 
-	mutex_unlock(&ns->lock);
+	mutex_unlock(&domain->lock);
 	return bus;
 }
 
 /**
  * kdbus_bus_new() - create a new bus
- * @ns:			The namespace to work on
+ * @domain:			The domain to work on
  * @make:		Pointer to a struct kdbus_cmd_make containing the
  *			details for the bus creation
  * @name:		Name of the bus
@@ -176,11 +176,11 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_ns *ns, const char *name)
  * @bus:		Pointer to a reference where the new bus is stored
  *
  * This function will allocate a new kdbus_bus and link it to the given
- * namespace.
+ * domain.
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_bus_new(struct kdbus_ns *ns,
+int kdbus_bus_new(struct kdbus_domain *domain,
 		  struct kdbus_cmd_make *make, const char *name,
 		  const struct kdbus_bloom_parameter *bloom,
 		  umode_t mode, kuid_t uid, kgid_t gid,
@@ -198,7 +198,7 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	if (strncmp(name, prefix, strlen(prefix) != 0))
 		return -EINVAL;
 
-	b = kdbus_bus_find(ns, name);
+	b = kdbus_bus_find(domain, name);
 	if (b) {
 		kdbus_bus_unref(b);
 		return -EEXIST;
@@ -231,13 +231,13 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	if (ret < 0)
 		goto exit;
 
-	ret = kdbus_ep_new(b, ns, "bus", mode, uid, gid,
+	ret = kdbus_ep_new(b, domain, "bus", mode, uid, gid,
 			   b->bus_flags & KDBUS_MAKE_POLICY_OPEN);
 	if (ret < 0)
 		goto exit;
 
 	/* account the bus against the user */
-	b->user = kdbus_ns_user_ref(ns, uid);
+	b->user = kdbus_domain_user_ref(domain, uid);
 	if (!b->user) {
 		ret = -ENOMEM;
 		goto exit;
@@ -246,17 +246,17 @@ int kdbus_bus_new(struct kdbus_ns *ns,
 	if (!capable(CAP_IPC_OWNER) &&
 	    atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
 		atomic_dec(&b->user->buses);
-		b->user = kdbus_ns_user_unref(b->user);
+		b->user = kdbus_domain_user_unref(b->user);
 		ret = -EMFILE;
 		goto exit;
 	}
 
-	/* link into namespace */
-	mutex_lock(&ns->lock);
-	b->id = ++ns->bus_seq_last;
-	list_add_tail(&b->ns_entry, &ns->bus_list);
-	b->ns = kdbus_ns_ref(ns);
-	mutex_unlock(&ns->lock);
+	/* link into domain */
+	mutex_lock(&domain->lock);
+	b->id = ++domain->bus_seq_last;
+	list_add_tail(&b->domain_entry, &domain->bus_list);
+	b->domain = kdbus_domain_ref(domain);
+	mutex_unlock(&domain->lock);
 
 	*bus = b;
 	return 0;

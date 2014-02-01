@@ -31,7 +31,7 @@
 /* maximum length of well-known bus name */
 #define KDBUS_NAME_MAX_LEN		255
 
-/* maximum length of bus, ns, ep name */
+/* maximum length of bus, domain, ep name */
 #define KDBUS_SYSNAME_MAX_LEN		63
 
 /* maximum size of make data */
@@ -58,10 +58,10 @@
 /* maximum number of queud requests waiting for a reply */
 #define KDBUS_CONN_MAX_REQUESTS_PENDING	64
 
-/* maximum number of connections per user in one namespace */
+/* maximum number of connections per user in one domain */
 #define KDBUS_USER_MAX_CONN		256
 
-/* maximum number of buses per user in one namespace */
+/* maximum number of buses per user in one domain */
 #define KDBUS_USER_MAX_BUSES		16
 
 #endif
