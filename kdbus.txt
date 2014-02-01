@@ -83,7 +83,7 @@ Device Node Layout
   |-- 2702-user
   |   |-- bus
   |   `-- ep.app
-  `-- ns
+  `-- domain
       |-- fedoracontainer
       |   |-- control
       |   |-- 0-system
