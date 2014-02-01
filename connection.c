@@ -1586,6 +1586,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			return ret;
 		}
 
+		q->reply = NULL;
+
 		kdbus_conn_queue_add(conn_dst, q);
 	}
 	mutex_unlock(&conn_dst->lock);
