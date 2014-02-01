@@ -1276,6 +1276,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	mutex_unlock(&ep->bus->lock);
 
 	if (sync) {
+		int r;
 		struct kdbus_conn_queue *queue;
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
 
@@ -1284,12 +1285,15 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * by the timeout scans that might be conducted for other,
 		 * asynchronous replies of conn_src.
 		 */
-		if (wait_event_interruptible_timeout(reply_wait->wait,
+		r = wait_event_interruptible_timeout(reply_wait->wait,
 						     !reply_wait->waiting,
-						     usecs_to_jiffies(usecs)))
-			ret = reply_wait->err;
-		else
+						     usecs_to_jiffies(usecs));
+		if (r == 0)
 			ret = -ETIMEDOUT;
+		else if (r < 0)
+			ret = -EINTR;
+		else
+			ret = reply_wait->err;
 
 		mutex_lock(&conn_src->lock);
 		queue = reply_wait->queue;
