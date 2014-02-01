@@ -26,7 +26,7 @@
 #include "domain.h"
 #include "util.h"
 
-/* map of majors to namespaces */
+/* map of majors to domains */
 static DEFINE_IDR(kdbus_domain_major_idr);
 
 /* next domain id sequence number */
@@ -68,7 +68,7 @@ static struct device_type kdbus_devtype_control = {
 
 /**
  * kdbus_domain_ref() - take a domain reference
- * @domain:		Namespace
+ * @domain:		Domain
  *
  * Return: the domain itself
  */
@@ -80,7 +80,7 @@ struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
 
 /**
  * kdbus_domain_disconnect() - invalidate a domain
- * @domain:		Namespace
+ * @domain:		Domain
  */
 void kdbus_domain_disconnect(struct kdbus_domain *domain)
 {
@@ -131,7 +131,7 @@ static void __kdbus_domain_free(struct kref *kref)
 
 /**
  * kdbus_domain_unref() - drop a domain reference
- * @domain:		Namespace
+ * @domain:		Domain
  *
  * When the last reference is dropped, the domain internal structure
  * is freed.
@@ -153,7 +153,7 @@ static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain const *parent,
 	struct kdbus_domain *domain = NULL;
 	struct kdbus_domain *n;
 
-	list_for_each_entry(n, &parent->ns_list, domain_entry) {
+	list_for_each_entry(n, &parent->domain_list, domain_entry) {
 		if (strcmp(n->name, name))
 			continue;
 
@@ -212,7 +212,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&n->bus_list);
-	INIT_LIST_HEAD(&n->ns_list);
+	INIT_LIST_HEAD(&n->domain_list);
 	kref_init(&n->kref);
 	n->mode = mode;
 	idr_init(&n->idr);
@@ -296,7 +296,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	/* link into parent domain */
 	if (parent) {
 		n->parent = kdbus_domain_ref(parent);
-		list_add_tail(&n->domain_entry, &parent->ns_list);
+		list_add_tail(&n->domain_entry, &parent->domain_list);
 	}
 	mutex_unlock(&kdbus_subsys_lock);
 

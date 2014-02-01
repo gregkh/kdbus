@@ -17,19 +17,19 @@
 #include <linux/idr.h>
 
 /**
- * struct kdbus_namespace - domain for buses
+ * struct kdbus_domain - domain for buses
  * @kref:		Reference counter
  * @disconnected:	Invalidated data
  * @name:		Name of the domain
  * @parent:		Parent domain
- * @ns_list:		List of child namespaces
+ * @domain_list:		List of child domains
  * @id:			Global id of this domain
  * @devpath:		/dev base directory path
  * @major:		Device major number for all nodes
  * @mode:		Device node access mode
  * @idr:		Map of endpoint minors to buses
  * @dev:		Control device node, minor == 0
- * @lock:		Namespace data lock
+ * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
  * @domain_entry:		Entry in parent domain
@@ -51,7 +51,7 @@ struct kdbus_domain {
 	bool disconnected;
 	const char *name;
 	struct kdbus_domain *parent;
-	struct list_head ns_list;
+	struct list_head domain_list;
 	u64 id;
 	const char *devpath;
 	unsigned int major;
@@ -69,7 +69,7 @@ struct kdbus_domain {
 /**
  * struct kdbus_domain_user - resource accounting for users
  * @kref:		Reference counter
- * @domain:			Namespace of the user
+ * @domain:			Domain of the user
  * @hentry:		Entry in domain user map
  * @uid:		UID of the user
  * @buses:		Number of buses the user has created

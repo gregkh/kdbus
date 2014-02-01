@@ -23,7 +23,7 @@
  * @kref:		Reference count
  * @disconnected:	Invalidated data
  * @uid_owner:		The uid of the owner of the bus
- * @domain:			Namespace of this bus
+ * @domain:			Domain of this bus
  * @name:		The bus name
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
@@ -33,8 +33,8 @@
  * @conn_hash:		Map of connection IDs
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
- * @name_registry:	Namespace's list of buses
- * @domain_entry:		Namespace's list of buses
+ * @name_registry:	Domain's list of buses
+ * @domain_entry:		Domain's list of buses
  * @monitors_list:	Connections that monitor this bus
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus

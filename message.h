@@ -18,7 +18,7 @@
 
 /**
  * struct kdbus_kmsg - internal message handling data
- * @seq:		Namespace-global message sequence number
+ * @seq:		Domain-global message sequence number
  * @notify_type:	Short-cut for faster lookup
  * @notify_old_id:	Short-cut for faster lookup
  * @notify_new_id:	Short-cut for faster lookup

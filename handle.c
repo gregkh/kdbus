@@ -62,7 +62,7 @@ enum kdbus_handle_type {
 /**
  * struct kdbus_handle - a handle to the kdbus system
  * @type:	Type of this handle (KDBUS_HANDLE_*)
- * @domain:		Namespace for this handle
+ * @domain:		Domain for this handle
  * @meta:	Cached connection creator's metadata/credentials
  * @ep:		The endpoint this handle owns, in case @type
  *		is KDBUS_HANDLE_EP

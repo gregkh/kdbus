@@ -48,7 +48,7 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 	/*
 	 * Remember the PID domain our credentials belong to; we
 	 * need to prevent leaking authorization and security-relevant
-	 * data across different namespaces.
+	 * data across different domains.
 	 */
 	m->domain = task_active_pid_ns(current);
 
