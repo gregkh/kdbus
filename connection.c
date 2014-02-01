@@ -707,7 +707,7 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
-	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
+	list_for_each_entry(reply, &reply_list, entry)
 		kdbus_conn_reply_free(reply);
 }
 
