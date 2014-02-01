@@ -123,9 +123,6 @@ static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
 	list_del(&reply->entry);
 
 	if (reply->sync) {
-		if (!reply->waiting)
-			return;
-
 		reply->waiting = false;
 		reply->err = err;
 		wake_up_interruptible(&reply->wait);
