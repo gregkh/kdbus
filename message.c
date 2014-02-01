@@ -178,7 +178,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			bloom_size = payload_size -
 				     offsetof(struct kdbus_bloom_filter, data);
 
-			/* allow only bloom filter sizes of a multiple of 64bit */
+			/*
+			* Allow only bloom filter sizes of a multiple of 64bit.
+			*/
 			if (!KDBUS_IS_ALIGNED8(bloom_size))
 				return -EFAULT;
 

@@ -90,7 +90,7 @@ struct kdbus_conn_queue {
  * @entry:		The list_head entry of the connection's reply_list
  * @conn:		The counterpart connection that is expected to answer
  * @queue:		The queue item that is prepared by the replying
- * 			connection
+ *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
  * @wait:		The waitqueue for synchronous I/O
@@ -899,7 +899,7 @@ remove_unused:
 }
 
 static int kdbus_conn_msg_install(struct kdbus_conn *conn,
-			          struct kdbus_conn_queue *queue)
+				  struct kdbus_conn_queue *queue)
 {
 	int *memfds = NULL;
 	unsigned int i;

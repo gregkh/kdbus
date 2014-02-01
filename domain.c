@@ -196,8 +196,8 @@ struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major)
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_domain_new(struct kdbus_domain *parent, const char *name, umode_t mode,
-		 struct kdbus_domain **domain)
+int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
+		     umode_t mode, struct kdbus_domain **domain)
 {
 	struct kdbus_domain *n;
 	int ret;
@@ -371,7 +371,8 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
  * Return: a kdbus_domain_user, either freshly allocated or with the reference
  * counter increased. In case of memory allocation failure, NULL is returned.
  */
-struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain, kuid_t uid)
+struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain,
+						kuid_t uid)
 {
 	struct kdbus_domain_user *u;
 
@@ -408,8 +409,8 @@ struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain, kui
 
 static void __kdbus_domain_user_free(struct kref *kref)
 {
-	struct kdbus_domain_user *user = container_of(kref, struct kdbus_domain_user,
-						  kref);
+	struct kdbus_domain_user *user =
+		container_of(kref, struct kdbus_domain_user, kref);
 
 	BUG_ON(atomic_read(&user->buses) > 0);
 	BUG_ON(atomic_read(&user->connections) > 0);
@@ -421,8 +422,8 @@ static void __kdbus_domain_user_free(struct kref *kref)
 	kfree(user);
 }
 
-struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *user)
+struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u)
 {
-	kref_put(&user->kref, __kdbus_domain_user_free);
+	kref_put(&u->kref, __kdbus_domain_user_free);
 	return NULL;
 }
