@@ -96,7 +96,7 @@ struct kdbus_conn_queue {
  * @wait:		The waitqueue for synchronous I/O
  * @sync:		The reply block is waiting for synchronous I/O
  * @waiting:		The condition to synchronously wait for
- * @err:		The error code for the syncronous reply
+ * @err:		The error code for the synchronous reply
  */
 struct kdbus_conn_reply {
 	struct list_head entry;
@@ -1300,6 +1300,11 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		mutex_lock(&conn_src->lock);
 
+		/*
+		 * If we weren't woken up sanely via kdbus_conn_reply_finish(),
+		 * reply_wait->entry is dangling in the connection's
+		 * reply_list and needs to be killed manually.
+		 */
 		if (r <= 0)
 			list_del(&reply_wait->entry);
 
@@ -1447,7 +1452,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 				}
 
 				/*
-				 * In asyncronous cases, send a 'connection
+				 * In asynchronous cases, send a 'connection
 				 * dead' notification, mark entry as handled,
 				 * and trigger timeout.
 				 */

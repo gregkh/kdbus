@@ -897,7 +897,7 @@ enum kdbus_ioctl_type {
  *			inconsistent types.
  * @EBUSY:		The user tried to say BYEBYE to a connection, but the
  *			connection had a non-empty message list.
- * @ECANCELED:		A syncronous message sending was cancelled.
+ * @ECANCELED:		A synchronous message sending was cancelled.
  * @ECONNRESET:		A connection is shut down, no further operations are
  *			possible.
  * @ECOMM:		A peer does not accept the file descriptors addressed
