@@ -269,21 +269,21 @@ static int check_nsmake(struct kdbus_check_env *env)
 		uint64_t n_size;
 		uint64_t n_type;
 		char name[64];
-	} ns_make;
+	} domain_make;
 	int ret;
 
 	fd = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(fd >= 0);
 
-	memset(&ns_make, 0, sizeof(ns_make));
+	memset(&domain_make, 0, sizeof(domain_make));
 
-	ns_make.n_type = KDBUS_ITEM_MAKE_NAME;
+	domain_make.n_type = KDBUS_ITEM_MAKE_NAME;
 
 	/* create a new domain */
-	snprintf(ns_make.name, sizeof(ns_make.name), "blah");
-	ns_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(ns_make.name) + 1;
-	ns_make.head.size = sizeof(struct kdbus_cmd_make) + ns_make.n_size;
-	ret = ioctl(fd, KDBUS_CMD_DOMAIN_MAKE, &ns_make);
+	snprintf(domain_make.name, sizeof(domain_make.name), "blah");
+	domain_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(domain_make.name) + 1;
+	domain_make.head.size = sizeof(struct kdbus_cmd_make) + domain_make.n_size;
+	ret = ioctl(fd, KDBUS_CMD_DOMAIN_MAKE, &domain_make);
 	if (ret < 0 && errno == EPERM)
 		return CHECK_SKIP;
 	ASSERT_RETURN(ret == 0);
@@ -291,12 +291,12 @@ static int check_nsmake(struct kdbus_check_env *env)
 	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/domain/blah/control", F_OK) == 0);
 
 	/* can't use the same fd for domain make twice */
-	ret = ioctl(fd, KDBUS_CMD_DOMAIN_MAKE, &ns_make);
+	ret = ioctl(fd, KDBUS_CMD_DOMAIN_MAKE, &domain_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
 	/* can't register the same name twice */
 	fd2 = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
-	ret = ioctl(fd2, KDBUS_CMD_DOMAIN_MAKE, &ns_make);
+	ret = ioctl(fd2, KDBUS_CMD_DOMAIN_MAKE, &domain_make);
 	ASSERT_RETURN(ret == -1 && errno == EEXIST);
 	close(fd2);
 
