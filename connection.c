@@ -113,7 +113,6 @@ struct kdbus_conn_reply {
 static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 {
 	atomic_dec(&reply->conn->reply_count);
-	list_del(&reply->entry);
 	kdbus_conn_unref(reply->conn);
 	kfree(reply);
 }
@@ -121,6 +120,8 @@ static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
 				    int err)
 {
+	list_del(&reply->entry);
+
 	if (reply->sync) {
 		if (!reply->waiting)
 			return;
@@ -1172,7 +1173,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				if (r->sync)
 					reply_wake = r;
 				else
-					kdbus_conn_reply_free(r);
+					kdbus_conn_reply_finish(r, 0);
 
 				break;
 			}
@@ -1254,7 +1255,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		ret = kdbus_conn_queue_alloc(conn_dst, kmsg,
 					     &reply_wake->queue);
+		mutex_lock(&conn_dst->lock);
 		kdbus_conn_reply_finish(reply_wake, ret);
+		mutex_unlock(&conn_dst->lock);
 	} else {
 		/*
 		 * Otherwise, put it in the queue and wait for the connection
@@ -1296,6 +1299,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			ret = reply_wait->err;
 
 		mutex_lock(&conn_src->lock);
+
+		if (r <= 0)
+			list_del(&reply_wait->entry);
+
 		queue = reply_wait->queue;
 		if (queue) {
 			if (ret == 0)
@@ -1397,11 +1404,12 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	list_del(&conn->monitor_entry);
 	mutex_unlock(&bus->lock);
 
+	/* clean up any messages still left on this endpoint */
+	mutex_lock(&conn->lock);
+
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
 		kdbus_conn_reply_finish(reply, -ECANCELED);
 
-	/* clean up any messages still left on this endpoint */
-	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
 		if (queue->reply)
 			kdbus_notify_reply_dead(queue->src_id,
