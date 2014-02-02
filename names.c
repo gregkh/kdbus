@@ -539,7 +539,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	/* privileged users can act on behalf of someone else */
 	if (cmd->owner_id != 0) {
 		struct kdbus_conn *new_conn;
-		struct kdbus_bus *bus = conn->ep->bus;
+		struct kdbus_bus *bus = conn->bus;
 
 		if (!kdbus_bus_uid_is_privileged(bus))
 			return -EPERM;
@@ -608,7 +608,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 	/* privileged users can act on behalf of someone else */
 	if (cmd->owner_id > 0) {
-		struct kdbus_bus *bus = conn->ep->bus;
+		struct kdbus_bus *bus = conn->bus;
 
 		if (!kdbus_bus_uid_is_privileged(bus)) {
 			ret = -EPERM;
@@ -690,7 +690,7 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 	size_t p = *pos;
 	int ret, i;
 
-	hash_for_each(conn->ep->bus->conn_hash, i, c, hentry) {
+	hash_for_each(conn->bus->conn_hash, i, c, hentry) {
 		bool added = false;
 
 		/* skip activators */
@@ -772,7 +772,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	int ret;
 
 	mutex_lock(&reg->entries_lock);
-	mutex_lock(&conn->ep->bus->lock);
+	mutex_lock(&conn->bus->lock);
 
 	/* size of header */
 	size = sizeof(struct kdbus_name_list);
@@ -807,7 +807,7 @@ exit_pool_free:
 	if (ret < 0)
 		kdbus_pool_free_range(conn->pool, off);
 exit_unlock:
-	mutex_unlock(&conn->ep->bus->lock);
+	mutex_unlock(&conn->bus->lock);
 	mutex_unlock(&reg->entries_lock);
 
 	return ret;

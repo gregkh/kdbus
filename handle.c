@@ -518,7 +518,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 {
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_conn *conn = handle->conn;
-	struct kdbus_bus *bus = conn->ep->bus;
 	void *p = NULL;
 	long ret = 0;
 	u64 size;
@@ -538,7 +537,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 
 		/* mangling policy is a privileged operation */
-		if (!kdbus_bus_uid_is_privileged(bus)) {
+		if (!kdbus_bus_uid_is_privileged(conn->bus)) {
 			ret = -EFAULT;
 			break;
 		}
@@ -562,7 +561,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_name_acquire(bus->name_registry, conn, p);
+		ret = kdbus_cmd_name_acquire(conn->bus->name_registry, conn, p);
 		if (ret < 0)
 			break;
 
@@ -582,7 +581,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_name_release(bus->name_registry, conn, p);
+		ret = kdbus_cmd_name_release(conn->bus->name_registry, conn, p);
 		break;
 
 	case KDBUS_CMD_NAME_LIST: {
@@ -597,7 +596,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			return PTR_ERR(p);
 
 		cmd = p;
-		ret = kdbus_cmd_name_list(bus->name_registry, conn, cmd);
+		ret = kdbus_cmd_name_list(conn->bus->name_registry, conn, cmd);
 		if (ret < 0)
 			break;
 

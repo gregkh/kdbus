@@ -110,7 +110,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 			vecs_size += item->vec.size;
 			if (vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE &&
-			    !kdbus_bus_uid_is_privileged(conn->ep->bus))
+			    !kdbus_bus_uid_is_privileged(conn->bus))
 				return -EMSGSIZE;
 
 			/* \0-bytes records store only the alignment bytes */
@@ -185,7 +185,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				return -EFAULT;
 
 			/* do not allow mismatching bloom filter sizes */
-			if (bloom_size != conn->ep->bus->bloom.size)
+			if (bloom_size != conn->bus->bloom.size)
 				return -EDOM;
 
 			kmsg->bloom_filter = &item->bloom_filter;

@@ -516,7 +516,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	}
 
 	if (conn->msg_count > KDBUS_CONN_MAX_MSGS &&
-	    !kdbus_bus_uid_is_privileged(conn->ep->bus)) {
+	    !kdbus_bus_uid_is_privileged(conn->bus)) {
 		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
@@ -1042,7 +1042,6 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			 u64 cookie)
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
-	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_conn *c;
 	bool found = false;
 	int i;
@@ -1050,8 +1049,8 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 	if (atomic_read(&conn->reply_count) == 0)
 		return -ENOENT;
 
-	mutex_lock(&bus->lock);
-	hash_for_each(bus->conn_hash, i, c, hentry) {
+	mutex_lock(&conn->bus->lock);
+	hash_for_each(conn->bus->conn_hash, i, c, hentry) {
 		mutex_lock(&c->lock);
 		list_for_each_entry_safe(reply, reply_tmp,
 					 &c->reply_list, entry) {
@@ -1064,7 +1063,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		}
 		mutex_unlock(&c->lock);
 	}
-	mutex_unlock(&bus->lock);
+	mutex_unlock(&conn->bus->lock);
 
 	return found ? 0 : -ENOENT;
 }
@@ -1379,7 +1378,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *queue, *tmp;
-	struct kdbus_bus *bus;
 	LIST_HEAD(notify_list);
 
 	mutex_lock(&conn->lock);
@@ -1396,13 +1394,11 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	conn->disconnected = true;
 	mutex_unlock(&conn->lock);
 
-	bus = conn->ep->bus;
-
 	/* remove from bus */
-	mutex_lock(&bus->lock);
+	mutex_lock(&conn->bus->lock);
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
-	mutex_unlock(&bus->lock);
+	mutex_unlock(&conn->bus->lock);
 
 	/* clean up any messages still left on this endpoint */
 	mutex_lock(&conn->lock);
@@ -1427,8 +1423,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 		int i;
 		struct kdbus_conn_reply *reply, *reply_tmp;
 
-		mutex_lock(&bus->lock);
-		hash_for_each(bus->conn_hash, i, c, hentry) {
+		mutex_lock(&conn->bus->lock);
+		hash_for_each(conn->bus->conn_hash, i, c, hentry) {
 			mutex_lock(&c->lock);
 			list_for_each_entry_safe(reply, reply_tmp,
 						 &c->reply_list, entry) {
@@ -1457,7 +1453,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 			}
 			mutex_unlock(&c->lock);
 		}
-		mutex_unlock(&bus->lock);
+		mutex_unlock(&conn->bus->lock);
 	}
 
 	kdbus_notify_id_change(KDBUS_ITEM_ID_REMOVE, conn->id, conn->flags,
@@ -1466,7 +1462,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 
 	del_timer_sync(&conn->timer);
 	cancel_work_sync(&conn->work);
-	kdbus_name_remove_by_conn(bus->name_registry, conn);
+	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
 
 	return 0;
 }
@@ -1504,6 +1500,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
+	kdbus_bus_unref(conn->bus);
 	kfree(conn->name);
 	kfree(conn);
 }
@@ -1557,7 +1554,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *q, *q_tmp;
-	struct kdbus_bus *bus;
 	struct kdbus_conn *c;
 	LIST_HEAD(msg_list);
 	int i, ret = 0;
@@ -1600,9 +1596,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	 * anyone is waiting for a reply from conn_src. In such cases,
 	 * move it to the conn_dst.
 	 */
-	bus = conn_dst->ep->bus;
-	mutex_lock(&bus->lock);
-	hash_for_each(bus->conn_hash, i, c, hentry) {
+	mutex_lock(&conn_dst->bus->lock);
+	hash_for_each(conn_dst->bus->conn_hash, i, c, hentry) {
 		/* conn_dst can't have a pending reply to itself */
 		if (c == conn_dst)
 			continue;
@@ -1617,7 +1612,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		}
 		mutex_unlock(&c->lock);
 	}
-	mutex_unlock(&bus->lock);
+	mutex_unlock(&conn_dst->bus->lock);
 
 	wake_up_interruptible(&conn_dst->ep->wait);
 
@@ -1659,11 +1654,9 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		name = cmd_info->name;
 		hash = kdbus_str_hash(name);
 	} else {
-		struct kdbus_bus *bus = conn->ep->bus;
-
-		mutex_lock(&bus->lock);
-		owner_conn = kdbus_bus_find_conn_by_id(bus, cmd_info->id);
-		mutex_unlock(&bus->lock);
+		mutex_lock(&conn->bus->lock);
+		owner_conn = kdbus_bus_find_conn_by_id(conn->bus, cmd_info->id);
+		mutex_unlock(&conn->bus->lock);
 	}
 
 	/*
@@ -1679,7 +1672,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			goto exit;
 		}
 
-		e = kdbus_name_lookup(conn->ep->bus->name_registry, name);
+		e = kdbus_name_lookup(conn->bus->name_registry, name);
 		if (!e) {
 			ret = -ENOENT;
 			goto exit;
@@ -1926,6 +1919,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (ret < 0)
 		goto exit_free_pool;
 
+	conn->bus = kdbus_bus_ref(ep->bus);
 	conn->ep = kdbus_ep_ref(ep);
 
 	/* get new id for this connection */
@@ -2023,6 +2017,7 @@ exit_release_names:
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
 exit_unref_ep:
 	kdbus_ep_unref(conn->ep);
+	kdbus_bus_unref(conn->bus);
 	kdbus_match_db_free(conn->match_db);
 exit_free_pool:
 	kdbus_pool_free(conn->pool);

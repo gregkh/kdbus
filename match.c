@@ -164,7 +164,7 @@ static bool kdbus_match_bloom(const struct kdbus_bloom_filter *filter,
 			      const struct kdbus_bloom_mask *mask,
 			      const struct kdbus_conn *conn)
 {
-	size_t n = conn->ep->bus->bloom.size / sizeof(u64);
+	size_t n = conn->bus->bloom.size / sizeof(u64);
 	const u64 *m;
 	size_t i;
 
@@ -351,11 +351,11 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	if (cmd->owner_id == 0)
 		cmd->owner_id = conn->id;
 	else if (cmd->owner_id != conn->id &&
-		 !kdbus_bus_uid_is_privileged(conn->ep->bus))
+		 !kdbus_bus_uid_is_privileged(conn->bus))
 		return -EPERM;
 
 	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
-		struct kdbus_bus *bus = conn->ep->bus;
+		struct kdbus_bus *bus = conn->bus;
 
 		mutex_lock(&bus->lock);
 		target_conn = kdbus_bus_find_conn_by_id(bus,
@@ -401,8 +401,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 		switch (item->type) {
 		case KDBUS_ITEM_BLOOM_MASK:
-			if (size < conn->ep->bus->bloom.size ||
-			    size % conn->ep->bus->bloom.size > 0) {
+			if (size < conn->bus->bloom.size ||
+			    size % conn->bus->bloom.size > 0) {
 				ret = -EDOM;
 				break;
 			}
@@ -416,7 +416,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 			/* we get an array of n generations of bloom masks */
 			rule->bloom_mask.generations =
-					size / conn->ep->bus->bloom.size;
+					size / conn->bus->bloom.size;
 
 			break;
 
@@ -522,11 +522,11 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 	if (cmd->owner_id == 0)
 		cmd->owner_id = conn->id;
 	else if (cmd->owner_id != conn->id &&
-		 !kdbus_bus_uid_is_privileged(conn->ep->bus))
+		 !kdbus_bus_uid_is_privileged(conn->bus))
 		return -EPERM;
 
 	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
-		struct kdbus_bus *bus = conn->ep->bus;
+		struct kdbus_bus *bus = conn->bus;
 
 		mutex_lock(&bus->lock);
 		target_conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);

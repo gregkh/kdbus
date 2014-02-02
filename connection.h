@@ -22,9 +22,10 @@
  * struct kdbus_conn - connection to a bus
  * @kref:		Reference count
  * @disconnected:	Invalidated data
- * @name:		Human-readable connection name, used for debugging
- * @ep:			The endpoint this connection belongs to
  * @id:			Connection ID
+ * @name:		Human-readable connection name, used for debugging
+ * @bus:		The bus this connection belongs to
+ * @ep:			The endpoint this connection belongs to
  * @flags:		KDBUS_HELLO_* flags
  * @attach_flags:	KDBUS_ATTACH_* flags
  * @lock:		Connection data lock
@@ -54,9 +55,10 @@
 struct kdbus_conn {
 	struct kref kref;
 	bool disconnected;
-	const char *name;
-	struct kdbus_ep *ep;
 	u64 id;
+	const char *name;
+	struct kdbus_bus *bus;
+	struct kdbus_ep *ep;
 	u64 flags;
 	u64 attach_flags;
 	struct mutex lock;
