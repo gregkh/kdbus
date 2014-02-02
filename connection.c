@@ -1578,13 +1578,14 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	/* insert messages into destination */
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
+		q->reply = NULL;
+
 		/* filter messages for a specific name */
 		if (name_id > 0 && q->dst_name_id != name_id) {
 			kdbus_conn_queue_cleanup(q);
 			continue;
 		}
 
-		q->reply = NULL;
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
 				      &q->off, q->size);
 		if (ret < 0)
