@@ -1364,17 +1364,19 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
 
 /**
  * kdbus_conn_disconnect() - disconnect a connection
- * @conn:			The connection to disconnect
- * @ensure_msg_list_empty:	Flag to indicate if the call should fail in
- *				case the connection's message list is not
- *				empty
+ * @parent:		The bus terminates the connection
+ * @conn:		The connection to disconnect
+ * @ensure_queue_empty:	Flag to indicate if the call should fail in
+ *			case the connection's message list is not
+ *			empty
  *
  * If @ensure_msg_list_empty is true, and the connection has pending messages,
  * -EBUSY is returned.
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
+int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
+			  bool ensure_queue_empty)
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *queue, *tmp;
@@ -1386,7 +1388,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 		return -EALREADY;
 	}
 
-	if (ensure_msg_list_empty && !list_empty(&conn->msg_list)) {
+	if (ensure_queue_empty && !list_empty(&conn->msg_list)) {
 		mutex_unlock(&conn->lock);
 		return -EBUSY;
 	}
@@ -1394,15 +1396,20 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 	conn->disconnected = true;
 	mutex_unlock(&conn->lock);
 
+	/* disarm timer */
+	del_timer_sync(&conn->timer);
+	cancel_work_sync(&conn->work);
+
 	/* remove from bus */
-	mutex_lock(&conn->bus->lock);
+	if (!parent)
+		mutex_lock(&conn->bus->lock);
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
-	mutex_unlock(&conn->bus->lock);
+	if (!parent)
+		mutex_unlock(&conn->bus->lock);
 
 	/* clean up any messages still left on this endpoint */
 	mutex_lock(&conn->lock);
-
 	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
 		kdbus_conn_reply_finish(reply, -ECANCELED);
 
@@ -1416,6 +1423,17 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 		kdbus_conn_queue_cleanup(queue);
 	}
 	mutex_unlock(&conn->lock);
+
+	/*
+	 * The bus disconnects us; there is no point in cleaning up bus
+	 * properties or sending notifications to other peers which also
+	 * got disconnected at this moment.
+	 */
+	if (parent)
+		return 0;
+
+	/* remove all names associated with this connection */
+	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
 
 	/* if we die while other connections wait for our reply, notify them */
 	if (unlikely(atomic_read(&conn->reply_count) > 0)) {
@@ -1458,12 +1476,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_msg_list_empty)
 
 	kdbus_notify_id_change(KDBUS_ITEM_ID_REMOVE, conn->id, conn->flags,
 			       &notify_list);
+
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
-
-	del_timer_sync(&conn->timer);
-	cancel_work_sync(&conn->work);
-	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
-
 	return 0;
 }
 
@@ -1488,7 +1502,7 @@ static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 
-	kdbus_conn_disconnect(conn, false);
+	kdbus_conn_disconnect(conn, false, false);
 
 	atomic_dec(&conn->user->connections);
 	kdbus_domain_user_unref(conn->user);
@@ -1558,6 +1572,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	LIST_HEAD(msg_list);
 	int i, ret = 0;
 
+	BUG_ON(!mutex_is_locked(&conn_dst->bus->lock));
 	BUG_ON(conn_src == conn_dst);
 
 	/* remove all messages from the source */
@@ -1568,7 +1583,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 	list_for_each_entry_safe(reply, reply_tmp, &conn_src->reply_list, entry)
 		kdbus_conn_reply_finish(reply, -EPIPE);
-
 	mutex_unlock(&conn_src->lock);
 
 	/* insert messages into destination */
@@ -1596,7 +1610,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	 * anyone is waiting for a reply from conn_src. In such cases,
 	 * move it to the conn_dst.
 	 */
-	mutex_lock(&conn_dst->bus->lock);
 	hash_for_each(conn_dst->bus->conn_hash, i, c, hentry) {
 		/* conn_dst can't have a pending reply to itself */
 		if (c == conn_dst)
@@ -1612,8 +1625,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		}
 		mutex_unlock(&c->lock);
 	}
-	mutex_unlock(&conn_dst->bus->lock);
 
+	/* wake up poll() */
 	wake_up_interruptible(&conn_dst->ep->wait);
 
 	return ret;

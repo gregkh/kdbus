@@ -58,13 +58,10 @@ static void __kdbus_bus_free(struct kref *kref)
 {
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
-	kdbus_bus_disconnect(bus);
-
+	kdbus_bus_disconnect(bus, false);
 	atomic_dec(&bus->user->buses);
 	kdbus_domain_user_unref(bus->user);
-
-	if (bus->name_registry)
-		kdbus_name_registry_free(bus->name_registry);
+	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kfree(bus->name);
 	kfree(bus);
@@ -115,13 +112,17 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 /**
  * kdbus_bus_disconnect() - disconnect a bus
  * @bus:		The kdbus reference
+ * @parent:		The domain disconnects this bus
  *
  * The passed bus will be disconnected and the associated endpoint will be
  * unref'ed.
  */
-void kdbus_bus_disconnect(struct kdbus_bus *bus)
+void kdbus_bus_disconnect(struct kdbus_bus *bus, bool parent)
 {
 	struct kdbus_ep *ep, *tmp;
+	struct hlist_node *conn_tmp;
+	struct kdbus_conn *conn;
+	unsigned int i;
 
 	mutex_lock(&bus->lock);
 	if (bus->disconnected) {
@@ -133,16 +134,24 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	mutex_unlock(&bus->lock);
 
 	/* disconnect from domain */
-	mutex_lock(&bus->domain->lock);
-	if (bus->domain)
-		list_del(&bus->domain_entry);
-	mutex_unlock(&bus->domain->lock);
+	if (!parent)
+		mutex_lock(&bus->domain->lock);
+	list_del(&bus->domain_entry);
+	if (!parent)
+		mutex_unlock(&bus->domain->lock);
 
-	/* remove all endpoints attached to this bus */
-	list_for_each_entry_safe(ep, tmp, &bus->ep_list, bus_entry) {
-		kdbus_ep_disconnect(ep);
-		kdbus_ep_unref(ep);
-	}
+	/* disconnect all endpoints attached to this bus */
+	mutex_lock(&bus->lock);
+	list_for_each_entry_safe(ep, tmp, &bus->ep_list, bus_entry)
+		kdbus_ep_disconnect(ep, true);
+
+	/* disconnect all connections to this bus */
+	hash_for_each_safe(bus->conn_hash, i, conn_tmp, conn, hentry)
+		kdbus_conn_disconnect(conn, true, false);
+	mutex_unlock(&bus->lock);
+
+	/* drop reference for our "bus" endpoint after we disconnected */
+	kdbus_ep_unref(bus->ep);
 }
 
 static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain, const char *name)
@@ -217,6 +226,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	INIT_LIST_HEAD(&b->ep_list);
 	INIT_LIST_HEAD(&b->monitors_list);
 	atomic64_set(&b->conn_seq_last, 0);
+	b->domain = kdbus_domain_ref(domain);
 
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);
@@ -224,45 +234,53 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;
-		goto exit;
+		goto exit_free;
 	}
 
 	ret = kdbus_name_registry_new(&b->name_registry);
 	if (ret < 0)
-		goto exit;
+		goto exit_free_name;
 
-	ret = kdbus_ep_new(b, domain, "bus", mode, uid, gid,
-			   b->bus_flags & KDBUS_MAKE_POLICY_OPEN);
+	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
+			   b->bus_flags & KDBUS_MAKE_POLICY_OPEN,
+			   &b->ep);
 	if (ret < 0)
-		goto exit;
+		goto exit_free_reg;
 
 	/* account the bus against the user */
 	b->user = kdbus_domain_user_ref(domain, uid);
 	if (!b->user) {
 		ret = -ENOMEM;
-		goto exit;
+		goto exit_ep_unref;
 	}
 
 	if (!capable(CAP_IPC_OWNER) &&
 	    atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
 		atomic_dec(&b->user->buses);
-		b->user = kdbus_domain_user_unref(b->user);
 		ret = -EMFILE;
-		goto exit;
+		goto exit_user_unref;
 	}
 
 	/* link into domain */
 	mutex_lock(&domain->lock);
 	b->id = ++domain->bus_seq_last;
 	list_add_tail(&b->domain_entry, &domain->bus_list);
-	b->domain = kdbus_domain_ref(domain);
 	mutex_unlock(&domain->lock);
 
 	*bus = b;
 	return 0;
 
-exit:
-	kdbus_bus_unref(b);
+exit_user_unref:
+	kdbus_domain_user_unref(b->user);
+exit_ep_unref:
+	kdbus_ep_unref(b->ep);
+exit_free_reg:
+	kdbus_name_registry_free(b->name_registry);
+exit_free_name:
+	kfree(b->name);
+exit_free:
+	kdbus_domain_unref(b->domain);
+	kfree(b);
 	return ret;
 }
 

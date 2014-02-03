@@ -160,22 +160,22 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 
 	switch (handle->type) {
 	case KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:
-		kdbus_domain_disconnect(handle->domain_owner);
+		kdbus_domain_disconnect(handle->domain_owner, false);
 		kdbus_domain_unref(handle->domain_owner);
 		break;
 
 	case KDBUS_HANDLE_CONTROL_BUS_OWNER:
-		kdbus_bus_disconnect(handle->bus_owner);
+		kdbus_bus_disconnect(handle->bus_owner, false);
 		kdbus_bus_unref(handle->bus_owner);
 		break;
 
 	case KDBUS_HANDLE_EP_OWNER:
-		kdbus_ep_disconnect(handle->ep_owner);
+		kdbus_ep_disconnect(handle->ep_owner, false);
 		kdbus_ep_unref(handle->ep_owner);
 		break;
 
 	case KDBUS_HANDLE_EP_CONNECTED:
-		kdbus_conn_disconnect(handle->conn, false);
+		kdbus_conn_disconnect(handle->conn, false, false);
 		kdbus_conn_unref(handle->conn);
 		/* fall through */
 
@@ -456,9 +456,9 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_ep_new(handle->ep->bus, handle->ep->bus->domain,
+		ret = kdbus_ep_new(handle->ep->bus,
 				   name, mode, current_fsuid(), gid,
-				   make->flags & KDBUS_MAKE_POLICY_OPEN);
+				   make->flags & KDBUS_MAKE_POLICY_OPEN, NULL);
 
 		handle->type = KDBUS_HANDLE_EP_OWNER;
 		break;
@@ -524,7 +524,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
-		ret = kdbus_conn_disconnect(conn, true);
+		ret = kdbus_conn_disconnect(conn, false, true);
 		break;
 
 	case KDBUS_CMD_EP_POLICY_SET:

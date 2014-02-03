@@ -27,6 +27,7 @@
  * @name:		The bus name
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
+ * @ep:			Default "bus" endpoint
  * @ep_seq_last:	Last used endpoint id sequence number
  * @conn_seq_last:	Last used connection id sequence number
  * @conn_idr:		Map of connection device minor nummbers
@@ -54,6 +55,7 @@ struct kdbus_bus {
 	const char *name;
 	u64 id;
 	struct mutex lock;
+	struct kdbus_ep *ep;
 	u64 ep_seq_last;
 	atomic64_t conn_seq_last;
 	struct idr conn_idr;
@@ -77,7 +79,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 		  struct kdbus_bus **bus);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
-void kdbus_bus_disconnect(struct kdbus_bus *bus);
+void kdbus_bus_disconnect(struct kdbus_bus *bus, bool parent);
 
 bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);

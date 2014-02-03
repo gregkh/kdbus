@@ -250,12 +250,14 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	list_splice_init(&conn->names_queue_list, &names_queue_list);
 	mutex_unlock(&conn->lock);
 
+	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
 	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
 		kdbus_name_entry_release(e, &notify_list);
 	mutex_unlock(&reg->entries_lock);
+	mutex_unlock(&conn->bus->lock);
 
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 }
@@ -396,6 +398,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	hash = kdbus_str_hash(name);
 
+	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, name);
 	if (e) {
@@ -495,6 +498,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
+	mutex_unlock(&conn->bus->lock);
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
 	return ret;
@@ -598,6 +602,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 	hash = kdbus_str_hash(cmd->name);
 
+	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
 	e = __kdbus_name_lookup(reg, hash, cmd->name);
 	if (!e) {
@@ -608,17 +613,12 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 	/* privileged users can act on behalf of someone else */
 	if (cmd->owner_id > 0) {
-		struct kdbus_bus *bus = conn->bus;
-
-		if (!kdbus_bus_uid_is_privileged(bus)) {
+		if (!kdbus_bus_uid_is_privileged(conn->bus)) {
 			ret = -EPERM;
 			goto exit_unlock;
 		}
 
-		mutex_lock(&bus->lock);
-		conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
-		mutex_unlock(&bus->lock);
-
+		conn = kdbus_bus_find_conn_by_id(conn->bus, cmd->owner_id);
 		if (!conn) {
 			ret = -ENXIO;
 			goto exit_unlock;
@@ -631,6 +631,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 exit_unlock:
 	mutex_unlock(&reg->entries_lock);
+	mutex_unlock(&conn->bus->lock);
 
 	if (conn) {
 		kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
@@ -771,8 +772,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	size_t size, off, pos;
 	int ret;
 
-	mutex_lock(&reg->entries_lock);
 	mutex_lock(&conn->bus->lock);
+	mutex_lock(&reg->entries_lock);
 
 	/* size of header */
 	size = sizeof(struct kdbus_name_list);
@@ -807,8 +808,8 @@ exit_pool_free:
 	if (ret < 0)
 		kdbus_pool_free_range(conn->pool, off);
 exit_unlock:
-	mutex_unlock(&conn->bus->lock);
 	mutex_unlock(&reg->entries_lock);
+	mutex_unlock(&conn->bus->lock);
 
 	return ret;
 }

@@ -81,40 +81,51 @@ struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
 /**
  * kdbus_domain_disconnect() - invalidate a domain
  * @domain:		Domain
+ * @parent:		The parent disconnects this domain
  */
-void kdbus_domain_disconnect(struct kdbus_domain *domain)
+void kdbus_domain_disconnect(struct kdbus_domain *domain, bool parent)
 {
-	struct kdbus_bus *bus, *tmp;
+	struct kdbus_domain *dom, *dom_tmp;
+	struct kdbus_bus *bus, *bus_tmp;
 
-	mutex_lock(&domain->lock);
+	mutex_lock_nested(&domain->lock, domain->nest);
 	if (domain->disconnected) {
 		mutex_unlock(&domain->lock);
 		return;
 	}
-
 	domain->disconnected = true;
-	mutex_unlock(&domain->lock);
 
-	mutex_lock(&kdbus_subsys_lock);
-	if (domain->parent)
+	/* disconnect from parent domain */
+	if (domain->parent) {
+		if (!parent)
+			mutex_lock(&domain->parent->lock);
 		list_del(&domain->domain_entry);
-	mutex_unlock(&kdbus_subsys_lock);
-
-	/* remove any buses attached to this endpoint */
-	list_for_each_entry_safe(bus, tmp, &domain->bus_list, domain_entry) {
-		kdbus_bus_disconnect(bus);
-		kdbus_bus_unref(bus);
+		if (!parent)
+			mutex_unlock(&domain->parent->lock);
 	}
 
+	mutex_lock(&kdbus_subsys_lock);
 	if (domain->dev) {
 		device_unregister(domain->dev);
 		domain->dev = NULL;
 	}
+
 	if (domain->major > 0) {
 		idr_remove(&kdbus_domain_major_idr, domain->major);
 		unregister_chrdev(domain->major, KBUILD_MODNAME);
 		domain->major = 0;
 	}
+	mutex_unlock(&kdbus_subsys_lock);
+
+	/* disconnect all sub-domains */
+	list_for_each_entry_safe(dom, dom_tmp, &domain->domain_list, domain_entry)
+		kdbus_domain_disconnect(dom, true);
+
+	/* disconnect all buses in this domain */
+	list_for_each_entry_safe(bus, bus_tmp, &domain->bus_list, domain_entry)
+		kdbus_bus_disconnect(bus, true);
+
+	mutex_unlock(&domain->lock);
 }
 
 static void __kdbus_domain_free(struct kref *kref)
@@ -122,7 +133,7 @@ static void __kdbus_domain_free(struct kref *kref)
 	struct kdbus_domain *domain =
 		container_of(kref, struct kdbus_domain, kref);
 
-	kdbus_domain_disconnect(domain);
+	kdbus_domain_disconnect(domain, false);
 	kdbus_domain_unref(domain->parent);
 	kfree(domain->name);
 	kfree(domain->devpath);
@@ -199,7 +210,7 @@ struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major)
 int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 		     umode_t mode, struct kdbus_domain **domain)
 {
-	struct kdbus_domain *n;
+	struct kdbus_domain *d;
 	int ret;
 
 	BUG_ON(*domain);
@@ -207,25 +218,27 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	if ((parent && !name) || (!parent && name))
 		return -EINVAL;
 
-	n = kzalloc(sizeof(*n), GFP_KERNEL);
-	if (!n)
+	d = kzalloc(sizeof(*d), GFP_KERNEL);
+	if (!d)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&n->bus_list);
-	INIT_LIST_HEAD(&n->domain_list);
-	kref_init(&n->kref);
-	n->mode = mode;
-	idr_init(&n->idr);
-	mutex_init(&n->lock);
-	atomic64_set(&n->msg_seq_last, 0);
+	INIT_LIST_HEAD(&d->bus_list);
+	INIT_LIST_HEAD(&d->domain_list);
+	kref_init(&d->kref);
+	d->mode = mode;
+	idr_init(&d->idr);
+	mutex_init(&d->lock);
+	atomic64_set(&d->msg_seq_last, 0);
 
+	if (parent)
+		mutex_lock(&parent->lock);
 	mutex_lock(&kdbus_subsys_lock);
 
 	/* compose name and path of base directory in /dev */
 	if (!parent) {
 		/* initial domain */
-		n->devpath = kstrdup(KBUILD_MODNAME, GFP_KERNEL);
-		if (!n->devpath) {
+		d->devpath = kstrdup(KBUILD_MODNAME, GFP_KERNEL);
+		if (!d->devpath) {
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
@@ -239,18 +252,20 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 			goto exit_unlock;
 		}
 
-		n->devpath = kasprintf(GFP_KERNEL, "%s/domain/%s",
+		d->devpath = kasprintf(GFP_KERNEL, "%s/domain/%s",
 				       parent->devpath, name);
-		if (!n->devpath) {
+		if (!d->devpath) {
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
 
-		n->name = kstrdup(name, GFP_KERNEL);
-		if (!n->name) {
+		d->name = kstrdup(name, GFP_KERNEL);
+		if (!d->name) {
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
+
+		d->nest = parent->nest + 1;
 	}
 
 	/* get dynamic major */
@@ -258,13 +273,13 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	if (ret < 0)
 		goto exit_unlock;
 
-	n->major = ret;
+	d->major = ret;
 
 	/*
 	 * kdbus_device_ops' dev_t finds the domain in the major map,
 	 * and the bus in the minor map of that domain
 	 */
-	ret = idr_alloc(&kdbus_domain_major_idr, n, n->major, 0, GFP_KERNEL);
+	ret = idr_alloc(&kdbus_domain_major_idr, d, d->major, 0, GFP_KERNEL);
 	if (ret < 0) {
 		if (ret == -ENOSPC)
 			ret = -EEXIST;
@@ -272,40 +287,45 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	}
 
 	/* get id for this domain */
-	n->id = ++kdbus_domain_seq_last;
+	d->id = ++kdbus_domain_seq_last;
 
 	/* register control device for this domain */
-	n->dev = kzalloc(sizeof(*n->dev), GFP_KERNEL);
-	if (!n->dev) {
+	d->dev = kzalloc(sizeof(*d->dev), GFP_KERNEL);
+	if (!d->dev) {
 		ret = -ENOMEM;
 		goto exit_unlock;
 	}
 
-	dev_set_name(n->dev, "%s/control", n->devpath);
-	n->dev->bus = &kdbus_subsys;
-	n->dev->type = &kdbus_devtype_control;
-	n->dev->devt = MKDEV(n->major, 0);
-	dev_set_drvdata(n->dev, n);
-	ret = device_register(n->dev);
+	dev_set_name(d->dev, "%s/control", d->devpath);
+	d->dev->bus = &kdbus_subsys;
+	d->dev->type = &kdbus_devtype_control;
+	d->dev->devt = MKDEV(d->major, 0);
+	dev_set_drvdata(d->dev, d);
+	ret = device_register(d->dev);
 	if (ret < 0) {
-		put_device(n->dev);
-		n->dev = NULL;
+		put_device(d->dev);
+		d->dev = NULL;
 		goto exit_unlock;
 	}
 
 	/* link into parent domain */
 	if (parent) {
-		n->parent = kdbus_domain_ref(parent);
-		list_add_tail(&n->domain_entry, &parent->domain_list);
+		d->parent = kdbus_domain_ref(parent);
+		list_add_tail(&d->domain_entry, &parent->domain_list);
 	}
-	mutex_unlock(&kdbus_subsys_lock);
 
-	*domain = n;
+	mutex_unlock(&kdbus_subsys_lock);
+	if (parent)
+		mutex_unlock(&parent->lock);
+
+	*domain = d;
 	return 0;
 
 exit_unlock:
 	mutex_unlock(&kdbus_subsys_lock);
-	kdbus_domain_unref(n);
+	if (parent)
+		mutex_unlock(&parent->lock);
+	kdbus_domain_unref(d);
 	return ret;
 }
 

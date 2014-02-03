@@ -22,17 +22,18 @@
  * @disconnected:	Invalidated data
  * @name:		Name of the domain
  * @parent:		Parent domain
- * @domain_list:		List of child domains
+ * @domain_list:	List of child domains
  * @id:			Global id of this domain
  * @devpath:		/dev base directory path
  * @major:		Device major number for all nodes
+ * @nest:		Nesting level in stacked domain tree
  * @mode:		Device node access mode
  * @idr:		Map of endpoint minors to buses
  * @dev:		Control device node, minor == 0
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
- * @domain_entry:		Entry in parent domain
+ * @domain_entry:	Entry in parent domain
  * @bus_list:		Buses in this domain
  * @user_hash:		Accounting of user resources
  *
@@ -55,6 +56,7 @@ struct kdbus_domain {
 	u64 id;
 	const char *devpath;
 	unsigned int major;
+	unsigned int nest;
 	umode_t mode;
 	struct idr idr;
 	struct device *dev;
@@ -89,7 +91,7 @@ extern struct bus_type kdbus_subsys;
 
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
-void kdbus_domain_disconnect(struct kdbus_domain *domain);
+void kdbus_domain_disconnect(struct kdbus_domain *domain, bool parent);
 int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 		 umode_t mode, struct kdbus_domain **domain);
 int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name);

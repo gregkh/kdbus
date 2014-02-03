@@ -56,12 +56,11 @@ struct kdbus_ep {
 	bool policy_open:1;
 };
 
-struct kdbus_domain;
-
-int kdbus_ep_new(struct kdbus_bus *bus, struct kdbus_domain *domain, const char *name,
-		 umode_t mode, kuid_t uid, kgid_t gid, bool policy);
+int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
+		 umode_t mode, kuid_t uid, kgid_t gid,
+		 bool policy, struct kdbus_ep **ep);
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep);
-void kdbus_ep_disconnect(struct kdbus_ep *ep);
+void kdbus_ep_disconnect(struct kdbus_ep *ep, bool parent);
 int kdbus_ep_make_user(struct kdbus_cmd_make *make, char **name);
 #endif
