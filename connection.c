@@ -659,6 +659,9 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	mutex_lock(&conn->lock);
 	if (unlikely(conn->disconnected)) {
 		mutex_unlock(&conn->lock);
+
+		/* drop reference we took when we scheduled the work */
+		kdbus_conn_unref(conn);
 		return;
 	}
 
@@ -704,6 +707,9 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	}
 	mutex_unlock(&conn->lock);
 
+	/* drop reference we took when we scheduled the work */
+	kdbus_conn_unref(conn);
+
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
 		kdbus_conn_reply_free(reply);
@@ -718,6 +724,7 @@ static void kdbus_conn_work(struct work_struct *work)
 
 static void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
 {
+	kdbus_conn_ref(conn);
 	schedule_work(&conn->work);
 }
 
@@ -1394,6 +1401,9 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 	conn->disconnected = true;
 	mutex_unlock(&conn->lock);
 
+	/* disarm the timer, and wait for the handler to finish */
+	del_timer_sync(&conn->timer);
+
 	/* remove from bus */
 	if (!parent)
 		mutex_lock(&conn->bus->lock);
@@ -1417,10 +1427,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 		kdbus_conn_queue_cleanup(queue);
 	}
 	mutex_unlock(&conn->lock);
-
-	/* disarm timer */
-	del_timer_sync(&conn->timer);
-	cancel_work_sync(&conn->work);
 
 	/*
 	 * The bus disconnects us; there is no point in cleaning up bus
