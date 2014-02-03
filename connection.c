@@ -702,11 +702,9 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 		u64 usecs = div_u64(deadline - now, 1000ULL);
 		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
 	}
-
 	mutex_unlock(&conn->lock);
 
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
-
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
 		kdbus_conn_reply_free(reply);
 }
@@ -1396,10 +1394,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 	conn->disconnected = true;
 	mutex_unlock(&conn->lock);
 
-	/* disarm timer */
-	del_timer_sync(&conn->timer);
-	cancel_work_sync(&conn->work);
-
 	/* remove from bus */
 	if (!parent)
 		mutex_lock(&conn->bus->lock);
@@ -1423,6 +1417,10 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 		kdbus_conn_queue_cleanup(queue);
 	}
 	mutex_unlock(&conn->lock);
+
+	/* disarm timer */
+	del_timer_sync(&conn->timer);
+	cancel_work_sync(&conn->work);
 
 	/*
 	 * The bus disconnects us; there is no point in cleaning up bus
