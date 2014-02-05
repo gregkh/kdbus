@@ -919,63 +919,6 @@ exit_rewind:
 	return ret;
 }
 
-static int kdbus_conn_msg_recv(struct kdbus_conn *conn,
-			       struct kdbus_cmd_recv *recv)
-{
-	struct kdbus_conn_queue *queue = NULL;
-	int ret;
-
-	if (recv->flags & KDBUS_RECV_USE_PRIORITY) {
-		/* get next message with highest priority */
-		queue = rb_entry(conn->msg_prio_highest,
-				 struct kdbus_conn_queue, prio_node);
-
-		/* no entry with the requested priority */
-		if (queue->priority > recv->priority)
-			return -ENOMSG;
-	} else {
-		/* ignore the priority, return the next entry in the queue */
-		queue = list_first_entry(&conn->msg_list,
-					 struct kdbus_conn_queue, entry);
-	}
-
-	BUG_ON(!queue);
-
-	/* just drop the message */
-	if (recv->flags & KDBUS_RECV_DROP) {
-		if (queue->reply)
-			kdbus_conn_reply_finish(queue->reply, -EPIPE);
-
-		kdbus_conn_queue_remove(conn, queue);
-		kdbus_pool_free_range(conn->pool, queue->off);
-		kdbus_conn_queue_cleanup(queue);
-		return 0;
-	}
-
-	/* Give the offset back to the caller. */
-	recv->offset = queue->off;
-
-	/*
-	 * Just return the location of the next message. Do not install
-	 * file descriptors or anything else. This is usually used to
-	 * determine the sender of the next queued message.
-	 *
-	 * File descriptor numbers referenced in the message items
-	 * are undefined, they are only valid with the full receive
-	 * not with peek.
-	 */
-	if (recv->flags & KDBUS_RECV_PEEK) {
-		kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
-		return 0;
-	}
-
-	ret = kdbus_conn_msg_install(conn, queue);
-	kdbus_conn_queue_remove(conn, queue);
-	kdbus_conn_queue_cleanup(queue);
-
-	return ret;
-}
-
 /**
  * kdbus_cmd_msg_recv() - receive a message from the queue
  * @conn:		Connection to work on
@@ -986,7 +929,8 @@ static int kdbus_conn_msg_recv(struct kdbus_conn *conn,
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
-	int ret;
+	struct kdbus_conn_queue *queue = NULL;
+	int ret = 0;
 
 	mutex_lock(&conn->lock);
 	if (unlikely(conn->ep->disconnected)) {
@@ -1004,9 +948,55 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_conn_msg_recv(conn, recv);
-	if (ret < 0)
+	if (recv->flags & KDBUS_RECV_USE_PRIORITY) {
+		/* get next message with highest priority */
+		queue = rb_entry(conn->msg_prio_highest,
+				 struct kdbus_conn_queue, prio_node);
+
+		/* no entry with the requested priority */
+		if (queue->priority > recv->priority) {
+			ret = -ENOMSG;
+			goto exit_unlock;
+		}
+	} else {
+		/* ignore the priority, return the next entry in the queue */
+		queue = list_first_entry(&conn->msg_list,
+					 struct kdbus_conn_queue, entry);
+	}
+
+	BUG_ON(!queue);
+
+	/* just drop the message */
+	if (recv->flags & KDBUS_RECV_DROP) {
+		if (queue->reply)
+			kdbus_conn_reply_finish(queue->reply, -EPIPE);
+
+		kdbus_conn_queue_remove(conn, queue);
+		kdbus_pool_free_range(conn->pool, queue->off);
+		kdbus_conn_queue_cleanup(queue);
 		goto exit_unlock;
+	}
+
+	/* Give the offset back to the caller. */
+	recv->offset = queue->off;
+
+	/*
+	 * Just return the location of the next message. Do not install
+	 * file descriptors or anything else. This is usually used to
+	 * determine the sender of the next queued message.
+	 *
+	 * File descriptor numbers referenced in the message items
+	 * are undefined, they are only valid with the full receive
+	 * not with peek.
+	 */
+	if (recv->flags & KDBUS_RECV_PEEK) {
+		kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
+		goto exit_unlock;
+	}
+
+	ret = kdbus_conn_msg_install(conn, queue);
+	kdbus_conn_queue_remove(conn, queue);
+	kdbus_conn_queue_cleanup(queue);
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
