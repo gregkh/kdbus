@@ -1524,8 +1524,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src,
 			     u64 name_id)
 {
-	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *q, *q_tmp;
+	LIST_HEAD(reply_list);
 	LIST_HEAD(msg_list);
 	int ret = 0;
 
@@ -1535,18 +1535,14 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
 	list_splice_init(&conn_src->msg_list, &msg_list);
+	list_splice_init(&conn_src->reply_list, &reply_list);
 	conn_src->msg_prio_queue = RB_ROOT;
 	conn_src->msg_count = 0;
-
-	list_for_each_entry_safe(reply, reply_tmp, &conn_src->reply_list, entry)
-		kdbus_conn_reply_finish(reply, -EPIPE);
 	mutex_unlock(&conn_src->lock);
 
 	/* insert messages into destination */
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
-		q->reply = NULL;
-
 		/* filter messages for a specific name */
 		if (name_id > 0 && q->dst_name_id != name_id) {
 			kdbus_conn_queue_cleanup(q);
@@ -1560,6 +1556,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		else
 			kdbus_conn_queue_add(conn_dst, q);
 	}
+	list_splice(&reply_list, &conn_dst->reply_list);
 	mutex_unlock(&conn_dst->lock);
 
 	/* wake up poll() */
