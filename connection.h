@@ -41,8 +41,7 @@
  * @reply_count:	Number of requests this connection has issued, and
  *			waits for replies from the peer
  * @names:		Number of owned well-known names
- * @work:		Support for poll()
- * @timer:		Message reply timeout handling
+ * @work:		Delayed work to handle timeouts
  * @match_db:		Subscription filter to broadcast messages
  * @meta:		Active connection creator's metadata/credentials,
  *			either from the handle of from HELLO
@@ -72,8 +71,7 @@ struct kdbus_conn {
 	struct list_head reply_list;
 	atomic_t reply_count;
 	size_t names;
-	struct work_struct work;
-	struct timer_list timer;
+	struct delayed_work work;
 	struct kdbus_match_db *match_db;
 	struct kdbus_meta *meta;
 	struct kdbus_meta *owner_meta;

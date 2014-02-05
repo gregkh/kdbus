@@ -644,8 +644,9 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	return 0;
 }
 
-static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
+static void kdbus_conn_work(struct work_struct *work)
 {
+	struct kdbus_conn *conn;
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	LIST_HEAD(notify_list);
 	LIST_HEAD(reply_list);
@@ -656,12 +657,11 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 	ktime_get_ts(&ts);
 	now = timespec_to_ns(&ts);
 
+	conn = container_of(work, struct kdbus_conn, work.work);
+
 	mutex_lock(&conn->lock);
 	if (unlikely(conn->disconnected)) {
 		mutex_unlock(&conn->lock);
-
-		/* drop reference we took when we scheduled the work */
-		kdbus_conn_unref(conn);
 		return;
 	}
 
@@ -700,38 +700,17 @@ static void kdbus_conn_scan_timeout(struct kdbus_conn *conn)
 					   &notify_list);
 	}
 
-	/* rearm timer with next timeout */
+	/* rearm delayed work with next timeout */
 	if (deadline != ~0ULL) {
 		u64 usecs = div_u64(deadline - now, 1000ULL);
-		mod_timer(&conn->timer, jiffies + usecs_to_jiffies(usecs));
+		schedule_delayed_work(&conn->work, usecs_to_jiffies(usecs));
 	}
 	mutex_unlock(&conn->lock);
 
-	/* drop reference we took when we scheduled the work */
-	kdbus_conn_unref(conn);
-
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
 		kdbus_conn_reply_free(reply);
-}
-
-static void kdbus_conn_work(struct work_struct *work)
-{
-	struct kdbus_conn *conn = container_of(work, struct kdbus_conn, work);
-
-	kdbus_conn_scan_timeout(conn);
-}
-
-static void kdbus_conn_timeout_schedule_scan(struct kdbus_conn *conn)
-{
-	kdbus_conn_ref(conn);
-	schedule_work(&conn->work);
-}
-
-static void kdbus_conn_timer_func(unsigned long val)
-{
-	struct kdbus_conn *conn = (struct kdbus_conn *)val;
-	kdbus_conn_timeout_schedule_scan(conn);
 }
 
 /* find and pin destination connection */
@@ -1226,13 +1205,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		/*
 		 * For async operation, schedule the scan now. It won't do
 		 * any real work at this point, but walk the list of all
-		 * pending replies and re-arm the timer to the closest
+		 * pending replies and rearm delayed work to the closest
 		 * entry.
 		 * For synchronous operation, the timeout will be handled
 		 * by wait_event_interruptible_timeout().
 		 */
 		if (!sync)
-			kdbus_conn_timeout_schedule_scan(conn_src);
+			schedule_delayed_work(&conn_src->work, 0);
 
 		mutex_unlock(&conn_src->lock);
 	}
@@ -1401,8 +1380,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 	conn->disconnected = true;
 	mutex_unlock(&conn->lock);
 
-	/* disarm the timer, and wait for the handler to finish */
-	del_timer_sync(&conn->timer);
+	cancel_delayed_work_sync(&conn->work);
 
 	/* remove from bus */
 	if (!parent)
@@ -1473,7 +1451,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 				kdbus_notify_reply_dead(c->id, reply->cookie,
 							&notify_list);
 				reply->deadline_ns = 0;
-				kdbus_conn_timeout_schedule_scan(c);
+				schedule_delayed_work(&c->work, 0);
 			}
 			mutex_unlock(&c->lock);
 		}
@@ -1921,12 +1899,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->reply_list);
 	atomic_set(&conn->reply_count, 0);
-	INIT_WORK(&conn->work, kdbus_conn_work);
-	init_timer(&conn->timer);
-	conn->timer.expires = 0;
-	conn->timer.function = kdbus_conn_timer_func;
-	conn->timer.data = (unsigned long) conn;
-	add_timer(&conn->timer);
+	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
 
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);
@@ -2042,7 +2015,6 @@ exit_unref_ep:
 exit_free_pool:
 	kdbus_pool_free(conn->pool);
 exit_free_conn:
-	del_timer(&conn->timer);
 	kfree(conn->name);
 	kfree(conn);
 
