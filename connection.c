@@ -1625,8 +1625,9 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		list_for_each_entry_safe(reply, reply_tmp,
 					 &c->reply_list, entry) {
 			if (reply->conn == conn_src) {
+				kdbus_conn_ref(conn_dst);
 				kdbus_conn_unref(reply->conn);
-				reply->conn = kdbus_conn_ref(conn_dst);
+				reply->conn = conn_dst;
 			}
 		}
 		mutex_unlock(&c->lock);
