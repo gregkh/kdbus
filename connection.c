@@ -1363,6 +1363,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *queue, *tmp;
 	LIST_HEAD(notify_list);
+	LIST_HEAD(reply_list);
 
 	mutex_lock(&conn->lock);
 	if (conn->disconnected) {
@@ -1390,7 +1391,19 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
+	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
+		if (queue->reply)
+			kdbus_notify_reply_dead(queue->src_id,
+						queue->cookie, &notify_list);
+
+		kdbus_conn_queue_remove(conn, queue);
+		kdbus_pool_free_range(conn->pool, queue->off);
+		kdbus_conn_queue_cleanup(queue);
+	}
+	list_splice_init(&conn->reply_list, &reply_list);
+	mutex_unlock(&conn->lock);
+
+	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry) {
 		/*
 		 * In asynchronous cases, send a 'connection
 		 * dead' notification, mark entry as handled,
@@ -1405,17 +1418,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 
 		kdbus_conn_reply_finish(reply, -EPIPE);
 	}
-
-	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
-		if (queue->reply)
-			kdbus_notify_reply_dead(queue->src_id,
-						queue->cookie, &notify_list);
-
-		kdbus_conn_queue_remove(conn, queue);
-		kdbus_pool_free_range(conn->pool, queue->off);
-		kdbus_conn_queue_cleanup(queue);
-	}
-	mutex_unlock(&conn->lock);
 
 	/*
 	 * The bus disconnects us; there is no point in cleaning up bus
