@@ -141,6 +141,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
  * @policy_open:	Default policy of allow or deny
+ * @ep:			Pointer to a reference where the new endpoint is stored
  *
  * This function will create a new enpoint with the given
  * name and properties for a given bus.
