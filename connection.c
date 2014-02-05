@@ -930,6 +930,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
 	struct kdbus_conn_queue *queue = NULL;
+	LIST_HEAD(notify_list);
 	int ret = 0;
 
 	mutex_lock(&conn->lock);
@@ -968,8 +969,11 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		if (queue->reply)
+		if (queue->reply) {
 			kdbus_conn_reply_finish(queue->reply, -EPIPE);
+			kdbus_notify_reply_dead(queue->src_id,
+						queue->cookie, &notify_list);
+		}
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
@@ -1000,6 +1004,9 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
+
+	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+
 	return ret;
 }
 
