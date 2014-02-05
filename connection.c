@@ -87,7 +87,7 @@ struct kdbus_conn_queue {
 
 /**
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
- * @entry:		The list_head entry of the connection's reply_list
+ * @entry:		The entry of the connection's reply_list
  * @conn:		The counterpart connection that is expected to answer
  * @queue:		The queue item that is prepared by the replying
  *			connection
@@ -1433,8 +1433,10 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 	 * properties or sending notifications to other peers which also
 	 * got disconnected at this moment.
 	 */
-	if (parent)
+	if (parent) {
+		kdbus_conn_kmsg_list_free(&notify_list);
 		return 0;
+	}
 
 	/* remove all names associated with this connection */
 	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
