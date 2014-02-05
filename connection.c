@@ -696,7 +696,7 @@ static void kdbus_conn_work(struct work_struct *work)
 		if (reply->deadline_ns == 0)
 			continue;
 
-		kdbus_notify_reply_timeout(conn->id, reply->cookie,
+		kdbus_notify_reply_timeout(reply->conn->id, reply->cookie,
 					   &notify_list);
 	}
 
@@ -1125,34 +1125,33 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		return ret;
 
 	if (conn_src) {
-		struct kdbus_conn_reply *r;
 		bool allowed = false;
 
 		/*
-		 * Walk the list of connection we expect a reply from.
+		 * Walk the conn_src's list of expected replies.
 		 * If there's any matching entry, allow the message to
 		 * be sent, and remove the entry.
 		 */
 
 		if (msg->cookie_reply > 0) {
-			mutex_lock(&conn_dst->lock);
-			list_for_each_entry(r, &conn_dst->reply_list, entry) {
-				if (r->conn != conn_src)
-					continue;
+			struct kdbus_conn_reply *r, *r_tmp;
 
-				if (r->cookie != msg->cookie_reply)
-					continue;
+			mutex_lock(&conn_src->lock);
+			list_for_each_entry_safe(r, r_tmp,
+						 &conn_src->reply_list,
+						 entry) {
+				if (r->conn == conn_dst &&
+				    r->cookie == msg->cookie_reply) {
+					if (r->sync)
+						reply_wake = r;
+					else
+						kdbus_conn_reply_finish(r, 0);
 
-				allowed = true;
-
-				if (r->sync)
-					reply_wake = r;
-				else
-					kdbus_conn_reply_finish(r, 0);
-
-				break;
+					allowed = true;
+					break;
+				}
 			}
-			mutex_unlock(&conn_dst->lock);
+			mutex_unlock(&conn_src->lock);
 		}
 
 		/* ... otherwise, ask the policy DB for permission */
@@ -1181,7 +1180,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 
-		reply_wait->conn = kdbus_conn_ref(conn_dst);
+		reply_wait->conn = kdbus_conn_ref(conn_src);
 		reply_wait->cookie = msg->cookie;
 
 		if (sync) {
@@ -1195,9 +1194,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						  msg->timeout_ns;
 		}
 
-		mutex_lock(&conn_src->lock);
-		list_add(&reply_wait->entry, &conn_src->reply_list);
-		atomic_inc(&conn_dst->reply_count);
+		mutex_lock(&conn_dst->lock);
+		list_add(&reply_wait->entry, &conn_dst->reply_list);
+		atomic_inc(&conn_src->reply_count);
 
 		/*
 		 * For async operation, schedule the scan now. It won't do
@@ -1208,9 +1207,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * by wait_event_interruptible_timeout().
 		 */
 		if (!sync)
-			schedule_delayed_work(&conn_src->work, 0);
+			schedule_delayed_work(&conn_dst->work, 0);
 
-		mutex_unlock(&conn_src->lock);
+		mutex_unlock(&conn_dst->lock);
 	}
 
 	BUG_ON(reply_wait && reply_wake);
@@ -1273,16 +1272,18 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		else
 			ret = reply_wait->err;
 
-		mutex_lock(&conn_src->lock);
-
 		/*
 		 * If we weren't woken up sanely via kdbus_conn_reply_finish(),
 		 * reply_wait->entry is dangling in the connection's
 		 * reply_list and needs to be killed manually.
 		 */
-		if (r <= 0)
+		if (r <= 0) {
+			mutex_lock(&conn_dst->lock);
 			list_del(&reply_wait->entry);
+			mutex_unlock(&conn_dst->lock);
+		}
 
+		mutex_lock(&conn_src->lock);
 		queue = reply_wait->queue;
 		if (queue) {
 			if (ret == 0)
@@ -1387,10 +1388,23 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 	if (!parent)
 		mutex_unlock(&conn->bus->lock);
 
-	/* clean up any messages still left on this endpoint */
+	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry)
-		kdbus_conn_reply_finish(reply, -ECANCELED);
+	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
+		/*
+		 * In asynchronous cases, send a 'connection
+		 * dead' notification, mark entry as handled,
+		 * and trigger timeout.
+		 */
+		if (!reply->sync) {
+			kdbus_notify_reply_dead(reply->conn->id, reply->cookie,
+						&notify_list);
+			reply->deadline_ns = 0;
+			schedule_delayed_work(&reply->conn->work, 0);
+		}
+
+		kdbus_conn_reply_finish(reply, -EPIPE);
+	}
 
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
 		if (queue->reply)
@@ -1415,45 +1429,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 
 	/* remove all names associated with this connection */
 	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
-
-	/* if we die while other connections wait for our reply, notify them */
-	if (unlikely(atomic_read(&conn->reply_count) > 0)) {
-		struct kdbus_conn *c;
-		int i;
-		struct kdbus_conn_reply *reply, *reply_tmp;
-
-		mutex_lock(&conn->bus->lock);
-		hash_for_each(conn->bus->conn_hash, i, c, hentry) {
-			mutex_lock(&c->lock);
-			list_for_each_entry_safe(reply, reply_tmp,
-						 &c->reply_list, entry) {
-				if (conn != reply->conn)
-					continue;
-
-				/*
-				 * For synchronous replies, trigger the waitq
-				 * now. The item will be deallocated once the
-				 * waiting side has been woken up.
-				 */
-				if (reply->sync) {
-					kdbus_conn_reply_finish(reply, -EPIPE);
-					continue;
-				}
-
-				/*
-				 * In asynchronous cases, send a 'connection
-				 * dead' notification, mark entry as handled,
-				 * and trigger timeout.
-				 */
-				kdbus_notify_reply_dead(c->id, reply->cookie,
-							&notify_list);
-				reply->deadline_ns = 0;
-				schedule_delayed_work(&c->work, 0);
-			}
-			mutex_unlock(&c->lock);
-		}
-		mutex_unlock(&conn->bus->lock);
-	}
 
 	kdbus_notify_id_change(KDBUS_ITEM_ID_REMOVE, conn->id, conn->flags,
 			       &notify_list);
@@ -1549,9 +1524,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *q, *q_tmp;
-	struct kdbus_conn *c;
 	LIST_HEAD(msg_list);
-	int i, ret = 0;
+	int ret = 0;
 
 	BUG_ON(!mutex_is_locked(&conn_dst->bus->lock));
 	BUG_ON(conn_src == conn_dst);
@@ -1585,28 +1559,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			kdbus_conn_queue_add(conn_dst, q);
 	}
 	mutex_unlock(&conn_dst->lock);
-
-	/*
-	 * Walk the list of all connections on the bus, and see whether
-	 * anyone is waiting for a reply from conn_src. In such cases,
-	 * move it to the conn_dst.
-	 */
-	hash_for_each(conn_dst->bus->conn_hash, i, c, hentry) {
-		/* conn_dst can't have a pending reply to itself */
-		if (c == conn_dst)
-			continue;
-
-		mutex_lock(&c->lock);
-		list_for_each_entry_safe(reply, reply_tmp,
-					 &c->reply_list, entry) {
-			if (reply->conn == conn_src) {
-				kdbus_conn_ref(conn_dst);
-				kdbus_conn_unref(reply->conn);
-				reply->conn = conn_dst;
-			}
-		}
-		mutex_unlock(&c->lock);
-	}
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn_dst->ep->wait);
