@@ -81,27 +81,22 @@ struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
 /**
  * kdbus_domain_disconnect() - invalidate a domain
  * @domain:		Domain
- * @parent:		The parent disconnects this domain
  */
-void kdbus_domain_disconnect(struct kdbus_domain *domain, bool parent)
+void kdbus_domain_disconnect(struct kdbus_domain *domain)
 {
-	struct kdbus_domain *dom, *dom_tmp;
-	struct kdbus_bus *bus, *bus_tmp;
-
-	mutex_lock_nested(&domain->lock, domain->nest);
+	mutex_lock(&domain->lock);
 	if (domain->disconnected) {
 		mutex_unlock(&domain->lock);
 		return;
 	}
 	domain->disconnected = true;
+	mutex_unlock(&domain->lock);
 
 	/* disconnect from parent domain */
 	if (domain->parent) {
-		if (!parent)
-			mutex_lock(&domain->parent->lock);
+		mutex_lock(&domain->parent->lock);
 		list_del(&domain->domain_entry);
-		if (!parent)
-			mutex_unlock(&domain->parent->lock);
+		mutex_unlock(&domain->parent->lock);
 	}
 
 	mutex_lock(&kdbus_subsys_lock);
@@ -118,14 +113,44 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain, bool parent)
 	mutex_unlock(&kdbus_subsys_lock);
 
 	/* disconnect all sub-domains */
-	list_for_each_entry_safe(dom, dom_tmp, &domain->domain_list, domain_entry)
-		kdbus_domain_disconnect(dom, true);
+	for (;;) {
+		struct kdbus_domain *dom;
+
+		mutex_lock(&domain->lock);
+		dom = list_first_entry_or_null(&domain->domain_list,
+					       struct kdbus_domain,
+					       domain_entry);
+		if (!dom) {
+			mutex_unlock(&domain->lock);
+			break;
+		}
+
+		kdbus_domain_ref(dom);
+		mutex_unlock(&domain->lock);
+
+		kdbus_domain_disconnect(dom);
+		kdbus_domain_unref(dom);
+	}
 
 	/* disconnect all buses in this domain */
-	list_for_each_entry_safe(bus, bus_tmp, &domain->bus_list, domain_entry)
-		kdbus_bus_disconnect(bus, true);
+	for (;;) {
+		struct kdbus_bus *bus;
 
-	mutex_unlock(&domain->lock);
+		mutex_lock(&domain->lock);
+		bus = list_first_entry_or_null(&domain->bus_list,
+					       struct kdbus_bus,
+					       domain_entry);
+		if (!bus) {
+			mutex_unlock(&domain->lock);
+			break;
+		}
+
+		kdbus_bus_ref(bus);
+		mutex_unlock(&domain->lock);
+
+		kdbus_bus_disconnect(bus);
+		kdbus_bus_unref(bus);
+	}
 }
 
 static void __kdbus_domain_free(struct kref *kref)
@@ -133,7 +158,7 @@ static void __kdbus_domain_free(struct kref *kref)
 	struct kdbus_domain *domain =
 		container_of(kref, struct kdbus_domain, kref);
 
-	kdbus_domain_disconnect(domain, false);
+	kdbus_domain_disconnect(domain);
 	kdbus_domain_unref(domain->parent);
 	kfree(domain->name);
 	kfree(domain->devpath);
@@ -264,8 +289,6 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
-
-		d->nest = parent->nest + 1;
 	}
 
 	/* get dynamic major */

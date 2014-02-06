@@ -1068,6 +1068,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	bool sync;
 	int ret;
 
+	mutex_lock(&ep->bus->lock);
+	if (unlikely(ep->bus->disconnected)) {
+		mutex_unlock(&ep->bus->lock);
+		return -ESHUTDOWN;
+	}
+	mutex_unlock(&ep->bus->lock);
+
 	sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 
 	/* assign domain-global message sequence number */
@@ -1346,7 +1353,6 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
 
 /**
  * kdbus_conn_disconnect() - disconnect a connection
- * @parent:		The bus terminates the connection
  * @conn:		The connection to disconnect
  * @ensure_queue_empty:	Flag to indicate if the call should fail in
  *			case the connection's message list is not
@@ -1357,8 +1363,7 @@ int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
-			  bool ensure_queue_empty)
+int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *queue, *tmp;
@@ -1382,12 +1387,10 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 	cancel_delayed_work_sync(&conn->work);
 
 	/* remove from bus */
-	if (!parent)
-		mutex_lock(&conn->bus->lock);
+	mutex_lock(&conn->bus->lock);
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
-	if (!parent)
-		mutex_unlock(&conn->bus->lock);
+	mutex_unlock(&conn->bus->lock);
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
@@ -1417,16 +1420,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool parent,
 		}
 
 		kdbus_conn_reply_finish(reply, -EPIPE);
-	}
-
-	/*
-	 * The bus disconnects us; there is no point in cleaning up bus
-	 * properties or sending notifications to other peers which also
-	 * got disconnected at this moment.
-	 */
-	if (parent) {
-		kdbus_conn_kmsg_list_free(&notify_list);
-		return 0;
 	}
 
 	/* remove all names associated with this connection */
@@ -1460,7 +1453,7 @@ static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 
-	kdbus_conn_disconnect(conn, false, false);
+	kdbus_conn_disconnect(conn, false);
 
 	atomic_dec(&conn->user->connections);
 	kdbus_domain_user_unref(conn->user);

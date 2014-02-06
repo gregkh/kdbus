@@ -47,7 +47,7 @@ static int __init kdbus_init(void)
 
 static void __exit kdbus_exit(void)
 {
-	kdbus_domain_disconnect(kdbus_domain_init, false);
+	kdbus_domain_disconnect(kdbus_domain_init);
 	kdbus_domain_unref(kdbus_domain_init);
 	bus_unregister(&kdbus_subsys);
 }

@@ -947,7 +947,7 @@ enum kdbus_ioctl_type {
  * @EPIPE:		When sending a message, a synchronous reply from the
  *			receiving connection was expected but the connection
  *			died before answering.
- * @ESHUTDOWN:		A domain or endpoint is currently shutting down;
+ * @ESHUTDOWN:		A domain, bus or endpoint is currently shutting down;
  *			no further operations will be possible.
  * @ESRCH:		A requested well-known bus name is not found.
  * @ETIMEDOUT:		A synchronous wait for a message reply did not arrive

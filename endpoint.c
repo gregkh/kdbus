@@ -60,10 +60,9 @@ struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 
 /**
  * kdbus_ep_disconnect() - disconnect an endpoint
- * @parent:		The bus disconnect this endpoint
  * @ep:			Endpoint
  */
-void kdbus_ep_disconnect(struct kdbus_ep *ep, bool parent)
+void kdbus_ep_disconnect(struct kdbus_ep *ep)
 {
 	mutex_lock(&ep->lock);
 	if (ep->disconnected) {
@@ -74,11 +73,9 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep, bool parent)
 	mutex_unlock(&ep->lock);
 
 	/* disconnect from bus */
-	if (!parent)
-		mutex_lock(&ep->bus->lock);
+	mutex_lock(&ep->bus->lock);
 	list_del(&ep->bus_entry);
-	if (!parent)
-		mutex_unlock(&ep->bus->lock);
+	mutex_unlock(&ep->bus->lock);
 
 	if (ep->dev) {
 		device_unregister(ep->dev);
@@ -100,7 +97,7 @@ static void __kdbus_ep_free(struct kref *kref)
 {
 	struct kdbus_ep *ep = container_of(kref, struct kdbus_ep, kref);
 
-	kdbus_ep_disconnect(ep, false);
+	kdbus_ep_disconnect(ep);
 	if (ep->policy_db)
 		kdbus_policy_db_free(ep->policy_db);
 	kdbus_bus_unref(ep->bus);

@@ -58,7 +58,7 @@ static void __kdbus_bus_free(struct kref *kref)
 {
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
-	kdbus_bus_disconnect(bus, false);
+	kdbus_bus_disconnect(bus);
 	atomic_dec(&bus->user->buses);
 	kdbus_domain_user_unref(bus->user);
 	kdbus_name_registry_free(bus->name_registry);
@@ -112,46 +112,70 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 /**
  * kdbus_bus_disconnect() - disconnect a bus
  * @bus:		The kdbus reference
- * @parent:		The domain disconnects this bus
  *
  * The passed bus will be disconnected and the associated endpoint will be
  * unref'ed.
  */
-void kdbus_bus_disconnect(struct kdbus_bus *bus, bool parent)
+void kdbus_bus_disconnect(struct kdbus_bus *bus)
 {
-	struct kdbus_ep *ep, *tmp;
-	struct hlist_node *conn_tmp;
-	struct kdbus_conn *conn;
-	unsigned int i;
-
 	mutex_lock(&bus->lock);
 	if (bus->disconnected) {
 		mutex_unlock(&bus->lock);
 		return;
 	}
-
 	bus->disconnected = true;
 	mutex_unlock(&bus->lock);
 
 	/* disconnect from domain */
-	if (!parent)
-		mutex_lock(&bus->domain->lock);
+	mutex_lock(&bus->domain->lock);
 	list_del(&bus->domain_entry);
-	if (!parent)
-		mutex_unlock(&bus->domain->lock);
+	mutex_unlock(&bus->domain->lock);
 
 	/* disconnect all endpoints attached to this bus */
-	mutex_lock(&bus->lock);
-	list_for_each_entry_safe(ep, tmp, &bus->ep_list, bus_entry)
-		kdbus_ep_disconnect(ep, true);
+	for (;;) {
+		struct kdbus_ep *ep;
+
+		mutex_lock(&bus->lock);
+		ep = list_first_entry_or_null(&bus->ep_list,
+					      struct kdbus_ep,
+					      bus_entry);
+		if (!ep) {
+			mutex_unlock(&bus->lock);
+			break;
+		}
+
+		kdbus_ep_ref(ep);
+		mutex_unlock(&bus->lock);
+
+		kdbus_ep_disconnect(ep);
+		kdbus_ep_unref(ep);
+	}
+
 
 	/* disconnect all connections to this bus */
-	hash_for_each_safe(bus->conn_hash, i, conn_tmp, conn, hentry)
-		kdbus_conn_disconnect(conn, true, false);
-	mutex_unlock(&bus->lock);
+	for (;;) {
+		struct kdbus_conn *conn = NULL, *c;
+		unsigned int i;
+
+		mutex_lock(&bus->lock);
+		hash_for_each(bus->conn_hash, i, c, hentry) {
+			conn = c;
+			break;
+		}
+		if (!conn) {
+			mutex_unlock(&bus->lock);
+			break;
+		}
+
+		kdbus_conn_ref(conn);
+		mutex_unlock(&bus->lock);
+
+		kdbus_conn_disconnect(conn, false);
+		kdbus_conn_unref(conn);
+	}
 
 	/* drop reference for our "bus" endpoint after we disconnected */
-	kdbus_ep_unref(bus->ep);
+	bus->ep = kdbus_ep_unref(bus->ep);
 }
 
 static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain, const char *name)
