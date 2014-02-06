@@ -1023,21 +1023,33 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			 u64 cookie)
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
+	struct kdbus_conn *c;
 	bool found = false;
+	int i;
 
 	if (atomic_read(&conn->reply_count) == 0)
 		return -ENOENT;
 
-	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(reply, reply_tmp, &conn->reply_list, entry) {
-		if (reply->sync && cookie == reply->cookie) {
-			kdbus_conn_reply_finish(reply, -ECANCELED);
-			atomic_dec(&conn->reply_count);
-			list_del(&reply->entry);
-			found = true;
+	mutex_lock(&conn->bus->lock);
+	hash_for_each(conn->bus->conn_hash, i, c, hentry) {
+		if (c == conn)
+			continue;
+
+		mutex_lock(&c->lock);
+		list_for_each_entry_safe(reply, reply_tmp,
+					 &c->reply_list, entry) {
+			if (reply->sync &&
+			    reply->conn == conn &&
+			    reply->cookie == cookie) {
+				kdbus_conn_reply_finish(reply, -ECANCELED);
+				atomic_dec(&conn->reply_count);
+				list_del(&reply->entry);
+				found = true;
+			}
 		}
+		mutex_unlock(&c->lock);
 	}
-	mutex_unlock(&conn->lock);
+	mutex_unlock(&conn->bus->lock);
 
 	return found ? 0 : -ENOENT;
 }
