@@ -1,5 +1,4 @@
-D-Bus is a system for low-latency, low-overhead, easy to use interprocess
-communication (IPC).
+D-Bus is a system for powerful, easy to use interprocess communication (IPC).
 
 The focus of this document is an overview of the low-level, native kernel D-Bus
 transport called kdbus. Kdbus in the kernel acts similar to a device driver,

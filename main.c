@@ -55,4 +55,4 @@ static void __exit kdbus_exit(void)
 module_init(kdbus_init);
 module_exit(kdbus_exit);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("kdbus interprocess communication");
+MODULE_DESCRIPTION("D-Bus, powerful, easy to use interprocess communication");
