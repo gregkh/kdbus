@@ -3,7 +3,7 @@ Linux kernel D-Bus implementation
 See kdbus.txt in this repository for kernel-side details.
 
 The userspace side is developed in systemd:
-  http://cgit.freedesktop.org/systemd/systemd/tree/src/libsystemd-bus
+  http://cgit.freedesktop.org/systemd/systemd/tree/src/libsystemd/sd-bus
 
 Development repos:
   https://github.com/gregkh/kdbus
