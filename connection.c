@@ -701,8 +701,9 @@ static void kdbus_conn_work(struct work_struct *work)
 	}
 
 	/* rearm delayed work with next timeout */
-	if (deadline != ~0ULL) {
+	if (deadline != ~0ULL && kdbus_conn_active(conn)) {
 		u64 usecs = div_u64(deadline - now, 1000ULL);
+
 		schedule_delayed_work(&conn->work, usecs_to_jiffies(usecs));
 	}
 	mutex_unlock(&conn->lock);
@@ -1218,7 +1219,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * For synchronous operation, the timeout will be handled
 		 * by wait_event_interruptible_timeout().
 		 */
-		if (!sync)
+		if (!sync && kdbus_conn_active(conn_dst))
 			schedule_delayed_work(&conn_dst->work, 0);
 
 		mutex_unlock(&conn_dst->lock);
@@ -1421,7 +1422,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 			kdbus_notify_reply_dead(reply->conn->id, reply->cookie,
 						&notify_list);
 			reply->deadline_ns = 0;
-			schedule_delayed_work(&reply->conn->work, 0);
+			if (kdbus_conn_active(reply->conn))
+				schedule_delayed_work(&reply->conn->work, 0);
 		}
 
 		kdbus_conn_reply_finish(reply, -EPIPE);
@@ -1445,13 +1447,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
  */
 bool kdbus_conn_active(struct kdbus_conn *conn)
 {
-	bool active;
-
-	mutex_lock(&conn->lock);
-	active = !conn->disconnected;
-	mutex_unlock(&conn->lock);
-
-	return active;
+	return !conn->disconnected;
 }
 
 static void __kdbus_conn_free(struct kref *kref)

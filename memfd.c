@@ -64,13 +64,8 @@ bool kdbus_is_memfd(const struct file *fp)
 bool kdbus_is_memfd_sealed(const struct file *fp)
 {
 	struct kdbus_memfile *mf = fp->private_data;
-	bool sealed;
 
-	mutex_lock(&mf->lock);
-	sealed = mf->sealed;
-	mutex_unlock(&mf->lock);
-
-	return sealed;
+	return mf->sealed;
 }
 
 /**
@@ -82,13 +77,8 @@ bool kdbus_is_memfd_sealed(const struct file *fp)
 u64 kdbus_memfd_size(const struct file *fp)
 {
 	struct kdbus_memfile *mf = fp->private_data;
-	u64 size;
 
-	mutex_lock(&mf->lock);
-	size = i_size_read(file_inode(mf->fp));
-	mutex_unlock(&mf->lock);
-
-	return size;
+	return i_size_read(file_inode(mf->fp));
 }
 
 /**
