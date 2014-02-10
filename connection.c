@@ -1044,7 +1044,6 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			    reply->cookie == cookie) {
 				kdbus_conn_reply_finish(reply, -ECANCELED);
 				atomic_dec(&conn->reply_count);
-				list_del(&reply->entry);
 				found = true;
 			}
 		}
