@@ -117,18 +117,14 @@ static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 	kfree(reply);
 }
 
-static void kdbus_conn_reply_finish(struct kdbus_conn_reply *reply,
-				    int err)
+static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
 {
-	list_del(&reply->entry);
+	BUG_ON(!reply->sync);
 
-	if (reply->sync) {
-		reply->waiting = false;
-		reply->err = err;
-		wake_up_interruptible(&reply->wait);
-	} else {
-		kdbus_conn_reply_free(reply);
-	}
+	list_del(&reply->entry);
+	reply->waiting = false;
+	reply->err = err;
+	wake_up_interruptible(&reply->wait);
 }
 
 static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
@@ -970,8 +966,16 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
+		struct kdbus_conn_reply *reply = NULL;
+
 		if (queue->reply) {
-			kdbus_conn_reply_finish(queue->reply, -EPIPE);
+			if (queue->reply->sync) {
+				kdbus_conn_reply_sync(queue->reply, -EPIPE);
+			} else {
+				list_del(&queue->reply->entry);
+				reply = queue->reply;
+			}
+
 			kdbus_notify_reply_dead(queue->src_id,
 						queue->cookie, &notify_list);
 		}
@@ -979,7 +983,11 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
 		kdbus_conn_queue_cleanup(queue);
-		goto exit_unlock;
+		mutex_unlock(&conn->lock);
+
+		if (reply)
+			kdbus_conn_reply_free(reply);
+		goto exit;
 	}
 
 	/* Give the offset back to the caller. */
@@ -1005,9 +1013,8 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
-
+exit:
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
-
 	return ret;
 }
 
@@ -1042,8 +1049,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			if (reply->sync &&
 			    reply->conn == conn &&
 			    reply->cookie == cookie) {
-				kdbus_conn_reply_finish(reply, -ECANCELED);
-				atomic_dec(&conn->reply_count);
+				kdbus_conn_reply_sync(reply, -ECANCELED);
 				found = true;
 			}
 		}
@@ -1147,6 +1153,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		if (msg->cookie_reply > 0) {
 			struct kdbus_conn_reply *r, *r_tmp;
+			LIST_HEAD(reply_list);
 
 			mutex_lock(&conn_src->lock);
 			list_for_each_entry_safe(r, r_tmp,
@@ -1157,13 +1164,17 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 					if (r->sync)
 						reply_wake = r;
 					else
-						kdbus_conn_reply_finish(r, 0);
+						list_move_tail(&r->entry,
+							       &reply_list);
 
 					allowed = true;
 					break;
 				}
 			}
 			mutex_unlock(&conn_src->lock);
+
+			list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
+				kdbus_conn_reply_free(r);
 		}
 
 		/* ... otherwise, ask the policy DB for permission */
@@ -1241,8 +1252,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		ret = kdbus_conn_queue_alloc(conn_dst, kmsg,
 					     &reply_wake->queue);
+
 		mutex_lock(&conn_dst->lock);
-		kdbus_conn_reply_finish(reply_wake, ret);
+		kdbus_conn_reply_sync(reply_wake, ret);
 		mutex_unlock(&conn_dst->lock);
 	} else {
 		/*
@@ -1285,7 +1297,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			ret = reply_wait->err;
 
 		/*
-		 * If we weren't woken up sanely via kdbus_conn_reply_finish(),
+		 * If we weren't woken up sanely via kdbus_conn_reply_sync(),
 		 * reply_wait->entry is dangling in the connection's
 		 * reply_list and needs to be killed manually.
 		 */
@@ -1304,9 +1316,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			kmsg->msg.offset_reply = queue->off;
 			kdbus_conn_queue_cleanup(queue);
 		}
+		mutex_unlock(&conn_src->lock);
 
 		kdbus_conn_reply_free(reply_wait);
-		mutex_unlock(&conn_src->lock);
 	}
 
 exit_unref:
@@ -1412,20 +1424,25 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	mutex_unlock(&conn->lock);
 
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry) {
+		if (reply->sync) {
+			kdbus_conn_reply_sync(reply, -EPIPE);
+			continue;
+		}
+
 		/*
 		 * In asynchronous cases, send a 'connection
 		 * dead' notification, mark entry as handled,
-		 * and trigger timeout.
+		 * and trigger the timeout handler.
 		 */
-		if (!reply->sync) {
-			kdbus_notify_reply_dead(reply->conn->id, reply->cookie,
-						&notify_list);
-			reply->deadline_ns = 0;
-			if (kdbus_conn_active(reply->conn))
-				schedule_delayed_work(&reply->conn->work, 0);
-		}
+		kdbus_notify_reply_dead(reply->conn->id, reply->cookie,
+					&notify_list);
 
-		kdbus_conn_reply_finish(reply, -EPIPE);
+		reply->deadline_ns = 0;
+		if (kdbus_conn_active(reply->conn))
+			schedule_delayed_work(&reply->conn->work, 0);
+
+		list_del(&reply->entry);
+		kdbus_conn_reply_free(reply);
 	}
 
 	/* remove all names associated with this connection */
