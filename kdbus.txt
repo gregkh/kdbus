@@ -41,11 +41,13 @@ Terminology
     their own private named buses if they want to.
 
   Endpoint:
-    An endpoint provides the device node to talk to a bus. Every bus has
-    a default endpoint called "bus". A bus can offer additional endpoints
-    with custom names to provide a restricted access to the same bus. Custom
-    endpoints can carry additional policy which can be used to give sandboxed
-    processes only a locked-down, limited, filtered access to a bus.
+    An endpoint provides the device node to talk to a bus. Opening a the
+    enpoint creates a new connection to the bus the endpoint belongs to.
+    Every bus has a default endpoint called "bus".
+    A bus can optionally offer additional endpoints with custom names to
+    provide a restricted access to the same bus. Custom endpoints carry
+    additional policy which can be used to give sandboxed processes only
+    a locked-down, limited, filtered access to the same bus.
 
   Connection:
     A connection to a bus is created by opening an endpoint device node of
@@ -61,6 +63,31 @@ Terminology
     a service on a bus are usually reached by its well-known name. The analogy
     of connection id and well-known name is an IP address and a DNS name
     associated with that address.
+
+  Message:
+    Connections can exchange messages with other connections by addressing
+    the peers with their connection id or well-known name. A message consist
+    of a message header with kernel-specific information how to route the
+    message, and the message payload which is a logical byte stream of
+    arbitrary size. Messages can carry additional file descriptors to be passed
+    from one connection to another. Every connection can specify which set of
+    metadata the kernel should attach to the message when it is delivered
+    to the receiving connection. Metadata contains information like: system
+    timestamps, uid, gid, tid, proc-starttime, well-known-names, process comm,
+    process exe, process argv, cgroup, capabilities, seclabel, audit session
+    and loginuid and the connection's human-readable name.
+
+  Match:
+    Broadcast messages are potentially sent to all connections of a bus. By
+    default, the connections will not actually receive any of the sent
+    broadcast messages. Only after installing a match for specific message
+    properties, and a broadcast message passing this filter, the message will
+    actually be queued into the connections's receive buffer.
+
+  Policy:
+    Buses can upload a set of policy rules, defining who can list, talk to, or
+    register a well-know name on the bus. The policy is uploaded by the owner
+    of the bus.
 
 ===============================================================================
 Device Node Layout
@@ -337,7 +364,7 @@ The sealing of a kdbus_memfd can be removed again by the sender or the
 receiver, as soon as the kdbus_memfd is not shared anymore.
 
 ===============================================================================
-Broadcast Messages
+Broadcast Message Matching
 ===============================================================================
 A message addressed at the connection ID 0 is a broadcast message, delivered
 to all connected peers which installed a rule to match certain properties of
