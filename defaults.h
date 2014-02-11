@@ -23,45 +23,45 @@
 #define KDBUS_MSG_MAX_FDS		256
 
 /* maximum message payload size */
-#define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE	SZ_2M
+#define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE		SZ_2M
 
 /* maximum size of bloom bit field in bytes */
-#define KDBUS_BUS_BLOOM_MAX_SIZE	SZ_4K
+#define KDBUS_BUS_BLOOM_MAX_SIZE		SZ_4K
 
 /* maximum length of well-known bus name */
-#define KDBUS_NAME_MAX_LEN		255
+#define KDBUS_NAME_MAX_LEN			255
 
 /* maximum length of bus, domain, ep name */
-#define KDBUS_SYSNAME_MAX_LEN		63
+#define KDBUS_SYSNAME_MAX_LEN			63
 
 /* maximum size of make data */
-#define KDBUS_MAKE_MAX_SIZE		SZ_32K
+#define KDBUS_MAKE_MAX_SIZE			SZ_32K
 
 /* maximum size of hello data */
-#define KDBUS_HELLO_MAX_SIZE		SZ_32K
+#define KDBUS_HELLO_MAX_SIZE			SZ_32K
 
 /* maximum size for connection update */
-#define KDBUS_CONN_UPDATE_MAX_SIZE	SZ_32K
+#define KDBUS_CONN_UPDATE_MAX_SIZE		SZ_32K
 
 /* maximum size of match data */
-#define KDBUS_MATCH_MAX_SIZE		SZ_32K
+#define KDBUS_MATCH_MAX_SIZE			SZ_32K
 
 /* maximum size of policy data */
-#define KDBUS_POLICY_MAX_SIZE		SZ_32K
+#define KDBUS_POLICY_MAX_SIZE			SZ_32K
 
 /* maximum number of queued messages per connection */
-#define KDBUS_CONN_MAX_MSGS		256
+#define KDBUS_CONN_MAX_MSGS			256
 
 /* maximum number of well-known names per connection */
-#define KDBUS_CONN_MAX_NAMES		64
+#define KDBUS_CONN_MAX_NAMES			64
 
-/* maximum number of queud requests waiting for a reply */
-#define KDBUS_CONN_MAX_REQUESTS_PENDING	64
+/* maximum number of queued requests waiting for a reply */
+#define KDBUS_CONN_MAX_REQUESTS_PENDING		128
 
 /* maximum number of connections per user in one domain */
-#define KDBUS_USER_MAX_CONN		256
+#define KDBUS_USER_MAX_CONN			256
 
 /* maximum number of buses per user in one domain */
-#define KDBUS_USER_MAX_BUSES		16
+#define KDBUS_USER_MAX_BUSES			16
 
 #endif
