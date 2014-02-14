@@ -121,6 +121,9 @@ static void kdbus_match_entry_free(struct kdbus_match_entry *entry)
 
 	list_for_each_entry_safe(r, tmp, &entry->rules_list, rules_entry)
 		kdbus_match_rule_free(r);
+
+	list_del(&entry->list_entry);
+	kfree(entry);
 }
 
 /**
