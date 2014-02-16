@@ -6,7 +6,7 @@ CFLAGS		+= -std=gnu99 -Wall -Wextra -g \
 		   -Wcast-align \
 		   -Wsign-compare \
 		   -Wno-missing-field-initializers
-LDFLAGS		:= -lpthread
+LDFLAGS		:= -pthread
 TEST_COMMON	:= kdbus-enum.o kdbus-util.o
 CC		:= $(CROSS_COMPILE)gcc
 
