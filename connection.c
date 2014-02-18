@@ -1884,15 +1884,15 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
+	conn->flags = hello->conn_flags;
+	conn->attach_flags = hello->attach_flags;
+
 	/* notify about the new active connection */
 	ret = kdbus_notify_id_change(KDBUS_ITEM_ID_ADD, conn->id, conn->flags,
 				     &notify_list);
 	if (ret < 0)
 		goto exit_unref_ep;
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
-
-	conn->flags = hello->conn_flags;
-	conn->attach_flags = hello->attach_flags;
 
 	if (activator_name) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
