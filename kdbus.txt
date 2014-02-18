@@ -6,7 +6,7 @@ all communication between processes take place over special character device
 nodes in /dev/kdbus/.
 
 For the general D-Bus protocol specification, the payload format, the
-marshaling, the communication semantics, please refer to:
+marshaling, and the communication semantics, please refer to:
   http://dbus.freedesktop.org/doc/dbus-specification.html
 
 For a kdbus specific userspace library implementation please refer to:
@@ -21,28 +21,28 @@ Terminology
 ===============================================================================
   Domain:
     A domain is a named object containing a number of buses. A system
-    container which contains its own init system and users usually also
+    container that contains its own init system and users usually also
     runs in its own kdbus domain. The /dev/kdbus/domain/<container-name>/
     directory shows up inside the domain as /dev/kdbus/. Every domain
     offers a "control" device node to create new buses or domains.
-    Domains have no connection to each other, cannot see or talk to
+    Domains have no connection to each other and cannot see nor talk to
     each other. Only from the initial domain, given the process has the
-    needed access rights, the device nodes inside of other domains
-    can be seen.
+    required access rights, can the device nodes inside of other domains
+    be seen.
 
   Bus:
     A bus is a named object inside a domain. Clients exchange messages
-    over a bus. Multiple buses themselves have no connection to each other,
+    over a bus. Multiple buses themselves have no connection to each other;
     messages are only exchanged on the same bus. The default entry point to a
     bus, where clients establish the connection to, is the "bus" device node
     /dev/kdbus/<bus name>/bus.
     Common operating system setups create one "system bus" per system, and one
-    "user bus" for every logged-in user. Applications or services can create
-    their own private named buses if they want to.
+    "user bus" for every logged-in user. Applications or services may create
+    their own private named buses.
 
   Endpoint:
-    An endpoint provides the device node to talk to a bus. Opening a the
-    enpoint creates a new connection to the bus the endpoint belongs to.
+    An endpoint provides the device node to talk to a bus. Opening an
+    endpoint creates a new connection to the bus to which the endpoint belongs.
     Every bus has a default endpoint called "bus".
     A bus can optionally offer additional endpoints with custom names to
     provide a restricted access to the same bus. Custom endpoints carry
@@ -51,24 +51,24 @@ Terminology
 
   Connection:
     A connection to a bus is created by opening an endpoint device node of
-    a bus, and becoming an active client with the HELLO exchange. Every
-    connected client connection has a unique identifier on the bus, and can
+    a bus and becoming an active client with the HELLO exchange. Every
+    connected client connection has a unique identifier on the bus and can
     address messages to every other connection on the same bus by using
     the peer's connection id as the destination.
 
   Well-known Name:
     A connection can, in addition to its implicit unique connection id, request
     the ownership of a textual well-known name. Well-known names are noted
-    in reverse-domain notation like com.example.service. Connections offering
+    in reverse-domain notation, such as com.example.service. Connections offering
     a service on a bus are usually reached by its well-known name. The analogy
     of connection id and well-known name is an IP address and a DNS name
     associated with that address.
 
   Message:
     Connections can exchange messages with other connections by addressing
-    the peers with their connection id or well-known name. A message consist
-    of a message header with kernel-specific information how to route the
-    message, and the message payload which is a logical byte stream of
+    the peers with their connection id or well-known name. A message consists
+    of a message header with kernel-specific information on how to route the
+    message, and the message payload, which is a logical byte stream of
     arbitrary size. Messages can carry additional file descriptors to be passed
     from one connection to another. Every connection can specify which set of
     metadata the kernel should attach to the message when it is delivered
