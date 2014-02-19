@@ -403,9 +403,13 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		rule->type = item->type;
 
 		switch (item->type) {
-		case KDBUS_ITEM_BLOOM_MASK:
+		case KDBUS_ITEM_BLOOM_MASK: {
+			u64 generations;
+			u64 remainder;
+
+			generations = div64_u64_rem(size, conn->bus->bloom.size, &remainder);
 			if (size < conn->bus->bloom.size ||
-			    size % conn->bus->bloom.size > 0) {
+			    remainder > 0) {
 				ret = -EDOM;
 				break;
 			}
@@ -418,11 +422,10 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			}
 
 			/* we get an array of n generations of bloom masks */
-			rule->bloom_mask.generations =
-					size / conn->bus->bloom.size;
+			rule->bloom_mask.generations = generations;
 
 			break;
-
+		}
 		case KDBUS_ITEM_NAME:
 			if (size == 0) {
 				ret = -EINVAL;
