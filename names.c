@@ -811,6 +811,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		goto exit_pool_free;
 
 	cmd->offset = off;
+	kdbus_pool_flush_dcache(conn->pool, off, size);
 
 exit_pool_free:
 	if (ret < 0)

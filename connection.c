@@ -1697,6 +1697,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 	/* write back the offset */
 	cmd_info->offset = off;
+	kdbus_pool_flush_dcache(conn->pool, off, info.size);
 
 exit_free:
 	if (ret < 0)
