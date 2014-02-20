@@ -13,6 +13,7 @@
 #ifndef __KDBUS_UTIL_H
 #define __KDBUS_UTIL_H
 
+#include "linux/ioctl.h"
 #include "kdbus.h"
 
 /* all exported addresses are 64 bit */
