@@ -1643,7 +1643,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	info.size = sizeof(struct kdbus_conn_info);
+	info.size = sizeof(info);
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
@@ -1657,9 +1657,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	 * at creation time a connection does not have names and other
 	 * properties.
 	 */
-	flags = cmd_info->flags & (KDBUS_ATTACH_NAMES |
-				   KDBUS_ATTACH_CONN_NAME);
-	if (flags > 0) {
+	flags = cmd_info->flags & (KDBUS_ATTACH_NAMES | KDBUS_ATTACH_CONN_NAME);
+	if (flags) {
 		ret = kdbus_meta_new(&meta);
 		if (ret < 0)
 			goto exit;
@@ -1678,13 +1677,15 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	ret = kdbus_pool_write(conn->pool, off, &info, sizeof(info));
 	if (ret < 0)
 		goto exit_free;
-	pos = off + sizeof(struct kdbus_conn_info);
+
+	pos = off + sizeof(info);
 
 	if (conn->meta->domain == owner_conn->meta->domain) {
 		ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta->data,
 				       owner_conn->meta->size);
 		if (ret < 0)
 			goto exit_free;
+
 		pos += owner_conn->meta->size;
 	}
 
@@ -1692,8 +1693,6 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		ret = kdbus_pool_write(conn->pool, pos, meta->data, meta->size);
 		if (ret < 0)
 			goto exit_free;
-
-		pos += meta->size;
 	}
 
 	/* write back the offset */
