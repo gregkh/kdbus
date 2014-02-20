@@ -399,6 +399,13 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
+
+	/* an activator can only own a single name */
+	if ((conn->flags & KDBUS_HELLO_ACTIVATOR) && conn->names > 0) {
+		ret = -EALREADY;
+		goto exit_unlock;
+	}
+
 	e = __kdbus_name_lookup(reg, hash, name);
 	if (e) {
 		/* connection already owns that name */
@@ -407,9 +414,10 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		/* an activator can only own a single name */
-		if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
-			ret = -EALREADY;
+		/* activator registers for name that is already owned */
+		if (conn->flags & KDBUS_HELLO_ACTIVATOR &&
+		    e->activator == NULL) {
+			e->activator = kdbus_conn_ref(conn);
 			goto exit_unlock;
 		}
 
