@@ -123,26 +123,24 @@ static int dump_packet(struct conn *conn, int fd)
 	return 0;
 }
 
-static struct conn *conn;
-static int output_fd;
-static unsigned long long count = 0;
+static bool do_exit = false;
 
-static void do_exit(int foo)
+static void sig_handler(int foo)
 {
-	fprintf(stderr, "\n%llu packets received and dumped.\n", count);
-	fprintf(stderr, "-- closing bus connections\n");
-	close(conn->fd);
-	free(conn);
-	close(output_fd);
+	do_exit = true;
 }
 
 int main(int argc, char **argv)
 {
+	unsigned long long count = 0;
+	struct sigaction act = {};
 	struct pcap_header header;
+	struct conn *conn;
+	struct pollfd fd;
+	char *bus, *file;
+	sigset_t mask;
 	int output_fd;
 	int ret;
-	char *bus, *file;
-	struct pollfd fd;
 
 	if (argc < 3) {
 		usage(argv[0]);
@@ -177,12 +175,21 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	signal(SIGINT, do_exit);
+	act.sa_handler = sig_handler;
+	act.sa_flags = SA_RESTART;
+	sigaction(SIGINT, &act, NULL);
+	sigaction(SIGTERM, &act, NULL);
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGINT);
+	sigaddset(&mask, SIGTERM);
+	sigprocmask(SIG_UNBLOCK, &mask, NULL);
+
 	fprintf(stderr, "Capturing. Press ^C to stop ...\n");
 
 	fd.fd = conn->fd;
 
-	while (1) {
+	while (!do_exit) {
 		fd.events = POLLIN | POLLPRI | POLLHUP;
 		fd.revents = 0;
 
@@ -201,8 +208,14 @@ int main(int argc, char **argv)
 		}
 
 		if (fd.revents & (POLLHUP | POLLERR))
-			return EXIT_FAILURE;
+			do_exit = true;
 	}
+
+	fprintf(stderr, "\n%llu packets received and dumped.\n", count);
+	fprintf(stderr, "-- closing bus connections\n");
+	close(output_fd);
+	close(conn->fd);
+	free(conn);
 
 	return 0;
 }
