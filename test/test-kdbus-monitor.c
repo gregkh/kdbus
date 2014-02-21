@@ -97,7 +97,7 @@ static int dump_packet(struct conn *conn, int fd)
 			break;
 		case KDBUS_ITEM_PAYLOAD_OFF:
 			if (item->vec.offset != ~0ULL) {
-				to_write = item->vec.size;
+				to_write = KDBUS_ALIGN8(item->vec.size);
 				data_to_write = (void *) msg + item->vec.offset;
 			} else {
 				/*add data padding to file*/
