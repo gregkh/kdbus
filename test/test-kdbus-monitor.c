@@ -150,7 +150,7 @@ int main(int argc, char **argv)
 	bus = argv[1];
 	file = argv[2];
 
-	output_fd = open(file, O_CREAT | O_RDWR, 0644);
+	output_fd = open(file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 	if (output_fd < 0) {
 		fprintf(stderr, "Unable to open '%s': %m\n", file);
 		return EXIT_FAILURE;
