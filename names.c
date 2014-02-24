@@ -240,8 +240,6 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_queue_item *q_tmp, *q;
 	struct kdbus_name_entry *e_tmp, *e;
-	bool was_activator = false;
-	int i;
 	LIST_HEAD(names_queue_list);
 	LIST_HEAD(notify_list);
 	LIST_HEAD(names_list);
@@ -253,31 +251,12 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
-
 	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
-
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
 		kdbus_name_entry_release(e, &notify_list);
-
-	/*
-	 * Check whether the connection is the activator of any entry.
-	 * It can only be the activator for one of them, so we can break
-	 * at the first matching entry.
-	 */
-	hash_for_each(reg->entries_hash, i, e, hentry)
-		if (conn == e->activator) {
-			e->activator = NULL;
-			was_activator = true;
-			break;
-		}
-
 	mutex_unlock(&reg->entries_lock);
 	mutex_unlock(&conn->bus->lock);
-
-	/* unref the connection with none of the above locks held */
-	if (was_activator)
-		kdbus_conn_unref(conn);
 
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 }
