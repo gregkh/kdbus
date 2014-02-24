@@ -407,12 +407,6 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
 
-	/* an activator can only own a single name */
-	if ((conn->flags & KDBUS_HELLO_ACTIVATOR) && conn->names > 0) {
-		ret = -EINVAL;
-		goto exit_unlock;
-	}
-
 	e = __kdbus_name_lookup(reg, hash, name);
 	if (e) {
 		/* connection already owns that name */
@@ -421,17 +415,28 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		/* activator registers for name that is already owned */
-		if (conn->flags & KDBUS_HELLO_ACTIVATOR &&
-		    e->activator == NULL) {
-			e->activator = kdbus_conn_ref(conn);
-			conn->activator_of = e;
+		if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
+			/* An activator can only own a single name */
+			if (conn->activator_of) {
+				if (conn->activator_of == e)
+					ret = -EALREADY;
+				else
+					ret = -EINVAL;
+			} else if (!e->activator &&
+				   !conn->activator_of) {
+				/*
+				 * Activator registers for name that is
+				 * already owned
+				 */
+				e->activator = kdbus_conn_ref(conn);
+				conn->activator_of = e;
+			}
+
 			goto exit_unlock;
 		}
 
 		/* take over the name of an activator connection */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
-
 			/*
 			 * Take over the messages queued in the activator
 			 * connection, the activator itself never reads them.
@@ -448,7 +453,6 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* take over the name if both parties agree */
 		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
-
 			/*
 			 * Move name back to the queue, in case we take it away
 			 * from a connection which asked for queuing.
@@ -478,6 +482,13 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* the name is busy, return a failure */
 		ret = -EEXIST;
 		goto exit_unlock;
+	} else {
+		/* An activator can only own a single name */
+		if ((conn->flags & KDBUS_HELLO_ACTIVATOR) &&
+		    conn->activator_of) {
+			ret = -EINVAL;
+			goto exit_unlock;
+		}
 	}
 
 	/* new name entry */
