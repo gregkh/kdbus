@@ -404,7 +404,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	/* an activator can only own a single name */
 	if ((conn->flags & KDBUS_HELLO_ACTIVATOR) && conn->names > 0) {
-		ret = -EALREADY;
+		ret = -EINVAL;
 		goto exit_unlock;
 	}
 

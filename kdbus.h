@@ -891,6 +891,9 @@ enum kdbus_ioctl_type {
  * @EADDRNOTAVAIL:	A message flagged not to activate a service, addressed
  *			a service which is not currently running.
  * @EAGAIN:		No messages are queued at the moment.
+ * @EALREADY:		A requested name is already owned by the connection,
+ *			a connection is already disconnected, memfd is already
+ *			sealed or has the requested size.
  * @EBADF:		File descriptors passed with the message are not valid.
  * @EBADFD:		A bus connection is in a corrupted state.
  * @EBADMSG:		Passed data contains a combination of conflicting or
