@@ -255,6 +255,8 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 		kdbus_name_queue_item_free(q);
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
 		kdbus_name_entry_release(e, &notify_list);
+	if (conn->flags & KDBUS_HELLO_ACTIVATOR)
+		conn->activator_of->activator = kdbus_conn_unref(conn);
 	mutex_unlock(&reg->entries_lock);
 	mutex_unlock(&conn->bus->lock);
 
@@ -418,6 +420,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		if (conn->flags & KDBUS_HELLO_ACTIVATOR &&
 		    e->activator == NULL) {
 			e->activator = kdbus_conn_ref(conn);
+			conn->activator_of = e;
 			goto exit_unlock;
 		}
 
@@ -486,8 +489,10 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	if (conn->flags & KDBUS_HELLO_ACTIVATOR)
+	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
 		e->activator = kdbus_conn_ref(conn);
+		conn->activator_of = e;
+	}
 
 	e->flags = *flags;
 	INIT_LIST_HEAD(&e->queue_list);

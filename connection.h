@@ -68,6 +68,7 @@ struct kdbus_conn {
 	struct list_head monitor_entry;
 	struct list_head names_list;
 	struct list_head names_queue_list;
+	struct kdbus_name_entry *activator_of;
 	struct list_head reply_list;
 	atomic_t reply_count;
 	size_t names;
