@@ -239,6 +239,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn)
 {
 	struct kdbus_name_queue_item *q_tmp, *q;
+	struct kdbus_conn *activator = NULL;
 	struct kdbus_name_entry *e_tmp, *e;
 	LIST_HEAD(names_queue_list);
 	LIST_HEAD(notify_list);
@@ -251,14 +252,18 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
+	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
+		activator = conn->activator_of->activator;
+		conn->activator_of->activator = NULL;
+	}
 	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
 		kdbus_name_entry_release(e, &notify_list);
-	if (conn->flags & KDBUS_HELLO_ACTIVATOR)
-		conn->activator_of->activator = kdbus_conn_unref(conn);
 	mutex_unlock(&reg->entries_lock);
 	mutex_unlock(&conn->bus->lock);
+
+	kdbus_conn_unref(activator);
 
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 }
