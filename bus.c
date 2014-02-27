@@ -28,6 +28,15 @@
 #include "names.h"
 #include "domain.h"
 
+/**
+ * kdbus_bus_uid_is_privileged() - check whether the current user is a
+ * 				   priviledged bus user
+ * @bus:		The bus to check
+ *
+ * Return: true if the current user has CAP_IPC_OWNER capabilities, or
+ * if it has the same UID as the user that created the bus. Otherwise,
+ * false is returned.
+ */
 bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
 {
 	if (capable(CAP_IPC_OWNER))
