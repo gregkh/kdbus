@@ -1747,16 +1747,18 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_meta *meta,
 		   struct kdbus_conn **c)
 {
-	struct kdbus_conn *conn;
-	struct kdbus_bus *bus = ep->bus;
-	const struct kdbus_item *item;
-	const char *activator_name = NULL;
-	const char *conn_name = NULL;
 	const struct kdbus_creds *creds = NULL;
+	const char *activator_name = NULL;
+	const struct kdbus_item *item;
+	const char *conn_name = NULL;
 	const char *seclabel = NULL;
+	struct kdbus_conn *conn;
+	struct kdbus_bus *bus;
 	size_t seclabel_len = 0;
 	LIST_HEAD(notify_list);
 	int ret;
+
+	bus = ep->bus;
 
 	BUG_ON(*c);
 
