@@ -21,13 +21,13 @@
 /**
  * struct kdbus_conn - connection to a bus
  * @kref:		Reference count
- * @disconnected:	Invalidated data
  * @id:			Connection ID
+ * @flags:		KDBUS_HELLO_* flags
+ * @attach_flags:	KDBUS_ATTACH_* flags
+ * @disconnected:	Invalidated data
  * @name:		Human-readable connection name, used for debugging
  * @bus:		The bus this connection belongs to
  * @ep:			The endpoint this connection belongs to
- * @flags:		KDBUS_HELLO_* flags
- * @attach_flags:	KDBUS_ATTACH_* flags
  * @lock:		Connection data lock
  * @msg_list:		Queue of messages
  * @msg_prio_queue:	Tree of messages, sorted by priority
@@ -42,29 +42,29 @@
  * @activator_of:	Well-known name entry this connection acts as an
  *			activator for
  * @reply_list:		List of connections this connection expects
- *			a reply from
- * @reply_count:	Number of requests this connection has issued, and
- *			waits for replies from the peer
- * @names:		Number of owned well-known names
+ *			a reply from.
  * @work:		Delayed work to handle timeouts
  * @match_db:		Subscription filter to broadcast messages
  * @meta:		Active connection creator's metadata/credentials,
  *			either from the handle of from HELLO
  * @owner_meta:		The connection's metadata/credentials supplied by
  *			HELLO
- * @msg_count:		Number of queued messages
  * @pool:		The user's buffer to receive messages
  * @user:		Owner of the connection;
+ * @names:		Number of owned well-known names
+ * @msg_count:		Number of queued messages
+ * @reply_count:	Number of requests this connection has issued, and
+ *			waits for replies from the peer
  */
 struct kdbus_conn {
 	struct kref kref;
-	bool disconnected;
 	u64 id;
+	u64 flags;
+	u64 attach_flags;
+	bool disconnected;
 	const char *name;
 	struct kdbus_bus *bus;
 	struct kdbus_ep *ep;
-	u64 flags;
-	u64 attach_flags;
 	struct mutex lock;
 	struct list_head msg_list;
 	struct rb_root msg_prio_queue;
@@ -75,17 +75,17 @@ struct kdbus_conn {
 	struct list_head monitor_entry;
 	struct list_head names_list;
 	struct list_head names_queue_list;
-	struct kdbus_name_entry *activator_of;
 	struct list_head reply_list;
-	atomic_t reply_count;
-	size_t names;
 	struct delayed_work work;
+	struct kdbus_name_entry *activator_of;
 	struct kdbus_match_db *match_db;
 	struct kdbus_meta *meta;
 	struct kdbus_meta *owner_meta;
-	unsigned int msg_count;
 	struct kdbus_pool *pool;
 	struct kdbus_domain_user *user;
+	size_t names;
+	size_t msg_count;
+	atomic_t reply_count;
 };
 
 struct kdbus_kmsg;
