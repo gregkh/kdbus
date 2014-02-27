@@ -21,6 +21,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include "bus.h"
 #include "connection.h"
 #include "names.h"
 #include "policy.h"
@@ -267,6 +268,9 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	unsigned int hash = 0;
 	int ret = 0;
 
+	if (uid_eq(conn_src->user->uid, conn_dst->user->uid))
+		return true;
+
 	/*
 	 * If there was a positive match for these two connections before,
 	 * there's an entry in the hash table for them.
@@ -343,6 +347,9 @@ bool kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
 	struct kdbus_policy_db_entry *db_entry;
 	u32 hash = kdbus_str_hash(name);
 	bool allowed = false;
+
+	if (kdbus_bus_uid_is_privileged(conn->bus))
+		return true;
 
 	/* Walk the list of the names registered for a connection ... */
 	mutex_lock(&db->entries_lock);
