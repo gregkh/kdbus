@@ -494,20 +494,6 @@ enum kdbus_policy_type {
 };
 
 /**
- * struct kdbus_cmd_policy - a series of policies to upload
- * @size:		The total size of the structure
- * @policies:		The policies to upload
- *
- * A KDBUS_POLICY_NAME must always preceeds a KDBUS_POLICY_ACCESS entry.
- * A new KDBUS_POLICY_NAME can be added after KDBUS_POLICY_ACCESS for
- * chaining multiple policies together.
- */
-struct kdbus_cmd_policy {
-	__u64 size;
-	struct kdbus_item policies[0];
-} __attribute__((aligned(8)));
-
-/**
  * enum kdbus_hello_flags - flags for struct kdbus_cmd_hello
  * @KDBUS_HELLO_ACCEPT_FD:	The connection allows the receiving of
  *				any passed file descriptors
@@ -873,8 +859,6 @@ enum kdbus_ioctl_type {
 
 	KDBUS_CMD_MATCH_ADD =		_IOW (KDBUS_IOC_MAGIC, 0x70, struct kdbus_cmd_match),
 	KDBUS_CMD_MATCH_REMOVE =	_IOW (KDBUS_IOC_MAGIC, 0x71, struct kdbus_cmd_match),
-
-	KDBUS_CMD_EP_POLICY_SET =	_IOW (KDBUS_IOC_MAGIC, 0x80, struct kdbus_cmd_policy),
 
 	KDBUS_CMD_MEMFD_NEW =		_IOWR(KDBUS_IOC_MAGIC, 0xc0, struct kdbus_cmd_memfd_make),
 	KDBUS_CMD_MEMFD_SIZE_GET =	_IOR (KDBUS_IOC_MAGIC, 0xc1, __u64 *),

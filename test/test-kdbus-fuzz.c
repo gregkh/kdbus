@@ -27,7 +27,6 @@ static unsigned int ioctl_cmds[] = {
 	KDBUS_CMD_CONN_INFO,
 	KDBUS_CMD_MATCH_ADD,
 	KDBUS_CMD_MATCH_REMOVE,
-	KDBUS_CMD_EP_POLICY_SET,
 };
 
 static const char *ioctl_name(unsigned int ioctl)
@@ -57,8 +56,6 @@ static const char *ioctl_name(unsigned int ioctl)
 		return "MATCH_ADD";
 	case KDBUS_CMD_MATCH_REMOVE:
 		return "MATCH_REMOVE";
-	case KDBUS_CMD_EP_POLICY_SET:
-		return "EP_POLICY_SET";
 	default:
 		return "unknown";
 	}

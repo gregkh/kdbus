@@ -541,30 +541,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_conn_disconnect(conn, true);
 		break;
 
-	case KDBUS_CMD_EP_POLICY_SET:
-		/* upload a policy for this endpoint */
-
-		ret = kdbus_memdup_user(buf, &p, NULL,
-					sizeof(struct kdbus_cmd_policy),
-					KDBUS_POLICY_MAX_SIZE);
-		if (ret < 0)
-			break;
-
-		/* mangling policy is a privileged operation */
-		if (!kdbus_bus_uid_is_privileged(conn->bus)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		if (!conn->ep->policy_db) {
-			ret = kdbus_policy_db_new(&conn->ep->policy_db);
-			if (ret < 0)
-				break;
-		}
-
-		ret = kdbus_cmd_policy_set(conn->ep->policy_db, p);
-		break;
-
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
 

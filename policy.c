@@ -384,68 +384,51 @@ exit_unlock:
  * Return: 0 on success, negative errno on failure
  */
 int kdbus_cmd_policy_set(struct kdbus_policy_db *db,
-			 const struct kdbus_cmd_policy *cmd)
+			 const char *name,
+			 const struct kdbus_cmd_make *cmd)
 {
-	struct kdbus_policy_db_entry *current_entry = NULL;
+	struct kdbus_policy_db_entry *e;
 	const struct kdbus_item *item;
+	int ret = 0;
+	u32 hash;
 
-	KDBUS_ITEM_FOREACH(item, cmd, policies) {
-		if (!KDBUS_ITEM_VALID(item, cmd))
-			return -EINVAL;
+	e = kzalloc(sizeof(*e), GFP_KERNEL);
+	if (!e)
+		return -ENOMEM;
 
-		switch (item->type) {
-		case KDBUS_ITEM_POLICY_NAME: {
-			struct kdbus_policy_db_entry *e;
-			u32 hash;
+	hash = kdbus_str_hash(name);
+	e->name = kstrdup(name, GFP_KERNEL);
+	INIT_LIST_HEAD(&e->access_list);
 
-			e = kzalloc(sizeof(*e), GFP_KERNEL);
-			if (!e)
-				return -ENOMEM;
-
-			hash = kdbus_str_hash(item->policy.name);
-			e->name = kstrdup(item->policy.name, GFP_KERNEL);
-			INIT_LIST_HEAD(&e->access_list);
-
-			mutex_lock(&db->entries_lock);
-			hash_add(db->entries_hash, &e->hentry, hash);
-			mutex_unlock(&db->entries_lock);
-
-			current_entry = e;
-			break;
-		}
-
-		case KDBUS_ITEM_POLICY_ACCESS: {
+	KDBUS_ITEM_FOREACH(item, cmd, items) {
+		if (item->type == KDBUS_ITEM_POLICY_ACCESS) {
 			struct kdbus_policy_db_entry_access *a;
 
-			/*
-			 * A KDBUS_ITEM_POLICY_ACCESS item can only appear
-			 * after a KDBUS_ITEM_POLICY_NAME item.
-			 */
-			if (!current_entry)
-				return -EINVAL;
-
 			a = kzalloc(sizeof(*a), GFP_KERNEL);
-			if (!a)
-				return -ENOMEM;
+			if (!a) {
+				ret = -ENOMEM;
+				goto exit_free;
+			}
 
 			a->type = item->policy.access.type;
 			a->bits = item->policy.access.bits;
 			a->id   = item->policy.access.id;
-			INIT_LIST_HEAD(&a->list);
-
-			mutex_lock(&db->entries_lock);
-			list_add_tail(&a->list, &current_entry->access_list);
-			mutex_unlock(&db->entries_lock);
-			break;
-		}
-
-		default:
-			return -EINVAL;
+			list_add_tail(&a->list, &e->access_list);
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, cmd))
-		return -EINVAL;
+	if (!KDBUS_ITEM_END(item, cmd)) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
+
+	mutex_lock(&db->entries_lock);
+	hash_add(db->entries_hash, &e->hentry, hash);
+	mutex_unlock(&db->entries_lock);
 
 	return 0;
+
+exit_free:
+	kdbus_policy_db_entry_free(e);
+	return ret;
 }

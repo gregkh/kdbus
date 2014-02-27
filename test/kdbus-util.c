@@ -547,18 +547,6 @@ int name_list(struct conn *conn, uint64_t flags)
 	return 0;
 }
 
-void append_policy(struct kdbus_cmd_policy *cmd_policy, struct kdbus_item *policy, __u64 max_size)
-{
-	struct kdbus_item *dst = (struct kdbus_item *) ((char *) cmd_policy + cmd_policy->size);
-
-	if (cmd_policy->size + policy->size > max_size)
-		return;
-
-	memcpy(dst, policy, policy->size);
-	cmd_policy->size += KDBUS_ALIGN8(policy->size);
-	free(policy);
-}
-
 struct kdbus_item *make_policy_name(const char *name)
 {
 	struct kdbus_item *p;
@@ -597,34 +585,7 @@ struct kdbus_item *make_policy_access(__u64 type, __u64 bits, __u64 id)
 
 int upload_policy(int fd, const char *name)
 {
-	struct kdbus_cmd_policy *cmd_policy;
-	struct kdbus_item *policy;
-	int ret;
-	int size = 0xffff;
-
-	cmd_policy = (struct kdbus_cmd_policy *) alloca(size);
-	memset(cmd_policy, 0, size);
-
-	policy = (struct kdbus_item *) cmd_policy->policies;
-	cmd_policy->size = offsetof(struct kdbus_cmd_policy, policies);
-
-	policy = make_policy_name(name);
-	append_policy(cmd_policy, policy, size);
-
-	policy = make_policy_access(KDBUS_POLICY_ACCESS_USER, KDBUS_POLICY_OWN, getuid());
-	append_policy(cmd_policy, policy, size);
-
-	policy = make_policy_access(KDBUS_POLICY_ACCESS_WORLD, KDBUS_POLICY_RECV, 0);
-	append_policy(cmd_policy, policy, size);
-
-	policy = make_policy_access(KDBUS_POLICY_ACCESS_WORLD, KDBUS_POLICY_SEND, 0);
-	append_policy(cmd_policy, policy, size);
-
-	ret = ioctl(fd, KDBUS_CMD_EP_POLICY_SET, cmd_policy);
-	if (ret < 0)
-		fprintf(stderr, "--- error setting EP policy: %d (%m)\n", ret);
-
-	return ret;
+	return 0;
 }
 
 void add_match_empty(int fd)
