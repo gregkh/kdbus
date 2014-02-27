@@ -83,6 +83,19 @@ struct kdbus_policy_db_entry {
 	struct list_head access_list;
 };
 
+static void kdbus_policy_db_entry_free(struct kdbus_policy_db_entry *e)
+{
+	struct kdbus_policy_db_entry_access *a, *tmp;
+
+	list_for_each_entry_safe(a, tmp, &e->access_list, list) {
+		list_del(&a->list);
+		kfree(a);
+	}
+
+	kfree(e->name);
+	kfree(e);
+}
+
 /**
  * kdbus_policy_db_free - drop a policy database reference
  * @db:		The policy database
@@ -97,16 +110,8 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 	/* purge entries */
 	mutex_lock(&db->entries_lock);
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
-		struct kdbus_policy_db_entry_access *a, *tmp;
-
-		list_for_each_entry_safe(a, tmp, &e->access_list, list) {
-			list_del(&a->list);
-			kfree(a);
-		}
-
 		hash_del(&e->hentry);
-		kfree(e->name);
-		kfree(e);
+		kdbus_policy_db_entry_free(e);
 	}
 	mutex_unlock(&db->entries_lock);
 
