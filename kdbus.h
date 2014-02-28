@@ -196,7 +196,7 @@ struct kdbus_name {
  */
 struct kdbus_policy_access {
 	__u64 type;	/* USER, GROUP, WORLD */
-	__u64 bits;	/* RECV, SEND, OWN */
+	__u64 bits;	/* OWN, TALK, SEE */
 	__u64 id;	/* uid, gid, 0 */
 };
 

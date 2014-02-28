@@ -242,7 +242,7 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
  *
  * Return: 0 if access is granted, -EPERM if not, negative errno on failure
  */
-int kdbus_policy_check_send_access(struct kdbus_policy_db *db,
+int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst)
 {
@@ -314,8 +314,8 @@ void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_policy_check_own_access() - check whether a policy is allowed
- *					to own a name
+ * kdbus_policy_check_own_access() - check whether a connection is allowed
+ *				     to own a name
  * @db:		The policy database
  * @conn:	The connection to check
  * @name:	The name to check
