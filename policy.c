@@ -63,7 +63,7 @@ struct kdbus_policy_db_cache_entry {
  *			For KDBUS_POLICY_ACCESS_GROUP, the gid
  * @list:		List entry item for the entry's list
  *
- * This is the internal version of struct kdbus_policy_access.
+ * This is the internal version of struct kdbus_policy_db_access.
  */
 struct kdbus_policy_db_entry_access {
 	u8 type;	/* USER, GROUP, WORLD */
@@ -85,7 +85,7 @@ struct kdbus_policy_db_entry {
 	struct list_head access_list;
 };
 
-static void kdbus_policy_db_entry_free(struct kdbus_policy_db_entry *e)
+static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 {
 	struct kdbus_policy_db_entry_access *a, *tmp;
 
@@ -112,7 +112,7 @@ __kdbus_policy_lookup(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_policy_db_free - drop a policy database reference
+ * kdbus_policy_free - drop a policy database reference
  * @db:		The policy database
  */
 void kdbus_policy_db_free(struct kdbus_policy_db *db)
@@ -126,7 +126,7 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 	mutex_lock(&db->entries_lock);
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
 		hash_del(&e->hentry);
-		kdbus_policy_db_entry_free(e);
+		kdbus_policy_entry_free(e);
 	}
 	mutex_unlock(&db->entries_lock);
 
@@ -142,7 +142,7 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 }
 
 /**
- * kdbus_policy_db_new() - create a new policy database
+ * kdbus_policy_new() - create a new policy database
  * @db:		The location where to store the new database
  *
  * Return: 0 on success, negative errno on failure
@@ -194,9 +194,9 @@ static u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
 	return access;
 }
 
-static int __kdbus_policy_db_check_talk_access(struct kdbus_policy_db *db,
-					       struct kdbus_conn *conn_src,
-					       struct kdbus_conn *conn_dst)
+static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
+					    struct kdbus_conn *conn_src,
+					    struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_policy_db_entry *e;
@@ -234,7 +234,7 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 }
 
 /**
- * kdbus_policy_db_check_send_access() - check if one connection is allowed
+ * kdbus_policy_check_send_access() - check if one connection is allowed
  *				       to send a message to another connection
  * @db:			The policy database
  * @conn_src:		The source connection
@@ -242,9 +242,9 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
  *
  * Return: 0 if access is granted, -EPERM if not, negative errno on failure
  */
-int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
-				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst)
+int kdbus_policy_check_send_access(struct kdbus_policy_db *db,
+				   struct kdbus_conn *conn_src,
+				   struct kdbus_conn *conn_dst)
 {
 	struct kdbus_policy_db_cache_entry *ce;
 	unsigned int hash = 0;
@@ -273,7 +273,7 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	 * a hash table entry if send access is granted.
 	 */
 	mutex_lock(&db->entries_lock);
-	ret = __kdbus_policy_db_check_talk_access(db, conn_src, conn_dst);
+	ret = __kdbus_policy_check_talk_access(db, conn_src, conn_dst);
 	if (ret == 0) {
 		ce = kdbus_policy_cache_entry_new(conn_src, conn_dst);
 		if (!ce) {
@@ -293,12 +293,12 @@ exit_unlock_entries:
 }
 
 /**
- * kdbus_policy_db_remove_conn() - remove all entries related to a connection
+ * kdbus_policy_remove_conn() - remove all entries related to a connection
  * @db:		The policy database
  * @conn:	The connection which items to remove
  */
-void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
-				 struct kdbus_conn *conn)
+void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
+			      struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_cache_entry *ce;
 	struct hlist_node *tmp;
@@ -314,7 +314,7 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_policy_db_check_own_access() - check whether a policy is allowed
+ * kdbus_policy_check_own_access() - check whether a policy is allowed
  *					to own a name
  * @db:		The policy database
  * @conn:	The connection to check
@@ -322,9 +322,9 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
  *
  * Return: true if the connection is allowed to own the name, false otherwise
  */
-bool kdbus_policy_db_check_own_access(struct kdbus_policy_db *db,
-				      struct kdbus_conn *conn,
-				      const char *name)
+bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
+				   struct kdbus_conn *conn,
+				   const char *name)
 {
 	struct kdbus_policy_db_entry *e;
 	u32 hash = kdbus_str_hash(name);
@@ -405,7 +405,7 @@ int kdbus_cmd_policy_set(struct kdbus_policy_db *db,
 
 exit:
 	if (ret < 0)
-		kdbus_policy_db_entry_free(e);
+		kdbus_policy_entry_free(e);
 
 	return ret;
 }

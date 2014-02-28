@@ -1248,7 +1248,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		/* ... otherwise, ask the policy DB for permission */
 		if (!allowed && ep->policy_db) {
-			ret = kdbus_policy_db_check_send_access(ep->policy_db,
+			ret = kdbus_policy_check_send_access(ep->policy_db,
 								conn_src,
 								conn_dst);
 			if (ret < 0)
@@ -1546,7 +1546,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_domain_user_unref(conn->user);
 
 	if (conn->ep->policy_db)
-		kdbus_policy_db_remove_conn(conn->ep->policy_db, conn);
+		kdbus_policy_remove_conn(conn->ep->policy_db, conn);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
