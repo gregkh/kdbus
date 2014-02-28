@@ -67,7 +67,7 @@ struct kdbus_policy_db_cache_entry {
  */
 struct kdbus_policy_db_entry_access {
 	u8 type;	/* USER, GROUP, WORLD */
-	u8 bits;	/* RECV, SEND, OWN */
+	u8 bits;	/* OWN, TALK, SEE */
 	u64 id;		/* uid, gid, 0 */
 	struct list_head list;
 };
@@ -96,6 +96,19 @@ static void kdbus_policy_db_entry_free(struct kdbus_policy_db_entry *e)
 
 	kfree(e->name);
 	kfree(e);
+}
+
+static struct kdbus_policy_db_entry *
+__kdbus_policy_lookup(struct kdbus_policy_db *db,
+		      const char *name, u32 hash)
+{
+	struct kdbus_policy_db_entry *e;
+
+	hash_for_each_possible(db->entries_hash, e, hentry, hash)
+		if (strcmp(e->name, name) == 0)
+			return e;
+
+	return NULL;
 }
 
 /**
@@ -181,57 +194,25 @@ static u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
 	return access;
 }
 
-static int __kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
+static int __kdbus_policy_db_check_talk_access(struct kdbus_policy_db *db,
 					       struct kdbus_conn *conn_src,
 					       struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_policy_db_entry *e;
-	u64 access;
-	u32 hash;
 	int ret = -EPERM;
 
-	/*
-	 * Send access is granted if either the source connection has a
-	 * matching SEND rule or the receiver connection has a matching
-	 * RECV rule.
-	 * Hence, we walk the list of the names registered for each
-	 * connection.
-	 */
 	mutex_lock(&conn_src->lock);
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
-		hash = kdbus_str_hash(name_entry->name);
-		hash_for_each_possible(db->entries_hash, e, hentry, hash) {
-			if (strcmp(e->name, name_entry->name) != 0)
-				continue;
-
-			access = kdbus_collect_entry_accesses(e, conn_src);
-			if (access & KDBUS_POLICY_SEND) {
+		u32 hash = kdbus_str_hash(name_entry->name);
+		e = __kdbus_policy_lookup(db, name_entry->name, hash);
+		if (e) {
+			u64 access = kdbus_collect_entry_accesses(e, conn_src);
+			if (access & (KDBUS_POLICY_TALK | KDBUS_POLICY_OWN))
 				ret = 0;
-				break;
-			}
 		}
 	}
 	mutex_unlock(&conn_src->lock);
-
-	if (ret == 0)
-		return 0;
-
-	mutex_lock(&conn_dst->lock);
-	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
-		hash = kdbus_str_hash(name_entry->name);
-		hash_for_each_possible(db->entries_hash, e, hentry, hash) {
-			if (strcmp(e->name, name_entry->name) != 0)
-				continue;
-
-			access = kdbus_collect_entry_accesses(e, conn_dst);
-			if (access & KDBUS_POLICY_RECV) {
-				ret = 0;
-				break;
-			}
-		}
-	}
-	mutex_unlock(&conn_dst->lock);
 
 	return ret;
 }
@@ -292,7 +273,7 @@ int kdbus_policy_db_check_send_access(struct kdbus_policy_db *db,
 	 * a hash table entry if send access is granted.
 	 */
 	mutex_lock(&db->entries_lock);
-	ret = __kdbus_policy_db_check_send_access(db, conn_src, conn_dst);
+	ret = __kdbus_policy_db_check_talk_access(db, conn_src, conn_dst);
 	if (ret == 0) {
 		ce = kdbus_policy_cache_entry_new(conn_src, conn_dst);
 		if (!ce) {
@@ -330,19 +311,6 @@ void kdbus_policy_db_remove_conn(struct kdbus_policy_db *db,
 			kfree(ce);
 		}
 	mutex_unlock(&db->cache_lock);
-}
-
-static struct kdbus_policy_db_entry *
-__kdbus_policy_lookup(struct kdbus_policy_db *db,
-		      const char *name, u32 hash)
-{
-	struct kdbus_policy_db_entry *e;
-
-	hash_for_each_possible(db->entries_hash, e, hentry, hash)
-		if (strcmp(e->name, name) == 0)
-			return e;
-
-	return NULL;
 }
 
 /**

@@ -483,14 +483,16 @@ enum kdbus_policy_access_type {
 
 /**
  * enum kdbus_policy_access_flags - mode flags
- * @KDBUS_POLICY_RECV:		Allow receive
- * @KDBUS_POLICY_SEND:		Allow send
  * @KDBUS_POLICY_OWN:		Allow to own a well-known name
+ *				Implies KDBUS_POLICY_TALK and KDBUS_POLICY_SEE
+ * @KDBUS_POLICY_TALK:		Allow communication to a well-known name
+ *				Implies KDBUS_POLICY_SEE
+ * @KDBUS_POLICY_SEE:		Allow to see a well-known name
  */
 enum kdbus_policy_type {
-	KDBUS_POLICY_RECV		= 1 <<  2,
-	KDBUS_POLICY_SEND		= 1 <<  1,
-	KDBUS_POLICY_OWN		= 1 <<  0,
+	KDBUS_POLICY_OWN		= 1 <<  2,
+	KDBUS_POLICY_TALK		= 1 <<  1,
+	KDBUS_POLICY_SEE		= 1 <<  0,
 };
 
 /**
