@@ -292,21 +292,18 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 
 static int kdbus_meta_append_caps(struct kdbus_meta *meta)
 {
-	const struct cred *cred;
 	struct caps {
 		u32 cap[_KERNEL_CAPABILITY_U32S];
 	} cap[4];
 	unsigned int i;
+	const struct cred *cred = current_cred();
 
-	rcu_read_lock();
-	cred = __task_cred(current);
 	for (i = 0; i < _KERNEL_CAPABILITY_U32S; i++) {
 		cap[0].cap[i] = cred->cap_inheritable.cap[i];
 		cap[1].cap[i] = cred->cap_permitted.cap[i];
 		cap[2].cap[i] = cred->cap_effective.cap[i];
 		cap[3].cap[i] = cred->cap_bset.cap[i];
 	}
-	rcu_read_unlock();
 
 	/* clear unused bits */
 	for (i = 0; i < 4; i++)
@@ -341,15 +338,8 @@ static int kdbus_meta_append_cgroup(struct kdbus_meta *meta)
 static int kdbus_meta_append_audit(struct kdbus_meta *meta)
 {
 	struct kdbus_audit audit;
-	const struct cred *cred;
-	uid_t uid;
 
-	rcu_read_lock();
-	cred = __task_cred(current);
-	uid = from_kuid(cred->user_ns, audit_get_loginuid(current));
-	rcu_read_unlock();
-
-	audit.loginuid = uid;
+	audit.loginuid = from_kuid(current_user_ns(), audit_get_loginuid(current));
 	audit.sessionid = audit_get_sessionid(current);
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_AUDIT,
