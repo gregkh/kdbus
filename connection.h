@@ -32,6 +32,9 @@
  * @msg_list:		Queue of messages
  * @msg_prio_queue:	Tree of messages, sorted by priority
  * @msg_prio_highest:	Cached entry for highest priority (lowest value) node
+ * @msg_users:		Array to account the number of queued messages per
+ *			individual user
+ * @msg_users_max:	Size of the users array
  * @hentry:		Entry in ID <-> connection map
  * @monitor_entry:	The connection is a monitor
  * @names_list:		List of well-known names
@@ -66,6 +69,8 @@ struct kdbus_conn {
 	struct list_head msg_list;
 	struct rb_root msg_prio_queue;
 	struct rb_node *msg_prio_highest;
+	unsigned int *msg_users;
+	unsigned int msg_users_max;
 	struct hlist_node hentry;
 	struct list_head monitor_entry;
 	struct list_head names_list;

@@ -3,7 +3,7 @@ Features:
     be sure it works with old kernels when we update userspace tools
 
   - make sure that our domain/kuid/pidns creds passing/deny logic
-    is what we want in the long run, interaction with userns?
+    based on the PID namespace is what we need; interaction with userns?
 
   - use/prepare for something like this to manage the pool backing shmemfd:
       https://git.kernel.org/cgit/linux/kernel/git/minchan/linux.git/commit/?h=vrange-v10-rc5&id=0b40a69d4c5d9eb13352fd357d73a5fab3ee699d
@@ -26,21 +26,13 @@ Features:
 
   - also attach queued names to message metadata?
 
-  - account and limit number of messages one user can have in-flight
-    when talking to all other users:
-    - users should not be able to fill up the receive queues of
-      other users
-    - users which do not read their messages should not cause the
-      sending budget of other users to reach their limit
-
   - support the creation of anonymous buses?
 
   - actually return compatible/incompatible flags to users
+
+  - test message budget limits
 
 External API:
   - rules for:
       -unknown items to ignore in userspace lib?
       -unknown items to ignore if SEND sees them?
-
-  - review all different structures of custom ioctls and items if they
-    can be further unified

@@ -35,6 +35,7 @@
  * @domain_entry:	Entry in parent domain
  * @bus_list:		Buses in this domain
  * @user_hash:		Accounting of user resources
+ * @user_idr:		Map of all users; smallest possible index
  *
  * A domain provides a "control" device node. Every domain has its
  * own major number for its endpoint device nodes.
@@ -64,6 +65,7 @@ struct kdbus_domain {
 	struct list_head domain_entry;
 	struct list_head bus_list;
 	DECLARE_HASHTABLE(user_hash, 6);
+	struct idr user_idr;
 };
 
 /**
@@ -71,6 +73,7 @@ struct kdbus_domain {
  * @kref:		Reference counter
  * @domain:			Domain of the user
  * @hentry:		Entry in domain user map
+ * @idr:		Smalles possible index number of all users
  * @uid:		UID of the user
  * @buses:		Number of buses the user has created
  * @connections:	Number of connections the user has created
@@ -79,6 +82,7 @@ struct kdbus_domain_user {
 	struct kref kref;
 	struct kdbus_domain *domain;
 	struct hlist_node hentry;
+	unsigned int idr;
 	kuid_t uid;
 	atomic_t buses;
 	atomic_t connections;
@@ -91,10 +95,12 @@ struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 void kdbus_domain_disconnect(struct kdbus_domain *domain);
 int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
-		 umode_t mode, struct kdbus_domain **domain);
+		     umode_t mode, struct kdbus_domain **domain);
 int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name);
 struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major);
 
-struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain, kuid_t uid);
-struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *user);
+struct kdbus_domain_user
+*kdbus_domain_user_find_or_new(struct kdbus_domain *domain, kuid_t uid);
+struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
+struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u);
 #endif

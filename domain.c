@@ -254,6 +254,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	idr_init(&d->idr);
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
+	idr_init(&d->user_idr);
 
 	if (parent)
 		mutex_lock(&parent->lock);
@@ -407,29 +408,33 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 }
 
 /**
- * kdbus_domain_user_ref() - get a kdbus_domain_user object in a domain
+ * kdbus_domain_user_find_or_new() - get a kdbus_domain_user object in a domain
  * @domain:		The domain
- * @uid:	The uid of the user
+ * @uid:		The uid of the user; INVALID_UID for an anonymous
+ *			user like a custom endpoint
  *
  * Return: a kdbus_domain_user, either freshly allocated or with the reference
  * counter increased. In case of memory allocation failure, NULL is returned.
  */
-struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain,
-						kuid_t uid)
+struct kdbus_domain_user
+*kdbus_domain_user_find_or_new(struct kdbus_domain *domain, kuid_t uid)
 {
 	struct kdbus_domain_user *u;
+	int ret;
 
 	/* find uid and reference it */
-	mutex_lock(&domain->lock);
-	hash_for_each_possible(domain->user_hash, u, hentry, __kuid_val(uid)) {
-		if (!uid_eq(u->uid, uid))
-			continue;
+	if (uid_valid(uid)) {
+		mutex_lock(&domain->lock);
+		hash_for_each_possible(domain->user_hash, u, hentry, __kuid_val(uid)) {
+			if (!uid_eq(u->uid, uid))
+				continue;
 
-		kref_get(&u->kref);
+			kref_get(&u->kref);
+			mutex_unlock(&domain->lock);
+			return u;
+		}
 		mutex_unlock(&domain->lock);
-		return u;
 	}
-	mutex_unlock(&domain->lock);
 
 	/* allocate a new user */
 	u = kzalloc(sizeof(*u), GFP_KERNEL);
@@ -444,6 +449,18 @@ struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain *domain,
 
 	/* link into domain */
 	mutex_lock(&domain->lock);
+
+	/*
+	 * Allocate the smallest possible index for this user; used
+	 * in arrays for accounting user quota in receiver queues.
+	 */
+	ret = idr_alloc(&domain->user_idr, u, 0, 0, GFP_KERNEL);
+	if (ret < 0) {
+		mutex_unlock(&domain->lock);
+		return NULL;
+	}
+
+	/* UID hash map */
 	hash_add(domain->user_hash, &u->hentry, __kuid_val(u->uid));
 	mutex_unlock(&domain->lock);
 
@@ -459,14 +476,37 @@ static void __kdbus_domain_user_free(struct kref *kref)
 	BUG_ON(atomic_read(&user->connections) > 0);
 
 	mutex_lock(&user->domain->lock);
+	idr_remove(&user->domain->user_idr, user->idr);
 	hash_del(&user->hentry);
 	mutex_unlock(&user->domain->lock);
 	kdbus_domain_unref(user->domain);
 	kfree(user);
 }
 
+/**
+ * kdbus_domain_user_ref() - take a domain user reference
+ * @u:		User
+ *
+ * Return: the domain user itself
+ */
+struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u)
+{
+	kref_get(&u->kref);
+	return u;
+}
+
+/**
+ * kdbus_domain_user_unref() - drop a domain user eference
+ * @u:		User
+ *
+ * When the last reference is dropped, the domain internal structure
+ * is freed.
+ *
+ * Return: NULL
+ */
 struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u)
 {
-	kref_put(&u->kref, __kdbus_domain_user_free);
+	if (u)
+		kref_put(&u->kref, __kdbus_domain_user_free);
 	return NULL;
 }

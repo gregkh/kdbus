@@ -281,7 +281,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_free_reg;
 
 	/* account the bus against the user */
-	b->user = kdbus_domain_user_ref(domain, uid);
+	b->user = kdbus_domain_user_find_or_new(domain, uid);
 	if (!b->user) {
 		ret = -ENOMEM;
 		goto exit_ep_unref;

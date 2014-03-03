@@ -49,8 +49,11 @@
 /* maximum size of policy data */
 #define KDBUS_POLICY_MAX_SIZE			SZ_32K
 
-/* maximum number of queued messages per connection */
+/* maximum number of queued messages in a connection */
 #define KDBUS_CONN_MAX_MSGS			256
+
+/* maximum number of queued messages from the same indvidual user */
+#define KDBUS_CONN_MAX_MSGS_PER_USER		16
 
 /* maximum number of well-known names per connection */
 #define KDBUS_CONN_MAX_NAMES			64

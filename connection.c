@@ -61,6 +61,7 @@ struct kdbus_conn_reply;
  * @dst_name_id:	The sequence number of the name this message is
  *			addressed to, 0 for messages sent to an ID
  * @reply:		The reply block if a reply to this message is expected.
+ * @user:		Index in per-user message counter, -1 for unused
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -69,20 +70,17 @@ struct kdbus_conn_queue {
 	s64 priority;
 	size_t off;
 	size_t size;
-
 	size_t *memfds;
 	struct file **memfds_fp;
 	unsigned int memfds_count;
-
 	size_t fds;
 	struct file **fds_fp;
 	unsigned int fds_count;
-
 	u64 src_id;
 	u64 cookie;
 	u64 dst_name_id;
-
 	struct kdbus_conn_reply *reply;
+	int user;
 };
 
 /**
@@ -398,8 +396,22 @@ prio_done:
 static void kdbus_conn_queue_remove(struct kdbus_conn *conn,
 				    struct kdbus_conn_queue *queue)
 {
-	conn->msg_count--;
 	list_del(&queue->entry);
+	conn->msg_count--;
+
+	/* user quota */
+	if (queue->user >= 0) {
+		BUG_ON(conn->msg_users[queue->user] == 0);
+		conn->msg_users[queue->user]--;
+		queue->user = -1;
+	}
+
+	/* the queue is empty, remove the user quota accounting */
+	if (conn->msg_count == 0 && conn->msg_users_max > 0) {
+		kfree(conn->msg_users);
+		conn->msg_users = NULL;
+		conn->msg_users_max = 0;
+	}
 
 	if (list_empty(&queue->prio_entry)) {
 		/*
@@ -461,6 +473,8 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	if (!queue)
 		return -ENOMEM;
 
+	queue->user = -1;
+
 	/* copy message properties we need for the queue management */
 	queue->src_id = kmsg->msg.src_id;
 	queue->cookie = kmsg->msg.cookie;
@@ -508,12 +522,6 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	mutex_lock(&conn->lock);
 	if (conn->disconnected) {
 		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
-	if (conn->msg_count > KDBUS_CONN_MAX_MSGS &&
-	    !kdbus_bus_uid_is_privileged(conn->bus)) {
-		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
 
@@ -595,7 +603,6 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	queue->off = off;
 	queue->size = want;
 	queue->priority = kmsg->msg.priority;
-
 	mutex_unlock(&conn->lock);
 
 	*q = queue;
@@ -603,22 +610,84 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 exit_pool_free:
 	kdbus_pool_free_range(conn->pool, off);
-
 exit_unlock:
 	mutex_unlock(&conn->lock);
 	kdbus_conn_queue_cleanup(queue);
 	return ret;
 }
 
+/*
+ * Check for maximum number of messages per individual user. This
+ * should prevent a single user from being able to fill the receiver's
+ * queue.
+ */
+static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
+				       struct kdbus_conn *conn_src,
+				       struct kdbus_conn_queue *queue)
+{
+	unsigned int user;
+
+	if (!conn_src)
+		return 0;
+
+	if (kdbus_bus_uid_is_privileged(conn->bus))
+		return 0;
+
+	/*
+	 * As soon as the queue grows above the maximum number of messages
+	 * per individual user, we start to count all further messages
+	 * from the sending user.
+	 */
+	if (conn->msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
+		return 0;
+
+	user = conn_src->user->idr;
+
+	/* extend array to store the user message counters */
+	if (user < conn->msg_users_max) {
+		unsigned int *users;
+		unsigned int i;
+
+		i = 16 + KDBUS_ALIGN8(user);
+		users = kmalloc(sizeof(unsigned int) * i, GFP_KERNEL);
+		if (!users)
+			return -ENOMEM;
+
+		memcpy(users, conn->msg_users,
+		       sizeof(unsigned int) * conn->msg_users_max);
+		kfree(users);
+		conn->msg_users = users;
+		conn->msg_users_max = i;
+	}
+
+	if (conn->msg_users[user] > KDBUS_CONN_MAX_MSGS_PER_USER)
+		return -ENOBUFS;
+
+	conn->msg_users[user]++;
+	queue->user = user;
+	return 0;
+}
+
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
+				   struct kdbus_conn *conn_src,
 				   struct kdbus_kmsg *kmsg,
 				   struct kdbus_conn_reply *reply)
 {
 	struct kdbus_conn_queue *queue;
 	int ret;
 
+	/* limit the maximum number of queued messages */
+	if (!kdbus_bus_uid_is_privileged(conn->bus) &&
+	    conn->msg_count > KDBUS_CONN_MAX_MSGS)
+		return -ENOBUFS;
+
 	ret = kdbus_conn_queue_alloc(conn, kmsg, &queue);
+	if (ret < 0)
+		return ret;
+
+	/* limit the number of queued messages from the same individual user */
+	ret = kdbus_conn_queue_user_quota(conn, conn_src, queue);
 	if (ret < 0)
 		return ret;
 
@@ -1130,7 +1199,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						  kmsg->seq,
 						  conn_dst->attach_flags);
 
-			kdbus_conn_queue_insert(conn_dst, kmsg, NULL);
+			kdbus_conn_queue_insert(conn_dst, conn_src, kmsg, NULL);
 		}
 		mutex_unlock(&ep->bus->lock);
 
@@ -1261,7 +1330,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * Otherwise, put it in the queue and wait for the connection
 		 * to dequeue and receive the message.
 		 */
-		ret = kdbus_conn_queue_insert(conn_dst, kmsg, reply_wait);
+		ret = kdbus_conn_queue_insert(conn_dst, conn_src,
+					      kmsg, reply_wait);
 	}
 
 	if (ret < 0)
@@ -1273,7 +1343,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 */
 	mutex_lock(&ep->bus->lock);
 	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry)
-		kdbus_conn_queue_insert(c, kmsg, NULL);
+		kdbus_conn_queue_insert(c, NULL, kmsg, NULL);
 	mutex_unlock(&ep->bus->lock);
 
 	if (sync) {
@@ -1940,8 +2010,15 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		conn->meta = meta;
 	}
 
-	/* account the connection against the user */
-	conn->user = kdbus_domain_user_ref(ep->bus->domain, ep->bus->uid_owner);
+	/*
+	 * Account the connection against the current user (UID), or for
+	 * custom endpoints use the anonymous user assigned to the endpoint.
+	 */
+	if (ep->user)
+		conn->user = kdbus_domain_user_ref(ep->user);
+	else
+		conn->user = kdbus_domain_user_find_or_new(ep->bus->domain,
+							   current_fsuid());
 	if (!conn->user) {
 		ret = -ENOMEM;
 		goto exit_free_meta;

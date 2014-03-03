@@ -426,6 +426,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		umode_t mode = 0;
 		kgid_t gid = KGIDT_INIT(0);
 		char *name;
+		struct kdbus_ep *ep;
 
 		/* creating custom endpoints is a privileged operation */
 		if (!kdbus_bus_uid_is_privileged(handle->ep->bus)) {
@@ -458,7 +459,20 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		ret = kdbus_ep_new(handle->ep->bus,
 				   name, mode, current_fsuid(), gid,
-				   make->flags & KDBUS_MAKE_POLICY_OPEN, NULL);
+				   make->flags & KDBUS_MAKE_POLICY_OPEN, &ep);
+
+		/*
+		 * Get an anonymous user to account messages against; custom
+		 * endpoint users do not share the budget with the ordinary
+		 * users created for a UID.
+		 */
+		ep->user = kdbus_domain_user_find_or_new(handle->ep->bus->domain,
+							 INVALID_UID);
+		if (!ep->user) {
+			kdbus_ep_unref(ep);
+			ret = -ENOMEM;
+			break;
+		}
 
 		handle->type = KDBUS_HANDLE_EP_OWNER;
 		break;

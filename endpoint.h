@@ -18,21 +18,22 @@
 
 /*
  * struct kdbus_endpoint - enpoint to access a bus
- * @kref		reference count
- * @disconnected	invalidated data
- * @bus			bus behind this endpoint
- * @name		name of the endpoint
- * @id			id of this endpoint on the bus
- * @minor		minor of this endpoint in the domain major
- * @dev			device node of this endpoint
- * @mode		file mode of this endpoint device node
- * @uid			uid owning this endpoint
- * @gid			gid owning this endpoint
- * @bus_entry		bus' endpoints
- * @wait		wake up this endpoint
- * @lock		endpoint data lock
- * @policy_db		uploaded policy
- * @policy_open		default endpoint policy
+ * @kref:		Reference count
+ * @disconnected:	Invalidated data
+ * @bus:		Bus behind this endpoint
+ * @name:		Name of the endpoint
+ * @id:			ID of this endpoint on the bus
+ * @minor:		Minor of this endpoint in the domain major
+ * @dev:		Device node of this endpoint
+ * @mode:		File mode of this endpoint device node
+ * @uid:		UID owning this endpoint
+ * @gid:		GID owning this endpoint
+ * @bus_entry:		bus' endpoints
+ * @wait:		Wake up this endpoint
+ * @lock:		Endpoint data lock
+ * @user:		Custom enpoints account against an anonymous user
+ * @policy_db:		Uploaded policy
+ * @policy_open:	Default endpoint policy
  *
  * An enpoint offers access to a bus; the default device node name is "bus".
  * Additional custom endpoints to the same bus can be created and they can
@@ -52,6 +53,7 @@ struct kdbus_ep {
 	struct list_head bus_entry;
 	wait_queue_head_t wait;
 	struct mutex lock;
+	struct kdbus_domain_user *user;
 	struct kdbus_policy_db *policy_db;
 	bool policy_open:1;
 };
