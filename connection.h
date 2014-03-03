@@ -36,8 +36,10 @@
  * @monitor_entry:	The connection is a monitor
  * @names_list:		List of well-known names
  * @names_queue_list:	Well-known names this connection waits for
+ * @activator_of:	Well-known name entry this connection acts as an
+ *			activator for
  * @reply_list:		List of connections this connection expects
- *			a reply from.
+ *			a reply from
  * @reply_count:	Number of requests this connection has issued, and
  *			waits for replies from the peer
  * @names:		Number of owned well-known names
