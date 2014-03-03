@@ -459,6 +459,7 @@ struct kdbus_domain_user
 		mutex_unlock(&domain->lock);
 		return NULL;
 	}
+	u->idr = ret;
 
 	/* UID hash map */
 	hash_add(domain->user_hash, &u->hentry, __kuid_val(u->uid));
