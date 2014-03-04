@@ -1913,6 +1913,13 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (!conn)
 		return -ENOMEM;
 
+	if (hello->conn_flags & KDBUS_HELLO_ACTIVATOR) {
+		ret = kdbus_policy_add(ep->policy_db, hello->items,
+				       hello->size, 1, conn);
+		if (ret < 0)
+			goto exit_free_conn;
+	}
+
 	if (conn_name) {
 		conn->name = kstrdup(conn_name, GFP_KERNEL);
 		if (!conn->name) {

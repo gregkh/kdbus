@@ -83,6 +83,8 @@ struct kdbus_policy_db_entry {
 	char *name;
 	struct hlist_node hentry;
 	struct list_head access_list;
+	struct kdbus_conn *owner;
+	bool wildcard:1;
 };
 
 static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
@@ -100,15 +102,39 @@ static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 
 static struct kdbus_policy_db_entry *
 __kdbus_policy_lookup(struct kdbus_policy_db *db,
-		      const char *name, u32 hash)
+		      const char *name, u32 hash,
+		      bool wildcard)
 {
-	struct kdbus_policy_db_entry *e;
+	struct kdbus_policy_db_entry *e, *found = NULL;
 
 	hash_for_each_possible(db->entries_hash, e, hentry, hash)
 		if (strcmp(e->name, name) == 0)
 			return e;
 
-	return NULL;
+	if (wildcard) {
+		const char *tmp;
+		char *dot;
+
+		tmp = kstrdup(name, GFP_KERNEL);
+		if (!tmp)
+			return NULL;
+
+		dot = strrchr(tmp, '.');
+		if (dot)
+			*dot = '\0';
+
+		hash = kdbus_str_hash(tmp);
+
+		hash_for_each_possible(db->entries_hash, e, hentry, hash)
+			if (strcmp(e->name, tmp) == 0 && e->wildcard) {
+				found = e;
+				break;
+			}
+
+		kfree(tmp);
+	}
+
+	return found;
 }
 
 /**
@@ -205,7 +231,7 @@ static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	mutex_lock(&conn_src->lock);
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
-		e = __kdbus_policy_lookup(db, name_entry->name, hash);
+		e = __kdbus_policy_lookup(db, name_entry->name, hash, true);
 		if (e) {
 			u64 access = kdbus_collect_entry_accesses(e, conn_src);
 			if (access & (KDBUS_POLICY_TALK | KDBUS_POLICY_OWN))
@@ -293,6 +319,27 @@ exit_unlock_entries:
 }
 
 /**
+ * kdbus_policy_remove_owner() - remove all entries related to a connection
+ * @db:		The policy database
+ * @conn:	The connection which items to remove
+ */
+void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
+			       struct kdbus_conn *conn)
+{
+	struct kdbus_policy_db_entry *e;
+	struct hlist_node *tmp;
+	int i;
+
+	mutex_lock(&db->entries_lock);
+	hash_for_each_safe(db->send_access_hash, i, tmp, e, hentry)
+		if (e->owner == conn) {
+			hash_del(&e->hentry);
+			kdbus_policy_entry_free(e);
+		}
+	mutex_unlock(&db->entries_lock);
+}
+
+/**
  * kdbus_policy_remove_conn() - remove all entries related to a connection
  * @db:		The policy database
  * @conn:	The connection which items to remove
@@ -333,9 +380,9 @@ bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 	if (kdbus_bus_uid_is_privileged(conn->bus))
 		return true;
 
-	/* Walk the list of the names registered for a connection ... */
+	/* Walk the list of names registered for a connection ... */
 	mutex_lock(&db->entries_lock);
-	e = __kdbus_policy_lookup(db, name, hash);
+	e = __kdbus_policy_lookup(db, name, hash, true);
 	if (e) {
 		u64 access = kdbus_collect_entry_accesses(e, conn);
 		if (access & KDBUS_POLICY_OWN)
@@ -344,6 +391,23 @@ bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 	mutex_unlock(&db->entries_lock);
 
 	return allowed;
+}
+
+static int
+kdbus_policy_add_one(struct kdbus_policy_db *db,
+		     struct kdbus_policy_db_entry *e)
+{
+	int ret = 0;
+	u32 hash = kdbus_str_hash(e->name);
+
+	mutex_lock(&db->entries_lock);
+	if (__kdbus_policy_lookup(db, e->name, hash, false))
+		ret = -EEXIST;
+	else
+		hash_add(db->entries_hash, &e->hentry, hash);
+	mutex_unlock(&db->entries_lock);
+
+	return ret;
 }
 
 /**
@@ -357,28 +421,83 @@ bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_cmd_policy_set(struct kdbus_policy_db *db,
-			 const char *name,
-			 const struct kdbus_cmd_make *cmd)
+int kdbus_policy_add(struct kdbus_policy_db *db,
+		     const struct kdbus_item *items,
+		     size_t items_container_size,
+		     size_t max_policies,
+		     struct kdbus_conn *owner)
 {
-	struct kdbus_policy_db_entry *e;
+	struct kdbus_policy_db_entry *e = NULL;
+	struct kdbus_policy_db_entry_access *a;
 	const struct kdbus_item *item;
+	size_t count = 0;
 	int ret = 0;
 	u32 hash;
 
-	e = kzalloc(sizeof(*e), GFP_KERNEL);
-	if (!e)
-		return -ENOMEM;
+	for (item = items;
+	     (u8 *) item < (u8 *) items + items_container_size;
+	     item = KDBUS_ITEM_NEXT(item)) {
+		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
+			ret = -EINVAL;
+			goto exit;
+		}
 
-	hash = kdbus_str_hash(name);
-	e->name = kstrdup(name, GFP_KERNEL);
-	INIT_LIST_HEAD(&e->access_list);
+		switch (item->type) {
+		case KDBUS_ITEM_POLICY_NAME: {
+			size_t len;
 
-	KDBUS_ITEM_FOREACH(item, cmd, items) {
-		if (item->type == KDBUS_ITEM_POLICY_ACCESS) {
-			struct kdbus_policy_db_entry_access *a;
+			if (e) {
+				ret = kdbus_policy_add_one(db, e);
+				if (ret < 0) {
+					kdbus_policy_entry_free(e);
+					goto exit;
+				}
+			}
 
-			a = kzalloc(sizeof(*a), GFP_KERNEL);
+			if (max_policies && ++count > max_policies) {
+				ret = -E2BIG;
+				goto exit;
+			}
+
+			e = kzalloc(sizeof(*e), GFP_KERNEL);
+			if (!e) {
+				ret = -ENOMEM;
+				goto exit;
+			}
+
+			INIT_LIST_HEAD(&e->access_list);
+			hash = kdbus_str_hash(item->str);
+			e->owner = owner;
+
+			e->name = kstrdup(item->str, GFP_KERNEL);
+			if (!e->name) {
+				ret = -ENOMEM;
+				goto exit;
+			}
+
+			/*
+			 * If a supplied name ends with an '.*', cut off that
+			 * part, only store anything before it, and mark the
+			 * entry as wildcard.
+			 */
+			len = strlen(e->name);
+			if (len > 2 &&
+			    e->name[len - 3] == '.' &&
+			    e->name[len - 2] == '*') {
+				e->name[len - 3] = '\0';
+				e->wildcard = true;
+			}
+
+			break;
+		}
+
+		case KDBUS_ITEM_POLICY_ACCESS:
+			if (!e) {
+				ret = -EINVAL;
+				goto exit;
+			}
+
+			a = kmalloc(sizeof(*a), GFP_KERNEL);
 			if (!a) {
 				ret = -ENOMEM;
 				goto exit;
@@ -388,24 +507,24 @@ int kdbus_cmd_policy_set(struct kdbus_policy_db *db,
 			a->bits = item->policy.access.bits;
 			a->id   = item->policy.access.id;
 			list_add_tail(&a->list, &e->access_list);
+
+			break;
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, cmd)) {
-		ret = -EINVAL;
-		goto exit;
+	if (e) {
+		ret = kdbus_policy_add_one(db, e);
+		if (ret < 0)
+			kdbus_policy_entry_free(e);
 	}
 
-	mutex_lock(&db->entries_lock);
-	if (__kdbus_policy_lookup(db, name, hash) == NULL)
-		hash_add(db->entries_hash, &e->hentry, hash);
-	else
-		ret = -EEXIST;
-	mutex_unlock(&db->entries_lock);
-
 exit:
-	if (ret < 0)
-		kdbus_policy_entry_free(e);
+	if (ret < 0) {
+		if (e)
+			kdbus_policy_entry_free(e);
+
+		kdbus_policy_remove_owner(db, owner);
+	}
 
 	return ret;
 }
