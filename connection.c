@@ -1865,8 +1865,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (!kdbus_bus_uid_is_privileged(bus))
 				return -EPERM;
 
-			if (item->size !=
-			    KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds)))
+			if (item->size != KDBUS_ITEM_SIZE(sizeof(*creds)))
 				return -EINVAL;
 
 			creds = &item->creds;
