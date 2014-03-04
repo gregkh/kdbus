@@ -634,9 +634,9 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		return 0;
 
 	/*
-	 * As soon as the queue grows above the maximum number of messages
+	 * Only after the queue grows above the maximum number of messages
 	 * per individual user, we start to count all further messages
-	 * from the sending user.
+	 * from the sending users.
 	 */
 	if (conn->msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
 		return 0;
@@ -644,11 +644,11 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 	user = conn_src->user->idr;
 
 	/* extend array to store the user message counters */
-	if (user < conn->msg_users_max) {
+	if (user >= conn->msg_users_max) {
 		unsigned int *users;
 		unsigned int i;
 
-		i = 16 + KDBUS_ALIGN8(user);
+		i = 8 + KDBUS_ALIGN8(user);
 		users = kmalloc(sizeof(unsigned int) * i, GFP_KERNEL);
 		if (!users)
 			return -ENOMEM;
