@@ -293,7 +293,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	}
 
 	/* get dynamic major */
-	ret = register_chrdev(0, KBUILD_MODNAME, &kdbus_device_ops);
+	ret = register_chrdev(0, d->devpath, &kdbus_device_ops);
 	if (ret < 0)
 		goto exit_unlock;
 
