@@ -1248,9 +1248,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		/* ... otherwise, ask the policy DB for permission */
 		if (!allowed && ep->policy_db) {
-			ret = kdbus_policy_check_send_access(ep->policy_db,
-								conn_src,
-								conn_dst);
+			ret = kdbus_policy_check_talk_access(ep->policy_db,
+							     conn_src, conn_dst);
 			if (ret < 0)
 				goto exit_unref;
 		}

@@ -18,7 +18,7 @@ struct kdbus_policy_db;
 
 int kdbus_policy_db_new(struct kdbus_policy_db **db);
 void kdbus_policy_db_free(struct kdbus_policy_db *db);
-int kdbus_policy_check_send_access(struct kdbus_policy_db *db,
+int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst);
 bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
