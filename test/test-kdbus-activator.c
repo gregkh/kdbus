@@ -74,10 +74,10 @@ int main(int argc, char *argv[])
 
 	access[0].type = KDBUS_POLICY_ACCESS_USER;
 	access[0].id = 1001;
-	access[0].bits = KDBUS_POLICY_OWN;
+	access[0].access = KDBUS_POLICY_OWN;
 
 	access[1].type = KDBUS_POLICY_ACCESS_WORLD;
-	access[1].bits = KDBUS_POLICY_TALK;
+	access[1].access = KDBUS_POLICY_TALK;
 
 	activator = kdbus_hello_activator(bus, "foo.test.activator", access, 2);
 	if (!activator)

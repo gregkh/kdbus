@@ -135,7 +135,7 @@ kdbus_hello_registrar(const char *path, const char *name,
 		item->type = KDBUS_ITEM_POLICY_ACCESS;
 
 		item->policy.access.type = access[i].type;
-		item->policy.access.bits = access[i].bits;
+		item->policy.access.access = access[i].access;
 		item->policy.access.id = access[i].id;
 
 		item = KDBUS_ITEM_NEXT(item);

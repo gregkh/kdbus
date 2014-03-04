@@ -196,7 +196,7 @@ struct kdbus_name {
  */
 struct kdbus_policy_access {
 	__u64 type;	/* USER, GROUP, WORLD */
-	__u64 bits;	/* OWN, TALK, SEE */
+	__u64 access;	/* OWN, TALK, SEE */
 	__u64 id;	/* uid, gid, 0 */
 };
 
@@ -490,9 +490,9 @@ enum kdbus_policy_access_type {
  * @KDBUS_POLICY_SEE:		Allow to see a well-known name
  */
 enum kdbus_policy_type {
-	KDBUS_POLICY_OWN		= 1 <<  2,
-	KDBUS_POLICY_TALK		= 1 <<  1,
-	KDBUS_POLICY_SEE		= 1 <<  0,
+	KDBUS_POLICY_SEE	= 0,
+	KDBUS_POLICY_TALK,
+	KDBUS_POLICY_OWN,
 };
 
 /**

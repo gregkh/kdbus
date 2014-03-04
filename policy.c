@@ -58,7 +58,7 @@ struct kdbus_policy_db_cache_entry {
 /**
  * struct kdbus_policy_db_entry_access - a database entry access item
  * @type:		One of KDBUS_POLICY_ACCESS_* types
- * @bits:		Access to grant. One of KDBUS_POLICY_*
+ * @access:		Access to grant. One of KDBUS_POLICY_*
  * @id:			For KDBUS_POLICY_ACCESS_USER, the uid
  *			For KDBUS_POLICY_ACCESS_GROUP, the gid
  * @list:		List entry item for the entry's list
@@ -67,7 +67,7 @@ struct kdbus_policy_db_cache_entry {
  */
 struct kdbus_policy_db_entry_access {
 	u8 type;	/* USER, GROUP, WORLD */
-	u8 bits;	/* OWN, TALK, SEE */
+	u8 access;	/* OWN, TALK, SEE */
 	u64 id;		/* uid, gid, 0 */
 	struct list_head list;
 };
@@ -108,7 +108,7 @@ __kdbus_policy_lookup(struct kdbus_policy_db *db,
 	struct kdbus_policy_db_entry *e, *found = NULL;
 
 	hash_for_each_possible(db->entries_hash, e, hentry, hash)
-		if (strcmp(e->name, name) == 0)
+		if (strcmp(e->name, name) == 0 && !e->wildcard)
 			return e;
 
 	if (wildcard) {
@@ -120,9 +120,10 @@ __kdbus_policy_lookup(struct kdbus_policy_db *db,
 			return NULL;
 
 		dot = strrchr(tmp, '.');
-		if (dot)
-			*dot = '\0';
+		if (!dot)
+			goto exit_free;
 
+		*dot = '\0';
 		hash = kdbus_str_hash(tmp);
 
 		hash_for_each_possible(db->entries_hash, e, hentry, hash)
@@ -131,6 +132,7 @@ __kdbus_policy_lookup(struct kdbus_policy_db *db,
 				break;
 			}
 
+exit_free:
 		kfree(tmp);
 	}
 
@@ -218,9 +220,9 @@ void kdbus_policy_db_dump(struct kdbus_policy_db *db)
 				printk(KERN_CONT "world");
 
 			printk(KERN_CONT " can %s\n",
-				(a->bits == KDBUS_POLICY_OWN) ? "own" :
-				(a->bits == KDBUS_POLICY_TALK) ? "talk" :
-				(a->bits == KDBUS_POLICY_SEE) ? "see" : "");
+				(a->access== KDBUS_POLICY_OWN) ? "own" :
+				(a->access == KDBUS_POLICY_TALK) ? "talk" :
+				(a->access == KDBUS_POLICY_SEE) ? "see" : "");
 		}
 	}
 
@@ -228,31 +230,34 @@ void kdbus_policy_db_dump(struct kdbus_policy_db *db)
 	mutex_unlock(&db->entries_lock);
 }
 
-static u64 kdbus_collect_entry_accesses(struct kdbus_policy_db_entry *db_entry,
-					struct kdbus_conn *conn)
+static bool kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
+				      unsigned int access)
 {
 	struct kdbus_policy_db_entry_access *a;
 	u64 uid = from_kuid(current_user_ns(), current_uid());
 	u64 gid = from_kgid(current_user_ns(), current_gid());
-	u64 access = 0;
+
+	if (!db_entry)
+		return false;
 
 	list_for_each_entry(a, &db_entry->access_list, list) {
-		switch (a->type) {
-		case KDBUS_POLICY_ACCESS_USER:
-			if (uid == a->id)
-				access |= a->bits;
-			break;
-		case KDBUS_POLICY_ACCESS_GROUP:
-			if (gid == a->id)
-				access |= a->bits;
-			break;
-		case KDBUS_POLICY_ACCESS_WORLD:
-			access |= a->bits;
-			break;
+		if (a->access >= access) {
+			switch (a->type) {
+			case KDBUS_POLICY_ACCESS_USER:
+				if (uid == a->id)
+					return true;
+				break;
+			case KDBUS_POLICY_ACCESS_GROUP:
+				if (gid == a->id)
+					return true;
+				break;
+			case KDBUS_POLICY_ACCESS_WORLD:
+				return true;
+			}
 		}
 	}
 
-	return access;
+	return false;
 }
 
 static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
@@ -267,11 +272,8 @@ static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
 		e = __kdbus_policy_lookup(db, name_entry->name, hash, true);
-		if (e) {
-			u64 access = kdbus_collect_entry_accesses(e, conn_src);
-			if (access & (KDBUS_POLICY_TALK | KDBUS_POLICY_OWN))
-				ret = 0;
-		}
+		if (kdbus_policy_check_access(e, KDBUS_POLICY_TALK))
+			ret = 0;
 	}
 	mutex_unlock(&conn_src->lock);
 
@@ -418,11 +420,7 @@ bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 	/* Walk the list of names registered for a connection ... */
 	mutex_lock(&db->entries_lock);
 	e = __kdbus_policy_lookup(db, name, hash, true);
-	if (e) {
-		u64 access = kdbus_collect_entry_accesses(e, conn);
-		if (access & KDBUS_POLICY_OWN)
-			allowed = true;
-	}
+	allowed = kdbus_policy_check_access(e, KDBUS_POLICY_OWN);
 	mutex_unlock(&db->entries_lock);
 
 	return allowed;
@@ -544,7 +542,7 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 			}
 
 			a->type = item->policy.access.type;
-			a->bits = item->policy.access.bits;
+			a->access = item->policy.access.access;
 			a->id   = item->policy.access.id;
 			list_add_tail(&a->list, &e->access_list);
 			break;
