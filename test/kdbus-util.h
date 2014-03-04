@@ -44,7 +44,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg);
 char *msg_id(uint64_t id, char *buf);
 int msg_send(const struct conn *conn, const char *name, uint64_t cookie,
 	     uint64_t flags, uint64_t timeout, int64_t priority, uint64_t dst_id);
-struct conn *connect_to_bus(const char *path, uint64_t hello_flags);
+struct conn *kdbus_hello(const char *path, uint64_t hello_flags);
 struct kdbus_item *make_policy_name(const char *name);
 struct kdbus_item *make_policy_access(__u64 type, __u64 bits, __u64 id);
 int upload_policy(int fd, const char *name);

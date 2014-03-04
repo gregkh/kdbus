@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 
 	activator = make_activator(bus, "foo.test.activator");
 
-	conn_a = connect_to_bus(bus, 0);
+	conn_a = kdbus_hello(bus, 0);
 	if (!activator || !conn_a)
 		return EXIT_FAILURE;
 

@@ -27,7 +27,7 @@
 #include "kdbus-enum.h"
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
-struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
+struct conn *kdbus_hello(const char *path, uint64_t hello_flags)
 {
 	int fd, ret;
 	struct {
