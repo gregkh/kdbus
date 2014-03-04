@@ -27,7 +27,9 @@
 #include "kdbus-enum.h"
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
-struct conn *kdbus_hello(const char *path, uint64_t hello_flags)
+static struct conn *
+__kdbus_hello(const char *path, uint64_t flags,
+	      const struct kdbus_item *item, size_t item_size)
 {
 	int fd, ret;
 	struct {
@@ -35,10 +37,14 @@ struct conn *kdbus_hello(const char *path, uint64_t hello_flags)
 		uint64_t size;
 		uint64_t type;
 		char comm[16];
+		uint8_t extra_items[item_size];
 	} h;
 	struct conn *conn;
 
 	memset(&h, 0, sizeof(h));
+
+	if (item_size > 0)
+		memcpy(h.extra_items, item, item_size);
 
 	printf("-- opening bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
@@ -47,7 +53,7 @@ struct conn *kdbus_hello(const char *path, uint64_t hello_flags)
 		return NULL;
 	}
 
-	h.hello.conn_flags = hello_flags | KDBUS_HELLO_ACCEPT_FD;
+	h.hello.conn_flags = flags | KDBUS_HELLO_ACCEPT_FD;
 
 	h.hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
 			       KDBUS_ATTACH_CREDS |
@@ -98,13 +104,61 @@ struct conn *kdbus_hello(const char *path, uint64_t hello_flags)
 	return conn;
 }
 
+struct conn *kdbus_hello(const char *path, uint64_t flags)
+{
+	return __kdbus_hello(path, flags, NULL, 0);
+}
+
+static struct conn *
+kdbus_hello_registrar(const char *path, const char *name,
+		      const struct kdbus_policy_access *access,
+		      size_t num_access, uint64_t flags)
+{
+	struct kdbus_item *item, *items;
+	size_t i, size;
+
+	size = KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, policy.name) + strlen(name) + 1)
+		+ num_access * KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, policy.access) +
+					       sizeof(struct kdbus_policy_access));
+
+	items = alloca(size);
+
+	item = items;
+	item->size = offsetof(struct kdbus_item, policy.name) + strlen(name) + 1;
+	item->type = KDBUS_ITEM_NAME;
+	strcpy(item->str, name);
+	item = KDBUS_ITEM_NEXT(item);
+
+	for (i = 0; i < num_access; i++) {
+		item->size = offsetof(struct kdbus_item, policy.access) +
+			     sizeof(struct kdbus_policy_access);
+		item->type = KDBUS_ITEM_POLICY_ACCESS;
+
+		item->policy.access.type = access[i].type;
+		item->policy.access.bits = access[i].bits;
+		item->policy.access.id = access[i].id;
+
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	return __kdbus_hello(path, flags, items, size);
+}
+
+struct conn *kdbus_hello_activator(const char *path, const char *name,
+				   const struct kdbus_policy_access *access,
+				   size_t num_access)
+{
+	return kdbus_hello_registrar(path, name, access, num_access,
+				     KDBUS_HELLO_ACTIVATOR);
+}
+
 int msg_send(const struct conn *conn,
-		    const char *name,
-		    uint64_t cookie,
-		    uint64_t flags,
-		    uint64_t timeout,
-		    int64_t priority,
-		    uint64_t dst_id)
+	     const char *name,
+	     uint64_t cookie,
+	     uint64_t flags,
+	     uint64_t timeout,
+	     int64_t priority,
+	     uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 1024 + 3] = "0123456789_0";

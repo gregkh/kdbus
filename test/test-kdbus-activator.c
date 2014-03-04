@@ -16,55 +16,6 @@
 #include "kdbus-enum.h"
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
-static struct conn *make_activator(const char *path, const char *name)
-{
-	int fd, ret;
-	struct kdbus_cmd_hello *hello;
-	struct kdbus_item *item;
-	struct conn *conn;
-	size_t size, slen;
-
-	slen = strlen(name) + 1;
-	size = sizeof(*hello) + KDBUS_ITEM_SIZE(slen);
-
-	hello = alloca(size);
-	memset(hello, 0, size);
-
-	printf("-- opening ACTIVATOR bus connection %s\n", path);
-	fd = open(path, O_RDWR|O_CLOEXEC);
-	if (fd < 0) {
-		fprintf(stderr, "--- error %d (%m)\n", fd);
-		return NULL;
-	}
-
-	hello->size = size;
-	hello->pool_size = POOL_SIZE;
-	hello->conn_flags = KDBUS_HELLO_ACTIVATOR;
-
-	item = hello->items;
-	item->size = KDBUS_ITEM_HEADER_SIZE + slen;
-	item->type = KDBUS_ITEM_NAME;
-	strcpy(item->str, name);
-
-	ret = ioctl(fd, KDBUS_CMD_HELLO, hello);
-	if (ret < 0) {
-		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
-		return NULL;
-	}
-	printf("-- Our peer ID for activator %s: %llu\n", name, (unsigned long long) hello->id);
-
-	conn = malloc(sizeof(*conn));
-	if (!conn) {
-		fprintf(stderr, "unable to malloc()!?\n");
-		return NULL;
-	}
-
-	conn->fd = fd;
-	conn->id = hello->id;
-
-	return conn;
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -88,6 +39,7 @@ int main(int argc, char *argv[])
 	struct conn *activator, *conn_a;
 	struct pollfd fds[2];
 	bool activator_done = false;
+	struct kdbus_policy_access access[2];
 
 	printf("-- opening /dev/" KBUILD_MODNAME "/control\n");
 	fdc = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
@@ -120,19 +72,27 @@ int main(int argc, char *argv[])
 	if (asprintf(&bus, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
-	activator = make_activator(bus, "foo.test.activator");
+	access[0].type = KDBUS_POLICY_ACCESS_USER;
+	access[0].id = 1001;
+	access[0].bits = KDBUS_POLICY_OWN;
 
-	conn_a = kdbus_hello(bus, 0);
-	if (!activator || !conn_a)
+	access[1].type = KDBUS_POLICY_ACCESS_WORLD;
+	access[1].bits = KDBUS_POLICY_TALK;
+
+	activator = kdbus_hello_activator(bus, "foo.test.activator", access, 2);
+	if (!activator)
 		return EXIT_FAILURE;
 
-	upload_policy(conn_a->fd, "foo.test.activator");
+	conn_a = kdbus_hello(bus, 0);
+	if (!conn_a)
+		return EXIT_FAILURE;
+
 	add_match_empty(conn_a->fd);
 
 	name_list(conn_a, KDBUS_NAME_LIST_NAMES |
-			KDBUS_NAME_LIST_UNIQUE |
-			KDBUS_NAME_LIST_ACTIVATORS |
-			KDBUS_NAME_LIST_QUEUED);
+			  KDBUS_NAME_LIST_UNIQUE |
+			  KDBUS_NAME_LIST_ACTIVATORS |
+			  KDBUS_NAME_LIST_QUEUED);
 
 	msg_send(conn_a, "foo.test.activator", 0xdeafbeef, 0, 0, 0, KDBUS_DST_ID_NAME);
 
