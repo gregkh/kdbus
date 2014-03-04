@@ -50,16 +50,16 @@ struct conn *connect_to_bus(const char *path, uint64_t hello_flags)
 	h.hello.conn_flags = hello_flags | KDBUS_HELLO_ACCEPT_FD;
 
 	h.hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
-			     KDBUS_ATTACH_CREDS |
-			     KDBUS_ATTACH_NAMES |
-			     KDBUS_ATTACH_COMM |
-			     KDBUS_ATTACH_EXE |
-			     KDBUS_ATTACH_CMDLINE |
-			     KDBUS_ATTACH_CAPS |
-			     KDBUS_ATTACH_CGROUP |
-			     KDBUS_ATTACH_SECLABEL |
-			     KDBUS_ATTACH_AUDIT |
-			     KDBUS_ATTACH_CONN_NAME;
+			       KDBUS_ATTACH_CREDS |
+			       KDBUS_ATTACH_NAMES |
+			       KDBUS_ATTACH_COMM |
+			       KDBUS_ATTACH_EXE |
+			       KDBUS_ATTACH_CMDLINE |
+			       KDBUS_ATTACH_CAPS |
+			       KDBUS_ATTACH_CGROUP |
+			       KDBUS_ATTACH_SECLABEL |
+			       KDBUS_ATTACH_AUDIT |
+			       KDBUS_ATTACH_CONN_NAME;
 
 	h.type = KDBUS_ITEM_CONN_NAME;
 	h.size = KDBUS_ITEM_HEADER_SIZE + sizeof(h.comm);
