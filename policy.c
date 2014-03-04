@@ -460,6 +460,7 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 		     const struct kdbus_item *items,
 		     size_t items_container_size,
 		     size_t max_policies,
+		     bool allow_wildcards,
 		     struct kdbus_conn *owner)
 {
 	struct kdbus_policy_db_entry *e = NULL;
@@ -467,10 +468,10 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 	const struct kdbus_item *item;
 	size_t count = 0;
 	int ret = 0;
-	u32 hash;
 
 	for (item = items;
-	     (u8 *) item < (u8 *) items + items_container_size;
+	     (u8 *) item < (u8 *) items + items_container_size &&
+		(u8 *) item >= (u8 *) items;
 	     item = KDBUS_ITEM_NEXT(item)) {
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			ret = -EINVAL;
@@ -478,7 +479,7 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 		}
 
 		switch (item->type) {
-		case KDBUS_ITEM_POLICY_NAME: {
+		case KDBUS_ITEM_NAME: {
 			size_t len;
 
 			if (e) {
@@ -501,7 +502,6 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 			}
 
 			INIT_LIST_HEAD(&e->access_list);
-			hash = kdbus_str_hash(item->str);
 			e->owner = owner;
 
 			e->name = kstrdup(item->str, GFP_KERNEL);
@@ -519,6 +519,11 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 			if (len > 2 &&
 			    e->name[len - 3] == '.' &&
 			    e->name[len - 2] == '*') {
+				if (!allow_wildcards) {
+					ret = -EINVAL;
+					goto exit;
+				}
+
 				e->name[len - 3] = '\0';
 				e->wildcard = true;
 			}
@@ -532,7 +537,7 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 				goto exit;
 			}
 
-			a = kmalloc(sizeof(*a), GFP_KERNEL);
+			a = kzalloc(sizeof(*a), GFP_KERNEL);
 			if (!a) {
 				ret = -ENOMEM;
 				goto exit;
@@ -542,7 +547,6 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 			a->bits = item->policy.access.bits;
 			a->id   = item->policy.access.id;
 			list_add_tail(&a->list, &e->access_list);
-
 			break;
 		}
 	}
