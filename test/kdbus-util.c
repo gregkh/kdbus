@@ -601,47 +601,6 @@ int name_list(struct conn *conn, uint64_t flags)
 	return 0;
 }
 
-struct kdbus_item *make_policy_name(const char *name)
-{
-	struct kdbus_item *p;
-	__u64 size;
-
-	size = offsetof(struct kdbus_item, policy.name) + strlen(name) + 1;
-	p = malloc(size);
-	if (!p)
-		return NULL;
-	memset(p, 0, size);
-	p->size = size;
-	p->type = KDBUS_ITEM_POLICY_NAME;
-	strcpy(p->policy.name, name);
-
-	return p;
-}
-
-struct kdbus_item *make_policy_access(__u64 type, __u64 bits, __u64 id)
-{
-	struct kdbus_item *p;
-	__u64 size = sizeof(*p);
-
-	p = malloc(size);
-	if (!p)
-		return NULL;
-
-	memset(p, 0, size);
-	p->size = size;
-	p->type = KDBUS_ITEM_POLICY_ACCESS;
-	p->policy.access.type = type;
-	p->policy.access.bits = bits;
-	p->policy.access.id = id;
-
-	return p;
-}
-
-int upload_policy(int fd, const char *name)
-{
-	return 0;
-}
-
 void add_match_empty(int fd)
 {
 	struct {

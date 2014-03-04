@@ -496,9 +496,6 @@ static int check_monitor(struct kdbus_check_env *env)
 
 	/* taking a name must fail */
 	name = "foo.bla.blaz";
-	ret = upload_policy(conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	size = sizeof(*cmd_name) + strlen(name) + 1;
 	cmd_name = alloca(size);
 
@@ -524,9 +521,6 @@ static int check_name_basic(struct kdbus_check_env *env)
 	int ret;
 
 	name = "foo.bla.blaz";
-	ret = upload_policy(env->conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	size = sizeof(*cmd_name) + strlen(name) + 1;
 	cmd_name = alloca(size);
 
@@ -570,9 +564,6 @@ static int check_name_conflict(struct kdbus_check_env *env)
 	int ret;
 
 	name = "foo.bla.blaz";
-	ret = upload_policy(env->conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	size = sizeof(*cmd_name) + strlen(name) + 1;
 	cmd_name = alloca(size);
 
@@ -586,9 +577,6 @@ static int check_name_conflict(struct kdbus_check_env *env)
 	ASSERT_RETURN(conn != NULL);
 
 	/* allow the new connection to own the same name */
-	ret = upload_policy(conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	/* acquire name from the 1st connection */
 	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	ASSERT_RETURN(ret == 0);
@@ -618,9 +606,6 @@ static int check_name_queue(struct kdbus_check_env *env)
 	int ret;
 
 	name = "foo.bla.blaz";
-	ret = upload_policy(env->conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	size = sizeof(*cmd_name) + strlen(name) + 1;
 	cmd_name = alloca(size);
 
@@ -634,9 +619,6 @@ static int check_name_queue(struct kdbus_check_env *env)
 	ASSERT_RETURN(conn != NULL);
 
 	/* allow the new connection to own the same name */
-	ret = upload_policy(conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	/* acquire name from the 1st connection */
 	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	ASSERT_RETURN(ret == 0);
@@ -804,8 +786,6 @@ static int check_match_name_add(struct kdbus_check_env *env)
 	int ret;
 
 	name = "foo.bla.blaz";
-	ret = upload_policy(env->conn->fd, name);
-	ASSERT_RETURN(ret == 0);
 
 	/* install the match rule */
 	memset(&buf, 0, sizeof(buf));
@@ -864,8 +844,6 @@ static int check_match_name_remove(struct kdbus_check_env *env)
 	int ret;
 
 	name = "foo.bla.blaz";
-	ret = upload_policy(env->conn->fd, name);
-	ASSERT_RETURN(ret == 0);
 
 	/* acquire the name */
 	size = sizeof(*cmd_name) + strlen(name) + 1;
@@ -928,11 +906,8 @@ static int check_match_name_change(struct kdbus_check_env *env)
 	char *name;
 	int ret;
 
-	name = "foo.bla.blaz";
-	ret = upload_policy(env->conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	/* acquire the name */
+	name = "foo.bla.blaz";
 	size = sizeof(*cmd_name) + strlen(name) + 1;
 	cmd_name = alloca(size);
 
@@ -960,9 +935,6 @@ static int check_match_name_change(struct kdbus_check_env *env)
 	ASSERT_RETURN(conn != NULL);
 
 	/* allow the new connection to own the same name */
-	ret = upload_policy(conn->fd, name);
-	ASSERT_RETURN(ret == 0);
-
 	/* queue the 2nd connection as waiting owner */
 	cmd_name->flags = KDBUS_NAME_QUEUE;
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);

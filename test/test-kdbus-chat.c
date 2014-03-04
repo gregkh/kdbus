@@ -74,16 +74,6 @@ int main(int argc, char *argv[])
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
-	r = upload_policy(conn_a->fd, "foo.bar.test");
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = upload_policy(conn_a->fd, "foo.bar.baz");
-	if (r < 0)
-		return EXIT_FAILURE;
-	r = upload_policy(conn_a->fd, "foo.bar.double");
-	if (r < 0)
-		return EXIT_FAILURE;
-
 	r = name_acquire(conn_a, "foo.bar.test", KDBUS_NAME_ALLOW_REPLACEMENT);
 	if (r < 0)
 		return EXIT_FAILURE;

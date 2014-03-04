@@ -272,8 +272,6 @@ int main(int argc, char *argv[])
 	if (!conn_b)
 		return EXIT_FAILURE;
 
-	upload_policy(conn_a->fd, SERVICE_NAME);
-
 	add_match_empty(conn_a->fd);
 	add_match_empty(conn_b->fd);
 

@@ -50,6 +50,5 @@ struct conn *kdbus_hello_activator(const char *path, const char *name,
 				   size_t num_access);
 struct kdbus_item *make_policy_name(const char *name);
 struct kdbus_item *make_policy_access(__u64 type, __u64 bits, __u64 id);
-int upload_policy(int fd, const char *name);
 void add_match_empty(int fd);
 

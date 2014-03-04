@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	printf("  Created connection %llu on bus '%s'\n", (unsigned long long)conn->id, bus_make.name);
 
-	upload_policy(conn->fd, "com.example.kdbus-test");
 	name_acquire(conn, "com.example.kdbus-test", 0);
 	printf("  Aquired name: com.example.kdbus-test\n");
 
