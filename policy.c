@@ -83,7 +83,7 @@ struct kdbus_policy_db_entry {
 	char *name;
 	struct hlist_node hentry;
 	struct list_head access_list;
-	struct kdbus_conn *owner;
+	void *owner;
 	bool wildcard:1;
 };
 
@@ -361,7 +361,7 @@ exit_unlock_entries:
  * @conn:	The connection which items to remove
  */
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
-			       struct kdbus_conn *conn)
+			       void *conn)
 {
 	struct kdbus_policy_db_entry *e;
 	struct hlist_node *tmp;
@@ -459,7 +459,7 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 		     size_t items_container_size,
 		     size_t max_policies,
 		     bool allow_wildcards,
-		     struct kdbus_conn *owner)
+		     void *owner)
 {
 	struct kdbus_policy_db_entry *e = NULL;
 	struct kdbus_policy_db_entry_access *a;

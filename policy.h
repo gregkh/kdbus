@@ -32,6 +32,6 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 		     size_t items_container_size,
 		     size_t max_policies,
 		     bool allow_wildcards,
-		     struct kdbus_conn *owner);
+		     void *owner);
 
 #endif
