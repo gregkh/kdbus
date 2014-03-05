@@ -1247,8 +1247,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 
 		/* ... otherwise, ask the policy DB for permission */
-		if (!allowed && ep->policy_db) {
-			ret = kdbus_policy_check_talk_access(ep->policy_db,
+		if (!allowed && ep->bus->policy_db) {
+			ret = kdbus_policy_check_talk_access(ep->bus->policy_db,
 							     conn_src, conn_dst);
 			if (ret < 0)
 				goto exit_unref;
@@ -1546,6 +1546,9 @@ static void __kdbus_conn_free(struct kref *kref)
 
 	if (conn->ep->policy_db)
 		kdbus_policy_remove_conn(conn->ep->policy_db, conn);
+
+	if (conn->bus->policy_db)
+		kdbus_policy_remove_owner(conn->bus->policy_db, conn);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
@@ -1912,13 +1915,13 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		return -ENOMEM;
 
 	if (hello->conn_flags & KDBUS_HELLO_ACTIVATOR) {
-		if (!ep->policy_db) {
-			ret = kdbus_policy_db_new(&ep->policy_db);
+		if (!bus->policy_db) {
+			ret = kdbus_policy_db_new(&bus->policy_db);
 			if (ret < 0)
 				goto exit_free_conn;
 		}
 
-		ret = kdbus_policy_add(ep->policy_db, hello->items,
+		ret = kdbus_policy_add(bus->policy_db, hello->items,
 				       hello->size, 1, false, conn);
 		if (ret < 0)
 			goto exit_free_conn;
