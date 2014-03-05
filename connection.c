@@ -1921,7 +1921,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 				goto exit_free_conn;
 		}
 
-		ret = kdbus_policy_add(bus->policy_db, hello->items,
+		ret = kdbus_policy_set(bus->policy_db, hello->items,
 				       hello->size, 1, false, conn);
 		if (ret < 0)
 			goto exit_free_conn;

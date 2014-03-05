@@ -78,6 +78,8 @@ struct kdbus_policy_db_entry_access {
  * @hentry:		The hash entry for the database's entries_hash
  * @access_list:	List head for keeping tracks of the entry's
  *			access items.
+ * @owner:		The owner of this entry. Can be a kdbus_conn or
+ *			a kdbus_ep object.
  */
 struct kdbus_policy_db_entry {
 	char *name;
@@ -355,6 +357,20 @@ exit_unlock_entries:
 	return ret;
 }
 
+static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
+					void *conn)
+{
+	struct kdbus_policy_db_entry *e;
+	struct hlist_node *tmp;
+	int i;
+
+	hash_for_each_safe(db->send_access_hash, i, tmp, e, hentry)
+		if (e->owner == conn) {
+			hash_del(&e->hentry);
+			kdbus_policy_entry_free(e);
+		}
+}
+
 /**
  * kdbus_policy_remove_owner() - remove all entries related to a connection
  * @db:		The policy database
@@ -363,16 +379,8 @@ exit_unlock_entries:
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 			       void *conn)
 {
-	struct kdbus_policy_db_entry *e;
-	struct hlist_node *tmp;
-	int i;
-
 	mutex_lock(&db->entries_lock);
-	hash_for_each_safe(db->send_access_hash, i, tmp, e, hentry)
-		if (e->owner == conn) {
-			hash_del(&e->hentry);
-			kdbus_policy_entry_free(e);
-		}
+	__kdbus_policy_remove_owner(db, conn);
 	mutex_unlock(&db->entries_lock);
 }
 
@@ -433,28 +441,45 @@ kdbus_policy_add_one(struct kdbus_policy_db *db,
 	int ret = 0;
 	u32 hash = kdbus_str_hash(e->name);
 
-	mutex_lock(&db->entries_lock);
 	if (__kdbus_policy_lookup(db, e->name, hash, false))
 		ret = -EEXIST;
 	else
 		hash_add(db->entries_hash, &e->hentry, hash);
-	mutex_unlock(&db->entries_lock);
 
 	return ret;
 }
 
+/* temporary struct to restore original state */
+struct kdbus_policy_list_entry {
+	struct kdbus_policy_db_entry *e;
+	struct list_head entry;
+};
+
 /**
- * kdbus_cmd_policy_set() - set a connection's policy rules
- * @db:		The policy database
- * @name:	The name for the new policy entries
- * @cmd:	The command struct as provided by the ioctl
+ * kdbus_policy_set() - set a connection's policy rules
+ * @db:				The policy database
+ * @items:			A list of kdbus_item elements that contain both
+ *				names and access rules to set.
+ * @items_container_size:	The total size of the container that originally
+ *				contained the items.
+ * @max_policies:		The maximum number of policy entries to allow.
+ *				Pass 0 for no limit.
+ * @allow_wildcards:		Boolean value whether wildcard entries (such
+ *				ending on '.*') should be allowed.
+ * @owner:			The owner of the new policy items.
  *
- * This function is used in the context of the KDBUS_CMD_EP_POLICY_SET
- * ioctl().
+ * This function sets a new set of policies for a given owner. The names and
+ * access rules are gathered by walking the list of items passed in as
+ * argument. An item of type KDBUS_ITEM_NAME is expected before any number of
+ * KDBUS_ITEM_POLICY_ACCESS items. If there are more repetitions of this
+ * pattern than denoted in @max_policies, -EINVAL is returned.
  *
- * Return: 0 on success, negative errno on failure
+ * In order to allow atomic replacement of rules, the function first removes
+ * all entries that have been created for the given owner previously.
+ *
+ * Return: 0 on success, negative errno on failure.
  */
-int kdbus_policy_add(struct kdbus_policy_db *db,
+int kdbus_policy_set(struct kdbus_policy_db *db,
 		     const struct kdbus_item *items,
 		     size_t items_container_size,
 		     size_t max_policies,
@@ -464,9 +489,36 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 	struct kdbus_policy_db_entry *e = NULL;
 	struct kdbus_policy_db_entry_access *a;
 	const struct kdbus_item *item;
+	struct hlist_node *tmp;
 	size_t count = 0;
-	int ret = 0;
+	LIST_HEAD(list);
+	int i, ret = 0;
 
+	mutex_lock(&db->entries_lock);
+
+	/*
+	 * First, walk the list of entries and move those of the
+	 * same owner into a temporary list. In case we fail to parse
+	 * the new content, we will restore them later.
+	 * At the same time, the lookup mechanism won't find any collisions
+	 * when looking for already exising names.
+	 */
+	hash_for_each_safe(db->send_access_hash, i, tmp, e, hentry)
+		if (e->owner == owner) {
+			struct kdbus_policy_list_entry *l;
+
+			l = kzalloc(sizeof(*l), GFP_KERNEL);
+			if (!l) {
+				ret = -ENOMEM;
+				goto exit;
+			}
+
+			l->e = e;
+			list_add_tail(&l->entry, &list);
+			hash_del(&e->hentry);
+		}
+
+	/* Walk the list of items and look for new policies */
 	for (item = items;
 	     (u8 *) item < (u8 *) items + items_container_size &&
 		(u8 *) item >= (u8 *) items;
@@ -557,11 +609,22 @@ int kdbus_policy_add(struct kdbus_policy_db *db,
 
 exit:
 	if (ret < 0) {
+		struct kdbus_policy_list_entry *l, *l_tmp;
+
 		if (e)
 			kdbus_policy_entry_free(e);
 
-		kdbus_policy_remove_owner(db, owner);
+		/* purge any entries that might have been added above */
+		__kdbus_policy_remove_owner(db, owner);
+
+		/* restore original entries from list */
+		list_for_each_entry_safe(l, l_tmp, &list, entry) {
+			kdbus_policy_add_one(db, e);
+			kfree(l);
+		}
 	}
+
+	mutex_unlock(&db->entries_lock);
 
 	return ret;
 }

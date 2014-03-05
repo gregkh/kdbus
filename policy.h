@@ -28,7 +28,7 @@ void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
 			      struct kdbus_conn *conn);
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 			       void *conn);
-int kdbus_policy_add(struct kdbus_policy_db *db,
+int kdbus_policy_set(struct kdbus_policy_db *db,
 		     const struct kdbus_item *items,
 		     size_t items_container_size,
 		     size_t max_policies,
