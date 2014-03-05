@@ -202,7 +202,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
-			if (!kdbus_name_is_valid(item->str))
+			if (!kdbus_name_is_valid(item->str, false))
 				return -EINVAL;
 
 			kmsg->dst_name = item->str;

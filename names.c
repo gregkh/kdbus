@@ -333,6 +333,7 @@ static int kdbus_name_replace_owner(struct kdbus_name_registry *reg,
 /**
  * kdbus_name_is_valid() - check if a name is value
  * @p:			The name to check
+ * @allow_wildcard:	Whether or not to allow a wildcard name
  *
  * A name is valid if all of the following criterias are met:
  *
@@ -344,8 +345,9 @@ static int kdbus_name_replace_owner(struct kdbus_name_registry *reg,
  *    (and thus at least two elements).
  *  - The name must not begin with a '.' (period) character.
  *  - The name must not exceed KDBUS_NAME_MAX_LEN.
+ *  - If @allow_wildcard is true, the name may end on '.*'
  */
-bool kdbus_name_is_valid(const char *p)
+bool kdbus_name_is_valid(const char *p, bool allow_wildcard)
 {
 	bool dot, found_dot;
 	const char *q;
@@ -361,7 +363,9 @@ bool kdbus_name_is_valid(const char *p)
 			bool good;
 
 			good = isalpha(*q) || (!dot && isdigit(*q)) ||
-				*q == '_' || *q == '-';
+				*q == '_' || *q == '-' ||
+				(allow_wildcard && dot &&
+					*q == '*' && *(q + 1) == '\0');
 
 			if (!good)
 				return false;
@@ -565,7 +569,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		return -EINVAL;
 
 	if (!kdbus_check_strlen(cmd, name) ||
-	    !kdbus_name_is_valid(cmd->name))
+	    !kdbus_name_is_valid(cmd->name, false))
 		return -EINVAL;
 
 	/* privileged users can act on behalf of someone else */
@@ -625,7 +629,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	int ret = 0;
 	u32 hash;
 
-	if (!kdbus_name_is_valid(cmd->name))
+	if (!kdbus_name_is_valid(cmd->name, false))
 		return -EINVAL;
 
 	hash = kdbus_str_hash(cmd->name);

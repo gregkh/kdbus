@@ -1674,7 +1674,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			goto exit;
 		}
 
-		if (!kdbus_name_is_valid(cmd_info->name)) {
+		if (!kdbus_name_is_valid(cmd_info->name, false)) {
 			ret = -EINVAL;
 			goto exit;
 		}
@@ -1857,7 +1857,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
-			if (!kdbus_name_is_valid(item->str))
+			if (!kdbus_name_is_valid(item->str, true))
 				return -EINVAL;
 
 			activator_name = item->str;
