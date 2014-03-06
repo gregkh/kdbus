@@ -1252,7 +1252,14 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		if (allowed)
 			goto meta_append;
 
-		/* ... otherwise, ask the policy DB for permission */
+		/* ... otherwise, ask the policy DBs for permission */
+		if (ep->policy_db) {
+			ret = kdbus_policy_check_talk_access(ep->policy_db,
+							     conn_src, conn_dst);
+			if (ret < 0)
+				goto exit_unref;
+		}
+
 		if (bus->policy_db) {
 			ret = kdbus_policy_check_talk_access(bus->policy_db,
 							     conn_src, conn_dst);
