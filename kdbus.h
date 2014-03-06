@@ -190,30 +190,11 @@ struct kdbus_name {
  * @bits:		Access to grant. One of KDBUS_POLICY_*
  * @id:			For KDBUS_POLICY_ACCESS_USER, the uid
  *			For KDBUS_POLICY_ACCESS_GROUP, the gid
- *
- * Embedded in:
- *   struct kdbus_policy
  */
 struct kdbus_policy_access {
 	__u64 type;	/* USER, GROUP, WORLD */
 	__u64 access;	/* OWN, TALK, SEE */
 	__u64 id;	/* uid, gid, 0 */
-};
-
-/**
- * struct kdbus_policy - a policy item
- * @access:		Policy access details
- * @name:		Well-known name to grant access to
- *
- * Attached to:
- *   KDBUS_POLICY_ACCESS
- *   KDBUS_ITEM_POLICY_NAME
- */
-struct kdbus_policy {
-	union {
-		struct kdbus_policy_access access;
-		char name[0];
-	};
 };
 
 /**
@@ -252,8 +233,7 @@ struct kdbus_policy {
  * @KDBUS_ITEM_AUDIT:		The audit IDs
  * @KDBUS_ITEM_CONN_NAME:	The connection's human-readable name (debugging)
  * @_KDBUS_ITEM_POLICY_BASE:	Start of policy items
- * @KDBUS_ITEM_POLICY_NAME:	Policy in struct kdbus_policy
- * @KDBUS_ITEM_POLICY_ACCESS:	Policy in struct kdbus_policy
+ * @KDBUS_ITEM_POLICY_ACCESS:	Policy access block
  * @_KDBUS_ITEM_KERNEL_BASE:	Start of kernel-generated message items
  * @KDBUS_ITEM_NAME_ADD:	Notify in struct kdbus_notify_name_change
  * @KDBUS_ITEM_NAME_REMOVE:	Notify in struct kdbus_notify_name_change
@@ -294,8 +274,7 @@ enum kdbus_item_type {
 	KDBUS_ITEM_CONN_NAME,
 
 	_KDBUS_ITEM_POLICY_BASE	= 0x2000,
-	KDBUS_ITEM_POLICY_NAME = _KDBUS_ITEM_POLICY_BASE,
-	KDBUS_ITEM_POLICY_ACCESS,
+	KDBUS_ITEM_POLICY_ACCESS = _KDBUS_ITEM_POLICY_BASE,
 
 	_KDBUS_ITEM_KERNEL_BASE	= 0x8000,
 	KDBUS_ITEM_NAME_ADD	= _KDBUS_ITEM_KERNEL_BASE,
@@ -329,8 +308,7 @@ enum kdbus_item_type {
  *			KDBUS_ITEM_NAME_CHANGE
  * @id_change:		KDBUS_ITEM_ID_ADD
  *			KDBUS_ITEM_ID_REMOVE
- * @policy:		KDBUS_ITEM_POLICY_NAME
- *			KDBUS_ITEM_POLICY_ACCESS
+ * @policy:		KDBUS_ITEM_POLICY_ACCESS
  */
 struct kdbus_item {
 	__u64 size;
@@ -353,7 +331,7 @@ struct kdbus_item {
 		int fds[0];
 		struct kdbus_notify_name_change name_change;
 		struct kdbus_notify_id_change id_change;
-		struct kdbus_policy policy;
+		struct kdbus_policy_access policy_access;
 	};
 };
 

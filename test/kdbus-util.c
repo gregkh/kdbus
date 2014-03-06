@@ -117,26 +117,26 @@ kdbus_hello_registrar(const char *path, const char *name,
 	struct kdbus_item *item, *items;
 	size_t i, size;
 
-	size = KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, policy.name) + strlen(name) + 1)
-		+ num_access * KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, policy.access) +
+	size = KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, str) + strlen(name) + 1)
+		+ num_access * KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, policy_access) +
 					       sizeof(struct kdbus_policy_access));
 
 	items = alloca(size);
 
 	item = items;
-	item->size = offsetof(struct kdbus_item, policy.name) + strlen(name) + 1;
+	item->size = offsetof(struct kdbus_item, str) + strlen(name) + 1;
 	item->type = KDBUS_ITEM_NAME;
 	strcpy(item->str, name);
 	item = KDBUS_ITEM_NEXT(item);
 
 	for (i = 0; i < num_access; i++) {
-		item->size = offsetof(struct kdbus_item, policy.access) +
+		item->size = offsetof(struct kdbus_item, policy_access) +
 			     sizeof(struct kdbus_policy_access);
 		item->type = KDBUS_ITEM_POLICY_ACCESS;
 
-		item->policy.access.type = access[i].type;
-		item->policy.access.access = access[i].access;
-		item->policy.access.id = access[i].id;
+		item->policy_access.type = access[i].type;
+		item->policy_access.access = access[i].access;
+		item->policy_access.id = access[i].id;
 
 		item = KDBUS_ITEM_NEXT(item);
 	}
