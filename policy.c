@@ -290,12 +290,13 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 {
 	struct kdbus_policy_db_cache_entry *ce;
 
-	ce = kzalloc(sizeof(*ce), GFP_KERNEL);
+	ce = kmalloc(sizeof(*ce), GFP_KERNEL);
 	if (!ce)
 		return NULL;
 
 	ce->conn_a = conn_a;
 	ce->conn_b = conn_b;
+	INIT_HLIST_NODE(&ce->hentry);
 
 	return ce;
 }
