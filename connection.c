@@ -1860,27 +1860,36 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	struct kdbus_bus *bus;
 	size_t seclabel_len = 0;
 	LIST_HEAD(notify_list);
+	bool is_policy_holder;
+	bool is_activator;
+	bool is_monitor;
 	int ret;
 
 	bus = ep->bus;
 
 	BUG_ON(*c);
 
-	/* can't be activator and monitor at the same time */
-	if (hello->conn_flags & KDBUS_HELLO_ACTIVATOR &&
-	    hello->conn_flags & KDBUS_HELLO_MONITOR)
+	is_monitor = hello->conn_flags & KDBUS_HELLO_MONITOR;
+	is_activator = hello->conn_flags & KDBUS_HELLO_ACTIVATOR;
+	is_policy_holder = hello->conn_flags & KDBUS_HELLO_POLICY_HOLDER;
+
+	/* can't be activator or policy holder and monitor at the same time */
+	if (is_monitor && (is_activator || is_policy_holder))
+		return -EINVAL;
+
+	/* can't be policy holder and activator at the same time */
+	if (is_activator && is_policy_holder)
 		return -EINVAL;
 
 	/* only privileged connections can activate and monitor */
-	if ((hello->conn_flags & KDBUS_HELLO_ACTIVATOR ||
-	     hello->conn_flags & KDBUS_HELLO_MONITOR) &&
-		!kdbus_bus_uid_is_privileged(bus))
+	if (!kdbus_bus_uid_is_privileged(bus) &&
+	    (is_activator || is_policy_holder || is_monitor))
 		return -EPERM;
 
 	KDBUS_ITEM_FOREACH(item, hello, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
-			if (!(hello->conn_flags & KDBUS_HELLO_ACTIVATOR))
+			if (!is_activator)
 				return -EINVAL;
 
 			if (activator_name)
@@ -1939,22 +1948,27 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		}
 	}
 
-	if ((hello->conn_flags & KDBUS_HELLO_ACTIVATOR) && !activator_name)
+	if (is_activator && !activator_name)
 		return -EINVAL;
 
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn)
 		return -ENOMEM;
 
-	if (hello->conn_flags & KDBUS_HELLO_ACTIVATOR) {
+	if (is_activator) {
 		if (!bus->policy_db) {
 			ret = kdbus_policy_db_new(&bus->policy_db);
 			if (ret < 0)
 				goto exit_free_conn;
 		}
 
+		/*
+		 * Policy holders may install any number of names, and
+		 * are allowed to use wildcards as well.
+		 */
 		ret = kdbus_policy_set(bus->policy_db, hello->items,
-				       hello->size, 1, false, conn);
+				       hello->size, is_policy_holder ? 0 : 1,
+				       is_policy_holder, conn);
 		if (ret < 0)
 			goto exit_free_conn;
 	}
@@ -2021,7 +2035,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_free_pool;
 	}
 
-	if (hello->conn_flags & KDBUS_HELLO_MONITOR) {
+	if (is_monitor) {
 		mutex_lock(&bus->lock);
 		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
 		mutex_unlock(&bus->lock);

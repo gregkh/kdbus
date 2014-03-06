@@ -502,13 +502,18 @@ enum kdbus_policy_type {
  * @KDBUS_HELLO_ACTIVATOR:	Special-purpose connection which registers
  *				a well-know name for a process to be started
  *				when traffic arrives
+ * @KDBUS_HELLO_POLICY_HOLDER:	Special-purpose connection which registers
+ *				policy entries for one or multiple names. The
+ *				provided names are not activated, and are not
+ *				registered with the name database
  * @KDBUS_HELLO_MONITOR:	Special-purpose connection to monitor
  *				bus traffic
  */
 enum kdbus_hello_flags {
 	KDBUS_HELLO_ACCEPT_FD		=  1 <<  0,
 	KDBUS_HELLO_ACTIVATOR		=  1 <<  1,
-	KDBUS_HELLO_MONITOR		=  1 <<  2,
+	KDBUS_HELLO_POLICY_HOLDER	=  1 <<  2,
+	KDBUS_HELLO_MONITOR		=  1 <<  3,
 };
 
 /**
