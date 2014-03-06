@@ -1790,19 +1790,37 @@ exit:
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  struct kdbus_cmd_conn_update *cmd_update)
+			  struct kdbus_cmd_conn_update *cmd)
 {
+	bool policy_provided = false;
 	struct kdbus_item *item;
+	int ret;
 
-	KDBUS_ITEM_FOREACH(item, cmd_update, items) {
+	KDBUS_ITEM_FOREACH(item, cmd, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
 			conn->attach_flags = item->data64[0];
 			break;
+		case KDBUS_ITEM_NAME:
+		case KDBUS_ITEM_POLICY_ACCESS:
+			policy_provided = true;
+			break;
 		}
 	}
 
-	return 0;
+	if (!policy_provided)
+		return 0;
+
+	if (!conn->bus->policy_db) {
+		ret = kdbus_policy_db_new(&conn->bus->policy_db);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = kdbus_policy_set(conn->bus->policy_db, cmd->items,
+			       cmd->size, 1, false, conn);
+
+	return ret;
 }
 
 /**
