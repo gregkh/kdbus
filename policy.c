@@ -266,21 +266,20 @@ static bool kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
 }
 
 static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
-					    struct kdbus_conn *conn_src,
 					    struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
 	struct kdbus_policy_db_entry *e;
 	int ret = -EPERM;
 
-	mutex_lock(&conn_src->lock);
-	list_for_each_entry(name_entry, &conn_src->names_list, conn_entry) {
+	mutex_lock(&conn_dst->lock);
+	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
 		e = __kdbus_policy_lookup(db, name_entry->name, hash, true);
 		if (kdbus_policy_check_access(e, KDBUS_POLICY_TALK))
 			ret = 0;
 	}
-	mutex_unlock(&conn_src->lock);
+	mutex_unlock(&conn_dst->lock);
 
 	return ret;
 }
@@ -341,7 +340,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	 * a hash table entry if send access is granted.
 	 */
 	mutex_lock(&db->entries_lock);
-	ret = __kdbus_policy_check_talk_access(db, conn_src, conn_dst);
+	ret = __kdbus_policy_check_talk_access(db, conn_dst);
 	if (ret == 0) {
 		ce = kdbus_policy_cache_entry_new(conn_src, conn_dst);
 		if (!ce) {
