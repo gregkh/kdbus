@@ -572,7 +572,11 @@ struct kdbus_cmd_hello {
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
-/* Flags for KDBUS_CMD_{BUS,EP,NS}_MAKE */
+/**
+ * enum kdbus_make_flags - Flags for KDBUS_CMD_{BUS,EP,NS}_MAKE
+ * @KDBUS_MAKE_ACCESS_GROUP:	Make the device node group-accessible
+ * @KDBUS_MAKE_ACCESS_WORLD:	Make the device node world-accessible
+ */
 enum kdbus_make_flags {
 	KDBUS_MAKE_ACCESS_GROUP		= 1 <<  0,
 	KDBUS_MAKE_ACCESS_WORLD		= 1 <<  1,
