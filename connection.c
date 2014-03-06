@@ -1145,21 +1145,24 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
+	struct kdbus_bus *bus;
 	bool sync;
 	int ret;
 
-	mutex_lock(&ep->bus->lock);
+	bus = ep->bus;
+
+	mutex_lock(&bus->lock);
 	if (unlikely(ep->bus->disconnected)) {
 		mutex_unlock(&ep->bus->lock);
 		return -ESHUTDOWN;
 	}
-	mutex_unlock(&ep->bus->lock);
+	mutex_unlock(&bus->lock);
 
 	sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 
 	/* assign domain-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
-	kmsg->seq = atomic64_inc_return(&ep->bus->domain->msg_seq_last);
+	kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
 
 	/* non-kernel senders append credentials/metadata */
 	if (conn_src) {
@@ -1172,8 +1175,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		unsigned int i;
 
-		mutex_lock(&ep->bus->lock);
-		hash_for_each(ep->bus->conn_hash, i, conn_dst, hentry) {
+		mutex_lock(&bus->lock);
+		hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
 			if (conn_dst->id == msg->src_id)
 				continue;
 
@@ -1201,13 +1204,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 			kdbus_conn_queue_insert(conn_dst, conn_src, kmsg, NULL);
 		}
-		mutex_unlock(&ep->bus->lock);
+		mutex_unlock(&bus->lock);
 
 		return 0;
 	}
 
 	/* direct message */
-	ret = kdbus_conn_get_conn_dst(ep->bus, kmsg, &conn_dst);
+	ret = kdbus_conn_get_conn_dst(bus, kmsg, &conn_dst);
 	if (ret < 0)
 		return ret;
 
@@ -1247,8 +1250,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 
 		/* ... otherwise, ask the policy DB for permission */
-		if (!allowed && ep->bus->policy_db) {
-			ret = kdbus_policy_check_talk_access(ep->bus->policy_db,
+		if (!allowed && bus->policy_db) {
+			ret = kdbus_policy_check_talk_access(bus->policy_db,
 							     conn_src, conn_dst);
 			if (ret < 0)
 				goto exit_unref;
@@ -1340,10 +1343,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 * Monitor connections get all messages; ignore possible errors
 	 * when sending messages to monitor connections.
 	 */
-	mutex_lock(&ep->bus->lock);
-	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry)
+	mutex_lock(&bus->lock);
+	list_for_each_entry(c, &bus->monitors_list, monitor_entry)
 		kdbus_conn_queue_insert(c, NULL, kmsg, NULL);
-	mutex_unlock(&ep->bus->lock);
+	mutex_unlock(&bus->lock);
 
 	if (sync) {
 		int r;
