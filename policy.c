@@ -360,6 +360,31 @@ exit_unlock_entries:
 	return ret;
 }
 
+/**
+ * kdbus_policy_check_see_access() - Check whether the current task is allowed
+ * 				     to see a given name
+ * @db:		The policy database
+ * @name:	The name
+ *
+ * Return: 0 if permission to see the name is granted, -EPERM otherwise
+ */
+int kdbus_policy_check_see_access(struct kdbus_policy_db *db,
+				  const char *name)
+{
+	struct kdbus_policy_db_entry *e;
+	int ret = -EPERM;
+	u32 hash;
+
+	hash = kdbus_str_hash(name);
+	mutex_lock(&db->entries_lock);
+	e = __kdbus_policy_lookup(db, name, hash, true);
+	if (kdbus_policy_check_access(e, KDBUS_POLICY_SEE))
+		ret = 0;
+	mutex_unlock(&db->entries_lock);
+
+	return ret;
+}
+
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 					void *conn)
 {

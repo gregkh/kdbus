@@ -683,8 +683,20 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	size_t p = *pos;
 	size_t nlen = 0;
 
-	if (e)
+	if (e) {
 		nlen = strlen(e->name) + 1;
+
+		/*
+		 * Check policy, if the endpoint of the connection has a db.
+		 * Note that policy DBs instanciated along with connections
+		 * don't have SEE rules, so it's sufficient to check the
+		 * endpoint's database.
+		 */
+		if (conn->ep->policy_db &&
+		    kdbus_policy_check_see_access(conn->ep->policy_db,
+						  e->name) < 0)
+				return 0;
+	}
 
 	if (write) {
 		int ret;
