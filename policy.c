@@ -239,22 +239,33 @@ static bool kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
 				      unsigned int access)
 {
 	struct kdbus_policy_db_entry_access *a;
-	u64 uid = from_kuid(current_user_ns(), current_uid());
-	u64 gid = from_kgid(current_user_ns(), current_gid());
+	struct group_info *group_info;
+	struct user_namespace *ns;
+	const struct cred *cred;
+	uid_t uid;
+	int i;
 
 	if (!db_entry)
 		return false;
+
+	cred = current_cred();
+	ns = cred->user_ns;
+	group_info = cred->group_info;
+	uid = from_kuid(ns, cred->uid);
 
 	list_for_each_entry(a, &db_entry->access_list, list) {
 		if (a->access >= access) {
 			switch (a->type) {
 			case KDBUS_POLICY_ACCESS_USER:
-				if (uid == a->id)
+				if (a->id == uid)
 					return true;
 				break;
 			case KDBUS_POLICY_ACCESS_GROUP:
-				if (gid == a->id)
-					return true;
+				for (i = 0; i < group_info->ngroups; i++) {
+					kgid_t gid = GROUP_AT(group_info, i);
+					if (a->id == from_kgid_munged(ns, gid))
+						return true;
+				}
 				break;
 			case KDBUS_POLICY_ACCESS_WORLD:
 				return true;
