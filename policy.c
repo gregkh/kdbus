@@ -152,6 +152,9 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 	struct hlist_node *tmp;
 	unsigned int i;
 
+	if (!db)
+		return;
+
 	/* purge entries */
 	mutex_lock(&db->entries_lock);
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
