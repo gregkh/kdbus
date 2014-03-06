@@ -691,10 +691,15 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		 * Note that policy DBs instanciated along with connections
 		 * don't have SEE rules, so it's sufficient to check the
 		 * endpoint's database.
+		 *
+		 * The lock for the policy db is held across all calls of
+		 * kdbus_name_list_all(), so the entries in both writing
+		 * and non-writing runs of kdbus_name_list_write() are the
+		 * same.
 		 */
 		if (conn->ep->policy_db &&
-		    kdbus_policy_check_see_access(conn->ep->policy_db,
-						  e->name) < 0)
+		    kdbus_policy_check_see_access_unlocked(conn->ep->policy_db,
+							   e->name) < 0)
 				return 0;
 	}
 
@@ -812,12 +817,18 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			struct kdbus_cmd_name_list *cmd)
 {
+	struct kdbus_policy_db *policy_db;
 	struct kdbus_name_list list = {};
 	size_t size, off, pos;
 	int ret;
 
+	policy_db = conn->ep->policy_db;
+
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->entries_lock);
+
+	if (policy_db)
+		mutex_lock(&policy_db->entries_lock);
 
 	/* size of header */
 	size = sizeof(struct kdbus_name_list);
@@ -853,6 +864,9 @@ exit_pool_free:
 	if (ret < 0)
 		kdbus_pool_free_range(conn->pool, off);
 exit_unlock:
+	if (policy_db)
+		mutex_unlock(&policy_db->entries_lock);
+
 	mutex_unlock(&reg->entries_lock);
 	mutex_unlock(&conn->bus->lock);
 

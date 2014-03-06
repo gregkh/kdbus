@@ -30,20 +30,6 @@
 #define KDBUS_POLICY_HASH_SIZE	64
 
 /**
- * struct kdbus_policy_db - policy database
- * @entries_hash:	Hashtable of entries
- * @send_access_hash:	Hashtable of send access elements
- * @entries_lock:	Mutex to protect the database's access entries
- * @cache_lock:		Mutex to protect the database's cache
- */
-struct kdbus_policy_db {
-	DECLARE_HASHTABLE(entries_hash, 6);
-	DECLARE_HASHTABLE(send_access_hash, 6);
-	struct mutex entries_lock;
-	struct mutex cache_lock;
-};
-
-/**
  * struct kdbus_policy_db_cache_entry - a cached entry
  * @conn_a:		Connection A
  * @conn_b:		Connection B
@@ -379,21 +365,18 @@ exit_unlock_entries:
  *
  * Return: 0 if permission to see the name is granted, -EPERM otherwise
  */
-int kdbus_policy_check_see_access(struct kdbus_policy_db *db,
-				  const char *name)
+int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
+					   const char *name)
 {
 	struct kdbus_policy_db_entry *e;
-	int ret = -EPERM;
 	u32 hash;
 
 	hash = kdbus_str_hash(name);
-	mutex_lock(&db->entries_lock);
 	e = __kdbus_policy_lookup(db, name, hash, true);
 	if (kdbus_policy_check_access(e, KDBUS_POLICY_SEE))
-		ret = 0;
-	mutex_unlock(&db->entries_lock);
+		return 0;
 
-	return ret;
+	return -EPERM;
 }
 
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
