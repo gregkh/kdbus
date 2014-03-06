@@ -594,6 +594,13 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 
 	hash = kdbus_str_hash(cmd->name);
 
+	if (conn->bus->policy_db &&
+	    !kdbus_policy_check_own_access(conn->bus->policy_db,
+					   conn, cmd->name)) {
+		ret = -EPERM;
+		goto exit_unref_conn;
+	}
+
 	if (conn->ep->policy_db &&
 	    !kdbus_policy_check_own_access(conn->ep->policy_db,
 					   conn, cmd->name)) {
