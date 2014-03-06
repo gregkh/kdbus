@@ -85,9 +85,18 @@ Terminology
     actually be queued into the connections's receive buffer.
 
   Policy:
-    Buses can upload a set of policy rules, defining who can list, talk to, or
-    register a well-know name on the bus. The policy is uploaded by the owner
-    of the bus.
+    Buses and custom endpoints can upload a set of policy rules, defining who
+    can see, talk to, or register a well-know name on the bus. The policy is
+    uploaded by the owner of the bus or the custom endpoint.
+    Access rules to allow who can see a name on the bus are only checked on
+    custom endpoints.
+
+  Wildcard names:
+    Policies may be defined with names that end on '.*'. When matching a
+    full-qualified name against such a wildcard entry, the last part of the
+    name is removed, and checked against the wildcard name without the trailing
+    '.*'.
+
 
 ===============================================================================
 Device Node Layout
