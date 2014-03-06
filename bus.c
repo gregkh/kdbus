@@ -24,9 +24,10 @@
 
 #include "bus.h"
 #include "connection.h"
+#include "domain.h"
 #include "endpoint.h"
 #include "names.h"
-#include "domain.h"
+#include "policy.h"
 
 /**
  * kdbus_bus_uid_is_privileged() - check whether the current user is a
@@ -72,6 +73,7 @@ static void __kdbus_bus_free(struct kref *kref)
 	kdbus_domain_user_unref(bus->user);
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
+	kdbus_policy_db_free(bus->policy_db);
 	kfree(bus->name);
 	kfree(bus);
 }
