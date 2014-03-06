@@ -71,7 +71,6 @@ static int run_test(void)
 	}
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.head.flags = KDBUS_MAKE_POLICY_OPEN;
 	bus_make.bs.size = sizeof(bus_make.bs);
 	bus_make.bs.type = KDBUS_ITEM_BLOOM_PARAMETER;
 	bus_make.bs.bloom.size = 64;

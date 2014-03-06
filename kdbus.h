@@ -576,7 +576,6 @@ struct kdbus_cmd_hello {
 enum kdbus_make_flags {
 	KDBUS_MAKE_ACCESS_GROUP		= 1 <<  0,
 	KDBUS_MAKE_ACCESS_WORLD		= 1 <<  1,
-	KDBUS_MAKE_POLICY_OPEN		= 1 <<  2,
 };
 
 /**
