@@ -33,7 +33,6 @@
  * @lock:		Endpoint data lock
  * @user:		Custom enpoints account against an anonymous user
  * @policy_db:		Uploaded policy
- * @policy_open:	Default endpoint policy
  *
  * An enpoint offers access to a bus; the default device node name is "bus".
  * Additional custom endpoints to the same bus can be created and they can
@@ -55,7 +54,6 @@ struct kdbus_ep {
 	struct mutex lock;
 	struct kdbus_domain_user *user;
 	struct kdbus_policy_db *policy_db;
-	bool policy_open:1;
 };
 
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name,

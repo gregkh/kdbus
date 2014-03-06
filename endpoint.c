@@ -137,7 +137,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
- * @policy_open:	Default policy of allow or deny
+ * @policy:		Whether or not the endpoint should have a policy db
  * @ep:			Pointer to a reference where the new endpoint is stored
  *
  * This function will create a new enpoint with the given
@@ -147,7 +147,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  */
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		 umode_t mode, kuid_t uid, kgid_t gid,
-		 bool policy_open, struct kdbus_ep **ep)
+		 bool policy, struct kdbus_ep **ep)
 {
 	struct kdbus_ep *e;
 	int ret;
@@ -207,8 +207,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	}
 
 	/* install policy */
-	e->policy_open = policy_open;
-	if (!policy_open) {
+	if (policy) {
 		ret = kdbus_policy_db_new(&e->policy_db);
 		if (ret < 0)
 			goto exit_dev_unregister;

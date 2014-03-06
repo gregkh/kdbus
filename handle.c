@@ -457,10 +457,9 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_ep_new(handle->ep->bus,
-				   name, mode, current_fsuid(), gid,
-				   make->flags & KDBUS_MAKE_POLICY_OPEN, &ep);
-
+		/* custom endpoints always have a policy db */
+		ret = kdbus_ep_new(handle->ep->bus, name, mode,
+				   current_fsuid(), gid, true, &ep);
 		/*
 		 * Get an anonymous user to account messages against; custom
 		 * endpoint users do not share the budget with the ordinary
