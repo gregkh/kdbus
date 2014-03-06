@@ -1249,8 +1249,11 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				kdbus_conn_reply_free(r);
 		}
 
+		if (allowed)
+			goto meta_append;
+
 		/* ... otherwise, ask the policy DB for permission */
-		if (!allowed && bus->policy_db) {
+		if (bus->policy_db) {
 			ret = kdbus_policy_check_talk_access(bus->policy_db,
 							     conn_src, conn_dst);
 			if (ret < 0)
@@ -1308,6 +1311,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	BUG_ON(reply_wait && reply_wake);
 
+meta_append:
 	if (conn_src) {
 		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 					conn_dst->attach_flags);
