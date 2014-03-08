@@ -763,6 +763,43 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+/* kdbus endpoint commands for endpoint owners */
+static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
+					void __user *buf)
+{
+	struct kdbus_handle *handle = file->private_data;
+	struct kdbus_ep *ep = handle->ep_owner;
+	void *p = NULL;
+	long ret = 0;
+
+	switch (cmd) {
+	case KDBUS_CMD_EP_UPDATE: {
+		struct kdbus_cmd_update *cmd;
+
+		/* update flags for a connection */
+		ret = kdbus_memdup_user(buf, &p, NULL,
+					sizeof(struct kdbus_cmd_update),
+					sizeof(struct kdbus_cmd_update) +
+						KDBUS_UPDATE_MAX_SIZE);
+		if (ret < 0)
+			break;
+
+		cmd = p;
+		ret = kdbus_ep_policy_set(ep, cmd->items,
+					  KDBUS_ITEMS_SIZE(cmd, items));
+		break;
+	}
+
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	kfree(p);
+
+	return ret;
+}
+
 static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 			       unsigned long arg)
 {
@@ -778,6 +815,9 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 
 	case KDBUS_HANDLE_EP_CONNECTED:
 		return kdbus_handle_ioctl_ep_connected(file, cmd, argp);
+
+	case KDBUS_HANDLE_EP_OWNER:
+		return kdbus_handle_ioctl_ep_owner(file, cmd, argp);
 
 	default:
 		return -EBADFD;
