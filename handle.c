@@ -464,8 +464,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 
 		ret = kdbus_ep_policy_set(ep, make->items,
-					  offsetof(struct kdbus_cmd_make,
-						   items));
+					  KDBUS_ITEMS_SIZE(make, items));
 		if (ret < 0)
 			break;
 
