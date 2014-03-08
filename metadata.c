@@ -185,7 +185,7 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 	creds.starttime = timespec_to_ns(&current->start_time);
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_CREDS,
-				      &creds, sizeof(struct kdbus_creds));
+				      &creds, sizeof(creds));
 }
 
 static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
@@ -214,7 +214,7 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 
 		item->type = KDBUS_ITEM_NAME;
 		item->size = KDBUS_ITEM_HEADER_SIZE +
-				sizeof(struct kdbus_name) + len;
+			     sizeof(struct kdbus_name) + len;
 		item->name.flags = e->flags;
 		memcpy(item->name.name, e->name, len);
 	}
@@ -361,7 +361,7 @@ static int kdbus_meta_append_audit(struct kdbus_meta *meta)
 	audit.sessionid = audit_get_sessionid(current);
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_AUDIT,
-				      &audit, sizeof(struct kdbus_audit));
+				      &audit, sizeof(audit));
 }
 #endif
 
