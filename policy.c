@@ -404,14 +404,14 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 }
 
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
-					void *conn)
+					void *owner)
 {
 	struct kdbus_policy_db_entry *e;
 	struct hlist_node *tmp;
 	int i;
 
 	hash_for_each_safe(db->send_access_hash, i, tmp, e, hentry)
-		if (e->owner == conn) {
+		if (e->owner == owner) {
 			hash_del(&e->hentry);
 			kdbus_policy_entry_free(e);
 		}
@@ -420,13 +420,13 @@ static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 /**
  * kdbus_policy_remove_owner() - remove all entries related to a connection
  * @db:		The policy database
- * @conn:	The connection which items to remove
+ * @owner:	The connection which items to remove
  */
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
-			       void *conn)
+			       void *owner)
 {
 	mutex_lock(&db->entries_lock);
-	__kdbus_policy_remove_owner(db, conn);
+	__kdbus_policy_remove_owner(db, owner);
 	mutex_unlock(&db->entries_lock);
 }
 

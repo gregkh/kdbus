@@ -43,7 +43,7 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
 			      struct kdbus_conn *conn);
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
-			       void *conn);
+			       void *owner);
 int kdbus_policy_set(struct kdbus_policy_db *db,
 		     const struct kdbus_item *items,
 		     size_t items_container_size,
