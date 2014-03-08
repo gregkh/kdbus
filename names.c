@@ -39,7 +39,7 @@
  */
 struct kdbus_name_queue_item {
 	struct kdbus_conn *conn;
-	struct kdbus_name_entry	*entry;
+	struct kdbus_name_entry *entry;
 	struct list_head entry_entry;
 	struct list_head conn_entry;
 	u64 flags;
@@ -628,7 +628,7 @@ exit_unref_conn:
  */
 int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
-			   struct kdbus_cmd_name *cmd)
+			   const struct kdbus_cmd_name *cmd)
 {
 	struct kdbus_bus *bus = conn->bus;
 	struct kdbus_name_entry *e;

@@ -62,5 +62,5 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep);
 void kdbus_ep_disconnect(struct kdbus_ep *ep);
-int kdbus_ep_make_user(struct kdbus_cmd_make *make, char **name);
+int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name);
 #endif

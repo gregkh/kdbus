@@ -62,7 +62,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_cmd_name *cmd);
 int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
-			   struct kdbus_cmd_name *cmd);
+			   const struct kdbus_cmd_name *cmd);
 int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			struct kdbus_cmd_name_list *cmd);

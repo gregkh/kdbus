@@ -72,10 +72,11 @@ struct kdbus_bus {
 	struct kdbus_policy_db *policy_db;
 };
 
-int kdbus_bus_make_user(struct kdbus_cmd_make *make,
+int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 			char **name, struct kdbus_bloom_parameter *bloom);
 int kdbus_bus_new(struct kdbus_domain *domain,
-		  struct kdbus_cmd_make *make, const char *name,
+		  const struct kdbus_cmd_make *make,
+		  const char *name,
 		  const struct kdbus_bloom_parameter *bloom,
 		  umode_t mode, kuid_t uid, kgid_t gid,
 		  struct kdbus_bus **bus);

@@ -244,7 +244,7 @@ exit_free:
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_ep_make_user(struct kdbus_cmd_make *make, char **name)
+int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name)
 {
 	const struct kdbus_item *item;
 	const char *n = NULL;

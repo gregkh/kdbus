@@ -361,8 +361,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		struct kdbus_bus *bus = conn->bus;
 
 		mutex_lock(&bus->lock);
-		target_conn = kdbus_bus_find_conn_by_id(bus,
-							cmd->owner_id);
+		target_conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
 		mutex_unlock(&bus->lock);
 
 		if (!target_conn) {

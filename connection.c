@@ -1804,10 +1804,10 @@ exit:
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  struct kdbus_cmd_conn_update *cmd)
+			  const struct kdbus_cmd_conn_update *cmd)
 {
+	const struct kdbus_item *item;
 	bool policy_provided = false;
-	struct kdbus_item *item;
 	int ret;
 
 	KDBUS_ITEM_FOREACH(item, cmd, items) {
