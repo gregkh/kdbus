@@ -21,10 +21,9 @@
  * @kref:		Reference counter
  * @disconnected:	Invalidated data
  * @name:		Name of the domain
- * @parent:		Parent domain
- * @domain_list:	List of child domains
- * @id:			Global id of this domain
  * @devpath:		/dev base directory path
+ * @parent:		Parent domain
+ * @id:			Global id of this domain
  * @major:		Device major number for all nodes
  * @mode:		Device node access mode
  * @idr:		Map of endpoint minors to buses
@@ -32,6 +31,7 @@
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
+ * @domain_list:	List of child domains
  * @domain_entry:	Entry in parent domain
  * @bus_list:		Buses in this domain
  * @user_hash:		Accounting of user resources
@@ -51,10 +51,9 @@ struct kdbus_domain {
 	struct kref kref;
 	bool disconnected;
 	const char *name;
-	struct kdbus_domain *parent;
-	struct list_head domain_list;
-	u64 id;
 	const char *devpath;
+	struct kdbus_domain *parent;
+	u64 id;
 	unsigned int major;
 	umode_t mode;
 	struct idr idr;
@@ -62,6 +61,7 @@ struct kdbus_domain {
 	struct mutex lock;
 	u64 bus_seq_last;
 	atomic64_t msg_seq_last;
+	struct list_head domain_list;
 	struct list_head domain_entry;
 	struct list_head bus_list;
 	DECLARE_HASHTABLE(user_hash, 6);
