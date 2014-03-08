@@ -465,8 +465,10 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		ret = kdbus_ep_policy_set(ep, make->items,
 					  KDBUS_ITEMS_SIZE(make, items));
-		if (ret < 0)
+		if (ret < 0) {
+			kdbus_ep_unref(ep);
 			break;
+		}
 
 		/*
 		 * Get an anonymous user to account messages against; custom
@@ -481,6 +483,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		handle->ep_owner = ep;
 		handle->type = KDBUS_HANDLE_EP_OWNER;
 		break;
 	}
