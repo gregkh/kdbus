@@ -1832,7 +1832,9 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_policy_set(conn->bus->policy_db, cmd->items,
-			       cmd->size, 1, false, conn);
+			       cmd->size -
+				 offsetof(struct kdbus_cmd_conn_update, items),
+			       1, false, conn);
 
 	return ret;
 }
