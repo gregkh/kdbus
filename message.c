@@ -248,7 +248,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
-			     struct kdbus_msg __user *msg,
+			     const struct kdbus_msg __user *msg,
 			     struct kdbus_kmsg **kmsg)
 {
 	struct kdbus_kmsg *m;
