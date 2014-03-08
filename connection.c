@@ -1804,7 +1804,7 @@ exit:
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  const struct kdbus_cmd_conn_update *cmd)
+			  const struct kdbus_cmd_update *cmd)
 {
 	const struct kdbus_item *item;
 	bool policy_provided = false;

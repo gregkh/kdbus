@@ -631,9 +631,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_CONN_UPDATE:
 		/* update flags for a connection */
 		ret = kdbus_memdup_user(buf, &p, NULL,
-					sizeof(struct kdbus_cmd_conn_update),
-					sizeof(struct kdbus_cmd_conn_info) +
-						KDBUS_CONN_UPDATE_MAX_SIZE);
+					sizeof(struct kdbus_cmd_update),
+					sizeof(struct kdbus_cmd_update) +
+						KDBUS_UPDATE_MAX_SIZE);
 		if (ret < 0)
 			break;
 

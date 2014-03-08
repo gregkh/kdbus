@@ -40,8 +40,8 @@
 /* maximum size of hello data */
 #define KDBUS_HELLO_MAX_SIZE			SZ_32K
 
-/* maximum size for connection update */
-#define KDBUS_CONN_UPDATE_MAX_SIZE		SZ_32K
+/* maximum size for update commands */
+#define KDBUS_UPDATE_MAX_SIZE			SZ_32K
 
 /* maximum size of match data */
 #define KDBUS_MATCH_MAX_SIZE			SZ_32K

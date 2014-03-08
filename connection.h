@@ -111,7 +111,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_conn_info *cmd_info,
 			size_t size);
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  const struct kdbus_cmd_conn_update *cmd_update);
+			  const struct kdbus_cmd_update *cmd_update);
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
