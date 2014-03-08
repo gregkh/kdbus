@@ -222,19 +222,18 @@ void kdbus_policy_db_dump(struct kdbus_policy_db *db)
 }
 
 static int kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
+				     const struct cred *cred,
 				     unsigned int access)
 {
 	struct kdbus_policy_db_entry_access *a;
 	struct group_info *group_info;
 	struct user_namespace *ns;
-	const struct cred *cred;
 	uid_t uid;
 	int i;
 
 	if (!db_entry)
 		return -EPERM;
 
-	cred = current_cred();
 	ns = cred->user_ns;
 	group_info = cred->group_info;
 	uid = from_kuid(ns, cred->uid);
@@ -284,7 +283,7 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 
 	mutex_lock(&db->entries_lock);
 	e = __kdbus_policy_lookup(db, name, hash, true);
-	ret = kdbus_policy_check_access(e, KDBUS_POLICY_OWN);
+	ret = kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_OWN);
 	mutex_unlock(&db->entries_lock);
 
 	return ret;
@@ -301,7 +300,8 @@ static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
 		e = __kdbus_policy_lookup(db, name_entry->name, hash, true);
-		if (kdbus_policy_check_access(e, KDBUS_POLICY_TALK) == 0) {
+		if (kdbus_policy_check_access(e, current_cred(),
+					      KDBUS_POLICY_TALK) == 0) {
 			ret = 0;
 			break;
 		}
@@ -403,7 +403,7 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 
 	hash = kdbus_str_hash(name);
 	e = __kdbus_policy_lookup(db, name, hash, true);
-	return kdbus_policy_check_access(e, KDBUS_POLICY_SEE);
+	return kdbus_policy_check_access(e, current_cred(), KDBUS_POLICY_SEE);
 }
 
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,

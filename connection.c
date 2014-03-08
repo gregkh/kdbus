@@ -1990,6 +1990,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->reply_list);
 	atomic_set(&conn->reply_count, 0);
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
+	conn->cred = current_cred();
 
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);

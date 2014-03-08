@@ -50,7 +50,8 @@
  * @owner_meta:		The connection's metadata/credentials supplied by
  *			HELLO
  * @pool:		The user's buffer to receive messages
- * @user:		Owner of the connection;
+ * @user:		Owner of the connection
+ * @cred:		The credentials of the connection at creation time
  * @names:		Number of owned well-known names
  * @msg_count:		Number of queued messages
  * @reply_count:	Number of requests this connection has issued, and
@@ -83,6 +84,7 @@ struct kdbus_conn {
 	struct kdbus_meta *owner_meta;
 	struct kdbus_pool *pool;
 	struct kdbus_domain_user *user;
+	const struct cred *cred;
 	size_t names;
 	size_t msg_count;
 	atomic_t reply_count;
