@@ -456,7 +456,7 @@ static int kdbus_pool_copy_file(struct page *p, size_t start,
 
 /* copy data to a page in the receiver's pool */
 static int kdbus_pool_copy_data(struct page *p, size_t start,
-				void __user *from, size_t count)
+				const void __user *from, size_t count)
 {
 	unsigned long remain;
 	char *kaddr;
@@ -479,8 +479,8 @@ static int kdbus_pool_copy_data(struct page *p, size_t start,
 /* copy data to the receiver's pool */
 static size_t
 kdbus_pool_copy(struct file *f_dst, size_t off_dst,
-		void __user *data, struct file *f_src, size_t off_src,
-		size_t len)
+		const void __user *data, struct file *f_src,
+		size_t off_src, size_t len)
 {
 	struct address_space *mapping = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping->a_ops;
@@ -543,7 +543,7 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
-			      void __user *data, size_t len)
+			      const void __user *data, size_t len)
 {
 	return kdbus_pool_copy(pool->f, off, data, NULL, 0, len);
 }
@@ -562,7 +562,7 @@ ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
-			 void *data, size_t len)
+			 const void *data, size_t len)
 {
 	mm_segment_t old_fs;
 	ssize_t ret;
