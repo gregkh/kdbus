@@ -238,6 +238,28 @@ exit_free:
 }
 
 /**
+ * kdbus_ep_policy_set() - set policy for an endpoint
+ * @ep:			The endpoint
+ * @items:		The kdbus items containing policy information
+ * @items_size:		The total length of the items
+ *
+ * Return: 0 on success, negative errno on failure.
+ */
+int kdbus_ep_policy_set(struct kdbus_ep *ep,
+			const struct kdbus_item *items,
+			size_t items_size)
+{
+	if (!ep->policy_db)
+		return -ENOTSUPP;
+
+	if (items_size == 0)
+		return 0;
+
+	return kdbus_policy_set(ep->policy_db, items, items_size,
+				0, true, ep);
+}
+
+/**
  * kdbus_ep_make_user() - create endpoint data from user data
  * @make:		The returned copy of user data
  * @name:		The name of the endpoint to create
