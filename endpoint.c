@@ -272,8 +272,9 @@ int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name)
 	const char *n = NULL;
 	int ret;
 
-	KDBUS_ITEMS_FOREACH(item, make, items) {
-		if (!KDBUS_ITEM_VALID(item, make))
+	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
+		if (!KDBUS_ITEM_VALID(item, &make->items,
+				      KDBUS_ITEMS_SIZE(make, items)))
 			return -EINVAL;
 
 		switch (item->type) {

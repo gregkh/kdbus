@@ -366,10 +366,11 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 	const char *n = NULL;
 	int ret;
 
-	KDBUS_ITEMS_FOREACH(item, cmd, items) {
+	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		size_t payload_size;
 
-		if (!KDBUS_ITEM_VALID(item, cmd))
+		if (!KDBUS_ITEM_VALID(item, &cmd->items,
+				      KDBUS_ITEMS_SIZE(cmd, items)))
 			return -EINVAL;
 
 		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;

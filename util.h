@@ -26,25 +26,23 @@
 
 /* generic access and iterators over a stream of items */
 #define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_ITEM_HEADER_SIZE + (s))
-#define KDBUS_ITEM_NEXT(item) \
-	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))
-#define KDBUS_ITEM_VALID(item, head)					\
-	((item)->size > KDBUS_ITEM_HEADER_SIZE &&			\
-	 (u8 *)(item) + (item)->size <= (u8 *)(head) + (head)->size) &&	\
-	 (u8 *)(item) >= (u8 *)(head)
-#define KDBUS_ITEMS_SIZE(head, first) \
-	(head)->size - offsetof(typeof(*head), first)
-#define KDBUS_ITEMS_FOREACH_SIZE(item, items, size)			\
-	for (item = items;						\
-	     ((u8 *)(item) < (u8 *)(items) + (size)) &&			\
-	       ((u8 *)(item) >= (u8 *)(items));				\
-	     item = KDBUS_ITEM_NEXT(item))
-#define KDBUS_ITEMS_FOREACH(item, head, first)				\
-	KDBUS_ITEMS_FOREACH_SIZE(item, (head)->first,			\
-				 KDBUS_ITEMS_SIZE(head, first))
-#define KDBUS_ITEMS_END(item, items, size)				\
-	((u8 *)item == ((u8 *)(items) + KDBUS_ALIGN8(size)))
+#define KDBUS_ITEM_SIZE(_s) KDBUS_ALIGN8(KDBUS_ITEM_HEADER_SIZE + (_s))
+#define KDBUS_ITEM_NEXT(_i) (typeof(_i))(((u8 *)_i) + KDBUS_ALIGN8((_i)->size))
+#define KDBUS_ITEMS_SIZE(_h, _is) ((_h)->size - offsetof(typeof(*_h), _is))
+
+#define KDBUS_ITEMS_FOREACH(_i, _is, _s)				\
+	for (_i = _is;							\
+	     ((u8 *)(_i) < (u8 *)(_is) + (_s)) &&			\
+	       ((u8 *)(_i) >= (u8 *)(_is));				\
+	     _i = KDBUS_ITEM_NEXT(_i))
+
+#define KDBUS_ITEM_VALID(_i, _is, _s)					\
+	((_i)->size > KDBUS_ITEM_HEADER_SIZE &&				\
+	 (u8 *)(_i) + (_i)->size <= (u8 *)(_i) + (_s) &&		\
+	 (u8 *)(_i) >= (u8 *)(_i))
+
+#define KDBUS_ITEMS_END(_i, _is, _s) \
+	((u8 *)_i == ((u8 *)(_is) + KDBUS_ALIGN8(_s)))
 
 /**
  * kdbus_size_get_user - read the size variable from user memory

@@ -251,7 +251,8 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			return -ENOMEM;
 	}
 
-	KDBUS_ITEMS_FOREACH(item, &kmsg->msg, items) {
+	KDBUS_ITEMS_FOREACH(item, kmsg->msg.items,
+			    KDBUS_ITEMS_SIZE(&kmsg->msg, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
 			char tmp[KDBUS_ITEM_HEADER_SIZE +
@@ -1810,7 +1811,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	bool policy_provided = false;
 	int ret;
 
-	KDBUS_ITEMS_FOREACH(item, cmd, items) {
+	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
 			conn->attach_flags = item->data64[0];
@@ -1887,7 +1888,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	    (is_activator || is_policy_holder || is_monitor))
 		return -EPERM;
 
-	KDBUS_ITEMS_FOREACH(item, hello, items) {
+	KDBUS_ITEMS_FOREACH(item, hello->items, KDBUS_ITEMS_SIZE(hello, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
 			if (!is_activator)
