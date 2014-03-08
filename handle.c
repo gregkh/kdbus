@@ -249,7 +249,7 @@ static int kdbus_handle_memfd(void __user *buf)
 	if (ret < 0)
 		return ret;
 
-	KDBUS_ITEM_FOREACH(item, m, items) {
+	KDBUS_ITEMS_FOREACH(item, m, items) {
 		if (!KDBUS_ITEM_VALID(item, m)) {
 			ret = -EINVAL;
 			goto exit;
@@ -287,7 +287,7 @@ static int kdbus_handle_memfd(void __user *buf)
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, m)) {
+	if (!KDBUS_ITEMS_END(item, m)) {
 		ret = -EINVAL;
 		goto exit;
 	}

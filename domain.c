@@ -366,7 +366,7 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 	const char *n = NULL;
 	int ret;
 
-	KDBUS_ITEM_FOREACH(item, cmd, items) {
+	KDBUS_ITEMS_FOREACH(item, cmd, items) {
 		size_t payload_size;
 
 		if (!KDBUS_ITEM_VALID(item, cmd))
@@ -397,7 +397,7 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, cmd))
+	if (!KDBUS_ITEMS_END(item, cmd))
 		return -EINVAL;
 
 	if (!name)

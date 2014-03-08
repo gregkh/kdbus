@@ -88,7 +88,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	bool has_name = false;
 	bool has_fds = false;
 
-	KDBUS_ITEM_FOREACH(item, msg, items) {
+	KDBUS_ITEMS_FOREACH(item, msg, items) {
 		size_t payload_size;
 
 		if (!KDBUS_ITEM_VALID(item, msg))
@@ -210,7 +210,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, msg))
+	if (!KDBUS_ITEMS_END(item, msg))
 		return -EINVAL;
 
 	/* name is needed if no ID is given */

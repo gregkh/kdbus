@@ -251,7 +251,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			return -ENOMEM;
 	}
 
-	KDBUS_ITEM_FOREACH(item, &kmsg->msg, items) {
+	KDBUS_ITEMS_FOREACH(item, &kmsg->msg, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
 			char tmp[KDBUS_ITEM_HEADER_SIZE +
@@ -1810,7 +1810,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	bool policy_provided = false;
 	int ret;
 
-	KDBUS_ITEM_FOREACH(item, cmd, items) {
+	KDBUS_ITEMS_FOREACH(item, cmd, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
 			conn->attach_flags = item->data64[0];
@@ -1832,8 +1832,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_policy_set(conn->bus->policy_db, cmd->items,
-			       cmd->size -
-				 offsetof(struct kdbus_cmd_conn_update, items),
+			       KDBUS_ITEMS_SIZE(cmd, items),
 			       1, false, conn);
 
 	return ret;
@@ -1888,7 +1887,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	    (is_activator || is_policy_holder || is_monitor))
 		return -EPERM;
 
-	KDBUS_ITEM_FOREACH(item, hello, items) {
+	KDBUS_ITEMS_FOREACH(item, hello, items) {
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
 			if (!is_activator)
@@ -1969,7 +1968,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		 * are allowed to use wildcards as well.
 		 */
 		ret = kdbus_policy_set(bus->policy_db, hello->items,
-				       hello->size - offsetof(struct kdbus_cmd_hello, items),
+				       KDBUS_ITEMS_SIZE(hello, items),
 				       is_policy_holder ? 0 : 1,
 				       is_policy_holder, conn);
 		if (ret < 0)

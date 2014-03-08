@@ -272,7 +272,7 @@ int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name)
 	const char *n = NULL;
 	int ret;
 
-	KDBUS_ITEM_FOREACH(item, make, items) {
+	KDBUS_ITEMS_FOREACH(item, make, items) {
 		if (!KDBUS_ITEM_VALID(item, make))
 			return -EINVAL;
 
@@ -300,7 +300,7 @@ int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name)
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, make))
+	if (!KDBUS_ITEMS_END(item, make))
 		return -EINVAL;
 
 	if (!n)

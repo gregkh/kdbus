@@ -28,16 +28,21 @@
 #define KDBUS_ITEM_SIZE(s) KDBUS_ALIGN8(KDBUS_ITEM_HEADER_SIZE + (s))
 #define KDBUS_ITEM_NEXT(item) \
 	(typeof(item))(((u8 *)item) + KDBUS_ALIGN8((item)->size))
-#define KDBUS_ITEM_FOREACH(item, head, first)				\
-	for (item = (head)->first;					\
-	     ((u8 *)(item) < (u8 *)(head) + (head)->size) &&		\
-		((u8 *)(item) >= (u8 *)(head));				\
-	     item = KDBUS_ITEM_NEXT(item))
 #define KDBUS_ITEM_VALID(item, head)					\
 	((item)->size > KDBUS_ITEM_HEADER_SIZE &&			\
 	 (u8 *)(item) + (item)->size <= (u8 *)(head) + (head)->size) &&	\
 	 (u8 *)(item) >= (u8 *)(head)
-#define KDBUS_ITEM_END(item, head)					\
+#define KDBUS_ITEMS_SIZE(head, first) \
+	(head)->size - offsetof(typeof(*head), first)
+#define KDBUS_ITEMS_FOREACH_SIZE(item, items, size)			\
+	for (item = items;						\
+	     ((u8 *)(item) < (u8 *)(items) + (size)) &&			\
+	       ((u8 *)(item) >= (u8 *)(items));				\
+	     item = KDBUS_ITEM_NEXT(item))
+#define KDBUS_ITEMS_FOREACH(item, head, first)				\
+	KDBUS_ITEMS_FOREACH_SIZE(item, (head)->first,			\
+				 KDBUS_ITEMS_SIZE(head, first))
+#define KDBUS_ITEMS_END(item, head)					\
 	((u8 *)item == ((u8 *)(head) + KDBUS_ALIGN8((head)->size)))
 
 /**

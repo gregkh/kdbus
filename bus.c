@@ -337,7 +337,7 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 	const struct kdbus_bloom_parameter *bl = NULL;
 	int ret;
 
-	KDBUS_ITEM_FOREACH(item, make, items) {
+	KDBUS_ITEMS_FOREACH(item, make, items) {
 		size_t payload_size;
 
 		if (!KDBUS_ITEM_VALID(item, make))
@@ -375,7 +375,7 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 		}
 	}
 
-	if (!KDBUS_ITEM_END(item, make))
+	if (!KDBUS_ITEMS_END(item, make))
 		return -EINVAL;
 
 	if (!n)

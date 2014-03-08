@@ -535,10 +535,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		}
 
 	/* Walk the list of items and look for new policies */
-	for (item = items;
-	     (u8 *) item < (u8 *) items + items_size &&
-		(u8 *) item >= (u8 *) items;
-	     item = KDBUS_ITEM_NEXT(item)) {
+	KDBUS_ITEMS_FOREACH_SIZE(item, items, items_size) {
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
 			ret = -EINVAL;
 			goto exit;

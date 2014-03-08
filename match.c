@@ -384,7 +384,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 	INIT_LIST_HEAD(&entry->rules_list);
 
-	KDBUS_ITEM_FOREACH(item, cmd, items) {
+	KDBUS_ITEMS_FOREACH(item, cmd, items) {
 		struct kdbus_match_rule *rule;
 		size_t size = item->size - offsetof(struct kdbus_item, data);
 
@@ -492,7 +492,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
 
-	if (ret == 0 && !KDBUS_ITEM_END(item, cmd))
+	if (ret == 0 && !KDBUS_ITEMS_END(item, cmd))
 		ret = -EINVAL;
 
 	if (ret == 0)
