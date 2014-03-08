@@ -88,7 +88,7 @@ static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 	kfree(e);
 }
 
-static struct kdbus_policy_db_entry *
+static const struct kdbus_policy_db_entry *
 __kdbus_policy_lookup(struct kdbus_policy_db *db,
 		      const char *name, u32 hash,
 		      bool wildcard)
@@ -221,7 +221,7 @@ void kdbus_policy_db_dump(struct kdbus_policy_db *db)
 	mutex_unlock(&db->entries_lock);
 }
 
-static int kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
+static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
 				     const struct cred *cred,
 				     unsigned int access)
 {
@@ -231,14 +231,14 @@ static int kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
 	uid_t uid;
 	int i;
 
-	if (!db_entry)
+	if (!e)
 		return -EPERM;
 
 	ns = cred->user_ns;
 	group_info = cred->group_info;
 	uid = from_kuid(ns, cred->uid);
 
-	list_for_each_entry(a, &db_entry->access_list, list) {
+	list_for_each_entry(a, &e->access_list, list) {
 		if (a->access >= access) {
 			switch (a->type) {
 			case KDBUS_POLICY_ACCESS_USER:
@@ -274,15 +274,14 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 				  struct kdbus_conn *conn,
 				  const char *name)
 {
-	struct kdbus_policy_db_entry *e;
-	u32 hash = kdbus_str_hash(name);
+	const struct kdbus_policy_db_entry *e;
 	int ret;
 
 	if (kdbus_bus_uid_is_privileged(conn->bus))
 		return 0;
 
 	mutex_lock(&db->entries_lock);
-	e = __kdbus_policy_lookup(db, name, hash, true);
+	e = __kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
 	ret = kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_OWN);
 	mutex_unlock(&db->entries_lock);
 
@@ -292,8 +291,8 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 					    struct kdbus_conn *conn_dst)
 {
+	const struct kdbus_policy_db_entry *e;
 	struct kdbus_name_entry *name_entry;
-	struct kdbus_policy_db_entry *e;
 	int ret = -EPERM;
 
 	mutex_lock(&conn_dst->lock);
@@ -398,11 +397,9 @@ exit_unlock_entries:
 int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 					   const char *name)
 {
-	struct kdbus_policy_db_entry *e;
-	u32 hash;
+	const struct kdbus_policy_db_entry *e;
 
-	hash = kdbus_str_hash(name);
-	e = __kdbus_policy_lookup(db, name, hash, true);
+	e = __kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
 	return kdbus_policy_check_access(e, current_cred(), KDBUS_POLICY_SEE);
 }
 
