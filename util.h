@@ -42,8 +42,8 @@
 #define KDBUS_ITEMS_FOREACH(item, head, first)				\
 	KDBUS_ITEMS_FOREACH_SIZE(item, (head)->first,			\
 				 KDBUS_ITEMS_SIZE(head, first))
-#define KDBUS_ITEMS_END(item, head)					\
-	((u8 *)item == ((u8 *)(head) + KDBUS_ALIGN8((head)->size)))
+#define KDBUS_ITEMS_END(item, items, size)				\
+	((u8 *)item == ((u8 *)(items) + KDBUS_ALIGN8(size)))
 
 /**
  * kdbus_size_get_user - read the size variable from user memory

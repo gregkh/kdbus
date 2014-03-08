@@ -397,7 +397,7 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 		}
 	}
 
-	if (!KDBUS_ITEMS_END(item, cmd))
+	if (!KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
 		return -EINVAL;
 
 	if (!name)

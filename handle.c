@@ -287,7 +287,7 @@ static int kdbus_handle_memfd(void __user *buf)
 		}
 	}
 
-	if (!KDBUS_ITEMS_END(item, m)) {
+	if (!KDBUS_ITEMS_END(item, m->items, KDBUS_ITEMS_SIZE(m, items))) {
 		ret = -EINVAL;
 		goto exit;
 	}

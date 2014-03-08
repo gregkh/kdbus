@@ -492,7 +492,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
 
-	if (ret == 0 && !KDBUS_ITEMS_END(item, cmd))
+	if (ret == 0 &&
+	    !KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
 		ret = -EINVAL;
 
 	if (ret == 0)

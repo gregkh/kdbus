@@ -210,7 +210,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 		}
 	}
 
-	if (!KDBUS_ITEMS_END(item, msg))
+	if (!KDBUS_ITEMS_END(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)))
 		return -EINVAL;
 
 	/* name is needed if no ID is given */
