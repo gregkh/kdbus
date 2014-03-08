@@ -37,9 +37,9 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst);
-bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
-				   struct kdbus_conn *conn,
-				   const char *name);
+int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
+				  struct kdbus_conn *conn,
+				  const char *name);
 void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
 			      struct kdbus_conn *conn);
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,

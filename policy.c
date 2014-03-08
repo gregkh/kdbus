@@ -221,8 +221,8 @@ void kdbus_policy_db_dump(struct kdbus_policy_db *db)
 	mutex_unlock(&db->entries_lock);
 }
 
-static bool kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
-				      unsigned int access)
+static int kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
+				     unsigned int access)
 {
 	struct kdbus_policy_db_entry_access *a;
 	struct group_info *group_info;
@@ -232,7 +232,7 @@ static bool kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
 	int i;
 
 	if (!db_entry)
-		return false;
+		return -EPERM;
 
 	cred = current_cred();
 	ns = cred->user_ns;
@@ -244,22 +244,50 @@ static bool kdbus_policy_check_access(struct kdbus_policy_db_entry *db_entry,
 			switch (a->type) {
 			case KDBUS_POLICY_ACCESS_USER:
 				if (a->id == uid)
-					return true;
+					return 0;
 				break;
 			case KDBUS_POLICY_ACCESS_GROUP:
 				for (i = 0; i < group_info->ngroups; i++) {
 					kgid_t gid = GROUP_AT(group_info, i);
 					if (a->id == from_kgid_munged(ns, gid))
-						return true;
+						return 0;
 				}
 				break;
 			case KDBUS_POLICY_ACCESS_WORLD:
-				return true;
+				return 0;
 			}
 		}
 	}
 
-	return false;
+	return -EPERM;
+}
+
+/**
+ * kdbus_policy_check_own_access() - check whether a connection is allowed
+ *				     to own a name
+ * @db:		The policy database
+ * @conn:	The connection to check
+ * @name:	The name to check
+ *
+ * Return: t0 if the connection is allowed to own the name, -EPERM otherwise
+ */
+int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
+				  struct kdbus_conn *conn,
+				  const char *name)
+{
+	struct kdbus_policy_db_entry *e;
+	u32 hash = kdbus_str_hash(name);
+	int ret;
+
+	if (kdbus_bus_uid_is_privileged(conn->bus))
+		return 0;
+
+	mutex_lock(&db->entries_lock);
+	e = __kdbus_policy_lookup(db, name, hash, true);
+	ret = kdbus_policy_check_access(e, KDBUS_POLICY_OWN);
+	mutex_unlock(&db->entries_lock);
+
+	return ret;
 }
 
 static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
@@ -273,8 +301,10 @@ static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
 		e = __kdbus_policy_lookup(db, name_entry->name, hash, true);
-		if (kdbus_policy_check_access(e, KDBUS_POLICY_TALK))
+		if (kdbus_policy_check_access(e, KDBUS_POLICY_TALK) == 0) {
 			ret = 0;
+			break;
+		}
 	}
 	mutex_unlock(&conn_dst->lock);
 
@@ -313,7 +343,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 {
 	struct kdbus_policy_db_cache_entry *ce;
 	unsigned int hash = 0;
-	int ret = 0;
+	int ret;
 
 	if (uid_eq(conn_src->user->uid, conn_dst->user->uid))
 		return true;
@@ -329,7 +359,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	hash_for_each_possible(db->send_access_hash, ce, hentry, hash)
 		if (ce->conn_a == conn_src && ce->conn_b == conn_dst) {
 			mutex_unlock(&db->cache_lock);
-			return ret;
+			return 0;
 		}
 	mutex_unlock(&db->cache_lock);
 
@@ -373,10 +403,7 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 
 	hash = kdbus_str_hash(name);
 	e = __kdbus_policy_lookup(db, name, hash, true);
-	if (kdbus_policy_check_access(e, KDBUS_POLICY_SEE))
-		return 0;
-
-	return -EPERM;
+	return kdbus_policy_check_access(e, KDBUS_POLICY_SEE);
 }
 
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
@@ -425,35 +452,6 @@ void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
 			kfree(ce);
 		}
 	mutex_unlock(&db->cache_lock);
-}
-
-/**
- * kdbus_policy_check_own_access() - check whether a connection is allowed
- *				     to own a name
- * @db:		The policy database
- * @conn:	The connection to check
- * @name:	The name to check
- *
- * Return: true if the connection is allowed to own the name, false otherwise
- */
-bool kdbus_policy_check_own_access(struct kdbus_policy_db *db,
-				   struct kdbus_conn *conn,
-				   const char *name)
-{
-	struct kdbus_policy_db_entry *e;
-	u32 hash = kdbus_str_hash(name);
-	bool allowed = false;
-
-	if (kdbus_bus_uid_is_privileged(conn->bus))
-		return true;
-
-	/* Walk the list of names registered for a connection ... */
-	mutex_lock(&db->entries_lock);
-	e = __kdbus_policy_lookup(db, name, hash, true);
-	allowed = kdbus_policy_check_access(e, KDBUS_POLICY_OWN);
-	mutex_unlock(&db->entries_lock);
-
-	return allowed;
 }
 
 static int

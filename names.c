@@ -594,18 +594,18 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 
 	hash = kdbus_str_hash(cmd->name);
 
-	if (conn->bus->policy_db &&
-	    !kdbus_policy_check_own_access(conn->bus->policy_db,
-					   conn, cmd->name)) {
-		ret = -EPERM;
-		goto exit_unref_conn;
+	if (conn->bus->policy_db) {
+		ret = kdbus_policy_check_own_access(conn->bus->policy_db,
+						    conn, cmd->name);
+		if (ret < 0)
+			goto exit_unref_conn;
 	}
 
-	if (conn->ep->policy_db &&
-	    !kdbus_policy_check_own_access(conn->ep->policy_db,
-					   conn, cmd->name)) {
-		ret = -EPERM;
-		goto exit_unref_conn;
+	if (conn->ep->policy_db) {
+		ret = kdbus_policy_check_own_access(conn->ep->policy_db,
+						    conn, cmd->name);
+		if (ret < 0)
+			goto exit_unref_conn;
 	}
 
 	ret = kdbus_name_acquire(reg, conn, cmd->name,
