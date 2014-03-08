@@ -122,7 +122,7 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
-				  const void *data, size_t len)
+			   const void *data, size_t len)
 {
 	struct kdbus_item *item;
 	u64 size;
@@ -227,7 +227,10 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta)
 {
 	struct mm_struct *mm = get_task_mm(current);
 	struct path *exe_path = NULL;
+	char *pathname;
 	int ret = 0;
+	size_t len;
+	char *tmp;
 
 	if (mm) {
 		down_read(&mm->mmap_sem);
@@ -236,42 +239,49 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta)
 			exe_path = &mm->exe_file->f_path;
 		}
 		up_read(&mm->mmap_sem);
-		mmput(mm);
 	}
 
-	if (exe_path) {
-		char *tmp;
-		char *pathname;
+	if (!exe_path)
+		goto exit_mmput;
 
-		tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
-		if (!tmp) {
-			path_put(exe_path);
-			return -ENOMEM;
-		}
-
-		pathname = d_path(exe_path, tmp, PAGE_SIZE);
-		if (!IS_ERR(pathname)) {
-			size_t len = tmp + PAGE_SIZE - pathname;
-			ret = kdbus_meta_append_data(meta, KDBUS_ITEM_EXE,
-						     pathname, len);
-		}
-
-		free_page((unsigned long) tmp);
-		path_put(exe_path);
+	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+	if (!tmp) {
+		ret = -ENOMEM;
+		goto exit_path_put;
 	}
+
+	pathname = d_path(exe_path, tmp, PAGE_SIZE);
+	if (IS_ERR(pathname)) {
+		ret = PTR_ERR(pathname);
+		goto exit_free_page;
+	}
+
+	len = tmp + PAGE_SIZE - pathname;
+	ret = kdbus_meta_append_data(meta, KDBUS_ITEM_EXE, pathname, len);
+
+exit_free_page:
+	free_page((unsigned long) tmp);
+
+exit_path_put:
+	path_put(exe_path);
+
+exit_mmput:
+	mmput(mm);
 
 	return ret;
 }
 
 static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 {
-	struct mm_struct *mm = current->mm;
-	char *tmp;
+	struct mm_struct *mm;
 	int ret = 0;
+	char *tmp;
 
 	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 	if (!tmp)
 		return -ENOMEM;
+
+	mm = get_task_mm(current);
 
 	if (mm && mm->arg_end) {
 		size_t len = mm->arg_end - mm->arg_start;
@@ -286,7 +296,11 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 						     tmp, len);
 	}
 
+	if (mm)
+		mmput(mm);
+
 	free_page((unsigned long) tmp);
+
 	return ret;
 }
 
