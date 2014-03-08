@@ -71,7 +71,7 @@ struct kdbus_policy_db_entry {
 	char *name;
 	struct hlist_node hentry;
 	struct list_head access_list;
-	void *owner;
+	const void *owner;
 	bool wildcard:1;
 };
 
@@ -271,7 +271,7 @@ static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
  * Return: t0 if the connection is allowed to own the name, -EPERM otherwise
  */
 int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
-				  struct kdbus_conn *conn,
+				  const struct kdbus_conn *conn,
 				  const char *name)
 {
 	const struct kdbus_policy_db_entry *e;
@@ -404,7 +404,7 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 }
 
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
-					void *owner)
+					const void *owner)
 {
 	struct kdbus_policy_db_entry *e;
 	struct hlist_node *tmp;
@@ -423,7 +423,7 @@ static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
  * @owner:	The connection which items to remove
  */
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
-			       void *owner)
+			       const void *owner)
 {
 	mutex_lock(&db->entries_lock);
 	__kdbus_policy_remove_owner(db, owner);
@@ -436,7 +436,7 @@ void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
  * @conn:	The connection which items to remove
  */
 void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
-			      struct kdbus_conn *conn)
+			      const struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_cache_entry *ce;
 	struct hlist_node *tmp;
@@ -501,7 +501,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		     size_t items_container_size,
 		     size_t max_policies,
 		     bool allow_wildcards,
-		     void *owner)
+		     const void *owner)
 {
 	struct kdbus_policy_db_entry *e = NULL;
 	struct kdbus_policy_db_entry_access *a;

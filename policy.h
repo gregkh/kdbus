@@ -38,17 +38,17 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst);
 int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
-				  struct kdbus_conn *conn,
+				  const struct kdbus_conn *conn,
 				  const char *name);
 void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
-			      struct kdbus_conn *conn);
+			      const struct kdbus_conn *conn);
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
-			       void *owner);
+			       const void *owner);
 int kdbus_policy_set(struct kdbus_policy_db *db,
 		     const struct kdbus_item *items,
 		     size_t items_container_size,
 		     size_t max_policies,
 		     bool allow_wildcards,
-		     void *owner);
+		     const void *owner);
 
 #endif
