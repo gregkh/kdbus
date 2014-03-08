@@ -1967,7 +1967,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		 * are allowed to use wildcards as well.
 		 */
 		ret = kdbus_policy_set(bus->policy_db, hello->items,
-				       hello->size, is_policy_holder ? 0 : 1,
+				       hello->size - offsetof(struct kdbus_cmd_hello, items),
+				       is_policy_holder ? 0 : 1,
 				       is_policy_holder, conn);
 		if (ret < 0)
 			goto exit_free_conn;

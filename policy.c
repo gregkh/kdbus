@@ -477,8 +477,7 @@ struct kdbus_policy_list_entry {
  * @db:				The policy database
  * @items:			A list of kdbus_item elements that contain both
  *				names and access rules to set.
- * @items_container_size:	The total size of the container that originally
- *				contained the items.
+ * @items_size:			The total size of the items.
  * @max_policies:		The maximum number of policy entries to allow.
  *				Pass 0 for no limit.
  * @allow_wildcards:		Boolean value whether wildcard entries (such
@@ -498,7 +497,7 @@ struct kdbus_policy_list_entry {
  */
 int kdbus_policy_set(struct kdbus_policy_db *db,
 		     const struct kdbus_item *items,
-		     size_t items_container_size,
+		     size_t items_size,
 		     size_t max_policies,
 		     bool allow_wildcards,
 		     const void *owner)
@@ -537,7 +536,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 	/* Walk the list of items and look for new policies */
 	for (item = items;
-	     (u8 *) item < (u8 *) items + items_container_size &&
+	     (u8 *) item < (u8 *) items + items_size &&
 		(u8 *) item >= (u8 *) items;
 	     item = KDBUS_ITEM_NEXT(item)) {
 		if (item->size <= KDBUS_ITEM_HEADER_SIZE) {
