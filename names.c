@@ -120,7 +120,7 @@ static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 	BUG_ON(!e->conn);
 
 	mutex_lock(&conn->lock);
-	conn->names--;
+	conn->name_count--;
 	list_del(&e->conn_entry);
 	mutex_unlock(&conn->lock);
 
@@ -136,7 +136,7 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 	mutex_lock(&conn->lock);
 	e->conn = kdbus_conn_ref(conn);
 	list_add_tail(&e->conn_entry, &e->conn->names_list);
-	conn->names++;
+	conn->name_count++;
 	mutex_unlock(&conn->lock);
 }
 
@@ -558,7 +558,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (conn->flags & KDBUS_HELLO_MONITOR)
 		return -EPERM;
 
-	if (conn->names > KDBUS_CONN_MAX_NAMES)
+	if (conn->name_count > KDBUS_CONN_MAX_NAMES)
 		return -E2BIG;
 
 	/* refuse improper flags when requesting */

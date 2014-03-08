@@ -52,7 +52,7 @@
  * @pool:		The user's buffer to receive messages
  * @user:		Owner of the connection
  * @cred:		The credentials of the connection at creation time
- * @names:		Number of owned well-known names
+ * @name_count:		Number of owned well-known names
  * @msg_count:		Number of queued messages
  * @reply_count:	Number of requests this connection has issued, and
  *			waits for replies from the peer
@@ -85,7 +85,7 @@ struct kdbus_conn {
 	struct kdbus_pool *pool;
 	struct kdbus_domain_user *user;
 	const struct cred *cred;
-	size_t names;
+	size_t name_count;
 	size_t msg_count;
 	atomic_t reply_count;
 };
