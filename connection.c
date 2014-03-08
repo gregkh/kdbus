@@ -451,7 +451,7 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
-				  struct kdbus_kmsg *kmsg,
+				  const struct kdbus_kmsg *kmsg,
 				  struct kdbus_conn_queue **q)
 {
 	struct kdbus_conn_queue *queue;
@@ -622,7 +622,7 @@ exit_unlock:
  * queue.
  */
 static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
-				       struct kdbus_conn *conn_src,
+				       const struct kdbus_conn *conn_src,
 				       struct kdbus_conn_queue *queue)
 {
 	unsigned int user;
@@ -671,7 +671,7 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 				   struct kdbus_conn *conn_src,
-				   struct kdbus_kmsg *kmsg,
+				   const struct kdbus_kmsg *kmsg,
 				   struct kdbus_conn_reply *reply)
 {
 	struct kdbus_conn_queue *queue;
@@ -1544,7 +1544,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
  *
  * Return: true if the connection is still active
  */
-bool kdbus_conn_active(struct kdbus_conn *conn)
+bool kdbus_conn_active(const struct kdbus_conn *conn)
 {
 	return !conn->disconnected;
 }
