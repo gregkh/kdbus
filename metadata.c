@@ -368,9 +368,8 @@ static int kdbus_meta_append_audit(struct kdbus_meta *meta)
 #ifdef CONFIG_SECURITY
 static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
 {
-	u32 sid;
+	u32 len, sid;
 	char *label;
-	u32 len;
 	int ret;
 
 	security_task_getsecid(current, &sid);
@@ -403,38 +402,35 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
  */
 int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
-		      u64 seq,
-		      u64 which)
+		      u64 seq, u64 which)
 {
 	int ret;
+	u64 mask;
 
-	/* all metadata already added */
-	if ((which & meta->attached) == which)
+	/* which metadata is wanted but not yet attached? */
+	mask = which & ~meta->attached;
+	if (mask == 0)
 		return 0;
 
-	if (which & KDBUS_ATTACH_TIMESTAMP &&
-	    !(meta->attached & KDBUS_ATTACH_TIMESTAMP)) {
+	if (mask & KDBUS_ATTACH_TIMESTAMP) {
 		ret = kdbus_meta_append_timestamp(meta, seq);
 		if (ret < 0)
 			return ret;
 	}
 
-	if (which & KDBUS_ATTACH_CREDS &&
-	    !(meta->attached & KDBUS_ATTACH_CREDS)) {
+	if (mask & KDBUS_ATTACH_CREDS) {
 		ret = kdbus_meta_append_cred(meta);
 		if (ret < 0)
 			return ret;
 	}
 
-	if (which & KDBUS_ATTACH_NAMES && conn &&
-	    !(meta->attached & KDBUS_ATTACH_NAMES)) {
+	if (mask & KDBUS_ATTACH_NAMES && conn) {
 		ret = kdbus_meta_append_src_names(meta, conn);
 		if (ret < 0)
 			return ret;
 	}
 
-	if (which & KDBUS_ATTACH_COMM &&
-	    !(meta->attached & KDBUS_ATTACH_COMM)) {
+	if (mask & KDBUS_ATTACH_COMM) {
 		char comm[TASK_COMM_LEN];
 
 		get_task_comm(comm, current->group_leader);
@@ -448,24 +444,20 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 			return ret;
 	}
 
-	if (which & KDBUS_ATTACH_EXE &&
-	    !(meta->attached & KDBUS_ATTACH_EXE)) {
-
+	if (mask & KDBUS_ATTACH_EXE) {
 		ret = kdbus_meta_append_exe(meta);
 		if (ret < 0)
 			return ret;
 	}
 
-	if (which & KDBUS_ATTACH_CMDLINE &&
-	    !(meta->attached & KDBUS_ATTACH_CMDLINE)) {
+	if (mask & KDBUS_ATTACH_CMDLINE) {
 		ret = kdbus_meta_append_cmdline(meta);
 		if (ret < 0)
 			return ret;
 	}
 
 	/* we always return a 4 elements, the element size is 1/4  */
-	if (which & KDBUS_ATTACH_CAPS &&
-	    !(meta->attached & KDBUS_ATTACH_CAPS)) {
+	if (mask & KDBUS_ATTACH_CAPS) {
 		ret = kdbus_meta_append_caps(meta);
 		if (ret < 0)
 			return ret;
@@ -473,8 +465,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 #ifdef CONFIG_CGROUPS
 	/* attach the path of the one group hierarchy specified for the bus */
-	if (which & KDBUS_ATTACH_CGROUP &&
-	    !(meta->attached & KDBUS_ATTACH_CGROUP)) {
+	if (mask & KDBUS_ATTACH_CGROUP) {
 		ret = kdbus_meta_append_cgroup(meta);
 		if (ret < 0)
 			return ret;
@@ -482,8 +473,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 #endif
 
 #ifdef CONFIG_AUDITSYSCALL
-	if (which & KDBUS_ATTACH_AUDIT &&
-	    !(meta->attached & KDBUS_ATTACH_AUDIT)) {
+	if (mask & KDBUS_ATTACH_AUDIT) {
 		ret = kdbus_meta_append_audit(meta);
 		if (ret < 0)
 			return ret;
@@ -491,16 +481,14 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 #endif
 
 #ifdef CONFIG_SECURITY
-	if (which & KDBUS_ATTACH_SECLABEL &&
-	    !(meta->attached & KDBUS_ATTACH_SECLABEL)) {
+	if (mask & KDBUS_ATTACH_SECLABEL) {
 		ret = kdbus_meta_append_seclabel(meta);
 		if (ret < 0)
 			return ret;
 	}
 #endif
 
-	if (which & KDBUS_ATTACH_CONN_NAME &&
-	    !(meta->attached & KDBUS_ATTACH_CONN_NAME)) {
+	if (mask & KDBUS_ATTACH_CONN_NAME && conn) {
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CONN_NAME,
 					    conn->name);
 		if (ret < 0)
@@ -511,7 +499,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	 * We tried to add everything we got asked for; do not get
 	 * here again for the same question.
 	 */
-	meta->attached |= which;
+	meta->attached |= mask;
 
 	return 0;
 }
