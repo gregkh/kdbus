@@ -11,9 +11,7 @@
  */
 
 #include <linux/ctype.h>
-#include <linux/dcache.h>
-#include <linux/sizes.h>
-#include <linux/slab.h>
+#include <linux/string.h>
 
 #include "util.h"
 

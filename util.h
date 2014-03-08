@@ -13,6 +13,7 @@
 #ifndef __KDBUS_UTIL_H
 #define __KDBUS_UTIL_H
 
+#include <linux/dcache.h>
 #include "linux/ioctl.h"
 #include "kdbus.h"
 
