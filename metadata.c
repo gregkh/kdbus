@@ -275,6 +275,7 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 {
 	struct mm_struct *mm;
 	int ret = 0;
+	size_t len;
 	char *tmp;
 
 	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
@@ -282,23 +283,26 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 		return -ENOMEM;
 
 	mm = get_task_mm(current);
+	if (!mm)
+		goto exit_free_page;
 
-	if (mm && mm->arg_end) {
-		size_t len = mm->arg_end - mm->arg_start;
+	if (!mm->arg_end)
+		goto exit_mmput;
 
-		if (len > PAGE_SIZE)
-			len = PAGE_SIZE;
+	len = mm->arg_end - mm->arg_start;
+	if (len > PAGE_SIZE)
+		len = PAGE_SIZE;
 
-		ret = copy_from_user(tmp, (const char __user *)mm->arg_start,
-				     len);
-		if (ret == 0)
-			ret = kdbus_meta_append_data(meta, KDBUS_ITEM_CMDLINE,
-						     tmp, len);
-	}
+	ret = copy_from_user(tmp, (const char __user *)mm->arg_start, len);
+	if (ret < 0)
+		goto exit_mmput;
 
-	if (mm)
-		mmput(mm);
+	ret = kdbus_meta_append_data(meta, KDBUS_ITEM_CMDLINE, tmp, len);
 
+exit_mmput:
+	mmput(mm);
+
+exit_free_page:
 	free_page((unsigned long) tmp);
 
 	return ret;
