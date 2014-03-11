@@ -23,18 +23,16 @@ Terminology
     A domain is a named object containing a number of buses. A system
     container that contains its own init system and users usually also
     runs in its own kdbus domain. The /dev/kdbus/domain/<container-name>/
-    directory shows up inside the domain as /dev/kdbus/. Every domain
-    offers a "control" device node to create new buses or domains.
+    directory shows up inside the domain as /dev/kdbus/. Every domain offers
+    its own "control" device node to create new buses or new sub-domains.
     Domains have no connection to each other and cannot see nor talk to
-    each other. Only from the initial domain, given the process has the
-    required access rights, can the device nodes inside of other domains
-    be seen.
+    each other.
 
   Bus:
     A bus is a named object inside a domain. Clients exchange messages
     over a bus. Multiple buses themselves have no connection to each other;
-    messages are only exchanged on the same bus. The default entry point to a
-    bus, where clients establish the connection to, is the "bus" device node
+    messages can only be exchanged on the same bus. The default entry point to
+    a bus, where clients establish the connection to, is the "bus" device node
     /dev/kdbus/<bus name>/bus.
     Common operating system setups create one "system bus" per system, and one
     "user bus" for every logged-in user. Applications or services may create
@@ -58,8 +56,8 @@ Terminology
 
   Well-known Name:
     A connection can, in addition to its implicit unique connection id, request
-    the ownership of a textual well-known name. Well-known names are noted
-    in reverse-domain notation, such as com.example.service. Connections offering
+    the ownership of a textual well-known name. Well-known names are noted in
+    reverse-domain notation, such as com.example.service1. Connections offering
     a service on a bus are usually reached by its well-known name. The analogy
     of connection id and well-known name is an IP address and a DNS name
     associated with that address.
@@ -77,26 +75,20 @@ Terminology
     process exe, process argv, cgroup, capabilities, seclabel, audit session
     and loginuid and the connection's human-readable name.
 
-  Match:
+  Broadcast and Match:
     Broadcast messages are potentially sent to all connections of a bus. By
     default, the connections will not actually receive any of the sent
-    broadcast messages. Only after installing a match for specific message
-    properties, and a broadcast message passing this filter, the message will
-    actually be queued into the connections's receive buffer.
+    broadcast messages; only after installing a match for specific message
+    properties, a broadcast message passes this filter.
 
   Policy:
     Buses and custom endpoints can upload a set of policy rules, defining who
     can see, talk to, or register a well-know name on the bus. The policy is
-    uploaded by the owner of the bus or the custom endpoint.
-    Access rules to allow who can see a name on the bus are only checked on
-    custom endpoints.
-
-  Wildcard names:
-    Policies may be defined with names that end on '.*'. When matching a
-    full-qualified name against such a wildcard entry, the last part of the
-    name is removed, and checked against the wildcard name without the trailing
-    '.*'.
-
+    uploaded by the owner of the bus or the custom endpoint. Access rules to
+    allow who can see a name on the bus are only checked on custom endpoints.
+    Policies may be defined with names that end with '.*'. When matching a
+    well-known name against such a wildcard entry, the last part of the name
+    is ignored and checked against the wildcard name without the trailing '.*'.
 
 ===============================================================================
 Device Node Layout
@@ -315,7 +307,7 @@ process when new messages are queued up to be received.
   | | size: overall message size, including the data records              | |
   | | destination: connection id of the receiver                          | |
   | | source: connection id of the sender (set by kernel)                 | |
-  | | payload_type: "DBusVer1" textual identifier stored as uint64_t      | |
+  | | payload_type: "DBusDBus" textual identifier stored as uint64_t      | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | Data Record                                                         | |
@@ -378,7 +370,7 @@ Broadcast Message Matching
 A message addressed at the connection ID 0 is a broadcast message, delivered
 to all connected peers which installed a rule to match certain properties of
 the message. Without any rules installed in the connection, no broadcast
-message will de delivered to the connection.
+message will be delivered to the connection.
 
 Matches are implemented as bloom filters. The sender adds certain properties of
 the message as elements to a bloom filter bit field, and sends that along with
@@ -394,7 +386,7 @@ the connection.
 
 The kernel has no notion of any specific properties of the message, all it
 sees are the bit fields of the bloom filter and mask to match against. The
-use of bloom filters allows simple and efficient matching, wihthout exposing
+use of bloom filters allows simple and efficient matching, without exposing
 any message properties or internals to the kernel side. Clients need to deal
 with the fact that they might receive broadcasts which they did not subscribe
 to, the bloom filter might allow false-positives to pass the filter.
