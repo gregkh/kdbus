@@ -614,8 +614,10 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		}
 	}
 
-	if (!KDBUS_ITEMS_END(item, items, items_size))
-		return -EINVAL;
+	if (!KDBUS_ITEMS_END(item, items, items_size)) {
+		ret = -EINVAL;
+		goto exit;
+	}
 
 	if (e) {
 		ret = kdbus_policy_add_one(db, e);
