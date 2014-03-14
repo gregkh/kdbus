@@ -1854,10 +1854,10 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_conn **c)
 {
 	const struct kdbus_creds *creds = NULL;
-	const char *activator_name = NULL;
 	const struct kdbus_item *item;
 	const char *conn_name = NULL;
 	const char *seclabel = NULL;
+	const char *name = NULL;
 	struct kdbus_conn *conn;
 	struct kdbus_bus *bus;
 	size_t seclabel_len = 0;
@@ -1891,10 +1891,10 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	KDBUS_ITEMS_FOREACH(item, hello->items, KDBUS_ITEMS_SIZE(hello, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
-			if (!is_activator)
+			if (!is_activator && !is_policy_holder)
 				return -EINVAL;
 
-			if (activator_name)
+			if (name)
 				return -EINVAL;
 
 			if (!kdbus_item_validate_nul(item))
@@ -1903,7 +1903,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (!kdbus_name_is_valid(item->str, true))
 				return -EINVAL;
 
-			activator_name = item->str;
+			name = item->str;
 			break;
 
 		case KDBUS_ITEM_CREDS:
@@ -1950,7 +1950,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		}
 	}
 
-	if (is_activator && !activator_name)
+	if ((is_activator || is_policy_holder) && !name)
 		return -EINVAL;
 
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
@@ -2030,11 +2030,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_unref_ep;
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
 
-	if (activator_name) {
+	if (is_activator) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
 
 		ret = kdbus_name_acquire(bus->name_registry, conn,
-					 activator_name, &flags, NULL);
+					 name, &flags, NULL);
 		if (ret < 0)
 			goto exit_free_pool;
 	}
