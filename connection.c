@@ -1957,7 +1957,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (!conn)
 		return -ENOMEM;
 
-	if (is_activator) {
+	if (is_activator || is_policy_holder) {
 		if (!bus->policy_db) {
 			ret = kdbus_policy_db_new(&bus->policy_db);
 			if (ret < 0)
