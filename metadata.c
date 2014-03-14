@@ -488,7 +488,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	}
 #endif
 
-	if (mask & KDBUS_ATTACH_CONN_NAME && conn) {
+	if ((mask & KDBUS_ATTACH_CONN_NAME) && conn && conn->name) {
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CONN_NAME,
 					    conn->name);
 		if (ret < 0)
