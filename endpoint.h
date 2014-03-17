@@ -28,6 +28,7 @@
  * @mode:		File mode of this endpoint device node
  * @uid:		UID owning this endpoint
  * @gid:		GID owning this endpoint
+ * @conn_list:		Connections of this endpoint
  * @bus_entry:		bus' endpoints
  * @lock:		Endpoint data lock
  * @user:		Custom enpoints account against an anonymous user
@@ -48,6 +49,7 @@ struct kdbus_ep {
 	umode_t mode;
 	kuid_t uid;
 	kgid_t gid;
+	struct list_head conn_list;
 	struct list_head bus_entry;
 	struct mutex lock;
 	struct kdbus_domain_user *user;

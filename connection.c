@@ -1001,11 +1001,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	int ret = 0;
 
 	mutex_lock(&conn->lock);
-	if (unlikely(conn->ep->disconnected)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
 	if (conn->msg_count == 0) {
 		ret = -EAGAIN;
 		goto exit_unlock;
@@ -1492,6 +1487,11 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
 	mutex_unlock(&conn->bus->lock);
+
+	/* remove from endpoint */
+	mutex_lock(&conn->ep->lock);
+	list_del(&conn->ep_entry);
+	mutex_unlock(&conn->ep->lock);
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
@@ -2091,6 +2091,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		ret = -EMFILE;
 		goto exit_unref_user;
 	}
+
+	/* link into endpoint */
+	mutex_lock(&ep->lock);
+	list_add_tail(&conn->ep_entry, &ep->conn_list);
+	mutex_unlock(&ep->lock);
 
 	/* link into bus */
 	mutex_lock(&bus->lock);

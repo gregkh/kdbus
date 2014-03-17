@@ -36,6 +36,7 @@
  *			individual user
  * @msg_users_max:	Size of the users array
  * @hentry:		Entry in ID <-> connection map
+ * @ep_entry:		The enpoint this connection belongs to
  * @monitor_entry:	The connection is a monitor
  * @names_list:		List of well-known names
  * @names_queue_list:	Well-known names this connection waits for
@@ -74,6 +75,7 @@ struct kdbus_conn {
 	unsigned int *msg_users;
 	unsigned int msg_users_max;
 	struct hlist_node hentry;
+	struct list_head ep_entry;
 	struct list_head monitor_entry;
 	struct list_head names_list;
 	struct list_head names_queue_list;

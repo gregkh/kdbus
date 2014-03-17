@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include "connection.h"
 #include "bus.h"
 #include "endpoint.h"
 #include "domain.h"
@@ -71,6 +72,26 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 	}
 	ep->disconnected = true;
 	mutex_unlock(&ep->lock);
+
+	/* disconnect all connections to this endpoint */
+	for (;;) {
+		struct kdbus_conn *conn;
+
+		mutex_lock(&ep->lock);
+		conn = list_first_entry_or_null(&ep->conn_list,
+					        struct kdbus_conn,
+					        ep_entry);
+		if (!conn) {
+			mutex_unlock(&ep->lock);
+			break;
+		}
+
+		kdbus_conn_ref(conn);
+		mutex_unlock(&ep->lock);
+
+		kdbus_conn_disconnect(conn, false);
+		kdbus_conn_unref(conn);
+	}
 
 	/* disconnect from bus */
 	mutex_lock(&ep->bus->lock);
@@ -158,6 +179,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 
 	mutex_init(&e->lock);
 	kref_init(&e->kref);
+	INIT_LIST_HEAD(&e->conn_list);
 	e->uid = uid;
 	e->gid = gid;
 	e->mode = mode;

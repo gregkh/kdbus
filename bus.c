@@ -162,29 +162,6 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 		kdbus_ep_unref(ep);
 	}
 
-
-	/* disconnect all connections to this bus */
-	for (;;) {
-		struct kdbus_conn *conn = NULL, *c;
-		unsigned int i;
-
-		mutex_lock(&bus->lock);
-		hash_for_each(bus->conn_hash, i, c, hentry) {
-			conn = c;
-			break;
-		}
-		if (!conn) {
-			mutex_unlock(&bus->lock);
-			break;
-		}
-
-		kdbus_conn_ref(conn);
-		mutex_unlock(&bus->lock);
-
-		kdbus_conn_disconnect(conn, false);
-		kdbus_conn_unref(conn);
-	}
-
 	/* drop reference for our "bus" endpoint after we disconnected */
 	bus->ep = kdbus_ep_unref(bus->ep);
 }
