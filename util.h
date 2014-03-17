@@ -113,4 +113,6 @@ static inline unsigned int kdbus_str_hash(const char *str)
 }
 
 int kdbus_sysname_is_valid(const char *name);
+
+int kdbus_item_validate_name(const struct kdbus_item *item);
 #endif

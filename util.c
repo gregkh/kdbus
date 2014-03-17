@@ -14,6 +14,7 @@
 #include <linux/string.h>
 
 #include "util.h"
+#include "defaults.h"
 
 /**
  * kdbus_sysname_valid() - validate names showing up in /proc, /sys and /dev
@@ -44,4 +45,25 @@ int kdbus_sysname_is_valid(const char *name)
 	}
 
 	return 0;
+}
+
+/**
+ * kdbus_item_validate_name() - validate an item containing a name
+ * @item:		Item to validate
+ *
+ * Return: zero on success or an negative error code on failure
+ */
+int kdbus_item_validate_name(const struct kdbus_item *item)
+{
+	if (item->size < KDBUS_ITEM_HEADER_SIZE + 2)
+		return -EINVAL;
+
+	if (item->size > KDBUS_ITEM_HEADER_SIZE +
+			 KDBUS_SYSNAME_MAX_LEN + 1)
+		return -ENAMETOOLONG;
+
+	if (!kdbus_item_validate_nul(item))
+		return -EINVAL;
+
+	return kdbus_sysname_is_valid(item->str);
 }
