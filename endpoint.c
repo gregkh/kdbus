@@ -85,12 +85,6 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 		idr_remove(&ep->bus->domain->idr, ep->minor);
 		ep->minor = 0;
 	}
-
-	/*
-	 * wake up the queue so the connections can report
-	 * POLLERR to their users.
-	 */
-	wake_up_interruptible(&ep->wait);
 }
 
 static void __kdbus_ep_free(struct kref *kref)
@@ -167,7 +161,6 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->uid = uid;
 	e->gid = gid;
 	e->mode = mode;
-	init_waitqueue_head(&e->wait);
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {

@@ -29,7 +29,6 @@
  * @uid:		UID owning this endpoint
  * @gid:		GID owning this endpoint
  * @bus_entry:		bus' endpoints
- * @wait:		Wake up this endpoint
  * @lock:		Endpoint data lock
  * @user:		Custom enpoints account against an anonymous user
  * @policy_db:		Uploaded policy
@@ -50,7 +49,6 @@ struct kdbus_ep {
 	kuid_t uid;
 	kgid_t gid;
 	struct list_head bus_entry;
-	wait_queue_head_t wait;
 	struct mutex lock;
 	struct kdbus_domain_user *user;
 	struct kdbus_policy_db *policy_db;

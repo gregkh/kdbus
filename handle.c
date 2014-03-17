@@ -815,7 +815,6 @@ static unsigned int kdbus_handle_poll(struct file *file,
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_conn *conn;
 	unsigned int mask = 0;
-	bool disconnected;
 
 	/* Only a connected endpoint can read/write data */
 	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
@@ -823,15 +822,11 @@ static unsigned int kdbus_handle_poll(struct file *file,
 
 	conn = handle->conn;
 
-	poll_wait(file, &conn->ep->wait, wait);
+	poll_wait(file, &conn->wait, wait);
 
 	mutex_lock(&conn->lock);
 
-	mutex_lock(&conn->ep->lock);
-	disconnected = conn->ep->disconnected;
-	mutex_unlock(&conn->ep->lock);
-
-	if (unlikely(disconnected))
+	if (unlikely(conn->disconnected))
 		mask |= POLLERR | POLLHUP;
 	else if (!list_empty(&conn->msg_list))
 		mask |= POLLIN | POLLRDNORM;

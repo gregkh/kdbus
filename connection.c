@@ -705,7 +705,7 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	mutex_unlock(&conn->lock);
 
 	/* wake up poll() */
-	wake_up_interruptible(&conn->ep->wait);
+	wake_up_interruptible(&conn->wait);
 
 	return 0;
 }
@@ -1532,6 +1532,9 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	/* remove all names associated with this connection */
 	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
 
+	/* wake up the queue so that users can get a POLLERR */
+	wake_up_interruptible(&conn->wait);
+
 	kdbus_notify_id_change(KDBUS_ITEM_ID_REMOVE, conn->id, conn->flags,
 			       &notify_list);
 
@@ -1657,7 +1660,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	mutex_unlock(&conn_dst->lock);
 
 	/* wake up poll() */
-	wake_up_interruptible(&conn_dst->ep->wait);
+	wake_up_interruptible(&conn_dst->wait);
 
 	return ret;
 }
@@ -1987,6 +1990,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	atomic_set(&conn->reply_count, 0);
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
 	conn->cred = current_cred();
+	init_waitqueue_head(&conn->wait);
 
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);

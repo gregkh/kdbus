@@ -56,6 +56,7 @@
  * @msg_count:		Number of queued messages
  * @reply_count:	Number of requests this connection has issued, and
  *			waits for replies from the peer
+ * @wait:		Wake up this endpoint
  */
 struct kdbus_conn {
 	struct kref kref;
@@ -88,6 +89,7 @@ struct kdbus_conn {
 	size_t name_count;
 	size_t msg_count;
 	atomic_t reply_count;
+	wait_queue_head_t wait;
 };
 
 struct kdbus_kmsg;
