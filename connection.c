@@ -1803,7 +1803,7 @@ exit:
 /**
  * kdbus_conn_update() - update flags for a connection
  * @conn:		Connection
- * @cmd_update:		The command as passed in by the ioctl
+ * @cmd:		The command as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure.
  */

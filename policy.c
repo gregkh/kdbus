@@ -66,6 +66,7 @@ struct kdbus_policy_db_entry_access {
  *			access items.
  * @owner:		The owner of this entry. Can be a kdbus_conn or
  *			a kdbus_ep object.
+ * @wildcard:		The name is a wildcard, such as ending on '.*'
  */
 struct kdbus_policy_db_entry {
 	char *name;
