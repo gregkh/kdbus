@@ -357,6 +357,10 @@ kdbus_memfd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		 * when accessing mf->sealed.
 		 */
 		down_read(&mm->mmap_sem);
+		/* FIXME: It is insufficient to check the back-fd, we
+		 * only track mmap() here, the front fd has a refcount
+		 * of 2 as soon as the task has more than one thread.
+		 */
 		if (file_count(mf->fp) != 1) {
 			if (mf->sealed == !!argp)
 				ret = -EALREADY;

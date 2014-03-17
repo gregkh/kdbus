@@ -1,3 +1,8 @@
+Bugs:
+  - replace memfd ioctls with shmem memfd_create() + fcntl() logic
+  - disconnect connections with kdbus_ep_disconnect(), remove
+    ep->disconnected checks
+
 Features:
   - test kdbus_match_bloom() multi-generation bloom masks, we need to
     be sure it works with old kernels when we update userspace tools
