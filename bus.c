@@ -351,16 +351,7 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 			if (n)
 				return -EEXIST;
 
-			if (payload_size < 2)
-				return -EINVAL;
-
-			if (payload_size > KDBUS_SYSNAME_MAX_LEN + 1)
-				return -ENAMETOOLONG;
-
-			if (!kdbus_item_validate_nul(item))
-				return -EINVAL;
-
-			ret = kdbus_sysname_is_valid(item->str);
+			ret = kdbus_item_validate_name(item);
 			if (ret < 0)
 				return ret;
 

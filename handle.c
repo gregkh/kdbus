@@ -263,23 +263,7 @@ static int kdbus_handle_memfd(void __user *buf)
 				goto exit;
 			}
 
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2) {
-				ret = -EINVAL;
-				goto exit;
-			}
-
-			if (item->size > KDBUS_ITEM_HEADER_SIZE +
-					 KDBUS_SYSNAME_MAX_LEN + 1) {
-				ret = -ENAMETOOLONG;
-				goto exit;
-			}
-
-			if (!kdbus_item_validate_nul(item)) {
-				ret = -EINVAL;
-				goto exit;
-			}
-
-			ret = kdbus_sysname_is_valid(item->str);
+			ret = kdbus_item_validate_name(item);
 			if (ret < 0)
 				goto exit;
 

@@ -282,17 +282,7 @@ int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name)
 			if (n)
 				return -EEXIST;
 
-			if (item->size < KDBUS_ITEM_HEADER_SIZE + 2)
-				return -EINVAL;
-
-			if (item->size > KDBUS_ITEM_HEADER_SIZE +
-					 KDBUS_SYSNAME_MAX_LEN + 1)
-				return -ENAMETOOLONG;
-
-			if (!kdbus_item_validate_nul(item))
-				return -EINVAL;
-
-			ret = kdbus_sysname_is_valid(item->str);
+			ret = kdbus_item_validate_name(item);
 			if (ret < 0)
 				return ret;
 

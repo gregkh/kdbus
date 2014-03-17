@@ -1934,14 +1934,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (conn_name)
 				return -EINVAL;
 
-			if (item->size > KDBUS_SYSNAME_MAX_LEN +
-					 KDBUS_ITEM_HEADER_SIZE + 1)
-				return -ENAMETOOLONG;
-
-			if (!kdbus_item_validate_nul(item))
-				return -EINVAL;
-
-			ret = kdbus_sysname_is_valid(item->str);
+			ret = kdbus_item_validate_name(item);
 			if (ret < 0)
 				return ret;
 

@@ -367,29 +367,16 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-		size_t payload_size;
-
 		if (!KDBUS_ITEM_VALID(item, &cmd->items,
 				      KDBUS_ITEMS_SIZE(cmd, items)))
 			return -EINVAL;
-
-		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
 
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
 			if (n)
 				return -EEXIST;
 
-			if (payload_size < 2)
-				return -EINVAL;
-
-			if (payload_size > KDBUS_SYSNAME_MAX_LEN + 1)
-				return -ENAMETOOLONG;
-
-			if (!kdbus_item_validate_nul(item))
-				return -EINVAL;
-
-			ret = kdbus_sysname_is_valid(item->str);
+			ret = kdbus_item_validate_name(item);
 			if (ret < 0)
 				return ret;
 
