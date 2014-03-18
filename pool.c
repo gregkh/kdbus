@@ -24,6 +24,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/ctype.h>
 
 #include "pool.h"
 #include "util.h"
@@ -677,4 +678,46 @@ int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma)
 	vma->vm_file = get_file(pool->f);
 
 	return pool->f->f_op->mmap(pool->f, vma);
+}
+
+void kdbus_pool_log(const struct kdbus_pool *pool, size_t off, size_t len,
+		    const char *s, u64 src, u64 dst, u64 cookie)
+{
+	struct address_space *mapping = pool->f->f_mapping;
+	struct page *page;
+	char *kaddr;
+	size_t o = off & (PAGE_CACHE_SIZE - 1);
+	char buf[256];
+	unsigned int i;
+
+	page = find_get_page(mapping, off >> PAGE_CACHE_SHIFT);
+	if (!page)
+		return;
+
+	kaddr = kmap(page);
+
+	for (i = 0; i < len && i < sizeof(buf)-1; i++) {
+		char c = kaddr[o + i];
+
+		switch (c) {
+		case '1' ... '9':
+		case 'a' ... 'z':
+		case 'A' ... 'Z':
+		case '-':
+		case '/':
+		case ':':
+			buf[i] = c;
+			break;
+		case '\0':
+			buf[i] = '_';
+			break;
+		default:
+			buf[i] = '.';
+		}
+	}
+	buf[i] = '\0';
+	printk(KERN_INFO "XXX %s %04llu %04llu %08zu %08zu %04llu '%s'\n", s, src, dst, len, off, cookie, buf);
+
+	kunmap(page);
+	put_page(page);
 }
