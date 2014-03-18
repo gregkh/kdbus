@@ -31,6 +31,4 @@ int kdbus_pool_move(struct kdbus_pool *dst_pool,
 void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
 			     size_t off, size_t len);
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);
-void kdbus_pool_log(const struct kdbus_pool *pool, size_t off, size_t len,
-		    const char *s, u64 src, u64 dst, u64 cookie);
 #endif

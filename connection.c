@@ -702,7 +702,6 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	/* link the message into the receiver's queue */
 	mutex_lock(&conn->lock);
 	kdbus_conn_queue_add(conn, queue);
-	kdbus_pool_log(conn->pool, queue->off, queue->size, "SEND", conn_src ? conn_src->id : 0, conn->id, queue->cookie);
 	mutex_unlock(&conn->lock);
 
 	/* wake up poll() */
@@ -1074,7 +1073,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_conn_msg_install(conn, queue);
-	kdbus_pool_log(conn->pool, queue->off, queue->size, "RECV", 0 , conn->id, queue->cookie);
 	kdbus_conn_queue_remove(conn, queue);
 	kdbus_conn_queue_cleanup(queue);
 
