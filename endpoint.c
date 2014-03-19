@@ -139,6 +139,7 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 			continue;
 
 		ep = kdbus_ep_ref(e);
+		break;
 	}
 	mutex_unlock(&bus->lock);
 
