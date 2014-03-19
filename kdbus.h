@@ -520,6 +520,7 @@ enum kdbus_attach_flags {
 	KDBUS_ATTACH_SECLABEL		=  1 <<  8,
 	KDBUS_ATTACH_AUDIT		=  1 <<  9,
 	KDBUS_ATTACH_CONN_NAME		=  1 << 10,
+	_KDBUS_ATTACH_ALL		=  (1 << 11) - 1,
 };
 
 /**
