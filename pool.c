@@ -365,7 +365,7 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
 	size_t size;
 
 	mutex_lock(&pool->lock);
-	size =  pool->size - pool->busy;
+	size = pool->size - pool->busy;
 	mutex_unlock(&pool->lock);
 
 	return size;
@@ -391,6 +391,7 @@ int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off)
 	mutex_lock(&pool->lock);
 	ret = kdbus_pool_alloc_slice(pool, size, &s);
 	mutex_unlock(&pool->lock);
+
 	if (ret < 0)
 		return ret;
 
@@ -435,7 +436,7 @@ exit_unlock:
 	return ret;
 }
 
-/* copy data from a file to ia page in the receiver's pool */
+/* copy data from a file to a page in the receiver's pool */
 static int kdbus_pool_copy_file(struct page *p, size_t start,
 				struct file *f, size_t off, size_t count)
 {
@@ -569,7 +570,7 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_copy(pool->f, off, (void __user *)data, NULL, 0, len);
+	ret = kdbus_pool_copy(pool->f, off, (const void __user *)data, NULL, 0, len);
 	set_fs(old_fs);
 
 	return ret;
