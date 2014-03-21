@@ -1047,11 +1047,13 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_free_range(conn->pool, queue->off);
-		kdbus_conn_queue_cleanup(queue);
 		mutex_unlock(&conn->lock);
 
 		if (reply)
 			kdbus_conn_reply_free(reply);
+
+		kdbus_conn_queue_cleanup(queue);
+
 		goto exit;
 	}
 
