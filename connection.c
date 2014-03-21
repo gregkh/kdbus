@@ -337,7 +337,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			queue->memfds_fp[queue->memfds_count] = fp;
 			queue->memfds_count++;
 
-			items += KDBUS_ALIGN8((it)->size);
+			items += KDBUS_ALIGN8(it->size);
 			break;
 		}
 
