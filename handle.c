@@ -373,7 +373,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
 
-		ret = kdbus_domain_new(kdbus_domain_init, name, mode, &domain);
+		ret = kdbus_domain_new(handle->domain, name, mode, &domain);
 		if (ret < 0)
 			break;
 
