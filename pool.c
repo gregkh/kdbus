@@ -522,6 +522,7 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 			break;
 		}
 
+		off_src += n;
 		fpos += n;
 		rem -= n;
 		dpos += n;
