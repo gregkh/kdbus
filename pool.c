@@ -478,16 +478,15 @@ static int kdbus_pool_copy_data(struct page *p, size_t start,
 }
 
 /* copy data to the receiver's pool */
-static size_t
-kdbus_pool_copy(struct file *f_dst, size_t off_dst,
-		const void __user *data, struct file *f_src,
-		size_t off_src, size_t len)
+static size_t kdbus_pool_copy(struct file *f_dst, size_t off_dst,
+			      const void __user *data, struct file *f_src,
+			      size_t off_src, size_t len)
 {
 	struct address_space *mapping = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping->a_ops;
 	unsigned long fpos = off_dst;
 	unsigned long rem = len;
-	size_t dpos = 0;
+	size_t pos = 0;
 	int ret = 0;
 
 	while (rem > 0) {
@@ -507,13 +506,11 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 			break;
 		}
 
-		if (data) {
-			ret = kdbus_pool_copy_data(p, o, data + dpos, n);
-			dpos += n;
-		} else {
-			ret = kdbus_pool_copy_file(p, o, f_src, off_src, n);
-			off_src += n;
-		}
+		if (data)
+			ret = kdbus_pool_copy_data(p, o, data + pos, n);
+		else
+			ret = kdbus_pool_copy_file(p, o, f_src,
+						   off_src + pos, n);
 		mark_page_accessed(p);
 
 		status = aops->write_end(f_dst, mapping, fpos, n, n, p, fsdata);
@@ -525,6 +522,7 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 			break;
 		}
 
+		pos += n;
 		fpos += n;
 		rem -= n;
 	}
