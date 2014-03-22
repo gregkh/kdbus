@@ -1212,7 +1212,65 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ret < 0)
 		return ret;
 
-	if (conn_src) {
+	/* For kernel-generated messages, skip the reply logic */
+	if (!conn_src)
+		goto meta_append;
+
+	if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
+		struct timespec ts;
+
+		if (atomic_read(&conn_src->reply_count) >
+		    KDBUS_CONN_MAX_REQUESTS_PENDING) {
+			ret = -EMLINK;
+			goto exit_unref;
+		}
+
+		/*
+		 * This message expects a reply, so let's interpret
+		 * msg->timeout_ns and add a kdbus_conn_reply object.
+		 * Add it to the list of expected replies on the
+		 * destination connection.
+		 * When a reply is received later on, this entry will
+		 * be used to allow the reply to pass, circumventing the
+		 * policy.
+		 */
+		reply_wait = kzalloc(sizeof(*reply_wait), GFP_KERNEL);
+		if (!reply_wait) {
+			ret = -ENOMEM;
+			goto exit_unref;
+		}
+
+		reply_wait->conn = kdbus_conn_ref(conn_src);
+		reply_wait->cookie = msg->cookie;
+
+		if (sync) {
+			init_waitqueue_head(&reply_wait->wait);
+			reply_wait->sync = true;
+			reply_wait->waiting = true;
+		} else {
+			/* calculate the deadline based on the current time */
+			ktime_get_ts(&ts);
+			reply_wait->deadline_ns = timespec_to_ns(&ts) +
+						  msg->timeout_ns;
+		}
+
+		mutex_lock(&conn_dst->lock);
+		list_add(&reply_wait->entry, &conn_dst->reply_list);
+		atomic_inc(&conn_src->reply_count);
+
+		/*
+		 * For async operation, schedule the scan now. It won't do
+		 * any real work at this point, but walk the list of all
+		 * pending replies and rearm the connection's delayed work
+		 * to the closest entry.
+		 * For synchronous operation, the timeout will be handled
+		 * by wait_event_interruptible_timeout().
+		 */
+		if (!sync && kdbus_conn_active(conn_dst))
+			schedule_delayed_work(&conn_dst->work, 0);
+
+		mutex_unlock(&conn_dst->lock);
+	} else {
 		bool allowed = false;
 
 		/*
@@ -1220,7 +1278,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * If there's any matching entry, allow the message to
 		 * be sent, and remove the entry.
 		 */
-
 		if (msg->cookie_reply > 0) {
 			struct kdbus_conn_reply *r, *r_tmp;
 			LIST_HEAD(reply_list);
@@ -1266,57 +1323,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 	}
 
-	/* If the message expects a reply, add a kdbus_conn_reply */
-	if (conn_src && (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)) {
-		struct timespec ts;
-
-		if (atomic_read(&conn_src->reply_count) >
-		    KDBUS_CONN_MAX_REQUESTS_PENDING) {
-			ret = -EMLINK;
-			goto exit_unref;
-		}
-
-		reply_wait = kzalloc(sizeof(*reply_wait), GFP_KERNEL);
-		if (!reply_wait) {
-			ret = -ENOMEM;
-			goto exit_unref;
-		}
-
-		reply_wait->conn = kdbus_conn_ref(conn_src);
-		reply_wait->cookie = msg->cookie;
-
-		if (sync) {
-			init_waitqueue_head(&reply_wait->wait);
-			reply_wait->sync = true;
-			reply_wait->waiting = true;
-		} else {
-			/* calculate the deadline based on the current time */
-			ktime_get_ts(&ts);
-			reply_wait->deadline_ns = timespec_to_ns(&ts) +
-						  msg->timeout_ns;
-		}
-
-		mutex_lock(&conn_dst->lock);
-		list_add(&reply_wait->entry, &conn_dst->reply_list);
-		atomic_inc(&conn_src->reply_count);
-
-		/*
-		 * For async operation, schedule the scan now. It won't do
-		 * any real work at this point, but walk the list of all
-		 * pending replies and rearm delayed work to the closest
-		 * entry.
-		 * For synchronous operation, the timeout will be handled
-		 * by wait_event_interruptible_timeout().
-		 */
-		if (!sync && kdbus_conn_active(conn_dst))
-			schedule_delayed_work(&conn_dst->work, 0);
-
-		mutex_unlock(&conn_dst->lock);
-	}
-
+meta_append:
+	/*
+	 * A message can never be both the reply to a message and a message
+	 * that waits for a reply at the same time.
+	 */
 	BUG_ON(reply_wait && reply_wake);
 
-meta_append:
 	if (conn_src) {
 		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 					conn_dst->attach_flags);
@@ -1364,6 +1377,8 @@ meta_append:
 		int r;
 		struct kdbus_conn_queue *queue;
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
+
+		BUG_ON(!reply_wait);
 
 		/*
 		 * Block until the reply arrives. reply_wait is left untouched
