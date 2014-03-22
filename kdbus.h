@@ -388,7 +388,7 @@ enum kdbus_payload_type {
  * @cookie_reply:	A reply to the requesting message with the same
  *			cookie. The requesting connection can match its
  *			request and the reply with this value
- * @offset_reply:	If KDBUS_MSG_FLAGS_WAIT_FOR_REPLY, this field will
+ * @offset_reply:	If KDBUS_MSG_FLAGS_EXPECT_REPLY, this field will
  *			contain the offset in the sender's pool where the
  *			reply is stored.
  * @items:		A list of kdbus_items containing the message payload

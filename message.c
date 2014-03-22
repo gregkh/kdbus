@@ -299,8 +299,8 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		}
 	} else {
 		/*
-		 * KDBUS_MSG_FLAGS_EXPECT_REPLY is only valid together with
-		 * KDBUS_MSG_FLAGS_WAIT_FOR_REPLY
+		 * KDBUS_MSG_FLAGS_SYNC_REPLY is only valid together with
+		 * KDBUS_MSG_FLAGS_EXPECT_REPLY
 		 */
 		if (m->msg.flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
 			ret = -EINVAL;
