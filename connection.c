@@ -1628,14 +1628,14 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
 }
 
 /**
- * kdbus_conn_move_messages() - move a message from one connection to another
+ * kdbus_conn_move_messages() - move messages from one connection to another
  * @conn_dst:		Connection to copy to
  * @conn_src:		Connection to copy from
  * @name_id:		Filter for the sequence number of the registered
  *			name, 0 means no filtering.
  *
  * Move all messages from one connection to another. This is used when
- * an ordinary connection is taking over a well-known name from a
+ * an implementor connection is taking over a well-known name from an
  * activator connection.
  *
  * Return: 0 on success, negative errno on failure.
@@ -1654,10 +1654,13 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
-	list_splice_init(&conn_src->msg_list, &msg_list);
 	list_splice_init(&conn_src->reply_list, &reply_list);
-	conn_src->msg_prio_queue = RB_ROOT;
-	conn_src->msg_count = 0;
+
+	list_for_each_entry_safe(q, q_tmp, &conn_src->msg_list, entry) {
+		kdbus_conn_queue_remove(conn_src, q);
+		list_add_tail(&q->entry, &msg_list);
+	}
+
 	mutex_unlock(&conn_src->lock);
 
 	/* insert messages into destination */
@@ -1671,7 +1674,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
 				      &q->off, q->size);
-		if (ret < 0)
+		if (WARN_ON(ret < 0))
 			kdbus_conn_queue_cleanup(q);
 		else
 			kdbus_conn_queue_add(conn_dst, q);
