@@ -35,7 +35,7 @@
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @name_registry:	Domain's list of buses
- * @domain_entry:		Domain's list of buses
+ * @domain_entry:	Domain's list of buses
  * @monitors_list:	Connections that monitor this bus
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus

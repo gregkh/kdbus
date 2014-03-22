@@ -507,6 +507,7 @@ enum kdbus_hello_flags {
  * @KDBUS_ATTACH_SECLABEL:	The security label
  * @KDBUS_ATTACH_AUDIT:		The audit IDs
  * @KDBUS_ATTACH_CONN_NAME:	The human-readable connection name
+ * @_KDBUS_ATTACH_ALL:		All of the above
  */
 enum kdbus_attach_flags {
 	KDBUS_ATTACH_TIMESTAMP		=  1 <<  0,

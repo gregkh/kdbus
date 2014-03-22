@@ -50,5 +50,4 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		     size_t max_policies,
 		     bool allow_wildcards,
 		     const void *owner);
-
 #endif

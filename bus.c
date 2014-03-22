@@ -68,6 +68,10 @@ static void __kdbus_bus_free(struct kref *kref)
 {
 	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
 
+	BUG_ON(!list_empty(&bus->ep_list));
+	BUG_ON(!list_empty(&bus->monitors_list));
+	BUG_ON(!hash_empty(bus->conn_hash));
+
 	kdbus_bus_disconnect(bus);
 	atomic_dec(&bus->user->buses);
 	kdbus_domain_user_unref(bus->user);
