@@ -231,6 +231,11 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 
 	/* link into bus  */
 	mutex_lock(&bus->lock);
+	if (bus->disconnected) {
+		mutex_unlock(&bus->lock);
+		ret = -ESHUTDOWN;
+		goto exit_dev_unregister;
+	}
 	e->id = ++bus->ep_seq_last;
 	e->bus = kdbus_bus_ref(bus);
 	list_add_tail(&e->bus_entry, &bus->ep_list);

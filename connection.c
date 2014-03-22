@@ -521,7 +521,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	/* allocate the needed space in the pool of the receiver */
 	mutex_lock(&conn->lock);
-	if (conn->disconnected) {
+	if (!kdbus_conn_active(conn)) {
 		ret = -ECONNRESET;
 		goto exit_unlock;
 	}
@@ -726,7 +726,7 @@ static void kdbus_conn_work(struct work_struct *work)
 	conn = container_of(work, struct kdbus_conn, work.work);
 
 	mutex_lock(&conn->lock);
-	if (unlikely(conn->disconnected)) {
+	if (!kdbus_conn_active(conn)) {
 		mutex_unlock(&conn->lock);
 		return;
 	}
@@ -1487,7 +1487,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	LIST_HEAD(reply_list);
 
 	mutex_lock(&conn->lock);
-	if (conn->disconnected) {
+	if (!kdbus_conn_active(conn)) {
 		mutex_unlock(&conn->lock);
 		return -EALREADY;
 	}
@@ -1502,16 +1502,14 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 
 	cancel_delayed_work_sync(&conn->work);
 
-	/* remove from bus */
+	/* remove from bus and endpoint */
 	mutex_lock(&conn->bus->lock);
+	mutex_lock(&conn->ep->lock);
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
-	mutex_unlock(&conn->bus->lock);
-
-	/* remove from endpoint */
-	mutex_lock(&conn->ep->lock);
 	list_del(&conn->ep_entry);
 	mutex_unlock(&conn->ep->lock);
+	mutex_unlock(&conn->bus->lock);
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
@@ -2113,14 +2111,18 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_unref_user;
 	}
 
-	/* link into endpoint */
-	mutex_lock(&ep->lock);
-	list_add_tail(&conn->ep_entry, &ep->conn_list);
-	mutex_unlock(&ep->lock);
-
-	/* link into bus */
+	/* link into bus and endpoint */
 	mutex_lock(&bus->lock);
+	mutex_lock(&ep->lock);
+	if (bus->disconnected || ep->disconnected) {
+		mutex_unlock(&ep->lock);
+		mutex_unlock(&bus->lock);
+		ret = -ESHUTDOWN;
+		goto exit_unref_user;
+	}
+	list_add_tail(&conn->ep_entry, &ep->conn_list);
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
+	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
 
 	*c = conn;

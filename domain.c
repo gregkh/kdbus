@@ -256,8 +256,14 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	if (parent)
+	if (parent) {
 		mutex_lock(&parent->lock);
+		if (parent->disconnected) {
+			mutex_unlock(&parent->lock);
+			return -ESHUTDOWN;
+		}
+	}
+
 	mutex_lock(&kdbus_subsys_lock);
 
 	/* compose name and path of base directory in /dev */
@@ -437,6 +443,11 @@ struct kdbus_domain_user
 
 	/* link into domain */
 	mutex_lock(&domain->lock);
+	if (domain->disconnected) {
+		mutex_unlock(&domain->lock);
+		kfree(u);
+		return NULL;
+	}
 
 	/*
 	 * Allocate the smallest possible index for this user; used

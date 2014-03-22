@@ -274,6 +274,11 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 
 	/* link into domain */
 	mutex_lock(&domain->lock);
+	if (domain->disconnected) {
+		mutex_unlock(&domain->lock);
+		ret = -ESHUTDOWN;
+		goto exit_user_unref;
+	}
 	b->id = ++domain->bus_seq_last;
 	list_add_tail(&b->domain_entry, &domain->bus_list);
 	mutex_unlock(&domain->lock);
