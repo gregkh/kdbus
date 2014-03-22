@@ -507,10 +507,13 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 			break;
 		}
 
-		if (data)
+		if (data) {
 			ret = kdbus_pool_copy_data(p, o, data + dpos, n);
-		else
+			dpos += n;
+		} else {
 			ret = kdbus_pool_copy_file(p, o, f_src, off_src, n);
+			off_src += n;
+		}
 		mark_page_accessed(p);
 
 		status = aops->write_end(f_dst, mapping, fpos, n, n, p, fsdata);
@@ -522,10 +525,8 @@ kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 			break;
 		}
 
-		off_src += n;
 		fpos += n;
 		rem -= n;
-		dpos += n;
 	}
 
 	return ret;
