@@ -54,7 +54,7 @@ struct kdbus_conn_reply;
  * @memfds_fp:		Array memfd files queued up for this message
  * @memfds_count:	Number of memfds
  * @fds:		Offset to array where to update the installed fd number
- * @fds_fp:		Array passed files queued up for this message
+ * @fds_fp:		Array of passed files queued up for this message
  * @fds_count:		Number of files
  * @src_id:		The ID of the sender
  * @cookie:		Message cookie, used for replies
@@ -1655,12 +1655,10 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
 	list_splice_init(&conn_src->reply_list, &reply_list);
-
 	list_for_each_entry_safe(q, q_tmp, &conn_src->msg_list, entry) {
 		kdbus_conn_queue_remove(conn_src, q);
 		list_add_tail(&q->entry, &msg_list);
 	}
-
 	mutex_unlock(&conn_src->lock);
 
 	/* insert messages into destination */
