@@ -140,6 +140,29 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 	mutex_unlock(&conn->lock);
 }
 
+/* called with entries_lock held */
+static int kdbus_name_replace_owner(struct kdbus_name_registry *reg,
+				    struct kdbus_conn *conn,
+				    struct kdbus_name_entry *e, u64 flags,
+				    struct list_head *notify_list)
+{
+	int ret;
+
+	ret = kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
+				       e->conn->id, conn->id,
+				       e->flags, flags,
+				       e->name, notify_list);
+	if (ret < 0)
+		return ret;
+
+	/* hand over ownership */
+	kdbus_name_entry_remove_owner(e);
+	kdbus_name_entry_set_owner(e, conn);
+	e->flags = flags;
+
+	return 0;
+}
+
 static int kdbus_name_entry_release(struct kdbus_name_entry *e,
 				     struct list_head *notify_list)
 {
@@ -307,29 +330,6 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 	return 0;
 }
 
-/* called with entries_lock held */
-static int kdbus_name_replace_owner(struct kdbus_name_registry *reg,
-				    struct kdbus_conn *conn,
-				    struct kdbus_name_entry *e, u64 flags,
-				    struct list_head *notify_list)
-{
-	int ret;
-
-	ret = kdbus_notify_name_change(KDBUS_ITEM_NAME_CHANGE,
-				       e->conn->id, conn->id,
-				       e->flags, flags,
-				       e->name, notify_list);
-	if (ret < 0)
-		return ret;
-
-	/* hand over ownership */
-	kdbus_name_entry_remove_owner(e);
-	kdbus_name_entry_set_owner(e, conn);
-	e->flags = flags;
-
-	return 0;
-}
-
 /**
  * kdbus_name_is_valid() - check if a name is value
  * @p:			The name to check
@@ -426,8 +426,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 					ret = -EALREADY;
 				else
 					ret = -EINVAL;
-			} else if (!e->activator &&
-				   !conn->activator_of) {
+			} else if (!e->activator && !conn->activator_of) {
 				/*
 				 * Activator registers for name that is
 				 * already owned
