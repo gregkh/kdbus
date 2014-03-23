@@ -236,7 +236,7 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (bus->disconnected) {
 		mutex_unlock(&bus->lock);
 		ret = -ESHUTDOWN;
-		goto exit_dev_unregister;
+		goto exit_policy_db_free;
 	}
 	e->id = ++bus->ep_seq_last;
 	e->bus = kdbus_bus_ref(bus);
@@ -247,6 +247,9 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		*ep = e;
 	return 0;
 
+exit_policy_db_free:
+	if (policy)
+		kdbus_policy_db_free(e->policy_db);
 exit_dev_unregister:
 	device_unregister(e->dev);
 exit_idr:
