@@ -130,7 +130,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	/* cache the metadata/credentials of the creator of the connection */
 	ret = kdbus_meta_new(&handle->meta);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_ep_unref;
 
 	ret = kdbus_meta_append(handle->meta, NULL, 0,
 				KDBUS_ATTACH_CREDS |
@@ -142,11 +142,15 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 				KDBUS_ATTACH_SECLABEL |
 				KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_meta_free;
 
 	mutex_unlock(&handle->domain->lock);
 	return 0;
 
+exit_meta_free:
+	kdbus_meta_free(handle->meta);
+exit_ep_unref:
+	kdbus_ep_unref(handle->ep);
 exit_unlock:
 	mutex_unlock(&handle->domain->lock);
 	kdbus_domain_unref(handle->domain);
