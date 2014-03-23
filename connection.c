@@ -1637,8 +1637,8 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  *			name, 0 means no filtering.
  *
  * Move all messages from one connection to another. This is used when
- * an implementor connection is taking over a well-known name from an
- * activator connection.
+ * an implementor connection is taking over/giving back a well-known name
+ * from/to an activator connection.
  *
  * Return: 0 on success, negative errno on failure.
  */
