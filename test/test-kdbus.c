@@ -259,7 +259,7 @@ static int send_message(const struct kdbus_conn *conn,
 }
 
 /* -----------------------------------8<------------------------------- */
-static int check_nsmake(struct kdbus_check_env *env)
+static int check_domain_make(struct kdbus_check_env *env)
 {
 	int fd, fd2;
 	struct {
@@ -308,7 +308,7 @@ static int check_nsmake(struct kdbus_check_env *env)
 
 /* -----------------------------------8<------------------------------- */
 
-static int check_busmake(struct kdbus_check_env *env)
+static int check_bus_make(struct kdbus_check_env *env)
 {
 	struct {
 		struct kdbus_cmd_make head;
@@ -1101,7 +1101,7 @@ void check_unprepare_env(const struct kdbus_check *c, struct kdbus_check_env *en
 }
 
 static const struct kdbus_check checks[] = {
-	{ "bus make",		check_busmake,			0					},
+	{ "bus make",		check_bus_make,			0					},
 	{ "hello",		check_hello,			CHECK_CREATE_BUS			},
 	{ "byebye",		check_byebye,			CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "monitor",		check_monitor,			CHECK_CREATE_BUS			},
@@ -1116,7 +1116,7 @@ static const struct kdbus_check checks[] = {
 	{ "match name add",	check_match_name_add,		CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "match name remove",	check_match_name_remove,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
 	{ "match name change",	check_match_name_change,	CHECK_CREATE_BUS | CHECK_CREATE_CONN	},
-	{ "domain make",		check_nsmake,			0					},
+	{ "domain make",	check_domain_make,		0					},
 	{ NULL, NULL, 0 }
 };
 
