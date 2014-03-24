@@ -1665,6 +1665,18 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 	/* insert messages into destination */
 	mutex_lock(&conn_dst->lock);
+	if (!kdbus_conn_active(conn_dst)) {
+		struct kdbus_conn_reply *r, *r_tmp;
+
+		/* our destination connection died, just drop all messages */
+		mutex_unlock(&conn_dst->lock);
+		list_for_each_entry_safe(q, q_tmp, &msg_list, entry)
+			kdbus_conn_queue_cleanup(q);
+		list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
+			kdbus_conn_reply_free(r);
+		return -ECONNRESET;
+	}
+
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
 		/* filter messages for a specific name */
 		if (name_id > 0 && q->dst_name_id != name_id) {
