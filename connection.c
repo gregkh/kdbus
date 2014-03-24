@@ -2123,22 +2123,20 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_free_meta;
 	}
 
-	if (!capable(CAP_IPC_OWNER) &&
-	    atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
-		atomic_dec(&conn->user->connections);
-		ret = -EMFILE;
-		goto exit_unref_user;
-	}
-
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&bus->lock);
 	mutex_lock(&ep->lock);
 
 	if (bus->disconnected || ep->disconnected) {
-		mutex_unlock(&ep->lock);
-		mutex_unlock(&bus->lock);
 		ret = -ESHUTDOWN;
-		goto exit_unref_user;
+		goto exit_unlock;
+	}
+
+	if (!capable(CAP_IPC_OWNER) &&
+	    atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
+		atomic_dec(&conn->user->connections);
+		ret = -EMFILE;
+		goto exit_unlock;
 	}
 
 	/* link into bus and endpoint */
@@ -2151,6 +2149,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	*c = conn;
 	return 0;
 
+exit_unlock:
+	mutex_unlock(&ep->lock);
+	mutex_unlock(&bus->lock);
 exit_unref_user:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
