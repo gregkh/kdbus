@@ -290,6 +290,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	list_splice_init(&conn->names_queue_list, &names_queue_list);
 	mutex_unlock(&conn->lock);
 
+	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->lock);
 	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
@@ -423,6 +424,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	u32 hash;
 	int ret = 0;
 
+	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->lock);
 
@@ -653,16 +655,18 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	struct kdbus_bus *bus = conn->bus;
 	struct kdbus_name_entry *e;
 	LIST_HEAD(notify_list);
-	int ret = 0;
 	u32 hash;
+	int ret = 0;
 
 	if (!kdbus_name_is_valid(cmd->name, false))
 		return -EINVAL;
 
 	hash = kdbus_str_hash(cmd->name);
 
+	/* lock order: domain -> bus -> ep -> names -> connection */
 	mutex_lock(&bus->lock);
 	mutex_lock(&reg->lock);
+
 	e = __kdbus_name_lookup(reg, hash, cmd->name);
 	if (!e) {
 		ret = -ESRCH;
@@ -851,6 +855,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	policy_db = conn->ep->policy_db;
 
+	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->lock);
 

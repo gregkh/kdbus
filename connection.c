@@ -1107,6 +1107,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 	if (atomic_read(&conn->reply_count) == 0)
 		return -ENOENT;
 
+	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
 	hash_for_each(conn->bus->conn_hash, i, c, hentry) {
 		if (c == conn)
@@ -1500,12 +1501,15 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 
 	cancel_delayed_work_sync(&conn->work);
 
-	/* remove from bus and endpoint */
+	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&conn->ep->lock);
+
+	/* remove from bus and endpoint */
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
 	list_del(&conn->ep_entry);
+
 	mutex_unlock(&conn->ep->lock);
 	mutex_unlock(&conn->bus->lock);
 
@@ -2126,17 +2130,21 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_unref_user;
 	}
 
-	/* link into bus and endpoint */
+	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&bus->lock);
 	mutex_lock(&ep->lock);
+
 	if (bus->disconnected || ep->disconnected) {
 		mutex_unlock(&ep->lock);
 		mutex_unlock(&bus->lock);
 		ret = -ESHUTDOWN;
 		goto exit_unref_user;
 	}
+
+	/* link into bus and endpoint */
 	list_add_tail(&conn->ep_entry, &ep->conn_list);
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
+
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
 

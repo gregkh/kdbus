@@ -125,6 +125,7 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain)
 			break;
 		}
 
+		/* take reference, release lock, disconnect without lock */
 		kdbus_domain_ref(dom);
 		mutex_unlock(&domain->lock);
 
@@ -145,6 +146,7 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain)
 			break;
 		}
 
+		/* take reference, release lock, disconnect without lock */
 		kdbus_bus_ref(bus);
 		mutex_unlock(&domain->lock);
 
@@ -260,6 +262,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
+	/* lock order: parent domain -> domain -> subsys_lock */
 	if (parent) {
 		mutex_lock(&parent->lock);
 		if (parent->disconnected) {
@@ -483,6 +486,7 @@ static void __kdbus_domain_user_free(struct kref *kref)
 	idr_remove(&user->domain->user_idr, user->idr);
 	hash_del(&user->hentry);
 	mutex_unlock(&user->domain->lock);
+
 	kdbus_domain_unref(user->domain);
 	kfree(user);
 }

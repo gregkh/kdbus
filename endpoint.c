@@ -86,6 +86,7 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 			break;
 		}
 
+		/* take reference, release lock, disconnect without lock */
 		kdbus_conn_ref(conn);
 		mutex_unlock(&ep->lock);
 

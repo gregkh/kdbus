@@ -159,6 +159,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 			break;
 		}
 
+		/* take reference, release lock, disconnect without lock */
 		kdbus_ep_ref(ep);
 		mutex_unlock(&bus->lock);
 
@@ -183,8 +184,8 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain, const char 
 		bus = kdbus_bus_ref(b);
 		break;
 	}
-
 	mutex_unlock(&domain->lock);
+
 	return bus;
 }
 
