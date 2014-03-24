@@ -403,14 +403,13 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e = NULL;
 	LIST_HEAD(notify_list);
-	int ret = 0;
 	u32 hash;
-
-	hash = kdbus_str_hash(name);
+	int ret = 0;
 
 	mutex_lock(&conn->bus->lock);
 	mutex_lock(&reg->lock);
 
+	hash = kdbus_str_hash(name);
 	e = __kdbus_name_lookup(reg, hash, name);
 	if (e) {
 		/* connection already owns that name */
@@ -551,7 +550,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	LIST_HEAD(notify_list);
 	u64 allowed;
 	int ret = 0;
-	u32 hash;
 
 	/* monitor connection may not own names */
 	if (conn->flags & KDBUS_HELLO_MONITOR)
@@ -591,8 +589,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		kdbus_conn_ref(conn);
 	}
 
-	hash = kdbus_str_hash(cmd->name);
-
 	if (conn->bus->policy_db) {
 		ret = kdbus_policy_check_own_access(conn->bus->policy_db,
 						    conn, cmd->name);
@@ -607,8 +603,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unref_conn;
 	}
 
-	ret = kdbus_name_acquire(reg, conn, cmd->name,
-				 &cmd->flags, &e);
+	ret = kdbus_name_acquire(reg, conn, cmd->name, &cmd->flags, &e);
 
 exit_unref_conn:
 	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
