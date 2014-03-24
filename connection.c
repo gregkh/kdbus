@@ -1511,6 +1511,12 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	mutex_unlock(&conn->ep->lock);
 	mutex_unlock(&conn->bus->lock);
 
+	/*
+	 * Remove all names associated with this connection; this possibly
+	 * moves queued messages back to the activator connection.
+	 */
+	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
+
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
@@ -1546,9 +1552,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		list_del(&reply->entry);
 		kdbus_conn_reply_free(reply);
 	}
-
-	/* remove all names associated with this connection */
-	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
 
 	/* wake up the queue so that users can get a POLLERR */
 	wake_up_interruptible(&conn->wait);
@@ -1679,14 +1682,12 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
 		/* filter messages for a specific name */
-		if (name_id > 0 && q->dst_name_id != name_id) {
-			kdbus_conn_queue_cleanup(q);
+		if (name_id > 0 && q->dst_name_id != name_id)
 			continue;
-		}
 
 		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
 				      &q->off, q->size);
-		if (WARN_ON(ret < 0))
+		if (ret < 0)
 			kdbus_conn_queue_cleanup(q);
 		else
 			kdbus_conn_queue_add(conn_dst, q);
