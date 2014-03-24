@@ -274,14 +274,14 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	mutex_lock(&domain->lock);
 	if (domain->disconnected) {
 		ret = -ESHUTDOWN;
-		goto exit_unlock;
+		goto exit_unref_user_unlock;
 	}
 
 	if (!capable(CAP_IPC_OWNER) &&
 	    atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
 		atomic_dec(&b->user->buses);
 		ret = -EMFILE;
-		goto exit_unlock;
+		goto exit_unref_user_unlock;
 	}
 
 	b->id = ++domain->bus_seq_last;
@@ -291,9 +291,8 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	*bus = b;
 	return 0;
 
-exit_unlock:
+exit_unref_user_unlock:
 	mutex_unlock(&domain->lock);
-exit_user_unref:
 	kdbus_domain_user_unref(b->user);
 exit_ep_unref:
 	kdbus_ep_unref(b->ep);
