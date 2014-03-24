@@ -467,6 +467,11 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	size_t off;
 	int ret = 0;
 
+	BUG_ON(!mutex_is_locked(&conn->lock));
+
+	if (!kdbus_conn_active(conn))
+		return -ECONNRESET;
+
 	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
 		return -ECOMM;
 
@@ -519,24 +524,18 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	/* data starts after the message */
 	vec_data = KDBUS_ALIGN8(msg_size);
 
-	/* allocate the needed space in the pool of the receiver */
-	mutex_lock(&conn->lock);
-	if (!kdbus_conn_active(conn)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
 	/* do not give out more than half of the remaining space */
 	want = vec_data + kmsg->vecs_size;
 	have = kdbus_pool_remain(conn->pool);
 	if (want < have && want > have / 2) {
 		ret = -EXFULL;
-		goto exit_unlock;
+		goto exit;
 	}
 
+	/* allocate the needed space in the pool of the receiver */
 	ret = kdbus_pool_alloc_range(conn->pool, want, &off);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit;
 
 	/* copy the message header */
 	ret = kdbus_pool_write(conn->pool, off, &kmsg->msg, size);
@@ -604,15 +603,13 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	queue->off = off;
 	queue->size = want;
 	queue->priority = kmsg->msg.priority;
-	mutex_unlock(&conn->lock);
 
 	*q = queue;
 	return 0;
 
 exit_pool_free:
 	kdbus_pool_free_range(conn->pool, off);
-exit_unlock:
-	mutex_unlock(&conn->lock);
+exit:
 	kdbus_conn_queue_cleanup(queue);
 	return ret;
 }
@@ -683,14 +680,15 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	    conn->msg_count > KDBUS_CONN_MAX_MSGS)
 		return -ENOBUFS;
 
+	mutex_lock(&conn->lock);
 	ret = kdbus_conn_queue_alloc(conn, kmsg, &queue);
 	if (ret < 0)
-		return ret;
+		goto exit_unlock;
 
 	/* limit the number of queued messages from the same individual user */
 	ret = kdbus_conn_queue_user_quota(conn, conn_src, queue);
 	if (ret < 0)
-		return ret;
+		goto exit_queue_free;
 
 	/*
 	 * Remember the the reply associated with this queue entry, so we can
@@ -700,14 +698,18 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 	queue->reply = reply;
 
 	/* link the message into the receiver's queue */
-	mutex_lock(&conn->lock);
 	kdbus_conn_queue_add(conn, queue);
 	mutex_unlock(&conn->lock);
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn->wait);
-
 	return 0;
+
+exit_queue_free:
+	kdbus_conn_queue_cleanup(queue);
+exit_unlock:
+	mutex_unlock(&conn->lock);
+	return ret;
 }
 
 static void kdbus_conn_work(struct work_struct *work)
@@ -1143,20 +1145,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
-	struct kdbus_bus *bus;
-	bool sync;
+	struct kdbus_bus *bus = ep->bus;
+	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	int ret;
-
-	bus = ep->bus;
-
-	mutex_lock(&bus->lock);
-	if (unlikely(ep->bus->disconnected)) {
-		mutex_unlock(&ep->bus->lock);
-		return -ESHUTDOWN;
-	}
-	mutex_unlock(&bus->lock);
-
-	sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 
 	/* assign domain-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
@@ -1225,6 +1216,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 
+		mutex_lock(&conn_dst->lock);
+		if (!kdbus_conn_active(conn_dst)) {
+			mutex_unlock(&conn_dst->lock);
+			ret = -ECONNRESET;
+			goto exit_unref;
+		}
+
 		/*
 		 * This message expects a reply, so let's interpret
 		 * msg->timeout_ns and add a kdbus_conn_reply object.
@@ -1236,6 +1234,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		reply_wait = kzalloc(sizeof(*reply_wait), GFP_KERNEL);
 		if (!reply_wait) {
+			mutex_unlock(&conn_dst->lock);
 			ret = -ENOMEM;
 			goto exit_unref;
 		}
@@ -1254,7 +1253,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						  msg->timeout_ns;
 		}
 
-		mutex_lock(&conn_dst->lock);
 		list_add(&reply_wait->entry, &conn_dst->reply_list);
 		atomic_inc(&conn_src->reply_count);
 
@@ -1266,7 +1264,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * For synchronous operation, the timeout will be handled
 		 * by wait_event_interruptible_timeout().
 		 */
-		if (!sync && kdbus_conn_active(conn_dst))
+		if (!sync)
 			schedule_delayed_work(&conn_dst->work, 0);
 
 		mutex_unlock(&conn_dst->lock);
@@ -1343,10 +1341,10 @@ meta_append:
 		 * queue item and attach it to the reply tracking object.
 		 * The connection's queue will never get to see it.
 		 */
+		mutex_lock(&conn_dst->lock);
 		ret = kdbus_conn_queue_alloc(conn_dst, kmsg,
 					     &reply_wake->queue);
 
-		mutex_lock(&conn_dst->lock);
 		kdbus_conn_reply_sync(reply_wake, ret);
 		mutex_unlock(&conn_dst->lock);
 	} else {
