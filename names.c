@@ -515,8 +515,17 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	e->flags = *flags;
 	INIT_LIST_HEAD(&e->queue_list);
 	e->name_id = ++reg->name_seq_last;
+
+	mutex_lock(&conn->lock);
+	if (!kdbus_conn_active(conn)) {
+		mutex_unlock(&conn->lock);
+		kfree(e);
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
+	mutex_unlock(&conn->lock);
 
 	kdbus_notify_name_change(KDBUS_ITEM_NAME_ADD,
 				 0, e->conn->id,
