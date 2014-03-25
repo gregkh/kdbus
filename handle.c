@@ -726,6 +726,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_FREE: {
 		u64 off;
+		struct kdbus_pool_slice *slice;
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
 			return -EFAULT;
@@ -734,7 +735,10 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (copy_from_user(&off, buf, sizeof(off)))
 			return -EFAULT;
 
-		ret = kdbus_pool_free_range(conn->pool, off);
+		slice = kdbus_pool_slice_find(conn->pool, off);
+		if (!slice)
+			return -ENXIO;
+		kdbus_pool_slice_free(slice);
 		break;
 	}
 
@@ -748,7 +752,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	}
 
 	kfree(p);
-
 	return ret;
 }
 

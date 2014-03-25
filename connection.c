@@ -47,8 +47,7 @@ struct kdbus_conn_reply;
  * @prio_node:		Entry in the priority queue tree
  * @prio_entry:		Queue tree node entry in the list of one priority
  * @priority:		Queueing priority of the message
- * @off:		Offset into the shmem file in the receiver's pool
- * @size:		The number of bytes used in the pool
+ * @slice:		Allocated slice in the receiver's pool
  * @memfds:		Arrays of offsets where to update the installed
  *			fd number
  * @memfds_fp:		Array memfd files queued up for this message
@@ -68,8 +67,7 @@ struct kdbus_conn_queue {
 	struct rb_node prio_node;
 	struct list_head prio_entry;
 	s64 priority;
-	size_t off;
-	size_t size;
+	struct kdbus_pool_slice *slice;
 	size_t *memfds;
 	struct file **memfds_fp;
 	unsigned int memfds_count;
@@ -234,7 +232,7 @@ exit_unref:
 static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 				  struct kdbus_conn_queue *queue,
 				  const struct kdbus_kmsg *kmsg,
-				  size_t off, size_t items, size_t vec_data)
+				  size_t items, size_t vec_data)
 {
 	const struct kdbus_item *item;
 	int ret;
@@ -269,8 +267,8 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			else
 				it->vec.offset = ~0ULL;
 			it->vec.size = item->vec.size;
-			ret = kdbus_pool_write(conn->pool, off + items,
-					       it, it->size);
+			ret = kdbus_pool_slice_copy(queue->slice, items,
+						     it, it->size);
 			if (ret < 0)
 				return ret;
 			items += KDBUS_ALIGN8(it->size);
@@ -288,16 +286,14 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 				 * null-bytes to the buffer which the \0-bytes
 				 * record would have shifted the alignment.
 				 */
-				kdbus_pool_write_user(conn->pool,
-						      off + vec_data,
-						      (char __user *)
-							"\0\0\0\0\0\0\0", pad);
+				kdbus_pool_slice_copy_user(queue->slice, vec_data,
+					(char __user *) "\0\0\0\0\0\0\0", pad);
 				vec_data += pad;
 				break;
 			}
 
 			/* copy kdbus_vec data from sender to receiver */
-			ret = kdbus_pool_write_user(conn->pool, off + vec_data,
+			ret = kdbus_pool_slice_copy_user(queue->slice, vec_data,
 				KDBUS_PTR(item->vec.address), item->vec.size);
 			if (ret < 0)
 				return ret;
@@ -318,8 +314,8 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			it->size = sizeof(tmp);
 			it->memfd.size = item->memfd.size;
 			it->memfd.fd = -1;
-			ret = kdbus_pool_write(conn->pool, off + items,
-					       it, it->size);
+			ret = kdbus_pool_slice_copy(queue->slice, items,
+						     it, it->size);
 			if (ret < 0)
 				return ret;
 
@@ -464,7 +460,6 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	size_t meta = 0;
 	size_t vec_data;
 	size_t want, have;
-	size_t off;
 	int ret = 0;
 
 	BUG_ON(!mutex_is_locked(&conn->lock));
@@ -533,18 +528,18 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	}
 
 	/* allocate the needed space in the pool of the receiver */
-	ret = kdbus_pool_alloc_range(conn->pool, want, &off);
+	ret = kdbus_pool_slice_alloc(conn->pool, &queue->slice, want);
 	if (ret < 0)
 		goto exit;
 
 	/* copy the message header */
-	ret = kdbus_pool_write(conn->pool, off, &kmsg->msg, size);
+	ret = kdbus_pool_slice_copy(queue->slice, 0, &kmsg->msg, size);
 	if (ret < 0)
 		goto exit_pool_free;
 
 	/* update the size */
-	ret = kdbus_pool_write(conn->pool, off, &msg_size,
-			       sizeof(kmsg->msg.size));
+	ret = kdbus_pool_slice_copy(queue->slice, 0, &msg_size,
+				     sizeof(kmsg->msg.size));
 	if (ret < 0)
 		goto exit_pool_free;
 
@@ -556,7 +551,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 		it->type = KDBUS_ITEM_DST_NAME;
 		memcpy(it->str, kmsg->dst_name, dst_name_len);
 
-		ret = kdbus_pool_write(conn->pool, off + size, it, it->size);
+		ret = kdbus_pool_slice_copy(queue->slice, size, it, it->size);
 		if (ret < 0)
 			goto exit_pool_free;
 	}
@@ -564,7 +559,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	/* add PAYLOAD items */
 	if (payloads > 0) {
 		ret = kdbus_conn_payload_add(conn, queue, kmsg,
-					     off, payloads, vec_data);
+					     payloads, vec_data);
 		if (ret < 0)
 			goto exit_pool_free;
 	}
@@ -577,7 +572,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 		it->type = KDBUS_ITEM_FDS;
 		it->size = KDBUS_ITEM_HEADER_SIZE +
 			   (kmsg->fds_count * sizeof(int));
-		ret = kdbus_pool_write(conn->pool, off + fds,
+		ret = kdbus_pool_slice_copy(queue->slice, fds,
 				       it, KDBUS_ITEM_HEADER_SIZE);
 		if (ret < 0)
 			goto exit_pool_free;
@@ -593,22 +588,18 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	/* append message metadata/credential items */
 	if (meta > 0) {
-		ret = kdbus_pool_write(conn->pool, off + meta,
-				       kmsg->meta->data, kmsg->meta->size);
+		ret = kdbus_pool_slice_copy(queue->slice, meta,
+			kmsg->meta->data, kmsg->meta->size);
 		if (ret < 0)
 			goto exit_pool_free;
 	}
 
-	/* copy some properties of the message to the queue entry */
-	queue->off = off;
-	queue->size = want;
 	queue->priority = kmsg->msg.priority;
-
 	*q = queue;
 	return 0;
 
 exit_pool_free:
-	kdbus_pool_free_range(conn->pool, off);
+	kdbus_pool_slice_free(queue->slice);
 exit:
 	kdbus_conn_queue_cleanup(queue);
 	return ret;
@@ -873,7 +864,7 @@ static int kdbus_conn_fds_install(struct kdbus_conn *conn,
 	}
 
 	/* copy the array into the message item */
-	ret = kdbus_pool_write(conn->pool, queue->off + queue->fds, fds, size);
+	ret = kdbus_pool_slice_copy(queue->slice, queue->fds, fds, size);
 	if (ret < 0)
 		goto remove_unused;
 
@@ -924,9 +915,8 @@ static int kdbus_conn_memfds_install(struct kdbus_conn *conn,
 	 * the locations of the values in the buffer.
 	 */
 	for (i = 0; i < queue->memfds_count; i++) {
-		ret = kdbus_pool_write(conn->pool,
-				       queue->off + queue->memfds[i],
-				       &fds[i], sizeof(int));
+		ret = kdbus_pool_slice_copy(queue->slice, queue->memfds[i],
+					     &fds[i], sizeof(int));
 		if (ret < 0)
 			goto remove_unused;
 	}
@@ -976,7 +966,7 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 	}
 
 	kfree(memfds);
-	kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
+	kdbus_pool_slice_flush(queue->slice);
 
 	return 0;
 
@@ -1048,7 +1038,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		}
 
 		kdbus_conn_queue_remove(conn, queue);
-		kdbus_pool_free_range(conn->pool, queue->off);
+		kdbus_pool_slice_free(queue->slice);
 		mutex_unlock(&conn->lock);
 
 		if (reply)
@@ -1060,7 +1050,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	}
 
 	/* Give the offset back to the caller. */
-	recv->offset = queue->off;
+	recv->offset = kdbus_pool_slice_offset(queue->slice);
 
 	/*
 	 * Just return the location of the next message. Do not install
@@ -1072,7 +1062,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	 * not with peek.
 	 */
 	if (recv->flags & KDBUS_RECV_PEEK) {
-		kdbus_pool_flush_dcache(conn->pool, queue->off, queue->size);
+		kdbus_pool_slice_flush(queue->slice);
 		goto exit_unlock;
 	}
 
@@ -1411,7 +1401,8 @@ meta_append:
 			if (ret == 0)
 				ret = kdbus_conn_msg_install(conn_src, queue);
 
-			kmsg->msg.offset_reply = queue->off;
+			kmsg->msg.offset_reply =
+				kdbus_pool_slice_offset(queue->slice);
 			kdbus_conn_queue_cleanup(queue);
 		}
 		mutex_unlock(&conn_src->lock);
@@ -1527,7 +1518,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 						queue->cookie, &notify_list);
 
 		kdbus_conn_queue_remove(conn, queue);
-		kdbus_pool_free_range(conn->pool, queue->off);
+		kdbus_pool_slice_free(queue->slice);
 		kdbus_conn_queue_cleanup(queue);
 	}
 	list_splice_init(&conn->reply_list, &reply_list);
@@ -1687,8 +1678,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		if (name_id > 0 && q->dst_name_id != name_id)
 			continue;
 
-		ret = kdbus_pool_move(conn_dst->pool, conn_src->pool,
-				      &q->off, q->size);
+		ret = kdbus_pool_move_slice(conn_dst->pool, conn_src->pool,
+					    &q->slice);
 		if (ret < 0)
 			kdbus_conn_queue_cleanup(q);
 		else
@@ -1719,7 +1710,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	struct kdbus_conn_info info = {};
 	struct kdbus_meta *meta = NULL;
 	char *name = NULL;
-	size_t off, pos;
+	struct kdbus_pool_slice *slice;
+	size_t pos;
 	int ret = 0;
 	u64 flags;
 	u32 hash;
@@ -1798,19 +1790,18 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		info.size += meta->size;
 	}
 
-	ret = kdbus_pool_alloc_range(conn->pool, info.size, &off);
+	ret = kdbus_pool_slice_alloc(conn->pool, &slice, info.size);
 	if (ret < 0)
 		goto exit;
 
-	ret = kdbus_pool_write(conn->pool, off, &info, sizeof(info));
+	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
 	if (ret < 0)
 		goto exit_free;
-
-	pos = off + sizeof(info);
+	pos = sizeof(info);
 
 	if (conn->meta->domain == owner_conn->meta->domain) {
-		ret = kdbus_pool_write(conn->pool, pos, owner_conn->meta->data,
-				       owner_conn->meta->size);
+		ret = kdbus_pool_slice_copy(slice, pos, owner_conn->meta->data,
+					     owner_conn->meta->size);
 		if (ret < 0)
 			goto exit_free;
 
@@ -1818,18 +1809,18 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	}
 
 	if (meta) {
-		ret = kdbus_pool_write(conn->pool, pos, meta->data, meta->size);
+		ret = kdbus_pool_slice_copy(slice, pos, meta->data, meta->size);
 		if (ret < 0)
 			goto exit_free;
 	}
 
 	/* write back the offset */
-	cmd_info->offset = off;
-	kdbus_pool_flush_dcache(conn->pool, off, info.size);
+	cmd_info->offset = kdbus_pool_slice_offset(slice);
+	kdbus_pool_slice_flush(slice);
 
 exit_free:
 	if (ret < 0)
-		kdbus_pool_free_range(conn->pool, off);
+		kdbus_pool_slice_free(slice);
 
 exit:
 	kdbus_meta_free(meta);
@@ -2033,7 +2024,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);
 
-	ret = kdbus_pool_new(conn->name, hello->pool_size, &conn->pool);
+	ret = kdbus_pool_new(conn->name, &conn->pool, hello->pool_size);
 	if (ret < 0)
 		goto exit_free_conn;
 

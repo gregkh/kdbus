@@ -14,21 +14,26 @@
 #define __KDBUS_POOL_H
 
 struct kdbus_pool;
+struct kdbus_pool_slice;
 
-int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool);
+int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size);
 void kdbus_pool_free(struct kdbus_pool *pool);
-
-int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off);
-int kdbus_pool_free_range(struct kdbus_pool *pool, size_t off);
 size_t kdbus_pool_remain(struct kdbus_pool *pool);
-ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
-			 const void *data, size_t len);
-ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
-			      const void __user *data, size_t len);
-int kdbus_pool_move(struct kdbus_pool *dst_pool,
-		    struct kdbus_pool *src_pool,
-		    size_t *offset, size_t size);
-void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
-			     size_t off, size_t len);
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);
+int kdbus_pool_move_slice(struct kdbus_pool *dst_pool,
+			  struct kdbus_pool *src_pool,
+			  struct kdbus_pool_slice **slice);
+
+int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
+			   struct kdbus_pool_slice **slice, size_t size);
+void kdbus_pool_slice_free(struct kdbus_pool_slice *slice);
+struct kdbus_pool_slice *kdbus_pool_slice_find(struct kdbus_pool *pool,
+					       size_t off);
+size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice);
+ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
+			       const void *data, size_t len);
+ssize_t
+kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
+			    const void __user *data, size_t len);
+void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice);
 #endif

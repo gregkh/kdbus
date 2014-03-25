@@ -706,6 +706,7 @@ exit_unlock:
 
 static int kdbus_name_list_write(struct kdbus_conn *conn,
 				 struct kdbus_conn *c,
+				 struct kdbus_pool_slice *slice,
 				 size_t *pos,
 				 struct kdbus_name_entry *e,
 				 bool write)
@@ -744,14 +745,14 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		};
 
 		/* write record */
-		ret = kdbus_pool_write(conn->pool, p, &n, len);
+		ret = kdbus_pool_slice_copy(slice, p, &n, len);
 		if (ret < 0)
 			return ret;
 		p += len;
 
 		/* append name */
 		if (e) {
-			ret = kdbus_pool_write(conn->pool, p, e->name, nlen);
+			ret = kdbus_pool_slice_copy(slice, p, e->name, nlen);
 			if (ret < 0)
 				return ret;
 			p += KDBUS_ALIGN8(nlen);
@@ -765,6 +766,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 }
 
 static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
+			       struct kdbus_pool_slice *slice,
 			       size_t *pos, bool write)
 {
 	struct kdbus_conn *c;
@@ -789,8 +791,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 
 				if ((flags & KDBUS_NAME_LIST_ACTIVATORS) &&
 				    a && a != c) {
-					ret = kdbus_name_list_write(conn, a, &p,
-								    e, write);
+					ret = kdbus_name_list_write(conn, a,
+							slice, &p, e, write);
 					if (ret < 0)
 						return ret;
 
@@ -799,8 +801,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 
 				if (flags & KDBUS_NAME_LIST_NAMES ||
 				    c->flags & KDBUS_HELLO_ACTIVATOR) {
-					ret = kdbus_name_list_write(conn, c, &p,
-								    e, write);
+					ret = kdbus_name_list_write(conn, c,
+							slice, &p, e, write);
 					if (ret < 0)
 						return ret;
 
@@ -815,8 +817,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 
 			list_for_each_entry(q, &c->names_queue_list,
 					    conn_entry) {
-				ret = kdbus_name_list_write(conn, c, &p,
-							    q->entry, write);
+				ret = kdbus_name_list_write(conn, c,
+						slice, &p, q->entry, write);
 				if (ret < 0)
 					return ret;
 
@@ -826,7 +828,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 
 		/* nothing added so far, just add the unique ID */
 		if (!added && flags & KDBUS_NAME_LIST_UNIQUE) {
-			ret = kdbus_name_list_write(conn, c, &p, NULL, write);
+			ret = kdbus_name_list_write(conn, c,
+					slice, &p, NULL, write);
 			if (ret < 0)
 				return ret;
 		}
@@ -850,7 +853,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 {
 	struct kdbus_policy_db *policy_db;
 	struct kdbus_name_list list = {};
-	size_t size, off, pos;
+	struct kdbus_pool_slice *slice;
+	size_t pos;
 	int ret;
 
 	policy_db = conn->ep->policy_db;
@@ -862,45 +866,40 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	if (policy_db)
 		mutex_lock(&policy_db->entries_lock);
 
-	/* size of header */
-	size = sizeof(struct kdbus_name_list);
-
-	/* size of records */
-	ret = kdbus_name_list_all(conn, cmd->flags, &size, false);
+	/* size of header + records */
+	pos = sizeof(struct kdbus_name_list);
+	ret = kdbus_name_list_all(conn, cmd->flags, NULL, &pos, false);
 	if (ret < 0)
 		goto exit_unlock;
 
-	ret = kdbus_pool_alloc_range(conn->pool, size, &off);
+	ret = kdbus_pool_slice_alloc(conn->pool, &slice, pos);
 	if (ret < 0)
 		goto exit_unlock;
 
-	/* copy header */
-	pos = off;
-	list.size = size;
-
-	ret = kdbus_pool_write(conn->pool, pos,
-			       &list, sizeof(struct kdbus_name_list));
-	if (ret < 0)
-		goto exit_pool_free;
-	pos += sizeof(struct kdbus_name_list);
-
-	/* copy data */
-	ret = kdbus_name_list_all(conn, cmd->flags, &pos, true);
+	/* copy the header, specifying the overall size */
+	list.size = pos;
+	ret = kdbus_pool_slice_copy(slice, 0,
+				    &list, sizeof(struct kdbus_name_list));
 	if (ret < 0)
 		goto exit_pool_free;
 
-	cmd->offset = off;
-	kdbus_pool_flush_dcache(conn->pool, off, size);
+	/* copy the records */
+	pos = sizeof(struct kdbus_name_list);
+	ret = kdbus_name_list_all(conn, cmd->flags, slice, &pos, true);
+	if (ret < 0)
+		goto exit_pool_free;
+
+	cmd->offset = kdbus_pool_slice_offset(slice);
+	kdbus_pool_slice_flush(slice);
 
 exit_pool_free:
 	if (ret < 0)
-		kdbus_pool_free_range(conn->pool, off);
+		kdbus_pool_slice_free(slice);
 exit_unlock:
 	if (policy_db)
 		mutex_unlock(&policy_db->entries_lock);
 
 	mutex_unlock(&reg->lock);
 	mutex_unlock(&conn->bus->lock);
-
 	return ret;
 }

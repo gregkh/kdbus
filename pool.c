@@ -62,7 +62,8 @@ struct kdbus_pool {
 };
 
 /**
- * struct kdbus_slice - allocated element in kdbus_pool
+ * struct kdbus_pool_slice - allocated element in kdbus_pool
+ * @pool:		Pool this slice belongs to
  * @off:		Offset of slice in the shmem file
  * @size:		Size of slice
  * @entry:		Entry in "all slices" list
@@ -79,7 +80,8 @@ struct kdbus_pool {
  * tree is organized by slice size, the busy tree organized by buffer
  * offset.
  */
-struct kdbus_slice {
+struct kdbus_pool_slice {
+	struct kdbus_pool *pool;
 	size_t off;
 	size_t size;
 
@@ -88,14 +90,16 @@ struct kdbus_slice {
 	bool free;
 };
 
-static struct kdbus_slice *kdbus_pool_slice_new(size_t off, size_t size)
+static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,
+						     size_t off, size_t size)
 {
-	struct kdbus_slice *slice;
+	struct kdbus_pool_slice *slice;
 
 	slice = kzalloc(sizeof(*slice), GFP_KERNEL);
 	if (!slice)
 		return NULL;
 
+	slice->pool = pool;
 	slice->off = off;
 	slice->size = size;
 	slice->free = true;
@@ -104,17 +108,17 @@ static struct kdbus_slice *kdbus_pool_slice_new(size_t off, size_t size)
 
 /* insert a slice into the free tree */
 static void kdbus_pool_add_free_slice(struct kdbus_pool *pool,
-				      struct kdbus_slice *slice)
+				      struct kdbus_pool_slice *slice)
 {
 	struct rb_node **n;
 	struct rb_node *pn = NULL;
 
 	n = &pool->slices_free.rb_node;
 	while (*n) {
-		struct kdbus_slice *pslice;
+		struct kdbus_pool_slice *pslice;
 
 		pn = *n;
-		pslice = rb_entry(pn, struct kdbus_slice, rb_node);
+		pslice = rb_entry(pn, struct kdbus_pool_slice, rb_node);
 		if (slice->size < pslice->size)
 			n = &pn->rb_left;
 		else
@@ -127,17 +131,17 @@ static void kdbus_pool_add_free_slice(struct kdbus_pool *pool,
 
 /* insert a slice into the busy tree */
 static void kdbus_pool_add_busy_slice(struct kdbus_pool *pool,
-				      struct kdbus_slice *slice)
+				      struct kdbus_pool_slice *slice)
 {
 	struct rb_node **n;
 	struct rb_node *pn = NULL;
 
 	n = &pool->slices_busy.rb_node;
 	while (*n) {
-		struct kdbus_slice *pslice;
+		struct kdbus_pool_slice *pslice;
 
 		pn = *n;
-		pslice = rb_entry(pn, struct kdbus_slice, rb_node);
+		pslice = rb_entry(pn, struct kdbus_pool_slice, rb_node);
 		if (slice->off < pslice->off)
 			n = &pn->rb_left;
 		else if (slice->off > pslice->off)
@@ -148,17 +152,23 @@ static void kdbus_pool_add_busy_slice(struct kdbus_pool *pool,
 	rb_insert_color(&slice->rb_node, &pool->slices_busy);
 }
 
-/* find a slice by its pool offset */
-static struct kdbus_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
-						 size_t off)
+/**
+ * kdbus_pool_slice_find() - find a slice by its offset
+ * @pool:		The receiver's pool
+ * @off:		The offset of the slice in the pool
+ *
+ * Return: allocated slice, NULL on failure.
+ */
+struct kdbus_pool_slice *kdbus_pool_slice_find(struct kdbus_pool *pool,
+					       size_t off)
 {
 	struct rb_node *n;
 
 	n = pool->slices_busy.rb_node;
 	while (n) {
-		struct kdbus_slice *s;
+		struct kdbus_pool_slice *s;
 
-		s = rb_entry(n, struct kdbus_slice, rb_node);
+		s = rb_entry(n, struct kdbus_pool_slice, rb_node);
 		if (off < s->off)
 			n = n->rb_left;
 		else if (off > s->off)
@@ -170,18 +180,30 @@ static struct kdbus_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
 	return NULL;
 }
 
-/* allocate a slice from the pool with the given size */
-static int kdbus_pool_alloc_slice(struct kdbus_pool *pool,
-				  size_t size, struct kdbus_slice **slice)
+/**
+ * kdbus_pool_slice_alloc() - allocate memory from a pool
+ * @pool:		The receiver's pool
+ * @slice:		Slice allocated from the the pool
+ * @size:		The number of bytes to allocate
+ *
+ * The returned slice is used for kdbus_pool_slice_free() to
+ * free the allocated memory.
+ *
+ * Return: 0 on success, negative errno on failure.
+ */
+int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
+			   struct kdbus_pool_slice **slice, size_t size)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
 	struct rb_node *n, *found = NULL;
-	struct kdbus_slice *s;
+	struct kdbus_pool_slice *s;
+	int ret = 0;
 
 	/* search a free slice with the closest matching size */
+	mutex_lock(&pool->lock);
 	n = pool->slices_free.rb_node;
 	while (n) {
-		s = rb_entry(n, struct kdbus_slice, rb_node);
+		s = rb_entry(n, struct kdbus_pool_slice, rb_node);
 		if (slice_size < s->size) {
 			found = n;
 			n = n->rb_left;
@@ -199,7 +221,7 @@ static int kdbus_pool_alloc_slice(struct kdbus_pool *pool,
 
 	/* no exact match, use the closest one */
 	if (!n)
-		s = rb_entry(found, struct kdbus_slice, rb_node);
+		s = rb_entry(found, struct kdbus_pool_slice, rb_node);
 
 	/* move slice from free to the busy tree */
 	rb_erase(found, &pool->slices_free);
@@ -207,13 +229,15 @@ static int kdbus_pool_alloc_slice(struct kdbus_pool *pool,
 
 	/* we got a slice larger than what we asked for? */
 	if (s->size > slice_size) {
-		struct kdbus_slice *s_new;
+		struct kdbus_pool_slice *s_new;
 
 		/* split-off the remainder of the size to its own slice */
-		s_new = kdbus_pool_slice_new(s->off + slice_size,
+		s_new = kdbus_pool_slice_new(pool, s->off + slice_size,
 					     s->size - slice_size);
-		if (!s_new)
-			return -ENOMEM;
+		if (!s_new) {
+			ret = -ENOMEM;
+			goto exit_unlock;
+		};
 
 		list_add(&s_new->entry, &s->entry);
 		kdbus_pool_add_free_slice(pool, s_new);
@@ -224,22 +248,34 @@ static int kdbus_pool_alloc_slice(struct kdbus_pool *pool,
 
 	s->free = false;
 	pool->busy += s->size;
+	mutex_unlock(&pool->lock);
+
 	*slice = s;
-	return 0;
+exit_unlock:
+	return ret;
 }
 
-/* return an allocated slice back to the pool */
-static void kdbus_pool_free_slice(struct kdbus_pool *pool,
-				  struct kdbus_slice *slice)
+/**
+ * kdbus_pool_slice_free() - give allocated memory back to the pool
+ * @slice:		Slice allocated from the the pool
+ *
+ * The slice was returned by the call to kdbus_pool_alloc_slice(), the
+ * memory is returned to the pool.
+ */
+void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 {
+	struct kdbus_pool *pool = slice->pool;
+
+	mutex_lock(&slice->pool->lock);
 	rb_erase(&slice->rb_node, &pool->slices_busy);
 	pool->busy -= slice->size;
 
 	/* merge with the next free slice */
 	if (!list_is_last(&slice->entry, &pool->slices)) {
-		struct kdbus_slice *s;
+		struct kdbus_pool_slice *s;
 
-		s = list_entry(slice->entry.next, struct kdbus_slice, entry);
+		s = list_entry(slice->entry.next,
+			       struct kdbus_pool_slice, entry);
 		if (s->free) {
 			rb_erase(&s->rb_node, &pool->slices_free);
 			list_del(&s->entry);
@@ -250,9 +286,9 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
 
 	/* merge with previous free slice */
 	if (pool->slices.next != &slice->entry) {
-		struct kdbus_slice *s;
+		struct kdbus_pool_slice *s;
 
-		s = list_entry(slice->entry.prev, struct kdbus_slice, entry);
+		s = list_entry(slice->entry.prev, struct kdbus_pool_slice, entry);
 		if (s->free) {
 			rb_erase(&s->rb_node, &pool->slices_free);
 			list_del(&slice->entry);
@@ -264,20 +300,32 @@ static void kdbus_pool_free_slice(struct kdbus_pool *pool,
 
 	slice->free = true;
 	kdbus_pool_add_free_slice(pool, slice);
+	mutex_unlock(&slice->pool->lock);
+}
+
+/**
+ * kdbus_pool_slice_offset() - return the slice offset in the pool
+ * @slice:		The Slice
+ *
+ * Return: the offset in bytes.
+ */
+size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
+{
+	return slice->off;
 }
 
 /**
  * kdbus_pool_new() - create a new pool
  * @name:		Name of the (deleted) file which shows up in
  *			/proc, used for debugging
- * @size:		Maximum size of the pool
  * @pool:		Newly allocated pool
+ * @size:		Maximum size of the pool
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool)
+int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 {
-	struct kdbus_slice *s;
+	struct kdbus_pool_slice *s;
 	struct kdbus_pool *p;
 	struct file *f;
 	int ret;
@@ -307,7 +355,7 @@ int kdbus_pool_new(const char *name, size_t size, struct kdbus_pool **pool)
 	}
 
 	/* allocate first slice spanning the entire pool */
-	s = kdbus_pool_slice_new(0, size);
+	s = kdbus_pool_slice_new(p, 0, size);
 	if (!s) {
 		ret = -ENOMEM;
 		goto exit_put_shmem;
@@ -340,7 +388,7 @@ exit_free:
  */
 void kdbus_pool_free(struct kdbus_pool *pool)
 {
-	struct kdbus_slice *s, *tmp;
+	struct kdbus_pool_slice *s, *tmp;
 
 	if (!pool)
 		return;
@@ -369,71 +417,6 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
 	mutex_unlock(&pool->lock);
 
 	return size;
-}
-
-/**
- * kdbus_pool_alloc_range() - allocate memory from a pool
- * @pool:		The receiver's pool
- * @size:		The number of bytes to allocate
- * @off:		The offset in bytes in the pool's file
- *
- *
- * The returned offset is used for kdbus_pool_free() to
- * free the allocated memory.
- *
- * Return: 0 on success, negative errno on failure.
- */
-int kdbus_pool_alloc_range(struct kdbus_pool *pool, size_t size, size_t *off)
-{
-	struct kdbus_slice *s;
-	int ret;
-
-	mutex_lock(&pool->lock);
-	ret = kdbus_pool_alloc_slice(pool, size, &s);
-	mutex_unlock(&pool->lock);
-
-	if (ret < 0)
-		return ret;
-
-	*off = s->off;
-	return 0;
-}
-
-/**
- * kdbus_pool_free_range() - give allocated memory back to the pool
- * @pool:		The receiver's pool
- * @off:		Offset of allocated memory
- *
- * The offset was returned by the call to kdbus_pool_alloc_range(), the
- * memory is returned to the pool.
- *
- * Return: 0 on success, negative errno on failure.
- */
-int kdbus_pool_free_range(struct kdbus_pool *pool, size_t off)
-{
-	struct kdbus_slice *slice;
-	int ret = 0;
-
-	if (!pool)
-		return 0;
-
-	mutex_lock(&pool->lock);
-	if (off >= pool->size) {
-		ret = -EINVAL;
-		goto exit_unlock;
-	}
-
-	slice = kdbus_pool_find_slice(pool, off);
-	if (!slice) {
-		ret = -ENXIO;
-		goto exit_unlock;
-	}
-
-	kdbus_pool_free_slice(pool, slice);
-
-exit_unlock:
-	mutex_unlock(&pool->lock);
-	return ret;
 }
 
 /* copy data from a file to a page in the receiver's pool */
@@ -478,16 +461,19 @@ static int kdbus_pool_copy_data(struct page *p, size_t start,
 }
 
 /* copy data to the receiver's pool */
-static size_t kdbus_pool_copy(struct file *f_dst, size_t off_dst,
+static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
 			      const void __user *data, struct file *f_src,
 			      size_t off_src, size_t len)
 {
+	struct file *f_dst = slice->pool->f;
 	struct address_space *mapping = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping->a_ops;
-	unsigned long fpos = off_dst;
+	unsigned long fpos = slice->off + off;
 	unsigned long rem = len;
 	size_t pos = 0;
 	int ret = 0;
+
+	BUG_ON(off + len > slice->size);
 
 	while (rem > 0) {
 		struct page *p;
@@ -531,58 +517,59 @@ static size_t kdbus_pool_copy(struct file *f_dst, size_t off_dst,
 }
 
 /**
- * kdbus_pool_write_user() - copy user memory to the pool
- * @pool:		The receiver's pool
- * @off:		Offset of allocated memory
- * @data:		User memory
+ * kdbus_pool_slice_copy_user() - copy user memory to a slice
+ * @slice:		The slice to write to
+ * @off:		Offset in the slice to write to
+ * @data:		User memory to copy from
  * @len:		Number of bytes to copy
  *
- * The offset was returned by the call to kdbus_pool_alloc_range().
+ * The offset was returned by the call to kdbus_pool_alloc_slice().
  * The user memory at @data will be copied to the @off in the allocated
- * memory in the pool.
+ * slice in the pool.
  *
  * Return: the numbers of bytes copied, negative errno on failure.
  */
-ssize_t kdbus_pool_write_user(const struct kdbus_pool *pool, size_t off,
+ssize_t kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
 			      const void __user *data, size_t len)
 {
-	return kdbus_pool_copy(pool->f, off, data, NULL, 0, len);
+	return kdbus_pool_copy(slice, off, data, NULL, 0, len);
 }
 
 /**
- * kdbus_pool_write() - copy kernel memory to the pool
- * @pool:		The receiver's pool
- * @off:		Offset of allocated memory
- * @data:		User memory
+ * kdbus_pool_slice_copy() - copy kernel memory to a slice
+ * @slice:		The slice to write to
+ * @off:		Offset in the slice to write to
+ * @data:		Kernel memory to copy from
  * @len:		Number of bytes to copy
  *
- * The offset was returned by the call to kdbus_pool_alloc_range().
+ * The slice was returned by the call to kdbus_pool_alloc_slice().
  * The user memory at @data will be copied to the @off in the allocated
- * memory in the pool.
+ * slice in the pool.
  *
  * Return: the numbers of bytes copied, negative errno on failure.
  */
-ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
-			 const void *data, size_t len)
+ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
+			      const void *data, size_t len)
 {
 	mm_segment_t old_fs;
 	ssize_t ret;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_copy(pool->f, off, (const void __user *)data, NULL, 0, len);
+	ret = kdbus_pool_copy(slice, off,
+			      (const void __user *)data, NULL, 0, len);
 	set_fs(old_fs);
 
 	return ret;
 }
 
 /**
- * kdbus_pool_write() - move memory from one pool into another one
+ * kdbus_pool_move_slice() - move memory from one pool into another one
  * @dst_pool:		The receiver's pool to copy to
  * @src_pool:		The receiver's pool to copy from
- * @off:		Offset of allocated memory in the source pool,
- *			Updated with the offset in the destination pool
- * @len:		Number of bytes to copy
+ * @slice:		Reference to the slice to copy from the source;
+ *			updated with the newly allocated slice in the
+ *			destination
  *
  * Move memory from one pool to another. Memory will be allocated in the
  * destination pool, the memory copied over, and the free()d in source
@@ -590,56 +577,52 @@ ssize_t kdbus_pool_write(const struct kdbus_pool *pool, size_t off,
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_pool_move(struct kdbus_pool *dst_pool,
-		    struct kdbus_pool *src_pool,
-		    size_t *off, size_t len)
+int kdbus_pool_move_slice(struct kdbus_pool *dst_pool,
+			  struct kdbus_pool *src_pool,
+			  struct kdbus_pool_slice **slice)
 {
 	mm_segment_t old_fs;
-	size_t new_off;
+	struct kdbus_pool_slice *slice_new;
 	int ret;
 
-	ret = kdbus_pool_alloc_range(dst_pool, len, &new_off);
+	ret = kdbus_pool_slice_alloc(dst_pool, &slice_new, (*slice)->size);
 	if (ret < 0)
 		return ret;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_copy(dst_pool->f, new_off,
-			      NULL, src_pool->f, *off, len);
+	ret = kdbus_pool_copy(slice_new, 0, NULL,
+			      src_pool->f, (*slice)->off, (*slice)->size);
 	set_fs(old_fs);
 	if (ret < 0)
 		goto exit_free;
 
-	ret = kdbus_pool_free_range(src_pool, *off);
-	if (ret < 0)
-		goto exit_free;
+	kdbus_pool_slice_free(*slice);
 
-	*off = new_off;
+	*slice = slice_new;
 	return 0;
 
 exit_free:
-	kdbus_pool_free_range(dst_pool, new_off);
+	kdbus_pool_slice_free(slice_new);
 	return ret;
 }
 
 /**
- * kdbus_pool_flush_dcache() - flush memory area in the pool
- * @pool:		The receiver's pool
- * @off:		Offset to the memory
- * @len:		Number of bytes to flush
+ * kdbus_pool_slice_flush() - flush dcache memory area of a slice
+ * @slice:		The allocated slice to flush
  *
  * Dcache flushes are delayed to happen only right before the receiver
  * gets the new buffer area announced. The mapped buffer is always
  * read-only for the receiver, and only the area of the announced message
  * needs to be flushed.
  */
-void kdbus_pool_flush_dcache(const struct kdbus_pool *pool,
-			     size_t off, size_t len)
+void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice)
 {
 #if ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE == 1
-	struct address_space *mapping = pool->f->f_mapping;
-	pgoff_t first = off >> PAGE_CACHE_SHIFT;
-	pgoff_t last = (off + len + PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
+	struct address_space *mapping = slice->pool->f->f_mapping;
+	pgoff_t first = slice->off >> PAGE_CACHE_SHIFT;
+	pgoff_t last = (slice->off + slice->len +
+			PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
 	pgoff_t i;
 
 	for (i = first; i < last; i++) {
