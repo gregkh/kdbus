@@ -187,41 +187,6 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db)
 	return 0;
 }
 
-void kdbus_policy_db_dump(struct kdbus_policy_db *db)
-{
-	struct kdbus_policy_db_entry *e;
-	int i;
-
-	mutex_lock(&db->entries_lock);
-	pr_info("------------[ policy db dump ]--------------\n");
-
-	hash_for_each(db->entries_hash, i, e, hentry) {
-		struct kdbus_policy_db_entry_access *a;
-
-		pr_info("name: %s%s, owner %p\n",
-			e->name, e->wildcard ? ".* (wildcard)" : "", e->owner);
-
-		list_for_each_entry(a, &e->access_list, list) {
-			pr_info("  * ");
-
-			if (a->type == KDBUS_POLICY_ACCESS_USER)
-				pr_cont("uid %lld", a->id);
-			else if (a->type == KDBUS_POLICY_ACCESS_GROUP)
-				pr_cont("gid %lld", a->id);
-			else if (a->type == KDBUS_POLICY_ACCESS_WORLD)
-				pr_cont("world");
-
-			pr_cont(" can %s\n",
-				(a->access == KDBUS_POLICY_OWN) ? "own" :
-				(a->access == KDBUS_POLICY_TALK) ? "talk" :
-				(a->access == KDBUS_POLICY_SEE) ? "see" : "");
-		}
-	}
-
-	pr_info("------------[ END ]--------------\n");
-	mutex_unlock(&db->entries_lock);
-}
-
 static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
 				     const struct cred *cred,
 				     unsigned int access)
