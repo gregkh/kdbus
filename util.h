@@ -52,10 +52,11 @@
  *
  * Return: the result of copy_from_user()
  */
-#define kdbus_size_get_user(_s, _b, _t)						\
-({										\
-	u64 __user *_sz = (void __user *)(_b) + offsetof(typeof(_t), size);	\
-	copy_from_user(_s, _sz, sizeof(__u64));					\
+#define kdbus_size_get_user(_s, _b, _t)					\
+({									\
+	u64 __user *_sz =						\
+		(void __user *)(_b) + offsetof(typeof(_t), size);	\
+	copy_from_user(_s, _sz, sizeof(__u64));				\
 })
 
 /**
@@ -75,7 +76,7 @@
 /**
  * kdbus_check_strlen - check length of a string at the end a structure
  * @_p:			A pointer to a structure that has a size member and
- * 			a variable string at its end
+ *			a variable string at its end
  * @_s:			The name of the dynamically sized string member
  *
  * Return: 1 if the string's end marker is withing the struct, or 0 otherwise.

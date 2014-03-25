@@ -62,7 +62,7 @@ enum kdbus_handle_type {
 /**
  * struct kdbus_handle - a handle to the kdbus system
  * @type:	Type of this handle (KDBUS_HANDLE_*)
- * @domain:		Domain for this handle
+ * @domain:	Domain for this handle
  * @meta:	Cached connection creator's metadata/credentials
  * @ep:		The endpoint this handle owns, in case @type
  *		is KDBUS_HANDLE_EP
@@ -464,8 +464,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		 * endpoint users do not share the budget with the ordinary
 		 * users created for a UID.
 		 */
-		ep->user = kdbus_domain_user_find_or_new(handle->ep->bus->domain,
-							 INVALID_UID);
+		ep->user = kdbus_domain_user_find_or_new(
+				handle->ep->bus->domain, INVALID_UID);
 		if (!ep->user) {
 			kdbus_ep_unref(ep);
 			ret = -ENOMEM;

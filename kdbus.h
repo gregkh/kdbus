@@ -23,7 +23,7 @@
 #include <linux/types.h>
 #endif
 
-#define KDBUS_IOC_MAGIC			0x95
+#define KDBUS_IOCTL_MAGIC		0x95
 #define KDBUS_SRC_ID_KERNEL		(0)
 #define KDBUS_DST_ID_NAME		(0)
 #define KDBUS_MATCH_ID_ANY		(~0ULL)
@@ -343,15 +343,15 @@ struct kdbus_item {
  *					respective reply carries the cookie
  *					in cookie_reply
  * @KDBUS_MSG_FLAGS_SYNC_REPLY:		Wait for destination connection to
- * 					reply to this message. The
- * 					KDBUS_CMD_MSG_SEND ioctl() will block
- * 					until the reply is received, and
- * 					offset_reply in struct kdbus_msg will
- * 					yield the offset in the sender's pool
- * 					where the reply can be found.
- * 					This flag is only valid if
- * 					@KDBUS_MSG_FLAGS_EXPECT_REPLY is set as
- * 					well.
+ *					reply to this message. The
+ *					KDBUS_CMD_MSG_SEND ioctl() will block
+ *					until the reply is received, and
+ *					offset_reply in struct kdbus_msg will
+ *					yield the offset in the sender's pool
+ *					where the reply can be found.
+ *					This flag is only valid if
+ *					@KDBUS_MSG_FLAGS_EXPECT_REPLY is set as
+ *					well.
  * @KDBUS_MSG_FLAGS_NO_AUTO_START:	Do not start a service, if the addressed
  *					name is not currently active
  */
@@ -419,8 +419,8 @@ struct kdbus_msg {
  * @KDBUS_RECV_DROP:		Drop and free the next queued message and all
  *				its resources without actually receiving it.
  * @KDBUS_RECV_USE_PRIORITY:	Only de-queue messages with the specified or
- * 				higher priority (lowest values); if not set,
- * 				the priority value is ignored.
+ *				higher priority (lowest values); if not set,
+ *				the priority value is ignored.
  */
 enum kdbus_recv_flags {
 	KDBUS_RECV_PEEK		= 1 <<  0,
@@ -434,8 +434,8 @@ enum kdbus_recv_flags {
  * @priority:		Minimum priority of the messages to de-queue. Lowest
  *			values have the highest priority.
  * @offset:		Returned offset in the pool where the message is
- * 			stored. The user must use KDBUS_CMD_FREE to free
- * 			the allocated memory.
+ *			stored. The user must use KDBUS_CMD_FREE to free
+ *			the allocated memory.
  *
  * This struct is used with the KDBUS_CMD_MSG_RECV ioctl.
  */
@@ -757,7 +757,7 @@ struct kdbus_cmd_memfd_make {
  *				name. The bus is immediately shut down and
  *				cleaned up when the opened "control" device node
  *				is closed.
- * @KDBUS_CMD_DOMAIN_MAKE:		Similar to KDBUS_CMD_BUS_MAKE, but it creates a
+ * @KDBUS_CMD_DOMAIN_MAKE:	Similar to KDBUS_CMD_BUS_MAKE, but it creates a
  *				new kdbus domain.
  * @KDBUS_CMD_EP_MAKE:		Creates a new named special endpoint to talk to
  *				the bus. Such endpoints usually carry a more
@@ -776,8 +776,8 @@ struct kdbus_cmd_memfd_make {
  * @KDBUS_CMD_MSG_RECV:		Receive a message from the kernel which is
  *				placed in the receiver's pool.
  * @KDBUS_CMD_MSG_CANCEL:	Cancel a pending request of a message that
- * 				blocks while waiting for a reply. The parameter
- * 				denotes the cookie of the message in flight.
+ *				blocks while waiting for a reply. The parameter
+ *				denotes the cookie of the message in flight.
  * @KDBUS_CMD_FREE:		Release the allocated memory in the receiver's
  *				pool.
  * @KDBUS_CMD_NAME_ACQUIRE:	Request a well-known bus name to associate with
@@ -828,35 +828,50 @@ struct kdbus_cmd_memfd_make {
  *				be changed as long as the file is shared.
  */
 enum kdbus_ioctl_type {
-	KDBUS_CMD_BUS_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x00, struct kdbus_cmd_make),
-	KDBUS_CMD_DOMAIN_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x10, struct kdbus_cmd_make),
-	KDBUS_CMD_EP_MAKE =		_IOW (KDBUS_IOC_MAGIC, 0x20, struct kdbus_cmd_make),
+	KDBUS_CMD_BUS_MAKE =		_IOW(KDBUS_IOCTL_MAGIC, 0x00,
+					     struct kdbus_cmd_make),
+	KDBUS_CMD_DOMAIN_MAKE =		_IOW(KDBUS_IOCTL_MAGIC, 0x10,
+					     struct kdbus_cmd_make),
+	KDBUS_CMD_EP_MAKE =		_IOW(KDBUS_IOCTL_MAGIC, 0x20,
+					     struct kdbus_cmd_make),
 
-	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOC_MAGIC, 0x30, struct kdbus_cmd_hello),
-	KDBUS_CMD_BYEBYE =		_IO  (KDBUS_IOC_MAGIC, 0x31),
+	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOCTL_MAGIC, 0x30,
+					      struct kdbus_cmd_hello),
+	KDBUS_CMD_BYEBYE =		_IO(KDBUS_IOCTL_MAGIC, 0x31),
 
-	KDBUS_CMD_MSG_SEND =		_IOWR(KDBUS_IOC_MAGIC, 0x40, struct kdbus_msg),
-	KDBUS_CMD_MSG_RECV =		_IOWR(KDBUS_IOC_MAGIC, 0x41, struct kdbus_cmd_recv),
-	KDBUS_CMD_MSG_CANCEL =		_IOW (KDBUS_IOC_MAGIC, 0x42, __u64 *),
-	KDBUS_CMD_FREE =		_IOW (KDBUS_IOC_MAGIC, 0x43, __u64 *),
+	KDBUS_CMD_MSG_SEND =		_IOWR(KDBUS_IOCTL_MAGIC, 0x40,
+					      struct kdbus_msg),
+	KDBUS_CMD_MSG_RECV =		_IOWR(KDBUS_IOCTL_MAGIC, 0x41,
+					      struct kdbus_cmd_recv),
+	KDBUS_CMD_MSG_CANCEL =		_IOW(KDBUS_IOCTL_MAGIC, 0x42, __u64 *),
+	KDBUS_CMD_FREE =		_IOW(KDBUS_IOCTL_MAGIC, 0x43, __u64 *),
 
-	KDBUS_CMD_NAME_ACQUIRE =	_IOWR(KDBUS_IOC_MAGIC, 0x50, struct kdbus_cmd_name),
-	KDBUS_CMD_NAME_RELEASE =	_IOW (KDBUS_IOC_MAGIC, 0x51, struct kdbus_cmd_name),
-	KDBUS_CMD_NAME_LIST =		_IOWR(KDBUS_IOC_MAGIC, 0x52, struct kdbus_cmd_name_list),
+	KDBUS_CMD_NAME_ACQUIRE =	_IOWR(KDBUS_IOCTL_MAGIC, 0x50,
+					      struct kdbus_cmd_name),
+	KDBUS_CMD_NAME_RELEASE =	_IOW(KDBUS_IOCTL_MAGIC, 0x51,
+					     struct kdbus_cmd_name),
+	KDBUS_CMD_NAME_LIST =		_IOWR(KDBUS_IOCTL_MAGIC, 0x52,
+					     struct kdbus_cmd_name_list),
 
-	KDBUS_CMD_CONN_INFO =		_IOWR(KDBUS_IOC_MAGIC, 0x60, struct kdbus_cmd_conn_info),
-	KDBUS_CMD_CONN_UPDATE =		_IOW (KDBUS_IOC_MAGIC, 0x61, struct kdbus_cmd_update),
+	KDBUS_CMD_CONN_INFO =		_IOWR(KDBUS_IOCTL_MAGIC, 0x60,
+					      struct kdbus_cmd_conn_info),
+	KDBUS_CMD_CONN_UPDATE =		_IOW(KDBUS_IOCTL_MAGIC, 0x61,
+					     struct kdbus_cmd_update),
 
-	KDBUS_CMD_EP_UPDATE =		_IOW (KDBUS_IOC_MAGIC, 0x71, struct kdbus_cmd_update),
+	KDBUS_CMD_EP_UPDATE =		_IOW(KDBUS_IOCTL_MAGIC, 0x71,
+					     struct kdbus_cmd_update),
 
-	KDBUS_CMD_MATCH_ADD =		_IOW (KDBUS_IOC_MAGIC, 0x80, struct kdbus_cmd_match),
-	KDBUS_CMD_MATCH_REMOVE =	_IOW (KDBUS_IOC_MAGIC, 0x81, struct kdbus_cmd_match),
+	KDBUS_CMD_MATCH_ADD =		_IOW(KDBUS_IOCTL_MAGIC, 0x80,
+					     struct kdbus_cmd_match),
+	KDBUS_CMD_MATCH_REMOVE =	_IOW(KDBUS_IOCTL_MAGIC, 0x81,
+					     struct kdbus_cmd_match),
 
-	KDBUS_CMD_MEMFD_NEW =		_IOWR(KDBUS_IOC_MAGIC, 0xc0, struct kdbus_cmd_memfd_make),
-	KDBUS_CMD_MEMFD_SIZE_GET =	_IOR (KDBUS_IOC_MAGIC, 0xc1, __u64 *),
-	KDBUS_CMD_MEMFD_SIZE_SET =	_IOW (KDBUS_IOC_MAGIC, 0xc2, __u64 *),
-	KDBUS_CMD_MEMFD_SEAL_GET =	_IOR (KDBUS_IOC_MAGIC, 0xc3, int *),
-	KDBUS_CMD_MEMFD_SEAL_SET =	_IO  (KDBUS_IOC_MAGIC, 0xc4),
+	KDBUS_CMD_MEMFD_NEW =		_IOWR(KDBUS_IOCTL_MAGIC, 0xc0,
+					      struct kdbus_cmd_memfd_make),
+	KDBUS_CMD_MEMFD_SIZE_GET =	_IOR(KDBUS_IOCTL_MAGIC, 0xc1, __u64 *),
+	KDBUS_CMD_MEMFD_SIZE_SET =	_IOW(KDBUS_IOCTL_MAGIC, 0xc2, __u64 *),
+	KDBUS_CMD_MEMFD_SEAL_GET =	_IOR(KDBUS_IOCTL_MAGIC, 0xc3, int *),
+	KDBUS_CMD_MEMFD_SEAL_SET =	_IO(KDBUS_IOCTL_MAGIC, 0xc4),
 };
 
 /*
@@ -911,7 +926,7 @@ enum kdbus_ioctl_type {
  *			the bus.
  * @ENOMEM:		Out of memory.
  * @ENOMSG:		The queue is not empty, but no message with a matching
- * 			priority is currently queued.
+ *			priority is currently queued.
  * @ENOSYS:		The requested functionality is not available.
  * @ENOTSUPP:		The feature negotiation failed, a not supported feature
  *			was requested, or an unknown item type was received.

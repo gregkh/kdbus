@@ -288,7 +288,8 @@ void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 	if (pool->slices.next != &slice->entry) {
 		struct kdbus_pool_slice *s;
 
-		s = list_entry(slice->entry.prev, struct kdbus_pool_slice, entry);
+		s = list_entry(slice->entry.prev, struct kdbus_pool_slice,
+			       entry);
 		if (s->free) {
 			rb_erase(&s->rb_node, &pool->slices_free);
 			list_del(&slice->entry);
@@ -529,8 +530,9 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
  *
  * Return: the numbers of bytes copied, negative errno on failure.
  */
-ssize_t kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
-				   const void __user *data, size_t len)
+ssize_t
+kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
+			   const void __user *data, size_t len)
 {
 	return kdbus_pool_copy(slice, off, data, NULL, 0, len);
 }

@@ -31,7 +31,7 @@
 
 /**
  * kdbus_bus_uid_is_privileged() - check whether the current user is a
- * 				   priviledged bus user
+ *				   priviledged bus user
  * @bus:		The bus to check
  *
  * Return: true if the current user has CAP_IPC_OWNER capabilities, or
@@ -171,7 +171,8 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 	bus->ep = kdbus_ep_unref(bus->ep);
 }
 
-static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain, const char *name)
+static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
+					const char *name)
 {
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_bus *b;

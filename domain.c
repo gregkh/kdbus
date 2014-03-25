@@ -426,7 +426,8 @@ struct kdbus_domain_user
 	/* find uid and reference it */
 	if (uid_valid(uid)) {
 		mutex_lock(&domain->lock);
-		hash_for_each_possible(domain->user_hash, u, hentry, __kuid_val(uid)) {
+		hash_for_each_possible(domain->user_hash, u,
+				       hentry, __kuid_val(uid)) {
 			if (!uid_eq(u->uid, uid))
 				continue;
 

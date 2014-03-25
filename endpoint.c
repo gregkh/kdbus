@@ -79,8 +79,8 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 
 		mutex_lock(&ep->lock);
 		conn = list_first_entry_or_null(&ep->conn_list,
-					        struct kdbus_conn,
-					        ep_entry);
+						struct kdbus_conn,
+						ep_entry);
 		if (!conn) {
 			mutex_unlock(&ep->lock);
 			break;

@@ -286,8 +286,8 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 				 * null-bytes to the buffer which the \0-bytes
 				 * record would have shifted the alignment.
 				 */
-				kdbus_pool_slice_copy_user(queue->slice, vec_data,
-					(char __user *) "\0\0\0\0\0\0\0", pad);
+				kdbus_pool_slice_copy(queue->slice, vec_data,
+						      "\0\0\0\0\0\0\0", pad);
 				vec_data += pad;
 				break;
 			}
@@ -1300,14 +1300,14 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		/* ... otherwise, ask the policy DBs for permission */
 		if (ep->policy_db) {
 			ret = kdbus_policy_check_talk_access(ep->policy_db,
-							     conn_src, conn_dst);
+						conn_src, conn_dst);
 			if (ret < 0)
 				goto exit_unref;
 		}
 
 		if (bus->policy_db) {
 			ret = kdbus_policy_check_talk_access(bus->policy_db,
-							     conn_src, conn_dst);
+						conn_src, conn_dst);
 			if (ret < 0)
 				goto exit_unref;
 		}
@@ -1921,7 +1921,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	    (is_activator || is_policy_holder || is_monitor))
 		return -EPERM;
 
-	KDBUS_ITEMS_FOREACH(item, hello->items, KDBUS_ITEMS_SIZE(hello, items)) {
+	KDBUS_ITEMS_FOREACH(item, hello->items,
+			    KDBUS_ITEMS_SIZE(hello, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
 			if (!is_activator && !is_policy_holder)

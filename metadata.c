@@ -357,7 +357,8 @@ static int kdbus_meta_append_audit(struct kdbus_meta *meta)
 {
 	struct kdbus_audit audit;
 
-	audit.loginuid = from_kuid(current_user_ns(), audit_get_loginuid(current));
+	audit.loginuid = from_kuid(current_user_ns(),
+				   audit_get_loginuid(current));
 	audit.sessionid = audit_get_sessionid(current);
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_AUDIT,

@@ -407,7 +407,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			u64 generations;
 			u64 remainder;
 
-			generations = div64_u64_rem(size, conn->bus->bloom.size, &remainder);
+			generations = div64_u64_rem(size, conn->bus->bloom.size,
+						    &remainder);
 			if (size < conn->bus->bloom.size ||
 			    remainder > 0) {
 				ret = -EDOM;

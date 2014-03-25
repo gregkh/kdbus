@@ -193,32 +193,32 @@ void kdbus_policy_db_dump(struct kdbus_policy_db *db)
 	int i;
 
 	mutex_lock(&db->entries_lock);
-	printk(KERN_INFO "------------[ policy db dump ]--------------\n");
+	pr_info("------------[ policy db dump ]--------------\n");
 
 	hash_for_each(db->entries_hash, i, e, hentry) {
 		struct kdbus_policy_db_entry_access *a;
 
-		printk(KERN_INFO "name: %s%s, owner %p\n",
+		pr_info("name: %s%s, owner %p\n",
 			e->name, e->wildcard ? ".* (wildcard)" : "", e->owner);
 
 		list_for_each_entry(a, &e->access_list, list) {
-			printk(KERN_INFO "  * ");
+			pr_info("  * ");
 
 			if (a->type == KDBUS_POLICY_ACCESS_USER)
-				printk(KERN_CONT "uid %lld", a->id);
+				pr_cont("uid %lld", a->id);
 			else if (a->type == KDBUS_POLICY_ACCESS_GROUP)
-				printk(KERN_CONT "gid %lld", a->id);
+				pr_cont("gid %lld", a->id);
 			else if (a->type == KDBUS_POLICY_ACCESS_WORLD)
-				printk(KERN_CONT "world");
+				pr_cont("world");
 
-			printk(KERN_CONT " can %s\n",
-				(a->access== KDBUS_POLICY_OWN) ? "own" :
+			pr_cont(" can %s\n",
+				(a->access == KDBUS_POLICY_OWN) ? "own" :
 				(a->access == KDBUS_POLICY_TALK) ? "talk" :
 				(a->access == KDBUS_POLICY_SEE) ? "see" : "");
 		}
 	}
 
-	printk(KERN_INFO "------------[ END ]--------------\n");
+	pr_info("------------[ END ]--------------\n");
 	mutex_unlock(&db->entries_lock);
 }
 
@@ -389,7 +389,7 @@ exit_unlock_entries:
 
 /**
  * kdbus_policy_check_see_access() - Check whether the current task is allowed
- * 				     to see a given name
+ *				     to see a given name
  * @db:		The policy database
  * @name:	The name
  *
