@@ -530,7 +530,7 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
-			      const void __user *data, size_t len)
+				   const void __user *data, size_t len)
 {
 	return kdbus_pool_copy(slice, off, data, NULL, 0, len);
 }
