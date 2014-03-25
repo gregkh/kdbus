@@ -268,7 +268,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 				it->vec.offset = ~0ULL;
 			it->vec.size = item->vec.size;
 			ret = kdbus_pool_slice_copy(queue->slice, items,
-						     it, it->size);
+						    it, it->size);
 			if (ret < 0)
 				return ret;
 			items += KDBUS_ALIGN8(it->size);
@@ -315,7 +315,7 @@ static int kdbus_conn_payload_add(struct kdbus_conn *conn,
 			it->memfd.size = item->memfd.size;
 			it->memfd.fd = -1;
 			ret = kdbus_pool_slice_copy(queue->slice, items,
-						     it, it->size);
+						    it, it->size);
 			if (ret < 0)
 				return ret;
 
@@ -539,7 +539,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	/* update the size */
 	ret = kdbus_pool_slice_copy(queue->slice, 0, &msg_size,
-				     sizeof(kmsg->msg.size));
+				    sizeof(kmsg->msg.size));
 	if (ret < 0)
 		goto exit_pool_free;
 
@@ -573,7 +573,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 		it->size = KDBUS_ITEM_HEADER_SIZE +
 			   (kmsg->fds_count * sizeof(int));
 		ret = kdbus_pool_slice_copy(queue->slice, fds,
-				       it, KDBUS_ITEM_HEADER_SIZE);
+					    it, KDBUS_ITEM_HEADER_SIZE);
 		if (ret < 0)
 			goto exit_pool_free;
 
@@ -589,7 +589,8 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	/* append message metadata/credential items */
 	if (meta > 0) {
 		ret = kdbus_pool_slice_copy(queue->slice, meta,
-			kmsg->meta->data, kmsg->meta->size);
+					    kmsg->meta->data,
+					    kmsg->meta->size);
 		if (ret < 0)
 			goto exit_pool_free;
 	}
@@ -1801,7 +1802,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 	if (conn->meta->domain == owner_conn->meta->domain) {
 		ret = kdbus_pool_slice_copy(slice, pos, owner_conn->meta->data,
-					     owner_conn->meta->size);
+					    owner_conn->meta->size);
 		if (ret < 0)
 			goto exit_free;
 
