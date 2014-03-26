@@ -793,13 +793,13 @@ struct kdbus_cmd_memfd_make {
  *				necessarily represent the connected process or
  *				the actual state of the process.
  * @KDBUS_CMD_CONN_UPDATE:	Update the properties of a connection. Used to
- *				update the metadata subscription.
+ *				update the metadata subscription mask and
+ *				policy.
+ * @KDBUS_CMD_EP_UPDATE:	Update the properties of a custom enpoint. Used
+ *				to update the policy.
  * @KDBUS_CMD_MATCH_ADD:	Install a match which broadcast messages should
  *				be delivered to the connection.
  * @KDBUS_CMD_MATCH_REMOVE:	Remove a current match for broadcast messages.
- * @KDBUS_CMD_EP_POLICY_SET:	Set the policy of an endpoint. It is used to
- *				restrict the access for endpoints created with
- *				KDBUS_CMD_EP_MAKE.
  * @KDBUS_CMD_MEMFD_NEW:	Return a new file descriptor which provides an
  *				anonymous shared memory file and which can be
  *				used to pass around larger chunks of data.

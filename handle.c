@@ -621,7 +621,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_CONN_UPDATE:
-		/* update flags for a connection */
+		/* update the properties of a connection */
 		ret = kdbus_memdup_user(buf, &p, NULL,
 					sizeof(struct kdbus_cmd_update),
 					sizeof(struct kdbus_cmd_update) +
@@ -768,11 +768,11 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_EP_UPDATE: {
 		struct kdbus_cmd_update *cmd;
 
-		/* update flags for a connection */
+		/* update the properties of a custom endpoint */
 		ret = kdbus_memdup_user(buf, &p, NULL,
 					sizeof(struct kdbus_cmd_update),
 					sizeof(struct kdbus_cmd_update) +
-						KDBUS_UPDATE_MAX_SIZE);
+					       KDBUS_UPDATE_MAX_SIZE);
 		if (ret < 0)
 			break;
 
@@ -788,7 +788,6 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 	}
 
 	kfree(p);
-
 	return ret;
 }
 
