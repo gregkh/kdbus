@@ -359,7 +359,7 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 	if (!KDBUS_ITEMS_END(item, make->items, KDBUS_ITEMS_SIZE(make, items)))
 		return -EINVAL;
 
-	if (!n)
+	if (!n || !bl)
 		return -EBADMSG;
 
 	if (bl->size < 8 || bl->size > KDBUS_BUS_BLOOM_MAX_SIZE)
