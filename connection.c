@@ -1568,6 +1568,30 @@ bool kdbus_conn_active(const struct kdbus_conn *conn)
 	return !conn->disconnected;
 }
 
+/**
+ * kdbus_conn_find_peer() - find a connection peer with a given id
+ * @conn_src:		The source connection
+ * @id:                 The 64-bit connection id of the destination
+ *
+ * Finds a connection peer with a given id. The returned connection
+ * is on the same bus of the source connection and it is ref'ed.
+ * Returns NULL if the peer can't be found.
+ *
+ * On success caller must ensure to unref the returned connection.
+ */
+struct kdbus_conn *kdbus_conn_find_peer(struct kdbus_conn *conn_src,
+					u64 id)
+{
+	struct kdbus_conn *conn_dst;
+	struct kdbus_bus *bus = conn_src->bus;
+
+	mutex_lock(&bus->lock);
+	conn_dst = kdbus_bus_find_conn_by_id(bus, id);
+	mutex_unlock(&bus->lock);
+
+	return conn_dst;
+}
+
 static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
