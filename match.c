@@ -358,12 +358,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		return -EPERM;
 
 	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
-		struct kdbus_bus *bus = conn->bus;
-
-		mutex_lock(&bus->lock);
-		target_conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
-		mutex_unlock(&bus->lock);
-
+		target_conn = kdbus_conn_find_peer(conn, cmd->owner_id);
 		if (!target_conn) {
 			ret = -ENXIO;
 			goto exit_free;
@@ -534,12 +529,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 		return -EPERM;
 
 	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
-		struct kdbus_bus *bus = conn->bus;
-
-		mutex_lock(&bus->lock);
-		target_conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
-		mutex_unlock(&bus->lock);
-
+		target_conn = kdbus_conn_find_peer(conn, cmd->owner_id);
 		if (!target_conn)
 			return -ENXIO;
 

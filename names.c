@@ -605,10 +605,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		if (!kdbus_bus_uid_is_privileged(bus))
 			return -EPERM;
 
-		mutex_lock(&bus->lock);
-		new_conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
-		mutex_unlock(&bus->lock);
-
+		new_conn = kdbus_conn_find_peer(conn, cmd->owner_id);
 		if (!new_conn)
 			return -ENXIO;
 

@@ -1752,11 +1752,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		}
 
 		name = cmd_info->name;
-	} else {
-		mutex_lock(&conn->bus->lock);
-		owner_conn = kdbus_bus_find_conn_by_id(conn->bus, cmd_info->id);
-		mutex_unlock(&conn->bus->lock);
-	}
+	} else
+		owner_conn = kdbus_conn_find_peer(conn, cmd_info->id);
 
 	/*
 	 * If a lookup by name was requested, set owner_conn to the
