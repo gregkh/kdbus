@@ -2062,7 +2062,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		ret = kdbus_name_acquire(bus->name_registry, conn,
 					 name, &flags, NULL);
 		if (ret < 0)
-			goto exit_free_pool;
+			goto exit_unref_ep;
 	}
 
 	if (is_monitor) {
