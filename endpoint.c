@@ -104,7 +104,9 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 		ep->dev = NULL;
 	}
 	if (ep->minor > 0) {
+		mutex_lock(&ep->bus->domain->lock);
 		idr_remove(&ep->bus->domain->idr, ep->minor);
+		mutex_unlock(&ep->bus->domain->lock);
 		ep->minor = 0;
 	}
 }
