@@ -1715,7 +1715,6 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	size_t pos;
 	int ret = 0;
 	u64 flags;
-	u32 hash;
 
 	if (cmd_info->id == 0) {
 		if (size == sizeof(struct kdbus_cmd_conn_info)) {
@@ -1729,7 +1728,6 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		}
 
 		name = cmd_info->name;
-		hash = kdbus_str_hash(name);
 	} else {
 		mutex_lock(&conn->bus->lock);
 		owner_conn = kdbus_bus_find_conn_by_id(conn->bus, cmd_info->id);
