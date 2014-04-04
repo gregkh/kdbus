@@ -1024,9 +1024,29 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		struct kdbus_conn_reply *reply = NULL;
+		struct kdbus_conn_reply *r, *reply = NULL;
+		bool reply_found = false;
 
 		if (queue->reply) {
+			struct kdbus_conn_reply *r;
+
+			/*
+			 * Walk the list of pending replies and see if the
+			 * one attached to this queue item is stil there.
+			 * It might have been removed by an incoming reply,
+			 * and we currently don't track reply entries in that
+			 * direction in order to prevent potentially dangling
+			 * pointers.
+			 */
+			list_for_each_entry(r, &conn->reply_list, entry) {
+				if (r == queue->reply) {
+					reply_found = true;
+					break;
+				}
+			}
+		}
+
+		if (reply_found) {
 			if (queue->reply->sync) {
 				kdbus_conn_reply_sync(queue->reply, -EPIPE);
 			} else {
