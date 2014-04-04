@@ -574,7 +574,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 			a->type = item->policy_access.type;
 			a->access = item->policy_access.access;
-			a->id   = item->policy_access.id;
+			a->id = item->policy_access.id;
 			list_add_tail(&a->list, &e->access_list);
 			break;
 		}
