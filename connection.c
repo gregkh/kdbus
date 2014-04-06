@@ -1024,7 +1024,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		struct kdbus_conn_reply *r, *reply = NULL;
+		struct kdbus_conn_reply *reply = NULL;
 		bool reply_found = false;
 
 		if (queue->reply) {
