@@ -23,6 +23,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #include "connection.h"
 #include "message.h"
@@ -335,18 +336,29 @@ static int kdbus_meta_append_caps(struct kdbus_meta *meta)
 #ifdef CONFIG_CGROUPS
 static int kdbus_meta_append_cgroup(struct kdbus_meta *meta)
 {
-	char *tmp;
+	char *buf, *path;
 	int ret;
 
-	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
-	if (!tmp)
+	buf = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
+	if (!buf)
 		return -ENOMEM;
 
-	ret = task_cgroup_path(current, tmp, PAGE_SIZE);
-	if (ret >= 0)
-		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CGROUP, tmp);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
+	path = task_cgroup_path(current, buf, PAGE_SIZE);
+#else
+	ret = task_cgroup_path(current, buf, PAGE_SIZE);
+	if (ret < 0)
+		path = NULL;
+	else
+		path = buf;
+#endif
 
-	free_page((unsigned long) tmp);
+	if (path)
+		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CGROUP, path);
+	else
+		ret = -ENAMETOOLONG;
+
+	free_page((unsigned long) buf);
 
 	return ret;
 }
