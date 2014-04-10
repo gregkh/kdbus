@@ -1790,7 +1790,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 		e = kdbus_name_lookup(conn->bus->name_registry, name);
 		if (!e) {
-			ret = -ENOENT;
+			ret = -ESRCH;
 			goto exit;
 		}
 
