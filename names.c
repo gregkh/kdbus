@@ -313,20 +313,38 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
  * kdbus_name_lookup() - look up a name in a name registry
  * @reg:		The name registry
  * @name:		The name to look up
+ * @conn:		Output for the connection owning the name or NULL
+ * @activator:		Output for the activator owning the name or NULL
+ * @name_id:		Output for the name-id or NULL
  *
- * Return: name entry if found, otherwise NULL.
+ * Search for a name in a given name registry. The found connections are stored
+ * with a new reference in the output stores. If either is not found, they're
+ * set to NULL.
+ *
+ * Return: 0 if either @conn or @activator was found, -ESRCH if nothing found.
  */
-struct kdbus_name_entry *kdbus_name_lookup(struct kdbus_name_registry *reg,
-					   const char *name)
+int kdbus_name_lookup(struct kdbus_name_registry *reg,
+		      const char *name,
+		      struct kdbus_conn **conn,
+		      struct kdbus_conn **activator,
+		      u64 *name_id)
 {
 	struct kdbus_name_entry *e = NULL;
 	u32 hash = kdbus_str_hash(name);
 
 	mutex_lock(&reg->lock);
 	e = __kdbus_name_lookup(reg, hash, name);
+	if (e) {
+		if (conn)
+			*conn = kdbus_conn_ref(e->conn);
+		if (activator)
+			*activator = kdbus_conn_ref(e->activator);
+		if (name_id)
+			*name_id = e->name_id;
+	}
 	mutex_unlock(&reg->lock);
 
-	return e;
+	return e ? 0 : -ESRCH;
 }
 
 static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,

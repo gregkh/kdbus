@@ -780,25 +780,24 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 				   struct kdbus_conn **conn)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_conn *c;
+	struct kdbus_conn *c, *activator;
 	u64 name_id = 0;
 	int ret = 0;
 
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
-		const struct kdbus_name_entry *name_entry;
-
 		BUG_ON(!kmsg->dst_name);
-		name_entry = kdbus_name_lookup(bus->name_registry,
-					       kmsg->dst_name);
-		if (!name_entry)
-			return -ESRCH;
+		ret = kdbus_name_lookup(bus->name_registry,
+					kmsg->dst_name,
+					&c,
+					&activator,
+					&name_id);
+		if (ret < 0)
+			return ret;
 
-		name_id = name_entry->name_id;
-
-		if (!name_entry->conn && name_entry->activator)
-			c = kdbus_conn_ref(name_entry->activator);
+		if (!c && activator)
+			c = activator;
 		else
-			c = kdbus_conn_ref(name_entry->conn);
+			kdbus_conn_unref(activator);
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
 		    (c->flags & KDBUS_HELLO_ACTIVATOR)) {
@@ -1785,21 +1784,18 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	 * was already set above.
 	 */
 	if (name) {
-		struct kdbus_name_entry *e;
-
 		if (!kdbus_check_strlen(cmd_info, name)) {
 			ret = -EINVAL;
 			goto exit;
 		}
 
-		e = kdbus_name_lookup(conn->bus->name_registry, name);
-		if (!e) {
-			ret = -ESRCH;
+		ret = kdbus_name_lookup(conn->bus->name_registry,
+					name,
+					&owner_conn,
+					NULL,
+					NULL);
+		if (ret < 0)
 			goto exit;
-		}
-
-		if (e->conn)
-			owner_conn = kdbus_conn_ref(e->conn);
 	}
 
 	if (!owner_conn) {
