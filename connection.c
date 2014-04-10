@@ -1757,51 +1757,34 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_conn_info info = {};
 	struct kdbus_meta *meta = NULL;
-	char *name = NULL;
 	struct kdbus_pool_slice *slice;
 	size_t pos;
 	int ret = 0;
 	u64 flags;
 
 	if (cmd_info->id == 0) {
-		if (size == sizeof(struct kdbus_cmd_conn_info)) {
-			ret = -EINVAL;
-			goto exit;
-		}
+		if (size == sizeof(struct kdbus_cmd_conn_info))
+			return -EINVAL;
 
-		if (!kdbus_name_is_valid(cmd_info->name, false)) {
-			ret = -EINVAL;
-			goto exit;
-		}
+		if (!kdbus_check_strlen(cmd_info, name))
+			return -EINVAL;
 
-		name = cmd_info->name;
-	} else
-		owner_conn = kdbus_conn_find_peer(conn, cmd_info->id);
-
-	/*
-	 * If a lookup by name was requested, set owner_conn to the
-	 * matching entry's connection pointer. Otherwise, owner_conn
-	 * was already set above.
-	 */
-	if (name) {
-		if (!kdbus_check_strlen(cmd_info, name)) {
-			ret = -EINVAL;
-			goto exit;
-		}
+		if (!kdbus_name_is_valid(cmd_info->name, false))
+			return -EINVAL;
 
 		ret = kdbus_name_lookup(conn->bus->name_registry,
-					name,
+					cmd_info->name,
 					&owner_conn,
 					NULL,
 					NULL);
 		if (ret < 0)
-			goto exit;
+			return ret;
+	} else {
+		owner_conn = kdbus_conn_find_peer(conn, cmd_info->id);
 	}
 
-	if (!owner_conn) {
-		ret = -ENXIO;
-		goto exit;
-	}
+	if (!owner_conn)
+		return -ENXIO;
 
 	info.size = sizeof(info);
 	info.id = owner_conn->id;
