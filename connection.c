@@ -781,6 +781,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c;
+	u64 name_id = 0;
 	int ret = 0;
 
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
@@ -792,13 +793,7 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		if (!name_entry)
 			return -ESRCH;
 
-		/*
-		 * Record the sequence number of the registered name;
-		 * it will be passed on to the queue, in case messages
-		 * addressed to a name need to be moved from or to
-		 * activator connections of the same name.
-		 */
-		kmsg->dst_name_id = name_entry->name_id;
+		name_id = name_entry->name_id;
 
 		if (!name_entry->conn && name_entry->activator)
 			c = kdbus_conn_ref(name_entry->activator);
@@ -832,6 +827,15 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 		ret = -ECONNRESET;
 		goto exit_unref;
 	}
+
+	/*
+	 * Record the sequence number of the registered name;
+	 * it will be passed on to the queue, in case messages
+	 * addressed to a name need to be moved from or to
+	 * activator connections of the same name.
+	 */
+	if (name_id > 0)
+		kmsg->dst_name_id = name_id;
 
 	/* the connection is already ref'ed at this point */
 	*conn = c;
