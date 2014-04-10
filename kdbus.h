@@ -922,7 +922,7 @@ enum kdbus_ioctl_type {
  *			size.
  * @ENOBUFS:		There is no space left for the submitted data to fit
  *			into the receiver's pool.
- * @ENOENT:		The to be canceled message was not found.
+ * @ENOENT:		The to be cancelled message was not found.
  * @ENOMEM:		Out of memory.
  * @ENOMSG:		The queue is not empty, but no message with a matching
  *			priority is currently queued.
