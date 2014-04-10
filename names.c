@@ -335,10 +335,18 @@ int kdbus_name_lookup(struct kdbus_name_registry *reg,
 	mutex_lock(&reg->lock);
 	e = __kdbus_name_lookup(reg, hash, name);
 	if (e) {
-		if (conn)
-			*conn = kdbus_conn_ref(e->conn);
-		if (activator)
-			*activator = kdbus_conn_ref(e->activator);
+		if (conn) {
+			if (e->conn)
+				*conn = kdbus_conn_ref(e->conn);
+			else
+				*conn = NULL;
+		}
+		if (activator) {
+			if (e->activator)
+				*activator = kdbus_conn_ref(e->activator);
+			else
+				*activator = NULL;
+		}
 		if (name_id)
 			*name_id = e->name_id;
 	}
