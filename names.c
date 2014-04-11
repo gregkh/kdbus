@@ -18,6 +18,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/rwsem.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -64,10 +65,8 @@ void kdbus_name_registry_free(struct kdbus_name_registry *reg)
 	struct hlist_node *tmp;
 	unsigned int i;
 
-	mutex_lock(&reg->lock);
 	hash_for_each_safe(reg->entries_hash, i, tmp, e, hentry)
 		kdbus_name_entry_free(e);
-	mutex_unlock(&reg->lock);
 
 	kfree(reg);
 }
@@ -87,7 +86,7 @@ int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 		return -ENOMEM;
 
 	hash_init(r->entries_hash);
-	mutex_init(&r->lock);
+	init_rwsem(&r->rwlock);
 
 	*reg = r;
 	return 0;
@@ -278,14 +277,15 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	LIST_HEAD(names_queue_list);
 	LIST_HEAD(names_list);
 
+	/* lock order: domain -> bus -> ep -> names -> conn */
+	mutex_lock(&conn->bus->lock);
+	down_write(&reg->rwlock);
+
 	mutex_lock(&conn->lock);
 	list_splice_init(&conn->names_list, &names_list);
 	list_splice_init(&conn->names_queue_list, &names_queue_list);
 	mutex_unlock(&conn->lock);
 
-	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->bus->lock);
-	mutex_lock(&reg->lock);
 	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
 		activator = conn->activator_of->activator;
 		conn->activator_of->activator = NULL;
@@ -294,7 +294,8 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 		kdbus_name_queue_item_free(q);
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
 		kdbus_name_entry_release(e, conn->bus);
-	mutex_unlock(&reg->lock);
+
+	up_write(&reg->rwlock);
 	mutex_unlock(&conn->bus->lock);
 
 	kdbus_conn_unref(activator);
@@ -302,49 +303,56 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 }
 
 /**
- * kdbus_name_lookup() - look up a name in a name registry
+ * kdbus_name_lock() - look up a name in a name registry and lock it
  * @reg:		The name registry
  * @name:		The name to look up
- * @conn:		Output for the connection owning the name or NULL
- * @activator:		Output for the activator owning the name or NULL
- * @name_id:		Output for the name-id or NULL
  *
- * Search for a name in a given name registry. The found connections are stored
- * with a new reference in the output stores. If either is not found, they're
- * set to NULL.
+ * Search for a name in a given name registry and return it with the
+ * registry-lock held. If the object is not found, the lock is not acquired and
+ * NULL is returned. The caller is responsible of unlocking the name via
+ * kdbus_name_unlock() again. Note that kdbus_name_unlock() can be safely called
+ * with NULL as name. In this case, it's a no-op as nothing was locked.
  *
- * Return: 0 if either @conn or @activator was found, -ESRCH if nothing found.
+ * The *_lock() + *_unlock() logic is only required for callers that need to
+ * protect their code against concurrent activator/implementor name changes.
+ * Multiple readers can lock names concurrently. However, you may not change
+ * name-ownership while holding a name-lock.
+ *
+ * Return: NULL if name is unknown, otherwise return a pointer to the name
+ *         entry with the name-lock held (reader lock only).
  */
-int kdbus_name_lookup(struct kdbus_name_registry *reg,
-		      const char *name,
-		      struct kdbus_conn **conn,
-		      struct kdbus_conn **activator,
-		      u64 *name_id)
+struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
+					 const char *name)
 {
 	struct kdbus_name_entry *e = NULL;
 	u32 hash = kdbus_str_hash(name);
 
-	mutex_lock(&reg->lock);
+	down_read(&reg->rwlock);
 	e = __kdbus_name_lookup(reg, hash, name);
-	if (e) {
-		if (conn) {
-			if (e->conn)
-				*conn = kdbus_conn_ref(e->conn);
-			else
-				*conn = NULL;
-		}
-		if (activator) {
-			if (e->activator)
-				*activator = kdbus_conn_ref(e->activator);
-			else
-				*activator = NULL;
-		}
-		if (name_id)
-			*name_id = e->name_id;
-	}
-	mutex_unlock(&reg->lock);
+	if (e)
+		return e;
+	up_read(&reg->rwlock);
 
-	return e ? 0 : -ESRCH;
+	return NULL;
+}
+
+/**
+ * kdbus_name_unlock() - unlock one name in a name registry
+ * @reg:		The name registry
+ * @entry:		The locked name entry or NULL
+ *
+ * This is the unlock-counterpart of kdbus_name_lock(). It unlocks a name that
+ * was previously successfully locked. You can safely pass NULL as entry and
+ * this will become a no-op. Therefore, it's safe to always call this on the
+ * return-value of kdbus_name_lock().
+ */
+void kdbus_name_unlock(struct kdbus_name_registry *reg,
+		       struct kdbus_name_entry *entry)
+{
+	if (entry) {
+		BUG_ON(!rwsem_is_locked(&reg->rwlock));
+		up_read(&reg->rwlock);
+	}
 }
 
 static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
@@ -443,7 +451,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
-	mutex_lock(&reg->lock);
+	down_write(&reg->rwlock);
 
 	hash = kdbus_str_hash(name);
 	e = __kdbus_name_lookup(reg, hash, name);
@@ -569,7 +577,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		*entry = e;
 
 exit_unlock:
-	mutex_unlock(&reg->lock);
+	up_write(&reg->rwlock);
 	mutex_unlock(&conn->bus->lock);
 	kdbus_notify_flush(conn->bus);
 
@@ -674,7 +682,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 	/* lock order: domain -> bus -> ep -> names -> connection */
 	mutex_lock(&bus->lock);
-	mutex_lock(&reg->lock);
+	down_write(&reg->rwlock);
 
 	e = __kdbus_name_lookup(reg, hash, cmd->name);
 	if (!e) {
@@ -702,7 +710,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	ret = kdbus_name_release(e, conn);
 
 exit_unlock:
-	mutex_unlock(&reg->lock);
+	up_write(&reg->rwlock);
 	mutex_unlock(&bus->lock);
 
 	if (conn) {
@@ -870,7 +878,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
-	mutex_lock(&reg->lock);
+	down_read(&reg->rwlock);
 
 	if (policy_db)
 		mutex_lock(&policy_db->entries_lock);
@@ -908,7 +916,7 @@ exit_unlock:
 	if (policy_db)
 		mutex_unlock(&policy_db->entries_lock);
 
-	mutex_unlock(&reg->lock);
+	up_read(&reg->rwlock);
 	mutex_unlock(&conn->bus->lock);
 	return ret;
 }

@@ -14,6 +14,7 @@
 #define __KDBUS_NAMES_H
 
 #include <linux/hashtable.h>
+#include <linux/rwsem.h>
 
 /**
  * struct kdbus_name_registry - names registered for a bus
@@ -23,7 +24,7 @@
  */
 struct kdbus_name_registry {
 	DECLARE_HASHTABLE(entries_hash, 8);
-	struct mutex lock;
+	struct rw_semaphore rwlock;
 	u64 name_seq_last;
 };
 
@@ -67,11 +68,11 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			struct kdbus_cmd_name_list *cmd);
 
-int kdbus_name_lookup(struct kdbus_name_registry *reg,
-		      const char *name,
-		      struct kdbus_conn **conn,
-		      struct kdbus_conn **activator,
-		      u64 *name_id);
+struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
+					 const char *name);
+void kdbus_name_unlock(struct kdbus_name_registry *reg,
+		       struct kdbus_name_entry *entry);
+
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn);
 

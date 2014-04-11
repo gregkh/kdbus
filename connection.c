@@ -779,24 +779,21 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 				   struct kdbus_conn **conn)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_conn *c, *activator;
-	u64 name_id = 0;
+	struct kdbus_name_entry *entry = NULL;
+	struct kdbus_conn *c;
 	int ret = 0;
 
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
 		BUG_ON(!kmsg->dst_name);
-		ret = kdbus_name_lookup(bus->name_registry,
-					kmsg->dst_name,
-					&c,
-					&activator,
-					&name_id);
-		if (ret < 0)
-			return ret;
 
-		if (!c && activator)
-			c = activator;
+		entry = kdbus_name_lock(bus->name_registry, kmsg->dst_name);
+		if (!entry)
+			return -ESRCH;
+
+		if (!entry->conn && entry->activator)
+			c = kdbus_conn_ref(entry->activator);
 		else
-			kdbus_conn_unref(activator);
+			c = kdbus_conn_ref(entry->conn);
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
 		    (c->flags & KDBUS_HELLO_ACTIVATOR)) {
@@ -832,15 +829,17 @@ static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
 	 * addressed to a name need to be moved from or to
 	 * activator connections of the same name.
 	 */
-	if (name_id > 0)
-		kmsg->dst_name_id = name_id;
+	if (entry)
+		kmsg->dst_name_id = entry->name_id;
 
 	/* the connection is already ref'ed at this point */
 	*conn = c;
+	kdbus_name_unlock(bus->name_registry, entry);
 	return 0;
 
 exit_unref:
 	kdbus_conn_unref(c);
+	kdbus_name_unlock(bus->name_registry, entry);
 	return ret;
 }
 
@@ -1712,6 +1711,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_conn_info *cmd_info,
 			size_t size)
 {
+	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_conn_info info = {};
 	struct kdbus_meta *meta = NULL;
@@ -1730,19 +1730,20 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		if (!kdbus_name_is_valid(cmd_info->name, false))
 			return -EINVAL;
 
-		ret = kdbus_name_lookup(conn->bus->name_registry,
-					cmd_info->name,
-					&owner_conn,
-					NULL,
-					NULL);
-		if (ret < 0)
-			return ret;
+		entry = kdbus_name_lock(conn->bus->name_registry,
+					cmd_info->name);
+		if (!entry)
+			return -ESRCH;
+		else if (entry->conn)
+			owner_conn = kdbus_conn_ref(entry->conn);
 	} else {
 		owner_conn = kdbus_conn_find_peer(conn, cmd_info->id);
 	}
 
-	if (!owner_conn)
-		return -ENXIO;
+	if (!owner_conn) {
+		ret = -ENXIO;
+		goto exit;
+	}
 
 	info.size = sizeof(info);
 	info.id = owner_conn->id;
@@ -1806,6 +1807,7 @@ exit_free:
 exit:
 	kdbus_meta_free(meta);
 	kdbus_conn_unref(owner_conn);
+	kdbus_name_unlock(conn->bus->name_registry, entry);
 
 	return ret;
 }
