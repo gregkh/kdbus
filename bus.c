@@ -23,6 +23,7 @@
 #include <linux/uaccess.h>
 
 #include "bus.h"
+#include "notify.h"
 #include "connection.h"
 #include "domain.h"
 #include "endpoint.h"
@@ -73,6 +74,7 @@ static void __kdbus_bus_free(struct kref *kref)
 	BUG_ON(!hash_empty(bus->conn_hash));
 
 	kdbus_bus_disconnect(bus);
+	kdbus_notify_free(bus);
 	atomic_dec(&bus->user->buses);
 	kdbus_domain_user_unref(bus->user);
 	kdbus_name_registry_free(bus->name_registry);
@@ -244,6 +246,9 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
 	INIT_LIST_HEAD(&b->monitors_list);
+	INIT_LIST_HEAD(&b->notify_list);
+	spin_lock_init(&b->notify_lock);
+	mutex_init(&b->notify_flush_lock);
 	atomic64_set(&b->conn_seq_last, 0);
 	b->domain = kdbus_domain_ref(domain);
 

@@ -13,15 +13,15 @@
 #ifndef __KDBUS_NOTIFY_H
 #define __KDBUS_NOTIFY_H
 
-int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
-			   struct list_head *queue_list);
-int kdbus_notify_reply_timeout(u64 id, u64 cookie,
-			       struct list_head *queue_list);
-int kdbus_notify_reply_dead(u64 id, u64 cookie,
-			    struct list_head *queue_list);
-int kdbus_notify_name_change(u64 type,
+struct kdbus_bus;
+
+int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags);
+int kdbus_notify_reply_timeout(struct kdbus_bus *bus, u64 id, u64 cookie);
+int kdbus_notify_reply_dead(struct kdbus_bus *bus, u64 id, u64 cookie);
+int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 			     u64 old_id, u64 new_id,
 			     u64 old_flags, u64 new_flags,
-			     const char *name,
-			     struct list_head *queue_list);
+			     const char *name);
+void kdbus_notify_flush(struct kdbus_bus *bus);
+void kdbus_notify_free(struct kdbus_bus *bus);
 #endif

@@ -121,9 +121,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
-void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list);
-int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
-			      struct list_head *kmsg_list);
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src,
 			     u64 name_id);

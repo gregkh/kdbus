@@ -14,15 +14,18 @@
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/spinlock.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 
+#include "bus.h"
+#include "connection.h"
 #include "message.h"
 #include "notify.h"
 
-static int kdbus_notify_reply(u64 id, u64 cookie, u64 msg_type,
-			      struct list_head *queue_list)
+static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
+			      u64 cookie, u64 msg_type)
 {
 	struct kdbus_kmsg *kmsg = NULL;
 	int ret;
@@ -45,50 +48,45 @@ static int kdbus_notify_reply(u64 id, u64 cookie, u64 msg_type,
 	kmsg->msg.cookie_reply = cookie;
 	kmsg->msg.items[0].type = msg_type;
 
-	list_add_tail(&kmsg->queue_entry, queue_list);
+	spin_lock(&bus->notify_lock);
+	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
+	spin_unlock(&bus->notify_lock);
 	return ret;
 }
 
 /**
  * kdbus_notify_reply_timeout() - queue a timeout reply
+ * @bus:		Bus which queues the messages
  * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
- * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- *			The caller has to free all items in the list using
- *			kdbus_kmsg_free(). Maybe NULL, in which case this
- *			function does nothing.
  *
  * Queues a message that has a KDBUS_ITEM_REPLY_TIMEOUT item attached.
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_notify_reply_timeout(u64 id, u64 cookie, struct list_head *queue_list)
+int kdbus_notify_reply_timeout(struct kdbus_bus *bus, u64 id, u64 cookie)
 {
-	return kdbus_notify_reply(id, cookie, KDBUS_ITEM_REPLY_TIMEOUT,
-				  queue_list);
+	return kdbus_notify_reply(bus, id, cookie, KDBUS_ITEM_REPLY_TIMEOUT);
 }
 
 /**
  * kdbus_notify_reply_dead() - queue a 'dead' reply
+ * @bus:		Bus which queues the messages
  * @id:			The destination's connection ID
  * @cookie:		The cookie to set in the reply.
- * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- *			The caller has to free all items in the list using
- *			kdbus_kmsg_free(). Maybe NULL, in which case this
- *			function does nothing.
  *
  * Queues a message that has a KDBUS_ITEM_REPLY_DEAD item attached.
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_notify_reply_dead(u64 id, u64 cookie, struct list_head *queue_list)
+int kdbus_notify_reply_dead(struct kdbus_bus *bus, u64 id, u64 cookie)
 {
-	return kdbus_notify_reply(id, cookie, KDBUS_ITEM_REPLY_DEAD,
-				  queue_list);
+	return kdbus_notify_reply(bus, id, cookie, KDBUS_ITEM_REPLY_DEAD);
 }
 
 /**
  * kdbus_notify_name_change() - queue a notification about a name owner change
+ * @bus:		Bus which queues the messages
  * @type:		The type if the notification; KDBUS_ITEM_NAME_ADD,
  *			KDBUS_ITEM_NAME_CHANGE or KDBUS_ITEM_NAME_REMOVE
  * @old_id:		The id of the connection that used to own the name
@@ -98,25 +96,17 @@ int kdbus_notify_reply_dead(u64 id, u64 cookie, struct list_head *queue_list)
  * @new_flags:		The flags to pass in the KDBUS_ITEM flags field for
  *			the new owner
  * @name:		The name that was removed or assigned to a new owner
- * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- *			The caller has to free all items in the list using
- *			kdbus_kmsg_free(). Maybe NULL, in which case this
- *			function does nothing.
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_notify_name_change(u64 type,
+int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 			     u64 old_id, u64 new_id,
 			     u64 old_flags, u64 new_flags,
-			     const char *name,
-			     struct list_head *queue_list)
+			     const char *name)
 {
 	struct kdbus_kmsg *kmsg = NULL;
 	size_t name_len, extra_size;
 	int ret;
-
-	if (!queue_list)
-		return 0;
 
 	name_len = strlen(name) + 1;
 	extra_size = sizeof(struct kdbus_notify_name_change) + name_len;
@@ -137,25 +127,23 @@ int kdbus_notify_name_change(u64 type,
 	memcpy(kmsg->msg.items[0].name_change.name, name, name_len);
 	kmsg->notify_name = kmsg->msg.items[0].name_change.name;
 
-	list_add_tail(&kmsg->queue_entry, queue_list);
+	spin_lock(&bus->notify_lock);
+	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
+	spin_unlock(&bus->notify_lock);
 	return ret;
 }
 
 /**
  * kdbus_notify_id_change() - queue a notification about a unique ID change
+ * @bus:		Bus which queues the messages
  * @type:		The type if the notification; KDBUS_ITEM_ID_ADD or
  *			KDBUS_ITEM_ID_REMOVE
  * @id:			The id of the connection that was added or removed
  * @flags:		The flags to pass in the KDBUS_ITEM flags field
- * @queue_list:		A queue list for the newly generated kdbus_kmsg.
- *			The caller has to free all items in the list using
- *			kdbus_kmsg_free(). Maybe NULL, in which case this
- *			function does nothing.
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
-			   struct list_head *queue_list)
+int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 {
 	struct kdbus_kmsg *kmsg = NULL;
 	int ret;
@@ -185,6 +173,48 @@ int kdbus_notify_id_change(u64 type, u64 id, u64 flags,
 	kmsg->msg.items[0].id_change.id = id;
 	kmsg->msg.items[0].id_change.flags = flags;
 
-	list_add_tail(&kmsg->queue_entry, queue_list);
+	spin_lock(&bus->notify_lock);
+	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
+	spin_unlock(&bus->notify_lock);
 	return ret;
+}
+
+/**
+ * kdbus_notify_flush() - send a list of collected messages
+ * @bus:		Bus which queues the messages
+ *
+ * The list is empty after sending the messages.
+ */
+void kdbus_notify_flush(struct kdbus_bus *bus)
+{
+	LIST_HEAD(notify_list);
+	struct kdbus_kmsg *kmsg, *tmp;
+
+	mutex_lock(&bus->notify_flush_lock);
+
+	spin_lock(&bus->notify_lock);
+	list_splice_init(&bus->notify_list, &notify_list);
+	spin_unlock(&bus->notify_lock);
+
+	list_for_each_entry_safe(kmsg, tmp, &notify_list, queue_entry) {
+		kdbus_conn_kmsg_send(bus->ep, NULL, kmsg);
+		list_del(&kmsg->queue_entry);
+		kdbus_kmsg_free(kmsg);
+	}
+
+	mutex_unlock(&bus->notify_flush_lock);
+}
+
+/**
+ * kdbus_notify_free() - free a list of collected messages
+ * @bus:		Bus which queues the messages
+ */
+void kdbus_notify_free(struct kdbus_bus *bus)
+{
+	struct kdbus_kmsg *kmsg, *tmp;
+
+	list_for_each_entry_safe(kmsg, tmp, &bus->notify_list, queue_entry) {
+		list_del(&kmsg->queue_entry);
+		kdbus_kmsg_free(kmsg);
+	}
 }

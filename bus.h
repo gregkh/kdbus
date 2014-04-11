@@ -14,6 +14,7 @@
 #define __KDBUS_BUS_H
 
 #include <linux/hashtable.h>
+#include <linux/spinlock.h>
 #include <linux/idr.h>
 
 #include "util.h"
@@ -23,7 +24,7 @@
  * @kref:		Reference count
  * @disconnected:	Invalidated data
  * @uid_owner:		The uid of the owner of the bus
- * @domain:			Domain of this bus
+ * @domain:		Domain of this bus
  * @name:		The bus name
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
@@ -41,6 +42,9 @@
  * @id128:		Unique random 128 bit ID of this bus
  * @user:		Owner of the connection
  * @policy_db:		Policy database for this bus
+ * @notify_list:	List of pending kernel-generated messages
+ * @notify_lock:	Notification list lock
+ * @notify_flush_lock:	Notification flushing lock
  *
  * A bus provides a "bus" endpoint / device node.
  *
@@ -70,6 +74,9 @@ struct kdbus_bus {
 	u8 id128[16];
 	struct kdbus_domain_user *user;
 	struct kdbus_policy_db *policy_db;
+	struct list_head notify_list;
+	spinlock_t notify_lock;
+	struct mutex notify_flush_lock;
 };
 
 int kdbus_bus_make_user(const struct kdbus_cmd_make *make,

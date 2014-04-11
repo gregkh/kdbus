@@ -708,7 +708,6 @@ static void kdbus_conn_work(struct work_struct *work)
 {
 	struct kdbus_conn *conn;
 	struct kdbus_conn_reply *reply, *reply_tmp;
-	LIST_HEAD(notify_list);
 	LIST_HEAD(reply_list);
 	u64 deadline = ~0ULL;
 	struct timespec ts;
@@ -756,8 +755,8 @@ static void kdbus_conn_work(struct work_struct *work)
 		if (reply->deadline_ns == 0)
 			continue;
 
-		kdbus_notify_reply_timeout(reply->conn->id, reply->cookie,
-					   &notify_list);
+		kdbus_notify_reply_timeout(conn->bus, reply->conn->id,
+					   reply->cookie);
 	}
 
 	/* rearm delayed work with next timeout */
@@ -768,7 +767,7 @@ static void kdbus_conn_work(struct work_struct *work)
 	}
 	mutex_unlock(&conn->lock);
 
-	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+	kdbus_notify_flush(conn->bus);
 
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
 		kdbus_conn_reply_free(reply);
@@ -993,7 +992,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
 	struct kdbus_conn_queue *queue = NULL;
-	LIST_HEAD(notify_list);
 	int ret = 0;
 
 	mutex_lock(&conn->lock);
@@ -1057,8 +1055,9 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 				reply = queue->reply;
 			}
 
-			kdbus_notify_reply_dead(queue->src_id,
-						queue->cookie, &notify_list);
+			kdbus_notify_reply_dead(conn->bus,
+						queue->src_id,
+						queue->cookie);
 		}
 
 		kdbus_conn_queue_remove(conn, queue);
@@ -1097,7 +1096,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 exit_unlock:
 	mutex_unlock(&conn->lock);
 exit:
-	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+	kdbus_notify_flush(conn->bus);
 	return ret;
 }
 
@@ -1442,46 +1441,6 @@ exit_unref:
 }
 
 /**
- * kdbus_conn_kmsg_free() - free a list of kmsg objects
- * @kmsg_list:		List head of kmsg objects to free.
- */
-void kdbus_conn_kmsg_list_free(struct list_head *kmsg_list)
-{
-	struct kdbus_kmsg *kmsg, *tmp;
-
-	list_for_each_entry_safe(kmsg, tmp, kmsg_list, queue_entry) {
-		list_del(&kmsg->queue_entry);
-		kdbus_kmsg_free(kmsg);
-	}
-}
-
-/**
- * kdbus_conn_kmsg_list_send() - send a list of previously collected messages
- * @ep:			The endpoint to use for sending
- * @kmsg_list:		List head of kmsg objects to send.
- *
- * The list is cleared and freed after sending.
- *
- * Return: 0 on success, negative errno on failure
- */
-int kdbus_conn_kmsg_list_send(struct kdbus_ep *ep,
-			      struct list_head *kmsg_list)
-{
-	struct kdbus_kmsg *kmsg;
-	int ret = 0;
-
-	list_for_each_entry(kmsg, kmsg_list, queue_entry) {
-		ret = kdbus_conn_kmsg_send(ep, NULL, kmsg);
-		if (ret < 0)
-			break;
-	}
-
-	kdbus_conn_kmsg_list_free(kmsg_list);
-
-	return ret;
-}
-
-/**
  * kdbus_conn_disconnect() - disconnect a connection
  * @conn:		The connection to disconnect
  * @ensure_queue_empty:	Flag to indicate if the call should fail in
@@ -1497,7 +1456,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_conn_queue *queue, *tmp;
-	LIST_HEAD(notify_list);
 	LIST_HEAD(reply_list);
 
 	mutex_lock(&conn->lock);
@@ -1538,8 +1496,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
 		if (queue->reply)
-			kdbus_notify_reply_dead(queue->src_id,
-						queue->cookie, &notify_list);
+			kdbus_notify_reply_dead(conn->bus, queue->src_id,
+						queue->cookie);
 
 		kdbus_conn_queue_remove(conn, queue);
 		kdbus_pool_slice_free(queue->slice);
@@ -1559,8 +1517,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		 * dead' notification, mark entry as handled,
 		 * and trigger the timeout handler.
 		 */
-		kdbus_notify_reply_dead(reply->conn->id, reply->cookie,
-					&notify_list);
+		kdbus_notify_reply_dead(conn->bus, reply->conn->id,
+					reply->cookie);
 
 		reply->deadline_ns = 0;
 		if (kdbus_conn_active(reply->conn))
@@ -1573,10 +1531,10 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	/* wake up the queue so that users can get a POLLERR */
 	wake_up_interruptible(&conn->wait);
 
-	kdbus_notify_id_change(KDBUS_ITEM_ID_REMOVE, conn->id, conn->flags,
-			       &notify_list);
+	kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_REMOVE, conn->id,
+			       conn->flags);
 
-	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+	kdbus_notify_flush(conn->bus);
 	return 0;
 }
 
@@ -1916,7 +1874,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	struct kdbus_conn *conn;
 	struct kdbus_bus *bus;
 	size_t seclabel_len = 0;
-	LIST_HEAD(notify_list);
 	bool is_policy_holder;
 	bool is_activator;
 	bool is_monitor;
@@ -2074,11 +2031,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->attach_flags = hello->attach_flags;
 
 	/* notify about the new active connection */
-	ret = kdbus_notify_id_change(KDBUS_ITEM_ID_ADD, conn->id, conn->flags,
-				     &notify_list);
+	ret = kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_ADD, conn->id,
+				     conn->flags);
 	if (ret < 0)
 		goto exit_unref_ep;
-	kdbus_conn_kmsg_list_send(conn->ep, &notify_list);
+	kdbus_notify_flush(conn->bus);
 
 	if (is_activator) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
