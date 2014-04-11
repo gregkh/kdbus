@@ -773,76 +773,6 @@ static void kdbus_conn_work(struct work_struct *work)
 		kdbus_conn_reply_free(reply);
 }
 
-/* find and pin destination connection */
-static int kdbus_conn_get_conn_dst(struct kdbus_bus *bus,
-				   struct kdbus_kmsg *kmsg,
-				   struct kdbus_conn **conn)
-{
-	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_name_entry *entry = NULL;
-	struct kdbus_conn *c;
-	int ret = 0;
-
-	if (msg->dst_id == KDBUS_DST_ID_NAME) {
-		BUG_ON(!kmsg->dst_name);
-
-		entry = kdbus_name_lock(bus->name_registry, kmsg->dst_name);
-		if (!entry)
-			return -ESRCH;
-
-		if (!entry->conn && entry->activator)
-			c = kdbus_conn_ref(entry->activator);
-		else
-			c = kdbus_conn_ref(entry->conn);
-
-		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (c->flags & KDBUS_HELLO_ACTIVATOR)) {
-			ret = -EADDRNOTAVAIL;
-			goto exit_unref;
-		}
-	} else {
-		mutex_lock(&bus->lock);
-		c = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
-		mutex_unlock(&bus->lock);
-
-		if (!c)
-			return -ENXIO;
-
-		/*
-		 * Special-purpose connections are not allowed to be addressed
-		 * via their unique IDs.
-		 */
-		if (c->flags & (KDBUS_HELLO_ACTIVATOR|KDBUS_HELLO_MONITOR)) {
-			ret = -ENXIO;
-			goto exit_unref;
-		}
-	}
-
-	if (!kdbus_conn_active(c)) {
-		ret = -ECONNRESET;
-		goto exit_unref;
-	}
-
-	/*
-	 * Record the sequence number of the registered name;
-	 * it will be passed on to the queue, in case messages
-	 * addressed to a name need to be moved from or to
-	 * activator connections of the same name.
-	 */
-	if (entry)
-		kmsg->dst_name_id = entry->name_id;
-
-	/* the connection is already ref'ed at this point */
-	*conn = c;
-	kdbus_name_unlock(bus->name_registry, entry);
-	return 0;
-
-exit_unref:
-	kdbus_conn_unref(c);
-	kdbus_name_unlock(bus->name_registry, entry);
-	return ret;
-}
-
 static int kdbus_conn_fds_install(struct kdbus_conn *conn,
 				  struct kdbus_conn_queue *queue)
 {
@@ -1158,6 +1088,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply *reply_wake = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
+	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	int ret;
@@ -1173,8 +1104,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			return ret;
 	}
 
-	/* broadcast message */
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
+		/* broadcast message */
 		unsigned int i;
 
 		mutex_lock(&bus->lock);
@@ -1209,12 +1140,58 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		mutex_unlock(&bus->lock);
 
 		return 0;
+
+	} else if (msg->dst_id == KDBUS_DST_ID_NAME) {
+		/* unicast message to well-known name */
+		BUG_ON(!kmsg->dst_name);
+
+		entry = kdbus_name_lock(bus->name_registry, kmsg->dst_name);
+		if (!entry)
+			return -ESRCH;
+
+		if (!entry->conn && entry->activator)
+			conn_dst = kdbus_conn_ref(entry->activator);
+		else
+			conn_dst = kdbus_conn_ref(entry->conn);
+
+		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
+		    (conn_dst->flags & KDBUS_HELLO_ACTIVATOR)) {
+			ret = -EADDRNOTAVAIL;
+			goto exit_unref;
+		}
+	} else {
+		/* unicast message to unique name */
+		mutex_lock(&bus->lock);
+		conn_dst = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
+		mutex_unlock(&bus->lock);
+
+		if (!conn_dst)
+			return -ENXIO;
+
+		/*
+		 * Special-purpose connections are not allowed to be addressed
+		 * via their unique IDs.
+		 */
+		if (conn_dst->flags & (KDBUS_HELLO_ACTIVATOR |
+				       KDBUS_HELLO_MONITOR)) {
+			ret = -ENXIO;
+			goto exit_unref;
+		}
 	}
 
-	/* direct message */
-	ret = kdbus_conn_get_conn_dst(bus, kmsg, &conn_dst);
-	if (ret < 0)
-		return ret;
+	if (!kdbus_conn_active(conn_dst)) {
+		ret = -ECONNRESET;
+		goto exit_unref;
+	}
+
+	/*
+	 * Record the sequence number of the registered name;
+	 * it will be passed on to the queue, in case messages
+	 * addressed to a name need to be moved from or to
+	 * activator connections of the same name.
+	 */
+	if (entry)
+		kmsg->dst_name_id = entry->name_id;
 
 	/* For kernel-generated messages, skip the reply logic */
 	if (!conn_src)
@@ -1372,6 +1349,9 @@ meta_append:
 	if (ret < 0)
 		goto exit_unref;
 
+	/* unlock name before sending monitors, bus-locking would deadlock */
+	entry = kdbus_name_unlock(bus->name_registry, entry);
+
 	/*
 	 * Monitor connections get all messages; ignore possible errors
 	 * when sending messages to monitor connections.
@@ -1433,8 +1413,8 @@ meta_append:
 	}
 
 exit_unref:
-	/* conn_dst got an extra ref from kdbus_conn_get_conn_dst */
 	kdbus_conn_unref(conn_dst);
+	kdbus_name_unlock(bus->name_registry, entry);
 
 	return ret;
 }

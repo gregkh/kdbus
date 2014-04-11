@@ -345,14 +345,18 @@ struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
  * was previously successfully locked. You can safely pass NULL as entry and
  * this will become a no-op. Therefore, it's safe to always call this on the
  * return-value of kdbus_name_lock().
+ *
+ * Return: This always returns NULL.
  */
-void kdbus_name_unlock(struct kdbus_name_registry *reg,
-		       struct kdbus_name_entry *entry)
+struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
+					   struct kdbus_name_entry *entry)
 {
 	if (entry) {
 		BUG_ON(!rwsem_is_locked(&reg->rwlock));
 		up_read(&reg->rwlock);
 	}
+
+	return NULL;
 }
 
 static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
