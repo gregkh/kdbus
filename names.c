@@ -237,28 +237,56 @@ exit_release:
 	return 0;
 }
 
-static int kdbus_name_release(struct kdbus_name_entry *e,
-			      struct kdbus_conn *conn)
+static int kdbus_name_release(struct kdbus_name_registry *reg,
+			      struct kdbus_conn *conn,
+			      const char *name)
 {
 	struct kdbus_name_queue_item *q_tmp, *q;
+	struct kdbus_name_entry *e = NULL;
+	u32 hash;
+	int ret = 0;
 
-	/* Is the connection already the real owner of the name? */
-	if (e->conn == conn)
-		return kdbus_name_entry_release(e, conn->bus);
+	hash = kdbus_str_hash(name);
 
-	/*
-	 * Otherwise, walk the list of queued entries and search for
-	 * items for the connection.
-	 */
-	list_for_each_entry_safe(q, q_tmp, &e->queue_list, entry_entry) {
-		if (q->conn != conn)
-			continue;
-		kdbus_name_queue_item_free(q);
-		return 0;
+	/* lock order: domain -> bus -> ep -> names -> connection */
+	mutex_lock(&conn->bus->lock);
+	down_write(&reg->rwlock);
+
+	e = __kdbus_name_lookup(reg, hash, name);
+	if (!e) {
+		ret = -ESRCH;
+		goto exit_unlock;
 	}
 
-	/* the name belongs to somebody else */
-	return -EADDRINUSE;
+	/* Is the connection already the real owner of the name? */
+	if (e->conn == conn) {
+		ret = kdbus_name_entry_release(e, conn->bus);
+	} else {
+		/*
+		 * Otherwise, walk the list of queued entries and search
+		 * for items for connection.
+		 */
+
+		/* In case the name belongs to somebody else */
+		ret = -EADDRINUSE;
+
+		list_for_each_entry_safe(q, q_tmp,
+					 &e->queue_list,
+					 entry_entry) {
+			if (q->conn != conn)
+				continue;
+
+			kdbus_name_queue_item_free(q);
+			ret = 0;
+			break;
+		}
+	}
+
+exit_unlock:
+	up_write(&reg->rwlock);
+	mutex_unlock(&conn->bus->lock);
+
+	return ret;
 }
 
 /**
@@ -675,52 +703,27 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   const struct kdbus_cmd_name *cmd)
 {
 	struct kdbus_bus *bus = conn->bus;
-	struct kdbus_name_entry *e;
-	u32 hash;
 	int ret = 0;
 
 	if (!kdbus_name_is_valid(cmd->name, false))
 		return -EINVAL;
 
-	hash = kdbus_str_hash(cmd->name);
-
-	/* lock order: domain -> bus -> ep -> names -> connection */
-	mutex_lock(&bus->lock);
-	down_write(&reg->rwlock);
-
-	e = __kdbus_name_lookup(reg, hash, cmd->name);
-	if (!e) {
-		ret = -ESRCH;
-		conn = NULL;
-		goto exit_unlock;
-	}
-
 	/* privileged users can act on behalf of someone else */
 	if (cmd->owner_id > 0) {
-		if (!kdbus_bus_uid_is_privileged(bus)) {
-			ret = -EPERM;
-			goto exit_unlock;
-		}
+		if (!kdbus_bus_uid_is_privileged(bus))
+			return -EPERM;
 
-		conn = kdbus_bus_find_conn_by_id(bus, cmd->owner_id);
-		if (!conn) {
-			ret = -ENXIO;
-			goto exit_unlock;
-		}
+		conn = kdbus_conn_find_peer(conn, cmd->owner_id);
+		if (!conn)
+			return -ENXIO;
 	} else {
 		kdbus_conn_ref(conn);
 	}
 
-	ret = kdbus_name_release(e, conn);
+	ret = kdbus_name_release(reg, conn, cmd->name);
 
-exit_unlock:
-	up_write(&reg->rwlock);
-	mutex_unlock(&bus->lock);
-
-	if (conn) {
-		kdbus_notify_flush(conn->bus);
-		kdbus_conn_unref(conn);
-	}
+	kdbus_notify_flush(conn->bus);
+	kdbus_conn_unref(conn);
 
 	return ret;
 }
