@@ -650,43 +650,24 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	    !kdbus_name_is_valid(cmd->name, false))
 		return -EINVAL;
 
-	/* privileged users can act on behalf of someone else */
-	if (cmd->owner_id != 0) {
-		struct kdbus_conn *new_conn;
-		struct kdbus_bus *bus = conn->bus;
-
-		if (!kdbus_bus_uid_is_privileged(bus))
-			return -EPERM;
-
-		new_conn = kdbus_conn_find_peer(conn, cmd->owner_id);
-		if (!new_conn)
-			return -ENXIO;
-
-		conn = new_conn;
-	} else {
-		kdbus_conn_ref(conn);
-	}
-
 	if (conn->bus->policy_db) {
 		ret = kdbus_policy_check_own_access(conn->bus->policy_db,
 						    conn, cmd->name);
 		if (ret < 0)
-			goto exit_unref_conn;
+			goto exit;
 	}
 
 	if (conn->ep->policy_db) {
 		ret = kdbus_policy_check_own_access(conn->ep->policy_db,
 						    conn, cmd->name);
 		if (ret < 0)
-			goto exit_unref_conn;
+			goto exit;
 	}
 
 	ret = kdbus_name_acquire(reg, conn, cmd->name, &cmd->flags, &e);
 
-exit_unref_conn:
+exit:
 	kdbus_notify_flush(conn->bus);
-	kdbus_conn_unref(conn);
-
 	return ret;
 }
 
@@ -702,29 +683,14 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
 			   const struct kdbus_cmd_name *cmd)
 {
-	struct kdbus_bus *bus = conn->bus;
 	int ret = 0;
 
 	if (!kdbus_name_is_valid(cmd->name, false))
 		return -EINVAL;
 
-	/* privileged users can act on behalf of someone else */
-	if (cmd->owner_id > 0) {
-		if (!kdbus_bus_uid_is_privileged(bus))
-			return -EPERM;
-
-		conn = kdbus_conn_find_peer(conn, cmd->owner_id);
-		if (!conn)
-			return -ENXIO;
-	} else {
-		kdbus_conn_ref(conn);
-	}
-
 	ret = kdbus_name_release(reg, conn, cmd->name);
 
 	kdbus_notify_flush(conn->bus);
-	kdbus_conn_unref(conn);
-
 	return ret;
 }
 

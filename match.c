@@ -343,31 +343,11 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 int kdbus_match_db_add(struct kdbus_conn *conn,
 		       struct kdbus_cmd_match *cmd)
 {
-	struct kdbus_conn *target_conn = NULL;
 	struct kdbus_match_entry *entry = NULL;
-	struct kdbus_match_db *db;
+	struct kdbus_match_db *db = conn->match_db;
 	struct kdbus_item *item;
 	LIST_HEAD(list);
 	int ret = 0;
-
-	/* privileged users can act on behalf of someone else */
-	if (cmd->owner_id == 0)
-		cmd->owner_id = conn->id;
-	else if (cmd->owner_id != conn->id &&
-		 !kdbus_bus_uid_is_privileged(conn->bus))
-		return -EPERM;
-
-	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
-		target_conn = kdbus_conn_find_peer(conn, cmd->owner_id);
-		if (!target_conn) {
-			ret = -ENXIO;
-			goto exit_free;
-		}
-
-		db = target_conn->match_db;
-	} else {
-		db = conn->match_db;
-	}
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry) {
@@ -376,7 +356,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	}
 
 	entry->cookie = cmd->cookie;
-
 	INIT_LIST_HEAD(&entry->rules_list);
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
@@ -499,8 +478,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		kdbus_match_entry_free(entry);
 
 exit_free:
-	kdbus_conn_unref(target_conn);
-
 	return ret;
 }
 
@@ -517,34 +494,14 @@ exit_free:
 int kdbus_match_db_remove(struct kdbus_conn *conn,
 			  struct kdbus_cmd_match *cmd)
 {
-	struct kdbus_conn *target_conn = NULL;
 	struct kdbus_match_entry *entry, *tmp;
-	struct kdbus_match_db *db;
-
-	/* privileged users can act on behalf of someone else */
-	if (cmd->owner_id == 0)
-		cmd->owner_id = conn->id;
-	else if (cmd->owner_id != conn->id &&
-		 !kdbus_bus_uid_is_privileged(conn->bus))
-		return -EPERM;
-
-	if (cmd->owner_id != 0 && cmd->owner_id != conn->id) {
-		target_conn = kdbus_conn_find_peer(conn, cmd->owner_id);
-		if (!target_conn)
-			return -ENXIO;
-
-		db = target_conn->match_db;
-	} else {
-		db = conn->match_db;
-	}
+	struct kdbus_match_db *db = conn->match_db;
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
 		if (entry->cookie == cmd->cookie)
 			kdbus_match_entry_free(entry);
 	mutex_unlock(&db->entries_lock);
-
-	kdbus_conn_unref(target_conn);
 
 	return 0;
 }
