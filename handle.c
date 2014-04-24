@@ -328,7 +328,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		if (!kdbus_check_flags(make->flags)) {
-			ret = -ENOTSUPP;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -370,7 +370,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		if (!kdbus_check_flags(make->flags)) {
-			ret = -ENOTSUPP;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -435,7 +435,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 
 		if (!kdbus_check_flags(make->flags)) {
-			ret = -ENOTSUPP;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -490,7 +490,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		hello = p;
 
 		if (!kdbus_check_flags(hello->conn_flags)) {
-			ret = -ENOTSUPP;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 

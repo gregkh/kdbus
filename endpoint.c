@@ -279,7 +279,7 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 			size_t items_size)
 {
 	if (!ep->policy_db)
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 
 	if (items_size == 0)
 		return 0;
