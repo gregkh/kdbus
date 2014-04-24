@@ -602,9 +602,7 @@ enum kdbus_name_flags {
  * struct kdbus_cmd_name - struct to describe a well-known name
  * @size:		The total size of the struct
  * @flags:		Flags for a name entry (KDBUS_NAME_*)
- * @owner_id:		The current owner of the name. For requests,
- *			privileged users may set this field to
- *			(de)register names on behalf of other connections.
+ * @owner_id:		The current owner of the name.
  * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
  * @name:		The well-known name
  *
