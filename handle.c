@@ -829,7 +829,7 @@ static unsigned int kdbus_handle_poll(struct file *file,
 	poll_wait(file, &conn->wait, wait);
 
 	mutex_lock(&conn->lock);
-	if (unlikely(conn->disconnected))
+	if (!kdbus_conn_active(conn))
 		mask |= POLLERR | POLLHUP;
 	else if (!list_empty(&conn->msg_list))
 		mask |= POLLIN | POLLRDNORM;

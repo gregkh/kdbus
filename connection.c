@@ -464,9 +464,6 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	BUG_ON(!mutex_is_locked(&conn->lock));
 
-	if (!kdbus_conn_active(conn))
-		return -ECONNRESET;
-
 	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
 		return -ECOMM;
 
@@ -673,6 +670,11 @@ static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
 		return -ENOBUFS;
 
 	mutex_lock(&conn->lock);
+	if (!kdbus_conn_active(conn)) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
+
 	ret = kdbus_conn_queue_alloc(conn, kmsg, &queue);
 	if (ret < 0)
 		goto exit_unlock;
@@ -760,7 +762,7 @@ static void kdbus_conn_work(struct work_struct *work)
 	}
 
 	/* rearm delayed work with next timeout */
-	if (deadline != ~0ULL && kdbus_conn_active(conn)) {
+	if (deadline != ~0ULL) {
 		u64 usecs = div_u64(deadline - now, 1000ULL);
 
 		schedule_delayed_work(&conn->work, usecs_to_jiffies(usecs));
@@ -1179,11 +1181,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 	}
 
-	if (!kdbus_conn_active(conn_dst)) {
-		ret = -ECONNRESET;
-		goto exit_unref;
-	}
-
 	/*
 	 * Record the sequence number of the registered name;
 	 * it will be passed on to the queue, in case messages
@@ -1332,8 +1329,11 @@ meta_append:
 		 * The connection's queue will never get to see it.
 		 */
 		mutex_lock(&conn_dst->lock);
-		ret = kdbus_conn_queue_alloc(conn_dst, kmsg,
-					     &reply_wake->queue);
+		if (kdbus_conn_active(conn_dst))
+			ret = kdbus_conn_queue_alloc(conn_dst, kmsg,
+						     &reply_wake->queue);
+		else
+			ret = -ECONNRESET;
 
 		kdbus_conn_reply_sync(reply_wake, ret);
 		mutex_unlock(&conn_dst->lock);
@@ -1500,8 +1500,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 					reply->cookie);
 
 		reply->deadline_ns = 0;
-		if (kdbus_conn_active(reply->conn))
-			schedule_delayed_work(&reply->conn->work, 0);
+		schedule_delayed_work(&reply->conn->work, 0);
 
 		list_del(&reply->entry);
 		kdbus_conn_reply_free(reply);
