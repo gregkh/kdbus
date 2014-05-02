@@ -411,7 +411,7 @@ static int check_hello(struct kdbus_check_env *env)
 	/* check faulty flags */
 	hello.conn_flags = 1ULL << 32;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == 524);
+	ASSERT_RETURN(ret == -1 && errno == EOPNOTSUPP);
 
 	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
 
