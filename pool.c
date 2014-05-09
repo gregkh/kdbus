@@ -623,7 +623,7 @@ void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice)
 #if ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE == 1
 	struct address_space *mapping = slice->pool->f->f_mapping;
 	pgoff_t first = slice->off >> PAGE_CACHE_SHIFT;
-	pgoff_t last = (slice->off + slice->len +
+	pgoff_t last = (slice->off + slice->size +
 			PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
 	pgoff_t i;
 
