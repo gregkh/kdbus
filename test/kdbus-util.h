@@ -36,6 +36,10 @@ struct conn {
 	size_t size;
 };
 
+int sys_memfd_create(const char *name, __u64 size);
+int sys_memfd_seal_set(int fd);
+off_t sys_memfd_get_size(int fd, off_t *size);
+
 int name_list(struct conn *conn, uint64_t flags);
 int name_release(struct conn *conn, const char *name);
 int name_acquire(struct conn *conn, const char *name, uint64_t flags);

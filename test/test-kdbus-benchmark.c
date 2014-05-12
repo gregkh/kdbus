@@ -83,7 +83,6 @@ static int
 send_echo_request(struct conn *conn, uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
-	struct kdbus_cmd_memfd_make mfd = {};
 	struct kdbus_item *item;
 	uint64_t size;
 	int memfd = -1;
@@ -95,20 +94,18 @@ send_echo_request(struct conn *conn, uint64_t dst_id)
 	size = sizeof(struct kdbus_msg);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
-	mfd.size = sizeof(struct kdbus_cmd_memfd_make);
-	ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &mfd);
-	if (ret < 0) {
-		fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
+	memfd = sys_memfd_create("memfd-name", 0);
+	if (memfd < 0) {
+		fprintf(stderr, "sys_memfd_create() failed: %m\n");
 		return EXIT_FAILURE;
 	}
-	memfd = mfd.fd;
 
 	if (write(memfd, &now, sizeof(now)) != sizeof(now)) {
 		fprintf(stderr, "writing to memfd failed: %m\n");
 		return EXIT_FAILURE;
 	}
 
-	ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, true);
+	ret = sys_memfd_seal_set(memfd);
 	if (ret < 0) {
 		fprintf(stderr, "memfd sealing failed: %m\n");
 		return EXIT_FAILURE;
@@ -177,9 +174,10 @@ handle_echo_reply(struct conn *conn)
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			char *buf;
 
-			buf = mmap(NULL, item->memfd.size, PROT_READ, MAP_SHARED, item->memfd.fd, 0);
+			buf = mmap(NULL, item->memfd.size, PROT_READ, MAP_PRIVATE, item->memfd.fd, 0);
 			if (buf == MAP_FAILED) {
-				printf("mmap() fd=%i failed: %m", item->memfd.fd);
+				printf("mmap() fd=%i size=%llu failed: %m\n", item->memfd.fd, item->memfd.size);
+				close(item->memfd.fd);
 				break;
 			}
 

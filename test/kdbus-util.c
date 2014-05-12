@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <unistd.h>
@@ -24,9 +23,17 @@
 #include <grp.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <linux/memfd.h>
+#include <linux/unistd.h>
+#include <linux/fcntl.h>
 
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
+
+/* we can't include <fcntl.h> due to glibc header file namespace confusion ... */
+extern int fcntl (int __fd, int __cmd, ...);
+extern int open (const char *__file, int __oflag, ...);
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
 struct conn *
@@ -95,7 +102,7 @@ kdbus_hello(const char *path, uint64_t flags,
 		return NULL;
 	}
 
-	conn->buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, fd, 0);
+	conn->buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (conn->buf == MAP_FAILED) {
 		free(conn);
 		fprintf(stderr, "--- error mmap (%m)\n");
@@ -149,6 +156,55 @@ struct conn *kdbus_hello_activator(const char *path, const char *name,
 				     KDBUS_HELLO_ACTIVATOR);
 }
 
+#ifndef F_ADD_SEALS
+#define F_ADD_SEALS     (F_LINUX_SPECIFIC_BASE + 9)
+#define F_GET_SEALS     (F_LINUX_SPECIFIC_BASE + 10)
+
+#define F_SEAL_SEAL     0x0001  /* prevent further seals from being set */
+#define F_SEAL_SHRINK   0x0002  /* prevent file from shrinking */
+#define F_SEAL_GROW     0x0004  /* prevent file from growing */
+#define F_SEAL_WRITE    0x0008  /* prevent writes */
+#endif
+
+int sys_memfd_create(const char *name, __u64 size)
+{
+	int ret, fd;
+
+	ret = syscall(__NR_memfd_create, name, MFD_ALLOW_SEALING);
+	if (ret < 0)
+		return ret;
+
+	fd = ret;
+
+	ret = ftruncate(fd, size);
+	if (ret < 0) {
+		close(fd);
+		return ret;
+	}
+
+	return fd;
+}
+
+int sys_memfd_seal_set(int fd)
+{
+	return fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE);
+}
+
+off_t sys_memfd_get_size(int fd, off_t *size)
+{
+	struct stat stat;
+	int ret;
+
+	ret = fstat(fd, &stat);
+	if (ret < 0) {
+		fprintf(stderr, "stat() failed: %m\n");
+		return ret;
+	}
+
+	*size = stat.st_size;
+	return 0;
+}
+
 int msg_send(const struct conn *conn,
 	     const char *name,
 	     uint64_t cookie,
@@ -173,25 +229,11 @@ int msg_send(const struct conn *conn,
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 	else {
-		struct {
-			struct kdbus_cmd_memfd_make cmd;
-			uint64_t size;
-			uint64_t type;
-			char name[16];
-		} m = {};
-
-		m.cmd.size = sizeof(m);
-		m.cmd.file_size = 1024 * 1024;
-		m.cmd.items[0].type = KDBUS_ITEM_MEMFD_NAME;
-		m.cmd.items[0].size = KDBUS_ITEM_HEADER_SIZE + sizeof(m.name);
-		strcpy(m.name, "my-name-is-nice");
-		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &m);
-		if (ret < 0) {
-			ret = -errno;
-			fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
-			return ret;
+		memfd = sys_memfd_create("my-name-is-nice", 1024 * 1024);
+		if (memfd < 0) {
+			fprintf(stderr, "failed to create memfd: %m\n");
+			return memfd;
 		}
-		memfd = m.cmd.fd;
 
 		if (write(memfd, "kdbus memfd 1234567", 19) != 19) {
 			ret = -errno;
@@ -199,7 +241,7 @@ int msg_send(const struct conn *conn,
 			return ret;
 		}
 
-		ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, true);
+		ret = sys_memfd_seal_set(memfd);
 		if (ret < 0) {
 			ret = -errno;
 			fprintf(stderr, "memfd sealing failed: %m\n");
@@ -353,15 +395,15 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			char *buf;
-			uint64_t size;
+			off_t size;
 
-			buf = mmap(NULL, item->memfd.size, PROT_READ, MAP_SHARED, item->memfd.fd, 0);
+			buf = mmap(NULL, item->memfd.size, PROT_READ, MAP_PRIVATE, item->memfd.fd, 0);
 			if (buf == MAP_FAILED) {
-				printf("mmap() fd=%i failed:%m", item->memfd.fd);
+				printf("mmap() fd=%i size=%llu failed: %m\n", item->memfd.fd, item->memfd.size);
 				break;
 			}
 
-			if (ioctl(item->memfd.fd, KDBUS_CMD_MEMFD_SIZE_GET, &size) < 0) {
+			if (sys_memfd_get_size(item->memfd.fd, &size) < 0) {
 				fprintf(stderr, "KDBUS_CMD_MEMFD_SIZE_GET failed: %m\n");
 				break;
 			}

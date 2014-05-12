@@ -108,7 +108,7 @@ static struct kdbus_conn *make_conn(const char *buspath, uint64_t flags)
 		return NULL;
 	}
 
-	conn->buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn->fd, 0);
+	conn->buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_PRIVATE, conn->fd, 0);
 	if (conn->buf == MAP_FAILED) {
 		free(conn);
 		fprintf(stderr, "--- error mmap (%m)\n");
@@ -180,16 +180,12 @@ static int send_message(const struct kdbus_conn *conn,
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 	else {
-		struct kdbus_cmd_memfd_make mfd;
-
-		mfd.size = sizeof(struct kdbus_cmd_memfd_make);
-		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &mfd);
-		ASSERT_RETURN(ret == 0);
-		memfd = mfd.fd;
+		memfd = sys_memfd_create("payload", 0);
+		ASSERT_RETURN(memfd >= 0);
 
 		ASSERT_RETURN(write(memfd, "kdbus memfd 1234567", 19) == 19);
 
-		ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, 1);
+		ret = sys_memfd_seal_set(memfd);
 		ASSERT_RETURN(ret == 0);
 
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
