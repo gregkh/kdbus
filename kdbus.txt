@@ -350,19 +350,16 @@ that way two peers can exchange data by effectively doing a single-copy from
 one process to another, the kernel will not buffer the data anywhere else.
 
 KDBUS_MSG_PAYLOAD_MEMFD:
-Messages can reference kdbus_memfd special files which contain the data.
-Kdbus_memfd files have special semantics, which allow the sealing of the
-content of the file, sealing prevents all writable access to the file content.
-Only sealed kdbus_memfd files are accepted as payload data, which enforces
+Messages can reference memfd files which contain the data.
+memfd files are tmpfs-backed files that allow sealing of the content of the
+file, which prevents all writable access to the file content.
+Only sealed memfd files are accepted as payload data, which enforces
 reliable passing of data; the receiver can assume that the sender and nobody
 else can alter the content after the message is sent.
 
-Apart from the sender filling-in the content into the kdbus_memfd file, the
-data will be passed as zero-copy from one process to another, read-only, shared
-between the peers.
-
-The sealing of a kdbus_memfd can be removed again by the sender or the
-receiver, as soon as the kdbus_memfd is not shared anymore.
+Apart from the sender filling-in the content into memfd files, the data will
+be passed as zero-copy from one process to another, read-only, shared between
+the peers.
 
 ===============================================================================
 Broadcast Message Matching

@@ -29,7 +29,6 @@
 #include "endpoint.h"
 #include "handle.h"
 #include "match.h"
-#include "memfd.h"
 #include "message.h"
 #include "metadata.h"
 #include "names.h"
@@ -238,66 +237,6 @@ static int kdbus_memdup_user(void __user *user_ptr,
 	return 0;
 }
 
-static int kdbus_handle_memfd(void __user *buf)
-{
-	struct kdbus_cmd_memfd_make *m = NULL;
-	const struct kdbus_item *item;
-	const char *n = NULL;
-	int __user *addr;
-	int fd, ret;
-
-	ret = kdbus_memdup_user(buf, (void **)&m, NULL,
-				sizeof(struct kdbus_cmd_memfd_make),
-				sizeof(struct kdbus_cmd_memfd_make) +
-					KDBUS_MAKE_MAX_SIZE);
-	if (ret < 0)
-		return ret;
-
-	KDBUS_ITEMS_FOREACH(item, m->items, KDBUS_ITEMS_SIZE(m, items)) {
-		if (!KDBUS_ITEM_VALID(item, &m->items,
-				      KDBUS_ITEMS_SIZE(m, items))) {
-			ret = -EINVAL;
-			goto exit;
-		}
-
-		switch (item->type) {
-		case KDBUS_ITEM_MEMFD_NAME:
-			if (n) {
-				ret = -EEXIST;
-				goto exit;
-			}
-
-			ret = kdbus_item_validate_name(item);
-			if (ret < 0)
-				goto exit;
-
-			n = item->str;
-			break;
-		}
-	}
-
-	if (!KDBUS_ITEMS_END(item, m->items, KDBUS_ITEMS_SIZE(m, items))) {
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	ret = kdbus_memfd_new(n, m->file_size, &fd);
-	if (ret < 0)
-		goto exit;
-
-	/* return fd number to caller */
-	addr = buf + offsetof(struct kdbus_cmd_memfd_make, fd);
-	if (put_user(fd, addr)) {
-		sys_close(fd);
-		ret = -EFAULT;
-		goto exit;
-	}
-
-exit:
-	kfree(m);
-	return ret;
-}
-
 /* kdbus control device commands */
 static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 				       void __user *buf)
@@ -386,10 +325,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		handle->domain_owner = domain;
 		break;
 	}
-
-	case KDBUS_CMD_MEMFD_NEW:
-		ret = kdbus_handle_memfd(buf);
-		break;
 
 	default:
 		ret = -ENOTTY;
@@ -792,10 +727,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		kdbus_pool_slice_free(slice);
 		break;
 	}
-
-	case KDBUS_CMD_MEMFD_NEW:
-		ret = kdbus_handle_memfd(buf);
-		break;
 
 	default:
 		ret = -ENOTTY;

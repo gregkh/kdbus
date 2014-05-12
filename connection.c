@@ -22,6 +22,7 @@
 #include <linux/mutex.h>
 #include <linux/poll.h>
 #include <linux/sched.h>
+#include <linux/shmem_fs.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
@@ -30,7 +31,6 @@
 #include "connection.h"
 #include "endpoint.h"
 #include "match.h"
-#include "memfd.h"
 #include "message.h"
 #include "metadata.h"
 #include "names.h"
@@ -218,6 +218,7 @@ static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
 				struct file **file)
 {
 	struct file *fp;
+	int seals, mask;
 	int ret;
 
 	fp = fget(item->memfd.fd);
@@ -225,23 +226,22 @@ static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
 		return -EBADF;
 
 	/*
-	 * We only accept kdbus_memfd files as payload, other files need to
-	 * be passed with KDBUS_MSG_FDS.
+	 * We only accept a sealed memfd file whose content cannot be altered
+	 * by the sender or anybody else while it is shared or in-flight.
+	 * Other files need to be passed with KDBUS_MSG_FDS.
 	 */
-	if (!kdbus_is_memfd(fp)) {
-		ret = -EMEDIUMTYPE;
-		goto exit_unref;
-	}
+	seals = shmem_get_seals(fp);
+	if (seals < 0)
+		return -EMEDIUMTYPE;
 
-	/* We only accept a sealed memfd file whose content cannot be altered
-	 * by the sender or anybody else while it is shared or in-flight. */
-	if (!kdbus_is_memfd_sealed(fp)) {
+	mask = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
+	if ((seals & mask) != mask) {
 		ret = -ETXTBSY;
 		goto exit_unref;
 	}
 
 	/* The specified size in the item cannot be larger than the file. */
-	if (item->memfd.size > kdbus_memfd_size(fp)) {
+	if (item->memfd.size > i_size_read(file_inode(fp))) {
 		ret = -EBADF;
 		goto exit_unref;
 	}

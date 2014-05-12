@@ -3,7 +3,6 @@ kdbus$(EXT)-y := \
 	connection.o \
 	endpoint.o \
 	handle.o \
-	memfd.o \
 	main.o \
 	match.o \
 	message.o \
