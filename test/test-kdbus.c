@@ -1042,7 +1042,7 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 			char name[64];
 		} bus_make;
 		unsigned int i;
-		char n[32];
+		char n[32 + 1];
 		int ret;
 
 		env->control_fd = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
@@ -1054,8 +1054,9 @@ static int check_prepare_env(const struct kdbus_check *c, struct kdbus_check_env
 		bus_make.bs.bloom.size = 64;
 		bus_make.bs.bloom.n_hash = 1;
 
-		for (i = 0; i < sizeof(n); i++)
+		for (i = 0; i < sizeof(n) - 1; i++)
 			n[i] = 'a' + (random() % ('z' - 'a'));
+		n[sizeof(n) - 1] = 0;
 
 		snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s", getuid(), n);
 
