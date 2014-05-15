@@ -1490,16 +1490,17 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 			continue;
 		}
 
-		/*
-		 * In asynchronous cases, send a 'connection
-		 * dead' notification, mark entry as handled,
-		 * and trigger the timeout handler.
-		 */
+		/* send a 'connection dead' notification */
 		kdbus_notify_reply_dead(conn->bus, reply->conn->id,
 					reply->cookie);
 
-		reply->deadline_ns = 0;
-		schedule_delayed_work(&reply->conn->work, 0);
+		/* mark entry as handled, and trigger the timeout handler */
+		mutex_lock(&reply->conn->lock);
+		if (kdbus_conn_active(conn)) {
+			reply->deadline_ns = 0;
+			schedule_delayed_work(&reply->conn->work, 0);
+		}
+		mutex_unlock(&reply->conn->lock);
 
 		list_del(&reply->entry);
 		kdbus_conn_reply_free(reply);
@@ -1512,9 +1513,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 			       conn->flags);
 
 	kdbus_notify_flush(conn->bus);
-
-	/* drop additional reference whe took at HELLO time */
-	kdbus_conn_unref(conn);
 
 	return 0;
 }
@@ -2074,9 +2072,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	/* link into bus and endpoint */
 	list_add_tail(&conn->ep_entry, &ep->conn_list);
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
-
-	/* take additional reference until we disconnect */
-	kdbus_conn_ref(conn);
 
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
