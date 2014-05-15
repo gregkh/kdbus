@@ -115,9 +115,9 @@ static void __kdbus_ep_free(struct kref *kref)
 {
 	struct kdbus_ep *ep = container_of(kref, struct kdbus_ep, kref);
 
+	BUG_ON(!ep->disconnected);
 	BUG_ON(!list_empty(&ep->conn_list));
 
-	kdbus_ep_disconnect(ep);
 	kdbus_policy_db_free(ep->policy_db);
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);

@@ -715,10 +715,9 @@ static void kdbus_conn_work(struct work_struct *work)
 	struct timespec ts;
 	u64 now;
 
+	conn = container_of(work, struct kdbus_conn, work.work);
 	ktime_get_ts(&ts);
 	now = timespec_to_ns(&ts);
-
-	conn = container_of(work, struct kdbus_conn, work.work);
 
 	mutex_lock(&conn->lock);
 	if (!kdbus_conn_active(conn)) {
@@ -1513,6 +1512,10 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 			       conn->flags);
 
 	kdbus_notify_flush(conn->bus);
+
+	/* drop additional reference whe took at HELLO time */
+	kdbus_conn_unref(conn);
+
 	return 0;
 }
 
@@ -1531,12 +1534,12 @@ static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 
+	BUG_ON(kdbus_conn_active(conn));
 	BUG_ON(!list_empty(&conn->msg_list));
 	BUG_ON(!list_empty(&conn->names_list));
 	BUG_ON(!list_empty(&conn->names_queue_list));
 	BUG_ON(!list_empty(&conn->reply_list));
 
-	kdbus_conn_disconnect(conn, false);
 	atomic_dec(&conn->user->connections);
 	kdbus_domain_user_unref(conn->user);
 
@@ -1831,14 +1834,12 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	const char *seclabel = NULL;
 	const char *name = NULL;
 	struct kdbus_conn *conn;
-	struct kdbus_bus *bus;
+	struct kdbus_bus *bus = ep->bus;
 	size_t seclabel_len = 0;
 	bool is_policy_holder;
 	bool is_activator;
 	bool is_monitor;
 	int ret;
-
-	bus = ep->bus;
 
 	BUG_ON(*c);
 
@@ -2073,6 +2074,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	/* link into bus and endpoint */
 	list_add_tail(&conn->ep_entry, &ep->conn_list);
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
+
+	/* take additional reference until we disconnect */
+	kdbus_conn_ref(conn);
 
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);

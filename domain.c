@@ -160,11 +160,11 @@ static void __kdbus_domain_free(struct kref *kref)
 	struct kdbus_domain *domain =
 		container_of(kref, struct kdbus_domain, kref);
 
+	BUG_ON(!domain->disconnected);
 	BUG_ON(!list_empty(&domain->domain_list));
 	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
-	kdbus_domain_disconnect(domain);
 	kdbus_domain_unref(domain->parent);
 	kfree(domain->name);
 	kfree(domain->devpath);
