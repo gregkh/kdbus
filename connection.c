@@ -1533,6 +1533,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 
 	BUG_ON(kdbus_conn_active(conn));
+	BUG_ON(delayed_work_pending(&conn->work));
 	BUG_ON(!list_empty(&conn->msg_list));
 	BUG_ON(!list_empty(&conn->names_list));
 	BUG_ON(!list_empty(&conn->names_queue_list));
