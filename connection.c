@@ -1553,6 +1553,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
 	kdbus_bus_unref(conn->bus);
+	put_cred(conn->cred);
 	kfree(conn->name);
 	kfree(conn);
 }
@@ -1958,7 +1959,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->reply_list);
 	atomic_set(&conn->reply_count, 0);
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
-	conn->cred = current_cred();
+	conn->cred = get_current_cred();
 	init_waitqueue_head(&conn->wait);
 
 	/* init entry, so we can unconditionally remove it */
@@ -1966,7 +1967,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	ret = kdbus_pool_new(conn->name, &conn->pool, hello->pool_size);
 	if (ret < 0)
-		goto exit_free_conn;
+		goto exit_unref_cred;
 
 	ret = kdbus_match_db_new(&conn->match_db);
 	if (ret < 0)
@@ -2094,6 +2095,8 @@ exit_unref_ep:
 	kdbus_match_db_free(conn->match_db);
 exit_free_pool:
 	kdbus_pool_free(conn->pool);
+exit_unref_cred:
+	put_cred(conn->cred);
 exit_free_conn:
 	kfree(conn->name);
 	kfree(conn);
