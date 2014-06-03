@@ -267,7 +267,8 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 		mutex_lock(&parent->lock);
 		if (parent->disconnected) {
 			mutex_unlock(&parent->lock);
-			return -ESHUTDOWN;
+			ret = -ESHUTDOWN;
+			goto exit_free;
 		}
 	}
 
@@ -300,6 +301,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 
 		d->name = kstrdup(name, GFP_KERNEL);
 		if (!d->name) {
+			kfree(d->devpath);
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
@@ -308,7 +310,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	/* get dynamic major */
 	ret = register_chrdev(0, d->devpath, &kdbus_device_ops);
 	if (ret < 0)
-		goto exit_unlock;
+		goto exit_free_devpath;
 
 	d->major = ret;
 
@@ -320,7 +322,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	if (ret < 0) {
 		if (ret == -ENOSPC)
 			ret = -EEXIST;
-		goto exit_unlock;
+		goto exit_chrdev;
 	}
 
 	/* get id for this domain */
@@ -330,7 +332,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	d->dev = kzalloc(sizeof(*d->dev), GFP_KERNEL);
 	if (!d->dev) {
 		ret = -ENOMEM;
-		goto exit_unlock;
+		goto exit_idr;
 	}
 
 	dev_set_name(d->dev, "%s/control", d->devpath);
@@ -342,7 +344,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	if (ret < 0) {
 		put_device(d->dev);
 		d->dev = NULL;
-		goto exit_unlock;
+		goto exit_idr;
 	}
 
 	/* link into parent domain */
@@ -358,11 +360,19 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	*domain = d;
 	return 0;
 
+exit_idr:
+	idr_remove(&kdbus_domain_major_idr, d->major);
+exit_chrdev:
+	unregister_chrdev(d->major, d->devpath);
+exit_free_devpath:
+	kfree(d->name);
+	kfree(d->devpath);
 exit_unlock:
 	mutex_unlock(&kdbus_subsys_lock);
 	if (parent)
 		mutex_unlock(&parent->lock);
-	kdbus_domain_unref(d);
+exit_free:
+	kfree(d);
 	return ret;
 }
 
