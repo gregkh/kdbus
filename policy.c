@@ -10,11 +10,8 @@
  * your option) any later version.
  */
 
-#include <linux/device.h>
 #include <linux/fs.h>
-#include <linux/idr.h>
 #include <linux/init.h>
-#include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/sizes.h>
@@ -129,7 +126,7 @@ exit_free:
 }
 
 /**
- * kdbus_policy_free - drop a policy database reference
+ * kdbus_policy_db_free - drop a policy database reference
  * @db:		The policy database
  */
 void kdbus_policy_db_free(struct kdbus_policy_db *db)
@@ -162,7 +159,7 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 }
 
 /**
- * kdbus_policy_new() - create a new policy database
+ * kdbus_policy_db_new() - create a new policy database
  * @db:		The location where to store the new database
  *
  * Return: 0 on success, negative errno on failure
@@ -294,7 +291,7 @@ kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
 }
 
 /**
- * kdbus_policy_check_send_access() - check if one connection is allowed
+ * kdbus_policy_check_talk_access() - check if one connection is allowed
  *				       to send a message to another connection
  * @db:			The policy database
  * @conn_src:		The source connection
