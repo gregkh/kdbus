@@ -1784,12 +1784,18 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 {
 	const struct kdbus_item *item;
 	bool policy_provided = false;
+	u64 attach_flags = 0;
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
+
+		if (!KDBUS_ITEM_VALID(item, &cmd->items,
+				      KDBUS_ITEMS_SIZE(cmd, items)))
+			return -EINVAL;
+
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
-			conn->attach_flags = item->data64[0];
+			attach_flags = item->data64[0];
 			break;
 		case KDBUS_ITEM_NAME:
 		case KDBUS_ITEM_POLICY_ACCESS:
@@ -1797,6 +1803,11 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			break;
 		}
 	}
+
+	if (!KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
+		return -EINVAL;
+
+	conn->attach_flags = attach_flags;
 
 	if (!policy_provided)
 		return 0;
@@ -1862,6 +1873,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	KDBUS_ITEMS_FOREACH(item, hello->items,
 			    KDBUS_ITEMS_SIZE(hello, items)) {
+
+		if (!KDBUS_ITEM_VALID(item, &hello->items,
+				      KDBUS_ITEMS_SIZE(hello, items)))
+			return -EINVAL;
+
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
 			if (!is_activator && !is_policy_holder)
@@ -1915,6 +1931,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			break;
 		}
 	}
+
+	if (!KDBUS_ITEMS_END(item, hello->items, KDBUS_ITEMS_SIZE(hello, items)))
+		return -EINVAL;
 
 	if ((is_activator || is_policy_holder) && !name)
 		return -EINVAL;
