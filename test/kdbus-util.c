@@ -117,20 +117,19 @@ kdbus_hello_registrar(const char *path, const char *name,
 	struct kdbus_item *item, *items;
 	size_t i, size;
 
-	size = KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, str) + strlen(name) + 1)
-		+ num_access * KDBUS_ITEM_SIZE(offsetof(struct kdbus_item, policy_access) +
-					       sizeof(struct kdbus_policy_access));
+	size = KDBUS_ITEM_SIZE(strlen(name) + 1)
+		+ num_access * KDBUS_ITEM_SIZE(sizeof(struct kdbus_policy_access));
 
 	items = alloca(size);
 
 	item = items;
-	item->size = offsetof(struct kdbus_item, str) + strlen(name) + 1;
+	item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
 	item->type = KDBUS_ITEM_NAME;
 	strcpy(item->str, name);
 	item = KDBUS_ITEM_NEXT(item);
 
 	for (i = 0; i < num_access; i++) {
-		item->size = offsetof(struct kdbus_item, policy_access) +
+		item->size = KDBUS_ITEM_HEADER_SIZE +
 			     sizeof(struct kdbus_policy_access);
 		item->type = KDBUS_ITEM_POLICY_ACCESS;
 
