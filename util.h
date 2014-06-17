@@ -39,7 +39,7 @@
 #define KDBUS_ITEM_VALID(_i, _is, _s)					\
 	((_i)->size > KDBUS_ITEM_HEADER_SIZE &&				\
 	 (u8 *)(_i) + (_i)->size <= (u8 *)(_i) + (_s) &&		\
-	 (u8 *)(_i) >= (u8 *)(_i))
+	 (u8 *)(_i) >= (u8 *)(_is))
 
 #define KDBUS_ITEMS_END(_i, _is, _s) \
 	((u8 *)_i == ((u8 *)(_is) + KDBUS_ALIGN8(_s)))
