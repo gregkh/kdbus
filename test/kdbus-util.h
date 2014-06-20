@@ -45,6 +45,9 @@ char *msg_id(uint64_t id, char *buf);
 int msg_send(const struct conn *conn, const char *name, uint64_t cookie,
 	     uint64_t flags, uint64_t timeout, int64_t priority, uint64_t dst_id);
 struct conn *kdbus_hello(const char *path, uint64_t hello_flags);
+struct conn *kdbus_hello_registrar(const char *path, const char *name,
+				   const struct kdbus_policy_access *access,
+				   size_t num_access, uint64_t flags);
 struct conn *kdbus_hello_activator(const char *path, const char *name,
 				   const struct kdbus_policy_access *access,
 				   size_t num_access);

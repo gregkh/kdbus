@@ -109,7 +109,7 @@ struct conn *kdbus_hello(const char *path, uint64_t flags)
 	return __kdbus_hello(path, flags, NULL, 0);
 }
 
-static struct conn *
+struct conn *
 kdbus_hello_registrar(const char *path, const char *name,
 		      const struct kdbus_policy_access *access,
 		      size_t num_access, uint64_t flags)
