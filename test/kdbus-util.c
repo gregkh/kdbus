@@ -189,20 +189,23 @@ int msg_send(const struct conn *conn,
 		strcpy(m.name, "my-name-is-nice");
 		ret = ioctl(conn->fd, KDBUS_CMD_MEMFD_NEW, &m);
 		if (ret < 0) {
+			ret = -errno;
 			fprintf(stderr, "KDBUS_CMD_MEMFD_NEW failed: %m\n");
-			return EXIT_FAILURE;
+			return ret;
 		}
 		memfd = m.cmd.fd;
 
 		if (write(memfd, "kdbus memfd 1234567", 19) != 19) {
+			ret = -errno;
 			fprintf(stderr, "writing to memfd failed: %m\n");
-			return EXIT_FAILURE;
+			return ret;
 		}
 
 		ret = ioctl(memfd, KDBUS_CMD_MEMFD_SEAL_SET, true);
 		if (ret < 0) {
+			ret = -errno;
 			fprintf(stderr, "memfd sealing failed: %m\n");
-			return EXIT_FAILURE;
+			return ret;
 		}
 
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
@@ -213,8 +216,9 @@ int msg_send(const struct conn *conn,
 
 	msg = malloc(size);
 	if (!msg) {
+		ret = -errno;
 		fprintf(stderr, "unable to malloc()!?\n");
-		return EXIT_FAILURE;
+		return ret;
 	}
 
 	memset(msg, 0, size);
@@ -269,8 +273,9 @@ int msg_send(const struct conn *conn,
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret < 0) {
+		ret = -errno;
 		fprintf(stderr, "error sending message: %d err %d (%m)\n", ret, errno);
-		return EXIT_FAILURE;
+		return ret;
 	}
 
 	if (memfd >= 0)
