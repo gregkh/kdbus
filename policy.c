@@ -600,7 +600,7 @@ exit:
 
 		/* restore original entries from list */
 		list_for_each_entry_safe(l, l_tmp, &list, entry) {
-			kdbus_policy_add_one(db, e);
+			kdbus_policy_add_one(db, l->e);
 			kfree(l);
 		}
 	}
