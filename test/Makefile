@@ -20,7 +20,8 @@ TESTS= \
 	test-kdbus-chat \
 	test-kdbus-timeout \
 	test-kdbus-sync \
-	test-kdbus-prio
+	test-kdbus-prio \
+	test-kdbus-policy
 
 all: $(TESTS)
 

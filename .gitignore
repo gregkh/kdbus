@@ -18,3 +18,4 @@ test/test-kdbus-chat
 test/test-kdbus-timeout
 test/test-kdbus-prio
 test/test-kdbus-sync
+test/test-kdbus-policy
