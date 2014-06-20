@@ -1545,8 +1545,10 @@ static void __kdbus_conn_free(struct kref *kref)
 	if (conn->ep->policy_db)
 		kdbus_policy_remove_conn(conn->ep->policy_db, conn);
 
-	if (conn->bus->policy_db)
+	if (conn->bus->policy_db) {
+		kdbus_policy_remove_conn(conn->bus->policy_db, conn);
 		kdbus_policy_remove_owner(conn->bus->policy_db, conn);
+	}
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);

@@ -71,7 +71,7 @@ struct kdbus_domain {
 /**
  * struct kdbus_domain_user - resource accounting for users
  * @kref:		Reference counter
- * @domain:			Domain of the user
+ * @domain:		Domain of the user
  * @hentry:		Entry in domain user map
  * @idr:		Smalles possible index number of all users
  * @uid:		UID of the user
