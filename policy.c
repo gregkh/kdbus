@@ -510,10 +510,8 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 			if (e) {
 				ret = kdbus_policy_add_one(db, e);
-				if (ret < 0) {
-					kdbus_policy_entry_free(e);
+				if (ret < 0)
 					goto exit;
-				}
 			}
 
 			if (max_policies && ++count > max_policies) {
@@ -582,11 +580,8 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		goto exit;
 	}
 
-	if (e) {
+	if (e)
 		ret = kdbus_policy_add_one(db, e);
-		if (ret < 0)
-			kdbus_policy_entry_free(e);
-	}
 
 exit:
 	if (ret < 0) {
