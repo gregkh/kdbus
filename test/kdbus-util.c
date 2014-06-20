@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2013 Daniel Mack
  * Copyright (C) 2013 Kay Sievers
+ * Copyright (C) 2014 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -604,6 +605,79 @@ int name_list(struct conn *conn, uint64_t flags)
 	}
 
 	return 0;
+}
+
+int conn_update(struct conn *conn, const char *name,
+		const struct kdbus_policy_access *access,
+		size_t num_access, uint64_t flags)
+{
+	struct kdbus_cmd_update *update;
+	struct kdbus_item *item;
+	size_t i, size;
+	int ret;
+
+	size = sizeof(struct kdbus_cmd_update);
+	size += KDBUS_ITEM_SIZE(sizeof(uint64_t));
+	size += KDBUS_ITEM_SIZE(strlen(name) + 1);
+	size += num_access * KDBUS_ITEM_SIZE(sizeof(struct kdbus_policy_access));
+
+	update = malloc(size);
+	if (!update) {
+		ret = -errno;
+		fprintf(stderr, "error malloc: %d (%m)\n", ret);
+		return ret;
+	}
+
+	memset(update, 0, size);
+	update->size = size;
+
+	item = update->items;
+
+	/*
+	 * normally having flags == 0 is valid, but just keep
+	 * HELLO flags of __kdbus_hello(), don't check them.
+	 */
+	item->type = KDBUS_ITEM_ATTACH_FLAGS;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
+	item->data64[0] = flags ? flags : KDBUS_ATTACH_TIMESTAMP |
+					  KDBUS_ATTACH_CREDS |
+					  KDBUS_ATTACH_NAMES |
+					  KDBUS_ATTACH_COMM |
+					  KDBUS_ATTACH_EXE |
+					  KDBUS_ATTACH_CMDLINE |
+					  KDBUS_ATTACH_CAPS |
+					  KDBUS_ATTACH_CGROUP |
+					  KDBUS_ATTACH_SECLABEL |
+					  KDBUS_ATTACH_AUDIT |
+					  KDBUS_ATTACH_CONN_NAME;
+	item = KDBUS_ITEM_NEXT(item);
+
+	item->type = KDBUS_ITEM_NAME;
+	item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
+	strcpy(item->str, name);
+	item = KDBUS_ITEM_NEXT(item);
+
+	for (i = 0; i < num_access; i++) {
+		item->size = KDBUS_ITEM_HEADER_SIZE +
+			     sizeof(struct kdbus_policy_access);
+		item->type = KDBUS_ITEM_POLICY_ACCESS;
+
+		item->policy_access.type = access[i].type;
+		item->policy_access.access = access[i].access;
+		item->policy_access.id = access[i].id;
+
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	ret = ioctl(conn->fd, KDBUS_CMD_CONN_UPDATE, update);
+	if (ret < 0) {
+		ret = -errno;
+		fprintf(stderr, "error conn update: %d (%m)\n", ret);
+	}
+
+	free(update);
+
+	return ret;
 }
 
 void add_match_empty(int fd)
