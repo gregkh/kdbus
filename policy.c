@@ -382,7 +382,7 @@ static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 	struct hlist_node *tmp;
 	int i;
 
-	hash_for_each_safe(db->send_access_hash, i, tmp, e, hentry)
+	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry)
 		if (e->owner == owner) {
 			hash_del(&e->hentry);
 			kdbus_policy_entry_free(e);
@@ -403,7 +403,8 @@ void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_policy_remove_conn() - remove all entries related to a connection
+ * kdbus_policy_remove_conn() - remove all cached entries related to
+ *				a connection
  * @db:		The policy database
  * @conn:	The connection which items to remove
  */
@@ -491,7 +492,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	 * At the same time, the lookup mechanism won't find any collisions
 	 * when looking for already exising names.
 	 */
-	hash_for_each_safe(db->send_access_hash, i, tmp, e, hentry)
+	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry)
 		if (e->owner == owner) {
 			struct kdbus_policy_list_entry *l;
 
