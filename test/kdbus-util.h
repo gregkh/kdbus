@@ -55,3 +55,4 @@ struct kdbus_item *make_policy_name(const char *name);
 struct kdbus_item *make_policy_access(__u64 type, __u64 bits, __u64 id);
 void add_match_empty(int fd);
 
+int drop_privileges(uid_t uid, gid_t gid);

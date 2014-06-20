@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <poll.h>
+#include <grp.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
@@ -624,4 +625,32 @@ void add_match_empty(int fd)
 	ret = ioctl(fd, KDBUS_CMD_MATCH_ADD, &buf);
 	if (ret < 0)
 		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
+}
+
+int drop_privileges(uid_t uid, gid_t gid)
+{
+	int ret;
+
+	ret = setgroups(0, NULL);
+	if (ret < 0) {
+		ret = -errno;
+		fprintf(stderr, "error setgroups: %d (%m)\n", ret);
+		return ret;
+	}
+
+	ret = setresgid(gid, gid, gid);
+	if (ret < 0) {
+		ret = -errno;
+		fprintf(stderr, "error setresgid: %d (%m)\n", ret);
+		return ret;
+	}
+
+	ret = setresuid(uid, uid, uid);
+	if (ret < 0) {
+		ret = -errno;
+		fprintf(stderr, "error setresuid: %d (%m)\n", ret);
+		return ret;
+	}
+
+	return ret;
 }
