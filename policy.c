@@ -476,6 +476,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		     const void *owner)
 {
 	struct kdbus_policy_db_entry *e = NULL;
+	struct kdbus_policy_db_entry *tmp_entry = NULL;
 	struct kdbus_policy_db_entry_access *a;
 	const struct kdbus_item *item;
 	struct hlist_node *tmp;
@@ -492,8 +493,8 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	 * At the same time, the lookup mechanism won't find any collisions
 	 * when looking for already exising names.
 	 */
-	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry)
-		if (e->owner == owner) {
+	hash_for_each_safe(db->entries_hash, i, tmp, tmp_entry, hentry)
+		if (tmp_entry->owner == owner) {
 			struct kdbus_policy_list_entry *l;
 
 			l = kzalloc(sizeof(*l), GFP_KERNEL);
@@ -502,9 +503,9 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 				goto exit;
 			}
 
-			l->e = e;
+			l->e = tmp_entry;
 			list_add_tail(&l->entry, &list);
-			hash_del(&e->hentry);
+			hash_del(&tmp_entry->hentry);
 		}
 
 	/* Walk the list of items and look for new policies */
