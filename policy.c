@@ -231,7 +231,7 @@ static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
  * @conn:	The connection to check
  * @name:	The name to check
  *
- * Return: t0 if the connection is allowed to own the name, -EPERM otherwise
+ * Return: 0 if the connection is allowed to own the name, -EPERM otherwise
  */
 int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 				  const struct kdbus_conn *conn,
@@ -307,8 +307,17 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	unsigned int hash = 0;
 	int ret;
 
+	/*
+	 * user->uid maps to a fsuid at the time of a KDBUS_CMD_HELLO
+	 * cmd, if they equal allow the TALK access, otherwise we
+	 * proceed and perform checks against current's cred.
+	 *
+	 * By using the user->uid check first we reduce the exposure to
+	 * creds changes. Privileged processes should be careful about
+	 * what to do with a file descriptor.
+	 */
 	if (uid_eq(conn_src->user->uid, conn_dst->user->uid))
-		return true;
+		return 0;
 
 	/*
 	 * If there was a positive match for these two connections before,
