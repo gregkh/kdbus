@@ -1784,6 +1784,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 {
 	const struct kdbus_item *item;
 	bool policy_provided = false;
+	bool flags_provided = false;
 	u64 attach_flags = 0;
 	int ret;
 
@@ -1795,6 +1796,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
+			flags_provided = true;
 			attach_flags = item->data64[0];
 			break;
 		case KDBUS_ITEM_NAME:
@@ -1807,7 +1809,8 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	if (!KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
 		return -EINVAL;
 
-	conn->attach_flags = attach_flags;
+	if (flags_provided)
+		conn->attach_flags = attach_flags;
 
 	if (!policy_provided)
 		return 0;
