@@ -1073,11 +1073,11 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 	return found ? 0 : -ENOENT;
 }
 
-static int kdbus_check_send_permission(struct kdbus_ep *ep,
-				       const struct kdbus_msg *msg,
-				       struct kdbus_conn *conn_src,
-				       struct kdbus_conn *conn_dst,
-				       struct kdbus_conn_reply **reply_wake)
+static int kdbus_check_send_perm(struct kdbus_ep *ep,
+				 const struct kdbus_msg *msg,
+				 struct kdbus_conn *conn_src,
+				 struct kdbus_conn *conn_dst,
+				 struct kdbus_conn_reply **reply_wake)
 {
 	bool allowed = false;
 	int ret;
@@ -1134,6 +1134,75 @@ static int kdbus_check_send_permission(struct kdbus_ep *ep,
 	return 0;
 }
 
+static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
+					 struct kdbus_conn *conn_dst,
+					 const struct kdbus_msg *msg,
+					 struct kdbus_conn_reply **reply_wait)
+{
+	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
+	struct kdbus_conn_reply *r;
+	struct timespec ts;
+	int ret = 0;
+
+	if (atomic_read(&conn_src->reply_count) >
+	    KDBUS_CONN_MAX_REQUESTS_PENDING)
+		return -EMLINK;
+
+	mutex_lock(&conn_dst->lock);
+	if (!kdbus_conn_active(conn_dst)) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
+
+	/*
+	 * This message expects a reply, so let's interpret
+	 * msg->timeout_ns and add a kdbus_conn_reply object.
+	 * Add it to the list of expected replies on the
+	 * destination connection.
+	 * When a reply is received later on, this entry will
+	 * be used to allow the reply to pass, circumventing the
+	 * policy.
+	 */
+	r = kzalloc(sizeof(*r), GFP_KERNEL);
+	if (!r) {
+		ret = -ENOMEM;
+		goto exit_unlock;
+	}
+
+	r->conn = kdbus_conn_ref(conn_src);
+	r->cookie = msg->cookie;
+
+	if (sync) {
+		init_waitqueue_head(&r->wait);
+		r->sync = true;
+		r->waiting = true;
+	} else {
+		/* calculate the deadline based on the current time */
+		ktime_get_ts(&ts);
+		r->deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
+	}
+
+	list_add(&r->entry, &conn_dst->reply_list);
+	atomic_inc(&conn_src->reply_count);
+	*reply_wait = r;
+
+	/*
+	 * For async operation, schedule the scan now. It won't do
+	 * any real work at this point, but walk the list of all
+	 * pending replies and rearm the connection's delayed work
+	 * to the closest entry.
+	 * For synchronous operation, the timeout will be handled
+	 * by wait_event_interruptible_timeout().
+	 */
+	if (!sync)
+		schedule_delayed_work(&conn_dst->work, 0);
+
+exit_unlock:
+	mutex_unlock(&conn_dst->lock);
+
+	return ret;
+}
+
 /**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
@@ -1153,7 +1222,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
-	int ret;
+	int ret = 0;
 
 	/* assign domain-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
@@ -1250,86 +1319,17 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (entry)
 		kmsg->dst_name_id = entry->name_id;
 
-	/* For kernel-generated messages, skip the reply logic */
-	if (!conn_src)
-		goto meta_append;
+	if (conn_src) {
+		if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
+			ret = kdbus_conn_add_expected_reply(conn_src, conn_dst,
+							    msg, &reply_wait);
+		else
+			ret = kdbus_check_send_perm(ep, msg, conn_src,
+						    conn_dst, &reply_wake);
 
-	if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
-		struct timespec ts;
-
-		if (atomic_read(&conn_src->reply_count) >
-		    KDBUS_CONN_MAX_REQUESTS_PENDING) {
-			ret = -EMLINK;
-			goto exit_unref;
-		}
-
-		mutex_lock(&conn_dst->lock);
-		if (!kdbus_conn_active(conn_dst)) {
-			mutex_unlock(&conn_dst->lock);
-			ret = -ECONNRESET;
-			goto exit_unref;
-		}
-
-		/*
-		 * This message expects a reply, so let's interpret
-		 * msg->timeout_ns and add a kdbus_conn_reply object.
-		 * Add it to the list of expected replies on the
-		 * destination connection.
-		 * When a reply is received later on, this entry will
-		 * be used to allow the reply to pass, circumventing the
-		 * policy.
-		 */
-		reply_wait = kzalloc(sizeof(*reply_wait), GFP_KERNEL);
-		if (!reply_wait) {
-			mutex_unlock(&conn_dst->lock);
-			ret = -ENOMEM;
-			goto exit_unref;
-		}
-
-		reply_wait->conn = kdbus_conn_ref(conn_src);
-		reply_wait->cookie = msg->cookie;
-
-		if (sync) {
-			init_waitqueue_head(&reply_wait->wait);
-			reply_wait->sync = true;
-			reply_wait->waiting = true;
-		} else {
-			/* calculate the deadline based on the current time */
-			ktime_get_ts(&ts);
-			reply_wait->deadline_ns = timespec_to_ns(&ts) +
-						  msg->timeout_ns;
-		}
-
-		list_add(&reply_wait->entry, &conn_dst->reply_list);
-		atomic_inc(&conn_src->reply_count);
-
-		/*
-		 * For async operation, schedule the scan now. It won't do
-		 * any real work at this point, but walk the list of all
-		 * pending replies and rearm the connection's delayed work
-		 * to the closest entry.
-		 * For synchronous operation, the timeout will be handled
-		 * by wait_event_interruptible_timeout().
-		 */
-		if (!sync)
-			schedule_delayed_work(&conn_dst->work, 0);
-
-		mutex_unlock(&conn_dst->lock);
-	} else {
-		ret = kdbus_check_send_permission(ep, msg, conn_src, conn_dst,
-						  &reply_wake);
 		if (ret < 0)
 			goto exit_unref;
-	}
 
-meta_append:
-	/*
-	 * A message can never be both the reply to a message and a message
-	 * that waits for a reply at the same time.
-	 */
-	BUG_ON(reply_wait && reply_wake);
-
-	if (conn_src) {
 		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 					conn_dst->attach_flags);
 		if (ret < 0)
