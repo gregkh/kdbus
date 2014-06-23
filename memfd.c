@@ -194,15 +194,14 @@ exit:
 	return ret;
 }
 
-static ssize_t kdbus_memfd_readv(struct kiocb *iocb, const struct iovec *iov,
-				 unsigned long iov_count, loff_t pos)
+static ssize_t kdbus_memfd_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	struct kdbus_memfile *mf = iocb->ki_filp->private_data;
 	ssize_t ret;
 
 	mutex_lock(&mf->lock);
 	iocb->ki_filp = mf->fp;
-	ret = mf->fp->f_op->aio_read(iocb, iov, iov_count, pos);
+	ret = mf->fp->f_op->read_iter(iocb, iter);
 	if (ret < 0)
 		goto exit;
 
@@ -214,8 +213,7 @@ exit:
 	return ret;
 }
 
-static ssize_t kdbus_memfd_writev(struct kiocb *iocb, const struct iovec *iov,
-				  unsigned long iov_count, loff_t pos)
+static ssize_t kdbus_memfd_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	struct kdbus_memfile *mf = iocb->ki_filp->private_data;
 	ssize_t ret;
@@ -229,7 +227,7 @@ static ssize_t kdbus_memfd_writev(struct kiocb *iocb, const struct iovec *iov,
 	}
 
 	iocb->ki_filp = mf->fp;
-	ret = mf->fp->f_op->aio_write(iocb, iov, iov_count, pos);
+	ret = mf->fp->f_op->write_iter(iocb, iter);
 	if (ret < 0)
 		goto exit;
 
@@ -387,8 +385,8 @@ exit:
 static const struct file_operations kdbus_memfd_fops = {
 	.owner =		THIS_MODULE,
 	.release =		kdbus_memfd_release,
-	.aio_read =		kdbus_memfd_readv,
-	.aio_write =		kdbus_memfd_writev,
+	.read_iter =		kdbus_memfd_read_iter,
+	.write_iter =		kdbus_memfd_write_iter,
 	.llseek =		kdbus_memfd_llseek,
 	.mmap =			kdbus_memfd_mmap,
 	.unlocked_ioctl =	kdbus_memfd_ioctl,
