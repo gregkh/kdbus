@@ -1073,6 +1073,67 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 	return found ? 0 : -ENOENT;
 }
 
+static int kdbus_check_send_permission(struct kdbus_ep *ep,
+				       const struct kdbus_msg *msg,
+				       struct kdbus_conn *conn_src,
+				       struct kdbus_conn *conn_dst,
+				       struct kdbus_conn_reply **reply_wake)
+{
+	bool allowed = false;
+	int ret;
+
+	/*
+	 * Walk the conn_src's list of expected replies.
+	 * If there's any matching entry, allow the message to
+	 * be sent, and remove the entry.
+	 */
+	if (msg->cookie_reply > 0) {
+		struct kdbus_conn_reply *r, *r_tmp;
+		LIST_HEAD(reply_list);
+
+		mutex_lock(&conn_src->lock);
+		list_for_each_entry_safe(r, r_tmp,
+					 &conn_src->reply_list,
+					 entry) {
+			if (r->conn == conn_dst &&
+			    r->cookie == msg->cookie_reply) {
+				if (r->sync)
+					*reply_wake = r;
+				else
+					list_move_tail(&r->entry,
+						       &reply_list);
+
+				allowed = true;
+				break;
+			}
+		}
+		mutex_unlock(&conn_src->lock);
+
+		list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
+			kdbus_conn_reply_free(r);
+	}
+
+	if (allowed)
+		return 0;
+
+	/* ... otherwise, ask the policy DBs for permission */
+	if (ep->policy_db) {
+		ret = kdbus_policy_check_talk_access(ep->policy_db,
+						     conn_src, conn_dst);
+		if (ret < 0)
+			return ret;
+	}
+
+	if (ep->bus->policy_db) {
+		ret = kdbus_policy_check_talk_access(ep->bus->policy_db,
+						     conn_src, conn_dst);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
 /**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
@@ -1255,56 +1316,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		mutex_unlock(&conn_dst->lock);
 	} else {
-		bool allowed = false;
-
-		/*
-		 * Walk the conn_src's list of expected replies.
-		 * If there's any matching entry, allow the message to
-		 * be sent, and remove the entry.
-		 */
-		if (msg->cookie_reply > 0) {
-			struct kdbus_conn_reply *r, *r_tmp;
-			LIST_HEAD(reply_list);
-
-			mutex_lock(&conn_src->lock);
-			list_for_each_entry_safe(r, r_tmp,
-						 &conn_src->reply_list,
-						 entry) {
-				if (r->conn == conn_dst &&
-				    r->cookie == msg->cookie_reply) {
-					if (r->sync)
-						reply_wake = r;
-					else
-						list_move_tail(&r->entry,
-							       &reply_list);
-
-					allowed = true;
-					break;
-				}
-			}
-			mutex_unlock(&conn_src->lock);
-
-			list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
-				kdbus_conn_reply_free(r);
-		}
-
-		if (allowed)
-			goto meta_append;
-
-		/* ... otherwise, ask the policy DBs for permission */
-		if (ep->policy_db) {
-			ret = kdbus_policy_check_talk_access(ep->policy_db,
-						conn_src, conn_dst);
-			if (ret < 0)
-				goto exit_unref;
-		}
-
-		if (bus->policy_db) {
-			ret = kdbus_policy_check_talk_access(bus->policy_db,
-						conn_src, conn_dst);
-			if (ret < 0)
-				goto exit_unref;
-		}
+		ret = kdbus_check_send_permission(ep, msg, conn_src, conn_dst,
+						  &reply_wake);
+		if (ret < 0)
+			goto exit_unref;
 	}
 
 meta_append:
