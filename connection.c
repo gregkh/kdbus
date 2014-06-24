@@ -1073,11 +1073,11 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 	return found ? 0 : -ENOENT;
 }
 
-static int kdbus_check_send_perm(struct kdbus_ep *ep,
-				 const struct kdbus_msg *msg,
-				 struct kdbus_conn *conn_src,
-				 struct kdbus_conn *conn_dst,
-				 struct kdbus_conn_reply **reply_wake)
+static int kdbus_conn_check_access(struct kdbus_ep *ep,
+				   const struct kdbus_msg *msg,
+				   struct kdbus_conn *conn_src,
+				   struct kdbus_conn *conn_dst,
+				   struct kdbus_conn_reply **reply_wake)
 {
 	bool allowed = false;
 	int ret;
@@ -1324,8 +1324,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			ret = kdbus_conn_add_expected_reply(conn_src, conn_dst,
 							    msg, &reply_wait);
 		else
-			ret = kdbus_check_send_perm(ep, msg, conn_src,
-						    conn_dst, &reply_wake);
+			ret = kdbus_conn_check_access(ep, msg, conn_src,
+						      conn_dst, &reply_wake);
 
 		if (ret < 0)
 			goto exit_unref;
