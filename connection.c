@@ -1271,8 +1271,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		mutex_unlock(&bus->lock);
 
 		return 0;
+	}
 
-	} else if (msg->dst_id == KDBUS_DST_ID_NAME) {
+	if (msg->dst_id == KDBUS_DST_ID_NAME) {
 		/* unicast message to well-known name */
 		BUG_ON(!kmsg->dst_name);
 
