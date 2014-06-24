@@ -1373,8 +1373,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 */
 	mutex_lock(&bus->lock);
 	list_for_each_entry(c, &bus->monitors_list, monitor_entry) {
-		kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
-				  c->attach_flags);
+		if (conn_src)
+			kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
+					  c->attach_flags);
 		kdbus_conn_queue_insert(c, NULL, kmsg, NULL);
 	}
 	mutex_unlock(&bus->lock);
