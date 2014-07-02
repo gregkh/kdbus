@@ -125,8 +125,8 @@ static void *kdbus_recv_echo(void *ptr)
 		}
 
 		if (ret > 0 && fd.revents & POLLIN) {
-			printf("-- Connection id: %lu  received new message:\n",
-				conn->id);
+			printf("-- Connection id: %llu received new message:\n",
+				(unsigned long long)conn->id);
 			ret = msg_recv(conn);
 		}
 
