@@ -200,7 +200,7 @@ static int kdbus_normal_test(const char *bus, const char *name,
 static int kdbus_fork_test(const char *bus, const char *name,
 			   struct conn **conn_db)
 {
-	int ret;
+	int ret = 0;
 	int status;
 	pid_t pid;
 	int test_done = 0;
@@ -241,6 +241,7 @@ child_fail:
 
 	ret = waitpid(pid, &status, 0);
 	if (ret < 0) {
+		ret = -errno;
 		fprintf(stderr, "error waitpid: %d (%m)\n", ret);
 		goto out;
 	}
