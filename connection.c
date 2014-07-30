@@ -636,13 +636,13 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		unsigned int i;
 
 		i = 8 + KDBUS_ALIGN8(user);
-		users = kmalloc(sizeof(unsigned int) * i, GFP_KERNEL);
+		users = kzalloc(sizeof(unsigned int) * i, GFP_KERNEL);
 		if (!users)
 			return -ENOMEM;
 
 		memcpy(users, conn->msg_users,
 		       sizeof(unsigned int) * conn->msg_users_max);
-		kfree(users);
+		kfree(conn->msg_users);
 		conn->msg_users = users;
 		conn->msg_users_max = i;
 	}
