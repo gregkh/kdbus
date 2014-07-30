@@ -452,6 +452,76 @@ static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
 }
 
 /**
+ * __kdbus_domain_user_account() - account a kdbus_domain_user object
+ *				   into the specified domain
+ * @domain:		The domain of the user
+ * @uid:		The uid of the user; INVALID_UID for an
+ *			anonymous user like a custom endpoint
+ * @user		Pointer to a reference where the accounted
+ *			domain user will be stored.
+ *
+ * Return: 0 on success, negative errno on failure.
+ *
+ * On success: if there is a uid matching, then use the already
+ * accounted kdbus_domain_user, increment its reference counter and
+ * return it in the 'user' argument. Otherwise, allocate a new one,
+ * link it into the domain, then return it.
+ *
+ * On failure: the 'user' argument is not updated.
+ *
+ * Caller must have the domain lock held and must ensure that the
+ * domain was not disconnected.
+ */
+int __kdbus_domain_user_account(struct kdbus_domain *domain,
+				kuid_t uid,
+				struct kdbus_domain_user **user)
+{
+	int ret;
+	struct kdbus_domain_user *tmp_user;
+	struct kdbus_domain_user *u = NULL;
+
+	/* find uid and reference it */
+	if (uid_valid(uid)) {
+		hash_for_each_possible(domain->user_hash, tmp_user,
+				       hentry, __kuid_val(uid)) {
+			if (!uid_eq(tmp_user->uid, uid))
+				continue;
+
+			u = kdbus_domain_user_ref(tmp_user);
+			goto out;
+		}
+	}
+
+	ret = -ENOMEM;
+	u = kzalloc(sizeof(*u), GFP_KERNEL);
+	if (!u)
+		return ret;
+
+	kref_init(&u->kref);
+	u->domain = kdbus_domain_ref(domain);
+	u->uid = uid;
+	atomic_set(&u->buses, 0);
+	atomic_set(&u->connections, 0);
+
+	/* Assign user ID and link into domain */
+	ret = kdbus_domain_user_assign_id(domain, u);
+	if (ret < 0)
+		goto exit_free;
+
+	/* UID hash map */
+	hash_add(domain->user_hash, &u->hentry, __kuid_val(u->uid));
+
+out:
+	*user = u;
+	return 0;
+
+exit_free:
+	kdbus_domain_unref(u->domain);
+	kfree(u);
+	return ret;
+}
+
+/**
  * kdbus_domain_user_find_or_new() - get a kdbus_domain_user object in a domain
  * @domain:		The domain
  * @uid:		The uid of the user; INVALID_UID for an anonymous

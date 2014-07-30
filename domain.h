@@ -99,6 +99,10 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name);
 struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major);
 
+int __kdbus_domain_user_account(struct kdbus_domain *domain,
+				kuid_t uid,
+				struct kdbus_domain_user **user);
+
 struct kdbus_domain_user
 *kdbus_domain_user_find_or_new(struct kdbus_domain *domain, kuid_t uid);
 struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
