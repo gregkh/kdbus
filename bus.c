@@ -269,19 +269,17 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	if (ret < 0)
 		goto exit_free_reg;
 
-	/* account the bus against the user */
-	b->user = kdbus_domain_user_find_or_new(domain, uid);
-	if (!b->user) {
-		ret = -ENOMEM;
-		goto exit_ep_unref;
-	}
-
 	/* link into domain */
 	mutex_lock(&domain->lock);
 	if (domain->disconnected) {
 		ret = -ESHUTDOWN;
 		goto exit_unref_user_unlock;
 	}
+
+	/* account the bus against the user */
+	ret = __kdbus_domain_user_account(domain, uid, &b->user);
+	if (ret < 0)
+		goto exit_unref_user_unlock;
 
 	if (!capable(CAP_IPC_OWNER) &&
 	    atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
@@ -300,7 +298,6 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 exit_unref_user_unlock:
 	mutex_unlock(&domain->lock);
 	kdbus_domain_user_unref(b->user);
-exit_ep_unref:
 	kdbus_ep_unref(b->ep);
 exit_free_reg:
 	kdbus_name_registry_free(b->name_registry);
