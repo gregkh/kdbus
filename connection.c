@@ -2088,12 +2088,12 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	 */
 	if (ep->user)
 		conn->user = kdbus_domain_user_ref(ep->user);
-	else
-		conn->user = kdbus_domain_user_find_or_new(ep->bus->domain,
-							   current_fsuid());
-	if (!conn->user) {
-		ret = -ENOMEM;
-		goto exit_free_meta;
+	else {
+		ret = kdbus_domain_user_account(ep->bus->domain,
+						current_fsuid(),
+						&conn->user);
+		if (ret < 0)
+			goto exit_free_meta;
 	}
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
