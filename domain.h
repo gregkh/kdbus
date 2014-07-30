@@ -107,8 +107,6 @@ int kdbus_domain_user_account(struct kdbus_domain *domain,
 			      kuid_t uid,
 			      struct kdbus_domain_user **user);
 
-struct kdbus_domain_user
-*kdbus_domain_user_find_or_new(struct kdbus_domain *domain, kuid_t uid);
 struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
 struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u);
 #endif
