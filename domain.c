@@ -419,6 +419,39 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 }
 
 /**
+ * kdbus_domain_user_assign_id() - allocate ID and assign in it to the
+ *				   domain user
+ * @domain:		The domain of the user
+ * @user		The kdbus_domain_user object of the user
+ *
+ * Returns 0 if ID in [0, INT_MAX] is successfully assigned to the
+ * domain user. Negative errno on failure.
+ *
+ * The user index is used in arrays for accounting user quota in
+ * receiver queues.
+ *
+ * Caller must have the domain lock held and must ensure that the
+ * domain was not disconnected.
+ */
+static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
+				       struct kdbus_domain_user *user)
+{
+	int ret;
+
+	/*
+	 * Allocate the smallest possible index for this user; used
+	 * in arrays for accounting user quota in receiver queues.
+	 */
+	ret = idr_alloc(&domain->user_idr, user, 0, 0, GFP_KERNEL);
+	if (ret < 0)
+		return ret;
+
+	user->idr = ret;
+
+	return 0;
+}
+
+/**
  * kdbus_domain_user_find_or_new() - get a kdbus_domain_user object in a domain
  * @domain:		The domain
  * @uid:		The uid of the user; INVALID_UID for an anonymous
