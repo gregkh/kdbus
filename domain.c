@@ -522,6 +522,42 @@ exit_free:
 }
 
 /**
+ * kdbus_domain_user_account() - account a kdbus_domain_user object
+ *				 into the specified domain
+ * @domain:		The domain of the user
+ * @uid:		The uid of the user; INVALID_UID for an
+ *			anonymous user like a custom endpoint
+ * @user		Pointer to a reference where the accounted
+ *			domain user will be stored.
+ *
+ * Return: 0 on success, negative errno on failure.
+ *
+ * On success: if there is a uid matching, then use the already
+ * accounted kdbus_domain_user, increment its reference counter and
+ * return it in the 'user' argument. Otherwise, allocate a new one,
+ * link it into the domain, then return it.
+ *
+ * On failure: the 'user' argument is not updated.
+ *
+ * This function will first check if the domain was not disconnected.
+ */
+int kdbus_domain_user_account(struct kdbus_domain *domain,
+			      kuid_t uid,
+			      struct kdbus_domain_user **user)
+{
+	int ret = -ESHUTDOWN;
+
+	mutex_lock(&domain->lock);
+
+	if (!domain->disconnected)
+		ret = __kdbus_domain_user_account(domain, uid, user);
+
+	mutex_unlock(&domain->lock);
+
+	return ret;
+}
+
+/**
  * kdbus_domain_user_find_or_new() - get a kdbus_domain_user object in a domain
  * @domain:		The domain
  * @uid:		The uid of the user; INVALID_UID for an anonymous
