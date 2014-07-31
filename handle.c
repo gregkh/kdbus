@@ -464,9 +464,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		 * endpoint users do not share the budget with the ordinary
 		 * users created for a UID.
 		 */
-		ret = kdbus_domain_user_account(
-				handle->ep->bus->domain,
-				INVALID_UID, &ep->user);
+		ret = kdbus_domain_user_account(handle->ep->bus->domain,
+						INVALID_UID, &ep->user);
 		if (ret < 0) {
 			kdbus_ep_unref(ep);
 			break;

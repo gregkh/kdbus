@@ -462,15 +462,10 @@ static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
  *
  * Return: 0 on success, negative errno on failure.
  *
- * On success: if there is a uid matching, then use the already
- * accounted kdbus_domain_user, increment its reference counter and
- * return it in the 'user' argument. Otherwise, allocate a new one,
- * link it into the domain, then return it.
- *
- * On failure: the 'user' argument is not updated.
- *
- * Caller must have the domain lock held and must ensure that the
- * domain was not disconnected.
+ * If there is a uid matching, then use the already accounted
+ * kdbus_domain_user, increment its reference counter and
+ * return it in the @user argument. Otherwise allocate a new one,
+ * link it into the domain and return it.
  */
 int __kdbus_domain_user_account(struct kdbus_domain *domain,
 				kuid_t uid,
@@ -479,6 +474,8 @@ int __kdbus_domain_user_account(struct kdbus_domain *domain,
 	int ret;
 	struct kdbus_domain_user *tmp_user;
 	struct kdbus_domain_user *u = NULL;
+
+	BUG_ON(!mutex_is_locked(&domain->lock));
 
 	/* find uid and reference it */
 	if (uid_valid(uid)) {
