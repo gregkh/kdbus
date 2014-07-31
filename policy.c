@@ -87,7 +87,7 @@ static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 }
 
 static const struct kdbus_policy_db_entry *
-__kdbus_policy_lookup(struct kdbus_policy_db *db,
+kdbus_policy_lookup(struct kdbus_policy_db *db,
 		      const char *name, u32 hash,
 		      bool wildcard)
 {
@@ -244,7 +244,7 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 		return 0;
 
 	mutex_lock(&db->entries_lock);
-	e = __kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
+	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
 	ret = kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_OWN);
 	mutex_unlock(&db->entries_lock);
 
@@ -261,7 +261,7 @@ static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
-		e = __kdbus_policy_lookup(db, name_entry->name, hash, true);
+		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
 		if (kdbus_policy_check_access(e, current_cred(),
 					      KDBUS_POLICY_TALK) == 0) {
 			ret = 0;
@@ -371,7 +371,7 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 {
 	const struct kdbus_policy_db_entry *e;
 
-	e = __kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
+	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
 	return kdbus_policy_check_access(e, current_cred(), KDBUS_POLICY_SEE);
 }
 
@@ -431,7 +431,7 @@ kdbus_policy_add_one(struct kdbus_policy_db *db,
 	int ret = 0;
 	u32 hash = kdbus_str_hash(e->name);
 
-	if (__kdbus_policy_lookup(db, e->name, hash, false))
+	if (kdbus_policy_lookup(db, e->name, hash, false))
 		ret = -EEXIST;
 	else
 		hash_add(db->entries_hash, &e->hentry, hash);

@@ -630,7 +630,7 @@ int conn_update(struct conn *conn, const char *name,
 
 	/*
 	 * normally having flags == 0 is valid, but just keep
-	 * HELLO flags of __kdbus_hello(), don't check them.
+	 * HELLO flags of kdbus_hello(), don't check them.
 	 */
 	item->type = KDBUS_ITEM_ATTACH_FLAGS;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);

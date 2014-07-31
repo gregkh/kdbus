@@ -2089,9 +2089,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	if (ep->user)
 		conn->user = kdbus_domain_user_ref(ep->user);
 	else {
-		ret = kdbus_domain_user_account(ep->bus->domain,
-						current_fsuid(),
-						&conn->user);
+		ret = kdbus_domain_get_user(ep->bus->domain,
+					    current_fsuid(),
+					    &conn->user);
 		if (ret < 0)
 			goto exit_free_meta;
 	}

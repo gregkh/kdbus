@@ -277,7 +277,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	}
 
 	/* account the bus against the user */
-	ret = __kdbus_domain_user_account(domain, uid, &b->user);
+	ret = kdbus_domain_get_user_unlocked(domain, uid, &b->user);
 	if (ret < 0)
 		goto exit_unref_user_unlock;
 

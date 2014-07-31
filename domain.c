@@ -452,8 +452,7 @@ static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
 }
 
 /**
- * __kdbus_domain_user_account() - account a kdbus_domain_user object
- *				   into the specified domain
+ * kdbus_domain_get_user_unlocked() - get a kdbus_domain_user object
  * @domain:		The domain of the user
  * @uid:		The uid of the user; INVALID_UID for an
  *			anonymous user like a custom endpoint
@@ -467,9 +466,9 @@ static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
  * return it in the @user argument. Otherwise allocate a new one,
  * link it into the domain and return it.
  */
-int __kdbus_domain_user_account(struct kdbus_domain *domain,
-				kuid_t uid,
-				struct kdbus_domain_user **user)
+int kdbus_domain_get_user_unlocked(struct kdbus_domain *domain,
+				   kuid_t uid,
+				   struct kdbus_domain_user **user)
 {
 	int ret;
 	struct kdbus_domain_user *tmp_user;
@@ -519,8 +518,7 @@ exit_free:
 }
 
 /**
- * kdbus_domain_user_account() - account a kdbus_domain_user object
- *				 into the specified domain
+ * kdbus_domain_get_user() - get a kdbus_domain_user object
  * @domain:		The domain of the user
  * @uid:		The uid of the user; INVALID_UID for an
  *			anonymous user like a custom endpoint
@@ -528,27 +526,16 @@ exit_free:
  *			domain user will be stored.
  *
  * Return: 0 on success, negative errno on failure.
- *
- * On success: if there is a uid matching, then use the already
- * accounted kdbus_domain_user, increment its reference counter and
- * return it in the 'user' argument. Otherwise, allocate a new one,
- * link it into the domain, then return it.
- *
- * On failure: the 'user' argument is not updated.
- *
- * This function will first check if the domain was not disconnected.
  */
-int kdbus_domain_user_account(struct kdbus_domain *domain,
-			      kuid_t uid,
-			      struct kdbus_domain_user **user)
+int kdbus_domain_get_user(struct kdbus_domain *domain,
+			  kuid_t uid,
+			  struct kdbus_domain_user **user)
 {
 	int ret = -ESHUTDOWN;
 
 	mutex_lock(&domain->lock);
-
 	if (!domain->disconnected)
-		ret = __kdbus_domain_user_account(domain, uid, user);
-
+		ret = kdbus_domain_get_user_unlocked(domain, uid, user);
 	mutex_unlock(&domain->lock);
 
 	return ret;
