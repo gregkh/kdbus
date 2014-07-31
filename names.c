@@ -93,7 +93,7 @@ int kdbus_name_registry_new(struct kdbus_name_registry **reg)
 }
 
 static struct kdbus_name_entry *
-__kdbus_name_lookup(struct kdbus_name_registry *reg, u32 hash, const char *name)
+kdbus_name_lookup(struct kdbus_name_registry *reg, u32 hash, const char *name)
 {
 	struct kdbus_name_entry *e;
 
@@ -252,7 +252,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	mutex_lock(&conn->bus->lock);
 	down_write(&reg->rwlock);
 
-	e = __kdbus_name_lookup(reg, hash, name);
+	e = kdbus_name_lookup(reg, hash, name);
 	if (!e) {
 		ret = -ESRCH;
 		goto exit_unlock;
@@ -356,7 +356,7 @@ struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
 	u32 hash = kdbus_str_hash(name);
 
 	down_read(&reg->rwlock);
-	e = __kdbus_name_lookup(reg, hash, name);
+	e = kdbus_name_lookup(reg, hash, name);
 	if (e)
 		return e;
 	up_read(&reg->rwlock);
@@ -486,7 +486,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	down_write(&reg->rwlock);
 
 	hash = kdbus_str_hash(name);
-	e = __kdbus_name_lookup(reg, hash, name);
+	e = kdbus_name_lookup(reg, hash, name);
 	if (e) {
 		/* connection already owns that name */
 		if (e->conn == conn) {
