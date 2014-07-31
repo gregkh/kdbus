@@ -481,9 +481,11 @@ enum kdbus_policy_type {
  *				a well-know name for a process to be started
  *				when traffic arrives
  * @KDBUS_HELLO_POLICY_HOLDER:	Special-purpose connection which registers
- *				policy entries for one or multiple names. The
- *				provided names are not activated, and are not
- *				registered with the name database
+ *				policy entries for a name. The provided name
+ *				is not activated and not registered with the
+ *				name database, it only allows unprivileged
+ *				connections to aquire a name, talk or discover
+ *				a service
  * @KDBUS_HELLO_MONITOR:	Special-purpose connection to monitor
  *				bus traffic
  */
