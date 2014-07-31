@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 	if (!activator)
 		return EXIT_FAILURE;
 
-	conn_a = kdbus_hello(bus, 0);
+	conn_a = kdbus_hello(bus, 0, NULL, 0);
 	if (!conn_a)
 		return EXIT_FAILURE;
 

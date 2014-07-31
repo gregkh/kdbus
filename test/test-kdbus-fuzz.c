@@ -131,7 +131,7 @@ static int make_bus(void)
 		return EXIT_FAILURE;
 
 	for (ret = 0; ret < random() % 20; ret++) {
-		struct conn *conn = kdbus_hello(bus, 0);
+		struct conn *conn = kdbus_hello(bus, 0, NULL, 0);
 		if (conn)
 			add_fd(conn->fd);
 	}

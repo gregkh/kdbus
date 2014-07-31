@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 	if (asprintf(&bus, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
-	conn = kdbus_hello(bus, 0);
+	conn = kdbus_hello(bus, 0, NULL, 0);
 	if (!conn)
 		return EXIT_FAILURE;
 	printf("  Created connection %llu on bus '%s'\n", (unsigned long long)conn->id, bus_make.name);

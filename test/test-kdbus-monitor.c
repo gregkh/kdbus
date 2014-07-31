@@ -156,7 +156,7 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	conn = kdbus_hello(bus, KDBUS_HELLO_MONITOR);
+	conn = kdbus_hello(bus, KDBUS_HELLO_MONITOR, NULL, 0);
 	if (!conn) {
 		fprintf(stderr, "Unable to connect as monitor: %m\n");
 		return EXIT_FAILURE;

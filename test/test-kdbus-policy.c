@@ -171,7 +171,7 @@ static int kdbus_normal_test(const char *bus, const char *name,
 		conn_db[i] = NULL;
 
 		/* We need to create connections here */
-		conn_db[i] = kdbus_hello(bus, 0);
+		conn_db[i] = kdbus_hello(bus, 0, NULL, 0);
 		if (!conn_db[i]) {
 			ret = -errno;
 			break;

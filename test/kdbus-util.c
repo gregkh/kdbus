@@ -29,9 +29,9 @@
 #include "kdbus-enum.h"
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
-static struct conn *
-__kdbus_hello(const char *path, uint64_t flags,
-	      const struct kdbus_item *item, size_t item_size)
+struct conn *
+kdbus_hello(const char *path, uint64_t flags,
+	    const struct kdbus_item *item, size_t item_size)
 {
 	int fd, ret;
 	struct {
@@ -106,11 +106,6 @@ __kdbus_hello(const char *path, uint64_t flags,
 	return conn;
 }
 
-struct conn *kdbus_hello(const char *path, uint64_t flags)
-{
-	return __kdbus_hello(path, flags, NULL, 0);
-}
-
 struct conn *
 kdbus_hello_registrar(const char *path, const char *name,
 		      const struct kdbus_policy_access *access,
@@ -142,7 +137,7 @@ kdbus_hello_registrar(const char *path, const char *name,
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
-	return __kdbus_hello(path, flags, items, size);
+	return kdbus_hello(path, flags, items, size);
 }
 
 struct conn *kdbus_hello_activator(const char *path, const char *name,

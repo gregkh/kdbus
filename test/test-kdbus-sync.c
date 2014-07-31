@@ -92,8 +92,8 @@ int main(int argc, char *argv[])
 	if (asprintf(&bus, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name) < 0)
 		return EXIT_FAILURE;
 
-	conn_a = kdbus_hello(bus, 0);
-	conn_b = kdbus_hello(bus, 0);
+	conn_a = kdbus_hello(bus, 0, NULL, 0);
+	conn_b = kdbus_hello(bus, 0, NULL, 0);
 	if (!conn_a || !conn_b)
 		return EXIT_FAILURE;
 
