@@ -1248,7 +1248,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 * Activator connections will not receive any
 			 * broadcast messages.
 			 */
-			if (conn_dst->flags & KDBUS_HELLO_ACTIVATOR)
+			if (conn_dst->type != KDBUS_CONN_CONNECTED &&
+			    conn_dst->type != KDBUS_CONN_MONITOR)
 				continue;
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
@@ -1287,7 +1288,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			conn_dst = kdbus_conn_ref(entry->conn);
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (conn_dst->flags & KDBUS_HELLO_ACTIVATOR)) {
+		    (conn_dst->type == KDBUS_CONN_ACTIVATOR)) {
 			ret = -EADDRNOTAVAIL;
 			goto exit_unref;
 		}

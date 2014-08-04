@@ -314,7 +314,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	list_splice_init(&conn->names_queue_list, &names_queue_list);
 	mutex_unlock(&conn->lock);
 
-	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
+	if (conn->type == KDBUS_CONN_ACTIVATOR) {
 		activator = conn->activator_of->activator;
 		conn->activator_of->activator = NULL;
 	}
@@ -494,7 +494,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
+		if (conn->type == KDBUS_CONN_ACTIVATOR) {
 			/* An activator can only own a single name */
 			if (conn->activator_of) {
 				if (conn->activator_of == e)
@@ -560,7 +560,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	} else {
 		/* An activator can only own a single name */
-		if ((conn->flags & KDBUS_HELLO_ACTIVATOR) &&
+		if ((conn->type == KDBUS_CONN_ACTIVATOR) &&
 		    conn->activator_of) {
 			ret = -EINVAL;
 			goto exit_unlock;
@@ -581,7 +581,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	if (conn->flags & KDBUS_HELLO_ACTIVATOR) {
+	if (conn->type & KDBUS_CONN_ACTIVATOR) {
 		e->activator = kdbus_conn_ref(conn);
 		conn->activator_of = e;
 	}
@@ -764,7 +764,7 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 
 		/* skip activators */
 		if (!(flags & KDBUS_NAME_LIST_ACTIVATORS) &&
-		    c->flags & KDBUS_HELLO_ACTIVATOR)
+		    c->type == KDBUS_CONN_ACTIVATOR)
 			continue;
 
 		/* all names the connection owns */
@@ -786,7 +786,7 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 				}
 
 				if (flags & KDBUS_NAME_LIST_NAMES ||
-				    c->flags & KDBUS_HELLO_ACTIVATOR) {
+				    c->type == KDBUS_CONN_ACTIVATOR) {
 					ret = kdbus_name_list_write(conn, c,
 							slice, &p, e, write);
 					if (ret < 0)
