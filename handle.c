@@ -536,11 +536,21 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EPERM;
+			break;
+		}
+
 		ret = kdbus_conn_disconnect(conn, true);
 		break;
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
+
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EPERM;
+			break;
+		}
 
 		ret = kdbus_memdup_user(buf, &p, &size,
 					sizeof(struct kdbus_cmd_name),
@@ -561,6 +571,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
+
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EPERM;
+			break;
+		}
 
 		ret = kdbus_memdup_user(buf, &p, NULL,
 					sizeof(struct kdbus_cmd_name),
@@ -621,6 +636,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_CONN_UPDATE:
 		/* update the properties of a connection */
+
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EPERM;
+			break;
+		}
+
 		ret = kdbus_memdup_user(buf, &p, NULL,
 					sizeof(struct kdbus_cmd_update),
 					sizeof(struct kdbus_cmd_update) +
@@ -633,6 +654,13 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MATCH_ADD:
 		/* subscribe to/filter for broadcast messages */
+
+		if (conn->type != KDBUS_CONN_CONNECTED &&
+		    conn->type != KDBUS_CONN_MONITOR) {
+			ret = -EPERM;
+			break;
+		}
+
 		ret = kdbus_memdup_user(buf, &p, NULL,
 					sizeof(struct kdbus_cmd_match),
 					sizeof(struct kdbus_cmd_match) +
@@ -645,6 +673,13 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_MATCH_REMOVE:
 		/* unsubscribe from broadcast messages */
+
+		if (conn->type != KDBUS_CONN_CONNECTED &&
+		    conn->type != KDBUS_CONN_MONITOR) {
+			ret = -EPERM;
+			break;
+		}
+
 		ret = kdbus_memdup_user(buf, &p, NULL,
 					sizeof(struct kdbus_cmd_match),
 					sizeof(struct kdbus_cmd_match));
@@ -658,7 +693,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		/* submit a message which will be queued in the receiver */
 		struct kdbus_kmsg *kmsg = NULL;
 
-		if (handle->conn->flags & KDBUS_HELLO_ACTIVATOR) {
+		if (conn->type != KDBUS_CONN_CONNECTED) {
 			ret = -EPERM;
 			break;
 		}
@@ -690,6 +725,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_MSG_RECV: {
 		struct kdbus_cmd_recv cmd;
 
+		if (conn->type != KDBUS_CONN_CONNECTED &&
+		    conn->type != KDBUS_CONN_MONITOR) {
+			ret = -EPERM;
+			break;
+		}
+
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
 			return -EFAULT;
 
@@ -712,6 +753,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_MSG_CANCEL: {
 		u64 cookie;
 
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EPERM;
+			break;
+		}
+
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
 			return -EFAULT;
 
@@ -726,6 +772,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_FREE: {
 		u64 off;
 		struct kdbus_pool_slice *slice;
+
+		if (conn->type != KDBUS_CONN_CONNECTED &&
+		    conn->type != KDBUS_CONN_MONITOR) {
+			ret = -EPERM;
+			break;
+		}
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
 			return -EFAULT;

@@ -1304,8 +1304,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * Special-purpose connections are not allowed to be addressed
 		 * via their unique IDs.
 		 */
-		if (conn_dst->flags & (KDBUS_HELLO_ACTIVATOR |
-				       KDBUS_HELLO_MONITOR)) {
+		if (conn_dst->type != KDBUS_CONN_CONNECTED) {
 			ret = -ENXIO;
 			goto exit_unref;
 		}
@@ -1464,7 +1463,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		return -EBUSY;
 	}
 
-	conn->disconnected = true;
+	conn->type = KDBUS_CONN_DISCONNECTED;
 	mutex_unlock(&conn->lock);
 
 	cancel_delayed_work_sync(&conn->work);
@@ -1542,7 +1541,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
  */
 bool kdbus_conn_active(const struct kdbus_conn *conn)
 {
-	return !conn->disconnected;
+	return conn->type != KDBUS_CONN_DISCONNECTED;
 }
 
 static void __kdbus_conn_free(struct kref *kref)
@@ -1990,6 +1989,15 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_free_conn;
 		}
 	}
+
+	if (is_activator)
+		conn->type = KDBUS_CONN_ACTIVATOR;
+	else if (is_policy_holder)
+		conn->type = KDBUS_CONN_POLICY_HOLDER;
+	else if (is_monitor)
+		conn->type = KDBUS_CONN_MONITOR;
+	else
+		conn->type = KDBUS_CONN_CONNECTED;
 
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);

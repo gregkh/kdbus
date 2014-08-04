@@ -632,10 +632,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	u64 allowed;
 	int ret = 0;
 
-	/* monitor connection may not own names */
-	if (conn->flags & KDBUS_HELLO_MONITOR)
-		return -EPERM;
-
 	if (conn->name_count > KDBUS_CONN_MAX_NAMES)
 		return -E2BIG;
 
