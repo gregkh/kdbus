@@ -636,8 +636,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_CONN_UPDATE:
 		/* update the properties of a connection */
-
-		if (conn->type != KDBUS_CONN_CONNECTED) {
+		if (conn->type != KDBUS_CONN_CONNECTED &&
+		    conn->type != KDBUS_CONN_POLICY_HOLDER) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
