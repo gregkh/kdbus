@@ -39,8 +39,9 @@
 
 /**
  * Check a list of connections against conn_db[0]
- * conn_db[0] will be the policy holder and it will set
- * different policy accesses.
+ * conn_db[0] will own the name "foo.test.policy-test" and the
+ * policy holder connection for this name will update the policy
+ * entries, so different use cases can be tested.
  */
 static struct conn **conn_db;
 
@@ -269,6 +270,7 @@ static int kdbus_check_policy(char *bus)
 	int i;
 	int ret;
 	struct conn *activator = NULL;
+	struct conn *policy_holder = NULL;
 
 	conn_db = calloc(MAX_CONN, sizeof(struct conn *));
 	if (!conn_db)
@@ -276,8 +278,9 @@ static int kdbus_check_policy(char *bus)
 
 	memset(conn_db, 0, MAX_CONN * sizeof(struct conn *));
 
-	ret = kdbus_register_policy_holder(bus, POLICY_NAME, &conn_db[0]);
-	printf("-- TEST 1) register '%s' as policy holder ",
+	ret = kdbus_register_policy_holder(bus, POLICY_NAME,
+					   &policy_holder);
+	printf("-- TEST 1) register a policy holder for '%s' ",
 		POLICY_NAME);
 	if (ret < 0) {
 		printf("FAILED\n");
@@ -306,6 +309,15 @@ static int kdbus_check_policy(char *bus)
 			goto out_free_connections;
 		}
 	}
+
+	/* The name receiver */
+	conn_db[0] = kdbus_hello(bus, 0, NULL, 0);
+	if (!conn_db[0]) {
+		ret = -1;
+		goto out_free_connections;
+	}
+
+	add_match_empty(conn_db[0]->fd);
 
 	ret = name_acquire(conn_db[0], POLICY_NAME, 0);
 	printf("-- TEST 3) acquire '%s' name..... ", POLICY_NAME);
@@ -344,9 +356,9 @@ static int kdbus_check_policy(char *bus)
 	 * Restrict the policy and purge cache entries where the
 	 * conn_db[0] is the destination.
 	 */
-	ret = kdbus_set_policy_talk(conn_db[0], POLICY_NAME,
+	ret = kdbus_set_policy_talk(policy_holder, POLICY_NAME,
 				    geteuid(), KDBUS_POLICY_ACCESS_USER);
-	printf("-- TEST 6) restricting policy '%s' TALK access ",
+	printf("-- TEST 6) restricting '%s' policy TALK access ",
 		POLICY_NAME);
 	if (ret < 0) {
 		printf("FAILED\n");
@@ -374,6 +386,7 @@ static int kdbus_check_policy(char *bus)
 
 out_free_connections:
 	kdbus_free_conn(activator);
+	kdbus_free_conn(policy_holder);
 
 	for (i = 0; i < MAX_CONN; i++)
 		kdbus_free_conn(conn_db[i]);
