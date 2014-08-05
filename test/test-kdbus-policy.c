@@ -64,7 +64,7 @@ static int kdbus_set_policy_talk(struct conn *conn,
 		.access = KDBUS_POLICY_TALK,
 	};
 
-	return conn_update(conn, name, &access, 1, 0);
+	return conn_update_policy(conn, name, &access, 1);
 }
 
 /* The policy access will be stored in a policy holder connection */

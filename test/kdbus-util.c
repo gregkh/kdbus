@@ -602,9 +602,47 @@ int name_list(struct conn *conn, uint64_t flags)
 	return 0;
 }
 
-int conn_update(struct conn *conn, const char *name,
-		const struct kdbus_policy_access *access,
-		size_t num_access, uint64_t flags)
+int conn_update_attach_flags(struct conn *conn, uint64_t flags)
+{
+	int ret;
+	size_t size;
+	struct kdbus_cmd_update *update;
+	struct kdbus_item *item;
+
+	size = sizeof(struct kdbus_cmd_update);
+	size += KDBUS_ITEM_SIZE(sizeof(uint64_t));
+
+	update = malloc(size);
+	if (!update) {
+		ret = -errno;
+		fprintf(stderr, "error malloc: %d (%m)\n", ret);
+		return ret;
+	}
+
+	memset(update, 0, size);
+	update->size = size;
+
+	item = update->items;
+
+	item->type = KDBUS_ITEM_ATTACH_FLAGS;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
+	item->data64[0] = flags;
+	item = KDBUS_ITEM_NEXT(item);
+
+	ret = ioctl(conn->fd, KDBUS_CMD_CONN_UPDATE, update);
+	if (ret < 0) {
+		ret = -errno;
+		fprintf(stderr, "error conn update: %d (%m)\n", ret);
+	}
+
+	free(update);
+
+	return ret;
+}
+
+int conn_update_policy(struct conn *conn, const char *name,
+		       const struct kdbus_policy_access *access,
+		       size_t num_access)
 {
 	struct kdbus_cmd_update *update;
 	struct kdbus_item *item;
@@ -612,7 +650,6 @@ int conn_update(struct conn *conn, const char *name,
 	int ret;
 
 	size = sizeof(struct kdbus_cmd_update);
-	size += KDBUS_ITEM_SIZE(sizeof(uint64_t));
 	size += KDBUS_ITEM_SIZE(strlen(name) + 1);
 	size += num_access * KDBUS_ITEM_SIZE(sizeof(struct kdbus_policy_access));
 
@@ -627,25 +664,6 @@ int conn_update(struct conn *conn, const char *name,
 	update->size = size;
 
 	item = update->items;
-
-	/*
-	 * normally having flags == 0 is valid, but just keep
-	 * HELLO flags of kdbus_hello(), don't check them.
-	 */
-	item->type = KDBUS_ITEM_ATTACH_FLAGS;
-	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
-	item->data64[0] = flags ? flags : KDBUS_ATTACH_TIMESTAMP |
-					  KDBUS_ATTACH_CREDS |
-					  KDBUS_ATTACH_NAMES |
-					  KDBUS_ATTACH_COMM |
-					  KDBUS_ATTACH_EXE |
-					  KDBUS_ATTACH_CMDLINE |
-					  KDBUS_ATTACH_CAPS |
-					  KDBUS_ATTACH_CGROUP |
-					  KDBUS_ATTACH_SECLABEL |
-					  KDBUS_ATTACH_AUDIT |
-					  KDBUS_ATTACH_CONN_NAME;
-	item = KDBUS_ITEM_NEXT(item);
 
 	item->type = KDBUS_ITEM_NAME;
 	item->size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;

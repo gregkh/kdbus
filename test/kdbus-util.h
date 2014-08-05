@@ -55,9 +55,10 @@ struct conn *kdbus_hello_activator(const char *path, const char *name,
 				   size_t num_access);
 struct kdbus_item *make_policy_name(const char *name);
 struct kdbus_item *make_policy_access(__u64 type, __u64 bits, __u64 id);
-int conn_update(struct conn *conn, const char *name,
-		const struct kdbus_policy_access *access,
-		size_t num_access, uint64_t flags);
+int conn_update_attach_flags(struct conn *conn, uint64_t flags);
+int conn_update_policy(struct conn *conn, const char *name,
+		       const struct kdbus_policy_access *access,
+		       size_t num_access);
 
 void add_match_empty(int fd);
 
