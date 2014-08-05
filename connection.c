@@ -1792,7 +1792,8 @@ exit:
 }
 
 /**
- * kdbus_conn_update() - update flags for a connection
+ * kdbus_cmd_conn_update() - update the attach-flags of a connection or
+ *			     the policy entries of a policy holding one
  * @conn:		Connection
  * @cmd:		The command as passed in by the ioctl
  *
@@ -1815,11 +1816,22 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
+			/* Only ordinary connections may update their
+			 * attach-flags */
+			if (conn->type != KDBUS_CONN_CONNECTED)
+				return -EOPNOTSUPP;
+
 			flags_provided = true;
 			attach_flags = item->data64[0];
 			break;
+
 		case KDBUS_ITEM_NAME:
 		case KDBUS_ITEM_POLICY_ACCESS:
+			/* Only policy holders may update their policy
+			 * entries */
+			if (conn->type != KDBUS_CONN_POLICY_HOLDER)
+				return -EOPNOTSUPP;
+
 			policy_provided = true;
 			break;
 		}
@@ -1972,13 +1984,12 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		}
 
 		/*
-		 * Policy holders may install any number of names, and
-		 * are allowed to use wildcards as well.
+		 * Policy holders may install one name, and are
+		 * allowed to use wildcards.
 		 */
 		ret = kdbus_policy_set(bus->policy_db, hello->items,
 				       KDBUS_ITEMS_SIZE(hello, items),
-				       is_policy_holder ? 0 : 1,
-				       is_policy_holder, conn);
+				       1, is_policy_holder, conn);
 		if (ret < 0)
 			goto exit_free_conn;
 	}
