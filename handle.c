@@ -537,7 +537,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
 		if (conn->type != KDBUS_CONN_CONNECTED) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -548,7 +548,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		/* acquire a well-known name */
 
 		if (conn->type != KDBUS_CONN_CONNECTED) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -573,7 +573,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		/* release a well-known name */
 
 		if (conn->type != KDBUS_CONN_CONNECTED) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -638,7 +638,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		/* update the properties of a connection */
 
 		if (conn->type != KDBUS_CONN_CONNECTED) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -657,7 +657,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		if (conn->type != KDBUS_CONN_CONNECTED &&
 		    conn->type != KDBUS_CONN_MONITOR) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -676,7 +676,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		if (conn->type != KDBUS_CONN_CONNECTED &&
 		    conn->type != KDBUS_CONN_MONITOR) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -694,7 +694,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		struct kdbus_kmsg *kmsg = NULL;
 
 		if (conn->type != KDBUS_CONN_CONNECTED) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -727,7 +727,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		if (conn->type != KDBUS_CONN_CONNECTED &&
 		    conn->type != KDBUS_CONN_MONITOR) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -754,7 +754,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		u64 cookie;
 
 		if (conn->type != KDBUS_CONN_CONNECTED) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
@@ -775,7 +775,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		if (conn->type != KDBUS_CONN_CONNECTED &&
 		    conn->type != KDBUS_CONN_MONITOR) {
-			ret = -EPERM;
+			ret = -EOPNOTSUPP;
 			break;
 		}
 
