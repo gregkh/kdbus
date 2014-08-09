@@ -189,6 +189,35 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 				      &creds, sizeof(creds));
 }
 
+static int kdbus_meta_append_auxgroups(struct kdbus_meta *meta)
+{
+	struct group_info *info;
+	struct kdbus_item *item;
+	u64 *gid, size;
+	int i, ret = 0;
+
+	info = get_current_groups();
+
+	size = KDBUS_ITEM_SIZE(info->ngroups * sizeof(*gid));
+	item = kdbus_meta_append_item(meta, size);
+	if (IS_ERR(item)) {
+		ret = PTR_ERR(item);
+		goto exit_put_groups;
+	}
+
+	item->size = size;
+	item->type = KDBUS_ITEM_AUXGROUPS;
+	gid = (u64 *) item->data;
+
+	for (i = 0; i < info->ngroups; i++)
+		gid[i] = from_kgid(current_user_ns(), GROUP_AT(info, i));
+
+exit_put_groups:
+	put_group_info(info);
+
+	return ret;
+}
+
 static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 				       struct kdbus_conn *conn)
 {
@@ -433,6 +462,12 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 	if (mask & KDBUS_ATTACH_CREDS) {
 		ret = kdbus_meta_append_cred(meta);
+		if (ret < 0)
+			return ret;
+	}
+
+	if (mask & KDBUS_ATTACH_AUXGROUPS) {
+		ret = kdbus_meta_append_auxgroups(meta);
 		if (ret < 0)
 			return ret;
 	}
