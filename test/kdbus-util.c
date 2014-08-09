@@ -59,6 +59,7 @@ kdbus_hello(const char *path, uint64_t flags,
 
 	h.hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
 			       KDBUS_ATTACH_CREDS |
+			       KDBUS_ATTACH_AUXGROUPS |
 			       KDBUS_ATTACH_NAMES |
 			       KDBUS_ATTACH_COMM |
 			       KDBUS_ATTACH_EXE |
@@ -378,6 +379,17 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 				item->creds.pid, item->creds.tid,
 				item->creds.starttime);
 			break;
+
+		case KDBUS_ITEM_AUXGROUPS: {
+			int i, n;
+
+			printf("  +%s (%llu bytes)\n", enum_MSG(item->type), item->size);
+			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(uint64_t);
+
+			for (i = 0; i < n; i++)
+				printf("    gid[%d] = %lld\n", i, item->data64[i]);
+			break;
+		}
 
 		case KDBUS_ITEM_PID_COMM:
 		case KDBUS_ITEM_TID_COMM:
