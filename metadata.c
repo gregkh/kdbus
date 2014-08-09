@@ -262,14 +262,15 @@ static int kdbus_meta_append_exe(struct kdbus_meta *meta)
 	size_t len;
 	char *tmp;
 
-	if (mm) {
-		down_read(&mm->mmap_sem);
-		if (mm->exe_file) {
-			path_get(&mm->exe_file->f_path);
-			exe_path = &mm->exe_file->f_path;
-		}
-		up_read(&mm->mmap_sem);
+	if (!mm)
+		return -EFAULT;
+
+	down_read(&mm->mmap_sem);
+	if (mm->exe_file) {
+		path_get(&mm->exe_file->f_path);
+		exe_path = &mm->exe_file->f_path;
 	}
+	up_read(&mm->mmap_sem);
 
 	if (!exe_path)
 		goto exit_mmput;
@@ -313,8 +314,10 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 		return -ENOMEM;
 
 	mm = get_task_mm(current);
-	if (!mm)
+	if (!mm) {
+		ret = -EFAULT;
 		goto exit_free_page;
+	}
 
 	if (!mm->arg_end)
 		goto exit_mmput;

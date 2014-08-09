@@ -903,8 +903,9 @@ enum kdbus_ioctl_type {
  * @EEXIST:		A requested domain, bus or endpoint with the same
  *			name already exists.  A specific data type, which is
  *			only expected once, is provided multiple times.
- * @EFAULT:		The supplied memory could not be accessed, or the data
- *			is not properly aligned.
+ * @EFAULT:		The supplied memory could not be accessed, the data
+ *			is not properly aligned, or the current task's memory
+ *			is inaccessible.
  * @EINVAL:		The provided data does not match its type or other
  *			expectations, like a string which is not NUL terminated,
  *			or a string length that points behind the first
