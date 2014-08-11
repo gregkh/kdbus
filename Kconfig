@@ -1,5 +1,6 @@
 config KDBUS
 	tristate "kdbus interprocess communication"
+	depends on TMPFS
 	help
 	  D-Bus is a system for low-latency, low-overhead, easy to use
 	  interprocess communication (IPC).
