@@ -237,7 +237,7 @@ int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 		if (!s_new) {
 			ret = -ENOMEM;
 			goto exit_unlock;
-		};
+		}
 
 		list_add(&s_new->entry, &s->entry);
 		kdbus_pool_add_free_slice(pool, s_new);
