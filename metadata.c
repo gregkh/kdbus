@@ -358,15 +358,7 @@ static int kdbus_meta_append_cgroup(struct kdbus_meta *meta)
 	if (!buf)
 		return -ENOMEM;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
 	path = task_cgroup_path(current, buf, PAGE_SIZE);
-#else
-	ret = task_cgroup_path(current, buf, PAGE_SIZE);
-	if (ret < 0)
-		path = NULL;
-	else
-		path = buf;
-#endif
 
 	if (path)
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_CGROUP, path);
