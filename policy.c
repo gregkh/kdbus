@@ -149,7 +149,7 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 
 	/* purge cache */
 	mutex_lock(&db->cache_lock);
-	hash_for_each_safe(db->send_access_hash, i, tmp, ce, hentry) {
+	hash_for_each_safe(db->talk_access_hash, i, tmp, ce, hentry) {
 		hash_del(&ce->hentry);
 		kfree(ce);
 	}
@@ -175,7 +175,7 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db)
 		return -ENOMEM;
 
 	hash_init(d->entries_hash);
-	hash_init(d->send_access_hash);
+	hash_init(d->talk_access_hash);
 	mutex_init(&d->entries_lock);
 	mutex_init(&d->cache_lock);
 
@@ -327,7 +327,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	hash ^= hash_ptr(conn_dst, KDBUS_POLICY_HASH_SIZE);
 
 	mutex_lock(&db->cache_lock);
-	hash_for_each_possible(db->send_access_hash, ce, hentry, hash)
+	hash_for_each_possible(db->talk_access_hash, ce, hentry, hash)
 		if (ce->conn_a == conn_src && ce->conn_b == conn_dst) {
 			mutex_unlock(&db->cache_lock);
 			return 0;
@@ -348,7 +348,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 		}
 
 		mutex_lock(&db->cache_lock);
-		hash_add(db->send_access_hash, &ce->hentry, hash);
+		hash_add(db->talk_access_hash, &ce->hentry, hash);
 		mutex_unlock(&db->cache_lock);
 	}
 
@@ -416,7 +416,7 @@ void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
 	int i;
 
 	mutex_lock(&db->cache_lock);
-	hash_for_each_safe(db->send_access_hash, i, tmp, ce, hentry)
+	hash_for_each_safe(db->talk_access_hash, i, tmp, ce, hentry)
 		if (ce->conn_a == conn || ce->conn_b == conn) {
 			hash_del(&ce->hentry);
 			kfree(ce);

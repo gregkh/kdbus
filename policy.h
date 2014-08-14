@@ -18,13 +18,13 @@ struct kdbus_conn;
 /**
  * struct kdbus_policy_db - policy database
  * @entries_hash:	Hashtable of entries
- * @send_access_hash:	Hashtable of send access elements
+ * @talk_access_hash:	Hashtable of send access elements
  * @entries_lock:	Mutex to protect the database's access entries
  * @cache_lock:		Mutex to protect the database's cache
  */
 struct kdbus_policy_db {
 	DECLARE_HASHTABLE(entries_hash, 6);
-	DECLARE_HASHTABLE(send_access_hash, 6);
+	DECLARE_HASHTABLE(talk_access_hash, 6);
 	struct mutex entries_lock;
 	struct mutex cache_lock;
 };

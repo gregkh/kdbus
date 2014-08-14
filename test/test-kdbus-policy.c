@@ -33,7 +33,7 @@
 /**
  * The purpose of these tests:
  * 1) Check KDBUS_POLICY_TALK
- * 2) Check the cache state: kdbus_policy_db->send_access_hash
+ * 2) Check the cache state: kdbus_policy_db->talk_access_hash
  * Should be extended
  */
 
