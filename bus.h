@@ -16,6 +16,7 @@
 #include <linux/hashtable.h>
 #include <linux/spinlock.h>
 #include <linux/idr.h>
+#include <linux/kref.h>
 
 #include "util.h"
 
