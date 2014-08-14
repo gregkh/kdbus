@@ -282,6 +282,14 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 		}
 	}
 
+	/*
+	 * Now that the connection has lost a name, purge all cached policy
+	 * entries, so upon the next message, TALK access will be checked
+	 * against the names the connection actually owns.
+	 */
+	if (ret == 0)
+		kdbus_conn_flush_policy(conn);
+
 exit_unlock:
 	up_write(&reg->rwlock);
 	mutex_unlock(&conn->bus->lock);

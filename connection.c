@@ -1545,6 +1545,20 @@ bool kdbus_conn_active(const struct kdbus_conn *conn)
 	return conn->type != KDBUS_CONN_DISCONNECTED;
 }
 
+/**
+ * kdbus_conn_flush_policy() - flush all cached policy entries that
+ * 			       refer to a connecion
+ * @conn:	Connection to check
+ */
+void kdbus_conn_flush_policy(struct kdbus_conn *conn)
+{
+	if (conn->ep->policy_db)
+		kdbus_policy_remove_conn(conn->ep->policy_db, conn);
+
+	if (conn->bus->policy_db)
+		kdbus_policy_remove_conn(conn->bus->policy_db, conn);
+}
+
 static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
@@ -1559,13 +1573,10 @@ static void __kdbus_conn_free(struct kref *kref)
 	atomic_dec(&conn->user->connections);
 	kdbus_domain_user_unref(conn->user);
 
-	if (conn->ep->policy_db)
-		kdbus_policy_remove_conn(conn->ep->policy_db, conn);
+	kdbus_conn_flush_policy(conn);
 
-	if (conn->bus->policy_db) {
-		kdbus_policy_remove_conn(conn->bus->policy_db, conn);
+	if (conn->bus->policy_db)
 		kdbus_policy_remove_owner(conn->bus->policy_db, conn);
-	}
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
