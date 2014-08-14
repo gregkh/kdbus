@@ -288,7 +288,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	 * against the names the connection actually owns.
 	 */
 	if (ret == 0)
-		kdbus_conn_flush_policy(conn);
+		kdbus_conn_purge_policy_cache(conn);
 
 exit_unlock:
 	up_write(&reg->rwlock);

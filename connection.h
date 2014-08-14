@@ -122,7 +122,7 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty);
 bool kdbus_conn_active(const struct kdbus_conn *conn);
-void kdbus_conn_flush_policy(struct kdbus_conn *conn);
+void kdbus_conn_purge_policy_cache(struct kdbus_conn *conn);
 
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv);

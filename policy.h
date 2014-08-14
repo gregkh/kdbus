@@ -40,7 +40,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 				  const struct kdbus_conn *conn,
 				  const char *name);
-void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
+void kdbus_policy_purge_cache(struct kdbus_policy_db *db,
 			      const struct kdbus_conn *conn);
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 			       const void *owner);

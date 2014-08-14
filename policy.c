@@ -403,12 +403,12 @@ void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 }
 
 /**
- * kdbus_policy_remove_conn() - remove all cached entries related to
+ * kdbus_policy_purge_cache_for_conn() - remove all cached entries related to
  *				a connection
  * @db:		The policy database
  * @conn:	The connection which items to remove
  */
-void kdbus_policy_remove_conn(struct kdbus_policy_db *db,
+void kdbus_policy_purge_cache(struct kdbus_policy_db *db,
 			      const struct kdbus_conn *conn)
 {
 	struct kdbus_policy_db_cache_entry *ce;
