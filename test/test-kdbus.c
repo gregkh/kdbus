@@ -476,7 +476,7 @@ static int check_byebye(struct kdbus_check_env *env)
 
 	/* a 2nd try should result in -EALREADY */
 	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
-	ASSERT_RETURN(ret == -1 && errno == EALREADY);
+	ASSERT_RETURN(ret == -1 && errno == EOPNOTSUPP);
 
 	free_conn(conn);
 
@@ -506,7 +506,7 @@ static int check_monitor(struct kdbus_check_env *env)
 
 	/* check that we can acquire a name */
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
-	ASSERT_RETURN(ret == -1 && errno == EPERM);
+	ASSERT_RETURN(ret == -1 && errno == EOPNOTSUPP);
 
 	free_conn(conn);
 
