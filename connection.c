@@ -61,6 +61,13 @@ struct kdbus_conn_reply;
  *			addressed to, 0 for messages sent to an ID
  * @reply:		The reply block if a reply to this message is expected.
  * @user:		Index in per-user message counter, -1 for unused
+ * @creds_item_offset:	The offset of the creds item inside the slice, if
+ *			the user requested this metainfo in its attach flags.
+ *			0 if unused.
+ * @uid:		The UID to patch into the final message
+ * @gid:		The GID to patch into the final message
+ * @pid:		The PID to patch into the final message
+ * @tid:		The TID to patch into the final message
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -79,6 +86,13 @@ struct kdbus_conn_queue {
 	u64 dst_name_id;
 	struct kdbus_conn_reply *reply;
 	int user;
+	off_t creds_item_offset;
+
+	/* to honor namespaces, we have to store the following here */
+	kuid_t uid;
+	kgid_t gid;
+	struct pid *pid;
+	struct pid *tid;
 };
 
 /**
@@ -441,6 +455,11 @@ static void kdbus_conn_queue_remove(struct kdbus_conn *conn,
 
 static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 {
+	if (queue->pid)
+		put_pid(queue->pid);
+	if (queue->tid)
+		put_pid(queue->tid);
+
 	kdbus_conn_memfds_unref(queue);
 	kdbus_conn_fds_unref(queue);
 	kfree(queue);
@@ -585,6 +604,24 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	/* append message metadata/credential items */
 	if (meta > 0) {
+		/*
+		 * If the receiver requested credential information, store the
+		 * offset to the item here, so we can patch in the namespace
+		 * translated versions later.
+		 */
+		ret = kdbus_meta_offset_of(kmsg->meta, KDBUS_ITEM_CREDS,
+					   &queue->creds_item_offset);
+		if (ret == 0) {
+			/* store kernel-view of the credentials */
+			queue->uid = current_uid();
+			queue->gid = current_gid();
+			queue->pid = get_task_pid(current, PIDTYPE_PID);
+			queue->tid = get_task_pid(current->group_leader,
+						  PIDTYPE_PID);
+
+			queue->creds_item_offset += meta;
+		}
+
 		ret = kdbus_pool_slice_copy(queue->slice, meta,
 					    kmsg->meta->data,
 					    kmsg->meta->size);
@@ -895,6 +932,23 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 	if (queue->fds_count > 0) {
 		ret = kdbus_conn_fds_install(conn, queue);
 		if (ret < 0)
+			goto exit_rewind;
+	}
+
+	if (queue->creds_item_offset) {
+		struct kdbus_creds creds;
+		size_t size = sizeof(__u64) * 4;
+		off_t off = queue->creds_item_offset +
+			    offsetof(struct kdbus_item, creds);
+
+		creds.uid = from_kuid(current_user_ns(), queue->uid);
+		creds.gid = from_kgid(current_user_ns(), queue->gid);
+		creds.pid = pid_nr_ns(queue->pid, task_active_pid_ns(current));
+		creds.tid = pid_nr_ns(queue->tid, task_active_pid_ns(current));
+
+		ret = kdbus_pool_slice_copy_user(queue->slice, off,
+						 &creds, size);
+		if (ret != size)
 			goto exit_rewind;
 	}
 

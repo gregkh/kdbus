@@ -203,10 +203,7 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 {
 	struct kdbus_creds creds = {};
 
-	creds.uid = from_kuid(current_user_ns(), current_uid());
-	creds.gid = from_kgid(current_user_ns(), current_gid());
-	creds.pid = task_pid_vnr(current);
-	creds.tid = task_tgid_vnr(current);
+	/* uid, gid, pid and tid will be filled later */
 	creds.starttime = timespec_to_ns(&current->start_time);
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_CREDS,
