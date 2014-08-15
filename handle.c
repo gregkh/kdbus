@@ -884,6 +884,8 @@ static unsigned int kdbus_handle_poll(struct file *file,
 		mask |= POLLERR | POLLHUP;
 	else if (!list_empty(&conn->msg_list))
 		mask |= POLLIN | POLLRDNORM;
+	else
+		mask |= POLLOUT | POLLWRNORM;
 	mutex_unlock(&conn->lock);
 
 	return mask;
