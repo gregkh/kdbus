@@ -852,7 +852,8 @@ static void kdbus_conn_work(struct work_struct *work)
 }
 
 static int kdbus_conn_fds_install(struct kdbus_conn *conn,
-				  struct kdbus_conn_queue *queue)
+				  struct kdbus_conn_queue *queue,
+				  int **ret_fds)
 {
 	unsigned int i;
 	int ret, *fds;
@@ -893,7 +894,7 @@ remove_unused:
 		put_unused_fd(fds[i]);
 	}
 
-	kfree(fds);
+	*ret_fds = fds;
 	return ret;
 }
 
@@ -955,6 +956,7 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 				  struct kdbus_conn_queue *queue)
 {
 	int *memfds = NULL;
+	int *fds = NULL;
 	unsigned int i;
 	int ret = 0;
 
@@ -970,9 +972,9 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 
 	/* install KDBUS_MSG_FDS file descriptors */
 	if (queue->fds_count > 0) {
-		ret = kdbus_conn_fds_install(conn, queue);
+		ret = kdbus_conn_fds_install(conn, queue, &fds);
 		if (ret < 0)
-			goto exit_rewind;
+			goto exit_rewind_memfds;
 	}
 
 	if (queue->creds_item_offset) {
@@ -989,7 +991,7 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 		ret = kdbus_pool_slice_copy_user(queue->slice, off,
 						 &creds, size);
 		if (ret < 0)
-			goto exit_rewind;
+			goto exit_rewind_fds;
 	}
 
 	if (queue->auxgrp_item_offset) {
@@ -1001,7 +1003,7 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 		gid = kmalloc(size, GFP_KERNEL);
 		if (!gid) {
 			ret = -ENOMEM;
-			goto exit_rewind;
+			goto exit_rewind_fds;
 		}
 
 		for (i = 0; i < queue->auxgrps_count; i++) {
@@ -1012,15 +1014,21 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 		ret = kdbus_pool_slice_copy_user(queue->slice, off, gid, size);
 		kfree(gid);
 		if (ret < 0)
-			goto exit_rewind;
+			goto exit_rewind_fds;
 	}
 
+	kfree(fds);
 	kfree(memfds);
 	kdbus_pool_slice_flush(queue->slice);
 
 	return 0;
 
-exit_rewind:
+exit_rewind_fds:
+	for (i = 0; i < queue->fds_count; i++)
+		sys_close(fds[i]);
+	kfree(fds);
+
+exit_rewind_memfds:
 	for (i = 0; i < queue->memfds_count; i++)
 		sys_close(memfds[i]);
 	kfree(memfds);
