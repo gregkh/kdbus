@@ -214,30 +214,14 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 static int kdbus_meta_append_auxgroups(struct kdbus_meta *meta)
 {
 	struct group_info *info;
-	struct kdbus_item *item;
-	u64 *gid, size;
-	int i, ret = 0;
+	unsigned int ngroups;
 
 	info = get_current_groups();
-
-	size = KDBUS_ITEM_SIZE(info->ngroups * sizeof(*gid));
-	item = kdbus_meta_append_item(meta, size);
-	if (IS_ERR(item)) {
-		ret = PTR_ERR(item);
-		goto exit_put_groups;
-	}
-
-	item->size = size;
-	item->type = KDBUS_ITEM_AUXGROUPS;
-	gid = (u64 *) item->data;
-
-	for (i = 0; i < info->ngroups; i++)
-		gid[i] = from_kgid(current_user_ns(), GROUP_AT(info, i));
-
-exit_put_groups:
+	ngroups = info->ngroups;
 	put_group_info(info);
 
-	return ret;
+	return kdbus_meta_append_data(meta, KDBUS_ITEM_AUXGROUPS,
+				      NULL, ngroups * sizeof(__u64));
 }
 
 static int kdbus_meta_append_src_names(struct kdbus_meta *meta,

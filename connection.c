@@ -64,10 +64,17 @@ struct kdbus_conn_reply;
  * @creds_item_offset:	The offset of the creds item inside the slice, if
  *			the user requested this metainfo in its attach flags.
  *			0 if unused.
+ * @auxgrp_item_offset:	The offset of the auxgrp item inside the slice, if
+ *			the user requested this metainfo in its attach flags.
+ *			0 if unused.
  * @uid:		The UID to patch into the final message
  * @gid:		The GID to patch into the final message
  * @pid:		The PID to patch into the final message
  * @tid:		The TID to patch into the final message
+ * @auxgrps:		An array storing the sender's aux groups, in kgid_t.
+ * 			This information is translated into the user's
+ * 			namespace when the message is installed.
+ * @auxgroup_count:	The number of items in @auxgrps.
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -87,12 +94,16 @@ struct kdbus_conn_queue {
 	struct kdbus_conn_reply *reply;
 	int user;
 	off_t creds_item_offset;
+	off_t auxgrp_item_offset;
 
 	/* to honor namespaces, we have to store the following here */
 	kuid_t uid;
 	kgid_t gid;
 	struct pid *pid;
 	struct pid *tid;
+
+	kgid_t *auxgrps;
+	unsigned int auxgrps_count;
 };
 
 /**
@@ -459,6 +470,8 @@ static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
 		put_pid(queue->pid);
 	if (queue->tid)
 		put_pid(queue->tid);
+	if (queue->auxgrps)
+		kfree(queue->auxgrps);
 
 	kdbus_conn_memfds_unref(queue);
 	kdbus_conn_fds_unref(queue);
@@ -620,6 +633,33 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 						  PIDTYPE_PID);
 
 			queue->creds_item_offset += meta;
+		}
+
+		ret = kdbus_meta_offset_of(kmsg->meta, KDBUS_ITEM_AUXGROUPS,
+					   &queue->auxgrp_item_offset);
+		if (ret == 0) {
+			struct group_info *info;
+			int i;
+
+			info = get_current_groups();
+			queue->auxgrps_count = info->ngroups;
+
+			if (info->ngroups > 0) {
+				queue->auxgrps =
+					kcalloc(info->ngroups, sizeof(kgid_t),
+						GFP_KERNEL);
+				if (!queue->auxgrps) {
+					ret = -ENOMEM;
+					put_group_info(info);
+					goto exit_pool_free;
+				}
+
+				for (i = 0; i < info->ngroups; i++)
+					queue->auxgrps[i] = GROUP_AT(info, i);
+			}
+
+			put_group_info(info);
+			queue->auxgrp_item_offset += meta;
 		}
 
 		ret = kdbus_pool_slice_copy(queue->slice, meta,
@@ -948,7 +988,30 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 
 		ret = kdbus_pool_slice_copy_user(queue->slice, off,
 						 &creds, size);
-		if (ret != size)
+		if (ret < 0)
+			goto exit_rewind;
+	}
+
+	if (queue->auxgrp_item_offset) {
+		size_t size = sizeof(__u64) * queue->auxgrps_count;
+		off_t off = queue->auxgrp_item_offset +
+			    offsetof(struct kdbus_item, data64);
+		__u64 *gid;
+
+		gid = kmalloc(size, GFP_KERNEL);
+		if (!gid) {
+			ret = -ENOMEM;
+			goto exit_rewind;
+		}
+
+		for (i = 0; i < queue->auxgrps_count; i++) {
+			gid[i] = from_kgid(current_user_ns(),
+					   queue->auxgrps[i]);
+		}
+
+		ret = kdbus_pool_slice_copy_user(queue->slice, off, gid, size);
+		kfree(gid);
+		if (ret < 0)
 			goto exit_rewind;
 	}
 
