@@ -162,7 +162,8 @@ int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
-	memcpy(item->data, data, len);
+	if (data)
+		memcpy(item->data, data, len);
 
 	return 0;
 }
