@@ -864,8 +864,7 @@ static void kdbus_conn_work(struct work_struct *work)
 		kdbus_conn_reply_free(reply);
 }
 
-static int kdbus_conn_fds_install(struct kdbus_conn *conn,
-				  struct kdbus_conn_queue *queue,
+static int kdbus_conn_fds_install(struct kdbus_conn_queue *queue,
 				  int **ret_fds)
 {
 	unsigned int i;
@@ -911,8 +910,7 @@ remove_unused:
 	return ret;
 }
 
-static int kdbus_conn_memfds_install(struct kdbus_conn *conn,
-				     struct kdbus_conn_queue *queue,
+static int kdbus_conn_memfds_install(struct kdbus_conn_queue *queue,
 				     int **memfds)
 {
 	int *fds;
@@ -965,8 +963,7 @@ remove_unused:
 	return ret;
 }
 
-static int kdbus_conn_msg_install(struct kdbus_conn *conn,
-				  struct kdbus_conn_queue *queue)
+static int kdbus_conn_msg_install(struct kdbus_conn_queue *queue)
 {
 	int *memfds = NULL;
 	int *fds = NULL;
@@ -978,14 +975,14 @@ static int kdbus_conn_msg_install(struct kdbus_conn *conn,
 	 * the list of file descriptors to be able to cleanup on error.
 	 */
 	if (queue->memfds_count > 0) {
-		ret = kdbus_conn_memfds_install(conn, queue, &memfds);
+		ret = kdbus_conn_memfds_install(queue, &memfds);
 		if (ret < 0)
 			return ret;
 	}
 
 	/* install KDBUS_MSG_FDS file descriptors */
 	if (queue->fds_count > 0) {
-		ret = kdbus_conn_fds_install(conn, queue, &fds);
+		ret = kdbus_conn_fds_install(queue, &fds);
 		if (ret < 0)
 			goto exit_rewind_memfds;
 	}
@@ -1157,7 +1154,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_conn_msg_install(conn, queue);
+	ret = kdbus_conn_msg_install(queue);
 	kdbus_conn_queue_remove(conn, queue);
 	kdbus_conn_queue_cleanup(queue);
 
@@ -1555,7 +1552,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		queue = reply_wait->queue;
 		if (queue) {
 			if (ret == 0)
-				ret = kdbus_conn_msg_install(conn_src, queue);
+				ret = kdbus_conn_msg_install(queue);
 
 			kmsg->msg.offset_reply =
 				kdbus_pool_slice_offset(queue->slice);
