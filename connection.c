@@ -640,22 +640,33 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 		item = kdbus_meta_find_item(kmsg->meta, KDBUS_ITEM_AUXGROUPS);
 		if (item) {
 			struct group_info *info;
+			size_t item_elements;
 			int i;
 
 			info = get_current_groups();
-			queue->auxgrps_count = info->ngroups;
+
+			/*
+			 * In case the number of auxgroups changed since the
+			 * metadata element was composed, clamp the array
+			 * length.
+			 */
+			item_elements = KDBUS_ITEM_PAYLOAD_SIZE(item) /
+					sizeof(__u64);
+			queue->auxgrps_count = min_t(unsigned int,
+						     item_elements,
+						     info->ngroups);
 
 			if (info->ngroups > 0) {
 				queue->auxgrps =
-					kcalloc(info->ngroups, sizeof(kgid_t),
-						GFP_KERNEL);
+					kcalloc(queue->auxgrps_count,
+						sizeof(kgid_t), GFP_KERNEL);
 				if (!queue->auxgrps) {
 					ret = -ENOMEM;
 					put_group_info(info);
 					goto exit_pool_free;
 				}
 
-				for (i = 0; i < info->ngroups; i++)
+				for (i = 0; i < queue->auxgrps_count; i++)
 					queue->auxgrps[i] = GROUP_AT(info, i);
 			}
 
