@@ -98,7 +98,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 		if (++items_count > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 
-		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
+		payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
 
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC:
