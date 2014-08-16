@@ -617,14 +617,15 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	/* append message metadata/credential items */
 	if (meta > 0) {
+		struct kdbus_item *item;
+
 		/*
 		 * If the receiver requested credential information, store the
 		 * offset to the item here, so we can patch in the namespace
 		 * translated versions later.
 		 */
-		ret = kdbus_meta_offset_of(kmsg->meta, KDBUS_ITEM_CREDS,
-					   &queue->creds_item_offset);
-		if (ret == 0) {
+		item = kdbus_meta_find_item(kmsg->meta, KDBUS_ITEM_CREDS);
+		if (item) {
 			/* store kernel-view of the credentials */
 			queue->uid = current_uid();
 			queue->gid = current_gid();
@@ -632,12 +633,12 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 			queue->tid = get_task_pid(current->group_leader,
 						  PIDTYPE_PID);
 
-			queue->creds_item_offset += meta;
+			queue->creds_item_offset =
+				((u8 *) item - (u8 *) kmsg->meta->data) + meta;
 		}
 
-		ret = kdbus_meta_offset_of(kmsg->meta, KDBUS_ITEM_AUXGROUPS,
-					   &queue->auxgrp_item_offset);
-		if (ret == 0) {
+		item = kdbus_meta_find_item(kmsg->meta, KDBUS_ITEM_AUXGROUPS);
+		if (item) {
 			struct group_info *info;
 			int i;
 
@@ -659,7 +660,8 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 			}
 
 			put_group_info(info);
-			queue->auxgrp_item_offset += meta;
+			queue->auxgrp_item_offset =
+				((u8 *) item - (u8 *) kmsg->meta->data) + meta;
 		}
 
 		ret = kdbus_pool_slice_copy(queue->slice, meta,

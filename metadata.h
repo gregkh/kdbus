@@ -41,6 +41,6 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
 		      u64 seq,
 		      u64 which);
-int kdbus_meta_offset_of(struct kdbus_meta *meta, u64 type, off_t *off);
+struct kdbus_item *kdbus_meta_find_item(struct kdbus_meta *meta, u64 type);
 void kdbus_meta_free(struct kdbus_meta *meta);
 #endif

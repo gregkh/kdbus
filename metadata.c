@@ -58,27 +58,24 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 }
 
 /**
- * kdbus_meta_offset_of() - return the offset of a meta data element
+ * kdbus_meta_find_item() - return the offset of a meta data element
  * @meta:		Metadata object
  * @type:		The metadata type to look for (KDBUS_ITEM_*)
- * @off:		Return pointer for the offset, if any
  *
  * This function will iterate over the given metadata and return the
- * offset of the item of type @type, if it exists.
+ * item of type @type, if it exists.
  *
- * Return: 0 on success, -ENOENT if the item was not found.
+ * Return: the first item of the requested type, if found. NULL otherwise.
  */
-int kdbus_meta_offset_of(struct kdbus_meta *meta, u64 type, off_t *off)
+struct kdbus_item *kdbus_meta_find_item(struct kdbus_meta *meta, u64 type)
 {
-	const struct kdbus_item *item;
+	struct kdbus_item *item;
 
 	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
-		if (item->type == type) {
-			*off = (u8 *) item - (u8 *) meta->data;
-			return 0;
-		}
+		if (item->type == type)
+			return item;
 
-	return -ENOENT;
+	return NULL;
 }
 
 /**
