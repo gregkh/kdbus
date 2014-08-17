@@ -71,14 +71,15 @@ void kdbus_meta_free(struct kdbus_meta *meta)
 }
 
 static struct kdbus_item *
-kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t extra_size)
+kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t payload_size)
 {
+	size_t extra_size = KDBUS_ITEM_SIZE(payload_size);
 	struct kdbus_item *item;
 	size_t size;
 
 	/* get new metadata buffer, pre-allocate at least 512 bytes */
 	if (!meta->data) {
-		size = roundup_pow_of_two(256 + KDBUS_ALIGN8(extra_size));
+		size = roundup_pow_of_two(256 + extra_size);
 		meta->data = kzalloc(size, GFP_KERNEL);
 		if (!meta->data)
 			return ERR_PTR(-ENOMEM);
@@ -87,7 +88,7 @@ kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t extra_size)
 	}
 
 	/* double the pre-allocated buffer size if needed */
-	size = meta->size + KDBUS_ALIGN8(extra_size);
+	size = meta->size + extra_size;
 	if (size > meta->allocated_size) {
 		size_t size_diff;
 		struct kdbus_item *data;
@@ -109,6 +110,7 @@ kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t extra_size)
 	/* insert new record */
 	item = (struct kdbus_item *)((u8 *)meta->data + meta->size);
 	item->type = type;
+	item->size = KDBUS_ITEM_HEADER_SIZE + payload_size;
 
 	switch (type) {
 	case KDBUS_ITEM_CREDS:
@@ -119,7 +121,7 @@ kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t extra_size)
 		break;
 	}
 
-	meta->size += KDBUS_ALIGN8(extra_size);
+	meta->size += extra_size;
 
 	return item;
 }
@@ -137,17 +139,14 @@ int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 			   const void *data, size_t len)
 {
 	struct kdbus_item *item;
-	u64 size;
 
 	if (len == 0)
 		return 0;
 
-	size = KDBUS_ITEM_SIZE(len);
-	item = kdbus_meta_append_item(meta, type, size);
+	item = kdbus_meta_append_item(meta, type, len);
 	if (IS_ERR(item))
 		return PTR_ERR(item);
 
-	item->size = KDBUS_ITEM_HEADER_SIZE + len;
 	if (data)
 		memcpy(item->data, data, len);
 
@@ -164,14 +163,12 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta,
 				       u64 seq)
 {
 	struct kdbus_item *item;
-	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
 	struct timespec ts;
 
-	item = kdbus_meta_append_item(meta, KDBUS_ITEM_TIMESTAMP, size);
+	item = kdbus_meta_append_item(meta, KDBUS_ITEM_TIMESTAMP,
+				      sizeof(struct kdbus_timestamp));
 	if (IS_ERR(item))
 		return PTR_ERR(item);
-
-	item->size = size;
 
 	if (seq > 0)
 		item->timestamp.seqnum = seq;
@@ -222,19 +219,15 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 	list_for_each_entry(e, &conn->names_list, conn_entry) {
 		struct kdbus_item *item;
 		size_t len;
-		size_t size;
 
 		len = strlen(e->name) + 1;
-		size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) + len);
-
-		item = kdbus_meta_append_item(meta, KDBUS_ITEM_NAME, size);
+		item = kdbus_meta_append_item(meta, KDBUS_ITEM_NAME,
+					      sizeof(struct kdbus_name) + len);
 		if (IS_ERR(item)) {
 			ret = PTR_ERR(item);
 			break;
 		}
 
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     sizeof(struct kdbus_name) + len;
 		item->name.flags = e->flags;
 		memcpy(item->name.name, e->name, len);
 	}
