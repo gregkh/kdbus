@@ -58,27 +58,6 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 }
 
 /**
- * kdbus_meta_find_item() - return the offset of a meta data element
- * @meta:		Metadata object
- * @type:		The metadata type to look for (KDBUS_ITEM_*)
- *
- * This function will iterate over the given metadata and return the
- * item of type @type, if it exists.
- *
- * Return: the first item of the requested type, if found. NULL otherwise.
- */
-struct kdbus_item *kdbus_meta_find_item(struct kdbus_meta *meta, u64 type)
-{
-	struct kdbus_item *item;
-
-	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
-		if (item->type == type)
-			return item;
-
-	return NULL;
-}
-
-/**
  * kdbus_meta_free() - release metadata
  * @meta:		Metadata object
  */
@@ -92,7 +71,7 @@ void kdbus_meta_free(struct kdbus_meta *meta)
 }
 
 static struct kdbus_item *
-kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
+kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t extra_size)
 {
 	struct kdbus_item *item;
 	size_t size;
@@ -129,6 +108,17 @@ kdbus_meta_append_item(struct kdbus_meta *meta, size_t extra_size)
 
 	/* insert new record */
 	item = (struct kdbus_item *)((u8 *)meta->data + meta->size);
+	item->type = type;
+
+	switch (type) {
+	case KDBUS_ITEM_CREDS:
+		meta->creds_item_off = meta->size;
+		break;
+	case KDBUS_ITEM_AUXGROUPS:
+		meta->auxgrps_item_off = meta->size;
+		break;
+	}
+
 	meta->size += KDBUS_ALIGN8(extra_size);
 
 	return item;
@@ -153,11 +143,10 @@ int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 		return 0;
 
 	size = KDBUS_ITEM_SIZE(len);
-	item = kdbus_meta_append_item(meta, size);
+	item = kdbus_meta_append_item(meta, type, size);
 	if (IS_ERR(item))
 		return PTR_ERR(item);
 
-	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
 	if (data)
 		memcpy(item->data, data, len);
@@ -178,11 +167,10 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta,
 	u64 size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
 	struct timespec ts;
 
-	item = kdbus_meta_append_item(meta, size);
+	item = kdbus_meta_append_item(meta, KDBUS_ITEM_TIMESTAMP, size);
 	if (IS_ERR(item))
 		return PTR_ERR(item);
 
-	item->type = KDBUS_ITEM_TIMESTAMP;
 	item->size = size;
 
 	if (seq > 0)
@@ -239,13 +227,12 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 		len = strlen(e->name) + 1;
 		size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) + len);
 
-		item = kdbus_meta_append_item(meta, size);
+		item = kdbus_meta_append_item(meta, KDBUS_ITEM_NAME, size);
 		if (IS_ERR(item)) {
 			ret = PTR_ERR(item);
 			break;
 		}
 
-		item->type = KDBUS_ITEM_NAME;
 		item->size = KDBUS_ITEM_HEADER_SIZE +
 			     sizeof(struct kdbus_name) + len;
 		item->name.flags = e->flags;

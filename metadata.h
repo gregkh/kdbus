@@ -30,6 +30,9 @@ struct kdbus_meta {
 	struct kdbus_item *data;
 	size_t size;
 	size_t allocated_size;
+
+	off_t creds_item_off;
+	off_t auxgrps_item_off;
 };
 
 struct kdbus_conn;
@@ -41,6 +44,5 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
 		      u64 seq,
 		      u64 which);
-struct kdbus_item *kdbus_meta_find_item(struct kdbus_meta *meta, u64 type);
 void kdbus_meta_free(struct kdbus_meta *meta);
 #endif

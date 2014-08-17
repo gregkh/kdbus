@@ -489,7 +489,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	size_t dst_name_len = 0;
 	size_t payloads = 0;
 	size_t fds = 0;
-	size_t meta = 0;
+	size_t meta_off = 0;
 	size_t vec_data;
 	size_t want, have;
 	int ret = 0;
@@ -541,7 +541,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	/* space for metadata/credential items */
 	if (kmsg->meta && kmsg->meta->size > 0 &&
 	    kmsg->meta->domain == conn->meta->domain) {
-		meta = msg_size;
+		meta_off = msg_size;
 		msg_size += kmsg->meta->size;
 	}
 
@@ -616,16 +616,15 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 	}
 
 	/* append message metadata/credential items */
-	if (meta > 0) {
-		struct kdbus_item *item;
+	if (meta_off > 0) {
+		struct kdbus_meta *meta = kmsg->meta;
 
 		/*
 		 * If the receiver requested credential information, store the
 		 * offset to the item here, so we can patch in the namespace
-		 * translated versions later.
+		 * translated versions later.	k
 		 */
-		item = kdbus_meta_find_item(kmsg->meta, KDBUS_ITEM_CREDS);
-		if (item) {
+		if (meta->attached & KDBUS_ATTACH_CREDS) {
 			/* store kernel-view of the credentials */
 			queue->uid = current_uid();
 			queue->gid = current_gid();
@@ -633,13 +632,13 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 			queue->tid = get_task_pid(current->group_leader,
 						  PIDTYPE_PID);
 
-			queue->creds_item_offset =
-				((u8 *) item - (u8 *) kmsg->meta->data) + meta;
+			queue->creds_item_offset = meta_off +
+						   meta->creds_item_off;
 		}
 
-		item = kdbus_meta_find_item(kmsg->meta, KDBUS_ITEM_AUXGROUPS);
-		if (item) {
+		if (meta->attached & KDBUS_ATTACH_AUXGROUPS) {
 			struct group_info *info;
+			struct kdbus_item *item;
 			size_t item_elements;
 			int i;
 
@@ -650,6 +649,8 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 			 * metadata element was composed, clamp the array
 			 * length.
 			 */
+			item = (struct kdbus_item *)
+				((u8 *) meta->data + meta->auxgrps_item_off);
 			item_elements = KDBUS_ITEM_PAYLOAD_SIZE(item) /
 					sizeof(__u64);
 			queue->auxgrps_count = min_t(unsigned int,
@@ -671,11 +672,11 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 			}
 
 			put_group_info(info);
-			queue->auxgrp_item_offset =
-				((u8 *) item - (u8 *) kmsg->meta->data) + meta;
+			queue->auxgrp_item_offset = meta_off +
+						    meta->auxgrps_item_off;
 		}
 
-		ret = kdbus_pool_slice_copy(queue->slice, meta,
+		ret = kdbus_pool_slice_copy(queue->slice, meta_off,
 					    kmsg->meta->data,
 					    kmsg->meta->size);
 		if (ret < 0)
