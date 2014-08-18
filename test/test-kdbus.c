@@ -19,12 +19,6 @@
 #include "kdbus-enum.h"
 
 enum {
-	CHECK_OK,
-	CHECK_SKIP,
-	CHECK_ERR,
-};
-
-enum {
 	CHECK_CREATE_BUS	= 1 << 0,
 	CHECK_CREATE_CONN	= 1 << 1,
 };
@@ -60,12 +54,6 @@ struct kdbus_check {
 			KDBUS_ATTACH_CGROUP	|	\
 			KDBUS_ATTACH_SECLABEL	|	\
 			KDBUS_ATTACH_AUDIT
-
-#define ASSERT_RETURN(cond)		\
-	if (!(cond)) {			\
-		fprintf(stderr, "Assertion '%s' failed in %s(), line %d\n", #cond, __func__, __LINE__);	\
-		return CHECK_ERR;	\
-	}
 
 static struct kdbus_conn *make_conn(const char *buspath, uint64_t flags)
 {

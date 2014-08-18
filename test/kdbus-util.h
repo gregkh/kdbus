@@ -29,6 +29,18 @@
 	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;	\
 	     item = KDBUS_ITEM_NEXT(item))
 
+enum {
+	CHECK_OK,
+	CHECK_SKIP,
+	CHECK_ERR,
+};
+
+#define ASSERT_RETURN(cond)		\
+	if (!(cond)) {			\
+		fprintf(stderr, "Assertion '%s' failed in %s(), line %d\n", #cond, __func__, __LINE__);	\
+		return CHECK_ERR;	\
+	}
+
 /* Dump as user of process, useful for user namespace testing */
 #define SUID_DUMP_USER	1
 
