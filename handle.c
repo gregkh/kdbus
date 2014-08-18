@@ -802,7 +802,7 @@ static unsigned int kdbus_handle_poll(struct file *file,
 {
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_conn *conn = handle->conn;
-	unsigned int mask = 0;
+	unsigned int mask = POLLOUT | POLLWRNORM;
 
 	/* Only a connected endpoint can read/write data */
 	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
@@ -812,11 +812,9 @@ static unsigned int kdbus_handle_poll(struct file *file,
 
 	mutex_lock(&conn->lock);
 	if (!kdbus_conn_active(conn))
-		mask |= POLLERR | POLLHUP;
+		mask = POLLERR | POLLHUP;
 	else if (!list_empty(&conn->msg_list))
 		mask |= POLLIN | POLLRDNORM;
-	else
-		mask |= POLLOUT | POLLWRNORM;
 	mutex_unlock(&conn->lock);
 
 	return mask;
