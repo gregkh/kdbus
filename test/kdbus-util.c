@@ -575,6 +575,40 @@ int msg_recv(struct conn *conn)
 	return 0;
 }
 
+/* Returns 0 on success, negative errno on failure */
+int conn_recv(struct conn *conn)
+{
+	int ret;
+	int cnt = 3;
+	struct pollfd fd;
+
+	fd.fd = conn->fd;
+	fd.events = POLLIN | POLLPRI | POLLHUP;
+	fd.revents = 0;
+
+	while (cnt) {
+		cnt--;
+		ret = poll(&fd, 1, 4000);
+		if (ret == 0) {
+			ret = -ETIMEDOUT;
+			break;
+		}
+
+		if (ret > 0) {
+			if (fd.revents & POLLIN)
+				ret = msg_recv(conn);
+
+			if (fd.revents & (POLLHUP | POLLERR))
+				ret = -ECONNRESET;
+		}
+
+		if (ret >= 0 || ret != -EAGAIN)
+			break;
+	}
+
+	return ret;
+}
+
 int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 {
 	struct kdbus_cmd_name *cmd_name;

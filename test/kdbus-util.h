@@ -59,6 +59,7 @@ int name_list(struct conn *conn, uint64_t flags);
 int name_release(struct conn *conn, const char *name);
 int name_acquire(struct conn *conn, const char *name, uint64_t flags);
 int msg_recv(struct conn *conn);
+int conn_recv(struct conn *conn);
 void msg_dump(const struct conn *conn, const struct kdbus_msg *msg);
 char *msg_id(uint64_t id, char *buf);
 int msg_send(const struct conn *conn, const char *name, uint64_t cookie,
