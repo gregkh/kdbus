@@ -23,7 +23,8 @@ TESTS= \
 	test-kdbus-timeout \
 	test-kdbus-sync \
 	test-kdbus-prio \
-	test-kdbus-policy
+	test-kdbus-policy \
+	test-kdbus-metadata-ns
 
 all: $(TESTS)
 
