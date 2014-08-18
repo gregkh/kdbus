@@ -29,6 +29,9 @@
 	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;	\
 	     item = KDBUS_ITEM_NEXT(item))
 
+/* Dump as user of process, useful for user namespace testing */
+#define SUID_DUMP_USER	1
+
 struct conn {
 	int fd;
 	uint64_t id;
@@ -67,3 +70,7 @@ int conn_update_policy(struct conn *conn, const char *name,
 void add_match_empty(int fd);
 
 int drop_privileges(uid_t uid, gid_t gid);
+
+int userns_map_uid_gid(pid_t pid,
+		       const char *map_uid,
+		       const char *map_gid);

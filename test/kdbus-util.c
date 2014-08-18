@@ -795,3 +795,53 @@ int drop_privileges(uid_t uid, gid_t gid)
 
 	return ret;
 }
+
+static int do_userns_map_id(pid_t pid,
+			    const char *map_file,
+			    const char *map_id)
+{
+	int ret;
+	int fd;
+
+	fd = open(map_file, O_RDWR);
+	if (fd < 0) {
+		ret = -errno;
+		fprintf(stderr, "error open %s: %d (%m)\n",
+			map_file, ret);
+		return ret;
+	}
+
+	ret = write(fd, map_id, strlen(map_id));
+	if (ret < 0) {
+		ret = -errno;
+		fprintf(stderr, "error write to %s: %d (%m)\n",
+			map_file, ret);
+		goto out;
+	}
+
+	ret = 0;
+
+out:
+	close(fd);
+	return ret;
+}
+
+int userns_map_uid_gid(pid_t pid,
+		       const char *map_uid,
+		       const char *map_gid)
+{
+	int ret;
+	char file_id[128] = {'\0'};
+
+	snprintf(file_id, sizeof(file_id), "/proc/%ld/uid_map",
+		 (long) pid);
+
+	ret = do_userns_map_id(pid, file_id, map_uid);
+	if (ret < 0)
+		return ret;
+
+	snprintf(file_id, sizeof(file_id), "/proc/%ld/gid_map",
+		 (long) pid);
+
+	return do_userns_map_id(pid, file_id, map_gid);
+}
