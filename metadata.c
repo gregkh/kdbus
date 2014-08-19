@@ -187,7 +187,14 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 {
 	struct kdbus_creds creds = {};
 
-	/* uid, gid, pid and tid will be filled later */
+	/*
+	 * uid, gid, pid and tid will be patched over again at message
+	 * install time.
+	 */
+	creds.uid = from_kuid_munged(current_user_ns(), current_uid());
+	creds.gid = from_kgid_munged(current_user_ns(), current_gid());
+	creds.pid = task_pid_vnr(current);
+	creds.tid = task_tgid_vnr(current);
 	creds.starttime = current->start_time;
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_CREDS,
