@@ -23,7 +23,7 @@ PWD			:= $(shell pwd)
 all: module test
 
 test::
-	$(MAKE) -C test KERNELDIR=$(KERNELDIR) KBUILD_MODNAME=kdbus$(EXT)
+	$(MAKE) -C test KERNELDIR=$(realpath $(KERNELDIR)) KBUILD_MODNAME=kdbus$(EXT)
 
 module:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)
