@@ -130,7 +130,8 @@ kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t payload_size)
  * kdbus_meta_append_data() - append given raw data to metadata object
  * @meta:		Metadata object
  * @type:		KDBUS_ITEM_* type
- * @data:		pointer to data to copy from
+ * @data:		pointer to data to copy from. If it is NULL
+ *			then just make space in the metadata buffer.
  * @len:		number of bytes to copy
  *
  * Return: 0 on success, negative errno on failure.

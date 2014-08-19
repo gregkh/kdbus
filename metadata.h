@@ -16,10 +16,16 @@
 /**
  * struct kdbus_meta - metadata buffer
  * @attached:		Flags for already attached data
- * @domain:			Domain the metadata belongs to
+ * @domain:		Domain the metadata belongs to
  * @data:		Allocated buffer
  * @size:		Number of bytes used
  * @allocated_size:	Size of buffer
+ * @creds_item_off	The offset of the creds item in the @data
+ *			buffer field, if the user requested this
+ *			metainfo in its attach flags. 0 if unused.
+ * @auxgrps_item_off	The offset of the auxgroups item in the
+ *			@data buffer field, if the user requested
+ *			this metainfo. 0 if unused.
  *
  * Used to collect and store connection metadata in a pre-compiled
  * buffer containing struct kdbus_item.
