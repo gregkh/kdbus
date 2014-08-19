@@ -964,6 +964,25 @@ remove_unused:
 	return ret;
 }
 
+static int kdbus_conn_creds_install(struct kdbus_conn_queue *queue)
+{
+	int ret;
+	struct kdbus_creds creds = {};
+	struct user_namespace *current_ns = current_user_ns();
+	off_t off = queue->creds_item_offset +
+		    offsetof(struct kdbus_item, creds);
+
+	creds.uid = from_kuid_munged(current_ns, queue->uid);
+	creds.gid = from_kgid_munged(current_ns, queue->gid);
+	creds.pid = pid_nr_ns(queue->pid, task_active_pid_ns(current));
+	creds.tid = pid_nr_ns(queue->tid, task_active_pid_ns(current));
+
+	ret = kdbus_pool_slice_copy_user(queue->slice, off,
+					 &creds, sizeof(creds));
+
+	return ret;
+}
+
 static int kdbus_conn_msg_install(struct kdbus_conn_queue *queue)
 {
 	int *memfds = NULL;
@@ -989,18 +1008,7 @@ static int kdbus_conn_msg_install(struct kdbus_conn_queue *queue)
 	}
 
 	if (queue->creds_item_offset) {
-		struct kdbus_creds creds;
-		size_t size = sizeof(__u64) * 4;
-		off_t off = queue->creds_item_offset +
-			    offsetof(struct kdbus_item, creds);
-
-		creds.uid = from_kuid(current_user_ns(), queue->uid);
-		creds.gid = from_kgid(current_user_ns(), queue->gid);
-		creds.pid = pid_nr_ns(queue->pid, task_active_pid_ns(current));
-		creds.tid = pid_nr_ns(queue->tid, task_active_pid_ns(current));
-
-		ret = kdbus_pool_slice_copy_user(queue->slice, off,
-						 &creds, size);
+		ret = kdbus_conn_creds_install(queue);
 		if (ret < 0)
 			goto exit_rewind_fds;
 	}
