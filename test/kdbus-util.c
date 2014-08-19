@@ -24,10 +24,10 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <linux/memfd.h>
 #include <linux/unistd.h>
 #include <linux/fcntl.h>
 
+#include "linux/memfd.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
