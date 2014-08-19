@@ -1,7 +1,6 @@
 CFLAGS		+= -std=gnu99 -Wall -Wextra -g \
+		   -I$(KERNELDIR)/usr/include \
 		   -I$(KERNELDIR)/include/uapi \
-		   -I. \
-		   -I- \
 		   -D_GNU_SOURCE \
 		   -Wno-unused-parameter \
 		   -Wmaybe-uninitialized \
