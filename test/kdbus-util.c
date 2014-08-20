@@ -471,8 +471,8 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		case KDBUS_ITEM_AUDIT:
 			printf("  +%s (%llu bytes) loginuid=%llu sessionid=%llu\n",
 			       enum_MSG(item->type), item->size,
-			       (unsigned long long)item->data64[0],
-			       (unsigned long long)item->data64[1]);
+			       (unsigned long long)item->audit.loginuid,
+			       (unsigned long long)item->audit.sessionid);
 			break;
 
 		case KDBUS_ITEM_CAPS: {
