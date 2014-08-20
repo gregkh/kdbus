@@ -26,6 +26,9 @@
  * @auxgrps_item_off	The offset of the auxgroups item in the
  *			@data buffer field, if the user requested
  *			this metainfo. 0 if unused.
+ * @audit_item_off	The offset of the audit item in the @data
+ *			buffer field, if the user requested this
+ *			metainfo. 0 if unused.
  *
  * Used to collect and store connection metadata in a pre-compiled
  * buffer containing struct kdbus_item.
@@ -39,6 +42,7 @@ struct kdbus_meta {
 
 	off_t creds_item_off;
 	off_t auxgrps_item_off;
+	off_t audit_item_off;
 };
 
 struct kdbus_conn;

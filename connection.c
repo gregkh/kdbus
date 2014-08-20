@@ -10,6 +10,7 @@
  * your option) any later version.
  */
 
+#include <linux/audit.h>
 #include <linux/device.h>
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -67,6 +68,9 @@ struct kdbus_conn_reply;
  * @auxgrp_item_offset:	The offset of the auxgrp item inside the slice, if
  *			the user requested this metainfo in its attach flags.
  *			0 if unused.
+ * @audit_item_offset:	The offset of the audit item inside the slice, if
+ *			the user requested this metainfo in its attach flags.
+ *			0 if unused.
  * @uid:		The UID to patch into the final message
  * @gid:		The GID to patch into the final message
  * @pid:		The PID to patch into the final message
@@ -75,6 +79,8 @@ struct kdbus_conn_reply;
  * 			This information is translated into the user's
  * 			namespace when the message is installed.
  * @auxgroup_count:	The number of items in @auxgrps.
+ * @loginuid:		The audit login uid to patch into the final
+ *			message
  */
 struct kdbus_conn_queue {
 	struct list_head entry;
@@ -95,6 +101,7 @@ struct kdbus_conn_queue {
 	int user;
 	off_t creds_item_offset;
 	off_t auxgrp_item_offset;
+	off_t audit_item_offset;
 
 	/* to honor namespaces, we have to store the following here */
 	kuid_t uid;
@@ -104,6 +111,8 @@ struct kdbus_conn_queue {
 
 	kgid_t *auxgrps;
 	unsigned int auxgrps_count;
+
+	kuid_t loginuid;
 };
 
 /**
@@ -676,6 +685,12 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 						    meta->auxgrps_item_off;
 		}
 
+		if (meta->attached & KDBUS_ATTACH_AUDIT) {
+			queue->loginuid = audit_get_loginuid(current);
+			queue->audit_item_offset = meta_off +
+						   meta->audit_item_off;
+		}
+
 		ret = kdbus_pool_slice_copy(queue->slice, meta_off,
 					    kmsg->meta->data,
 					    kmsg->meta->size);
@@ -983,6 +998,22 @@ static int kdbus_conn_creds_install(struct kdbus_conn_queue *queue)
 	return ret;
 }
 
+static int kdbus_conn_audit_install(struct kdbus_conn_queue *queue)
+{
+	int ret;
+	u64 loginuid;
+	off_t off = queue->audit_item_offset +
+		    offsetof(struct kdbus_item, audit) +
+		    offsetof(struct kdbus_audit, loginuid);
+
+	loginuid = from_kuid_munged(current_user_ns(), queue->loginuid);
+
+	ret = kdbus_pool_slice_copy_user(queue->slice, off,
+					 &loginuid, sizeof(loginuid));
+
+	return ret;
+}
+
 static int kdbus_conn_msg_install(struct kdbus_conn_queue *queue)
 {
 	int *memfds = NULL;
@@ -1032,6 +1063,12 @@ static int kdbus_conn_msg_install(struct kdbus_conn_queue *queue)
 
 		ret = kdbus_pool_slice_copy_user(queue->slice, off, gid, size);
 		kfree(gid);
+		if (ret < 0)
+			goto exit_rewind_fds;
+	}
+
+	if (queue->audit_item_offset) {
+		ret = kdbus_conn_audit_install(queue);
 		if (ret < 0)
 			goto exit_rewind_fds;
 	}

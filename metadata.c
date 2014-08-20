@@ -119,6 +119,9 @@ kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t payload_size)
 	case KDBUS_ITEM_AUXGROUPS:
 		meta->auxgrps_item_off = meta->size;
 		break;
+	case KDBUS_ITEM_AUDIT:
+		meta->audit_item_off = meta->size;
+		break;
 	}
 
 	meta->size += extra_size;
