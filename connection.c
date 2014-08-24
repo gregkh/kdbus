@@ -263,8 +263,7 @@ exit_unref:
 	return ret;
 }
 
-static int kdbus_conn_payload_add(struct kdbus_conn *conn,
-				  struct kdbus_conn_queue *queue,
+static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
 				  const struct kdbus_kmsg *kmsg,
 				  size_t items, size_t vec_data)
 {
@@ -596,8 +595,7 @@ static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
 
 	/* add PAYLOAD items */
 	if (payloads > 0) {
-		ret = kdbus_conn_payload_add(conn, queue, kmsg,
-					     payloads, vec_data);
+		ret = kdbus_conn_payload_add(queue, kmsg, payloads, vec_data);
 		if (ret < 0)
 			goto exit_pool_free;
 	}
