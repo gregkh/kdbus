@@ -88,8 +88,7 @@ static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 
 static const struct kdbus_policy_db_entry *
 kdbus_policy_lookup(struct kdbus_policy_db *db,
-		      const char *name, u32 hash,
-		      bool wildcard)
+		    const char *name, u32 hash, bool wildcard)
 {
 	struct kdbus_policy_db_entry *e, *found = NULL;
 
