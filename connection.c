@@ -1266,7 +1266,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	 * If there's any matching entry, allow the message to
 	 * be sent, and remove the entry.
 	 */
-	if (msg->cookie_reply > 0) {
+	if (reply_wake && msg->cookie_reply > 0) {
 		struct kdbus_conn_reply *r, *r_tmp;
 		LIST_HEAD(reply_list);
 
@@ -1279,8 +1279,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 				if (r->sync)
 					*reply_wake = r;
 				else
-					list_move_tail(&r->entry,
-						       &reply_list);
+					list_move_tail(&r->entry, &reply_list);
 
 				allowed = true;
 				break;
@@ -1500,15 +1499,22 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kmsg->dst_name_id = entry->name_id;
 
 	if (conn_src) {
-		if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
+		if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
+			ret = kdbus_conn_check_access(ep, msg, conn_src,
+						      conn_dst, NULL);
+			if (ret < 0)
+				goto exit_unref;
+
 			ret = kdbus_conn_add_expected_reply(conn_src, conn_dst,
 							    msg, &reply_wait);
-		else
+			if (ret < 0)
+				goto exit_unref;
+		} else {
 			ret = kdbus_conn_check_access(ep, msg, conn_src,
 						      conn_dst, &reply_wake);
-
-		if (ret < 0)
-			goto exit_unref;
+			if (ret < 0)
+				goto exit_unref;
+		}
 
 		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 					conn_dst->attach_flags);
