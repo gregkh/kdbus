@@ -3,6 +3,7 @@
  * Copyright (C) 2013 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
  * Copyright (C) 2013 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013 Linux Foundation
+ * Copyright (C) 2014 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -42,16 +43,19 @@ struct kdbus_policy_db_cache_entry {
  * struct kdbus_policy_db_entry_access - a database entry access item
  * @type:		One of KDBUS_POLICY_ACCESS_* types
  * @access:		Access to grant. One of KDBUS_POLICY_*
- * @id:			For KDBUS_POLICY_ACCESS_USER, the uid
- *			For KDBUS_POLICY_ACCESS_GROUP, the gid
+ * @uid:		For KDBUS_POLICY_ACCESS_USER, the global uid
+ * @gid:		For KDBUS_POLICY_ACCESS_GROUP, the global gid
  * @list:		List entry item for the entry's list
  *
  * This is the internal version of struct kdbus_policy_db_access.
  */
 struct kdbus_policy_db_entry_access {
-	u8 type;	/* USER, GROUP, WORLD */
-	u8 access;	/* OWN, TALK, SEE */
-	u64 id;		/* uid, gid, 0 */
+	u8 type;		/* USER, GROUP, WORLD */
+	u8 access;		/* OWN, TALK, SEE */
+	union {
+		kuid_t uid;	/* global uid */
+		kgid_t gid;	/* global gid */
+	};
 	struct list_head list;
 };
 
@@ -189,30 +193,30 @@ static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
 {
 	struct kdbus_policy_db_entry_access *a;
 	struct group_info *group_info;
-	struct user_namespace *ns;
-	uid_t uid;
 	int i;
 
 	if (!e)
 		return -EPERM;
 
-	ns = cred->user_ns;
 	group_info = cred->group_info;
-	uid = from_kuid(ns, cred->uid);
 
 	list_for_each_entry(a, &e->access_list, list) {
 		if (a->access >= access) {
 			switch (a->type) {
 			case KDBUS_POLICY_ACCESS_USER:
-				if (a->id == uid)
+				if (uid_eq(cred->uid, a->uid))
 					return 0;
 				break;
 			case KDBUS_POLICY_ACCESS_GROUP:
+				if (gid_eq(cred->gid, a->gid))
+					return 0;
+
 				for (i = 0; i < group_info->ngroups; i++) {
 					kgid_t gid = GROUP_AT(group_info, i);
-					if (a->id == from_kgid_munged(ns, gid))
+					if (gid_eq(gid, a->gid))
 						return 0;
 				}
+
 				break;
 			case KDBUS_POLICY_ACCESS_WORLD:
 				return 0;
@@ -444,6 +448,49 @@ struct kdbus_policy_list_entry {
 	struct list_head entry;
 };
 
+/*
+ * Convert user provided policy access to internal kdbus policy
+ * access
+ */
+static int
+kdbus_policy_make_access(const struct kdbus_policy_access *uaccess,
+			 struct kdbus_policy_db_entry_access **entry)
+{
+	int ret;
+	struct kdbus_policy_db_entry_access *a;
+
+	a = kzalloc(sizeof(*a), GFP_KERNEL);
+	if (!a)
+		return -ENOMEM;
+
+	ret = -EINVAL;
+	switch (uaccess->type) {
+	case KDBUS_POLICY_ACCESS_USER:
+		a->uid = make_kuid(current_user_ns(), uaccess->id);
+		if (!uid_valid(a->uid))
+			goto err;
+
+		break;
+	case KDBUS_POLICY_ACCESS_GROUP:
+		a->gid = make_kgid(current_user_ns(), uaccess->id);
+		if (!gid_valid(a->gid))
+			goto err;
+
+		break;
+	}
+
+	a->type = uaccess->type;
+	a->access = uaccess->access;
+
+	*entry = a;
+
+	return 0;
+
+err:
+	kfree(a);
+	return ret;
+}
+
 /**
  * kdbus_policy_set() - set a connection's policy rules
  * @db:				The policy database
@@ -571,15 +618,10 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 				goto exit;
 			}
 
-			a = kzalloc(sizeof(*a), GFP_KERNEL);
-			if (!a) {
-				ret = -ENOMEM;
+			ret = kdbus_policy_make_access(&item->policy_access, &a);
+			if (ret < 0)
 				goto exit;
-			}
 
-			a->type = item->policy_access.type;
-			a->access = item->policy_access.access;
-			a->id = item->policy_access.id;
 			list_add_tail(&a->list, &e->access_list);
 			break;
 		}
