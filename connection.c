@@ -39,87 +39,15 @@
 #include "notify.h"
 #include "policy.h"
 #include "util.h"
+#include "queue.h"
 
 struct kdbus_conn_reply;
-
-/**
- * struct kdbus_conn_queue - messages waiting to be read
- * @entry:		Entry in the connection's list
- * @prio_node:		Entry in the priority queue tree
- * @prio_entry:		Queue tree node entry in the list of one priority
- * @priority:		Queueing priority of the message
- * @slice:		Allocated slice in the receiver's pool
- * @memfds:		Arrays of offsets where to update the installed
- *			fd number
- * @memfds_fp:		Array memfd files queued up for this message
- * @memfds_count:	Number of memfds
- * @fds:		Offset to array where to update the installed fd number
- * @fds_fp:		Array of passed files queued up for this message
- * @fds_count:		Number of files
- * @src_id:		The ID of the sender
- * @cookie:		Message cookie, used for replies
- * @dst_name_id:	The sequence number of the name this message is
- *			addressed to, 0 for messages sent to an ID
- * @reply:		The reply block if a reply to this message is expected.
- * @user:		Index in per-user message counter, -1 for unused
- * @creds_item_offset:	The offset of the creds item inside the slice, if
- *			the user requested this metainfo in its attach flags.
- *			0 if unused.
- * @auxgrp_item_offset:	The offset of the auxgrp item inside the slice, if
- *			the user requested this metainfo in its attach flags.
- *			0 if unused.
- * @audit_item_offset:	The offset of the audit item inside the slice, if
- *			the user requested this metainfo in its attach flags.
- *			0 if unused.
- * @uid:		The UID to patch into the final message
- * @gid:		The GID to patch into the final message
- * @pid:		The PID to patch into the final message
- * @tid:		The TID to patch into the final message
- * @auxgrps:		An array storing the sender's aux groups, in kgid_t.
- * 			This information is translated into the user's
- * 			namespace when the message is installed.
- * @auxgroup_count:	The number of items in @auxgrps.
- * @loginuid:		The audit login uid to patch into the final
- *			message
- */
-struct kdbus_conn_queue {
-	struct list_head entry;
-	struct rb_node prio_node;
-	struct list_head prio_entry;
-	s64 priority;
-	struct kdbus_pool_slice *slice;
-	size_t *memfds;
-	struct file **memfds_fp;
-	unsigned int memfds_count;
-	size_t fds;
-	struct file **fds_fp;
-	unsigned int fds_count;
-	u64 src_id;
-	u64 cookie;
-	u64 dst_name_id;
-	struct kdbus_conn_reply *reply;
-	int user;
-	off_t creds_item_offset;
-	off_t auxgrp_item_offset;
-	off_t audit_item_offset;
-
-	/* to honor namespaces, we have to store the following here */
-	kuid_t uid;
-	kgid_t gid;
-	struct pid *pid;
-	struct pid *tid;
-
-	kgid_t *auxgrps;
-	unsigned int auxgrps_count;
-
-	kuid_t loginuid;
-};
 
 /**
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
  * @entry:		The entry of the connection's reply_list
  * @conn:		The counterpart connection that is expected to answer
- * @queue:		The queue item that is prepared by the replying
+ * @queue_enty:		The queue enty item that is prepared by the replying
  *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
@@ -131,7 +59,7 @@ struct kdbus_conn_queue {
 struct kdbus_conn_reply {
 	struct list_head entry;
 	struct kdbus_conn *conn;
-	struct kdbus_conn_queue *queue;
+	struct kdbus_queue_entry *queue_entry;
 	u64 deadline_ns;
 	u64 cookie;
 	wait_queue_head_t wait;
@@ -157,556 +85,6 @@ static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
 	wake_up_interruptible(&reply->wait);
 }
 
-static void kdbus_conn_fds_unref(struct kdbus_conn_queue *queue)
-{
-	unsigned int i;
-
-	if (!queue->fds_fp)
-		return;
-
-	for (i = 0; i < queue->fds_count; i++) {
-		if (!queue->fds_fp[i])
-			break;
-
-		fput(queue->fds_fp[i]);
-	}
-
-	kfree(queue->fds_fp);
-	queue->fds_fp = NULL;
-
-	queue->fds_count = 0;
-}
-
-/* grab references of passed-in FDS for the queued message */
-static int kdbus_conn_fds_ref(struct kdbus_conn_queue *queue,
-			      const int *fds, unsigned int fds_count)
-{
-	unsigned int i;
-
-	queue->fds_fp = kcalloc(fds_count, sizeof(struct file *), GFP_KERNEL);
-	if (!queue->fds_fp)
-		return -ENOMEM;
-
-	for (i = 0; i < fds_count; i++) {
-		queue->fds_fp[i] = fget(fds[i]);
-		if (!queue->fds_fp[i]) {
-			kdbus_conn_fds_unref(queue);
-			return -EBADF;
-		}
-	}
-
-	return 0;
-}
-
-static void kdbus_conn_memfds_unref(struct kdbus_conn_queue *queue)
-{
-	unsigned int i;
-
-	if (!queue->memfds_fp)
-		return;
-
-	for (i = 0; i < queue->memfds_count; i++) {
-		if (!queue->memfds_fp[i])
-			break;
-
-		fput(queue->memfds_fp[i]);
-	}
-
-	kfree(queue->memfds_fp);
-	queue->memfds_fp = NULL;
-
-	kfree(queue->memfds);
-	queue->memfds = NULL;
-
-	queue->memfds_count = 0;
-}
-
-/* Validate the state of the incoming PAYLOAD_MEMFD, and grab a reference
- * to put it into the receiver's queue. */
-static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
-				struct file **file)
-{
-	struct file *fp;
-	int seals, mask;
-	int ret;
-
-	fp = fget(item->memfd.fd);
-	if (!fp)
-		return -EBADF;
-
-	/*
-	 * We only accept a sealed memfd file whose content cannot be altered
-	 * by the sender or anybody else while it is shared or in-flight.
-	 * Other files need to be passed with KDBUS_MSG_FDS.
-	 */
-	seals = shmem_get_seals(fp);
-	if (seals < 0)
-		return -EMEDIUMTYPE;
-
-	mask = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
-	if ((seals & mask) != mask) {
-		ret = -ETXTBSY;
-		goto exit_unref;
-	}
-
-	/* The specified size in the item cannot be larger than the file. */
-	if (item->memfd.size > i_size_read(file_inode(fp))) {
-		ret = -EBADF;
-		goto exit_unref;
-	}
-
-	*file = fp;
-	return 0;
-
-exit_unref:
-	fput(fp);
-	return ret;
-}
-
-static int kdbus_conn_payload_add(struct kdbus_conn_queue *queue,
-				  const struct kdbus_kmsg *kmsg,
-				  size_t items, size_t vec_data)
-{
-	const struct kdbus_item *item;
-	int ret;
-
-	if (kmsg->memfds_count > 0) {
-		queue->memfds = kcalloc(kmsg->memfds_count,
-					sizeof(size_t), GFP_KERNEL);
-		if (!queue->memfds)
-			return -ENOMEM;
-
-		queue->memfds_fp = kcalloc(kmsg->memfds_count,
-					   sizeof(struct file *), GFP_KERNEL);
-		if (!queue->memfds_fp)
-			return -ENOMEM;
-	}
-
-	KDBUS_ITEMS_FOREACH(item, kmsg->msg.items,
-			    KDBUS_ITEMS_SIZE(&kmsg->msg, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_PAYLOAD_VEC: {
-			char tmp[KDBUS_ITEM_HEADER_SIZE +
-				 sizeof(struct kdbus_vec)];
-			struct kdbus_item *it = (struct kdbus_item *)tmp;
-
-			/* add item */
-			it->type = KDBUS_ITEM_PAYLOAD_OFF;
-			it->size = sizeof(tmp);
-
-			/* a NULL address specifies a \0-bytes record */
-			if (KDBUS_PTR(item->vec.address))
-				it->vec.offset = vec_data;
-			else
-				it->vec.offset = ~0ULL;
-			it->vec.size = item->vec.size;
-			ret = kdbus_pool_slice_copy(queue->slice, items,
-						    it, it->size);
-			if (ret < 0)
-				return ret;
-			items += KDBUS_ALIGN8(it->size);
-
-			/* \0-bytes record */
-			if (!KDBUS_PTR(item->vec.address)) {
-				size_t pad = item->vec.size % 8;
-
-				if (pad == 0)
-					break;
-
-				/*
-				 * Preserve the alignment for the next payload
-				 * record in the output buffer; write as many
-				 * null-bytes to the buffer which the \0-bytes
-				 * record would have shifted the alignment.
-				 */
-				kdbus_pool_slice_copy(queue->slice, vec_data,
-						      "\0\0\0\0\0\0\0", pad);
-				vec_data += pad;
-				break;
-			}
-
-			/* copy kdbus_vec data from sender to receiver */
-			ret = kdbus_pool_slice_copy_user(queue->slice, vec_data,
-				KDBUS_PTR(item->vec.address), item->vec.size);
-			if (ret < 0)
-				return ret;
-
-			vec_data += item->vec.size;
-			break;
-		}
-
-		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			char tmp[KDBUS_ITEM_HEADER_SIZE +
-				 sizeof(struct kdbus_memfd)];
-			struct kdbus_item *it = (struct kdbus_item *)tmp;
-			struct file *fp;
-			size_t memfd;
-
-			/* add item */
-			it->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-			it->size = sizeof(tmp);
-			it->memfd.size = item->memfd.size;
-			it->memfd.fd = -1;
-			ret = kdbus_pool_slice_copy(queue->slice, items,
-						    it, it->size);
-			if (ret < 0)
-				return ret;
-
-			/* grab reference of incoming file */
-			ret = kdbus_conn_memfd_ref(item, &fp);
-			if (ret < 0)
-				return ret;
-
-			/*
-			 * Remember the file and the location of the fd number
-			 * which will be updated at RECV time.
-			 */
-			memfd = items + offsetof(struct kdbus_item, memfd.fd);
-			queue->memfds[queue->memfds_count] = memfd;
-			queue->memfds_fp[queue->memfds_count] = fp;
-			queue->memfds_count++;
-
-			items += KDBUS_ALIGN8(it->size);
-			break;
-		}
-
-		default:
-			break;
-		}
-	}
-
-	return 0;
-}
-
-/* add queue entry to connection, maintain priority queue */
-static void kdbus_conn_queue_add(struct kdbus_conn *conn,
-				 struct kdbus_conn_queue *queue)
-{
-	struct rb_node **n, *pn = NULL;
-	bool highest = true;
-
-	/* sort into priority queue tree */
-	n = &conn->msg_prio_queue.rb_node;
-	while (*n) {
-		struct kdbus_conn_queue *q;
-
-		pn = *n;
-		q = rb_entry(pn, struct kdbus_conn_queue, prio_node);
-
-		/* existing node for this priority, add to its list */
-		if (likely(queue->priority == q->priority)) {
-			list_add_tail(&queue->prio_entry, &q->prio_entry);
-			goto prio_done;
-		}
-
-		if (queue->priority < q->priority) {
-			n = &pn->rb_left;
-		} else {
-			n = &pn->rb_right;
-			highest = false;
-		}
-	}
-
-	/* cache highest-priority entry */
-	if (highest)
-		conn->msg_prio_highest = &queue->prio_node;
-
-	/* new node for this priority */
-	rb_link_node(&queue->prio_node, pn, n);
-	rb_insert_color(&queue->prio_node, &conn->msg_prio_queue);
-	INIT_LIST_HEAD(&queue->prio_entry);
-
-prio_done:
-	/* add to unsorted fifo list */
-	list_add_tail(&queue->entry, &conn->msg_list);
-	conn->msg_count++;
-}
-
-/* remove queue entry from connection, maintain priority queue */
-static void kdbus_conn_queue_remove(struct kdbus_conn *conn,
-				    struct kdbus_conn_queue *queue)
-{
-	list_del(&queue->entry);
-	conn->msg_count--;
-
-	/* user quota */
-	if (queue->user >= 0) {
-		BUG_ON(conn->msg_users[queue->user] == 0);
-		conn->msg_users[queue->user]--;
-		queue->user = -1;
-	}
-
-	/* the queue is empty, remove the user quota accounting */
-	if (conn->msg_count == 0 && conn->msg_users_max > 0) {
-		kfree(conn->msg_users);
-		conn->msg_users = NULL;
-		conn->msg_users_max = 0;
-	}
-
-	if (list_empty(&queue->prio_entry)) {
-		/*
-		 * Single entry for this priority, update cached
-		 * highest-priority entry, remove the tree node.
-		 */
-		if (conn->msg_prio_highest == &queue->prio_node)
-			conn->msg_prio_highest = rb_next(&queue->prio_node);
-
-		rb_erase(&queue->prio_node, &conn->msg_prio_queue);
-	} else {
-		struct kdbus_conn_queue *q;
-
-		/*
-		 * Multiple entries for this priority entry, get next one in
-		 * the list. Update cached highest-priority entry, store the
-		 * new one as the tree node.
-		 */
-		q = list_first_entry(&queue->prio_entry,
-				     struct kdbus_conn_queue, prio_entry);
-		list_del(&queue->prio_entry);
-
-		if (conn->msg_prio_highest == &queue->prio_node)
-			conn->msg_prio_highest = &q->prio_node;
-
-		rb_replace_node(&queue->prio_node, &q->prio_node,
-				&conn->msg_prio_queue);
-	}
-}
-
-static void kdbus_conn_queue_cleanup(struct kdbus_conn_queue *queue)
-{
-	if (queue->pid)
-		put_pid(queue->pid);
-	if (queue->tid)
-		put_pid(queue->tid);
-	if (queue->auxgrps)
-		kfree(queue->auxgrps);
-
-	kdbus_conn_memfds_unref(queue);
-	kdbus_conn_fds_unref(queue);
-	kfree(queue);
-}
-
-/* enqueue a message into the receiver's pool */
-static int kdbus_conn_queue_alloc(struct kdbus_conn *conn,
-				  const struct kdbus_kmsg *kmsg,
-				  struct kdbus_conn_queue **q)
-{
-	struct kdbus_conn_queue *queue;
-	u64 msg_size;
-	size_t size;
-	size_t dst_name_len = 0;
-	size_t payloads = 0;
-	size_t fds = 0;
-	size_t meta_off = 0;
-	size_t vec_data;
-	size_t want, have;
-	int ret = 0;
-
-	BUG_ON(!mutex_is_locked(&conn->lock));
-
-	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))
-		return -ECOMM;
-
-	queue = kzalloc(sizeof(*queue), GFP_KERNEL);
-	if (!queue)
-		return -ENOMEM;
-
-	queue->user = -1;
-
-	/* copy message properties we need for the queue management */
-	queue->src_id = kmsg->msg.src_id;
-	queue->cookie = kmsg->msg.cookie;
-
-	/* space for the header */
-	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
-		size = kmsg->msg.size;
-	else
-		size = offsetof(struct kdbus_msg, items);
-	msg_size = size;
-
-	/* let the receiver know where the message was addressed to */
-	if (kmsg->dst_name) {
-		dst_name_len = strlen(kmsg->dst_name) + 1;
-		msg_size += KDBUS_ITEM_SIZE(dst_name_len);
-		queue->dst_name_id = kmsg->dst_name_id;
-	}
-
-	/* space for PAYLOAD items */
-	if ((kmsg->vecs_count + kmsg->memfds_count) > 0) {
-		payloads = msg_size;
-		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec)) *
-			    kmsg->vecs_count;
-		msg_size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd)) *
-			    kmsg->memfds_count;
-	}
-
-	/* space for FDS item */
-	if (kmsg->fds_count > 0) {
-		fds = msg_size;
-		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
-	}
-
-	/* space for metadata/credential items */
-	if (kmsg->meta && kmsg->meta->size > 0 &&
-	    kmsg->meta->domain == conn->meta->domain) {
-		meta_off = msg_size;
-		msg_size += kmsg->meta->size;
-	}
-
-	/* data starts after the message */
-	vec_data = KDBUS_ALIGN8(msg_size);
-
-	/* do not give out more than half of the remaining space */
-	want = vec_data + kmsg->vecs_size;
-	have = kdbus_pool_remain(conn->pool);
-	if (want < have && want > have / 2) {
-		ret = -EXFULL;
-		goto exit;
-	}
-
-	/* allocate the needed space in the pool of the receiver */
-	ret = kdbus_pool_slice_alloc(conn->pool, &queue->slice, want);
-	if (ret < 0)
-		goto exit;
-
-	/* copy the message header */
-	ret = kdbus_pool_slice_copy(queue->slice, 0, &kmsg->msg, size);
-	if (ret < 0)
-		goto exit_pool_free;
-
-	/* update the size */
-	ret = kdbus_pool_slice_copy(queue->slice, 0, &msg_size,
-				    sizeof(kmsg->msg.size));
-	if (ret < 0)
-		goto exit_pool_free;
-
-	if (dst_name_len  > 0) {
-		char tmp[KDBUS_ITEM_HEADER_SIZE + dst_name_len];
-		struct kdbus_item *it = (struct kdbus_item *)tmp;
-
-		it->size = KDBUS_ITEM_HEADER_SIZE + dst_name_len;
-		it->type = KDBUS_ITEM_DST_NAME;
-		memcpy(it->str, kmsg->dst_name, dst_name_len);
-
-		ret = kdbus_pool_slice_copy(queue->slice, size, it, it->size);
-		if (ret < 0)
-			goto exit_pool_free;
-	}
-
-	/* add PAYLOAD items */
-	if (payloads > 0) {
-		ret = kdbus_conn_payload_add(queue, kmsg, payloads, vec_data);
-		if (ret < 0)
-			goto exit_pool_free;
-	}
-
-	/* add a FDS item; the array content will be updated at RECV time */
-	if (kmsg->fds_count > 0) {
-		char tmp[KDBUS_ITEM_HEADER_SIZE];
-		struct kdbus_item *it = (struct kdbus_item *)tmp;
-
-		it->type = KDBUS_ITEM_FDS;
-		it->size = KDBUS_ITEM_HEADER_SIZE +
-			   (kmsg->fds_count * sizeof(int));
-		ret = kdbus_pool_slice_copy(queue->slice, fds,
-					    it, KDBUS_ITEM_HEADER_SIZE);
-		if (ret < 0)
-			goto exit_pool_free;
-
-		ret = kdbus_conn_fds_ref(queue, kmsg->fds, kmsg->fds_count);
-		if (ret < 0)
-			goto exit_pool_free;
-
-		/* remember the array to update at RECV */
-		queue->fds = fds + offsetof(struct kdbus_item, fds);
-		queue->fds_count = kmsg->fds_count;
-	}
-
-	/* append message metadata/credential items */
-	if (meta_off > 0) {
-		struct kdbus_meta *meta = kmsg->meta;
-
-		/*
-		 * If the receiver requested credential information, store the
-		 * offset to the item here, so we can patch in the namespace
-		 * translated versions later.	k
-		 */
-		if (meta->attached & KDBUS_ATTACH_CREDS) {
-			/* store kernel-view of the credentials */
-			queue->uid = current_uid();
-			queue->gid = current_gid();
-			queue->pid = get_task_pid(current, PIDTYPE_PID);
-			queue->tid = get_task_pid(current->group_leader,
-						  PIDTYPE_PID);
-
-			queue->creds_item_offset = meta_off +
-						   meta->creds_item_off;
-		}
-
-		if (meta->attached & KDBUS_ATTACH_AUXGROUPS) {
-			struct group_info *info;
-			struct kdbus_item *item;
-			size_t item_elements;
-			int i;
-
-			info = get_current_groups();
-
-			/*
-			 * In case the number of auxgroups changed since the
-			 * metadata element was composed, clamp the array
-			 * length.
-			 */
-			item = (struct kdbus_item *)
-				((u8 *) meta->data + meta->auxgrps_item_off);
-			item_elements = KDBUS_ITEM_PAYLOAD_SIZE(item) /
-					sizeof(__u64);
-			queue->auxgrps_count = min_t(unsigned int,
-						     item_elements,
-						     info->ngroups);
-
-			if (info->ngroups > 0) {
-				queue->auxgrps =
-					kcalloc(queue->auxgrps_count,
-						sizeof(kgid_t), GFP_KERNEL);
-				if (!queue->auxgrps) {
-					ret = -ENOMEM;
-					put_group_info(info);
-					goto exit_pool_free;
-				}
-
-				for (i = 0; i < queue->auxgrps_count; i++)
-					queue->auxgrps[i] = GROUP_AT(info, i);
-			}
-
-			put_group_info(info);
-			queue->auxgrp_item_offset = meta_off +
-						    meta->auxgrps_item_off;
-		}
-
-		if (meta->attached & KDBUS_ATTACH_AUDIT) {
-			queue->loginuid = audit_get_loginuid(current);
-			queue->audit_item_offset = meta_off +
-						   meta->audit_item_off;
-		}
-
-		ret = kdbus_pool_slice_copy(queue->slice, meta_off,
-					    kmsg->meta->data,
-					    kmsg->meta->size);
-		if (ret < 0)
-			goto exit_pool_free;
-	}
-
-	queue->priority = kmsg->msg.priority;
-	*q = queue;
-	return 0;
-
-exit_pool_free:
-	kdbus_pool_slice_free(queue->slice);
-exit:
-	kdbus_conn_queue_cleanup(queue);
-	return ret;
-}
-
 /*
  * Check for maximum number of messages per individual user. This
  * should prevent a single user from being able to fill the receiver's
@@ -714,7 +92,7 @@ exit:
  */
 static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 				       const struct kdbus_conn *conn_src,
-				       struct kdbus_conn_queue *queue)
+				       struct kdbus_queue_entry *entry)
 {
 	unsigned int user;
 
@@ -729,7 +107,7 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 	 * per individual user, we start to count all further messages
 	 * from the sending users.
 	 */
-	if (conn->msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
+	if (conn->queue.msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
 		return 0;
 
 	user = conn_src->user->idr;
@@ -755,59 +133,8 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		return -ENOBUFS;
 
 	conn->msg_users[user]++;
-	queue->user = user;
+	entry->user = user;
 	return 0;
-}
-
-/* enqueue a message into the receiver's pool */
-static int kdbus_conn_queue_insert(struct kdbus_conn *conn,
-				   struct kdbus_conn *conn_src,
-				   const struct kdbus_kmsg *kmsg,
-				   struct kdbus_conn_reply *reply)
-{
-	struct kdbus_conn_queue *queue;
-	int ret;
-
-	/* limit the maximum number of queued messages */
-	if (!kdbus_bus_uid_is_privileged(conn->bus) &&
-	    conn->msg_count > KDBUS_CONN_MAX_MSGS)
-		return -ENOBUFS;
-
-	mutex_lock(&conn->lock);
-	if (!kdbus_conn_active(conn)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
-	ret = kdbus_conn_queue_alloc(conn, kmsg, &queue);
-	if (ret < 0)
-		goto exit_unlock;
-
-	/* limit the number of queued messages from the same individual user */
-	ret = kdbus_conn_queue_user_quota(conn, conn_src, queue);
-	if (ret < 0)
-		goto exit_queue_free;
-
-	/*
-	 * Remember the the reply associated with this queue entry, so we can
-	 * move the reply entry's connection when a connection moves from an
-	 * activator to an implementor.
-	 */
-	queue->reply = reply;
-
-	/* link the message into the receiver's queue */
-	kdbus_conn_queue_add(conn, queue);
-	mutex_unlock(&conn->lock);
-
-	/* wake up poll() */
-	wake_up_interruptible(&conn->wait);
-	return 0;
-
-exit_queue_free:
-	kdbus_conn_queue_cleanup(queue);
-exit_unlock:
-	mutex_unlock(&conn->lock);
-	return ret;
 }
 
 static void kdbus_conn_work(struct work_struct *work)
@@ -878,218 +205,6 @@ static void kdbus_conn_work(struct work_struct *work)
 		kdbus_conn_reply_free(reply);
 }
 
-static int kdbus_conn_fds_install(struct kdbus_conn_queue *queue,
-				  int **ret_fds)
-{
-	unsigned int i;
-	int ret, *fds;
-	size_t size;
-
-	/* get array of file descriptors */
-	size = queue->fds_count * sizeof(int);
-	fds = kmalloc(size, GFP_KERNEL);
-	if (!fds)
-		return -ENOMEM;
-
-	/* allocate new file descriptors in the receiver's process */
-	for (i = 0; i < queue->fds_count; i++) {
-		fds[i] = get_unused_fd();
-		if (fds[i] < 0) {
-			ret = fds[i];
-			goto remove_unused;
-		}
-	}
-
-	/* copy the array into the message item */
-	ret = kdbus_pool_slice_copy(queue->slice, queue->fds, fds, size);
-	if (ret < 0)
-		goto remove_unused;
-
-	/* install files in the receiver's process */
-	for (i = 0; i < queue->fds_count; i++)
-		fd_install(fds[i], get_file(queue->fds_fp[i]));
-
-	kfree(fds);
-	return 0;
-
-remove_unused:
-	for (i = 0; i < queue->fds_count; i++) {
-		if (fds[i] < 0)
-			break;
-
-		put_unused_fd(fds[i]);
-	}
-
-	*ret_fds = fds;
-	return ret;
-}
-
-static int kdbus_conn_memfds_install(struct kdbus_conn_queue *queue,
-				     int **memfds)
-{
-	int *fds;
-	unsigned int i;
-	size_t size;
-	int ret = 0;
-
-	size = queue->memfds_count * sizeof(int);
-	fds = kmalloc(size, GFP_KERNEL);
-	if (!fds)
-		return -ENOMEM;
-
-	/* allocate new file descriptors in the receiver's process */
-	for (i = 0; i < queue->memfds_count; i++) {
-		fds[i] = get_unused_fd();
-		if (fds[i] < 0) {
-			ret = fds[i];
-			goto remove_unused;
-		}
-	}
-
-	/*
-	 * Update the file descriptor number in the items. We remembered
-	 * the locations of the values in the buffer.
-	 */
-	for (i = 0; i < queue->memfds_count; i++) {
-		ret = kdbus_pool_slice_copy(queue->slice, queue->memfds[i],
-					     &fds[i], sizeof(int));
-		if (ret < 0)
-			goto remove_unused;
-	}
-
-	/* install files in the receiver's process */
-	for (i = 0; i < queue->memfds_count; i++)
-		fd_install(fds[i], get_file(queue->memfds_fp[i]));
-
-	*memfds = fds;
-	return 0;
-
-remove_unused:
-	for (i = 0; i < queue->memfds_count; i++) {
-		if (fds[i] < 0)
-			break;
-
-		put_unused_fd(fds[i]);
-	}
-
-	kfree(fds);
-	*memfds = NULL;
-	return ret;
-}
-
-static int kdbus_conn_creds_install(struct kdbus_conn_queue *queue)
-{
-	int ret;
-	struct kdbus_creds creds = {};
-	struct user_namespace *current_ns = current_user_ns();
-	off_t off = queue->creds_item_offset +
-		    offsetof(struct kdbus_item, creds);
-
-	creds.uid = from_kuid_munged(current_ns, queue->uid);
-	creds.gid = from_kgid_munged(current_ns, queue->gid);
-	creds.pid = pid_nr_ns(queue->pid, task_active_pid_ns(current));
-	creds.tid = pid_nr_ns(queue->tid, task_active_pid_ns(current));
-
-	ret = kdbus_pool_slice_copy_user(queue->slice, off,
-					 &creds, sizeof(creds));
-
-	return ret;
-}
-
-static int kdbus_conn_audit_install(struct kdbus_conn_queue *queue)
-{
-	int ret;
-	u64 loginuid;
-	off_t off = queue->audit_item_offset +
-		    offsetof(struct kdbus_item, audit) +
-		    offsetof(struct kdbus_audit, loginuid);
-
-	loginuid = from_kuid_munged(current_user_ns(), queue->loginuid);
-
-	ret = kdbus_pool_slice_copy_user(queue->slice, off,
-					 &loginuid, sizeof(loginuid));
-
-	return ret;
-}
-
-static int kdbus_conn_msg_install(struct kdbus_conn_queue *queue)
-{
-	int *memfds = NULL;
-	int *fds = NULL;
-	unsigned int i;
-	int ret = 0;
-
-	/*
-	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
-	 * the list of file descriptors to be able to cleanup on error.
-	 */
-	if (queue->memfds_count > 0) {
-		ret = kdbus_conn_memfds_install(queue, &memfds);
-		if (ret < 0)
-			return ret;
-	}
-
-	/* install KDBUS_MSG_FDS file descriptors */
-	if (queue->fds_count > 0) {
-		ret = kdbus_conn_fds_install(queue, &fds);
-		if (ret < 0)
-			goto exit_rewind_memfds;
-	}
-
-	if (queue->creds_item_offset) {
-		ret = kdbus_conn_creds_install(queue);
-		if (ret < 0)
-			goto exit_rewind_fds;
-	}
-
-	if (queue->auxgrp_item_offset) {
-		size_t size = sizeof(__u64) * queue->auxgrps_count;
-		off_t off = queue->auxgrp_item_offset +
-			    offsetof(struct kdbus_item, data64);
-		__u64 *gid;
-
-		gid = kmalloc(size, GFP_KERNEL);
-		if (!gid) {
-			ret = -ENOMEM;
-			goto exit_rewind_fds;
-		}
-
-		for (i = 0; i < queue->auxgrps_count; i++) {
-			gid[i] = from_kgid(current_user_ns(),
-					   queue->auxgrps[i]);
-		}
-
-		ret = kdbus_pool_slice_copy_user(queue->slice, off, gid, size);
-		kfree(gid);
-		if (ret < 0)
-			goto exit_rewind_fds;
-	}
-
-	if (queue->audit_item_offset) {
-		ret = kdbus_conn_audit_install(queue);
-		if (ret < 0)
-			goto exit_rewind_fds;
-	}
-
-	kfree(fds);
-	kfree(memfds);
-	kdbus_pool_slice_flush(queue->slice);
-
-	return 0;
-
-exit_rewind_fds:
-	for (i = 0; i < queue->fds_count; i++)
-		sys_close(fds[i]);
-	kfree(fds);
-
-exit_rewind_memfds:
-	for (i = 0; i < queue->memfds_count; i++)
-		sys_close(memfds[i]);
-	kfree(memfds);
-
-	return ret;
-}
-
 /**
  * kdbus_cmd_msg_recv() - receive a message from the queue
  * @conn:		Connection to work on
@@ -1100,56 +215,40 @@ exit_rewind_memfds:
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
-	struct kdbus_conn_queue *queue = NULL;
-	int ret = 0;
+	struct kdbus_queue_entry *entry = NULL;
+	int ret;
+
+	if (recv->offset > 0)
+		return -EINVAL;
 
 	mutex_lock(&conn->lock);
-	if (conn->msg_count == 0) {
-		ret = -EAGAIN;
+	ret = kdbus_queue_entry_peek(&conn->queue,
+				     recv->priority,
+				     recv->flags & KDBUS_RECV_USE_PRIORITY,
+				     &entry);
+	if (ret < 0)
 		goto exit_unlock;
-	}
 
-	if (recv->offset > 0) {
-		ret = -EINVAL;
-		goto exit_unlock;
-	}
-
-	if (recv->flags & KDBUS_RECV_USE_PRIORITY) {
-		/* get next message with highest priority */
-		queue = rb_entry(conn->msg_prio_highest,
-				 struct kdbus_conn_queue, prio_node);
-
-		/* no entry with the requested priority */
-		if (queue->priority > recv->priority) {
-			ret = -ENOMSG;
-			goto exit_unlock;
-		}
-	} else {
-		/* ignore the priority, return the next entry in the queue */
-		queue = list_first_entry(&conn->msg_list,
-					 struct kdbus_conn_queue, entry);
-	}
-
-	BUG_ON(!queue);
+	BUG_ON(!entry);
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
 		struct kdbus_conn_reply *reply = NULL;
 		bool reply_found = false;
 
-		if (queue->reply) {
+		if (entry->reply) {
 			struct kdbus_conn_reply *r;
 
 			/*
 			 * Walk the list of pending replies and see if the
-			 * one attached to this queue item is stil there.
+			 * one attached to this entry item is stil there.
 			 * It might have been removed by an incoming reply,
 			 * and we currently don't track reply entries in that
 			 * direction in order to prevent potentially dangling
 			 * pointers.
 			 */
 			list_for_each_entry(r, &conn->reply_list, entry) {
-				if (r == queue->reply) {
+				if (r == entry->reply) {
 					reply_found = true;
 					break;
 				}
@@ -1157,32 +256,32 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		}
 
 		if (reply_found) {
-			if (queue->reply->sync) {
-				kdbus_conn_reply_sync(queue->reply, -EPIPE);
+			if (entry->reply->sync) {
+				kdbus_conn_reply_sync(entry->reply, -EPIPE);
 			} else {
-				list_del(&queue->reply->entry);
-				reply = queue->reply;
+				list_del(&entry->reply->entry);
+				reply = entry->reply;
 			}
 
 			kdbus_notify_reply_dead(conn->bus,
-						queue->src_id,
-						queue->cookie);
+						entry->src_id,
+						entry->cookie);
 		}
 
-		kdbus_conn_queue_remove(conn, queue);
-		kdbus_pool_slice_free(queue->slice);
+		kdbus_queue_entry_remove(conn, entry);
+		kdbus_pool_slice_free(entry->slice);
 		mutex_unlock(&conn->lock);
 
 		if (reply)
 			kdbus_conn_reply_free(reply);
 
-		kdbus_conn_queue_cleanup(queue);
+		kdbus_queue_entry_free(entry);
 
 		goto exit;
 	}
 
 	/* Give the offset back to the caller. */
-	recv->offset = kdbus_pool_slice_offset(queue->slice);
+	recv->offset = kdbus_pool_slice_offset(entry->slice);
 
 	/*
 	 * Just return the location of the next message. Do not install
@@ -1194,13 +293,13 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	 * not with peek.
 	 */
 	if (recv->flags & KDBUS_RECV_PEEK) {
-		kdbus_pool_slice_flush(queue->slice);
+		kdbus_pool_slice_flush(entry->slice);
 		goto exit_unlock;
 	}
 
-	ret = kdbus_conn_msg_install(queue);
-	kdbus_conn_queue_remove(conn, queue);
-	kdbus_conn_queue_cleanup(queue);
+	ret = kdbus_queue_entry_install(entry);
+	kdbus_queue_entry_remove(conn, entry);
+	kdbus_queue_entry_free(entry);
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
@@ -1381,6 +480,62 @@ exit_unlock:
 	return ret;
 }
 
+/* enqueue a message into the receiver's pool */
+static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
+				   struct kdbus_conn *conn_src,
+				   const struct kdbus_kmsg *kmsg,
+				   struct kdbus_conn_reply *reply)
+{
+	struct kdbus_queue_entry *entry;
+	int ret;
+
+	/* limit the maximum number of queued messages */
+	if (!kdbus_bus_uid_is_privileged(conn->bus) &&
+	    conn->queue.msg_count > KDBUS_CONN_MAX_MSGS)
+		return -ENOBUFS;
+
+	mutex_lock(&conn->lock);
+	if (!kdbus_conn_active(conn)) {
+		ret = -ECONNRESET;
+		goto exit_unlock;
+	}
+
+	if (kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD)) {
+		ret = -ECOMM;
+		goto exit_unlock;
+	}
+
+	ret = kdbus_queue_entry_alloc(conn, kmsg, &entry);
+	if (ret < 0)
+		goto exit_unlock;
+
+	/* limit the number of queued messages from the same individual user */
+	ret = kdbus_conn_queue_user_quota(conn, conn_src, entry);
+	if (ret < 0)
+		goto exit_queue_free;
+
+	/*
+	 * Remember the the reply associated with this queue entry, so we can
+	 * move the reply entry's connection when a connection moves from an
+	 * activator to an implementor.
+	 */
+	entry->reply = reply;
+
+	/* link the message into the receiver's entry */
+	kdbus_queue_entry_add(&conn->queue, entry);
+	mutex_unlock(&conn->lock);
+
+	/* wake up poll() */
+	wake_up_interruptible(&conn->wait);
+	return 0;
+
+exit_queue_free:
+	kdbus_queue_entry_free(entry);
+exit_unlock:
+	mutex_unlock(&conn->lock);
+	return ret;
+}
+
 /**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
@@ -1445,7 +600,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						  kmsg->seq,
 						  conn_dst->attach_flags);
 
-			kdbus_conn_queue_insert(conn_dst, conn_src, kmsg, NULL);
+			kdbus_conn_entry_insert(conn_dst, conn_src, kmsg, NULL);
 		}
 		mutex_unlock(&bus->lock);
 
@@ -1531,8 +686,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		mutex_lock(&conn_dst->lock);
 		if (kdbus_conn_active(conn_dst))
-			ret = kdbus_conn_queue_alloc(conn_dst, kmsg,
-						     &reply_wake->queue);
+			ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
+						     &reply_wake->queue_entry);
 		else
 			ret = -ECONNRESET;
 
@@ -1543,7 +698,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * Otherwise, put it in the queue and wait for the connection
 		 * to dequeue and receive the message.
 		 */
-		ret = kdbus_conn_queue_insert(conn_dst, conn_src,
+		ret = kdbus_conn_entry_insert(conn_dst, conn_src,
 					      kmsg, reply_wait);
 	}
 
@@ -1562,13 +717,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		if (conn_src)
 			kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 					  c->attach_flags);
-		kdbus_conn_queue_insert(c, NULL, kmsg, NULL);
+		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
 	}
 	mutex_unlock(&bus->lock);
 
 	if (sync) {
 		int r;
-		struct kdbus_conn_queue *queue;
+		struct kdbus_queue_entry *entry;
 		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
 
 		BUG_ON(!reply_wait);
@@ -1600,14 +755,14 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 
 		mutex_lock(&conn_src->lock);
-		queue = reply_wait->queue;
-		if (queue) {
+		entry = reply_wait->queue_entry;
+		if (entry) {
 			if (ret == 0)
-				ret = kdbus_conn_msg_install(queue);
+				ret = kdbus_queue_entry_install(entry);
 
 			kmsg->msg.offset_reply =
-				kdbus_pool_slice_offset(queue->slice);
-			kdbus_conn_queue_cleanup(queue);
+				kdbus_pool_slice_offset(entry->slice);
+			kdbus_queue_entry_free(entry);
 		}
 		mutex_unlock(&conn_src->lock);
 
@@ -1636,7 +791,7 @@ exit_unref:
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 {
 	struct kdbus_conn_reply *reply, *reply_tmp;
-	struct kdbus_conn_queue *queue, *tmp;
+	struct kdbus_queue_entry *entry, *tmp;
 	LIST_HEAD(reply_list);
 
 	mutex_lock(&conn->lock);
@@ -1645,7 +800,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		return -EALREADY;
 	}
 
-	if (ensure_queue_empty && !list_empty(&conn->msg_list)) {
+	if (ensure_queue_empty && !list_empty(&conn->queue.msg_list)) {
 		mutex_unlock(&conn->lock);
 		return -EBUSY;
 	}
@@ -1675,14 +830,14 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(queue, tmp, &conn->msg_list, entry) {
-		if (queue->reply)
-			kdbus_notify_reply_dead(conn->bus, queue->src_id,
-						queue->cookie);
+	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
+		if (entry->reply)
+			kdbus_notify_reply_dead(conn->bus, entry->src_id,
+						entry->cookie);
 
-		kdbus_conn_queue_remove(conn, queue);
-		kdbus_pool_slice_free(queue->slice);
-		kdbus_conn_queue_cleanup(queue);
+		kdbus_queue_entry_remove(conn, entry);
+		kdbus_pool_slice_free(entry->slice);
+		kdbus_queue_entry_free(entry);
 	}
 	list_splice_init(&conn->reply_list, &reply_list);
 	mutex_unlock(&conn->lock);
@@ -1709,7 +864,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		kdbus_conn_reply_free(reply);
 	}
 
-	/* wake up the queue so that users can get a POLLERR */
+	/* wake up the entry so that users can get a POLLERR */
 	wake_up_interruptible(&conn->wait);
 
 	kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_REMOVE, conn->id,
@@ -1751,7 +906,7 @@ static void __kdbus_conn_free(struct kref *kref)
 
 	BUG_ON(kdbus_conn_active(conn));
 	BUG_ON(delayed_work_pending(&conn->work));
-	BUG_ON(!list_empty(&conn->msg_list));
+	BUG_ON(!list_empty(&conn->queue.msg_list));
 	BUG_ON(!list_empty(&conn->names_list));
 	BUG_ON(!list_empty(&conn->names_queue_list));
 	BUG_ON(!list_empty(&conn->reply_list));
@@ -1821,7 +976,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src,
 			     u64 name_id)
 {
-	struct kdbus_conn_queue *q, *q_tmp;
+	struct kdbus_queue_entry *q, *q_tmp;
 	LIST_HEAD(reply_list);
 	LIST_HEAD(msg_list);
 	int ret = 0;
@@ -1832,8 +987,8 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
 	list_splice_init(&conn_src->reply_list, &reply_list);
-	list_for_each_entry_safe(q, q_tmp, &conn_src->msg_list, entry) {
-		kdbus_conn_queue_remove(conn_src, q);
+	list_for_each_entry_safe(q, q_tmp, &conn_src->queue.msg_list, entry) {
+		kdbus_queue_entry_remove(conn_src, q);
 		list_add_tail(&q->entry, &msg_list);
 	}
 	mutex_unlock(&conn_src->lock);
@@ -1846,7 +1001,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		/* our destination connection died, just drop all messages */
 		mutex_unlock(&conn_dst->lock);
 		list_for_each_entry_safe(q, q_tmp, &msg_list, entry)
-			kdbus_conn_queue_cleanup(q);
+			kdbus_queue_entry_free(q);
 		list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
 			kdbus_conn_reply_free(r);
 		return -ECONNRESET;
@@ -1860,9 +1015,9 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		ret = kdbus_pool_move_slice(conn_dst->pool, conn_src->pool,
 					    &q->slice);
 		if (ret < 0)
-			kdbus_conn_queue_cleanup(q);
+			kdbus_queue_entry_free(q);
 		else
-			kdbus_conn_queue_add(conn_dst, q);
+			kdbus_queue_entry_add(&conn_dst->queue, q);
 	}
 	list_splice(&reply_list, &conn_dst->reply_list);
 	mutex_unlock(&conn_dst->lock);
@@ -2210,8 +1365,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);
-	INIT_LIST_HEAD(&conn->msg_list);
-	conn->msg_prio_queue = RB_ROOT;
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->reply_list);
@@ -2219,6 +1372,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
 	conn->cred = get_current_cred();
 	init_waitqueue_head(&conn->wait);
+	kdbus_queue_init(&conn->queue);
 
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);

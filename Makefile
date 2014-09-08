@@ -12,6 +12,7 @@ kdbus$(EXT)-y := \
 	domain.o \
 	policy.o \
 	pool.o \
+	queue.o \
 	util.o
 
 obj-m += kdbus$(EXT).o

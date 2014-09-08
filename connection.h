@@ -17,6 +17,7 @@
 #include "util.h"
 #include "metadata.h"
 #include "pool.h"
+#include "queue.h"
 
 /**
  * enum kdbus_conn_type - type and state of connection
@@ -45,9 +46,6 @@ enum kdbus_conn_type {
  * @bus:		The bus this connection belongs to
  * @ep:			The endpoint this connection belongs to
  * @lock:		Connection data lock
- * @msg_list:		Queue of messages
- * @msg_prio_queue:	Tree of messages, sorted by priority
- * @msg_prio_highest:	Cached entry for highest priority (lowest value) node
  * @msg_users:		Array to account the number of queued messages per
  *			individual user
  * @msg_users_max:	Size of the users array
@@ -70,10 +68,10 @@ enum kdbus_conn_type {
  * @user:		Owner of the connection
  * @cred:		The credentials of the connection at creation time
  * @name_count:		Number of owned well-known names
- * @msg_count:		Number of queued messages
  * @reply_count:	Number of requests this connection has issued, and
  *			waits for replies from the peer
  * @wait:		Wake up this endpoint
+ * @queue:		The message queue associcated with this connection
  */
 struct kdbus_conn {
 	struct kref kref;
@@ -85,9 +83,6 @@ struct kdbus_conn {
 	struct kdbus_bus *bus;
 	struct kdbus_ep *ep;
 	struct mutex lock;
-	struct list_head msg_list;
-	struct rb_root msg_prio_queue;
-	struct rb_node *msg_prio_highest;
 	unsigned int *msg_users;
 	unsigned int msg_users_max;
 	struct hlist_node hentry;
@@ -105,13 +100,12 @@ struct kdbus_conn {
 	struct kdbus_domain_user *user;
 	const struct cred *cred;
 	size_t name_count;
-	size_t msg_count;
 	atomic_t reply_count;
 	wait_queue_head_t wait;
+	struct kdbus_queue queue;
 };
 
 struct kdbus_kmsg;
-struct kdbus_conn_queue;
 struct kdbus_name_registry;
 
 int kdbus_conn_new(struct kdbus_ep *ep,
