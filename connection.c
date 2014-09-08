@@ -1395,9 +1395,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 {
 	struct kdbus_conn_reply *reply_wait = NULL;
 	struct kdbus_conn_reply *reply_wake = NULL;
+	struct kdbus_name_entry *name_entry = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *c, *conn_dst = NULL;
-	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	int ret = 0;
@@ -1456,14 +1456,15 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		/* unicast message to well-known name */
 		BUG_ON(!kmsg->dst_name);
 
-		entry = kdbus_name_lock(bus->name_registry, kmsg->dst_name);
-		if (!entry)
+		name_entry = kdbus_name_lock(bus->name_registry,
+					     kmsg->dst_name);
+		if (!name_entry)
 			return -ESRCH;
 
-		if (!entry->conn && entry->activator)
-			conn_dst = kdbus_conn_ref(entry->activator);
+		if (!name_entry->conn && name_entry->activator)
+			conn_dst = kdbus_conn_ref(name_entry->activator);
 		else
-			conn_dst = kdbus_conn_ref(entry->conn);
+			conn_dst = kdbus_conn_ref(name_entry->conn);
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
 		    (conn_dst->type == KDBUS_CONN_ACTIVATOR)) {
@@ -1495,8 +1496,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 * addressed to a name need to be moved from or to
 	 * activator connections of the same name.
 	 */
-	if (entry)
-		kmsg->dst_name_id = entry->name_id;
+	if (name_entry)
+		kmsg->dst_name_id = name_entry->name_id;
 
 	if (conn_src) {
 		if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
@@ -1550,7 +1551,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		goto exit_unref;
 
 	/* unlock name before sending monitors, bus-locking would deadlock */
-	entry = kdbus_name_unlock(bus->name_registry, entry);
+	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
 
 	/*
 	 * Monitor connections get all messages; ignore possible errors
@@ -1615,7 +1616,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 exit_unref:
 	kdbus_conn_unref(conn_dst);
-	kdbus_name_unlock(bus->name_registry, entry);
+	kdbus_name_unlock(bus->name_registry, name_entry);
 
 	return ret;
 }
