@@ -11,7 +11,6 @@ marshaling, and the communication semantics, please refer to:
 
 For a kdbus specific userspace library implementation please refer to:
   http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-bus.h
-  http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-memfd.h
 
 Article about D-Bus and kdbus:
   http://lwn.net/Articles/580194/
