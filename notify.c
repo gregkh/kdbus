@@ -116,6 +116,7 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
+	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
 	kmsg->notify_type = type;
 	kmsg->notify_old_id = old_id;
 	kmsg->notify_new_id = new_id;
@@ -154,6 +155,7 @@ int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
+	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
 	kmsg->notify_type = type;
 
 	switch (type) {
