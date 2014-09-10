@@ -374,8 +374,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			break;
 		}
 
-		rule->type = item->type;
-
 		switch (item->type) {
 		case KDBUS_ITEM_BLOOM_MASK: {
 			u64 generations;
@@ -458,12 +456,14 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			break;
 
 		default:
-			ret = -EINVAL;
-			break;
+			kfree(rule);
+			continue;
 		}
 
 		if (ret < 0)
 			break;
+
+		rule->type = item->type;
 
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
