@@ -12,12 +12,18 @@ marshaling, and the communication semantics, please refer to:
 For a kdbus specific userspace library implementation please refer to:
   http://cgit.freedesktop.org/systemd/systemd/tree/src/systemd/sd-bus.h
 
-Article about D-Bus and kdbus:
+Articles about D-Bus and kdbus:
   http://lwn.net/Articles/580194/
 
+
+1. Terminology
 ===============================================================================
-Terminology
-===============================================================================
+
+  Item:
+    The API of kdbus implements a notion of items, submitted through and
+    returned by most ioctls, and stored inside data structures in the
+    connection's pool. See section 4 for more details.
+
   Domain:
     A domain is a named object containing a number of buses. A system
     container that contains its own init system and users usually also
@@ -25,7 +31,7 @@ Terminology
     directory shows up inside the domain as /dev/kdbus/. Every domain offers
     its own "control" device node to create new buses or new sub-domains.
     Domains have no connection to each other and cannot see nor talk to
-    each other.
+    each other. See section 5 for more details.
 
   Bus:
     A bus is a named object inside a domain. Clients exchange messages
@@ -35,7 +41,7 @@ Terminology
     /dev/kdbus/<bus name>/bus.
     Common operating system setups create one "system bus" per system, and one
     "user bus" for every logged-in user. Applications or services may create
-    their own private named buses.
+    their own private named buses. See section 5 for more details.
 
   Endpoint:
     An endpoint provides the device node to talk to a bus. Opening an
@@ -45,6 +51,7 @@ Terminology
     provide a restricted access to the same bus. Custom endpoints carry
     additional policy which can be used to give sandboxed processes only
     a locked-down, limited, filtered access to the same bus.
+    See section 5 for more details.
 
   Connection:
     A connection to a bus is created by opening an endpoint device node of
@@ -52,6 +59,7 @@ Terminology
     connected client connection has a unique identifier on the bus and can
     address messages to every other connection on the same bus by using
     the peer's connection id as the destination.
+    See section 6 for more details.
 
   Well-known Name:
     A connection can, in addition to its implicit unique connection id, request
@@ -71,14 +79,16 @@ Terminology
     metadata the kernel should attach to the message when it is delivered
     to the receiving connection. Metadata contains information like: system
     timestamps, uid, gid, tid, proc-starttime, well-known-names, process comm,
-    process exe, process argv, cgroup, capabilities, seclabel, audit session
-    and loginuid and the connection's human-readable name.
+    process exe, process argv, cgroup, capabilities, seclabel, audit session,
+    loginuid and the connection's human-readable name.
+    See section 7 for more details.
 
   Broadcast and Match:
     Broadcast messages are potentially sent to all connections of a bus. By
     default, the connections will not actually receive any of the sent
     broadcast messages; only after installing a match for specific message
     properties, a broadcast message passes this filter.
+    See section 10 for more details.
 
   Policy:
     Buses and custom endpoints can upload a set of policy rules, defining who
@@ -88,10 +98,18 @@ Terminology
     Policies may be defined with names that end with '.*'. When matching a
     well-known name against such a wildcard entry, the last part of the name
     is ignored and checked against the wildcard name without the trailing '.*'.
+    See section 11 for more details.
 
+  Privileged bus users:
+    A user connecting to the bus is considered privileged if it is either the
+    creator of a bus, of if it has CAP_IPC_OWNER capability flag set.
+
+
+2. Device Node Layout
 ===============================================================================
-Device Node Layout
-===============================================================================
+
+The kdbus interface is exposed through device nodes in /dev.
+
   /sys/bus/kdbus
   `-- devices
     |-- kdbus!0-system!bus -> ../../../devices/virtual/kdbus/kdbus!0-system!bus
@@ -123,14 +141,15 @@ Device Node Layout
 
 Note:
   The device node subdirectory layout is arranged that a future version of
-  kdbus could be implemented as a filesystem with a separate instance mounted
+  kdbus could be implemented as a file system with a separate instance mounted
   for each domain. For any future changes, this always needs to be kept
   in mind. Also the dependency on udev's userspace hookups or sysfs attribute
   use should be limited to the absolute minimum for the same reason.
 
+
+3. Data Structures
 ===============================================================================
-Data Structures
-===============================================================================
+
   +-------------------------------------------------------------------------+
   | Domain (Init Domain)                                                    |
   | /dev/kdbus/control                                                      |
@@ -191,25 +210,96 @@ Data Structures
   | +---------------------------------------------------------------------+ |
   +-------------------------------------------------------------------------+
 
+
+4. Items
 ===============================================================================
-Creation of new Domains and Buses
+
+To flexibly augment transport structures used by kdbus, data blobs of type
+struct kdbus_item are used. An item has a fixed-sized header that only stores
+the type if the item and the overall size. The total size is variable and is
+in some cases defined by the item type, in other cases can be of arbitrary
+length (for instance, a string).
+
+In the external kernel API, items are used for many ioctls to transport
+optional information from userspace to kernelspace. They are also used for
+information stored in a connection's pool, such as messages, name lists or
+requested connection information.
+
+In all such occasions where items are used as part of the kdbus kernel API,
+they are embedded in structs that have an overall size of their own, so there
+can be many of them.
+
+The kernel expects all item to be aligned to 8-byte boundaries.
+
+A simple iterator in userspace would iterate over the items until the items
+have reached the embedding structure's overall size.
+
+
+5. Creation of new domains, buses and endpoints
 ===============================================================================
 The initial kdbus domain is unconditionally created by the kernel module. A
 domain contains a "control" device node which allows to create a new bus or
 domain. New domains do not have any buses created by default.
 
+
+5.1 Domains and buses
+---------------------
+
 Opening the control device node returns a file descriptor, it accepts the
-ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_DOMAIN_MAKE which specify the name of the new
-bus or domain to create. The control file descriptor needs to be kept open
+ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_DOMAIN_MAKE which specify the name of the
+new bus or domain to create. The control file descriptor needs to be kept open
 for the entire life-time of the created bus or domain, closing it will
 immediately cleanup the entire bus or domain and all its associated
 resources and connections. Every control file descriptor can only be used once
 to create a new bus or domain; from that point, it is not used for any
 further communication until the final close().
 
+5.2 Endpoints
+-------------
+
+Endpoints are entry points to a bus. By default, each bus has a default
+endpoint called 'bus'. The bus owner has the ability to create custom
+endpoints with specific names, permissions, and policy databases (see below).
+
+To create a custom endpoint, use the KDBUS_CMD_EP_MAKE ioctl with struct
+kdbus_cmd_make. Custom endpoints always have a policy db that, by default,
+does not allow anything. Everything that users of this new endpoint should be
+able to do has to be explicitly specified through KDBUS_ITEM_NAME and
+KDBUS_ITEM_POLICY_ACCESS items.
+
+
+5.3 Creating domains, buses and endpoints
+-----------------------------------------
+
+KDBUS_CMD_BUS_MAKE, KDBUS_CMD_DOMAIN_MAKE and KDBUS_CMD_EP_MAKE take a struct
+kdbus_cmd_make argument.
+
+struct kdbus_cmd_make {
+  __u64 size;
+    The overall size of the struct, including its items.
+
+  __u64 flags;
+    The flags for creation.
+
+    KDBUS_MAKE_ACCESS_GROUP
+      Make the device node group-accessible
+
+    KDBUS_MAKE_ACCESS_WORLD
+      Make the device node world-accessible
+
+  struct kdbus_item items[0];
+    A list of items, only used for creating custom endpoints. Ignored for
+    buses and domains.
+};
+
+
+6. Connections
 ===============================================================================
-Connection IDs and Well-Known Connection Names
-===============================================================================
+
+
+6.1 Connection IDs and well-known connection names
+--------------------------------------------------
+
 Connections are identified by their connection id, internally implemented as a
 uint64_t counter. The IDs of every newly created bus start at 1, and every new
 connection will increment the counter by 1. The ids are not reused.
@@ -219,7 +309,7 @@ defined by the D-Bus protocol specification as ":1.<id>".
 
 Messages with a specific uint64_t destination id are directly delivered to
 the connection with the corresponding id. Messages with the special destination
-id 0xffffffffffffffff are broadcast messages and are potentially delivered
+id KDBUS_DST_ID_BROADCAST are broadcast messages and are potentially delivered
 to all known connections on the bus; clients interested in broadcast messages
 need to subscribe to the specific messages they are interested though, before
 any broadcast message reaches them.
@@ -282,22 +372,334 @@ which owns that well-known name.
   | +---------------+                                                       |
   +-------------------------------------------------------------------------+
 
+
+6.2 Creating connections
+------------------------
+
+A connection to a bus is created by opening an endpoint device node of
+a bus and becoming an active client with the KDBUS_CMD_HELLO ioctl. Every
+connected client connection has a unique identifier on the bus and can
+address messages to every other connection on the same bus by using
+the peer's connection id as the destination.
+
+The KDBUS_CMD_HELLO ioctl takes the following struct as argument.
+
+struct kdbus_cmd_hello {
+  __u64 size;
+    The overall size of the struct, including all attached items.
+
+  __u64 conn_flags;
+    Flags to apply to this connection:
+
+    KDBUS_HELLO_ACCEPT_FD
+      When this flag is set, the connection can be sent file descriptors
+      as message payload. If it's not set, any attempt of doing so will
+      result in -ECOMM on the sender's side.
+
+    KDBUS_HELLO_ACTIVATOR
+      Make this connection an activator (see below). With this bit set,
+      an item of type KDBUS_ITEM_NAME has to be attached which describes
+      the well-known name this connection should be an activator for.
+
+    KDBUS_HELLO_POLICY_HOLDER
+      Make this connection a policy holder (see below). With this bit set,
+      an item of type KDBUS_ITEM_NAME has to be attached which describes
+      the well-known name this connection should hold a policy for.
+
+    KDBUS_HELLO_MONITOR
+      Make this connection an eaves-dropping connection that receives all
+      messages sent on the bus. This flag is only valid for privileged bus
+      connections.
+
+  __u64 attach_flags;
+      Request the attachment of metadata for each message received by this
+      connection. The metadata actually attached may actually augment the list
+      of requested items.
+
+  __u64 bus_flags;
+      Upon successful completion of the ioctl, this member will contain the
+      flags of the bus it connected to.
+
+  __u64 id;
+      Upon successful completion of the ioctl, this member will contain the
+      id of the new connection.
+
+  __u64 pool_size;
+      The size of the communication pool, in bytes. The pool can be accessed
+      by calling mmap() on the file descriptor that was used to issue the
+      KDBUS_CMD_HELLO ioctl.
+
+  struct kdbus_bloom_parameter bloom;
+      Bloom filter parameter (see below).
+
+  __u8 id128[16];
+      Upon successful completion of the ioctl, this member will contain the
+      128 bit wide UUID of the connected bus.
+
+  struct kdbus_item items[0];
+      Variable list of items to add optional additional information. The
+      following items are currently expected/valid:
+
+      KDBUS_ITEM_CONN_NAME
+        Contains a string to describes this connection's name, so it can be
+        identified later.
+
+      KDBUS_ITEM_NAME
+      KDBUS_ITEM_POLICY_ACCESS
+        For activators and policy holders only, combinations of these two
+        items describe policy access entries (see section about policy db).
+
+      Items of other types are silently ignored.
+};
+
+
+6.3 Activator and policy holder connection
+------------------------------------------
+
+An activator connection is placeholders for a well-known name. Messages sent
+to such a connection can be used by userspace to start an implementor
+connection, which will then get all the messages from the activator copied
+over. An activator connection cannot be used to send any message.
+
+A policy holder connection only installs a policy for one or more names.
+These policy entries are kept active as long as the connection is alive, and
+are removed once it terminates. Such a policy connection type can be used to
+deploy restrictions for names that are not yet in active on the bus. A policy
+holder connection cannot be used to send any message.
+
+The creation of activator, policy holder or monitor connections is an operation
+restricted to privileged users on the bus (see section "Terminology").
+
+
+6.4 Retrieving information on a connection
+------------------------------------------
+
+The KDBUS_CMD_CONN_INFO ioctl can be used to retrieve credentials and
+properties of the initial creator of a connection. This ioctl uses the
+following struct:
+
+struct kdbus_cmd_conn_info {
+  __u64 size;
+    The overall size of the struct, including the name with its 0-byte string
+    terminator.
+
+  __u64 flags;
+    Specify which items should be attached to the answer.
+    The following flags can be used:
+
+    KDBUS_ATTACH_NAMES
+      Add an item to the answer containing all the names the connection
+      currently owns.
+
+    KDBUS_ATTACH_CONN_NAME
+      Add an item to the answer containing the connection's name.
+
+    After the ioctl returns, this field will contain the current metadata
+    attach flags of the connection.
+
+  __u64 id;
+    The connection's numerical ID to retrieve information for. If set to
+    non-zero value, the 'name' field is ignored.
+
+  __u64 offset;
+    When the ioctl returns, this value will yield the offset of the connection
+    information inside the caller's pool.
+
+  char name[0];
+    The name of the connection to retrieve information for. Only looked at if
+    the 'id' field is set to 0.
+};
+
+After the ioctl returns, the following struct  will be stored in the caller's
+pool at 'offset'.
+
+struct kdbus_conn_info {
+  __u64 size;
+    The overall size of the struct, including all its items.
+
+  __u64 id;
+    The connection's unique ID.
+
+  __u64 flags;
+    The connection's flags as specified when it was created.
+
+  struct kdbus_item items[0];
+    Depending on the 'flags' field in struct kdbus_cmd_conn_info, items of
+    types KDBUS_ITEM_NAME and KDBUS_ITEM_CONN_NAME are followed here.
+};
+
+Once the caller is finished with parsing the return buffer, it needs to call
+KDBUS_CMD_FREE for the offset.
+
+
+6.5 Updating connection details
+-------------------------------
+
+Some of a connection's details can be updated with the KDBUS_CMD_CONN_UPDATE
+ioctl, using the file descriptor that was used to create the connection.
+The update command uses the following struct.
+
+struct kdbus_cmd_update {
+  __u64 size;
+    The overall size of the struct, including all its items.
+
+  struct kdbus_item items[0];
+    Items to describe the connection details to be updated. The following item
+    types are supported:
+
+    KDBUS_ITEM_ATTACH_FLAGS
+      Supply a new set of items to be attached to each message.
+
+    KDBUS_ITEM_NAME
+    KDBUS_ITEM_POLICY_ACCESS
+      Policy holder connections may supply a new set of policy information
+      with these items. For other connection types, -ENOTSUPP is returned.
+};
+
+
+6.6 Termination
+---------------
+
+A connection can be terminated by simply closing the file descriptor that was
+used to start the connection. All pending messages will be discarded, and the
+memory in the pool will be freed.
+
+An alternative way of way of closing down a connection is calling the
+KDBUS_CMD_BYEBYE ioctl on it, which will only succeed if the message queue
+of the connection is empty at the time of closing, otherwise, -EBUSY is
+returned.
+
+When this ioctl returns successfully, the connection has been terminated and
+won't accept any new messages from remote peers. This way, a connection can
+be terminated race-free, without losing any messages.
+
+
+7. Messages
 ===============================================================================
-Message Format, Content, Exchange
-===============================================================================
-Messages consist of fixed-size header followed directly by a list of
-variable-sized data records. The overall message size is specified in the
-header of the message. The chain of data records can contain well-defined
+
+Messages consist of a fixed-size header followed directly by a list of
+variable-sized data 'items'. The overall message size is specified in the
+header of the message. The chain of data items can contain well-defined
 message metadata fields, raw data, references to data, or file descriptors.
 
-Messages are passed to the kernel with the ioctl KDBUS_CMD_MSG_SEND. Depending
+
+7.1 Sending messages
+--------------------
+
+Messages are passed to the kernel with the KDBUS_CMD_MSG_SEND ioctl. Depending
 on the the destination address of the message, the kernel delivers the message
 to the specific destination connection or to all connections on the same bus.
-Messages are always queued in the destination connection.
+Sending messages across buses is not possible. Messages are always queued in
+the memory pool of the destination connection (see below).
 
-Messages are received by the client with the ioctl KDBUS_CMD_MSG_RECV. The
-endpoint device node of the bus supports poll() to wake up the receiving
-process when new messages are queued up to be received.
+The KDBUS_CMD_MSG_SEND ioctl uses struct kdbus_msg to describe the message to
+be sent.
+
+struct kdbus_msg {
+  __u64 size;
+    The over all size of the struct, including the attached items.
+
+  __u64 flags;
+    Flags for message delivery:
+
+    KDBUS_MSG_FLAGS_EXPECT_REPLY
+      Expect a reply from the remote peer to this message. With this bit set,
+      the timeout_ns field must be set to a non-zero number of nanoseconds in
+      which the receiving peer is expected to reply. If such a reply is not
+      received in time, the sender will be notified with a timeout message
+      (see below).
+
+      For a message to be accepted as reply, it must be a direct message to
+      the original sender (not a broadcast), and its kdbus_msg.reply_cookie
+      must match the previous message's kdbus_msg.cookie.
+
+      Expected replies also temporarily open the policy of the sending
+      connection, so the other peer is allowed to respond within the time
+      given time window.
+
+    KDBUS_MSG_FLAGS_SYNC_REPLY
+      By default, all calls to kdbus are considered asynchronous,
+      non-blocking. However, as there are many use cases that need to wait
+      for a remote peer to answer a method call, there's a way to send a
+      message and wait for a reply in a synchronous fashion. This is what
+      the KDBUS_MSG_FLAGS_SYNC_REPLY controls. The KDBUS_CMD_MSG_SEND ioctl
+      will block until the reply has arrived, the timeout limit is reached,
+      or in case the remote connection was shut down.
+
+      The offset of the reply message in the sender's pool is stored in
+      in 'offset_reply' when the ioctl has returned without error. Hence,
+      there is no need for another KDBUS_CMD_MSG_RECV ioctl or anything else
+      to receive the reply.
+
+    KDBUS_MSG_FLAGS_NO_AUTO_START
+      By default, when a message is sent to an activator connection, the
+      activator notified and will start an implementor. This flag inhibits
+      that behavior. With this bit set, and the remote being an activator,
+      -EADDRNOTAVAIL is returned from the ioctl.
+
+  __s64 priority;
+        The priority of this message. Receiving messages (see below) may
+        optionally be constrained to messages of a minimal priority. This
+        allows for use cases where timing critical data is interleaved with
+        control data on the same connection.
+
+  __u64 dst_id;
+        The numeric ID of the destination connection, or KDBUS_DST_ID_BROADCAST
+        to address every peer on the bus, or KDBUS_DST_ID_NAME to look it up
+        dynamically from the bus' name registry. In the latter case, an item of
+        type KDBUS_ITEM_DST_NAME is mandatory.
+
+  __u64 src_id;
+        Upon return of the ioctl, this member will contain the sending
+        connection's numerical ID. Should be 0 at send time.
+
+  __u64 payload_type;
+        Type of the payload in the actual data records. Currently, only
+        KDBUS_PAYLOAD_DBUS is accepted as input value of this field. When
+        receiving messages that are generated by the kernel (notifications),
+        this field will yield KDBUS_PAYLOAD_KERNEL.
+
+  __u64 cookie;
+        Cookie of this message, for later recognition. Also, when replying
+        to a message (see above), the cookie_reply field must match this value.
+
+  __u64 timeout_ns;
+        If the message sent requires a reply from the remote peer (see above),
+        this field contains the timeout in nanoseconds.
+
+  __u64 cookie_reply;
+        If the message sent is a reply to another message, this field must
+        match the cookie of the formerly received message.
+
+  __u64 offset_reply;
+        If the message successfully got a synchronous reply (see above), this
+        field will yield the offset of the reply message in the sender's pool.
+        Is is what KDBUS_CMD_MSG_RECV usually does for asynchronous messages.
+
+  struct kdbus_item items[0];
+        An dynamically sized list of items to contain additional information.
+        The following items are expected/valid:
+
+        KDBUS_ITEM_PAYLOAD_VEC
+        KDBUS_ITEM_PAYLOAD_MEMFD
+        KDBUS_ITEM_FDS
+          Actual data records containing the payload. See section "Passing of
+          Payload Data".
+
+        KDBUS_ITEM_BLOOM_FILTER
+          Bloom filter for matches (see below).
+
+        KDBUS_ITEM_DST_NAME
+          Well-known name to send this message to. Required if dst_id is set
+          to KDBUS_DST_ID_NAME. If a connection holding the given name can't
+          be found, -ESRCH is returned.
+};
+
+
+7.2 Message layout
+------------------
+
+The layout of a message is shown below.
 
   +-------------------------------------------------------------------------+
   | Message                                                                 |
@@ -335,57 +737,305 @@ process when new messages are queued up to be received.
   | +---------------------------------------------------------------------+ |
   +-------------------------------------------------------------------------+
 
-===============================================================================
-Passing of Payload Data
-===============================================================================
+
+7.3 Passing of Payload Data
+---------------------------
+
 When connecting to the bus, receivers request a memory pool of a given size,
 large enough to carry all backlog of data enqueued for the connection. The
 pool is internally backed by a shared memory file which can be mmap()ed by
 the receiver.
 
 KDBUS_MSG_PAYLOAD_VEC:
-Messages are directly copied by the sending process into the receiver's pool,
-that way two peers can exchange data by effectively doing a single-copy from
-one process to another, the kernel will not buffer the data anywhere else.
+  Messages are directly copied by the sending process into the receiver's pool,
+  that way two peers can exchange data by effectively doing a single-copy from
+  one process to another, the kernel will not buffer the data anywhere else.
 
 KDBUS_MSG_PAYLOAD_MEMFD:
-Messages can reference memfd files which contain the data.
-memfd files are tmpfs-backed files that allow sealing of the content of the
-file, which prevents all writable access to the file content.
-Only sealed memfd files are accepted as payload data, which enforces
-reliable passing of data; the receiver can assume that the sender and nobody
-else can alter the content after the message is sent.
+  Messages can reference memfd files which contain the data.
+  memfd files are tmpfs-backed files that allow sealing of the content of the
+  file, which prevents all writable access to the file content.
+  Only sealed memfd files are accepted as payload data, which enforces
+  reliable passing of data; the receiver can assume that the sender and nobody
+  else can alter the content after the message is sent.
 
 Apart from the sender filling-in the content into memfd files, the data will
 be passed as zero-copy from one process to another, read-only, shared between
 the peers.
 
-===============================================================================
-Broadcast Message Matching
-===============================================================================
-A message addressed at the connection ID 0 is a broadcast message, delivered
-to all connected peers which installed a rule to match certain properties of
-the message. Without any rules installed in the connection, no broadcast
-message will be delivered to the connection.
 
-Matches are implemented as bloom filters. The sender adds certain properties of
-the message as elements to a bloom filter bit field, and sends that along with
-the broadcast message.
+7.4 Receiving messages
+----------------------
+
+Messages are received by the client with the KDBUS_CMD_MSG_RECV ioctl. The
+endpoint device node of the bus supports poll() to wake up the receiving
+process when new messages are queued up to be received.
+
+With the KDBUS_CMD_MSG_RECV ioctl, a struct kdbus_cmd_recv is used.
+
+struct kdbus_cmd_recv {
+  __u64 flags;
+    Flags to control the receive command.
+
+    KDBUS_RECV_PEEK
+      Just return the location of the next message. Do not install file
+      descriptors or anything else. This is usually used to determine the
+      sender of the next queued message.
+
+    KDBUS_RECV_DROP
+      Drop the next message without doing anything else with it, and free the
+      pool slice. This a short-cut for KDBUS_RECV_PEEK and KDBUS_CMD_FREE.
+
+    KDBUS_RECV_USE_PRIORITY
+      Use the priority field (see below).
+
+  __s64 priority;
+      With KDBUS_RECV_USE_PRIORITY set in flags, receive the next message in
+      the queue with at least the given priority. If no such message is waiting
+      in the queue, -ENOMSG is returned.
+
+  __u64 offset;
+      Upon return of the ioctl, this field contains the offset in the
+      receiver's memory pool.
+};
+
+Unless KDBUS_RECV_DROP was passed, and given that the ioctl succeeded, the
+offset field contains the location of the new message inside the receiver's
+pool. The message is stored as struct kdbus_msg at this offset, and can be
+interpreted with the semantics described above.
+
+The caller is obliged to call KDBUS_CMD_FREE with the returned offset when
+the memory is no longer needed.
+
+
+7.5 Canceling messages synchronously waiting for replies
+--------------------------------------------------------
+
+When a connection sends a message with KDBUS_MSG_FLAGS_SYNC_REPLY and
+blocks while waiting for the reply, the KDBUS_CMD_MSG_CANCEL ioctl can be
+used on the same file descriptor to cancel the message, based on its cookie.
+If there are multiple messages with the same cookie that are all synchronously
+waiting for a reply, all of them will be canceled.
+
+
+8. Name registry
+===============================================================================
+
+Each bus instantiates a name registry to resolve well-known names into unique
+connection IDs for message delivery. The registry will be queried when a
+message is sent with kdbus_msg.dst_id set to KDBUS_DST_ID_NAME, or when a
+registry dump is requested.
+
+All of the below is subject to policy rules for SEE and OWN permissions.
+
+
+8.1 Acquiring a name
+--------------------
+
+To acquire a name, a client uses the KDBUS_CMD_NAME_ACQUIRE ioctl with the
+following data structure.
+
+struct kdbus_cmd_name {
+  __u64 size;
+    The overall size of this struct, including the name with its 0-byte string
+    terminator.
+
+  __u64 flags;
+    Flags to control details in the name acquisition.
+
+    KDBUS_NAME_REPLACE_EXISTING
+      Acquiring a name that is already present usually fails, unless this flag
+      is set in the call, and KDBUS_NAME_ALLOW_REPLACEMENT or (see below) was
+      set when the current owner of the name acquired it, or if the current
+      owner is an activator connection (see below).
+
+    KDBUS_NAME_ALLOW_REPLACEMENT
+      Allow other connections to take over this name. When this happens, the
+      former owner of the connection will be notified of the name loss.
+
+    KDBUS_NAME_QUEUE (acquire)
+      A name that is already acquired by a connection, and which wasn't
+      requested with the KDBUS_NAME_ALLOW_REPLACEMENT flag set can not be
+      acquired again. However, a connection can put itself in a queue of
+      connections waiting for the name to be released. Once that happens, the
+      first connection in that queue becomes the new owner and is notified
+      accordingly.
+
+  __u64 owner_id;
+  __u64 conn_flags;
+    Unused in this use case.
+
+  char name[0];
+    The name to acquire. Must be a valid bus name.
+};
+
+
+8.2 Releasing a name
+--------------------
+
+A connection may release a name explicitly with the KDBUS_CMD_NAME_RELEASE
+ioctl. If the connection was an implementor of an activatable name, its
+pending messages are moved back to the activator. If there are any connections
+queued up as waiters for the name, the oldest one of them will become the new
+owner. The same happens implicitly for all names once a connection terminates.
+
+The KDBUS_CMD_NAME_RELEASE ioctl uses the same data structure as the
+acquisition call, but with slightly different field usage.
+
+struct kdbus_cmd_name {
+  __u64 size;
+    The overall size of this struct, including the name with its 0-byte string
+    terminator.
+
+  __u64 flags;
+  __u64 owner_id;
+  __u64 conn_flags;
+    All unused for this use case.
+
+  char name[0];
+    The name to release.
+};
+
+
+8.3 Dumping the name registry
+-----------------------------
+
+A connection may request a complete or filtered dump of currently active bus
+names with the KDBUS_CMD_NAME_LIST ioctl, which takes a struct
+kdbus_cmd_name_list as argument.
+
+struct kdbus_cmd_name_list {
+  __u64 flags;
+    Any combination of flags to specify which names should be dumped.
+
+    KDBUS_NAME_LIST_UNIQUE
+      List the unique (numeric) IDs of the connection, whether it owns a name
+      or not.
+
+    KDBUS_NAME_LIST_NAMES
+      List well-known names stored in the database which are actively owned by
+      a real connection (not an activator).
+
+    KDBUS_NAME_LIST_ACTIVATORS
+      List names that are owned by an activator.
+
+    KDBUS_NAME_LIST_QUEUED
+      List connections that are not yet owning a name but are waiting for it
+      to become available.
+
+  __u64 offset;
+    When the ioctl returns successfully, the offset to the name registry dump
+    inside the connection's pool will be stored in this field.
+};
+
+The returned list of names is stored in a struct kdbus_name_list that in turn
+contains a dynamic number of struct kdbus_cmd_name that carry the actual
+information. The fields inside that struct kdbus_cmd_name is described next.
+
+struct kdbus_cmd_name {
+  __u64 size;
+    The overall size of this struct, including the name with its 0-byte string
+    terminator.
+
+  __u64 flags;
+    The current flags for this name. Can be any combination of
+
+    KDBUS_NAME_ALLOW_REPLACEMENT
+
+    KDBUS_NAME_IN_QUEUE (list)
+      When retrieving a list of currently acquired name in the registry, this
+      flag indicates whether the connection actually owns the name or is
+      currently waiting for it to become available.
+
+    KDBUS_NAME_ACTIVATOR (list)
+      An activator connection owns a name as a placeholder for an implementor,
+      which is started on demand as soon as the first message arrives. There's
+      some more information on this topic below. In contrast to
+      KDBUS_NAME_REPLACE_EXISTING, when a name is taken over from an activator
+      connection, all the messages that have been queued in the activator
+      connection will be moved over to the new owner. The activator connection
+      will still be tracked for the name and will take control again if the
+      implementor connection terminates.
+      This flag can not be used when acquiring a name, but is implicitly set
+      through KDBUS_CMD_HELLO with KDBUS_HELLO_ACTIVATOR set in
+      kdbus_cmd_hello.conn_flags.
+
+  __u64 owner_id;
+    The owning connection's unique ID.
+
+  __u64 conn_flags;
+    The flags of the owning connection.
+
+  char name[0];
+    The well-known name.
+};
+
+The returned buffer must be freed with the KDBUS_CMD_FREE ioctl when the user
+is finished with it.
+
+
+9. Notifications
+===============================================================================
+
+The kernel will notify its users of the following events.
+
+  * When connection A is terminated while connection B is waiting for a reply
+    from it, connection B is notified with a message with an item of type
+    KDBUS_ITEM_REPLY_DEAD.
+
+  * When connection A does not receive a reply from connection B within the
+    specified timeout window, connection A will receive a message wit an item
+    of type KDBUS_ITEM_REPLY_TIMEOUT.
+
+  * When a connection is created on or removed from a bus, messages with an
+    item of type KDBUS_ITEM_ID_ADD or KDBUS_ITEM_ID_REMOVE, respectively, are
+    sent to all bus members that match these messages through their match
+    database.
+
+  * When a connection owns or loses a name, or a name is moved from one
+    connection to another, messages with an item of type KDBUS_ITEM_NAME_ADD,
+    KDBUS_ITEM_NAME_REMOVE or KDBUS_ITEM_NAME_CHANGE are sent to all bus
+    members that match these messages through their match database.
+
+A kernel notification is a regular kdbus message with the following details.
+
+  * kdbus_msg.src_id == KDBUS_SRC_ID_KERNEL
+  * kdbus_msg.dst_id == KDBUS_DST_ID_BROADCAST
+  * kdbus_msg.payload_type == KDBUS_PAYLOAD_KERNEL
+  * Has exactly one of the aforementioned items attached
+
+
+10. Message Matching, Bloom filters
+===============================================================================
+
+10.1 Matches for broadcast messages
+-----------------------------------
+
+A message addressed at the connection ID 0 (KDBUS_DST_ID_BROADCAST) is a
+broadcast message, delivered to all connected peers which installed a rule to
+match certain properties of the message. Without any rules installed in the
+connection, no broadcast message or kernel-side notifications will be delivered
+to the connection.
+
+Matches for messages from other connections (not kernel notifications) are
+implemented as bloom filters. The sender adds certain properties of the message
+as elements to a bloom filter bit field, and sends that along with the
+broadcast message.
 
 The connection adds the message properties it is interested as elements to a
 bloom mask bit field, and uploads the mask to the match rules of the
 connection.
 
 The kernel will match the broadcast message's bloom filter against the
-connections bloom mask and decide if the message should be delivered to
-the connection.
+connections bloom mask (simply by &-ing it), and decide whether the message
+should be delivered to the connection.
 
 The kernel has no notion of any specific properties of the message, all it
 sees are the bit fields of the bloom filter and mask to match against. The
 use of bloom filters allows simple and efficient matching, without exposing
 any message properties or internals to the kernel side. Clients need to deal
 with the fact that they might receive broadcasts which they did not subscribe
-to, the bloom filter might allow false-positives to pass the filter.
+to, as the bloom filter might allow false-positives to pass the filter.
 
 To allow the future extension of the set of elements in the bloom filter, the
 filter specifies a "generation" number. A later generation must always contain
@@ -394,3 +1044,204 @@ to the set. The match rules mask can carry an array with all previous
 generations of masks individually stored. When the filter and mask are matched
 by the kernel, the mask with the closest matching "generation" is selected
 as the index into the mask array.
+
+
+10.2 Matches for kernel notifications
+------------------------------------
+
+To receive kernel generated notifications (see section 9), a connection must
+install special match rules that are different from the bloom filter matches
+described in the section before.
+
+
+10.3 Adding a match
+-------------------
+
+To add a match, the KDBUS_CMD_MATCH_ADD ioctl is used, which takes a struct
+of the following type.
+
+struct kdbus_cmd_match {
+  __u64 size;
+    The overall size of the struct, including its items.
+
+  __u64 cookie;
+    A cookie which identifies the match, so it can be referred to at removal
+    time.
+
+  struct kdbus_item items[0];
+    Items to define the actual match. The following item types are expected.
+
+    KDBUS_ITEM_BLOOM_MASK
+      An item that carries the bloom filter mask to match against in its
+      data field. The payload size must match the bloom filter size that
+      was specified when the bus was created.
+
+    KDBUS_ITEM_NAME
+    KDBUS_ITEM_ID
+
+    KDBUS_ITEM_NAME_ADD
+    KDBUS_ITEM_NAME_REMOVE
+    KDBUS_ITEM_NAME_CHANGE
+      These items request delivery of broadcast messages that describe a name
+      acquisition, loss, or change. The details are stored in the item's
+      kdbus_notify_name_change member. All information specified must be
+      matched in order to make the message pass. Use KDBUS_MATCH_ID_ANY to
+      match against any unique connection ID.
+
+    KDBUS_ITEM_ID_ADD
+    KDBUS_ITEM_ID_REMOVE
+      These items request delivery of broadcast messages that are generated
+      when a connection is created or terminated. struct kdbus_notify_id_change
+      is used to store the actual match information. This item can be used to
+      monitor one particular connection ID, or, when the id field is set to
+      KDBUS_MATCH_ID_ANY, all of them.
+
+    Other item types are ignored.
+};
+
+
+10.4 Removing a match
+--------------------
+
+Matches can be removed through the KDBUS_CMD_MATCH_REMOVE ioctl, which again
+takes struct kdbus_cmd_match as argument, but its fields are used slightly
+differently.
+
+struct kdbus_cmd_match {
+  __u64 size;
+    The overall size of the struct. As it has no items in this use case, the
+    value should yield 16.
+
+  __u64 cookie;
+    The cookie of the match, as it was passed when the match was added.
+    All matches that have this cookie will be removed.
+
+  struct kdbus_item items[0];
+    Unused for this use case.
+};
+
+
+11. Policy
+===============================================================================
+
+A policy databases restricts the possibilities of connections to own, see and
+talk to well-known names. It can be associated with a bus or a custom endpoint.
+
+By default, buses don't have a policy database but create one on demand as soon
+as a policy holder connection is instantiated.
+
+A set of policy rules is described by a name and multiple access rules, defined
+by the following struct.
+
+struct kdbus_policy_access {
+  __u64 type;	/* USER, GROUP, WORLD */
+    One of the following.
+
+    KDBUS_POLICY_ACCESS_USER
+      Grant access to a user with the uid stored in the 'id' field.
+
+    KDBUS_POLICY_ACCESS_GROUP
+      Grant access to a user with the gid stored in the 'id' field.
+
+    KDBUS_POLICY_ACCESS_WORLD
+      Grant access to everyone. The 'id' field is ignored.
+
+  __u64 access;	/* OWN, TALK, SEE */
+    The access to grant.
+
+    KDBUS_POLICY_SEE
+      Allow the name to be seen.
+
+    KDBUS_POLICY_TALK
+      Allow the name to be talked to.
+
+    KDBUS_POLICY_OWN
+      Allow the name to be owned.
+
+  __u64 id;
+    For KDBUS_POLICY_ACCESS_USER, stores the uid.
+    For KDBUS_POLICY_ACCESS_GROUP, stores the gid.
+};
+
+Policies are set through KDBUS_CMD_HELLO (when creating a policy holder
+connection), KDBUS_CMD_CONN_UPDATE (when updating a policy holder connection),
+KDBUS_CMD_EP_MAKE (creating a custom endpoint) or KDBUS_CMD_EP_UPDATE (updating
+a custom endpoint). In all cases, the name and policy access information is
+stored in items of type KDBUS_ITEM_NAME and KDBUS_ITEM_POLICY_ACCESS. For this
+transport, the following rules apply.
+
+  * An item of type KDBUS_ITEM_NAME must be followed by at least one
+    KDBUS_ITEM_POLICY_ACCESS item
+  * An item of type KDBUS_ITEM_NAME can be followed by an arbitrary number of
+    KDBUS_ITEM_POLICY_ACCESS items
+  * An arbitrary number of groups of names and access levels can be passed
+
+uids and gids are internally always stored in the kernel's view of global ids,
+and are translated forth and back on the ioctl level accordingly.
+
+
+11.2 Policy example
+-------------------
+
+For example, a set of policy rules may look like this:
+
+  KDBUS_ITEM_NAME: str='org.foo.bar'
+  KDBUS_ITEM_POLICY_ACCESS: type=USER, access=OWN, id=1000
+  KDBUS_ITEM_POLICY_ACCESS: type=USER, access=TALK, id=1001
+  KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=SEE
+  KDBUS_ITEM_NAME: str='org.blah.baz'
+  KDBUS_ITEM_POLICY_ACCESS: type=USER, access=OWN, id=0
+  KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
+
+That means that 'org.foo.bar' may only be owned by uid 1000, but every user on
+the bus is allowed to see the name. However, only uid 1001 may actually send
+a message to the connection and receive a reply from it.
+
+The second rule allows 'org.blah.baz' to be owned by uid 0 only, but every user
+may talk to it.
+
+
+11.3 TALK access and multiple well-known names per connection
+-------------------------------------------------------------
+
+Note that TALK access is checked against all names of a connection.
+For example, if a connection owns both 'org.foo.bar' and 'org.blah.baz', and
+the policy database allows 'org.blah.baz' to be talked to by WORLD, then this
+permission is also granted to 'org.foo.bar'. That might sound illogical, but
+after all, we allow messages to be directed to either the name or a well-known
+name, and policy is applied to the connection, not the name. In other words,
+the effective TALK policy for a connection is the most permissive of all names
+the connection owns.
+
+If a policy database exists for a bus (because a policy holder created one on
+demand) or for a custom endpoint (which always has one), each one is consulted
+during name registry listing, name owning or message delivery. If either one
+fails, the operation is failed with -ENOPERM.
+
+
+12. Pool
+===============================================================================
+
+A pool for data received from the kernel is installed for every connection of
+the bus, and is sized according to kdbus_cmd_hello.pool_size. It is accessed
+when one of the following ioctls is issued:
+
+  * KDBUS_CMD_MSG_RECV, to receive a message
+  * KDBUS_CMD_NAME_LIST, to dump the name registry
+  * KDBUS_CMD_CONN_INFO, to retrieve information on a connection
+
+Internally, the pool is organized in slices, and implements a buddy system.
+The offsets returned by either one of the aforementioned ioctls describe
+offsets inside the pool. In order to make the slice available for subsequent
+calls, KDBUS_CMD_FREE has to be called on the offset.
+
+To access the memory, the caller is expected to mmap() it to its task, like
+this:
+
+  /*
+   * POOL_SIZE has to be a multiple of PAGE_SIZE, and it must match the
+   * value that was previously passed in the .pool_size field of struct
+   * kdbus_cmd_hello.
+   */
+
+  buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_PRIVATE, conn_fd, 0);
