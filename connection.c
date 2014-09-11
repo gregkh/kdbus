@@ -595,10 +595,15 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 * receivers after that will see all of the added
 			 * data, even when they did not ask for it.
 			 */
-			if (conn_src)
-				kdbus_meta_append(kmsg->meta, conn_src,
-						  kmsg->seq,
-						  conn_dst->attach_flags);
+			if (conn_src) {
+				ret = kdbus_meta_append(kmsg->meta,
+							conn_src, kmsg->seq,
+							conn_dst->attach_flags);
+				if (ret < 0) {
+					mutex_unlock(&bus->lock);
+					return ret;
+				}
+			}
 
 			kdbus_conn_entry_insert(conn_dst, conn_src, kmsg, NULL);
 		}
