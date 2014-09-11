@@ -1200,20 +1200,21 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	if (flags_provided)
 		conn->attach_flags = attach_flags;
 
-	if (!policy_provided)
-		return 0;
+	if (policy_provided) {
+		if (!conn->bus->policy_db) {
+			ret = kdbus_policy_db_new(&conn->bus->policy_db);
+			if (ret < 0)
+				return ret;
+		}
 
-	if (!conn->bus->policy_db) {
-		ret = kdbus_policy_db_new(&conn->bus->policy_db);
+		ret = kdbus_policy_set(conn->bus->policy_db, cmd->items,
+				       KDBUS_ITEMS_SIZE(cmd, items),
+				       1, false, conn);
 		if (ret < 0)
 			return ret;
 	}
 
-	ret = kdbus_policy_set(conn->bus->policy_db, cmd->items,
-			       KDBUS_ITEMS_SIZE(cmd, items),
-			       1, false, conn);
-
-	return ret;
+	return 0;
 }
 
 /**
