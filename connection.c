@@ -1209,7 +1209,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 
 		ret = kdbus_policy_set(conn->bus->policy_db, cmd->items,
 				       KDBUS_ITEMS_SIZE(cmd, items),
-				       1, false, conn);
+				       1, true, conn);
 		if (ret < 0)
 			return ret;
 	}
