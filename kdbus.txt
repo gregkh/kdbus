@@ -1124,8 +1124,9 @@ struct kdbus_cmd_match {
 11. Policy
 ===============================================================================
 
-A policy databases restricts the possibilities of connections to own, see and
-talk to well-known names. It can be associated with a bus or a custom endpoint.
+A policy databases restrict the possibilities of connections to own, see and
+talk to well-known names. It can be associated with a bus (through a policy
+holder connection) or a custom endpoint.
 
 By default, buses don't have a policy database but create one on demand as soon
 as a policy holder connection is instantiated.
@@ -1180,7 +1181,21 @@ uids and gids are internally always stored in the kernel's view of global ids,
 and are translated forth and back on the ioctl level accordingly.
 
 
-11.2 Policy example
+11.2 Wildcard names
+-------------------
+
+Policy holder connections may upload names that contain the wildcard suffix
+(".*"). That way, a policy can be uploaded that is effective for every
+well-kwown name that extends the provided name by exactly one more level.
+
+For example, if an item of a set up uploaded policy rules contains the name
+"foo.bar.*", both "foo.bar.baz" and "foo.bar.bazbaz" are valid, but
+"foo.bar.baz.baz" is not.
+
+Such wildcard entries are not allowed for custom endpoints.
+
+
+11.3 Policy example
 -------------------
 
 For example, a set of policy rules may look like this:
@@ -1201,7 +1216,7 @@ The second rule allows 'org.blah.baz' to be owned by uid 0 only, but every user
 may talk to it.
 
 
-11.3 TALK access and multiple well-known names per connection
+11.4 TALK access and multiple well-known names per connection
 -------------------------------------------------------------
 
 Note that TALK access is checked against all names of a connection.
