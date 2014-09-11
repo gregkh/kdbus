@@ -491,8 +491,8 @@ exit_free:
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_match_db_remove(struct kdbus_conn *conn,
-			  struct kdbus_cmd_match *cmd)
+void kdbus_match_db_remove(struct kdbus_conn *conn,
+			   struct kdbus_cmd_match *cmd)
 {
 	struct kdbus_match_entry *entry, *tmp;
 	struct kdbus_match_db *db = conn->match_db;
@@ -502,6 +502,4 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 		if (entry->cookie == cmd->cookie)
 			kdbus_match_entry_free(entry);
 	mutex_unlock(&db->entries_lock);
-
-	return 0;
 }
