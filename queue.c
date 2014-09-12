@@ -210,8 +210,8 @@ static int kdbus_queue_entry_creds_install(struct kdbus_queue_entry *entry)
 	creds.pid = pid_nr_ns(entry->pid, task_active_pid_ns(current));
 	creds.tid = pid_nr_ns(entry->tid, task_active_pid_ns(current));
 
-	ret = kdbus_pool_slice_copy_user(entry->slice, off,
-					 &creds, sizeof(creds));
+	ret = kdbus_pool_slice_copy(entry->slice, off,
+				    &creds, sizeof(creds));
 
 	return ret;
 }
@@ -226,8 +226,8 @@ static int kdbus_queue_entry_audit_install(struct kdbus_queue_entry *entry)
 
 	loginuid = from_kuid_munged(current_user_ns(), entry->loginuid);
 
-	ret = kdbus_pool_slice_copy_user(entry->slice, off,
-					 &loginuid, sizeof(loginuid));
+	ret = kdbus_pool_slice_copy(entry->slice, off,
+				    &loginuid, sizeof(loginuid));
 
 	return ret;
 }
@@ -291,7 +291,7 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry)
 					   entry->auxgrps[i]);
 		}
 
-		ret = kdbus_pool_slice_copy_user(entry->slice, off, gid, size);
+		ret = kdbus_pool_slice_copy(entry->slice, off, gid, size);
 		kfree(gid);
 		if (ret < 0)
 			goto exit_rewind_fds;
