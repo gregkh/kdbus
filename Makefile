@@ -21,7 +21,10 @@ KERNELVER		?= $(shell uname -r)
 KERNELDIR 		?= /lib/modules/$(KERNELVER)/build
 PWD			:= $(shell pwd)
 
-all: module test
+all: module tools test
+
+tools::
+	$(MAKE) -C tools KERNELDIR=$(realpath $(KERNELDIR)) KBUILD_MODNAME=kdbus$(EXT)
 
 test::
 	$(MAKE) -C test KERNELDIR=$(realpath $(KERNELDIR)) KBUILD_MODNAME=kdbus$(EXT)
