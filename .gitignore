@@ -8,15 +8,4 @@ Module.symvers
 .tmp_versions
 tags
 tools/kdbus-monitor
-test/test-kdbus
-test/test-kdbus-daemon
-test/test-kdbus-domain
-test/test-kdbus-fuzz
-test/test-kdbus-benchmark
-test/test-kdbus-activator
-test/test-kdbus-chat
-test/test-kdbus-timeout
-test/test-kdbus-prio
-test/test-kdbus-sync
-test/test-kdbus-policy
-test/test-kdbus-metadata-ns
+test/kdbus-test

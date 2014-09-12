@@ -26,13 +26,14 @@ struct kdbus_enum_table {
 };
 
 #define TABLE(what) static struct kdbus_enum_table kdbus_table_##what[]
-#define ENUM(_id) { .id=_id, .name=STRINGIFY(_id) }
-#define LOOKUP(what)								\
-	const char *enum_##what(long long id) {					\
-		for (size_t i = 0; i < ELEMENTSOF(kdbus_table_##what); i++)	\
-			if (id == kdbus_table_##what[i].id)			\
-				return kdbus_table_##what[i].name;		\
-		return "UNKNOWN";						\
+#define ENUM(_id) { .id = _id, .name = STRINGIFY(_id) }
+#define LOOKUP(what)							\
+	const char *enum_##what(long long id)				\
+	{								\
+		for (size_t i = 0; i < ELEMENTSOF(kdbus_table_##what); i++) \
+			if (id == kdbus_table_##what[i].id)		\
+				return kdbus_table_##what[i].name;	\
+		return "UNKNOWN";					\
 	}
 
 TABLE(CMD) = {

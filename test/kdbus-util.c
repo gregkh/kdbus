@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <unistd.h>
@@ -26,17 +27,70 @@
 #include <sys/stat.h>
 #include <linux/memfd.h>
 #include <linux/unistd.h>
-#include <linux/fcntl.h>
+#include <stdbool.h>
 
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-/* we can't include <fcntl.h> due to glibc header file namespace confusion ... */
-extern int fcntl (int __fd, int __cmd, ...);
-extern int open (const char *__file, int __oflag, ...);
+#ifndef F_ADD_SEALS
+#define F_LINUX_SPECIFIC_BASE  1024
+#define F_ADD_SEALS     (F_LINUX_SPECIFIC_BASE + 9)
+#define F_GET_SEALS     (F_LINUX_SPECIFIC_BASE + 10)
+#define F_SEAL_SEAL     0x0001  /* prevent further seals from being set */
+#define F_SEAL_SHRINK   0x0002  /* prevent file from shrinking */
+#define F_SEAL_GROW     0x0004  /* prevent file from growing */
+#define F_SEAL_WRITE    0x0008  /* prevent writes */
+#endif
 
-#define POOL_SIZE (16 * 1024LU * 1024LU)
-struct conn *
+int kdbus_util_verbose = false;
+
+int kdbus_create_bus(int control_fd, const char *name, char **path)
+{
+	struct {
+		struct kdbus_cmd_make head;
+
+		/* bloom size item */
+		struct {
+			uint64_t size;
+			uint64_t type;
+			struct kdbus_bloom_parameter bloom;
+		} bs;
+
+		/* name item */
+		uint64_t n_size;
+		uint64_t n_type;
+		char name[64];
+	} bus_make;
+	int ret;
+
+	memset(&bus_make, 0, sizeof(bus_make));
+	bus_make.bs.size = sizeof(bus_make.bs);
+	bus_make.bs.type = KDBUS_ITEM_BLOOM_PARAMETER;
+	bus_make.bs.bloom.size = 64;
+	bus_make.bs.bloom.n_hash = 1;
+
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s", getuid(), name);
+
+	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+
+	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+			     sizeof(bus_make.bs) +
+			     bus_make.n_size;
+
+	kdbus_printf("Creating bus with name >%s< on control fd %d ...\n",
+		     name, control_fd);
+
+	ret = ioctl(control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
+
+	if (ret == 0 && path)
+		asprintf(path, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name);
+
+	return ret;
+}
+
+struct kdbus_conn *
 kdbus_hello(const char *path, uint64_t flags,
 	    const struct kdbus_item *item, size_t item_size)
 {
@@ -48,35 +102,22 @@ kdbus_hello(const char *path, uint64_t flags,
 		char comm[16];
 		uint8_t extra_items[item_size];
 	} h;
-	struct conn *conn;
+	struct kdbus_conn *conn;
 
 	memset(&h, 0, sizeof(h));
 
 	if (item_size > 0)
 		memcpy(h.extra_items, item, item_size);
 
-	printf("-- opening bus connection %s\n", path);
+	kdbus_printf("-- opening bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
 	if (fd < 0) {
-		fprintf(stderr, "--- error %d (%m)\n", fd);
+		kdbus_printf("--- error %d (%m)\n", fd);
 		return NULL;
 	}
 
 	h.hello.conn_flags = flags | KDBUS_HELLO_ACCEPT_FD;
-
-	h.hello.attach_flags = KDBUS_ATTACH_TIMESTAMP |
-			       KDBUS_ATTACH_CREDS |
-			       KDBUS_ATTACH_AUXGROUPS |
-			       KDBUS_ATTACH_NAMES |
-			       KDBUS_ATTACH_COMM |
-			       KDBUS_ATTACH_EXE |
-			       KDBUS_ATTACH_CMDLINE |
-			       KDBUS_ATTACH_CAPS |
-			       KDBUS_ATTACH_CGROUP |
-			       KDBUS_ATTACH_SECLABEL |
-			       KDBUS_ATTACH_AUDIT |
-			       KDBUS_ATTACH_CONN_NAME;
-
+	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
 	h.type = KDBUS_ITEM_CONN_NAME;
 	h.size = KDBUS_ITEM_HEADER_SIZE + sizeof(h.comm);
 	strcpy(h.comm, "this-is-my-name");
@@ -86,26 +127,28 @@ kdbus_hello(const char *path, uint64_t flags,
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
 	if (ret < 0) {
-		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
+		kdbus_printf("--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
-	printf("-- Our peer ID for %s: %llu -- bus uuid: '%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x'\n",
+	kdbus_printf("-- Our peer ID for %s: %llu -- bus uuid: '%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x'\n",
 		path, (unsigned long long)h.hello.id,
-		h.hello.id128[0],  h.hello.id128[1],  h.hello.id128[2],  h.hello.id128[3],
-		h.hello.id128[4],  h.hello.id128[5],  h.hello.id128[6],  h.hello.id128[7],
-		h.hello.id128[8],  h.hello.id128[9],  h.hello.id128[10], h.hello.id128[11],
-		h.hello.id128[12], h.hello.id128[13], h.hello.id128[14], h.hello.id128[15]);
+		h.hello.id128[0],  h.hello.id128[1],  h.hello.id128[2],
+		h.hello.id128[3],  h.hello.id128[4],  h.hello.id128[5],
+		h.hello.id128[6],  h.hello.id128[7],  h.hello.id128[8],
+		h.hello.id128[9],  h.hello.id128[10], h.hello.id128[11],
+		h.hello.id128[12], h.hello.id128[13], h.hello.id128[14],
+		h.hello.id128[15]);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {
-		fprintf(stderr, "unable to malloc()!?\n");
+		kdbus_printf("unable to malloc()!?\n");
 		return NULL;
 	}
 
 	conn->buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (conn->buf == MAP_FAILED) {
 		free(conn);
-		fprintf(stderr, "--- error mmap (%m)\n");
+		kdbus_printf("--- error mmap (%m)\n");
 		return NULL;
 	}
 
@@ -114,7 +157,7 @@ kdbus_hello(const char *path, uint64_t flags,
 	return conn;
 }
 
-struct conn *
+struct kdbus_conn *
 kdbus_hello_registrar(const char *path, const char *name,
 		      const struct kdbus_policy_access *access,
 		      size_t num_access, uint64_t flags)
@@ -122,8 +165,8 @@ kdbus_hello_registrar(const char *path, const char *name,
 	struct kdbus_item *item, *items;
 	size_t i, size;
 
-	size = KDBUS_ITEM_SIZE(strlen(name) + 1)
-		+ num_access * KDBUS_ITEM_SIZE(sizeof(struct kdbus_policy_access));
+	size = KDBUS_ITEM_SIZE(strlen(name) + 1) +
+		num_access * KDBUS_ITEM_SIZE(sizeof(*access));
 
 	items = alloca(size);
 
@@ -148,12 +191,26 @@ kdbus_hello_registrar(const char *path, const char *name,
 	return kdbus_hello(path, flags, items, size);
 }
 
-struct conn *kdbus_hello_activator(const char *path, const char *name,
+struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 				   const struct kdbus_policy_access *access,
 				   size_t num_access)
 {
 	return kdbus_hello_registrar(path, name, access, num_access,
 				     KDBUS_HELLO_ACTIVATOR);
+}
+
+void kdbus_conn_free(struct kdbus_conn *conn)
+{
+	if (!conn)
+		return;
+
+	if (conn->buf)
+		munmap(conn->buf, conn->size);
+
+	if (conn->fd >= 0)
+		close(conn->fd);
+
+	free(conn);
 }
 
 #ifndef F_ADD_SEALS
@@ -187,7 +244,8 @@ int sys_memfd_create(const char *name, __u64 size)
 
 int sys_memfd_seal_set(int fd)
 {
-	return fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE);
+	return fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK |
+			 F_SEAL_GROW | F_SEAL_WRITE);
 }
 
 off_t sys_memfd_get_size(int fd, off_t *size)
@@ -197,7 +255,7 @@ off_t sys_memfd_get_size(int fd, off_t *size)
 
 	ret = fstat(fd, &stat);
 	if (ret < 0) {
-		fprintf(stderr, "stat() failed: %m\n");
+		kdbus_printf("stat() failed: %m\n");
 		return ret;
 	}
 
@@ -205,13 +263,13 @@ off_t sys_memfd_get_size(int fd, off_t *size)
 	return 0;
 }
 
-int msg_send(const struct conn *conn,
-	     const char *name,
-	     uint64_t cookie,
-	     uint64_t flags,
-	     uint64_t timeout,
-	     int64_t priority,
-	     uint64_t dst_id)
+int kdbus_msg_send(const struct kdbus_conn *conn,
+		   const char *name,
+		   uint64_t cookie,
+		   uint64_t flags,
+		   uint64_t timeout,
+		   int64_t priority,
+		   uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 1024 + 3] = "0123456789_0";
@@ -231,20 +289,20 @@ int msg_send(const struct conn *conn,
 	else {
 		memfd = sys_memfd_create("my-name-is-nice", 1024 * 1024);
 		if (memfd < 0) {
-			fprintf(stderr, "failed to create memfd: %m\n");
+			kdbus_printf("failed to create memfd: %m\n");
 			return memfd;
 		}
 
 		if (write(memfd, "kdbus memfd 1234567", 19) != 19) {
 			ret = -errno;
-			fprintf(stderr, "writing to memfd failed: %m\n");
+			kdbus_printf("writing to memfd failed: %m\n");
 			return ret;
 		}
 
 		ret = sys_memfd_seal_set(memfd);
 		if (ret < 0) {
 			ret = -errno;
-			fprintf(stderr, "memfd sealing failed: %m\n");
+			kdbus_printf("memfd sealing failed: %m\n");
 			return ret;
 		}
 
@@ -257,7 +315,7 @@ int msg_send(const struct conn *conn,
 	msg = malloc(size);
 	if (!msg) {
 		ret = -errno;
-		fprintf(stderr, "unable to malloc()!?\n");
+		kdbus_printf("unable to malloc()!?\n");
 		return ret;
 	}
 
@@ -314,7 +372,7 @@ int msg_send(const struct conn *conn,
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error sending message: %d err %d (%m)\n", ret, errno);
+		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
 
@@ -324,16 +382,13 @@ int msg_send(const struct conn *conn,
 	if (flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
 		struct kdbus_msg *reply;
 
-		printf("SYNC REPLY @offset %llu:\n", msg->offset_reply);
+		kdbus_printf("SYNC REPLY @offset %llu:\n", msg->offset_reply);
 		reply = (struct kdbus_msg *)(conn->buf + msg->offset_reply);
-		msg_dump(conn, reply);
+		kdbus_msg_dump(conn, reply);
 
-		ret = ioctl(conn->fd, KDBUS_CMD_FREE, &msg->offset_reply);
-		if (ret < 0) {
-			ret = -errno;
-			fprintf(stderr, "error free message: %d (%m)\n", ret);
+		ret = kdbus_free(conn, msg->offset_reply);
+		if (ret < 0)
 			return ret;
-		}
 	}
 
 	free(msg);
@@ -341,7 +396,7 @@ int msg_send(const struct conn *conn,
 	return 0;
 }
 
-char *msg_id(uint64_t id, char *buf)
+static char *msg_id(uint64_t id, char *buf)
 {
 	if (id == 0)
 		return "KERNEL";
@@ -351,7 +406,7 @@ char *msg_id(uint64_t id, char *buf)
 	return buf;
 }
 
-void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
+void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 {
 	const struct kdbus_item *item = msg->items;
 	char buf_src[32];
@@ -364,16 +419,18 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 	else
 		cookie_reply = msg->cookie_reply;
 
-	printf("MESSAGE: %s (%llu bytes) flags=0x%08llx, %s → %s, cookie=%llu, timeout=%llu cookie_reply=%llu priority=%lli\n",
+	kdbus_printf("MESSAGE: %s (%llu bytes) flags=0x%08llx, %s → %s, "
+		     "cookie=%llu, timeout=%llu cookie_reply=%llu priority=%lli\n",
 		enum_PAYLOAD(msg->payload_type), (unsigned long long)msg->size,
 		(unsigned long long)msg->flags,
 		msg_id(msg->src_id, buf_src), msg_id(msg->dst_id, buf_dst),
-		(unsigned long long)msg->cookie, (unsigned long long)timeout, (unsigned long long)cookie_reply,
-		(long long)msg->priority);
+		(unsigned long long)msg->cookie, (unsigned long long)timeout,
+		(unsigned long long)cookie_reply, (long long)msg->priority);
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
 		if (item->size < KDBUS_ITEM_HEADER_SIZE) {
-			printf("  +%s (%llu bytes) invalid data record\n", enum_MSG(item->type), item->size);
+			kdbus_printf("  +%s (%llu bytes) invalid data record\n",
+				     enum_MSG(item->type), item->size);
 			break;
 		}
 
@@ -386,7 +443,7 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			else
 				s = (char *)msg + item->vec.offset;
 
-			printf("  +%s (%llu bytes) off=%llu size=%llu '%s'\n",
+			kdbus_printf("  +%s (%llu bytes) off=%llu size=%llu '%s'\n",
 			       enum_MSG(item->type), item->size,
 			       (unsigned long long)item->vec.offset,
 			       (unsigned long long)item->vec.size, s);
@@ -397,25 +454,28 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			char *buf;
 			off_t size;
 
-			buf = mmap(NULL, item->memfd.size, PROT_READ, MAP_PRIVATE, item->memfd.fd, 0);
+			buf = mmap(NULL, item->memfd.size, PROT_READ,
+				   MAP_PRIVATE, item->memfd.fd, 0);
 			if (buf == MAP_FAILED) {
-				printf("mmap() fd=%i size=%llu failed: %m\n", item->memfd.fd, item->memfd.size);
+				kdbus_printf("mmap() fd=%i size=%llu failed: %m\n",
+					     item->memfd.fd, item->memfd.size);
 				break;
 			}
 
 			if (sys_memfd_get_size(item->memfd.fd, &size) < 0) {
-				fprintf(stderr, "KDBUS_CMD_MEMFD_SIZE_GET failed: %m\n");
+				kdbus_printf("KDBUS_CMD_MEMFD_SIZE_GET failed: %m\n");
 				break;
 			}
 
-			printf("  +%s (%llu bytes) fd=%i size=%llu filesize=%llu '%s'\n",
+			kdbus_printf("  +%s (%llu bytes) fd=%i size=%llu filesize=%llu '%s'\n",
 			       enum_MSG(item->type), item->size, item->memfd.fd,
-			       (unsigned long long)item->memfd.size, (unsigned long long)size, buf);
+			       (unsigned long long)item->memfd.size,
+			       (unsigned long long)size, buf);
 			break;
 		}
 
 		case KDBUS_ITEM_CREDS:
-			printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",
+			kdbus_printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",
 				enum_MSG(item->type), item->size,
 				item->creds.uid, item->creds.gid,
 				item->creds.pid, item->creds.tid,
@@ -425,11 +485,14 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		case KDBUS_ITEM_AUXGROUPS: {
 			int i, n;
 
-			printf("  +%s (%llu bytes)\n", enum_MSG(item->type), item->size);
-			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / sizeof(uint64_t);
+			kdbus_printf("  +%s (%llu bytes)\n",
+				     enum_MSG(item->type), item->size);
+			n = (item->size - KDBUS_ITEM_HEADER_SIZE) /
+				sizeof(uint64_t);
 
 			for (i = 0; i < n; i++)
-				printf("    gid[%d] = %lld\n", i, item->data64[i]);
+				kdbus_printf("    gid[%d] = %lld\n",
+					     i, item->data64[i]);
 			break;
 		}
 
@@ -440,14 +503,16 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 		case KDBUS_ITEM_SECLABEL:
 		case KDBUS_ITEM_DST_NAME:
 		case KDBUS_ITEM_CONN_NAME:
-			printf("  +%s (%llu bytes) '%s' (%zu)\n",
-			       enum_MSG(item->type), item->size, item->str, strlen(item->str));
+			kdbus_printf("  +%s (%llu bytes) '%s' (%zu)\n",
+				     enum_MSG(item->type), item->size,
+				     item->str, strlen(item->str));
 			break;
 
 		case KDBUS_ITEM_NAME: {
-			printf("  +%s (%llu bytes) '%s' (%zu) flags=0x%08llx\n",
-			       enum_MSG(item->type), item->size, item->name.name, strlen(item->name.name),
-			       item->name.flags);
+			kdbus_printf("  +%s (%llu bytes) '%s' (%zu) flags=0x%08llx\n",
+				     enum_MSG(item->type), item->size,
+				     item->name.name, strlen(item->name.name),
+				     item->name.flags);
 			break;
 		}
 
@@ -456,20 +521,22 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			const char *str = item->str;
 			int count = 0;
 
-			printf("  +%s (%llu bytes) ", enum_MSG(item->type), item->size);
+			kdbus_printf("  +%s (%llu bytes) ",
+				     enum_MSG(item->type), item->size);
 			while (size) {
-				printf("'%s' ", str);
+				kdbus_printf("'%s' ", str);
 				size -= strlen(str) + 1;
 				str += strlen(str) + 1;
 				count++;
 			}
 
-			printf("(%d string%s)\n", count, (count == 1) ? "" : "s");
+			kdbus_printf("(%d string%s)\n",
+				     count, (count == 1) ? "" : "s");
 			break;
 		}
 
 		case KDBUS_ITEM_AUDIT:
-			printf("  +%s (%llu bytes) loginuid=%llu sessionid=%llu\n",
+			kdbus_printf("  +%s (%llu bytes) loginuid=%llu sessionid=%llu\n",
 			       enum_MSG(item->type), item->size,
 			       (unsigned long long)item->audit.loginuid,
 			       (unsigned long long)item->audit.sessionid);
@@ -480,34 +547,35 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			const uint32_t *cap;
 			int i;
 
-			printf("  +%s (%llu bytes) len=%llu bytes\n",
+			kdbus_printf("  +%s (%llu bytes) len=%llu bytes\n",
 			       enum_MSG(item->type), item->size,
-			       (unsigned long long)item->size - KDBUS_ITEM_HEADER_SIZE);
+			       (unsigned long long)item->size -
+					KDBUS_ITEM_HEADER_SIZE);
 
 			cap = item->data32;
 			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / 4 / sizeof(uint32_t);
 
-			printf("    CapInh=");
+			kdbus_printf("    CapInh=");
 			for (i = 0; i < n; i++)
-				printf("%08x", cap[(0 * n) + (n - i - 1)]);
+				kdbus_printf("%08x", cap[(0 * n) + (n - i - 1)]);
 
-			printf(" CapPrm=");
+			kdbus_printf(" CapPrm=");
 			for (i = 0; i < n; i++)
-				printf("%08x", cap[(1 * n) + (n - i - 1)]);
+				kdbus_printf("%08x", cap[(1 * n) + (n - i - 1)]);
 
-			printf(" CapEff=");
+			kdbus_printf(" CapEff=");
 			for (i = 0; i < n; i++)
-				printf("%08x", cap[(2 * n) + (n - i - 1)]);
+				kdbus_printf("%08x", cap[(2 * n) + (n - i - 1)]);
 
-			printf(" CapInh=");
+			kdbus_printf(" CapInh=");
 			for (i = 0; i < n; i++)
-				printf("%08x", cap[(3 * n) + (n - i - 1)]);
-			printf("\n");
+				kdbus_printf("%08x", cap[(3 * n) + (n - i - 1)]);
+			kdbus_printf("\n");
 			break;
 		}
 
 		case KDBUS_ITEM_TIMESTAMP:
-			printf("  +%s (%llu bytes) seq=%llu realtime=%lluns monotonic=%lluns\n",
+			kdbus_printf("  +%s (%llu bytes) seq=%llu realtime=%lluns monotonic=%lluns\n",
 			       enum_MSG(item->type), item->size,
 			       (unsigned long long)item->timestamp.seqnum,
 			       (unsigned long long)item->timestamp.realtime_ns,
@@ -515,41 +583,47 @@ void msg_dump(const struct conn *conn, const struct kdbus_msg *msg)
 			break;
 
 		case KDBUS_ITEM_REPLY_TIMEOUT:
-			printf("  +%s (%llu bytes) cookie=%llu\n",
-			       enum_MSG(item->type), item->size, msg->cookie_reply);
+			kdbus_printf("  +%s (%llu bytes) cookie=%llu\n",
+			       enum_MSG(item->type), item->size,
+			       msg->cookie_reply);
 			break;
 
 		case KDBUS_ITEM_NAME_ADD:
 		case KDBUS_ITEM_NAME_REMOVE:
 		case KDBUS_ITEM_NAME_CHANGE:
-			printf("  +%s (%llu bytes) '%s', old id=%lld, new id=%lld, old_flags=0x%llx new_flags=0x%llx\n",
-				enum_MSG(item->type), (unsigned long long) item->size,
-				item->name_change.name, item->name_change.old.id,
-				item->name_change.new.id, item->name_change.old.flags,
+			kdbus_printf("  +%s (%llu bytes) '%s', old id=%lld, new id=%lld, old_flags=0x%llx new_flags=0x%llx\n",
+				enum_MSG(item->type),
+				(unsigned long long) item->size,
+				item->name_change.name,
+				item->name_change.old.id,
+				item->name_change.new.id,
+				item->name_change.old.flags,
 				item->name_change.new.flags);
 			break;
 
 		case KDBUS_ITEM_ID_ADD:
 		case KDBUS_ITEM_ID_REMOVE:
-			printf("  +%s (%llu bytes) id=%llu flags=%llu\n",
-			       enum_MSG(item->type), (unsigned long long) item->size,
+			kdbus_printf("  +%s (%llu bytes) id=%llu flags=%llu\n",
+			       enum_MSG(item->type),
+			       (unsigned long long) item->size,
 			       (unsigned long long) item->id_change.id,
 			       (unsigned long long) item->id_change.flags);
 			break;
 
 		default:
-			printf("  +%s (%llu bytes)\n", enum_MSG(item->type), item->size);
+			kdbus_printf("  +%s (%llu bytes)\n",
+				     enum_MSG(item->type), item->size);
 			break;
 		}
 	}
 
 	if ((char *)item - ((char *)msg + msg->size) >= 8)
-		printf("invalid padding at end of message\n");
+		kdbus_printf("invalid padding at end of message\n");
 
-	printf("\n");
+	kdbus_printf("\n");
 }
 
-int msg_recv(struct conn *conn)
+int kdbus_msg_recv(struct kdbus_conn *conn, struct kdbus_msg **msg_out)
 {
 	struct kdbus_cmd_recv recv = {};
 	struct kdbus_msg *msg;
@@ -558,58 +632,64 @@ int msg_recv(struct conn *conn)
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
 		return ret;
 	}
 
 	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
-	msg_dump(conn, msg);
+	kdbus_msg_dump(conn, msg);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &recv.offset);
-	if (ret < 0) {
-		ret = -errno;
-		fprintf(stderr, "error free message: %d (%m)\n", ret);
-		return ret;
+	if (msg_out) {
+		*msg_out = msg;
+	} else {
+		ret = kdbus_free(conn, recv.offset);
+		if (ret < 0)
+			return ret;
 	}
 
 	return 0;
 }
 
-/* Returns 0 on success, negative errno on failure */
-int conn_recv(struct conn *conn)
+int kdbus_msg_recv_poll(struct kdbus_conn *conn,
+			struct kdbus_msg **msg_out,
+			unsigned int timeout_ms)
 {
 	int ret;
-	int cnt = 3;
-	struct pollfd fd;
 
-	fd.fd = conn->fd;
-	fd.events = POLLIN | POLLPRI | POLLHUP;
-	fd.revents = 0;
-
-	while (cnt) {
-		cnt--;
-		ret = poll(&fd, 1, 4000);
-		if (ret == 0) {
-			ret = -ETIMEDOUT;
-			break;
+	while (timeout_ms--) {
+		ret = kdbus_msg_recv(conn, NULL);
+		if (ret == -EAGAIN) {
+			usleep(1000);
+			continue;
 		}
 
-		if (ret > 0) {
-			if (fd.revents & POLLIN)
-				ret = msg_recv(conn);
+		if (ret < 0)
+			return ret;
 
-			if (fd.revents & (POLLHUP | POLLERR))
-				ret = -ECONNRESET;
-		}
-
-		if (ret >= 0 || ret != -EAGAIN)
-			break;
+		if (ret == 0)
+			return 0;
 	}
 
-	return ret;
+	if (timeout_ms == 0)
+		return -ETIMEDOUT;
+
+	return 0;
 }
 
-int name_acquire(struct conn *conn, const char *name, uint64_t flags)
+int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
+{
+	int ret;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &offset);
+	if (ret < 0) {
+		kdbus_printf("KDBUS_CMD_FREE failed: %d (%m)\n", ret);
+		return -errno;
+	}
+
+	return 0;
+}
+
+int kdbus_name_acquire(struct kdbus_conn *conn,
+		       const char *name, uint64_t flags)
 {
 	struct kdbus_cmd_name *cmd_name;
 	int ret;
@@ -625,16 +705,17 @@ int name_acquire(struct conn *conn, const char *name, uint64_t flags)
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error aquiring name: %s\n", strerror(-ret));
+		kdbus_printf("error aquiring name: %s\n", strerror(-ret));
 		return ret;
 	}
 
-	printf("%s(): flags after call: 0x%llx\n", __func__, cmd_name->conn_flags);
+	kdbus_printf("%s(): flags after call: 0x%llx\n", __func__,
+		     cmd_name->conn_flags);
 
 	return 0;
 }
 
-int name_release(struct conn *conn, const char *name)
+int kdbus_name_release(struct kdbus_conn *conn, const char *name)
 {
 	struct kdbus_cmd_name *cmd_name;
 	int ret;
@@ -646,19 +727,20 @@ int name_release(struct conn *conn, const char *name)
 	strcpy(cmd_name->name, name);
 	cmd_name->size = size;
 
-	printf("conn %lld giving up name '%s'\n", (unsigned long long)conn->id, name);
+	kdbus_printf("conn %lld giving up name '%s'\n",
+		     (unsigned long long) conn->id, name);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error releasing name: %s\n", strerror(-ret));
+		kdbus_printf("error releasing name: %s\n", strerror(-ret));
 		return ret;
 	}
 
 	return 0;
 }
 
-int name_list(struct conn *conn, uint64_t flags)
+int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 {
 	struct kdbus_cmd_name_list cmd_list;
 	struct kdbus_name_list *list;
@@ -669,28 +751,25 @@ int name_list(struct conn *conn, uint64_t flags)
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);
 	if (ret < 0) {
-		fprintf(stderr, "error listing names: %d (%m)\n", ret);
+		kdbus_printf("error listing names: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
-	printf("REGISTRY:\n");
+	kdbus_printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
 	KDBUS_ITEM_FOREACH(name, list, names)
-		printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n", name->owner_id,
+		kdbus_printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n",
+		       name->owner_id,
 		       name->flags, name->conn_flags,
 		       name->size > sizeof(struct kdbus_cmd_name) ? name->name : "");
-	printf("\n");
+	kdbus_printf("\n");
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &cmd_list.offset);
-	if (ret < 0) {
-		fprintf(stderr, "error free name list: %d (%m)\n", ret);
-		return EXIT_FAILURE;
-	}
+	ret = kdbus_free(conn, cmd_list.offset);
 
-	return 0;
+	return ret;
 }
 
-int conn_update_attach_flags(struct conn *conn, uint64_t flags)
+int kdbus_conn_update_attach_flags(struct kdbus_conn *conn, uint64_t flags)
 {
 	int ret;
 	size_t size;
@@ -703,7 +782,7 @@ int conn_update_attach_flags(struct conn *conn, uint64_t flags)
 	update = malloc(size);
 	if (!update) {
 		ret = -errno;
-		fprintf(stderr, "error malloc: %d (%m)\n", ret);
+		kdbus_printf("error malloc: %d (%m)\n", ret);
 		return ret;
 	}
 
@@ -720,7 +799,7 @@ int conn_update_attach_flags(struct conn *conn, uint64_t flags)
 	ret = ioctl(conn->fd, KDBUS_CMD_CONN_UPDATE, update);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error conn update: %d (%m)\n", ret);
+		kdbus_printf("error conn update: %d (%m)\n", ret);
 	}
 
 	free(update);
@@ -728,9 +807,9 @@ int conn_update_attach_flags(struct conn *conn, uint64_t flags)
 	return ret;
 }
 
-int conn_update_policy(struct conn *conn, const char *name,
-		       const struct kdbus_policy_access *access,
-		       size_t num_access)
+int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
+			     const struct kdbus_policy_access *access,
+			     size_t num_access)
 {
 	struct kdbus_cmd_update *update;
 	struct kdbus_item *item;
@@ -744,7 +823,7 @@ int conn_update_policy(struct conn *conn, const char *name,
 	update = malloc(size);
 	if (!update) {
 		ret = -errno;
-		fprintf(stderr, "error malloc: %d (%m)\n", ret);
+		kdbus_printf("error malloc: %d (%m)\n", ret);
 		return ret;
 	}
 
@@ -773,7 +852,7 @@ int conn_update_policy(struct conn *conn, const char *name,
 	ret = ioctl(conn->fd, KDBUS_CMD_CONN_UPDATE, update);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error conn update: %d (%m)\n", ret);
+		kdbus_printf("error conn update: %d (%m)\n", ret);
 	}
 
 	free(update);
@@ -781,7 +860,7 @@ int conn_update_policy(struct conn *conn, const char *name,
 	return ret;
 }
 
-void add_match_empty(int fd)
+int kdbus_add_match_empty(struct kdbus_conn *conn)
 {
 	struct {
 		struct kdbus_cmd_match cmd;
@@ -797,9 +876,11 @@ void add_match_empty(int fd)
 
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
-	ret = ioctl(fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = ioctl(conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
 	if (ret < 0)
-		fprintf(stderr, "--- error adding conn match: %d (%m)\n", ret);
+		kdbus_printf("--- error adding conn match: %d (%m)\n", ret);
+
+	return ret;
 }
 
 int drop_privileges(uid_t uid, gid_t gid)
@@ -809,21 +890,21 @@ int drop_privileges(uid_t uid, gid_t gid)
 	ret = setgroups(0, NULL);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error setgroups: %d (%m)\n", ret);
+		kdbus_printf("error setgroups: %d (%m)\n", ret);
 		return ret;
 	}
 
 	ret = setresgid(gid, gid, gid);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error setresgid: %d (%m)\n", ret);
+		kdbus_printf("error setresgid: %d (%m)\n", ret);
 		return ret;
 	}
 
 	ret = setresuid(uid, uid, uid);
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error setresuid: %d (%m)\n", ret);
+		kdbus_printf("error setresuid: %d (%m)\n", ret);
 		return ret;
 	}
 
@@ -840,7 +921,7 @@ static int do_userns_map_id(pid_t pid,
 	fd = open(map_file, O_RDWR);
 	if (fd < 0) {
 		ret = -errno;
-		fprintf(stderr, "error open %s: %d (%m)\n",
+		kdbus_printf("error open %s: %d (%m)\n",
 			map_file, ret);
 		return ret;
 	}
@@ -848,8 +929,8 @@ static int do_userns_map_id(pid_t pid,
 	ret = write(fd, map_id, strlen(map_id));
 	if (ret < 0) {
 		ret = -errno;
-		fprintf(stderr, "error write to %s: %d (%m)\n",
-			map_file, ret);
+		kdbus_printf("error write to %s: %d (%m)\n",
+			     map_file, ret);
 		goto out;
 	}
 

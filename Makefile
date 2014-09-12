@@ -39,7 +39,7 @@ clean:
 	$(MAKE) -C test clean
 
 check:
-	test/test-kdbus
+	test/kdbus-test
 
 install: module
 	mkdir -p /lib/modules/$(KERNELVER)/kernel/drivers/kdbus$(EXT)/
@@ -57,5 +57,5 @@ tt: all
 	-sudo sh -c 'rmmod kdbus$(EXT)'
 	sudo sh -c 'insmod kdbus$(EXT).ko'
 	-sudo sh -c 'sync; umount / 2> /dev/null'
-	test/test-kdbus
+	test/kdbus-test
 	dmesg
