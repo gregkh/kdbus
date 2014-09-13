@@ -9,8 +9,6 @@
  * your option) any later version.
  */
 
-#define _GNU_SOURCE
-
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
