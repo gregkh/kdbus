@@ -142,6 +142,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	close(fd);
+
 	fd = open(env->buspath, O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(fd >= 0);
 
@@ -149,6 +150,8 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	hello.conn_flags = KDBUS_HELLO_ACTIVATOR;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+
+	close(fd);
 
 	return TEST_OK;
 }
