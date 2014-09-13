@@ -422,7 +422,7 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
  * kdbus_domain_user_assign_id() - allocate ID and assign in it to the
  *				   domain user
  * @domain:		The domain of the user
- * @user		The kdbus_domain_user object of the user
+ * @user:		The kdbus_domain_user object of the user
  *
  * Returns 0 if ID in [0, INT_MAX] is successfully assigned to the
  * domain user. Negative errno on failure.
@@ -456,7 +456,7 @@ static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
  * @domain:		The domain of the user
  * @uid:		The uid of the user; INVALID_UID for an
  *			anonymous user like a custom endpoint
- * @user		Pointer to a reference where the accounted
+ * @user:		Pointer to a reference where the accounted
  *			domain user will be stored.
  *
  * Return: 0 on success, negative errno on failure.
@@ -522,7 +522,7 @@ exit_free:
  * @domain:		The domain of the user
  * @uid:		The uid of the user; INVALID_UID for an
  *			anonymous user like a custom endpoint
- * @user		Pointer to a reference where the accounted
+ * @user:		Pointer to a reference where the accounted
  *			domain user will be stored.
  *
  * Return: 0 on success, negative errno on failure.

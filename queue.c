@@ -637,7 +637,7 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
  * kdbus_queue_entry_alloc() - allocate a queue entry
  * @conn:	The connection that holds the queue
  * @kmsg:	The kmsg object the queue entry should track
- * @e		Pointer to return the allocated entry
+ * @e:		Pointer to return the allocated entry
  *
  * Allocates a queue entry based on a given kmsg and allocate space for
  * the message payload and the requested metadata in the connection's pool.

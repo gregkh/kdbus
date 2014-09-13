@@ -47,7 +47,7 @@ struct kdbus_conn_reply;
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
  * @entry:		The entry of the connection's reply_list
  * @conn:		The counterpart connection that is expected to answer
- * @queue_enty:		The queue enty item that is prepared by the replying
+ * @queue_entry:	The queue enty item that is prepared by the replying
  *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
