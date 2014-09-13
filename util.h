@@ -14,7 +14,8 @@
 #define __KDBUS_UTIL_H
 
 #include <linux/dcache.h>
-#include "linux/ioctl.h"
+#include <linux/ioctl.h>
+
 #include "kdbus.h"
 
 /* all exported addresses are 64 bit */
