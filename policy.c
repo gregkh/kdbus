@@ -258,13 +258,13 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 					    struct kdbus_conn *conn_dst)
 {
-	const struct kdbus_policy_db_entry *e;
 	struct kdbus_name_entry *name_entry;
 	int ret = -EPERM;
 
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
+		const struct kdbus_policy_db_entry *e;
 
 		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
 		if (kdbus_policy_check_access(e, current_cred(),
