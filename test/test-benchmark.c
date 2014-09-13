@@ -243,7 +243,7 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 			start.tv_sec = now.tv_sec;
 			start.tv_usec = now.tv_usec;
 
-			if (!env->verbose)
+			if (!kdbus_util_verbose)
 				break;
 
 			dump_stats();

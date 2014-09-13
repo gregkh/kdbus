@@ -42,7 +42,7 @@
 #define F_SEAL_WRITE    0x0008  /* prevent writes */
 #endif
 
-int kdbus_util_verbose = false;
+int kdbus_util_verbose = true;
 
 int kdbus_create_bus(int control_fd, const char *name, char **path)
 {

@@ -5,7 +5,6 @@ struct kdbus_test_env {
 	char *buspath;
 	int control_fd;
 	struct kdbus_conn *conn;
-	bool verbose;
 };
 
 enum {

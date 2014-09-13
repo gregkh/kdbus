@@ -23,7 +23,7 @@ int kdbus_test_daemon(struct kdbus_test_env *env)
 	int ret;
 
 	/* This test doesn't make any sense in non-interactive mode */
-	if (!env->verbose)
+	if (!kdbus_util_verbose)
 		return TEST_OK;
 
 	printf("Created connection %llu on bus '%s'\n",

@@ -237,7 +237,7 @@ void test_unprepare_env(const struct kdbus_test *t, struct kdbus_test_env *env)
 	}
 }
 
-static int test_run(const struct kdbus_test *t, bool verbose)
+static int test_run(const struct kdbus_test *t)
 {
 	int ret;
 	struct kdbus_test_env env = {};
@@ -245,9 +245,6 @@ static int test_run(const struct kdbus_test *t, bool verbose)
 	ret = test_prepare_env(t, &env);
 	if (ret != TEST_OK)
 		return ret;
-
-	env.verbose = verbose;
-	kdbus_util_verbose = verbose;
 
 	ret = t->func(&env);
 	test_unprepare_env(t, &env);
@@ -285,7 +282,9 @@ static int run_all_tests(void)
 			printf(".");
 		printf(" ");
 
-		ret = test_run(t, false);
+		kdbus_util_verbose = false;
+
+		ret = test_run(t);
 		switch (ret) {
 		case TEST_OK:
 			ok_cnt++;
@@ -375,7 +374,7 @@ int main(int argc, char *argv[])
 		for (t = tests; t->name; t++) {
 			if (!strcmp(t->name, arg_test)) {
 				do {
-					ret = test_run(t, true);
+					ret = test_run(t);
 					printf("Testing %s: ", t->desc);
 					print_test_result(ret);
 					printf("\n");
