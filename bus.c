@@ -298,6 +298,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 exit_unref_user_unlock:
 	mutex_unlock(&domain->lock);
 	kdbus_domain_user_unref(b->user);
+	kdbus_ep_disconnect(b->ep);
 	kdbus_ep_unref(b->ep);
 exit_free_reg:
 	kdbus_name_registry_free(b->name_registry);
