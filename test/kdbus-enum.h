@@ -8,8 +8,6 @@
  */
 #pragma once
 
-#include "../kdbus.h"
-
 const char *enum_CMD(long long id);
 const char *enum_MSG(long long id);
 const char *enum_MATCH(long long id);

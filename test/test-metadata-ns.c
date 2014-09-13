@@ -18,7 +18,7 @@
 #include <sys/prctl.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>
-#include <stdbool.h>
+#include <linux/sched.h>
 
 #include "kdbus-test.h"
 #include "kdbus-util.h"

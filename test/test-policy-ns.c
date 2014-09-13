@@ -25,6 +25,7 @@
 #include <sys/ioctl.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>
+#include <linux/sched.h>
 
 #include "kdbus-test.h"
 #include "kdbus-util.h"
