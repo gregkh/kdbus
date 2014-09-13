@@ -873,8 +873,8 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 		put_pid(entry->pid);
 	if (entry->tid)
 		put_pid(entry->tid);
-	if (entry->auxgrps)
-		kfree(entry->auxgrps);
+
+	kfree(entry->auxgrps);
 
 	kdbus_queue_entry_memfds_unref(entry);
 	kdbus_queue_entry_fds_unref(entry);

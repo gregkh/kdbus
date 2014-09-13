@@ -118,7 +118,7 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		unsigned int i;
 
 		i = 8 + KDBUS_ALIGN8(user);
-		users = kzalloc(sizeof(unsigned int) * i, GFP_KERNEL);
+		users = kcalloc(i, sizeof(unsigned int), GFP_KERNEL);
 		if (!users)
 			return -ENOMEM;
 
@@ -893,7 +893,7 @@ bool kdbus_conn_active(const struct kdbus_conn *conn)
 
 /**
  * kdbus_conn_flush_policy() - flush all cached policy entries that
- * 			       refer to a connecion
+ *			       refer to a connecion
  * @conn:	Connection to check
  */
 void kdbus_conn_purge_policy_cache(struct kdbus_conn *conn)
@@ -1324,7 +1324,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		}
 	}
 
-	if (!KDBUS_ITEMS_END(item, hello->items, KDBUS_ITEMS_SIZE(hello, items)))
+	if (!KDBUS_ITEMS_END(item, hello->items,
+			     KDBUS_ITEMS_SIZE(hello, items)))
 		return -EINVAL;
 
 	if ((is_activator || is_policy_holder) && !name)

@@ -213,6 +213,7 @@ static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
 
 				for (i = 0; i < group_info->ngroups; i++) {
 					kgid_t gid = GROUP_AT(group_info, i);
+
 					if (gid_eq(gid, a->gid))
 						return 0;
 				}
@@ -264,6 +265,7 @@ static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	mutex_lock(&conn_dst->lock);
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
+
 		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
 		if (kdbus_policy_check_access(e, current_cred(),
 					      KDBUS_POLICY_TALK) == 0) {
@@ -618,7 +620,8 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 				goto exit;
 			}
 
-			ret = kdbus_policy_make_access(&item->policy_access, &a);
+			ret = kdbus_policy_make_access(&item->policy_access,
+						       &a);
 			if (ret < 0)
 				goto exit;
 
