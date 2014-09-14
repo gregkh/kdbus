@@ -24,7 +24,7 @@ int kdbus_test_free(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -1 && errno == ENXIO);
 
 	/* free a buffer out of the pool's bounds */
-	off = env->conn->size + 1;
+	off = POOL_SIZE + 1;
 	ret = ioctl(env->conn->fd, KDBUS_CMD_FREE, &off);
 	ASSERT_RETURN(ret == -1 && errno == ENXIO);
 
