@@ -14,8 +14,8 @@
  *   -- Albert Einstein
  */
 
-#ifndef _KDBUS_H_
-#define _KDBUS_H_
+#ifndef _KDBUS_UAPI_H_
+#define _KDBUS_UAPI_H_
 
 #ifndef __KERNEL__
 #include <sys/ioctl.h>
@@ -824,4 +824,4 @@ enum kdbus_ioctl_type {
 					     struct kdbus_cmd_match),
 };
 
-#endif
+#endif /* _KDBUS_UAPI_H_ */
