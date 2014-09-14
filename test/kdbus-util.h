@@ -45,7 +45,6 @@ struct kdbus_conn {
 	int fd;
 	uint64_t id;
 	void *buf;
-	size_t size;
 };
 
 int sys_memfd_create(const char *name, __u64 size);

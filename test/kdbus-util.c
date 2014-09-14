@@ -148,6 +148,7 @@ kdbus_hello(const char *path, uint64_t flags,
 	conn->buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (conn->buf == MAP_FAILED) {
 		free(conn);
+		close(fd);
 		kdbus_printf("--- error mmap (%m)\n");
 		return NULL;
 	}
@@ -205,7 +206,7 @@ void kdbus_conn_free(struct kdbus_conn *conn)
 		return;
 
 	if (conn->buf)
-		munmap(conn->buf, conn->size);
+		munmap(conn->buf, POOL_SIZE);
 
 	if (conn->fd >= 0)
 		close(conn->fd);
@@ -471,6 +472,7 @@ void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			       enum_MSG(item->type), item->size, item->memfd.fd,
 			       (unsigned long long)item->memfd.size,
 			       (unsigned long long)size, buf);
+			munmap(buf, item->memfd.size);
 			break;
 		}
 
