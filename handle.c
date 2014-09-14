@@ -88,17 +88,6 @@ struct kdbus_handle {
 	};
 };
 
-/**
- * is_kdbus_handle()	Check whether a struct file is a kdbus handle
- * @file:		File pointer to check
- *
- * Returns 1 if the passed file is a kdbus handle, 0 otherwise.
- */
-int is_kdbus_handle(const struct file *file)
-{
-	return file->f_op == &kdbus_device_ops;
-}
-
 static int kdbus_handle_open(struct inode *inode, struct file *file)
 {
 	struct kdbus_handle *handle;
