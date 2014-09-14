@@ -623,6 +623,29 @@ void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 	kdbus_printf("\n");
 }
 
+void kdbus_msg_free(struct kdbus_msg *msg)
+{
+	const struct kdbus_item *item;
+	int nfds, i;
+
+	KDBUS_ITEM_FOREACH(item, msg, items) {
+		switch (item->type) {
+		/* close all memfds */
+		case KDBUS_ITEM_PAYLOAD_MEMFD:
+			close(item->memfd.fd);
+			break;
+		case KDBUS_ITEM_FDS:
+			nfds = (item->size - KDBUS_ITEM_HEADER_SIZE) /
+				sizeof(int);
+
+			for (i = 0; i < nfds; i++)
+				close(item->fds[i]);
+
+			break;
+		}
+	}
+}
+
 int kdbus_msg_recv(struct kdbus_conn *conn, struct kdbus_msg **msg_out)
 {
 	struct kdbus_cmd_recv recv = {};
@@ -641,6 +664,8 @@ int kdbus_msg_recv(struct kdbus_conn *conn, struct kdbus_msg **msg_out)
 	if (msg_out) {
 		*msg_out = msg;
 	} else {
+		kdbus_msg_free(msg);
+
 		ret = kdbus_free(conn, recv.offset);
 		if (ret < 0)
 			return ret;

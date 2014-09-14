@@ -59,11 +59,13 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	ret = kdbus_msg_recv(conn, &msg);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
+	kdbus_msg_free(msg);
 
 	/* and so should the monitor */
 	ret = kdbus_msg_recv(monitor, &msg);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
+	kdbus_msg_free(msg);
 
 	kdbus_conn_free(monitor);
 	kdbus_conn_free(conn);

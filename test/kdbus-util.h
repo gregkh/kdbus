@@ -56,6 +56,7 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags);
 int kdbus_name_release(struct kdbus_conn *conn, const char *name);
 int kdbus_name_acquire(struct kdbus_conn *conn, const char *name,
 		       uint64_t flags);
+void kdbus_msg_free(struct kdbus_msg *msg);
 int kdbus_msg_recv(struct kdbus_conn *conn, struct kdbus_msg **msg);
 int kdbus_msg_recv_poll(struct kdbus_conn *conn, struct kdbus_msg **msg_out,
 			unsigned int timeout_ms);
