@@ -212,8 +212,7 @@ static int test_prepare_env(const struct kdbus_test *t,
 
 	if (t->flags & TEST_CREATE_CONN) {
 		env->conn = kdbus_hello(env->buspath, 0, NULL, 0);
-		if (!env->conn)
-			return EXIT_FAILURE;
+		ASSERT_RETURN(env->conn);
 	}
 
 	return 0;

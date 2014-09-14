@@ -131,13 +131,13 @@ kdbus_hello(const char *path, uint64_t flags,
 		return NULL;
 	}
 	kdbus_printf("-- Our peer ID for %s: %llu -- bus uuid: '%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x'\n",
-		path, (unsigned long long)h.hello.id,
-		h.hello.id128[0],  h.hello.id128[1],  h.hello.id128[2],
-		h.hello.id128[3],  h.hello.id128[4],  h.hello.id128[5],
-		h.hello.id128[6],  h.hello.id128[7],  h.hello.id128[8],
-		h.hello.id128[9],  h.hello.id128[10], h.hello.id128[11],
-		h.hello.id128[12], h.hello.id128[13], h.hello.id128[14],
-		h.hello.id128[15]);
+		     path, (unsigned long long)h.hello.id,
+		     h.hello.id128[0],  h.hello.id128[1],  h.hello.id128[2],
+		     h.hello.id128[3],  h.hello.id128[4],  h.hello.id128[5],
+		     h.hello.id128[6],  h.hello.id128[7],  h.hello.id128[8],
+		     h.hello.id128[9],  h.hello.id128[10], h.hello.id128[11],
+		     h.hello.id128[12], h.hello.id128[13], h.hello.id128[14],
+		     h.hello.id128[15]);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {

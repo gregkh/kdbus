@@ -103,10 +103,10 @@ int kdbus_test_chat(struct kdbus_test_env *env)
 			ASSERT_RETURN(ret == 0);
 		}
 
-		ret = kdbus_name_list(conn_b, KDBUS_NAME_LIST_UNIQUE|
-				      KDBUS_NAME_LIST_NAMES|
-				      KDBUS_NAME_LIST_QUEUED|
-				      KDBUS_NAME_LIST_ACTIVATORS);
+		ret = kdbus_name_list(conn_b, KDBUS_NAME_LIST_UNIQUE |
+					      KDBUS_NAME_LIST_NAMES  |
+					      KDBUS_NAME_LIST_QUEUED |
+					      KDBUS_NAME_LIST_ACTIVATORS);
 		ASSERT_RETURN(ret == 0);
 
 		if (count > 10)
