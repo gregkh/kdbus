@@ -989,7 +989,7 @@ The kernel will notify its users of the following events.
     KDBUS_ITEM_REPLY_DEAD.
 
   * When connection A does not receive a reply from connection B within the
-    specified timeout window, connection A will receive a message wit an item
+    specified timeout window, connection A will receive a message with an item
     of type KDBUS_ITEM_REPLY_TIMEOUT.
 
   * When a connection is created on or removed from a bus, messages with an
