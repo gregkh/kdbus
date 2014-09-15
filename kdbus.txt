@@ -1410,6 +1410,8 @@ KDBUS_CMD_MSG_SEND
   -E2BIG	Too many items
   -EMSGSIZE	A payload vector was too big, and the current user is
 		unprivileged.
+  -ELOOP	A fd was passed that is a kdbus handle itself. This is
+		currently unsupported.
   -ENOTUNIQ	A fd or memfd payload was passed in a broadcast message, or
 		a timeout was given for a broadcast message
   -EEXIST	Multiple KDBUS_ITEM_FDS or KDBUS_ITEM_BLOOM_FILTER,

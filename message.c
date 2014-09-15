@@ -26,6 +26,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "handle.h"
 #include "match.h"
 #include "message.h"
 #include "names.h"
@@ -141,7 +142,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			break;
 
 		case KDBUS_ITEM_FDS: {
-			unsigned int n;
+			unsigned int i, n, is_kdbus = 0;
 
 			/* do not allow multiple fd arrays */
 			if (has_fds)
@@ -155,6 +156,17 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			n = payload_size / sizeof(int);
 			if (n > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
+
+			for (i = 0; i < n; i++) {
+				struct file *f;
+
+				f = fget(item->fds[i]);
+				is_kdbus = (f->f_op == &kdbus_device_ops);
+				fput(f);
+
+				if (is_kdbus)
+					return -ELOOP;
+			}
 
 			kmsg->fds = item->fds;
 			kmsg->fds_count = n;
