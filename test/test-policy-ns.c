@@ -374,9 +374,12 @@ static int kdbus_clone_userns_test(const char *bus,
 		_exit(ret);
 	}
 
-	/* Receive in the original (root privileged) user namespace */
+	/*
+	 * Receive in the original (root privileged) user namespace,
+	 * must fail with -ETIMEDOUT.
+	 */
 	ret = kdbus_msg_recv_poll(conn_db[0], NULL, 1000);
-	ASSERT_RETURN_VAL(ret == 0, ret);
+	ASSERT_RETURN_VAL(ret == -ETIMEDOUT, ret);
 
 	ret = waitpid(pid, &status, 0);
 	ASSERT_RETURN_VAL(ret >= 0, ret);
