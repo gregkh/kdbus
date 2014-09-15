@@ -749,11 +749,11 @@ struct kdbus_cmd_match {
  * @KDBUS_CMD_HELLO:		By opening the bus device node a connection is
  *				created. After a HELLO the opened connection
  *				becomes an active peer on the bus.
- * @KDBUS_CMD_BYEBYE:		Disconnect a connection. If the connection's
- *				message list is empty, the calls succeeds, and
- *				the handle is rendered unusable. Otherwise,
- *				-EAGAIN is returned without any further side-
- *				effects.
+ * @KDBUS_CMD_BYEBYE:		Disconnect a connection. If there are no
+ *				messages queued up in the connection's pool,
+ *				the call succeeds, and the handle is rendered
+ *				unusable. Otherwise, -EBUSY is returned without
+ *				any further side-effects.
  * @KDBUS_CMD_MSG_SEND:		Send a message and pass data from userspace to
  *				the kernel.
  * @KDBUS_CMD_MSG_RECV:		Receive a message from the kernel which is
