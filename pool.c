@@ -266,6 +266,8 @@ void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 {
 	struct kdbus_pool *pool = slice->pool;
 
+	BUG_ON(slice->free);
+
 	mutex_lock(&slice->pool->lock);
 	rb_erase(&slice->rb_node, &pool->slices_busy);
 	pool->busy -= slice->size;
@@ -305,8 +307,8 @@ void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 }
 
 /**
- * kdbus_pool_slice_offset() - return the slice offset in the pool
- * @slice:		The Slice
+ * kdbus_pool_slice_offset() - return the slice's offset inside the pool
+ * @slice:		The slice
  *
  * Return: the offset in bytes.
  */
@@ -475,6 +477,7 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
 	int ret = 0;
 
 	BUG_ON(off + len > slice->size);
+	BUG_ON(slice->free);
 
 	while (rem > 0) {
 		struct page *p;
