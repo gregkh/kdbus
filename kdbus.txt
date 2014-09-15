@@ -81,7 +81,7 @@ Articles about D-Bus and kdbus:
     timestamps, uid, gid, tid, proc-starttime, well-known-names, process comm,
     process exe, process argv, cgroup, capabilities, seclabel, audit session,
     loginuid and the connection's human-readable name.
-    See section 7 for more details.
+    See section 7 and 13 for more details.
 
   Broadcast and Match:
     Broadcast messages are potentially sent to all connections of a bus. By
@@ -414,7 +414,7 @@ struct kdbus_cmd_hello {
   __u64 attach_flags;
       Request the attachment of metadata for each message received by this
       connection. The metadata actually attached may actually augment the list
-      of requested items.
+      of requested items. See section 14 for more details.
 
   __u64 bus_flags;
       Upon successful completion of the ioctl, this member will contain the
@@ -803,6 +803,11 @@ Unless KDBUS_RECV_DROP was passed, and given that the ioctl succeeded, the
 offset field contains the location of the new message inside the receiver's
 pool. The message is stored as struct kdbus_msg at this offset, and can be
 interpreted with the semantics described above.
+
+Also, if the connection allowed for file descriptor to be passed
+(KDBUS_HELLO_ACCEPT_FD), and if the message contained any, they will be
+installed into the receiving process after the KDBUS_CMD_MSG_RECV ioctl
+returns. The receiving task is obliged to close all of them appropriately.
 
 The caller is obliged to call KDBUS_CMD_FREE with the returned offset when
 the memory is no longer needed.
@@ -1262,7 +1267,76 @@ this:
   buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_PRIVATE, conn_fd, 0);
 
 
-13. Error codes
+13. Metadata
+===============================================================================
+
+A connection chooses which metadata it wants to have attached to each message
+it receives with kdbus_cmd_hello.attach_flags. The metadata will be attached as
+items to the messages. All metadata refers to information about the sending
+task at sending time, unless otherwise stated. Also, the metadata is copied,
+not referenced, so even if the sending task doesn't exist anymore at the time
+the message is received, the information is still preserved.
+
+As previously stated, a connection must be prepared to receive metadata it did
+not ask for in its attach_flags.
+
+The following attach flags are currently supported.
+
+  KDBUS_ATTACH_TIMESTAMP
+    Attaches an item of type KDBUS_ITEM_TIMESTAMP which contains both the
+    monotonic and the realtime timestamp, taken when the message was
+    processed on the kernel side.
+
+  KDBUS_ATTACH_CREDS
+    Attaches an item of type KDBUS_ITEM_CREDS, containing credentials as
+    described in kdbus_creds: the uid, gid, pid, tid and starttime of the task.
+
+  KDBUS_ATTACH_AUXGROUPS
+    Attaches an item of type KDBUS_ITEM_AUXGROUPS, containing a dynamic
+    number of auxiliary groups the sending task was a member of.
+    The group IDs are translated to the namespace of the receiving connection.
+
+  KDBUS_ATTACH_NAMES
+    Attaches items of type KDBUS_ITEM_NAME, one for each name the sending
+    connection currently owns. The name is stored in kdbus_item.str for each
+    of them.
+
+  KDBUS_ATTACH_COMM
+    Attaches an items of type KDBUS_ITEM_PID_COMM and KDBUS_ITEM_TID_COMM,
+    both transporting the sending task's 'comm', for both the pid and the tid.
+    The strings are stored in kdbus_item.str.
+
+  KDBUS_ATTACH_EXE
+    Attaches an item of type KDBUS_ITEM_EXE, containing the path to the
+    executable of the sending task, stored in kdbus_item.str.
+
+  KDBUS_ATTACH_CMDLINE
+    Attaches an item of type KDBUS_ITEM_CMDLINE, containing the command line
+    arguments of the sending task, as an array of strings, stored in
+    kdbus_item.str.
+
+  KDBUS_ATTACH_CGROUP
+    Attaches an item of type KDBUS_ITEM_CGROUP with the task's cgroup path.
+
+  KDBUS_ATTACH_CAPS
+    Attaches an item of type KDBUS_ITEM_CAPS, carrying 4 sets of capabilities:
+    inheritable, permitted, effective and bset. Those should be accessed via
+    kdbus_item.data32.
+
+  KDBUS_ATTACH_SECLABEL
+    Attaches an item of type KDBUS_ITEM_SECLABEL, which contains the SELinux
+    security label of the sending task. Access via kdbus_item->str.
+
+  KDBUS_ATTACH_AUDIT
+    Attaches an item of type KDBUS_ITEM_AUDIT, which contains the audio label
+    of the sending taskj. Access via kdbus_item->str.
+
+  KDBUS_ATTACH_CONN_NAME
+    Attaches an item of type KDBUS_ITEM_CONN_NAME that contain's the
+    sending's connection current name in kdbus_item.str.
+
+
+14. Error codes
 ===============================================================================
 
 Below is a list of error codes that might be returned by the individual
