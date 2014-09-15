@@ -682,7 +682,7 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 {
 	int ret;
 
-	while (timeout_ms--) {
+	for (; timeout_ms; timeout_ms--) {
 		ret = kdbus_msg_recv(conn, NULL);
 		if (ret == -EAGAIN) {
 			usleep(1000);
