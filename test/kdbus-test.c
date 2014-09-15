@@ -58,6 +58,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
 	{
+		.name	= "fd-passing",
+		.desc	= "file descriptor passing",
+		.func	= kdbus_test_fd_passing,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		.name	= "monitor",
 		.desc	= "monitor functionality",
 		.func	= kdbus_test_monitor,

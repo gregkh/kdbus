@@ -49,6 +49,7 @@ int kdbus_test_conn_info(struct kdbus_test_env *env);
 int kdbus_test_conn_update(struct kdbus_test_env *env);
 int kdbus_test_daemon(struct kdbus_test_env *env);
 int kdbus_test_domain_make(struct kdbus_test_env *env);
+int kdbus_test_fd_passing(struct kdbus_test_env *env);
 int kdbus_test_free(struct kdbus_test_env *env);
 int kdbus_test_hello(struct kdbus_test_env *env);
 int kdbus_test_match_id_add(struct kdbus_test_env *env);
