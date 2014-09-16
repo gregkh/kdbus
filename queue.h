@@ -54,8 +54,8 @@ struct kdbus_queue {
  * @pid:		The PID to patch into the final message
  * @tid:		The TID to patch into the final message
  * @auxgrps:		An array storing the sender's aux groups, in kgid_t.
- * 			This information is translated into the user's
- * 			namespace when the message is installed.
+ *			This information is translated into the user's
+ *			namespace when the message is installed.
  * @auxgroup_count:	The number of items in @auxgrps.
  * @loginuid:		The audit login uid to patch into the final
  *			message

@@ -35,10 +35,10 @@ enum {
 	}
 
 #define ASSERT_RETURN(cond)		\
-	ASSERT_RETURN_VAL(cond, TEST_ERR);
+	ASSERT_RETURN_VAL(cond, TEST_ERR)
 
 #define ASSERT_EXIT(cond)		\
-	ASSERT_EXIT_VAL(cond, EXIT_FAILURE);
+	ASSERT_EXIT_VAL(cond, EXIT_FAILURE)
 
 int kdbus_test_activator(struct kdbus_test_env *env);
 int kdbus_test_benchmark(struct kdbus_test_env *env);

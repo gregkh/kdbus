@@ -75,7 +75,7 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
 static int kdbus_handle_check_file(struct file *file)
 {
 	struct inode *inode = file_inode(file);
-        struct socket *sock;
+	struct socket *sock;
 
 	/*
 	 * Don't allow file descriptors in the transport that themselves allow
