@@ -756,8 +756,8 @@ KDBUS_MSG_PAYLOAD_MEMFD:
   memfd files are tmpfs-backed files that allow sealing of the content of the
   file, which prevents all writable access to the file content.
   Only sealed memfd files are accepted as payload data, which enforces
-  reliable passing of data; the receiver can assume that the sender and nobody
-  else can alter the content after the message is sent.
+  reliable passing of data; the receiver can assume that neither the sender nor
+  anyone else can alter the content after the message is sent.
 
 Apart from the sender filling-in the content into memfd files, the data will
 be passed as zero-copy from one process to another, read-only, shared between
