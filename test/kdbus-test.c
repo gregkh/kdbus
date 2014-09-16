@@ -93,14 +93,12 @@ static const struct kdbus_test tests[] = {
 		.func	= kdbus_test_message_basic,
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
-#if 0
 	{
 		.name	= "message-prio",
 		.desc	= "handling of messages with priority",
 		.func	= kdbus_test_message_prio,
 		.flags	= TEST_CREATE_BUS,
 	},
-#endif
 	{
 		.name	= "timeout",
 		.desc	= "timeout",

@@ -61,11 +61,13 @@ int kdbus_test_message_basic(struct kdbus_test_env *env)
 	return TEST_OK;
 }
 
-static int msg_recv_prio(struct kdbus_conn *conn, int64_t priority)
+static int msg_recv_prio(struct kdbus_conn *conn,
+			 int64_t requested_prio,
+			 int64_t expected_prio)
 {
 	struct kdbus_cmd_recv recv = {
 		.flags = KDBUS_RECV_USE_PRIORITY,
-		.priority = priority,
+		.priority = requested_prio,
 	};
 	struct kdbus_msg *msg;
 	int ret;
@@ -79,9 +81,9 @@ static int msg_recv_prio(struct kdbus_conn *conn, int64_t priority)
 	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
 	kdbus_msg_dump(conn, msg);
 
-	if (msg->priority > priority) {
+	if (msg->priority != expected_prio) {
 		kdbus_printf("expected message prio %lld, got %lld\n",
-			     (unsigned long long) priority,
+			     (unsigned long long) expected_prio,
 			     (unsigned long long) msg->priority);
 		return -EINVAL;
 	}
@@ -111,19 +113,16 @@ int kdbus_test_message_prio(struct kdbus_test_env *env)
 	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,  -15, conn_a->id);
 	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -800, conn_a->id);
 	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -150, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -150, conn_a->id);
 	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,   10, conn_a->id);
 	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -800, conn_a->id);
 	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,  -10, conn_a->id);
 
-	kdbus_printf("--- get priority -200\n");
-	ASSERT_RETURN(msg_recv_prio(conn_a, -200) == 0);
-
-	kdbus_printf("--- get priority -100\n");
-	ASSERT_RETURN(msg_recv_prio(conn_a, -100) == 0);
-
-	kdbus_printf("--- get priority 10\n");
-	ASSERT_RETURN(msg_recv_prio(conn_a, 10) == 0);
+	ASSERT_RETURN(msg_recv_prio(conn_a, -200, -800) == 0);
+	ASSERT_RETURN(msg_recv_prio(conn_a, -100, -800) == 0);
+	ASSERT_RETURN(msg_recv_prio(conn_a, -400, -600) == 0);
+	ASSERT_RETURN(msg_recv_prio(conn_a, -400, -600) == -ENOMSG);
+	ASSERT_RETURN(msg_recv_prio(conn_a, 10, -150) == 0);
+	ASSERT_RETURN(msg_recv_prio(conn_a, 10, -100) == 0);
 
 	kdbus_printf("--- get priority (all)\n");
 	ASSERT_RETURN(kdbus_msg_recv(conn_a, NULL) == 0);
