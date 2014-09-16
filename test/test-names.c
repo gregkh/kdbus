@@ -184,4 +184,3 @@ int kdbus_test_name_queue(struct kdbus_test_env *env)
 
 	return TEST_OK;
 }
-
