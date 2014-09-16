@@ -460,8 +460,10 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			continue;
 		}
 
-		if (ret < 0)
+		if (ret < 0) {
+			kfree(rule);
 			break;
+		}
 
 		rule->type = item->type;
 

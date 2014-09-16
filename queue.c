@@ -411,9 +411,10 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 
 			/* \0-bytes record */
 			if (!KDBUS_PTR(item->vec.address)) {
-				size_t pad = item->vec.size % 8;
+				size_t l = item->vec.size % 8;
+				const char *n = "\0\0\0\0\0\0\0";
 
-				if (pad == 0)
+				if (l == 0)
 					break;
 
 				/*
@@ -422,9 +423,12 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 				 * null-bytes to the buffer which the \0-bytes
 				 * record would have shifted the alignment.
 				 */
-				kdbus_pool_slice_copy(entry->slice, vec_data,
-						      "\0\0\0\0\0\0\0", pad);
-				vec_data += pad;
+				ret = kdbus_pool_slice_copy(entry->slice,
+							    vec_data, n, l);
+				if (ret < 0)
+					return ret;
+
+				vec_data += l;
 				break;
 			}
 

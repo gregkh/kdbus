@@ -433,7 +433,7 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
  */
 bool kdbus_name_is_valid(const char *p, bool allow_wildcard)
 {
-	bool dot, found_dot;
+	bool dot, found_dot = false;
 	const char *q;
 
 	for (dot = true, q = p; *q; q++) {
