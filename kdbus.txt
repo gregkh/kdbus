@@ -1400,7 +1400,7 @@ KDBUS_CMD_BYEBYE
 KDBUS_CMD_MSG_SEND
 
   -EOPNOTSUPP	The connection is unconnected, or a fd was passed that is
-		either kdbus handle itself or a unix domain socket. Both is
+		either a kdbus handle itself or a unix domain socket. Both is
 		currently unsupported.
   -EINVAL	The submitted payload type is KDBUS_PAYLOAD_KERNEL,
 		KDBUS_MSG_FLAGS_EXPECT_REPLY was set without a timeout value,
