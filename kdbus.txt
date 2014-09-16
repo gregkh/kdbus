@@ -1399,7 +1399,9 @@ KDBUS_CMD_BYEBYE
 
 KDBUS_CMD_MSG_SEND
 
-  -EOPNOTSUPP	The connection is unconnected
+  -EOPNOTSUPP	The connection is unconnected, or a fd was passed that is
+		either kdbus handle itself or a unix domain socket. Both is
+		currently unsupported.
   -EINVAL	The submitted payload type is KDBUS_PAYLOAD_KERNEL,
 		KDBUS_MSG_FLAGS_EXPECT_REPLY was set without a timeout value,
 		KDBUS_MSG_FLAGS_SYNC_REPLY was set without
@@ -1412,8 +1414,6 @@ KDBUS_CMD_MSG_SEND
   -E2BIG	Too many items
   -EMSGSIZE	A payload vector was too big, and the current user is
 		unprivileged.
-  -ELOOP	A fd was passed that is a kdbus handle itself. This is
-		currently unsupported.
   -ENOTUNIQ	A fd or memfd payload was passed in a broadcast message, or
 		a timeout was given for a broadcast message
   -EEXIST	Multiple KDBUS_ITEM_FDS or KDBUS_ITEM_BLOOM_FILTER,

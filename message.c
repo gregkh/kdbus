@@ -22,6 +22,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <net/sock.h>
 
 #include "bus.h"
 #include "connection.h"
@@ -68,6 +69,33 @@ int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
 	*kmsg = m;
+	return 0;
+}
+
+static int kdbus_handle_check_file(struct file *file)
+{
+	struct inode *inode = file_inode(file);
+        struct socket *sock;
+
+	/*
+	 * Don't allow file descriptors in the transport that themselves allow
+	 * file descriptor queueing. This will eventually be allowed once both
+	 * unix domain sockets and kdbus share a generic garbage collector.
+	 */
+
+	if (file->f_op == &kdbus_device_ops)
+		return -EOPNOTSUPP;
+
+	if (!S_ISSOCK(inode->i_mode))
+		return 0;
+
+	if (!(file->f_mode & FMODE_PATH))
+		return 0;
+
+	sock = SOCKET_I(inode);
+	if (sock->sk && sock->ops && sock->ops->family == PF_UNIX)
+		return -EOPNOTSUPP;
+
 	return 0;
 }
 
@@ -142,7 +170,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			break;
 
 		case KDBUS_ITEM_FDS: {
-			unsigned int i, n, is_kdbus = 0;
+			unsigned int i, n;
 
 			/* do not allow multiple fd arrays */
 			if (has_fds)
@@ -159,13 +187,14 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 			for (i = 0; i < n; i++) {
 				struct file *f;
+				int ret;
 
 				f = fget(item->fds[i]);
-				is_kdbus = (f->f_op == &kdbus_device_ops);
+				ret = kdbus_handle_check_file(f);
 				fput(f);
 
-				if (is_kdbus)
-					return -ELOOP;
+				if (ret < 0)
+					return ret;
 			}
 
 			kmsg->fds = item->fds;

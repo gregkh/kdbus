@@ -73,10 +73,10 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	 * This must fail.
 	 */
 	ret = send_fd(conn_src, conn_dst->id, conn_src->fd);
-	ASSERT_RETURN(ret == -ELOOP);
+	ASSERT_RETURN(ret == -ENOTSUP);
 
 	ret = send_fd(conn_src, conn_dst->id, conn_dst->fd);
-	ASSERT_RETURN(ret == -ELOOP);
+	ASSERT_RETURN(ret == -ENOTSUP);
 
 	ret = pipe(fds);
 	ASSERT_RETURN(ret == 0);
