@@ -61,24 +61,18 @@ static void usage(const char *argv0)
 }
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
-static struct conn *kdbus_hello(const char *path, uint64_t flags,
-				const struct kdbus_item *item,
-				size_t item_size)
+static struct conn *kdbus_hello(const char *path, uint64_t flags)
 {
 	int fd, ret;
 	struct {
 		struct kdbus_cmd_hello hello;
 		uint64_t size;
 		uint64_t type;
-		char comm[16];
-		uint8_t extra_items[item_size];
+		char comm[8];
 	} h;
 	struct conn *conn;
 
 	memset(&h, 0, sizeof(h));
-
-	if (item_size > 0)
-		memcpy(h.extra_items, item, item_size);
 
 	printf("-- opening bus connection %s\n", path);
 	fd = open(path, O_RDWR|O_CLOEXEC);
@@ -90,8 +84,8 @@ static struct conn *kdbus_hello(const char *path, uint64_t flags,
 	h.hello.conn_flags = flags | KDBUS_HELLO_ACCEPT_FD;
 	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
 	h.type = KDBUS_ITEM_CONN_NAME;
-	h.size = KDBUS_ITEM_HEADER_SIZE + sizeof(h.comm);
-	strcpy(h.comm, "monitor");
+	strncpy(h.comm, "monitor", sizeof(h.comm));
+	h.size = KDBUS_ITEM_HEADER_SIZE + strlen(h.comm) + 1;
 
 	h.hello.size = sizeof(h);
 	h.hello.pool_size = POOL_SIZE;
@@ -234,7 +228,7 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	conn = kdbus_hello(bus, KDBUS_HELLO_MONITOR, NULL, 0);
+	conn = kdbus_hello(bus, KDBUS_HELLO_MONITOR);
 	if (!conn) {
 		fprintf(stderr, "Unable to connect as monitor: %m\n");
 		return EXIT_FAILURE;
