@@ -696,10 +696,7 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 			return 0;
 	}
 
-	if (timeout_ms == 0)
-		return -ETIMEDOUT;
-
-	return 0;
+	return -ETIMEDOUT;
 }
 
 int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)

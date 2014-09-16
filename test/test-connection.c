@@ -169,7 +169,7 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	ret = kdbus_add_match_empty(conn);
 	ASSERT_RETURN(ret == 0);
 
-	kdbus_add_match_empty(env->conn);
+	ret = kdbus_add_match_empty(env->conn);
 	ASSERT_RETURN(ret == 0);
 
 	/* send over 1st connection */

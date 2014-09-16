@@ -29,8 +29,9 @@ int kdbus_test_daemon(struct kdbus_test_env *env)
 	printf("Created connection %llu on bus '%s'\n",
 		(unsigned long long) env->conn->id, env->buspath);
 
-	kdbus_name_acquire(env->conn, "com.example.kdbus-test", 0);
-	kdbus_printf("  Aquired name: com.example.kdbus-test\n");
+	ret = kdbus_name_acquire(env->conn, "com.example.kdbus-test", 0);
+	ASSERT_RETURN(ret == 0);
+	printf("  Aquired name: com.example.kdbus-test\n");
 
 	fds[0].fd = env->conn->fd;
 	fds[1].fd = STDIN_FILENO;
@@ -49,8 +50,10 @@ int kdbus_test_daemon(struct kdbus_test_env *env)
 		if (ret <= 0)
 			break;
 
-		if (fds[0].revents & POLLIN)
-			kdbus_msg_recv(env->conn, NULL);
+		if (fds[0].revents & POLLIN) {
+			ret = kdbus_msg_recv(env->conn, NULL);
+			ASSERT_RETURN(ret == 0);
+		}
 
 		/* stdin */
 		if (fds[1].revents & POLLIN)
