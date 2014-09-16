@@ -216,7 +216,7 @@ Note:
 
 To flexibly augment transport structures used by kdbus, data blobs of type
 struct kdbus_item are used. An item has a fixed-sized header that only stores
-the type if the item and the overall size. The total size is variable and is
+the type of the item and the overall size. The total size is variable and is
 in some cases defined by the item type, in other cases can be of arbitrary
 length (for instance, a string).
 
@@ -234,9 +234,12 @@ The kernel expects all item to be aligned to 8-byte boundaries.
 A simple iterator in userspace would iterate over the items until the items
 have reached the embedding structure's overall size.
 
+See tools/testing/selftests/kdbus/kdbus-util.h for an example implementation.
+
 
 5. Creation of new domains, buses and endpoints
 ===============================================================================
+
 The initial kdbus domain is unconditionally created by the kernel module. A
 domain contains a "control" device node which allows to create a new bus or
 domain. New domains do not have any buses created by default.
@@ -246,9 +249,9 @@ domain. New domains do not have any buses created by default.
 ---------------------
 
 Opening the control device node returns a file descriptor, it accepts the
-ioctls KDBUS_CMD_BUS_MAKE/KDBUS_CMD_DOMAIN_MAKE which specify the name of the
-new bus or domain to create. The control file descriptor needs to be kept open
-for the entire life-time of the created bus or domain, closing it will
+ioctls KDBUS_CMD_BUS_MAKE and KDBUS_CMD_DOMAIN_MAKE which specify the name of
+the new bus or domain to create. The control file descriptor needs to be kept
+open for the entire life-time of the created bus or domain, closing it will
 immediately cleanup the entire bus or domain and all its associated
 resources and connections. Every control file descriptor can only be used once
 to create a new bus or domain; from that point, it is not used for any
@@ -266,7 +269,6 @@ kdbus_cmd_make. Custom endpoints always have a policy db that, by default,
 does not allow anything. Everything that users of this new endpoint should be
 able to do has to be explicitly specified through KDBUS_ITEM_NAME and
 KDBUS_ITEM_POLICY_ACCESS items.
-
 
 5.3 Creating domains, buses and endpoints
 -----------------------------------------
