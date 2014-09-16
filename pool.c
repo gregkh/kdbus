@@ -216,8 +216,10 @@ int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	}
 
 	/* no slice with the minimum size found in the pool */
-	if (!found)
-		return -ENOBUFS;
+	if (!found) {
+		ret = -ENOBUFS;
+		goto exit_unlock;
+	}
 
 	/* no exact match, use the closest one */
 	if (!n)
