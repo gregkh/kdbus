@@ -548,7 +548,7 @@ prio_done:
  * priority, or -EAGAIN if there are no entries at all.
  */
 int kdbus_queue_entry_peek(struct kdbus_queue *queue,
-			   u64 priority, bool use_priority,
+			   s64 priority, bool use_priority,
 			   struct kdbus_queue_entry **entry)
 {
 	struct kdbus_queue_entry *e;
