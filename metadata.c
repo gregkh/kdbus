@@ -112,18 +112,6 @@ kdbus_meta_append_item(struct kdbus_meta *meta, u64 type, size_t payload_size)
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + payload_size;
 
-	switch (type) {
-	case KDBUS_ITEM_CREDS:
-		meta->creds_item_off = meta->size;
-		break;
-	case KDBUS_ITEM_AUXGROUPS:
-		meta->auxgrps_item_off = meta->size;
-		break;
-	case KDBUS_ITEM_AUDIT:
-		meta->audit_item_off = meta->size;
-		break;
-	}
-
 	meta->size += extra_size;
 
 	return item;

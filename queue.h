@@ -40,25 +40,6 @@ struct kdbus_queue {
  *			addressed to, 0 for messages sent to an ID
  * @reply:		The reply block if a reply to this message is expected.
  * @user:		Index in per-user message counter, -1 for unused
- * @creds_item_offset:	The offset of the creds item inside the slice, if
- *			the user requested this metainfo in its attach flags.
- *			0 if unused.
- * @auxgrp_item_offset:	The offset of the auxgrp item inside the slice, if
- *			the user requested this metainfo in its attach flags.
- *			0 if unused.
- * @audit_item_offset:	The offset of the audit item inside the slice, if
- *			the user requested this metainfo in its attach flags.
- *			0 if unused.
- * @uid:		The UID to patch into the final message
- * @gid:		The GID to patch into the final message
- * @pid:		The PID to patch into the final message
- * @tid:		The TID to patch into the final message
- * @auxgrps:		An array storing the sender's aux groups, in kgid_t.
- *			This information is translated into the user's
- *			namespace when the message is installed.
- * @auxgroup_count:	The number of items in @auxgrps.
- * @loginuid:		The audit login uid to patch into the final
- *			message
  */
 struct kdbus_queue_entry {
 	struct list_head entry;
@@ -77,20 +58,6 @@ struct kdbus_queue_entry {
 	u64 dst_name_id;
 	struct kdbus_conn_reply *reply;
 	int user;
-	off_t creds_item_offset;
-	off_t auxgrp_item_offset;
-	off_t audit_item_offset;
-
-	/* to honor namespaces, we have to store the following here */
-	kuid_t uid;
-	kgid_t gid;
-	struct pid *pid;
-	struct pid *tid;
-
-	kgid_t *auxgrps;
-	unsigned int auxgrps_count;
-
-	kuid_t loginuid;
 };
 
 struct kdbus_kmsg;

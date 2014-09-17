@@ -197,34 +197,6 @@ remove_unused:
 	return ret;
 }
 
-static int kdbus_queue_entry_creds_install(struct kdbus_queue_entry *entry)
-{
-	struct kdbus_creds creds = {};
-	struct user_namespace *current_ns = current_user_ns();
-	off_t off = entry->creds_item_offset +
-		    offsetof(struct kdbus_item, creds);
-
-	creds.uid = from_kuid_munged(current_ns, entry->uid);
-	creds.gid = from_kgid_munged(current_ns, entry->gid);
-	creds.pid = pid_nr_ns(entry->pid, task_active_pid_ns(current));
-	creds.tid = pid_nr_ns(entry->tid, task_active_pid_ns(current));
-
-	return kdbus_pool_slice_copy(entry->slice, off, &creds, sizeof(creds));
-}
-
-static int kdbus_queue_entry_audit_install(struct kdbus_queue_entry *entry)
-{
-	u64 loginuid;
-	off_t off = entry->audit_item_offset +
-		    offsetof(struct kdbus_item, audit) +
-		    offsetof(struct kdbus_audit, loginuid);
-
-	loginuid = from_kuid_munged(current_user_ns(), entry->loginuid);
-
-	return kdbus_pool_slice_copy(entry->slice, off,
-				     &loginuid, sizeof(loginuid));
-}
-
 /**
  * kdbus_queue_entry_install() - install message components into the
  *				 receiver's process
@@ -261,51 +233,11 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry)
 			goto exit_rewind_memfds;
 	}
 
-	if (entry->creds_item_offset) {
-		ret = kdbus_queue_entry_creds_install(entry);
-		if (ret < 0)
-			goto exit_rewind_fds;
-	}
-
-	if (entry->auxgrp_item_offset) {
-		size_t size = sizeof(__u64) * entry->auxgrps_count;
-		off_t off = entry->auxgrp_item_offset +
-			    offsetof(struct kdbus_item, data64);
-		__u64 *gid;
-
-		gid = kmalloc(size, GFP_KERNEL);
-		if (!gid) {
-			ret = -ENOMEM;
-			goto exit_rewind_fds;
-		}
-
-		for (i = 0; i < entry->auxgrps_count; i++) {
-			gid[i] = from_kgid(current_user_ns(),
-					   entry->auxgrps[i]);
-		}
-
-		ret = kdbus_pool_slice_copy(entry->slice, off, gid, size);
-		kfree(gid);
-		if (ret < 0)
-			goto exit_rewind_fds;
-	}
-
-	if (entry->audit_item_offset) {
-		ret = kdbus_queue_entry_audit_install(entry);
-		if (ret < 0)
-			goto exit_rewind_fds;
-	}
-
 	kfree(fds);
 	kfree(memfds);
 	kdbus_pool_slice_flush(entry->slice);
 
 	return 0;
-
-exit_rewind_fds:
-	for (i = 0; i < entry->fds_count; i++)
-		sys_close(fds[i]);
-	kfree(fds);
 
 exit_rewind_memfds:
 	for (i = 0; i < entry->memfds_count; i++)
@@ -774,71 +706,6 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	/* append message metadata/credential items */
 	if (meta_off > 0) {
-		struct kdbus_meta *meta = kmsg->meta;
-
-		/*
-		 * If the receiver requested credential information, store the
-		 * offset to the item here, so we can patch in the namespace
-		 * translated versions later.	k
-		 */
-		if (meta->attached & KDBUS_ATTACH_CREDS) {
-			/* store kernel-view of the credentials */
-			entry->uid = current_uid();
-			entry->gid = current_gid();
-			entry->pid = get_task_pid(current, PIDTYPE_PID);
-			entry->tid = get_task_pid(current->group_leader,
-						  PIDTYPE_PID);
-
-			entry->creds_item_offset = meta_off +
-						   meta->creds_item_off;
-		}
-
-		if (meta->attached & KDBUS_ATTACH_AUXGROUPS) {
-			struct group_info *info;
-			struct kdbus_item *item;
-			size_t item_elements;
-			int i;
-
-			info = get_current_groups();
-
-			/*
-			 * In case the number of auxgroups changed since the
-			 * metadata element was composed, clamp the array
-			 * length.
-			 */
-			item = (struct kdbus_item *)
-				((u8 *) meta->data + meta->auxgrps_item_off);
-			item_elements = KDBUS_ITEM_PAYLOAD_SIZE(item) /
-					sizeof(__u64);
-			entry->auxgrps_count = min_t(unsigned int,
-						     item_elements,
-						     info->ngroups);
-
-			if (info->ngroups > 0) {
-				entry->auxgrps =
-					kcalloc(entry->auxgrps_count,
-						sizeof(kgid_t), GFP_KERNEL);
-				if (!entry->auxgrps) {
-					ret = -ENOMEM;
-					put_group_info(info);
-					goto exit_pool_free;
-				}
-
-				for (i = 0; i < entry->auxgrps_count; i++)
-					entry->auxgrps[i] = GROUP_AT(info, i);
-			}
-
-			put_group_info(info);
-			entry->auxgrp_item_offset = meta_off +
-						    meta->auxgrps_item_off;
-		}
-
-		if (meta->attached & KDBUS_ATTACH_AUDIT) {
-			entry->loginuid = audit_get_loginuid(current);
-			entry->audit_item_offset = meta_off +
-						   meta->audit_item_off;
-		}
-
 		ret = kdbus_pool_slice_copy(entry->slice, meta_off,
 					    kmsg->meta->data,
 					    kmsg->meta->size);
@@ -866,13 +733,6 @@ exit:
  */
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
-	if (entry->pid)
-		put_pid(entry->pid);
-	if (entry->tid)
-		put_pid(entry->tid);
-
-	kfree(entry->auxgrps);
-
 	kdbus_queue_entry_memfds_unref(entry);
 	kdbus_queue_entry_fds_unref(entry);
 	kfree(entry);

@@ -20,15 +20,6 @@
  * @data:		Allocated buffer
  * @size:		Number of bytes used
  * @allocated_size:	Size of buffer
- * @creds_item_off	The offset of the creds item in the @data
- *			buffer field, if the user requested this
- *			metainfo in its attach flags. 0 if unused.
- * @auxgrps_item_off	The offset of the auxgroups item in the
- *			@data buffer field, if the user requested
- *			this metainfo. 0 if unused.
- * @audit_item_off	The offset of the audit item in the @data
- *			buffer field, if the user requested this
- *			metainfo. 0 if unused.
  *
  * Used to collect and store connection metadata in a pre-compiled
  * buffer containing struct kdbus_item.
@@ -39,10 +30,6 @@ struct kdbus_meta {
 	struct kdbus_item *data;
 	size_t size;
 	size_t allocated_size;
-
-	off_t creds_item_off;
-	off_t auxgrps_item_off;
-	off_t audit_item_off;
 };
 
 struct kdbus_conn;
