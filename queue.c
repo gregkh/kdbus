@@ -225,9 +225,6 @@ static int kdbus_queue_entry_audit_install(struct kdbus_queue_entry *entry)
 				     &loginuid, sizeof(loginuid));
 }
 
-	return ret;
-}
-
 /**
  * kdbus_queue_entry_install() - install message components into the
  *				 receiver's process
