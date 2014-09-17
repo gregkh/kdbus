@@ -26,7 +26,7 @@
  */
 struct kdbus_meta {
 	u64 attached;
-	const struct pid_namespace *domain;
+	const struct pid_namespace *pid_namespace;
 	struct kdbus_item *data;
 	size_t size;
 	size_t allocated_size;
