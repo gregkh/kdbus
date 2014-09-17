@@ -26,7 +26,8 @@
  */
 struct kdbus_meta {
 	u64 attached;
-	const struct pid_namespace *pid_namespace;
+	struct pid_namespace *pid_namespace;
+	struct user_namespace *user_namespace;
 	struct kdbus_item *data;
 	size_t size;
 	size_t allocated_size;
@@ -42,4 +43,6 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		      u64 seq,
 		      u64 which);
 void kdbus_meta_free(struct kdbus_meta *meta);
+bool kdbus_meta_ns_eq(const struct kdbus_meta *meta_a,
+		      const struct kdbus_meta *meta_b);
 #endif

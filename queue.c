@@ -628,7 +628,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	/* space for metadata/credential items */
 	if (kmsg->meta && kmsg->meta->size > 0 &&
-	    kmsg->meta->pid_namespace == conn->meta->pid_namespace) {
+	    kdbus_meta_ns_eq(kmsg->meta, conn->meta)) {
 		meta_off = msg_size;
 		msg_size += kmsg->meta->size;
 	}

@@ -1086,7 +1086,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	info.flags = owner_conn->flags;
 
 	/* do not leak domain-specific credentials */
-	if (conn->meta->pid_namespace == owner_conn->meta->pid_namespace)
+	if (kdbus_meta_ns_eq(conn->meta, owner_conn->meta))
 		info.size += owner_conn->meta->size;
 
 	/*
@@ -1117,7 +1117,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		goto exit_free;
 	pos = sizeof(info);
 
-	if (conn->meta->pid_namespace == owner_conn->meta->pid_namespace) {
+	if (kdbus_meta_ns_eq(conn->meta, owner_conn->meta)) {
 		ret = kdbus_pool_slice_copy(slice, pos, owner_conn->meta->data,
 					    owner_conn->meta->size);
 		if (ret < 0)

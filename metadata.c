@@ -23,6 +23,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/user_namespace.h>
 #include <linux/version.h>
 
 #include "connection.h"
@@ -47,14 +48,30 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 		return -ENOMEM;
 
 	/*
-	 * Remember the PID namespace our credentials belong to; we
-	 * need to prevent leaking authorization and security-relevant
+	 * Remember the PID and user namespaces our credentials belong to;
+	 * we need to prevent leaking authorization and security-relevant
 	 * data across different namespaces.
 	 */
-	m->pid_namespace = task_active_pid_ns(current);
+	m->pid_namespace = get_pid_ns(task_active_pid_ns(current));
+	m->user_namespace = get_user_ns(current_user_ns());
 
 	*meta = m;
 	return 0;
+}
+
+/**
+ * kdbus_meta_ns_eq() - check whether the namespaces of two metadata objects
+ *			are equal.
+ * @meta_a:	Metadata A
+ * @meta_b:	Metadata B
+ *
+ * Return: true if the two objects have the same namespaces, false otherwise.
+ */
+bool kdbus_meta_ns_eq(const struct kdbus_meta *meta_a,
+		      const struct kdbus_meta *meta_b)
+{
+	return (meta_a->pid_namespace == meta_b->pid_namespace &&
+		meta_a->user_namespace == meta_b->user_namespace);
 }
 
 /**
@@ -65,6 +82,9 @@ void kdbus_meta_free(struct kdbus_meta *meta)
 {
 	if (!meta)
 		return;
+
+	put_pid_ns(meta->pid_namespace);
+	put_user_ns(meta->user_namespace);
 
 	kfree(meta->data);
 	kfree(meta);
