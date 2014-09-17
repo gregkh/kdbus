@@ -273,7 +273,7 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 		   uint64_t dst_id)
 {
 	struct kdbus_msg *msg;
-	const char ref1[1024 * 1024 + 3] = "0123456789_0";
+	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	const char ref2[] = "0123456789_1";
 	struct kdbus_item *item;
 	uint64_t size;
