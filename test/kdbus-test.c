@@ -193,11 +193,12 @@ static const struct kdbus_test tests[] = {
 };
 
 static int test_prepare_env(const struct kdbus_test *t,
-			    struct kdbus_test_env *env)
+			    struct kdbus_test_env *env,
+			    const char *busname)
 {
 	if (t->flags & TEST_CREATE_BUS) {
 		unsigned int i;
-		char n[32];
+		char n[16];
 		int ret;
 
 		env->control_fd =
@@ -206,11 +207,14 @@ static int test_prepare_env(const struct kdbus_test *t,
 
 		srand(time(NULL));
 
-		for (i = 0; i < sizeof(n) - 1; i++)
-			n[i] = 'a' + (rand() % ('z' - 'a'));
-		n[sizeof(n) - 1] = 0;
+		if (!busname) {
+			for (i = 0; i < sizeof(n) - 1; i++)
+				n[i] = 'a' + (rand() % ('z' - 'a'));
+			n[sizeof(n) - 1] = 0;
+		}
 
-		ret = kdbus_create_bus(env->control_fd, n, &env->buspath);
+		ret = kdbus_create_bus(env->control_fd, busname ?: n,
+				       &env->buspath);
 		ASSERT_RETURN(ret == 0);
 	}
 
@@ -240,14 +244,19 @@ void test_unprepare_env(const struct kdbus_test *t, struct kdbus_test_env *env)
 	}
 }
 
-static int test_run(const struct kdbus_test *t)
+static int test_run(const struct kdbus_test *t, const char *busname, int wait)
 {
 	int ret;
 	struct kdbus_test_env env = {};
 
-	ret = test_prepare_env(t, &env);
+	ret = test_prepare_env(t, &env, busname);
 	if (ret != TEST_OK)
 		return ret;
+
+	if (wait > 0) {
+		printf("Sleeping %d seconds before running test ...\n", wait);
+		sleep(wait);
+	}
 
 	ret = t->func(&env);
 	test_unprepare_env(t, &env);
@@ -270,7 +279,7 @@ static void print_test_result(int ret)
 	}
 }
 
-static int run_all_tests(void)
+static int run_all_tests(const char *busname)
 {
 	int ret;
 	unsigned int fail_cnt = 0;
@@ -287,7 +296,7 @@ static int run_all_tests(void)
 
 		kdbus_util_verbose = false;
 
-		ret = test_run(t);
+		ret = test_run(t, busname, 0);
 		switch (ret) {
 		case TEST_OK:
 			ok_cnt++;
@@ -319,8 +328,9 @@ static void usage(const char *argv0)
 	       "Options:\n"
 	       "	-x, --loop		Run in a loop\n"
 	       "	-h, --help		Print this help\n"
-	       "	-t, --test <test-id>	Run one specific test only, "
-	       "in verbose mode\n"
+	       "	-t, --test <test-id>	Run one specific test only, in verbose mode\n"
+	       "	-b, --bus <busname>	Instead of generating a random bus name, take <busname>.\n"
+	       "	-w, --wait <secs>	Wait <secs> before actually starting test\n"
 	       "\n", argv0);
 
 	printf("By default, all test are run once, and a summary is printed.\n"
@@ -347,15 +357,19 @@ int main(int argc, char *argv[])
 	int t, ret = 0;
 	int arg_loop = 0;
 	char *arg_test = NULL;
+	char *arg_busname = NULL;
+	int arg_wait = 0;
 
 	static const struct option options[] = {
 		{ "loop",	no_argument,		NULL, 'x' },
 		{ "help",	no_argument,		NULL, 'h' },
 		{ "test",	required_argument,	NULL, 't' },
+		{ "bus",	required_argument,	NULL, 'b' },
+		{ "wait",	required_argument,	NULL, 'w' },
 		{}
 	};
 
-	while ((t = getopt_long(argc, argv, "hxt:", options, NULL)) >= 0) {
+	while ((t = getopt_long(argc, argv, "hxt:b:w:", options, NULL)) >= 0) {
 		switch (t) {
 		case 'x':
 			arg_loop = 1;
@@ -363,6 +377,14 @@ int main(int argc, char *argv[])
 
 		case 't':
 			arg_test = optarg;
+			break;
+
+		case 'b':
+			arg_busname = optarg;
+			break;
+
+		case 'w':
+			arg_wait = strtol(optarg, NULL, 10);
 			break;
 
 		default:
@@ -377,7 +399,7 @@ int main(int argc, char *argv[])
 		for (t = tests; t->name; t++) {
 			if (!strcmp(t->name, arg_test)) {
 				do {
-					ret = test_run(t);
+					ret = test_run(t, arg_busname, arg_wait);
 					printf("Testing %s: ", t->desc);
 					print_test_result(ret);
 					printf("\n");
@@ -395,7 +417,7 @@ int main(int argc, char *argv[])
 	}
 
 	do {
-		ret = run_all_tests();
+		ret = run_all_tests(arg_busname);
 		if (ret != TEST_OK)
 			break;
 	} while (arg_loop);
