@@ -569,7 +569,7 @@ void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			for (i = 0; i < n; i++)
 				kdbus_printf("%08x", cap[(2 * n) + (n - i - 1)]);
 
-			kdbus_printf(" CapInh=");
+			kdbus_printf(" CapBnd=");
 			for (i = 0; i < n; i++)
 				kdbus_printf("%08x", cap[(3 * n) + (n - i - 1)]);
 			kdbus_printf("\n");
