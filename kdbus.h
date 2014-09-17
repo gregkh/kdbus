@@ -358,9 +358,9 @@ struct kdbus_item {
  *					name is not currently active
  */
 enum kdbus_msg_flags {
-	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1 << 0,
-	KDBUS_MSG_FLAGS_SYNC_REPLY	= 1 << 1,
-	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1 << 2,
+	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1ULL << 0,
+	KDBUS_MSG_FLAGS_SYNC_REPLY	= 1ULL << 1,
+	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1ULL << 2,
 };
 
 /**
@@ -425,9 +425,9 @@ struct kdbus_msg {
  *				the priority value is ignored.
  */
 enum kdbus_recv_flags {
-	KDBUS_RECV_PEEK		= 1 <<  0,
-	KDBUS_RECV_DROP		= 1 <<  1,
-	KDBUS_RECV_USE_PRIORITY	= 1 <<  2,
+	KDBUS_RECV_PEEK		= 1ULL <<  0,
+	KDBUS_RECV_DROP		= 1ULL <<  1,
+	KDBUS_RECV_USE_PRIORITY	= 1ULL <<  2,
 };
 
 /**
@@ -492,10 +492,10 @@ enum kdbus_policy_type {
  *				bus traffic
  */
 enum kdbus_hello_flags {
-	KDBUS_HELLO_ACCEPT_FD		=  1 <<  0,
-	KDBUS_HELLO_ACTIVATOR		=  1 <<  1,
-	KDBUS_HELLO_POLICY_HOLDER	=  1 <<  2,
-	KDBUS_HELLO_MONITOR		=  1 <<  3,
+	KDBUS_HELLO_ACCEPT_FD		=  1ULL <<  0,
+	KDBUS_HELLO_ACTIVATOR		=  1ULL <<  1,
+	KDBUS_HELLO_POLICY_HOLDER	=  1ULL <<  2,
+	KDBUS_HELLO_MONITOR		=  1ULL <<  3,
 };
 
 /**
@@ -515,19 +515,19 @@ enum kdbus_hello_flags {
  * @_KDBUS_ATTACH_ALL:		All of the above
  */
 enum kdbus_attach_flags {
-	KDBUS_ATTACH_TIMESTAMP		=  1 <<  0,
-	KDBUS_ATTACH_CREDS		=  1 <<  1,
-	KDBUS_ATTACH_AUXGROUPS		=  1 <<  2,
-	KDBUS_ATTACH_NAMES		=  1 <<  3,
-	KDBUS_ATTACH_COMM		=  1 <<  4,
-	KDBUS_ATTACH_EXE		=  1 <<  5,
-	KDBUS_ATTACH_CMDLINE		=  1 <<  6,
-	KDBUS_ATTACH_CGROUP		=  1 <<  7,
-	KDBUS_ATTACH_CAPS		=  1 <<  8,
-	KDBUS_ATTACH_SECLABEL		=  1 <<  9,
-	KDBUS_ATTACH_AUDIT		=  1 << 10,
-	KDBUS_ATTACH_CONN_NAME		=  1 << 11,
-	_KDBUS_ATTACH_ALL		=  (1 << 12) - 1,
+	KDBUS_ATTACH_TIMESTAMP		=  1ULL <<  0,
+	KDBUS_ATTACH_CREDS		=  1ULL <<  1,
+	KDBUS_ATTACH_AUXGROUPS		=  1ULL <<  2,
+	KDBUS_ATTACH_NAMES		=  1ULL <<  3,
+	KDBUS_ATTACH_COMM		=  1ULL <<  4,
+	KDBUS_ATTACH_EXE		=  1ULL <<  5,
+	KDBUS_ATTACH_CMDLINE		=  1ULL <<  6,
+	KDBUS_ATTACH_CGROUP		=  1ULL <<  7,
+	KDBUS_ATTACH_CAPS		=  1ULL <<  8,
+	KDBUS_ATTACH_SECLABEL		=  1ULL <<  9,
+	KDBUS_ATTACH_AUDIT		=  1ULL << 10,
+	KDBUS_ATTACH_CONN_NAME		=  1ULL << 11,
+	_KDBUS_ATTACH_ALL		=  (1ULL << 12) - 1,
 };
 
 /**
@@ -569,8 +569,8 @@ struct kdbus_cmd_hello {
  * @KDBUS_MAKE_ACCESS_WORLD:	Make the device node world-accessible
  */
 enum kdbus_make_flags {
-	KDBUS_MAKE_ACCESS_GROUP		= 1 <<  0,
-	KDBUS_MAKE_ACCESS_WORLD		= 1 <<  1,
+	KDBUS_MAKE_ACCESS_GROUP		= 1ULL <<  0,
+	KDBUS_MAKE_ACCESS_WORLD		= 1ULL <<  1,
 };
 
 /**
@@ -597,11 +597,11 @@ struct kdbus_cmd_make {
  * @KDBUS_NAME_ACTIVATOR:		Name is owned by a activator connection
  */
 enum kdbus_name_flags {
-	KDBUS_NAME_REPLACE_EXISTING	= 1 <<  0,
-	KDBUS_NAME_ALLOW_REPLACEMENT	= 1 <<  1,
-	KDBUS_NAME_QUEUE		= 1 <<  2,
-	KDBUS_NAME_IN_QUEUE		= 1 <<  3,
-	KDBUS_NAME_ACTIVATOR		= 1 <<  4,
+	KDBUS_NAME_REPLACE_EXISTING	= 1ULL <<  0,
+	KDBUS_NAME_ALLOW_REPLACEMENT	= 1ULL <<  1,
+	KDBUS_NAME_QUEUE		= 1ULL <<  2,
+	KDBUS_NAME_IN_QUEUE		= 1ULL <<  3,
+	KDBUS_NAME_ACTIVATOR		= 1ULL <<  4,
 };
 
 /**
@@ -630,10 +630,10 @@ struct kdbus_cmd_name {
  * @KDBUS_NAME_LIST_QUEUED:	All queued-up names
  */
 enum kdbus_name_list_flags {
-	KDBUS_NAME_LIST_UNIQUE		= 1 <<  0,
-	KDBUS_NAME_LIST_NAMES		= 1 <<  1,
-	KDBUS_NAME_LIST_ACTIVATORS	= 1 <<  2,
-	KDBUS_NAME_LIST_QUEUED		= 1 <<  3,
+	KDBUS_NAME_LIST_UNIQUE		= 1ULL <<  0,
+	KDBUS_NAME_LIST_NAMES		= 1ULL <<  1,
+	KDBUS_NAME_LIST_ACTIVATORS	= 1ULL <<  2,
+	KDBUS_NAME_LIST_QUEUED		= 1ULL <<  3,
 };
 
 /**
