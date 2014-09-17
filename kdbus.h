@@ -126,7 +126,7 @@ struct kdbus_timestamp {
  *			relative to the message head
  *
  * Attached to:
- *   KDBUS_ITEM_PAYLOAD_VEC
+ *   KDBUS_ITEM_PAYLOAD_VEC, KDBUS_ITEM_PAYLOAD_OFF
  */
 struct kdbus_vec {
 	__u64 size;
