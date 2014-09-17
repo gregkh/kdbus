@@ -51,7 +51,7 @@ int kdbus_test_daemon(struct kdbus_test_env *env)
 			break;
 
 		if (fds[0].revents & POLLIN) {
-			ret = kdbus_msg_recv(env->conn, NULL);
+			ret = kdbus_msg_recv(env->conn, NULL, NULL);
 			ASSERT_RETURN(ret == 0);
 		}
 

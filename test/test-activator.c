@@ -79,7 +79,7 @@ int kdbus_test_activator(struct kdbus_test_env *env)
 		}
 
 		if (fds[1].revents & POLLIN) {
-			kdbus_msg_recv(env->conn, NULL);
+			kdbus_msg_recv(env->conn, NULL, NULL);
 			break;
 		}
 	}

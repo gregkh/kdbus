@@ -166,7 +166,7 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	}
 
 	/* Receive in the original (root privileged) user namespace */
-	ret = kdbus_msg_recv_poll(conn, NULL, 1000);
+	ret = kdbus_msg_recv_poll(conn, 1000, NULL, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	ret = waitpid(pid, &status, 0);

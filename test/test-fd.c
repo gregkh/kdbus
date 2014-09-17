@@ -87,7 +87,7 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	ret = send_fd(conn_src, conn_dst->id, fds[0]);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_msg_recv(conn_dst, &msg);
+	ret = kdbus_msg_recv(conn_dst, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {

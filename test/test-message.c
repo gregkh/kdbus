@@ -125,7 +125,7 @@ int kdbus_test_message_prio(struct kdbus_test_env *env)
 	ASSERT_RETURN(msg_recv_prio(conn_a, 10, -100) == 0);
 
 	kdbus_printf("--- get priority (all)\n");
-	ASSERT_RETURN(kdbus_msg_recv(conn_a, NULL) == 0);
+	ASSERT_RETURN(kdbus_msg_recv(conn_a, NULL, NULL) == 0);
 
 	kdbus_conn_free(conn_a);
 	kdbus_conn_free(conn_b);

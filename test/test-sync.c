@@ -35,7 +35,7 @@ static void *run_thread(void *data)
 
 	if (fd.revents & POLLIN) {
 		kdbus_printf("Thread received message, sending reply ...\n");
-		kdbus_msg_recv(conn_a, NULL);
+		kdbus_msg_recv(conn_a, NULL, NULL);
 		kdbus_msg_send(conn_a, NULL, 0, 0, cookie, 0, conn_b->id);
 	}
 

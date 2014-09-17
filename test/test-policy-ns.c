@@ -54,7 +54,7 @@ static void *kdbus_recv_echo(void *ptr)
 	int ret;
 	struct kdbus_conn *conn = ptr;
 
-	ret = kdbus_msg_recv_poll(conn, NULL, 1000);
+	ret = kdbus_msg_recv_poll(conn, 1000, NULL, NULL);
 
 	return (void *)(long)ret;
 }
@@ -118,27 +118,6 @@ static int kdbus_register_policy_holder(char *bus, const char *name,
 	c = kdbus_hello_registrar(bus, name, access, 2,
 				  KDBUS_HELLO_POLICY_HOLDER);
 	ASSERT_RETURN(c);
-
-	*conn = c;
-
-	return TEST_OK;
-}
-
-/* return TEST_OK or TEST_ERR on failure */
-static int kdbus_receiver_acquire_name(char *bus, const char *name,
-					struct kdbus_conn **conn)
-{
-	int ret;
-	struct kdbus_conn *c;
-
-	c = kdbus_hello(bus, 0, NULL, 0);
-	ASSERT_RETURN(c);
-
-	ret = kdbus_add_match_empty(c);
-	ASSERT_RETURN(ret == 0);
-
-	ret = kdbus_name_acquire(c, name, 0);
-	ASSERT_RETURN(ret == 0);
 
 	*conn = c;
 
@@ -220,6 +199,102 @@ static int kdbus_normal_test(const char *bus, const char *name,
 	return TEST_OK;
 }
 
+static int kdbus_fork_test_by_id(const char *bus,
+				 struct kdbus_conn **conn_db,
+				 int parent_status, int child_status)
+{
+	int ret;
+	pid_t pid;
+	uint64_t cookie = 0x9876ecba;
+	struct kdbus_msg *msg = NULL;
+	uint64_t offset = 0;
+	int status = 0;
+
+	/*
+	 * If the child_status is not EXIT_SUCCESS, then we expect
+	 * that sending from the child will fail, thus receiving
+	 * from parent must error with -ETIMEDOUT, and vice versa.
+	 */
+	bool parent_timedout = !!child_status;
+	bool child_timedout = !!parent_status;
+
+	pid = fork();
+	ASSERT_RETURN_VAL(pid >= 0, pid);
+
+	if (pid == 0) {
+		struct kdbus_conn *conn_src;
+
+		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
+		ASSERT_EXIT(ret == 0);
+
+		ret = drop_privileges(65534, 65534);
+		ASSERT_EXIT(ret == 0);
+
+		conn_src = kdbus_hello(bus, 0, NULL, 0);
+		ASSERT_EXIT(conn_src);
+
+		ret = kdbus_add_match_empty(conn_src);
+		ASSERT_EXIT(ret == 0);
+
+		/*
+		 * child_status is always checked against send
+		 * operations, in case it fails always return
+		 * EXIT_FAILURE.
+		 */
+		ret = kdbus_msg_send(conn_src, NULL, cookie,
+				     0, 0, 0, conn_db[0]->id);
+		ASSERT_EXIT(ret == child_status);
+
+		ret = kdbus_msg_recv_poll(conn_src, 1000, NULL, NULL);
+
+		kdbus_conn_free(conn_src);
+
+		/*
+		 * Child kdbus_msg_recv_poll() should timeout since
+		 * the parent_status was set to a non EXIT_SUCCESS
+		 * value.
+		 */
+		if (child_timedout)
+			_exit(ret == -ETIMEDOUT ? EXIT_SUCCESS : EXIT_FAILURE);
+
+		_exit(ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+	}
+
+	ret = kdbus_msg_recv_poll(conn_db[0], 1000, &msg, &offset);
+	/*
+	 * If parent_timedout is set then this should fail with
+	 * -ETIMEDOUT since the child_status was set to a non
+	 * EXIT_SUCCESS value. Otherwise, assume
+	 * that kdbus_msg_recv_poll() has succeeded.
+	 */
+	if (parent_timedout) {
+		ASSERT_RETURN_VAL(ret == -ETIMEDOUT, TEST_ERR);
+
+		/* timedout no need to continue, we don't have the
+		 * child connection ID, so just terminate. */
+		goto out;
+	} else {
+		ASSERT_RETURN_VAL(ret == 0, ret);
+	}
+
+	ret = kdbus_msg_send(conn_db[0], NULL, ++cookie,
+			     0, 0, 0, msg->src_id);
+	/*
+	 * parent_status is checked against send operations,
+	 * on failures always return TEST_ERR.
+	 */
+	ASSERT_RETURN_VAL(ret == parent_status, TEST_ERR);
+
+	kdbus_msg_free(msg);
+	kdbus_free(conn_db[0], offset);
+
+out:
+	ret = waitpid(pid, &status, 0);
+	ASSERT_RETURN_VAL(ret >= 0, ret);
+
+	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
+}
+
 /*
  * Return: TEST_OK, TEST_ERR or TEST_SKIP
  * we return TEST_OK only if the childs return with the expected
@@ -239,7 +314,7 @@ static int kdbus_fork_test(const char *bus, const char *name,
 
 	if (pid == 0) {
 		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
-		ASSERT_EXIT(pid >= 0);
+		ASSERT_EXIT(ret == 0);
 
 		ret = drop_privileges(65534, 65534);
 		ASSERT_EXIT(ret == 0);
@@ -378,7 +453,7 @@ static int kdbus_clone_userns_test(const char *bus,
 	 * Receive in the original (root privileged) user namespace,
 	 * must fail with -ETIMEDOUT.
 	 */
-	ret = kdbus_msg_recv_poll(conn_db[0], NULL, 1000);
+	ret = kdbus_msg_recv_poll(conn_db[0], 1000, NULL, NULL);
 	ASSERT_RETURN_VAL(ret == -ETIMEDOUT, ret);
 
 	ret = waitpid(pid, &status, 0);
@@ -406,6 +481,16 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 
 	memset(conn_db, 0, MAX_CONN * sizeof(struct kdbus_conn *));
 
+	conn_db[0] = kdbus_hello(bus, 0, NULL, 0);
+	ASSERT_RETURN(conn_db[0]);
+
+	ret = kdbus_add_match_empty(conn_db[0]);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_fork_test_by_id(bus, conn_db,
+				    EXIT_SUCCESS, EXIT_SUCCESS);
+	ASSERT_EXIT(ret == 0);
+
 	ret = kdbus_register_policy_holder(bus, POLICY_NAME,
 					   &policy_holder);
 	ASSERT_RETURN(ret == 0);
@@ -415,7 +500,8 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 					    &activator);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_receiver_acquire_name(bus, POLICY_NAME, &conn_db[0]);
+	/* Acquire POLICY_NAME */
+	ret = kdbus_name_acquire(conn_db[0], POLICY_NAME, 0);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_normal_test(bus, POLICY_NAME, conn_db);
@@ -429,6 +515,18 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 
 	ret = kdbus_fork_test(bus, POLICY_NAME, conn_db, EXIT_SUCCESS);
 	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * childs connections are able to talk to conn_db[0] since
+	 * current POLICY_NAME TALK type is KDBUS_POLICY_ACCESS_WORLD,
+	 * so expect EXIT_SUCCESS when sending from child. However,
+	 * since the child's connection does not own any well-known
+	 * name, The parent connection conn_db[0] should fail with
+	 * -EPERM when sending to it.
+	 */
+	ret = kdbus_fork_test_by_id(bus, conn_db,
+				    -EPERM, EXIT_SUCCESS);
+	ASSERT_EXIT(ret == 0);
 
 	/*
 	 * Connections that can talk are perhaps being destroyed now.
@@ -448,6 +546,18 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	 */
 	ret = kdbus_fork_test(bus, POLICY_NAME, conn_db, -EPERM);
 	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * Now expect that both parent and child to fail.
+	 *
+	 * Child should fail with -EPERM since we just restricted
+	 * the POLICY_NAME TALK to uid 0 and its uid is 65534.
+	 *
+	 * Since the parent's connection will timeout when receiving
+	 * from the child, we never continue. FWIW just put -EPERM.
+	 */
+	ret = kdbus_fork_test_by_id(bus, conn_db, -EPERM, -EPERM);
+	ASSERT_EXIT(ret == 0);
 
 	/* Check if the name can be reached in a new userns */
 	ret = kdbus_clone_userns_test(bus, POLICY_NAME, conn_db, -EPERM);

@@ -26,6 +26,7 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *monitor, *conn;
 	unsigned int cookie = 0xdeadbeef;
+	uint64_t offset = 0;
 	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_msg *msg;
 	size_t size;
@@ -56,16 +57,18 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* the recipient should have got the message */
-	ret = kdbus_msg_recv(conn, &msg);
+	ret = kdbus_msg_recv(conn, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
 	kdbus_msg_free(msg);
+	kdbus_free(conn, offset);
 
 	/* and so should the monitor */
-	ret = kdbus_msg_recv(monitor, &msg);
+	ret = kdbus_msg_recv(monitor, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
 	kdbus_msg_free(msg);
+	kdbus_free(monitor, offset);
 
 	kdbus_conn_free(monitor);
 	kdbus_conn_free(conn);

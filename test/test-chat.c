@@ -86,7 +86,7 @@ int kdbus_test_chat(struct kdbus_test_env *env)
 			if (count > 2)
 				kdbus_name_release(conn_a, "foo.bar.baz");
 
-			ret = kdbus_msg_recv(conn_a, NULL);
+			ret = kdbus_msg_recv(conn_a, NULL, NULL);
 			ASSERT_RETURN(ret == 0);
 			ret = kdbus_msg_send(conn_a, NULL,
 					     0xc0000000 | cookie++,
@@ -95,7 +95,7 @@ int kdbus_test_chat(struct kdbus_test_env *env)
 		}
 
 		if (fds[1].revents & POLLIN) {
-			ret = kdbus_msg_recv(conn_b, NULL);
+			ret = kdbus_msg_recv(conn_b, NULL, NULL);
 			ASSERT_RETURN(ret == 0);
 			ret = kdbus_msg_send(conn_b, NULL,
 					     0xc0000000 | cookie++,

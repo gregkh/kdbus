@@ -245,7 +245,7 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 	ret = kdbus_msg_send(env->conn, NULL, 0x12345678, 0, 0, 0, conn->id);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_msg_recv(conn, &msg);
+	ret = kdbus_msg_recv(conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	KDBUS_ITEM_FOREACH(item, msg, items)
@@ -267,7 +267,7 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 	ret = kdbus_msg_send(env->conn, NULL, 0x12345678, 0, 0, 0, conn->id);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_msg_recv(conn, &msg);
+	ret = kdbus_msg_recv(conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	KDBUS_ITEM_FOREACH(item, msg, items)

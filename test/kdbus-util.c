@@ -630,6 +630,9 @@ void kdbus_msg_free(struct kdbus_msg *msg)
 	const struct kdbus_item *item;
 	int nfds, i;
 
+	if (!msg)
+		return;
+
 	KDBUS_ITEM_FOREACH(item, msg, items) {
 		switch (item->type) {
 		/* close all memfds */
@@ -648,7 +651,9 @@ void kdbus_msg_free(struct kdbus_msg *msg)
 	}
 }
 
-int kdbus_msg_recv(struct kdbus_conn *conn, struct kdbus_msg **msg_out)
+int kdbus_msg_recv(struct kdbus_conn *conn,
+		   struct kdbus_msg **msg_out,
+		   uint64_t *offset)
 {
 	struct kdbus_cmd_recv recv = {};
 	struct kdbus_msg *msg;
@@ -665,6 +670,9 @@ int kdbus_msg_recv(struct kdbus_conn *conn, struct kdbus_msg **msg_out)
 
 	if (msg_out) {
 		*msg_out = msg;
+
+		if (offset)
+			*offset = recv.offset;
 	} else {
 		kdbus_msg_free(msg);
 
@@ -677,13 +685,14 @@ int kdbus_msg_recv(struct kdbus_conn *conn, struct kdbus_msg **msg_out)
 }
 
 int kdbus_msg_recv_poll(struct kdbus_conn *conn,
+			unsigned int timeout_ms,
 			struct kdbus_msg **msg_out,
-			unsigned int timeout_ms)
+			uint64_t *offset)
 {
 	int ret;
 
 	for (; timeout_ms; timeout_ms--) {
-		ret = kdbus_msg_recv(conn, NULL);
+		ret = kdbus_msg_recv(conn, msg_out, offset);
 		if (ret == -EAGAIN) {
 			usleep(1000);
 			continue;
