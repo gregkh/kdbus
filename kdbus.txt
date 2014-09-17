@@ -216,7 +216,7 @@ Note:
 
 To flexibly augment transport structures used by kdbus, data blobs of type
 struct kdbus_item are used. An item has a fixed-sized header that only stores
-the type if the item and the overall size. The total size is variable and is
+the type of the item and the overall size. The total size is variable and is
 in some cases defined by the item type, in other cases can be of arbitrary
 length (for instance, a string).
 
