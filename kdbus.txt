@@ -102,7 +102,7 @@ Articles about D-Bus and kdbus:
 
   Privileged bus users:
     A user connecting to the bus is considered privileged if it is either the
-    creator of a bus, of if it has CAP_IPC_OWNER capability flag set.
+    creator of the bus, or if it has the CAP_IPC_OWNER capability flag set.
 
 
 2. Device Node Layout
