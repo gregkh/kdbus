@@ -72,9 +72,10 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 
 		/* Unprivileged can't create user namespace ? */
 		if (ret == -EPERM) {
-			kdbus_printf("-- CLONE_NEWUSER TEST Failed for uid: %u\n"
-				"-- Make sure that your kernel do not allow "
-				"CLONE_NEWUSER for unprivileged users\n",
+			kdbus_printf("-- CLONE_NEWUSER TEST Failed for "
+				     "uid: %u\n -- Make sure that your kernel "
+				     "do not allow CLONE_NEWUSER for "
+				     "unprivileged users\n",
 				uid);
 			test_status = TEST_SKIP;
 		}
@@ -150,6 +151,8 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	int ret;
 	pid_t pid;
 	int status;
+	struct kdbus_msg *msg;
+	const struct kdbus_item *item;
 
 	kdbus_printf("STARTING TEST 'chat' in a new user namespace.\n");
 
@@ -166,8 +169,16 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	}
 
 	/* Receive in the original (root privileged) user namespace */
-	ret = kdbus_msg_recv_poll(conn, 1000, NULL, NULL);
+	ret = kdbus_msg_recv_poll(conn, 1000, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
+
+	KDBUS_ITEM_FOREACH(item, msg, items)
+		if (item->type >= _KDBUS_ITEM_ATTACH_BASE &&
+		    item->type <  _KDBUS_ITEM_POLICY_BASE) {
+			kdbus_printf("Unexpected item of type %llx\n",
+				     item->type);
+			ASSERT_RETURN_VAL(0, -EINVAL);
+		}
 
 	ret = waitpid(pid, &status, 0);
 	ASSERT_RETURN(ret >= 0);
@@ -189,5 +200,8 @@ int kdbus_test_metadata_ns(struct kdbus_test_env *env)
 	ret = kdbus_add_match_empty(env->conn);
 	ASSERT_RETURN(ret == 0);
 
-	return kdbus_clone_userns_test(env->buspath, env->conn);
+	ret = kdbus_clone_userns_test(env->buspath, env->conn);
+	ASSERT_RETURN(ret == 0);
+
+	return TEST_OK;
 }
