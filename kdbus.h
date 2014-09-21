@@ -118,7 +118,7 @@ struct kdbus_timestamp {
 /**
  * struct kdbus_vec - I/O vector for kdbus payload items
  * @size:		The size of the vector
- * @address:		Memory address for memory addresses
+ * @address:		Memory address of data buffer
  * @offset:		Offset in the in-message payload memory,
  *			relative to the message head
  *
@@ -157,7 +157,7 @@ struct kdbus_bloom_filter {
  * struct kdbus_memfd - a kdbus memfd
  * @size:		The memfd's size
  * @fd:			The file descriptor number
- * @__pad:		Padding to ensure proper alignement and size
+ * @__pad:		Padding to ensure proper alignment and size
  *
  * Attached to:
  *   KDBUS_ITEM_PAYLOAD_MEMFD
@@ -474,7 +474,7 @@ enum kdbus_policy_type {
 
 /**
  * enum kdbus_hello_flags - flags for struct kdbus_cmd_hello
- * @KDBUS_HELLO_ACCEPT_FD:	The connection allows the receiving of
+ * @KDBUS_HELLO_ACCEPT_FD:	The connection allows the reception of
  *				any passed file descriptors
  * @KDBUS_HELLO_ACTIVATOR:	Special-purpose connection which registers
  *				a well-know name for a process to be started
