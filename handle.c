@@ -79,6 +79,7 @@ struct kdbus_handle {
 	struct kdbus_meta *meta;
 	struct kdbus_ep *ep;
 	union {
+		void *ptr;
 		struct kdbus_domain *domain_owner;
 		struct kdbus_bus *bus_owner;
 		struct kdbus_ep *ep_owner;
@@ -232,6 +233,43 @@ static int kdbus_memdup_user(void __user *user_ptr,
 	return 0;
 }
 
+static int kdbus_handle_transform(struct kdbus_handle *handle,
+				  enum kdbus_handle_type old_type,
+				  enum kdbus_handle_type new_type,
+				  void *ctx_ptr)
+{
+	int ret = -EBADFD;
+
+	/*
+	 * This transforms a handle from one state into another. Only a single
+	 * transformation is allowed per handle, and it must be one of:
+	 *   CONTROL -> CONTROL_DOMAIN_OWNER
+	 *           -> CONTROL_BUS_OWNER
+	 *        EP -> EP_CONNECTED
+	 *           -> EP_OWNER
+	 *
+	 * State transformations are protected by the domain-lock. If another
+	 * transformation runs in parallel, we will fail and the caller has to
+	 * revert any previous steps.
+	 *
+	 * We also update any context before we write the new type. Reads can
+	 * now be sure that iff a specific non-entry type is set, the context
+	 * is accessible, too (given appropriate read-barriers).
+	 */
+
+	mutex_lock(&handle->domain->lock);
+	if (handle->type == old_type) {
+		handle->ptr = ctx_ptr;
+		/* make sure handle->XYZ is accessible before the type is set */
+		smp_wmb();
+		handle->type = new_type;
+		ret = 0;
+	}
+	mutex_unlock(&handle->domain->lock);
+
+	return ret;
+}
+
 /* kdbus control device commands */
 static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 				       void __user *buf)
@@ -279,8 +317,15 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		/* turn the control fd into a new bus owner device */
-		handle->type = KDBUS_HANDLE_CONTROL_BUS_OWNER;
-		handle->bus_owner = bus;
+		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
+					     KDBUS_HANDLE_CONTROL_BUS_OWNER,
+					     bus);
+		if (ret < 0) {
+			kdbus_bus_disconnect(bus);
+			kdbus_bus_unref(bus);
+			break;
+		}
+
 		break;
 	}
 
@@ -316,8 +361,15 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		/* turn the control fd into a new domain owner device */
-		handle->type = KDBUS_HANDLE_CONTROL_DOMAIN_OWNER;
-		handle->domain_owner = domain;
+		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
+					     KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
+					     domain);
+		if (ret < 0) {
+			kdbus_domain_disconnect(domain);
+			kdbus_domain_unref(domain);
+			break;
+		}
+
 		break;
 	}
 
@@ -403,14 +455,21 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		handle->ep_owner = ep;
-		handle->type = KDBUS_HANDLE_EP_OWNER;
+		/* turn the ep fd into a new endpoint owner device */
+		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_EP,
+					     KDBUS_HANDLE_EP_OWNER, ep);
+		if (ret < 0) {
+			kdbus_ep_disconnect(ep);
+			kdbus_ep_unref(ep);
+			break;
+		}
+
 		break;
 	}
 
 	case KDBUS_CMD_HELLO: {
-		/* turn this fd into a connection. */
 		struct kdbus_cmd_hello *hello;
+		struct kdbus_conn *conn;
 
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_hello),
@@ -431,12 +490,19 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_conn_new(handle->ep, hello, handle->meta,
-				     &handle->conn);
+		ret = kdbus_conn_new(handle->ep, hello, handle->meta, &conn);
 		if (ret < 0)
 			break;
 
-		handle->type = KDBUS_HANDLE_EP_CONNECTED;
+		/* turn the ep fd into a new connection */
+		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_EP,
+					     KDBUS_HANDLE_EP_CONNECTED,
+					     conn);
+		if (ret < 0) {
+			kdbus_conn_disconnect(conn, false);
+			kdbus_conn_unref(conn);
+			break;
+		}
 
 		if (copy_to_user(buf, p, sizeof(struct kdbus_cmd_hello)))
 			ret = -EFAULT;
@@ -772,8 +838,12 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 {
 	struct kdbus_handle *handle = file->private_data;
 	void __user *argp = (void __user *)arg;
+	enum kdbus_handle_type type = handle->type;
 
-	switch (handle->type) {
+	/* make sure all handle fields are set if handle->type is */
+	smp_rmb();
+
+	switch (type) {
 	case KDBUS_HANDLE_CONTROL:
 		return kdbus_handle_ioctl_control(file, cmd, argp);
 
@@ -795,12 +865,16 @@ static unsigned int kdbus_handle_poll(struct file *file,
 				      struct poll_table_struct *wait)
 {
 	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_conn *conn = handle->conn;
+	struct kdbus_conn *conn;
 	unsigned int mask = POLLOUT | POLLWRNORM;
 
 	/* Only a connected endpoint can read/write data */
 	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
 		return POLLERR | POLLHUP;
+
+	/* make sure handle->conn is set if handle->type is */
+	smp_rmb();
+	conn = handle->conn;
 
 	poll_wait(file, &conn->wait, wait);
 
@@ -820,6 +894,9 @@ static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 
 	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
 		return -EPERM;
+
+	/* make sure handle->conn is set if handle->type is */
+	smp_rmb();
 
 	return kdbus_pool_mmap(handle->conn->pool, vma);
 }
