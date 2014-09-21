@@ -475,10 +475,12 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	    !KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
 		ret = -EINVAL;
 
+	mutex_lock(&db->entries_lock);
 	if (ret == 0)
 		list_add_tail(&entry->list_entry, &db->entries_list);
 	else
 		kdbus_match_entry_free(entry);
+	mutex_unlock(&db->entries_lock);
 
 exit_free:
 	return ret;
