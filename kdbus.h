@@ -17,11 +17,8 @@
 #ifndef _KDBUS_UAPI_H_
 #define _KDBUS_UAPI_H_
 
-#ifndef __KERNEL__
-#include <sys/ioctl.h>
-#include <sys/types.h>
+#include <linux/ioctl.h>
 #include <linux/types.h>
-#endif
 
 #define KDBUS_IOCTL_MAGIC		0x95
 #define KDBUS_SRC_ID_KERNEL		(0)
