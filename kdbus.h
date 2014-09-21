@@ -530,8 +530,7 @@ enum kdbus_attach_flags {
 /**
  * struct kdbus_cmd_hello - struct to say hello to kdbus
  * @size:		The total size of the structure
- * @conn_flags:		Connection flags (KDBUS_HELLO_*). The kernel will
- *			return its capabilities in that field.
+ * @conn_flags:		Connection flags (KDBUS_HELLO_*).
  * @attach_flags:	Mask of metadata to attach to each message sent
  *			(KDBUS_ATTACH_*)
  * @bus_flags:		The flags field copied verbatim from the original
