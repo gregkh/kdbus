@@ -1055,9 +1055,6 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	u64 flags;
 
 	if (cmd_info->id == 0) {
-		if (size == sizeof(struct kdbus_cmd_conn_info))
-			return -EINVAL;
-
 		if (!kdbus_check_strlen(cmd_info, name))
 			return -EINVAL;
 
