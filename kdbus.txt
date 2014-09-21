@@ -278,6 +278,13 @@ returned to the creators of connections through kdbus_cmd_hello.id128 and can
 be used by userspace to identify buses. The UUID will have its its variant bits
 set to 'DCE', and denote version 4 (random).
 
+When a new domain is created, its structure in /dev/kdbus/<name>/ is a
+replication of what's initially created in /dev/kdbus. In fact, internally,
+a dummy default domain is set up when the driver is loaded. This allows
+userspace to bind-mount domain subtrees of /dev/kdbus into a container's
+filesystem view, and hence achieve complete isolation from the host's domain
+and those of other containers.
+
 
 5.2 Endpoints
 -------------
