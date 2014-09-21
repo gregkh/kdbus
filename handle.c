@@ -436,10 +436,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		handle->type = KDBUS_HANDLE_EP_CONNECTED;
 
-		if (copy_to_user(buf, p, sizeof(struct kdbus_cmd_hello))) {
-			kdbus_conn_unref(handle->conn);
+		if (copy_to_user(buf, p, sizeof(struct kdbus_cmd_hello)))
 			ret = -EFAULT;
-		}
 
 		break;
 	}
