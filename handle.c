@@ -385,6 +385,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		ret = kdbus_ep_policy_set(ep, make->items,
 					  KDBUS_ITEMS_SIZE(make, items));
 		if (ret < 0) {
+			kdbus_ep_disconnect(ep);
 			kdbus_ep_unref(ep);
 			break;
 		}
@@ -397,6 +398,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		ret = kdbus_domain_get_user(handle->ep->bus->domain,
 					    INVALID_UID, &ep->user);
 		if (ret < 0) {
+			kdbus_ep_disconnect(ep);
 			kdbus_ep_unref(ep);
 			break;
 		}
