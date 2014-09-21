@@ -45,7 +45,6 @@
  * @KDBUS_HANDLE_EP:			New file descriptor of a bus node
  * @KDBUS_HANDLE_EP_CONNECTED:		A bus connection after HELLO
  * @KDBUS_HANDLE_EP_OWNER:		File descriptor to hold an endpoint
- * @KDBUS_HANDLE_DISCONNECTED:		Handle is disconnected
  */
 enum kdbus_handle_type {
 	_KDBUS_HANDLE_NULL,
@@ -55,7 +54,6 @@ enum kdbus_handle_type {
 	KDBUS_HANDLE_EP,
 	KDBUS_HANDLE_EP_CONNECTED,
 	KDBUS_HANDLE_EP_OWNER,
-	KDBUS_HANDLE_DISCONNECTED,
 };
 
 /**
