@@ -356,6 +356,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	}
 
 	entry->cookie = cmd->cookie;
+	INIT_LIST_HEAD(&entry->list_entry);
 	INIT_LIST_HEAD(&entry->rules_list);
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
