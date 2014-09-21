@@ -531,11 +531,21 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EOPNOTSUPP;
+			break;
+		}
+
 		ret = kdbus_conn_disconnect(conn, true);
 		break;
 
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
+
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EOPNOTSUPP;
+			break;
+		}
 
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_name),
@@ -556,6 +566,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_NAME_RELEASE:
 		/* release a well-known name */
+
+		if (conn->type != KDBUS_CONN_CONNECTED) {
+			ret = -EOPNOTSUPP;
+			break;
+		}
 
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_name),
