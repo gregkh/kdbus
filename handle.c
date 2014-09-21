@@ -207,7 +207,7 @@ static bool kdbus_check_flags(u64 kernel_flags)
 }
 
 static int kdbus_memdup_user(void __user *user_ptr,
-			     void **out, u64 *size_out,
+			     void **out,
 			     size_t size_min,
 			     size_t size_max)
 {
@@ -231,9 +231,6 @@ static int kdbus_memdup_user(void __user *user_ptr,
 		return PTR_ERR(ptr);
 
 	*out = ptr;
-	if (size_out)
-		*size_out = size;
-
 	return 0;
 }
 
@@ -255,7 +252,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		struct kdbus_bloom_parameter bloom;
 		char *name;
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_make),
 					KDBUS_MAKE_MAX_SIZE);
 		if (ret < 0)
@@ -297,7 +294,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_make),
 					KDBUS_MAKE_MAX_SIZE);
 		if (ret < 0)
@@ -358,7 +355,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_make),
 					KDBUS_MAKE_MAX_SIZE);
 		if (ret < 0)
@@ -415,7 +412,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		/* turn this fd into a connection. */
 		struct kdbus_cmd_hello *hello;
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_hello),
 					KDBUS_HELLO_MAX_SIZE);
 		if (ret < 0)
@@ -467,7 +464,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	struct kdbus_conn *conn = handle->conn;
 	void *p = NULL;
 	long ret = 0;
-	u64 size;
 
 	switch (cmd) {
 	case KDBUS_CMD_BYEBYE:
@@ -487,7 +483,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p, &size,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_name),
 					sizeof(struct kdbus_cmd_name) +
 						KDBUS_NAME_MAX_LEN + 1);
@@ -499,7 +495,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 
 		/* return flags to the caller */
-		if (copy_to_user(buf, p, size))
+		if (copy_to_user(buf, p, ((struct kdbus_cmd_name*)p)->size))
 			ret = -EFAULT;
 
 		break;
@@ -512,7 +508,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_name),
 					sizeof(struct kdbus_cmd_name) +
 						KDBUS_NAME_MAX_LEN + 1);
@@ -550,7 +546,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_conn_info *cmd;
 
 		/* return the properties of a connection */
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_conn_info),
 					sizeof(struct kdbus_cmd_conn_info) +
 						KDBUS_NAME_MAX_LEN + 1);
@@ -577,7 +573,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_update),
 					sizeof(struct kdbus_cmd_update) +
 						KDBUS_UPDATE_MAX_SIZE);
@@ -596,7 +592,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_match),
 					sizeof(struct kdbus_cmd_match) +
 						KDBUS_MATCH_MAX_SIZE);
@@ -615,7 +611,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_match),
 					sizeof(struct kdbus_cmd_match));
 		if (ret < 0)
@@ -751,7 +747,7 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_update *cmd;
 
 		/* update the properties of a custom endpoint */
-		ret = kdbus_memdup_user(buf, &p, NULL,
+		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_update),
 					sizeof(struct kdbus_cmd_update) +
 					       KDBUS_UPDATE_MAX_SIZE);
