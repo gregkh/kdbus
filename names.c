@@ -415,19 +415,16 @@ static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
 }
 
 /**
- * kdbus_name_is_valid() - check if a name is value
+ * kdbus_name_is_valid() - check if a name is valid
  * @p:			The name to check
  * @allow_wildcard:	Whether or not to allow a wildcard name
  *
  * A name is valid if all of the following criterias are met:
  *
- *  - The name has one or more elements separated by a period ('.') character.
- *    All elements must contain at least one character.
- *  - Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_"
+ *  - The name has two or more elements separated by a period ('.') character.
+ *  - All elements must contain at least one character.
+ *  - Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_-"
  *    and must not begin with a digit.
- *  - The name must contain at least one '.' (period) character
- *    (and thus at least two elements).
- *  - The name must not begin with a '.' (period) character.
  *  - The name must not exceed KDBUS_NAME_MAX_LEN.
  *  - If @allow_wildcard is true, the name may end on '.*'
  */
