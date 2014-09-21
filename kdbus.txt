@@ -1305,10 +1305,10 @@ when one of the following ioctls is issued:
   * KDBUS_CMD_NAME_LIST, to dump the name registry
   * KDBUS_CMD_CONN_INFO, to retrieve information on a connection
 
-Internally, the pool is organized in slices, and implements a buddy system.
-The offsets returned by either one of the aforementioned ioctls describe
-offsets inside the pool. In order to make the slice available for subsequent
-calls, KDBUS_CMD_FREE has to be called on the offset.
+Internally, the pool is organized in slices, stored in an rb-tree. The offsets
+returned by either one of the aforementioned ioctls describe offsets inside the
+pool. In order to make the slice available for subsequent calls, KDBUS_CMD_FREE
+has to be called on the offset.
 
 To access the memory, the caller is expected to mmap() it to its task, like
 this:
