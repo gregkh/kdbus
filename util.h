@@ -88,7 +88,7 @@
 #define kdbus_check_strlen(_p, _s)					\
 ({									\
 	size_t _max = (_p)->size - offsetof(typeof(*(_p)), _s);		\
-	strnlen((_p)->_s, _max) < _max;					\
+	strnlen((_p)->_s, _max) + 1 == _max;				\
 })
 
 /**
