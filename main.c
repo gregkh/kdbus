@@ -22,6 +22,9 @@
 #include "util.h"
 #include "domain.h"
 
+/* kdbus initial domain */
+static struct kdbus_domain *kdbus_domain_init;
+
 static int __init kdbus_init(void)
 {
 	int ret;

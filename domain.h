@@ -88,7 +88,6 @@ struct kdbus_domain_user {
 	atomic_t connections;
 };
 
-extern struct kdbus_domain *kdbus_domain_init;
 extern struct bus_type kdbus_subsys;
 
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);

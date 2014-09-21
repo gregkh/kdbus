@@ -32,9 +32,6 @@ static DEFINE_IDR(kdbus_domain_major_idr);
 /* next domain id sequence number */
 static u64 kdbus_domain_seq_last;
 
-/* kdbus initial domain */
-struct kdbus_domain *kdbus_domain_init;
-
 /* kdbus subsystem lock */
 static DEFINE_MUTEX(kdbus_subsys_lock);
 
