@@ -97,38 +97,38 @@ static int msg_recv_prio(struct kdbus_conn *conn,
 
 int kdbus_test_message_prio(struct kdbus_test_env *env)
 {
-	struct kdbus_conn *conn_a, *conn_b;
+	struct kdbus_conn *a, *b;
 	uint64_t cookie = 0;
 
-	conn_a = kdbus_hello(env->buspath, 0, NULL, 0);
-	conn_b = kdbus_hello(env->buspath, 0, NULL, 0);
-	ASSERT_RETURN(conn_a && conn_b);
+	a = kdbus_hello(env->buspath, 0, NULL, 0);
+	b = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(a && b);
 
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,   25, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -600, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,   10, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,  -35, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -100, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,   20, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,  -15, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -800, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -150, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,   10, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0, -800, conn_a->id);
-	kdbus_msg_send(conn_b, NULL, ++cookie, 0, 0,  -10, conn_a->id);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0,   25, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0, -600, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0,   10, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0,  -35, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0, -100, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0,   20, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0,  -15, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0, -800, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0, -150, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0,   10, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0, -800, a->id) == 0);
+	ASSERT_RETURN(kdbus_msg_send(b, NULL, ++cookie, 0, 0,  -10, a->id) == 0);
 
-	ASSERT_RETURN(msg_recv_prio(conn_a, -200, -800) == 0);
-	ASSERT_RETURN(msg_recv_prio(conn_a, -100, -800) == 0);
-	ASSERT_RETURN(msg_recv_prio(conn_a, -400, -600) == 0);
-	ASSERT_RETURN(msg_recv_prio(conn_a, -400, -600) == -ENOMSG);
-	ASSERT_RETURN(msg_recv_prio(conn_a, 10, -150) == 0);
-	ASSERT_RETURN(msg_recv_prio(conn_a, 10, -100) == 0);
+	ASSERT_RETURN(msg_recv_prio(a, -200, -800) == 0);
+	ASSERT_RETURN(msg_recv_prio(a, -100, -800) == 0);
+	ASSERT_RETURN(msg_recv_prio(a, -400, -600) == 0);
+	ASSERT_RETURN(msg_recv_prio(a, -400, -600) == -ENOMSG);
+	ASSERT_RETURN(msg_recv_prio(a, 10, -150) == 0);
+	ASSERT_RETURN(msg_recv_prio(a, 10, -100) == 0);
 
 	kdbus_printf("--- get priority (all)\n");
-	ASSERT_RETURN(kdbus_msg_recv(conn_a, NULL, NULL) == 0);
+	ASSERT_RETURN(kdbus_msg_recv(a, NULL, NULL) == 0);
 
-	kdbus_conn_free(conn_a);
-	kdbus_conn_free(conn_b);
+	kdbus_conn_free(a);
+	kdbus_conn_free(b);
 
 	return TEST_OK;
 }

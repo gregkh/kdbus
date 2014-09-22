@@ -16,9 +16,7 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-static uint64_t expected;
-
-int timeout_msg_recv(struct kdbus_conn *conn)
+int timeout_msg_recv(struct kdbus_conn *conn, uint64_t *expected)
 {
 	struct kdbus_cmd_recv recv = {};
 	struct kdbus_msg *msg;
@@ -36,7 +34,7 @@ int timeout_msg_recv(struct kdbus_conn *conn)
 	ASSERT_RETURN_VAL(msg->src_id == KDBUS_SRC_ID_KERNEL, -EINVAL);
 	ASSERT_RETURN_VAL(msg->dst_id == conn->id, -EINVAL);
 
-	expected &= ~(1ULL << msg->cookie_reply);
+	*expected &= ~(1ULL << msg->cookie_reply);
 	kdbus_printf("Got message timeout for cookie %llu\n",
 		     msg->cookie_reply);
 
@@ -52,6 +50,7 @@ int kdbus_test_timeout(struct kdbus_test_env *env)
 	struct kdbus_conn *conn_a, *conn_b;
 	struct pollfd fd;
 	int ret, i, n_msgs = 4;
+	uint64_t expected = 0;
 
 	conn_a = kdbus_hello(env->buspath, 0, NULL, 0);
 	conn_b = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -65,8 +64,10 @@ int kdbus_test_timeout(struct kdbus_test_env *env)
 	 */
 	for (i = 0; i < n_msgs; i++) {
 		kdbus_printf("Sending message with cookie %u ...\n", i);
-		kdbus_msg_send(conn_b, NULL, i, KDBUS_MSG_FLAGS_EXPECT_REPLY,
-			       (i + 1) * 100ULL * 1000000ULL, 0, conn_a->id);
+		ASSERT_RETURN(kdbus_msg_send(conn_b, NULL, i,
+			      KDBUS_MSG_FLAGS_EXPECT_REPLY,
+			      (i + 1) * 100ULL * 1000000ULL, 0,
+			      conn_a->id) == 0);
 		expected |= 1ULL << i;
 	}
 
@@ -81,7 +82,7 @@ int kdbus_test_timeout(struct kdbus_test_env *env)
 			break;
 
 		if (fd.revents & POLLIN)
-			timeout_msg_recv(conn_b);
+			ASSERT_RETURN(!timeout_msg_recv(conn_b, &expected));
 
 		if (expected == 0)
 			break;
