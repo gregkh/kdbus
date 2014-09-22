@@ -29,7 +29,7 @@ int kdbus_test_daemon(struct kdbus_test_env *env)
 	printf("Created connection %llu on bus '%s'\n",
 		(unsigned long long) env->conn->id, env->buspath);
 
-	ret = kdbus_name_acquire(env->conn, "com.example.kdbus-test", 0);
+	ret = kdbus_name_acquire(env->conn, "com.example.kdbus-test", NULL);
 	ASSERT_RETURN(ret == 0);
 	printf("  Aquired name: com.example.kdbus-test\n");
 

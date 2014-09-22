@@ -54,7 +54,7 @@ off_t sys_memfd_get_size(int fd, off_t *size);
 int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags);
 int kdbus_name_release(struct kdbus_conn *conn, const char *name);
 int kdbus_name_acquire(struct kdbus_conn *conn, const char *name,
-		       uint64_t flags);
+		       uint64_t *flags);
 void kdbus_msg_free(struct kdbus_msg *msg);
 int kdbus_msg_recv(struct kdbus_conn *conn,
 		   struct kdbus_msg **msg, uint64_t *offset);

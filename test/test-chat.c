@@ -21,26 +21,28 @@ int kdbus_test_chat(struct kdbus_test_env *env)
 	int ret, cookie;
 	struct kdbus_conn *conn_a, *conn_b;
 	struct pollfd fds[2];
+	uint64_t flags;
 	int count;
 
 	conn_a = kdbus_hello(env->buspath, 0, NULL, 0);
 	conn_b = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn_a && conn_b);
 
-	ret = kdbus_name_acquire(conn_a, "foo.bar.test",
-				 KDBUS_NAME_ALLOW_REPLACEMENT);
+	flags = KDBUS_NAME_ALLOW_REPLACEMENT;
+	ret = kdbus_name_acquire(conn_a, "foo.bar.test", &flags);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_name_acquire(conn_a, "foo.bar.baz", 0);
+	ret = kdbus_name_acquire(conn_a, "foo.bar.baz", NULL);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
+	flags = KDBUS_NAME_QUEUE;
+	ret = kdbus_name_acquire(conn_b, "foo.bar.baz", &flags);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_name_acquire(conn_a, "foo.bar.double", 0);
+	ret = kdbus_name_acquire(conn_a, "foo.bar.double", NULL);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_name_acquire(conn_a, "foo.bar.double", 0);
+	ret = kdbus_name_acquire(conn_a, "foo.bar.double", NULL);
 	ASSERT_RETURN(ret == -EALREADY);
 
 	ret = kdbus_name_release(conn_a, "foo.bar.double");

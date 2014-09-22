@@ -722,7 +722,7 @@ int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
 }
 
 int kdbus_name_acquire(struct kdbus_conn *conn,
-		       const char *name, uint64_t flags)
+		       const char *name, uint64_t *flags)
 {
 	struct kdbus_cmd_name *cmd_name;
 	int ret;
@@ -733,7 +733,10 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 	memset(cmd_name, 0, size);
 	strcpy(cmd_name->name, name);
 	cmd_name->size = size;
-	cmd_name->flags = flags;
+	if (flags)
+		cmd_name->flags = *flags;
+	else
+		cmd_name->flags = 0;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (ret < 0) {
@@ -744,6 +747,9 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 
 	kdbus_printf("%s(): flags after call: 0x%llx\n", __func__,
 		     cmd_name->conn_flags);
+
+	if (flags)
+		*flags = cmd_name->conn_flags;
 
 	return 0;
 }

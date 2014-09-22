@@ -501,7 +501,7 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* Acquire POLICY_NAME */
-	ret = kdbus_name_acquire(conn_db[0], POLICY_NAME, 0);
+	ret = kdbus_name_acquire(conn_db[0], POLICY_NAME, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_normal_test(bus, POLICY_NAME, conn_db);

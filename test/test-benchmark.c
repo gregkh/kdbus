@@ -203,7 +203,7 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 	fds[0].fd = conn_a->fd;
 	fds[1].fd = conn_b->fd;
 
-	ret = kdbus_name_acquire(conn_a, SERVICE_NAME, 0);
+	ret = kdbus_name_acquire(conn_a, SERVICE_NAME, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	gettimeofday(&start, NULL);

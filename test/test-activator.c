@@ -68,11 +68,12 @@ int kdbus_test_activator(struct kdbus_test_env *env)
 		ASSERT_RETURN(ret == 0);
 
 		if ((fds[0].revents & POLLIN) && !activator_done) {
+			uint64_t flags = KDBUS_NAME_REPLACE_EXISTING;
+
 			kdbus_printf("Starter was called back!\n");
 
 			ret = kdbus_name_acquire(env->conn,
-						 "foo.test.activator",
-						 KDBUS_NAME_REPLACE_EXISTING);
+						 "foo.test.activator", &flags);
 			ASSERT_RETURN(ret == 0);
 
 			activator_done = true;
