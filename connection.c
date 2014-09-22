@@ -1435,8 +1435,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 		if (creds) {
 			ret = kdbus_meta_append_data(conn->owner_meta,
-					KDBUS_ITEM_CREDS,
-					creds, sizeof(struct kdbus_creds));
+						     KDBUS_ITEM_CREDS,
+						     creds, sizeof(*creds));
 			if (ret < 0)
 				goto exit_free_meta;
 		}
