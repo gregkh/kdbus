@@ -119,10 +119,8 @@ int kdbus_test_match_name_add(struct kdbus_test_env *env)
 			char name[64];
 		} item;
 	} buf;
-	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	uint64_t size;
 	struct kdbus_cmd_recv recv = {};
 	char *name;
 	int ret;
@@ -142,14 +140,7 @@ int kdbus_test_match_name_add(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* acquire the name */
-	size = sizeof(*cmd_name) + strlen(name) + 1;
-	cmd_name = alloca(size);
-
-	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
-	cmd_name->size = size;
-	cmd_name->flags = 0;
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
@@ -177,10 +168,8 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 			char name[64];
 		} item;
 	} buf;
-	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	uint64_t size;
 	struct kdbus_cmd_recv recv = {};
 	char *name;
 	int ret;
@@ -188,14 +177,7 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 	name = "foo.bla.blaz";
 
 	/* acquire the name */
-	size = sizeof(*cmd_name) + strlen(name) + 1;
-	cmd_name = alloca(size);
-
-	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
-	cmd_name->size = size;
-	cmd_name->flags = 0;
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* install the match rule */
@@ -211,7 +193,7 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* release the name again */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
+	kdbus_name_release(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
@@ -239,25 +221,16 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 			char name[64];
 		} item;
 	} buf;
-	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_item *item;
 	struct kdbus_conn *conn;
 	struct kdbus_msg *msg;
-	uint64_t size;
 	struct kdbus_cmd_recv recv = {};
-	char *name;
+	uint64_t flags;
+	char *name = "foo.bla.baz";
 	int ret;
 
 	/* acquire the name */
-	name = "foo.bla.blaz";
-	size = sizeof(*cmd_name) + strlen(name) + 1;
-	cmd_name = alloca(size);
-
-	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
-	cmd_name->size = size;
-	cmd_name->flags = KDBUS_NAME_ALLOW_REPLACEMENT;
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* install the match rule */
@@ -278,14 +251,13 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 
 	/* allow the new connection to own the same name */
 	/* queue the 2nd connection as waiting owner */
-	cmd_name->flags = KDBUS_NAME_QUEUE;
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	flags = KDBUS_NAME_QUEUE;
+	ret = kdbus_name_acquire(conn, name, &flags);
 	ASSERT_RETURN(ret == 0);
-	ASSERT_RETURN(cmd_name->flags & KDBUS_NAME_IN_QUEUE);
+	ASSERT_RETURN(flags & KDBUS_NAME_IN_QUEUE);
 
 	/* release name from 1st connection */
-	cmd_name->flags = 0;
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
+	ret = kdbus_name_release(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */

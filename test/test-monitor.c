@@ -26,29 +26,16 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *monitor, *conn;
 	unsigned int cookie = 0xdeadbeef;
-	uint64_t offset = 0;
-	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_msg *msg;
-	size_t size;
-	char *name;
+	uint64_t offset = 0;
 	int ret;
 
 	monitor = kdbus_hello(env->buspath, KDBUS_HELLO_MONITOR, NULL, 0);
 	ASSERT_RETURN(monitor);
 
-	/* taking a name must fail */
-	name = "foo.bla.blaz";
-	size = sizeof(*cmd_name) + strlen(name) + 1;
-	cmd_name = alloca(size);
-
-	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
-	cmd_name->size = size;
-	cmd_name->flags = 0;
-
 	/* check that we can acquire a name */
-	ret = ioctl(monitor->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
-	ASSERT_RETURN(ret == -1 && errno == EOPNOTSUPP);
+	ret = kdbus_name_acquire(monitor, "foo.bar.baz", NULL);
+	ASSERT_RETURN(ret == -EOPNOTSUPP);
 
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn);

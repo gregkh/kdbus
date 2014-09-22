@@ -53,62 +53,43 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 
 int kdbus_test_name_basic(struct kdbus_test_env *env)
 {
-	struct kdbus_cmd_name *cmd_name;
-	uint64_t size;
 	char *name;
 	int ret;
 
 	name = "foo.bla.blaz";
-	size = sizeof(*cmd_name) + strlen(name) + 1;
-	cmd_name = alloca(size);
-
-	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
-	cmd_name->size = size;
-	cmd_name->flags = 0;
 
 	/* check that we can acquire a name */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* ... and release it again */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
+	ret = kdbus_name_release(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
 	ASSERT_RETURN(ret != 0);
 
 	/* check that we can't release it again */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
-	ASSERT_RETURN(ret == -1 && errno == ESRCH);
+	ret = kdbus_name_release(env->conn, name);
+	ASSERT_RETURN(ret == -ESRCH);
 
 	/* check that we can't release a name that we don't own */
-	cmd_name->name[0] = 'x';
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
-	ASSERT_RETURN(ret == -1 && errno == ESRCH);
+	ret = kdbus_name_release(env->conn, "foo.bar.xxx");
+	ASSERT_RETURN(ret == -ESRCH);
 
 	return TEST_OK;
 }
 
 int kdbus_test_name_conflict(struct kdbus_test_env *env)
 {
-	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_conn *conn;
-	uint64_t size;
 	char *name;
 	int ret;
 
 	name = "foo.bla.blaz";
-	size = sizeof(*cmd_name) + strlen(name) + 1;
-	cmd_name = alloca(size);
-
-	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
-	cmd_name->size = size;
-	cmd_name->flags = 0;
 
 	/* create a 2nd connection */
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -116,19 +97,19 @@ int kdbus_test_name_conflict(struct kdbus_test_env *env)
 
 	/* allow the new connection to own the same name */
 	/* acquire name from the 1st connection */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* check that we can't acquire it again from the 1st connection */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
-	ASSERT_RETURN(ret == -1 && errno == EALREADY);
+	ret = kdbus_name_acquire(env->conn, name, NULL);
+	ASSERT_RETURN(ret == -EALREADY);
 
 	/* check that we also can't acquire it again from the 2nd connection */
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
-	ASSERT_RETURN(ret == -1 && errno == EEXIST);
+	ret = kdbus_name_acquire(conn, name, NULL);
+	ASSERT_RETURN(ret == -EEXIST);
 
 	kdbus_conn_free(conn);
 
@@ -137,20 +118,14 @@ int kdbus_test_name_conflict(struct kdbus_test_env *env)
 
 int kdbus_test_name_queue(struct kdbus_test_env *env)
 {
-	struct kdbus_cmd_name *cmd_name;
 	struct kdbus_conn *conn;
-	uint64_t size;
-	char *name;
+	const char *name;
+	uint64_t flags;
 	int ret;
 
 	name = "foo.bla.blaz";
-	size = sizeof(*cmd_name) + strlen(name) + 1;
-	cmd_name = alloca(size);
 
-	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
-	cmd_name->size = size;
-	cmd_name->flags = KDBUS_NAME_ALLOW_REPLACEMENT;
+	flags = KDBUS_NAME_ALLOW_REPLACEMENT;
 
 	/* create a 2nd connection */
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -158,22 +133,20 @@ int kdbus_test_name_queue(struct kdbus_test_env *env)
 
 	/* allow the new connection to own the same name */
 	/* acquire name from the 1st connection */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ret = kdbus_name_acquire(env->conn, name, &flags);
 	ASSERT_RETURN(ret == 0);
 
 	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* queue the 2nd connection as waiting owner */
-	cmd_name->flags = KDBUS_NAME_QUEUE;
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	flags = KDBUS_NAME_QUEUE;
+	ret = kdbus_name_acquire(conn, name, &flags);
 	ASSERT_RETURN(ret == 0);
-
-	ASSERT_RETURN(cmd_name->flags & KDBUS_NAME_IN_QUEUE);
+	ASSERT_RETURN(flags & KDBUS_NAME_IN_QUEUE);
 
 	/* release name from 1st connection */
-	cmd_name->flags = 0;
-	ret = ioctl(env->conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
+	ret = kdbus_name_release(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* now the name should be owned by the 2nd connection */
