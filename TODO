@@ -1,21 +1,6 @@
-Bugs:
-  - replace memfd ioctls with shmem memfd_create() + fcntl() logic
-
 Features:
   - test kdbus_match_bloom() multi-generation bloom masks, we need to
     be sure it works with old kernels when we update userspace tools
-
-  - make sure that our domain/kuid/pidns creds passing/deny logic
-    based on the PID namespace is what we need; interaction with userns?
-
-  - check guards for all privileged-only operations:
-     - activation
-     - monitor
-     - name register
-     - $UID prefix
-     - domain creation
-     - ep prefixing
-     - policy, policy for custom endpoints
 
   - attach seclabel to well-known names
 
