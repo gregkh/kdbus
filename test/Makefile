@@ -1,6 +1,12 @@
+ifeq ($(strip $(V)), 1)
+  Q =
+else
+  Q = @
+endif
+
 CFLAGS		+= -std=gnu99 -Wall -Wextra -g \
-		   -I$(KERNELDIR)/usr/include \
-		   -I$(KERNELDIR)/include/uapi \
+		   -include $(KERNELDIR)/include/uapi/linux/memfd.h \
+		   -include $(KERNELDIR)/include/uapi/asm-generic/unistd.h \
 		   -D_GNU_SOURCE \
 		   -Wno-unused-parameter \
 		   -Wmaybe-uninitialized \
@@ -36,11 +42,11 @@ all: kdbus-test
 
 %.o: %.c ../kdbus.h
 	@echo '  TARGET_CC $@'
-	@$(CC) $(CFLAGS) -DKBUILD_MODNAME=\"$(KBUILD_MODNAME)\" -c $< -o $@
+	$(Q)$(CC) $(CFLAGS) -DKBUILD_MODNAME=\"$(KBUILD_MODNAME)\" -c $< -o $@
 
 kdbus-test: $(OBJS)
 	@echo '  TARGET_LD $@'
-	@$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
 clean::
 	rm -f *.o $(TESTS)
