@@ -169,7 +169,7 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	}
 
 	/* Receive in the original (root privileged) user namespace */
-	ret = kdbus_msg_recv_poll(conn, 1000, &msg, NULL);
+	ret = kdbus_msg_recv_poll(conn, 100, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	KDBUS_ITEM_FOREACH(item, msg, items)

@@ -54,7 +54,7 @@ static void *kdbus_recv_echo(void *ptr)
 	int ret;
 	struct kdbus_conn *conn = ptr;
 
-	ret = kdbus_msg_recv_poll(conn, 1000, NULL, NULL);
+	ret = kdbus_msg_recv_poll(conn, 100, NULL, NULL);
 
 	return (void *)(long)ret;
 }
@@ -245,7 +245,7 @@ static int kdbus_fork_test_by_id(const char *bus,
 				     0, 0, 0, conn_db[0]->id);
 		ASSERT_EXIT(ret == child_status);
 
-		ret = kdbus_msg_recv_poll(conn_src, 1000, NULL, NULL);
+		ret = kdbus_msg_recv_poll(conn_src, 100, NULL, NULL);
 
 		kdbus_conn_free(conn_src);
 
@@ -260,7 +260,7 @@ static int kdbus_fork_test_by_id(const char *bus,
 		_exit(ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 	}
 
-	ret = kdbus_msg_recv_poll(conn_db[0], 1000, &msg, &offset);
+	ret = kdbus_msg_recv_poll(conn_db[0], 100, &msg, &offset);
 	/*
 	 * If parent_timedout is set then this should fail with
 	 * -ETIMEDOUT since the child_status was set to a non
@@ -453,7 +453,7 @@ static int kdbus_clone_userns_test(const char *bus,
 	 * Receive in the original (root privileged) user namespace,
 	 * must fail with -ETIMEDOUT.
 	 */
-	ret = kdbus_msg_recv_poll(conn_db[0], 1000, NULL, NULL);
+	ret = kdbus_msg_recv_poll(conn_db[0], 100, NULL, NULL);
 	ASSERT_RETURN_VAL(ret == -ETIMEDOUT, ret);
 
 	ret = waitpid(pid, &status, 0);
