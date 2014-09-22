@@ -469,7 +469,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_HELLO: {
 		struct kdbus_cmd_hello *hello;
-		struct kdbus_conn *conn;
+		struct kdbus_conn *conn = NULL;
 
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_hello),
