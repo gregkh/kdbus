@@ -604,9 +604,10 @@ enum kdbus_name_flags {
  * struct kdbus_cmd_name - struct to describe a well-known name
  * @size:		The total size of the struct
  * @flags:		Flags for a name entry (KDBUS_NAME_*)
- * @owner_id:		The current owner of the name.
+ * @owner_id:		The current owner of the name
  * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
- * @name:		The well-known name
+ * @items:		Item list, containing the well-known name as
+ *			KDBUS_ITEM_NAME
  *
  * This structure is used with the KDBUS_CMD_NAME_ACQUIRE ioctl.
  */
@@ -615,7 +616,7 @@ struct kdbus_cmd_name {
 	__u64 flags;
 	__u64 owner_id;
 	__u64 conn_flags;
-	char name[0];
+	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
 /**

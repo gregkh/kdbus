@@ -396,7 +396,7 @@ struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
 }
 
 static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
-				  struct kdbus_name_entry *e)
+				 struct kdbus_name_entry *e)
 {
 	struct kdbus_name_queue_item *q;
 
@@ -621,6 +621,41 @@ exit_unlock:
 	return ret;
 }
 
+static int kdbus_cmd_name_get_name(const struct kdbus_cmd_name *cmd,
+				   const char **name)
+{
+	const struct kdbus_item *item;
+	const char *n = NULL;
+
+	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
+		if (!KDBUS_ITEM_VALID(item, &cmd->items,
+				      KDBUS_ITEMS_SIZE(cmd, items)))
+			return -EINVAL;
+
+		switch (item->type) {
+		case KDBUS_ITEM_NAME:
+			if (!kdbus_check_strlen(item, str) ||
+			    !kdbus_name_is_valid(item->str, false))
+				return -EINVAL;
+
+			if (n)
+				return -EINVAL;
+
+			n = item->str;
+			break;
+		}
+	}
+
+	if (!KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
+		return -EINVAL;
+
+	if (!n)
+		return -EINVAL;
+
+	*name = n;
+	return 0;
+}
+
 /**
  * kdbus_cmd_name_acquire() - acquire a name from a ioctl command buffer
  * @reg:		The name registry
@@ -634,38 +669,39 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_cmd_name *cmd)
 {
 	struct kdbus_name_entry *e = NULL;
+	const char *name;
 	u64 allowed;
-	int ret = 0;
+	int ret;
 
 	if (conn->name_count > KDBUS_CONN_MAX_NAMES)
 		return -E2BIG;
 
 	/* refuse improper flags when requesting */
-	allowed = KDBUS_NAME_REPLACE_EXISTING|
-		  KDBUS_NAME_ALLOW_REPLACEMENT|
+	allowed = KDBUS_NAME_REPLACE_EXISTING  |
+		  KDBUS_NAME_ALLOW_REPLACEMENT |
 		  KDBUS_NAME_QUEUE;
 	if ((cmd->flags & ~allowed) != 0)
 		return -EINVAL;
 
-	if (!kdbus_check_strlen(cmd, name) ||
-	    !kdbus_name_is_valid(cmd->name, false))
+	ret = kdbus_cmd_name_get_name(cmd, &name);
+	if (ret < 0)
 		return -EINVAL;
 
 	if (conn->bus->policy_db) {
 		ret = kdbus_policy_check_own_access(conn->bus->policy_db,
-						    conn, cmd->name);
+						    conn, name);
 		if (ret < 0)
 			goto exit;
 	}
 
 	if (conn->ep->policy_db) {
 		ret = kdbus_policy_check_own_access(conn->ep->policy_db,
-						    conn, cmd->name);
+						    conn, name);
 		if (ret < 0)
 			goto exit;
 	}
 
-	ret = kdbus_name_acquire(reg, conn, cmd->name, &cmd->flags, &e);
+	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags, &e);
 
 exit:
 	kdbus_notify_flush(conn->bus);
@@ -684,12 +720,14 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
 			   const struct kdbus_cmd_name *cmd)
 {
-	int ret = 0;
+	int ret;
+	const char *name;
 
-	if (!kdbus_name_is_valid(cmd->name, false))
+	ret = kdbus_cmd_name_get_name(cmd, &name);
+	if (ret < 0)
 		return -EINVAL;
 
-	ret = kdbus_name_release(reg, conn, cmd->name);
+	ret = kdbus_name_release(reg, conn, name);
 
 	kdbus_notify_flush(conn->bus);
 	return ret;
@@ -729,11 +767,14 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	if (write) {
 		int ret;
 		struct kdbus_cmd_name n = {
-			.size = len + nlen,
+			.size = len,
 			.owner_id = c->id,
 			.flags = e ? e->flags : 0,
 			.conn_flags = c->flags,
 		};
+
+		if (nlen)
+			n.size += KDBUS_ITEM_SIZE(nlen);
 
 		/* write record */
 		ret = kdbus_pool_slice_copy(slice, p, &n, len);
@@ -743,13 +784,30 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 
 		/* append name */
 		if (e) {
+			struct kdbus_item_header {
+				__u64 size;
+				__u64 type;
+			} h;
+
+			h.size = KDBUS_ITEM_HEADER_SIZE + nlen;
+			h.type = KDBUS_ITEM_NAME;
+
+			ret = kdbus_pool_slice_copy(slice, p, &h, sizeof(h));
+			if (ret < 0)
+				return ret;
+
+			p += sizeof(h);
+
 			ret = kdbus_pool_slice_copy(slice, p, e->name, nlen);
 			if (ret < 0)
 				return ret;
+
 			p += KDBUS_ALIGN8(nlen);
 		}
 	} else {
-		p += len + KDBUS_ALIGN8(nlen);
+		p += len;
+		if (nlen)
+			p += KDBUS_ITEM_SIZE(nlen);
 	}
 
 	*pos = p;
@@ -869,8 +927,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	/* copy the header, specifying the overall size */
 	list.size = pos;
-	ret = kdbus_pool_slice_copy(slice, 0,
-				    &list, sizeof(struct kdbus_name_list));
+	ret = kdbus_pool_slice_copy(slice, 0, &list, sizeof(list));
 	if (ret < 0)
 		goto exit_pool_free;
 

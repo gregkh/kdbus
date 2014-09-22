@@ -716,13 +716,20 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 		       const char *name, uint64_t *flags)
 {
 	struct kdbus_cmd_name *cmd_name;
+	size_t name_len = strlen(name) + 1;
+	uint64_t size = sizeof(*cmd_name) + KDBUS_ITEM_SIZE(name_len);
+	struct kdbus_item *item;
 	int ret;
-	uint64_t size = sizeof(*cmd_name) + strlen(name) + 1;
 
 	cmd_name = alloca(size);
 
 	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
+
+	item = cmd_name->items;
+	item->size = KDBUS_ITEM_HEADER_SIZE + name_len;
+	item->type = KDBUS_ITEM_NAME;
+	strcpy(item->str, name);
+
 	cmd_name->size = size;
 	if (flags)
 		cmd_name->flags = *flags;
@@ -748,13 +755,20 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 int kdbus_name_release(struct kdbus_conn *conn, const char *name)
 {
 	struct kdbus_cmd_name *cmd_name;
+	size_t name_len = strlen(name) + 1;
+	uint64_t size = sizeof(*cmd_name) + KDBUS_ITEM_SIZE(name_len);
+	struct kdbus_item *item;
 	int ret;
-	uint64_t size = sizeof(*cmd_name) + strlen(name) + 1;
 
 	cmd_name = alloca(size);
 
 	memset(cmd_name, 0, size);
-	strcpy(cmd_name->name, name);
+
+	item = cmd_name->items;
+	item->size = KDBUS_ITEM_HEADER_SIZE + name_len;
+	item->type = KDBUS_ITEM_NAME;
+	strcpy(item->str, name);
+
 	cmd_name->size = size;
 
 	kdbus_printf("conn %lld giving up name '%s'\n",
@@ -787,11 +801,20 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 
 	kdbus_printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
-	KDBUS_ITEM_FOREACH(name, list, names)
+	KDBUS_ITEM_FOREACH(name, list, names) {
+		struct kdbus_item *item;
+		const char *n = "MISSING-NAME";
+
+		if (name->size == sizeof(struct kdbus_cmd_name))
+			continue;
+
+		KDBUS_ITEM_FOREACH(item, name, items)
+			if (item->type == KDBUS_ITEM_NAME)
+				n = item->str;
+
 		kdbus_printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n",
-		       name->owner_id,
-		       name->flags, name->conn_flags,
-		       name->size > sizeof(struct kdbus_cmd_name) ? name->name : "");
+			     name->owner_id, name->flags, name->conn_flags, n);
+	}
 	kdbus_printf("\n");
 
 	ret = kdbus_free(conn, cmd_list.offset);

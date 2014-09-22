@@ -20,7 +20,7 @@
 #include "kdbus-test.h"
 
 static int conn_is_name_owner(const struct kdbus_conn *conn,
-			      uint64_t flags, const char *n)
+			      uint64_t flags, const char *needle)
 {
 	struct kdbus_cmd_name_list cmd_list;
 	struct kdbus_name_list *list;
@@ -35,11 +35,15 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
 	KDBUS_ITEM_FOREACH(name, list, names) {
-		if (name->size == sizeof(struct kdbus_cmd_name))
-			continue;
+		struct kdbus_item *item;
+		const char *n = NULL;
+
+		KDBUS_ITEM_FOREACH(item, name, items)
+			if (item->type == KDBUS_ITEM_NAME)
+				n = item->str;
 
 		if (name->owner_id == conn->id &&
-		    strcmp(n, name->name) == 0) {
+		    n && strcmp(needle, n) == 0) {
 			found = true;
 			break;
 		}
