@@ -22,38 +22,38 @@ int kdbus_test_chat(struct kdbus_test_env *env)
 	struct kdbus_conn *conn_a, *conn_b;
 	struct pollfd fds[2];
 	int count;
-	int r;
 
 	conn_a = kdbus_hello(env->buspath, 0, NULL, 0);
 	conn_b = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn_a && conn_b);
 
-	r = kdbus_name_acquire(conn_a, "foo.bar.test",
-			       KDBUS_NAME_ALLOW_REPLACEMENT);
-	ASSERT_RETURN(r == 0);
+	ret = kdbus_name_acquire(conn_a, "foo.bar.test",
+				 KDBUS_NAME_ALLOW_REPLACEMENT);
+	ASSERT_RETURN(ret == 0);
 
-	r = kdbus_name_acquire(conn_a, "foo.bar.baz", 0);
-	ASSERT_RETURN(r == 0);
+	ret = kdbus_name_acquire(conn_a, "foo.bar.baz", 0);
+	ASSERT_RETURN(ret == 0);
 
-	r = kdbus_name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
-	ASSERT_RETURN(r == 0);
+	ret = kdbus_name_acquire(conn_b, "foo.bar.baz", KDBUS_NAME_QUEUE);
+	ASSERT_RETURN(ret == 0);
 
-	r = kdbus_name_acquire(conn_a, "foo.bar.double", 0);
-	ASSERT_RETURN(r == 0);
+	ret = kdbus_name_acquire(conn_a, "foo.bar.double", 0);
+	ASSERT_RETURN(ret == 0);
 
-	r = kdbus_name_acquire(conn_a, "foo.bar.double", 0);
-	ASSERT_RETURN(r == -EALREADY);
+	ret = kdbus_name_acquire(conn_a, "foo.bar.double", 0);
+	ASSERT_RETURN(ret == -EALREADY);
 
-	r = kdbus_name_release(conn_a, "foo.bar.double");
-	ASSERT_RETURN(r == 0);
+	ret = kdbus_name_release(conn_a, "foo.bar.double");
+	ASSERT_RETURN(ret == 0);
 
-	r = kdbus_name_release(conn_a, "foo.bar.double");
-	ASSERT_RETURN(r == -ESRCH);
+	ret = kdbus_name_release(conn_a, "foo.bar.double");
+	ASSERT_RETURN(ret == -ESRCH);
 
-	kdbus_name_list(conn_b, KDBUS_NAME_LIST_UNIQUE |
-				KDBUS_NAME_LIST_NAMES  |
-				KDBUS_NAME_LIST_QUEUED |
-				KDBUS_NAME_LIST_ACTIVATORS);
+	ret = kdbus_name_list(conn_b, KDBUS_NAME_LIST_UNIQUE |
+				      KDBUS_NAME_LIST_NAMES  |
+				      KDBUS_NAME_LIST_QUEUED |
+				      KDBUS_NAME_LIST_ACTIVATORS);
+	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_add_match_empty(conn_a);
 	ASSERT_RETURN(ret == 0);
