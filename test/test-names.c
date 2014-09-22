@@ -20,7 +20,7 @@
 #include "kdbus-test.h"
 
 static int conn_is_name_owner(const struct kdbus_conn *conn,
-			      uint64_t flags, const char *needle)
+			      const char *needle)
 {
 	struct kdbus_cmd_name_list cmd_list;
 	struct kdbus_name_list *list;
@@ -28,7 +28,7 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 	bool found = false;
 	int ret;
 
-	cmd_list.flags = flags;
+	cmd_list.flags = KDBUS_NAME_LIST_NAMES;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);
 	ASSERT_RETURN(ret == 0);
@@ -66,14 +66,14 @@ int kdbus_test_name_basic(struct kdbus_test_env *env)
 	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
+	ret = conn_is_name_owner(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* ... and release it again */
 	ret = kdbus_name_release(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
-	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
+	ret = conn_is_name_owner(env->conn, name);
 	ASSERT_RETURN(ret != 0);
 
 	/* check that we can't release it again */
@@ -104,7 +104,7 @@ int kdbus_test_name_conflict(struct kdbus_test_env *env)
 	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
+	ret = conn_is_name_owner(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* check that we can't acquire it again from the 1st connection */
@@ -140,7 +140,7 @@ int kdbus_test_name_queue(struct kdbus_test_env *env)
 	ret = kdbus_name_acquire(env->conn, name, &flags);
 	ASSERT_RETURN(ret == 0);
 
-	ret = conn_is_name_owner(env->conn, KDBUS_NAME_LIST_NAMES, name);
+	ret = conn_is_name_owner(env->conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	/* queue the 2nd connection as waiting owner */
@@ -154,7 +154,7 @@ int kdbus_test_name_queue(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* now the name should be owned by the 2nd connection */
-	ret = conn_is_name_owner(conn, KDBUS_NAME_LIST_NAMES, name);
+	ret = conn_is_name_owner(conn, name);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_conn_free(conn);
