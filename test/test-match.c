@@ -255,3 +255,131 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 
 	return TEST_OK;
 }
+
+static int send_bloom_filter(const struct kdbus_conn *conn,
+			     uint64_t cookie,
+			     const uint8_t *filter,
+			     size_t filter_size,
+			     uint64_t filter_generation)
+{
+	struct kdbus_msg *msg;
+	struct kdbus_item *item;
+	uint64_t size;
+	int ret;
+
+	size = sizeof(struct kdbus_msg);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + filter_size;
+
+	msg = alloca(size);
+
+	memset(msg, 0, size);
+	msg->size = size;
+	msg->src_id = conn->id;
+	msg->dst_id = KDBUS_DST_ID_BROADCAST;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
+	msg->cookie = cookie;
+
+	item = msg->items;
+	item->type = KDBUS_ITEM_BLOOM_FILTER;
+	item->size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) +
+				filter_size;
+
+	item->bloom_filter.generation = filter_generation;
+	memcpy(item->bloom_filter.data, filter, filter_size);
+
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("error sending message: %d (%m)\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+int kdbus_test_match_bloom(struct kdbus_test_env *env)
+{
+	struct {
+		struct kdbus_cmd_match cmd;
+		struct {
+			uint64_t size;
+			uint64_t type;
+			uint8_t data_gen0[64];
+			uint8_t data_gen1[64];
+		} item;
+	} buf;
+	struct kdbus_conn *conn;
+	struct kdbus_msg *msg;
+	uint64_t cookie = 0xf000f00f;
+	uint8_t filter[64];
+	int ret;
+
+	/* install the match rule */
+	memset(&buf, 0, sizeof(buf));
+	buf.cmd.size = sizeof(buf);
+
+	buf.item.size = sizeof(buf.item);
+	buf.item.type = KDBUS_ITEM_BLOOM_MASK;
+	buf.item.data_gen0[0] = 0x55;
+	buf.item.data_gen0[63] = 0x80;
+
+	buf.item.data_gen1[1] = 0xaa;
+	buf.item.data_gen1[9] = 0x02;
+
+	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ASSERT_RETURN(ret == 0);
+
+	/* create a 2nd connection */
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn != NULL);
+
+	/* a message with a 0'ed out filter must not reach the other peer */
+	memset(filter, 0, sizeof(filter));
+	ret = send_bloom_filter(conn, ++cookie, filter, sizeof(filter), 0);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
+	/* now set the filter to the connection's mask and expect success */
+	filter[0] = 0x55;
+	filter[63] = 0x80;
+	ret = send_bloom_filter(conn, ++cookie, filter, sizeof(filter), 0);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->cookie == cookie);
+
+	/* broaden the filter and try again. this should also succeed. */
+	filter[0] = 0xff;
+	filter[8] = 0xff;
+	filter[63] = 0xff;
+	ret = send_bloom_filter(conn, ++cookie, filter, sizeof(filter), 0);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->cookie == cookie);
+
+	/* the same filter must not match against bloom generation 1 */
+	ret = send_bloom_filter(conn, ++cookie, filter, sizeof(filter), 1);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
+	/* set a different filter and try again */
+	filter[1] = 0xaa;
+	filter[9] = 0x02;
+	ret = send_bloom_filter(conn, ++cookie, filter, sizeof(filter), 1);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->cookie == cookie);
+
+	kdbus_conn_free(conn);
+
+	return TEST_OK;
+}

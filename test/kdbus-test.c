@@ -172,6 +172,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
 	{
+		.name	= "match-bloom",
+		.desc	= "matching with bloom filters",
+		.func	= kdbus_test_match_bloom,
+		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
+	},
+	{
 		.name	= "activator",
 		.desc	= "activator connections",
 		.func	= kdbus_test_activator,

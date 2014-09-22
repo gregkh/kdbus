@@ -52,6 +52,7 @@ int kdbus_test_domain_make(struct kdbus_test_env *env);
 int kdbus_test_fd_passing(struct kdbus_test_env *env);
 int kdbus_test_free(struct kdbus_test_env *env);
 int kdbus_test_hello(struct kdbus_test_env *env);
+int kdbus_test_match_bloom(struct kdbus_test_env *env);
 int kdbus_test_match_id_add(struct kdbus_test_env *env);
 int kdbus_test_match_id_remove(struct kdbus_test_env *env);
 int kdbus_test_match_name_add(struct kdbus_test_env *env);
