@@ -25,9 +25,7 @@ int kdbus_test_match_id_add(struct kdbus_test_env *env)
 		} item;
 	} buf;
 	struct kdbus_conn *conn;
-	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	struct kdbus_cmd_recv recv = {};
 	int ret;
 
 	memset(&buf, 0, sizeof(buf));
@@ -47,13 +45,11 @@ int kdbus_test_match_id_add(struct kdbus_test_env *env)
 	ASSERT_RETURN(conn != NULL);
 
 	/* 1st connection should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
-	item = &msg->items[0];
-	ASSERT_RETURN(item->type == KDBUS_ITEM_ID_ADD);
-	ASSERT_RETURN(item->id_change.id == conn->id);
+	ASSERT_RETURN(msg->items[0].type == KDBUS_ITEM_ID_ADD);
+	ASSERT_RETURN(msg->items[0].id_change.id == conn->id);
 
 	kdbus_conn_free(conn);
 
@@ -71,9 +67,7 @@ int kdbus_test_match_id_remove(struct kdbus_test_env *env)
 		} item;
 	} buf;
 	struct kdbus_conn *conn;
-	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	struct kdbus_cmd_recv recv = {};
 	size_t id;
 	int ret;
 
@@ -97,13 +91,11 @@ int kdbus_test_match_id_remove(struct kdbus_test_env *env)
 	kdbus_conn_free(conn);
 
 	/* 1st connection should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
-	item = &msg->items[0];
-	ASSERT_RETURN(item->type == KDBUS_ITEM_ID_REMOVE);
-	ASSERT_RETURN(item->id_change.id == id);
+	ASSERT_RETURN(msg->items[0].type == KDBUS_ITEM_ID_REMOVE);
+	ASSERT_RETURN(msg->items[0].id_change.id == id);
 
 	return TEST_OK;
 }
@@ -119,9 +111,7 @@ int kdbus_test_match_name_add(struct kdbus_test_env *env)
 			char name[64];
 		} item;
 	} buf;
-	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	struct kdbus_cmd_recv recv = {};
 	char *name;
 	int ret;
 
@@ -144,15 +134,13 @@ int kdbus_test_match_name_add(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
-	item = &msg->items[0];
-	ASSERT_RETURN(item->type == KDBUS_ITEM_NAME_ADD);
-	ASSERT_RETURN(item->name_change.old.id == 0);
-	ASSERT_RETURN(item->name_change.new.id == env->conn->id);
-	ASSERT_RETURN(strcmp(item->name_change.name, name) == 0);
+	ASSERT_RETURN(msg->items[0].type == KDBUS_ITEM_NAME_ADD);
+	ASSERT_RETURN(msg->items[0].name_change.old.id == 0);
+	ASSERT_RETURN(msg->items[0].name_change.new.id == env->conn->id);
+	ASSERT_RETURN(strcmp(msg->items[0].name_change.name, name) == 0);
 
 	return TEST_OK;
 }
@@ -168,9 +156,7 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 			char name[64];
 		} item;
 	} buf;
-	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	struct kdbus_cmd_recv recv = {};
 	char *name;
 	int ret;
 
@@ -197,15 +183,13 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
-	item = &msg->items[0];
-	ASSERT_RETURN(item->type == KDBUS_ITEM_NAME_REMOVE);
-	ASSERT_RETURN(item->name_change.old.id == env->conn->id);
-	ASSERT_RETURN(item->name_change.new.id == 0);
-	ASSERT_RETURN(strcmp(item->name_change.name, name) == 0);
+	ASSERT_RETURN(msg->items[0].type == KDBUS_ITEM_NAME_REMOVE);
+	ASSERT_RETURN(msg->items[0].name_change.old.id == env->conn->id);
+	ASSERT_RETURN(msg->items[0].name_change.new.id == 0);
+	ASSERT_RETURN(strcmp(msg->items[0].name_change.name, name) == 0);
 
 	return TEST_OK;
 }
@@ -221,10 +205,8 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 			char name[64];
 		} item;
 	} buf;
-	struct kdbus_item *item;
 	struct kdbus_conn *conn;
 	struct kdbus_msg *msg;
-	struct kdbus_cmd_recv recv = {};
 	uint64_t flags;
 	char *name = "foo.bla.baz";
 	int ret;
@@ -261,15 +243,13 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* we should have received a notification */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	msg = (struct kdbus_msg *)(env->conn->buf + recv.offset);
-	item = &msg->items[0];
-	ASSERT_RETURN(item->type == KDBUS_ITEM_NAME_CHANGE);
-	ASSERT_RETURN(item->name_change.old.id == env->conn->id);
-	ASSERT_RETURN(item->name_change.new.id == conn->id);
-	ASSERT_RETURN(strcmp(item->name_change.name, name) == 0);
+	ASSERT_RETURN(msg->items[0].type == KDBUS_ITEM_NAME_CHANGE);
+	ASSERT_RETURN(msg->items[0].name_change.old.id == env->conn->id);
+	ASSERT_RETURN(msg->items[0].name_change.new.id == conn->id);
+	ASSERT_RETURN(strcmp(msg->items[0].name_change.name, name) == 0);
 
 	kdbus_conn_free(conn);
 
