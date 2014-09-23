@@ -657,6 +657,7 @@ int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma)
 	/* deny write access to the pool */
 	if (vma->vm_flags & VM_WRITE)
 		return -EPERM;
+	vma->vm_flags &= ~VM_MAYWRITE;
 
 	/* do not allow to map more than the size of the file */
 	if ((vma->vm_end - vma->vm_start) > pool->size)

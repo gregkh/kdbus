@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <stdbool.h>
 
 #include "kdbus-util.h"
@@ -277,6 +278,45 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 	ASSERT_RETURN(found == 0);
 
 	kdbus_conn_free(conn);
+
+	return TEST_OK;
+}
+
+int kdbus_test_writable_pool(struct kdbus_test_env *env)
+{
+	struct kdbus_cmd_hello hello = { };
+	int fd, ret;
+	void *map;
+
+	memset(&hello, 0, sizeof(hello));
+
+	fd = open(env->buspath, O_RDWR|O_CLOEXEC);
+	if (fd < 0)
+		return TEST_ERR;
+
+	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
+	hello.attach_flags = _KDBUS_ATTACH_ALL;
+	hello.size = sizeof(struct kdbus_cmd_hello);
+	hello.pool_size = POOL_SIZE;
+
+	/* success test */
+	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
+	ASSERT_RETURN(ret == 0);
+
+	/* pools cannot be mapped writable */
+	map = mmap(NULL, POOL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	ASSERT_RETURN(map == MAP_FAILED);
+
+	/* pools can always be mapped readable */
+	map = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, fd, 0);
+	ASSERT_RETURN(map != MAP_FAILED);
+
+	/* make sure we cannot change protection masks to writable */
+	ret = mprotect(map, POOL_SIZE, PROT_READ | PROT_WRITE);
+	ASSERT_RETURN(ret < 0);
+
+	munmap(map, POOL_SIZE);
+	close(fd);
 
 	return TEST_OK;
 }

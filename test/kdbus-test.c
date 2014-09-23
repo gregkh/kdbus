@@ -130,6 +130,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
 	{
+		.name	= "writable-pool",
+		.desc	= "verifying pools are never writable",
+		.func	= kdbus_test_writable_pool,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		.name	= "policy-ns",
 		.desc	= "policy in user namespaces",
 		.func	= kdbus_test_policy_ns,

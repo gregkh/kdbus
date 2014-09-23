@@ -47,6 +47,7 @@ int kdbus_test_byebye(struct kdbus_test_env *env);
 int kdbus_test_chat(struct kdbus_test_env *env);
 int kdbus_test_conn_info(struct kdbus_test_env *env);
 int kdbus_test_conn_update(struct kdbus_test_env *env);
+int kdbus_test_writable_pool(struct kdbus_test_env *env);
 int kdbus_test_daemon(struct kdbus_test_env *env);
 int kdbus_test_domain_make(struct kdbus_test_env *env);
 int kdbus_test_fd_passing(struct kdbus_test_env *env);
