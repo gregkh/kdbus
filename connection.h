@@ -25,22 +25,6 @@
 					 KDBUS_HELLO_MONITOR)
 
 /**
- * enum kdbus_conn_type - type and state of connection
- * @KDBUS_CONN_DISCONNECTED:	Invalidated connection
- * @KDBUS_CONN_CONNECTED:	Ordinary connection that exchanges messages
- * @KDBUS_CONN_ACTIVATOR:	Activator connection for a well-known name
- * @KDBUS_CONN_POLICY_HOLDER:	Policy holding connection
- * @KDBUS_CONN_MONITOR:		Bus monitor connection
- */
-enum kdbus_conn_type {
-	KDBUS_CONN_DISCONNECTED,
-	KDBUS_CONN_CONNECTED,
-	KDBUS_CONN_ACTIVATOR,
-	KDBUS_CONN_POLICY_HOLDER,
-	KDBUS_CONN_MONITOR,
-};
-
-/**
  * struct kdbus_conn - connection to a bus
  * @kref:		Reference count
  * @id:			Connection ID
@@ -83,7 +67,7 @@ struct kdbus_conn {
 	u64 id;
 	u64 flags;
 	u64 attach_flags;
-	unsigned int type;
+	bool disconnected;
 	const char *name;
 	struct kdbus_bus *bus;
 	struct kdbus_ep *ep;

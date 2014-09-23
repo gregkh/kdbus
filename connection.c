@@ -3,6 +3,7 @@
  * Copyright (C) 2013-2014 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
  * Copyright (C) 2013-2014 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013-2014 Linux Foundation
+ * Copyright (C) 2014 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -578,11 +579,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				continue;
 
 			/*
-			 * Activator connections will not receive any
-			 * broadcast messages.
+			 * Activator or policy holder connections will
+			 * not receive any broadcast messages, only
+			 * ordinary and monitor ones.
 			 */
-			if (conn_dst->type != KDBUS_CONN_CONNECTED &&
-			    conn_dst->type != KDBUS_CONN_MONITOR)
+			if (!kdbus_conn_is_connected(conn_dst) &&
+			    !kdbus_conn_is_monitor(conn_dst))
 				continue;
 
 			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
@@ -627,7 +629,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			conn_dst = kdbus_conn_ref(name_entry->conn);
 
 		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
-		    (conn_dst->type == KDBUS_CONN_ACTIVATOR)) {
+		     kdbus_conn_is_activator(conn_dst)) {
 			ret = -EADDRNOTAVAIL;
 			goto exit_unref;
 		}
@@ -644,7 +646,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * Special-purpose connections are not allowed to be addressed
 		 * via their unique IDs.
 		 */
-		if (conn_dst->type != KDBUS_CONN_CONNECTED) {
+		if (!kdbus_conn_is_connected(conn_dst)) {
 			ret = -ENXIO;
 			goto exit_unref;
 		}
@@ -810,7 +812,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		return -EBUSY;
 	}
 
-	conn->type = KDBUS_CONN_DISCONNECTED;
+	conn->disconnected = true;
 	mutex_unlock(&conn->lock);
 
 	cancel_delayed_work_sync(&conn->work);
@@ -888,7 +890,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
  */
 bool kdbus_conn_active(const struct kdbus_conn *conn)
 {
-	return conn->type != KDBUS_CONN_DISCONNECTED;
+	return !conn->disconnected;
 }
 
 /**
@@ -1171,7 +1173,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 		case KDBUS_ITEM_ATTACH_FLAGS:
 			/* Only ordinary connections may update their
 			 * attach-flags */
-			if (conn->type != KDBUS_CONN_CONNECTED)
+			if (!kdbus_conn_is_connected(conn))
 				return -EOPNOTSUPP;
 
 			flags_provided = true;
@@ -1182,7 +1184,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 		case KDBUS_ITEM_POLICY_ACCESS:
 			/* Only policy holders may update their policy
 			 * entries */
-			if (conn->type != KDBUS_CONN_POLICY_HOLDER)
+			if (!kdbus_conn_is_policy_holder(conn))
 				return -EOPNOTSUPP;
 
 			policy_provided = true;
@@ -1356,15 +1358,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_free_conn;
 		}
 	}
-
-	if (is_activator)
-		conn->type = KDBUS_CONN_ACTIVATOR;
-	else if (is_policy_holder)
-		conn->type = KDBUS_CONN_POLICY_HOLDER;
-	else if (is_monitor)
-		conn->type = KDBUS_CONN_MONITOR;
-	else
-		conn->type = KDBUS_CONN_CONNECTED;
 
 	kref_init(&conn->kref);
 	mutex_init(&conn->lock);
