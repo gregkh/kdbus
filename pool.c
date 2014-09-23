@@ -333,6 +333,7 @@ int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 	struct kdbus_pool_slice *s;
 	struct kdbus_pool *p;
 	struct file *f;
+	char *n = NULL;
 	int ret;
 
 	BUG_ON(*pool);
@@ -342,18 +343,16 @@ int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 		return -ENOMEM;
 
 	if (name) {
-		char *n;
-
 		n = kasprintf(GFP_KERNEL, KBUILD_MODNAME "-conn:%s", name);
 		if (!n) {
 			ret = -ENOMEM;
 			goto exit_free;
 		}
-		f = shmem_file_setup(n, size, 0);
-		kfree(n);
-	} else {
-		f = shmem_file_setup(KBUILD_MODNAME "-conn", size, 0);
 	}
+
+	f = shmem_file_setup(n ? n : KBUILD_MODNAME "-conn", size, 0);
+	kfree(n);
+
 	if (IS_ERR(f)) {
 		ret = PTR_ERR(f);
 		goto exit_free;
