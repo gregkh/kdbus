@@ -3,6 +3,7 @@
  * Copyright (C) 2013-2014 Greg Kroah-Hartman <gregkh@linuxfoundation.org>
  * Copyright (C) 2013-2014 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013-2014 Linux Foundation
+ * Copyright (C) 2014 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -18,6 +19,10 @@
 #include "metadata.h"
 #include "pool.h"
 #include "queue.h"
+
+#define KDBUS_HELLO_SPECIAL_CONN	(KDBUS_HELLO_ACTIVATOR | \
+					 KDBUS_HELLO_POLICY_HOLDER | \
+					 KDBUS_HELLO_MONITOR)
 
 /**
  * enum kdbus_conn_type - type and state of connection
@@ -133,4 +138,48 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src,
 			     u64 name_id);
 bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
+
+/**
+ * kdbus_conn_is_connected() - Check if connection is ordinary
+ * @conn:		The connection to check
+ *
+ * Return: Non-zero if the connection is an ordinary connection
+ */
+static inline int kdbus_conn_is_connected(const struct kdbus_conn *conn)
+{
+	return !(conn->flags & KDBUS_HELLO_SPECIAL_CONN);
+}
+
+/**
+ * kdbus_conn_is_activator() - Check if connection is an activator
+ * @conn:		The connection to check
+ *
+ * Return: Non-zero if the connection is an activator
+ */
+static inline int kdbus_conn_is_activator(const struct kdbus_conn *conn)
+{
+	return conn->flags & KDBUS_HELLO_ACTIVATOR;
+}
+
+/**
+ * kdbus_conn_is_policy_holder() - Check if connection is a policy holder
+ * @conn:		The connection to check
+ *
+ * Return: Non-zero if the connection is a policy holder
+ */
+static inline int kdbus_conn_is_policy_holder(const struct kdbus_conn *conn)
+{
+	return conn->flags & KDBUS_HELLO_POLICY_HOLDER;
+}
+
+/**
+ * kdbus_conn_is_monitor() - Check if connection is a monitor
+ * @conn:		The connection to check
+ *
+ * Return: Non-zero if the connection is a monitor
+ */
+static inline int kdbus_conn_is_monitor(const struct kdbus_conn *conn)
+{
+	return conn->flags & KDBUS_HELLO_MONITOR;
+}
 #endif
