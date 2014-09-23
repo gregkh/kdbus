@@ -358,11 +358,15 @@ int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 		goto exit_free;
 	}
 
+	ret = get_write_access(file_inode(f));
+	if (ret < 0)
+		goto exit_put_shmem;
+
 	/* allocate first slice spanning the entire pool */
 	s = kdbus_pool_slice_new(p, 0, size);
 	if (!s) {
 		ret = -ENOMEM;
-		goto exit_put_shmem;
+		goto exit_put_write;
 	}
 
 	p->f = f;
@@ -379,6 +383,8 @@ int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 	*pool = p;
 	return 0;
 
+exit_put_write:
+	put_write_access(file_inode(f));
 exit_put_shmem:
 	fput(f);
 exit_free:
@@ -402,6 +408,7 @@ void kdbus_pool_free(struct kdbus_pool *pool)
 		kfree(s);
 	}
 
+	put_write_access(file_inode(pool->f));
 	fput(pool->f);
 	kfree(pool);
 }
