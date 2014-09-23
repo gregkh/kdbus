@@ -1513,7 +1513,7 @@ KDBUS_CMD_HELLO
 
 KDBUS_CMD_BYEBYE
 
-  -EOPNOTSUPP	The connection has already been shut down
+  -EALREADY	The connection has already been shut down
   -EBUSY	There are still messages queued up in the connection's pool
 
 KDBUS_CMD_MSG_SEND
