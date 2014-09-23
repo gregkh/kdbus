@@ -338,15 +338,15 @@ static void usage(const char *argv0)
 
 	printf("Usage: %s [options]\n"
 	       "Options:\n"
-	       "	-x, --loop		Run in a loop\n"
-	       "	-h, --help		Print this help\n"
-	       "	-t, --test <test-id>	Run one specific test only, in verbose mode\n"
-	       "	-b, --bus <busname>	Instead of generating a random bus name, take <busname>.\n"
-	       "	-w, --wait <secs>	Wait <secs> before actually starting test\n"
+	       "\t-x, --loop		Run in a loop\n"
+	       "\t-h, --help		Print this help\n"
+	       "\t-t, --test <test-id>	Run one specific test only, in verbose mode\n"
+	       "\t-b, --bus <busname>	Instead of generating a random bus name, take <busname>.\n"
+	       "\t-w, --wait <secs>	Wait <secs> before actually starting test\n"
 	       "\n", argv0);
 
 	printf("By default, all test are run once, and a summary is printed.\n"
-	       "Available tests for --test switch:\n\n");
+	       "Available tests for --test:\n\n");
 
 	for (t = tests; t->name; t++) {
 		printf("\t%s", t->name);
