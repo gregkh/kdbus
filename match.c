@@ -429,8 +429,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 				break;
 			}
 
-			rule->old_id = item->name_change.old.id;
-			rule->new_id = item->name_change.new.id;
+			rule->old_id = item->name_change.old_id.id;
+			rule->new_id = item->name_change.new_id.id;
 
 			if (size > sizeof(struct kdbus_notify_name_change)) {
 				rule->name = kstrdup(item->name_change.name,

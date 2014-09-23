@@ -584,14 +584,14 @@ void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 		case KDBUS_ITEM_NAME_ADD:
 		case KDBUS_ITEM_NAME_REMOVE:
 		case KDBUS_ITEM_NAME_CHANGE:
-			kdbus_printf("  +%s (%llu bytes) '%s', old id=%lld, new id=%lld, old_flags=0x%llx new_flags=0x%llx\n",
+			kdbus_printf("  +%s (%llu bytes) '%s', old id=%lld, now id=%lld, old_flags=0x%llx new_flags=0x%llx\n",
 				enum_MSG(item->type),
 				(unsigned long long) item->size,
 				item->name_change.name,
-				item->name_change.old.id,
-				item->name_change.new.id,
-				item->name_change.old.flags,
-				item->name_change.new.flags);
+				item->name_change.old_id.id,
+				item->name_change.new_id.id,
+				item->name_change.old_id.flags,
+				item->name_change.new_id.flags);
 			break;
 
 		case KDBUS_ITEM_ID_ADD:

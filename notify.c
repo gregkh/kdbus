@@ -121,10 +121,10 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 	kmsg->notify_old_id = old_id;
 	kmsg->notify_new_id = new_id;
 	kmsg->msg.items[0].type = type;
-	kmsg->msg.items[0].name_change.old.id = old_id;
-	kmsg->msg.items[0].name_change.old.flags = old_flags;
-	kmsg->msg.items[0].name_change.new.id = new_id;
-	kmsg->msg.items[0].name_change.new.flags = new_flags;
+	kmsg->msg.items[0].name_change.old_id.id = old_id;
+	kmsg->msg.items[0].name_change.old_id.flags = old_flags;
+	kmsg->msg.items[0].name_change.new_id.id = new_id;
+	kmsg->msg.items[0].name_change.new_id.flags = new_flags;
 	memcpy(kmsg->msg.items[0].name_change.name, name, name_len);
 	kmsg->notify_name = kmsg->msg.items[0].name_change.name;
 
