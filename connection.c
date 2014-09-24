@@ -44,6 +44,8 @@
 
 struct kdbus_conn_reply;
 
+#define KDBUS_CONN_ACTIVE_BIAS (INT_MIN + 1)
+
 /**
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
  * @entry:		The entry of the connection's reply_list
@@ -812,8 +814,11 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		return -EBUSY;
 	}
 
-	conn->disconnected = true;
+	atomic_add(KDBUS_CONN_ACTIVE_BIAS, &conn->active);
 	mutex_unlock(&conn->lock);
+
+	wait_event(conn->wait,
+		   atomic_read(&conn->active) == KDBUS_CONN_ACTIVE_BIAS);
 
 	cancel_delayed_work_sync(&conn->work);
 
@@ -886,11 +891,16 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
  * kdbus_conn_active() - connection is not disconnected
  * @conn:		Connection to check
  *
+ * Return true if the connection was not disconnected, yet. Note that a
+ * connection might be disconnected asynchronously, unless you hold the
+ * connection lock. If that's not suitable for you, see kdbus_conn_acquire() to
+ * suppress connection shutdown for a short period.
+ *
  * Return: true if the connection is still active
  */
 bool kdbus_conn_active(const struct kdbus_conn *conn)
 {
-	return !conn->disconnected;
+	return atomic_read(&conn->active) >= 0;
 }
 
 /**
@@ -964,6 +974,57 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
 
 	kref_put(&conn->kref, __kdbus_conn_free);
 	return NULL;
+}
+
+/**
+ * kdbus_conn_acquire() - acquire an active connection reference
+ * @conn:		Connection
+ *
+ * Users can close a connection via KDBUS_BYEBYE (or by destroying the
+ * endpoint/bus/...) at any time. Whenever this happens, we should deny any
+ * user-visible action on this connection and signal ECONNRESET instead.
+ * To avoid testing for connection availability everytime you take the
+ * connection-lock, you can acquire a connection for short periods.
+ *
+ * By calling kdbus_conn_acquire(), you gain an "active reference" to the
+ * connection. You must also hold a regular reference at any time! As long as
+ * you hold the active-ref, the connection will not be shut down. However, if
+ * the connection was shut down, you can never acquire an active-ref again.
+ *
+ * kdbus_conn_disconnect() disables the connection and then waits for all active
+ * references to be dropped. It will also wake up any pending operation.
+ * However, you must not sleep for an indefinite period while holding an
+ * active-reference. Otherwise, kdbus_conn_disconnect() might stall. If you need
+ * to sleep for an indefinite period, either release the reference and try to
+ * acquire it again after wakeing up, or make kdbus_conn_disconnect() wake up
+ * your wait-queue.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_conn_acquire(struct kdbus_conn *conn) {
+	if (!atomic_inc_unless_negative(&conn->active))
+		return -ECONNRESET;
+
+	return 0;
+}
+
+/**
+ * kdbus_conn_release() - release an active connection reference
+ * @conn:		Connection
+ *
+ * This releases an active reference that has been acquired via
+ * kdbus_conn_acquire(). If the connection was already disabled and this is the
+ * last active-ref that is dropped, the disconnect-waiter will be woken up and
+ * properly close the connection.
+ */
+void kdbus_conn_release(struct kdbus_conn *conn) {
+	int v;
+
+	v = atomic_dec_return(&conn->active);
+	if (v != KDBUS_CONN_ACTIVE_BIAS)
+		return;
+
+	wake_up_all(&conn->wait);
 }
 
 /**
@@ -1360,6 +1421,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	kref_init(&conn->kref);
+	atomic_set(&conn->active, 0);
 	mutex_init(&conn->lock);
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);

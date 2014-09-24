@@ -349,6 +349,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	LIST_HEAD(list);
 	int ret = 0;
 
+	lockdep_assert_held(conn);
+
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry) {
 		ret = -ENOMEM;
@@ -501,6 +503,8 @@ void kdbus_match_db_remove(struct kdbus_conn *conn,
 {
 	struct kdbus_match_entry *entry, *tmp;
 	struct kdbus_match_db *db = conn->match_db;
+
+	lockdep_assert_held(conn);
 
 	mutex_lock(&db->entries_lock);
 	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)

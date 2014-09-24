@@ -663,7 +663,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		ret = kdbus_conn_acquire(conn);
+		if (ret < 0)
+			break;
+
 		ret = kdbus_match_db_add(conn, p);
+		kdbus_conn_release(conn);
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
@@ -681,7 +686,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		ret = kdbus_conn_acquire(conn);
+		if (ret < 0)
+			break;
+
 		kdbus_match_db_remove(conn, p);
+		kdbus_conn_release(conn);
 		break;
 
 	case KDBUS_CMD_MSG_SEND: {

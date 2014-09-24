@@ -64,10 +64,10 @@
  */
 struct kdbus_conn {
 	struct kref kref;
+	atomic_t active;
 	u64 id;
 	u64 flags;
 	u64 attach_flags;
-	bool disconnected;
 	const char *name;
 	struct kdbus_bus *bus;
 	struct kdbus_ep *ep;
@@ -103,6 +103,8 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_conn **conn);
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
+int kdbus_conn_acquire(struct kdbus_conn *conn);
+void kdbus_conn_release(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty);
 bool kdbus_conn_active(const struct kdbus_conn *conn);
 void kdbus_conn_purge_policy_cache(struct kdbus_conn *conn);
