@@ -35,6 +35,7 @@ OBJS= \
 	test-monitor.o		\
 	test-names.o		\
 	test-policy-ns.o	\
+	test-race.o		\
 	test-sync.o		\
 	test-timeout.o
 
