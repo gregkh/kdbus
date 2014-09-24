@@ -102,7 +102,7 @@ static const struct kdbus_test tests[] = {
 	{
 		.name	= "timeout",
 		.desc	= "timeout",
-		.func	= kdbus_test_sync_reply,
+		.func	= kdbus_test_timeout,
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
