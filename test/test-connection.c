@@ -284,16 +284,14 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 
 int kdbus_test_writable_pool(struct kdbus_test_env *env)
 {
-	struct kdbus_cmd_hello hello = { };
+	struct kdbus_cmd_hello hello;
 	int fd, ret;
 	void *map;
 
+	fd = open(env->buspath, O_RDWR | O_CLOEXEC);
+	ASSERT_RETURN(fd >= 0);
+
 	memset(&hello, 0, sizeof(hello));
-
-	fd = open(env->buspath, O_RDWR|O_CLOEXEC);
-	if (fd < 0)
-		return TEST_ERR;
-
 	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
 	hello.attach_flags = _KDBUS_ATTACH_ALL;
 	hello.size = sizeof(struct kdbus_cmd_hello);
