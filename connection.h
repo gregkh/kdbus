@@ -14,6 +14,7 @@
 #ifndef __KDBUS_CONNECTION_H
 #define __KDBUS_CONNECTION_H
 
+#include <linux/lockdep.h>
 #include "defaults.h"
 #include "util.h"
 #include "metadata.h"
@@ -65,6 +66,9 @@
 struct kdbus_conn {
 	struct kref kref;
 	atomic_t active;
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	struct lockdep_map dep_map;
+#endif
 	u64 id;
 	u64 flags;
 	u64 attach_flags;

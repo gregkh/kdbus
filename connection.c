@@ -817,8 +817,19 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	atomic_add(KDBUS_CONN_ACTIVE_BIAS, &conn->active);
 	mutex_unlock(&conn->lock);
 
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_acquire(&conn->dep_map, 0, 0, _RET_IP_);
+	if (atomic_read(&conn->active) != KDBUS_CONN_ACTIVE_BIAS)
+		lock_contended(&conn->dep_map, _RET_IP_);
+#endif
+
 	wait_event(conn->wait,
 		   atomic_read(&conn->active) == KDBUS_CONN_ACTIVE_BIAS);
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	lock_acquired(&conn->dep_map, _RET_IP_);
+	rwsem_release(&conn->dep_map, 1, _RET_IP_);
+#endif
 
 	cancel_delayed_work_sync(&conn->work);
 
@@ -1005,6 +1016,10 @@ int kdbus_conn_acquire(struct kdbus_conn *conn) {
 	if (!atomic_inc_unless_negative(&conn->active))
 		return -ECONNRESET;
 
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_acquire_read(&conn->dep_map, 0, 1, _RET_IP_);
+#endif
+
 	return 0;
 }
 
@@ -1019,6 +1034,10 @@ int kdbus_conn_acquire(struct kdbus_conn *conn) {
  */
 void kdbus_conn_release(struct kdbus_conn *conn) {
 	int v;
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_release(&conn->dep_map, 1, _RET_IP_);
+#endif
 
 	v = atomic_dec_return(&conn->active);
 	if (v != KDBUS_CONN_ACTIVE_BIAS)
@@ -1290,6 +1309,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		   struct kdbus_meta *meta,
 		   struct kdbus_conn **c)
 {
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	static struct lock_class_key __key;
+#endif
 	const struct kdbus_creds *creds = NULL;
 	const struct kdbus_item *item;
 	const char *conn_name = NULL;
@@ -1422,6 +1444,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	kref_init(&conn->kref);
 	atomic_set(&conn->active, 0);
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	lockdep_init_map(&conn->dep_map, "s_active", &__key, 0);
+#endif
 	mutex_init(&conn->lock);
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
