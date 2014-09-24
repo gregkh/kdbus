@@ -232,8 +232,8 @@ other usespace code that aims for compatibility to D-Bus might.
 To flexibly augment transport structures used by kdbus, data blobs of type
 struct kdbus_item are used. An item has a fixed-sized header that only stores
 the type of the item and the overall size. The total size is variable and is
-in some cases defined by the item type, in other cases can be of arbitrary
-length (for instance, a string).
+in some cases defined by the item type, in other cases, they can be of
+arbitrary length (for instance, a string).
 
 In the external kernel API, items are used for many ioctls to transport
 optional information from userspace to kernelspace. They are also used for
@@ -244,12 +244,11 @@ In all such occasions where items are used as part of the kdbus kernel API,
 they are embedded in structs that have an overall size of their own, so there
 can be many of them.
 
-The kernel expects all item to be aligned to 8-byte boundaries.
+The kernel expects all items to be aligned to 8-byte boundaries.
 
 A simple iterator in userspace would iterate over the items until the items
-have reached the embedding structure's overall size.
-
-See tools/testing/selftests/kdbus/kdbus-util.h for an example implementation.
+have reached the embedding structure's overall size. An example implementation
+of such an iterator can be found in tools/testing/selftests/kdbus/kdbus-util.h.
 
 
 5. Creation of new domains, buses and endpoints
@@ -345,7 +344,7 @@ to all known connections on the bus; clients interested in broadcast messages
 need to subscribe to the specific messages they are interested though, before
 any broadcast message reaches them.
 
-Messages synthesized and sent directly by the kernel, will carry the special
+Messages synthesized and sent directly by the kernel will carry the special
 source id KDBUS_SRC_ID_KERNEL (0).
 
 In addition to the unique uint64_t connection id, established connections can
@@ -489,7 +488,7 @@ struct kdbus_cmd_hello {
 6.3 Activator and policy holder connection
 ------------------------------------------
 
-An activator connection is placeholders for a well-known name. Messages sent
+An activator connection is a placeholder for a well-known name. Messages sent
 to such a connection can be used by userspace to start an implementor
 connection, which will then get all the messages from the activator copied
 over. An activator connection cannot be used to send any message.
