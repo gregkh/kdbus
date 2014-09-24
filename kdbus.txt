@@ -1620,5 +1620,6 @@ For KDBUS_CMD_MATCH_ADD:
 
   -EINVAL	Illegal items
   -EDOM		Illegal bloom filter size
+  -EMFILE	Too many matches for this connection
 
 For KDBUS_CMD_MATCH_REMOVE: none

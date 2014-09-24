@@ -43,6 +43,9 @@
 /* maximum size for update commands */
 #define KDBUS_UPDATE_MAX_SIZE			SZ_32K
 
+/* maximum number of matches per connection */
+#define KDBUS_MATCH_MAX				256
+
 /* maximum size of match data */
 #define KDBUS_MATCH_MAX_SIZE			SZ_32K
 
