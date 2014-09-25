@@ -563,10 +563,12 @@ struct kdbus_cmd_hello {
  * enum kdbus_make_flags - Flags for KDBUS_CMD_{BUS,EP,NS}_MAKE
  * @KDBUS_MAKE_ACCESS_GROUP:	Make the device node group-accessible
  * @KDBUS_MAKE_ACCESS_WORLD:	Make the device node world-accessible
+ * @KDBUS_MAKE_POLICY_OPEN:	When creating a bus, default to open policy
  */
 enum kdbus_make_flags {
 	KDBUS_MAKE_ACCESS_GROUP		= 1ULL <<  0,
 	KDBUS_MAKE_ACCESS_WORLD		= 1ULL <<  1,
+	KDBUS_MAKE_POLICY_OPEN		= 1ULL <<  2,
 };
 
 /**

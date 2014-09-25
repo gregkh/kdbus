@@ -75,7 +75,7 @@ int kdbus_create_bus(int control_fd, const char *name, char **path)
 	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 
-	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
+	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD | KDBUS_MAKE_POLICY_OPEN;
 	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
 			     sizeof(bus_make.bs) +
 			     bus_make.n_size;

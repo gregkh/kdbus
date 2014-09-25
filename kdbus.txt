@@ -317,6 +317,12 @@ struct kdbus_cmd_make {
     KDBUS_MAKE_ACCESS_WORLD
       Make the device node world-accessible
 
+    KDBUS_MAKE_POLICY_OPEN
+      When creating a bus, create an empty policy be default, so the bus
+      won't allow any action on the bus without permissive policy rules that
+      are uploaded via policy holders. For domains and endpoints, this flag
+      has no effect.
+
   struct kdbus_item items[0];
     A list of items, only used for creating custom endpoints. Ignored for
     buses and domains.
@@ -1241,8 +1247,9 @@ holder connection) or a custom endpoint.
 
 See section 8.1 for more details on the validity of well-known names.
 
-By default, buses don't have a policy database but create one on demand as soon
-as a policy holder connection is instantiated.
+Default endpoints of buses have a policy database unless KDBUS_MAKE_POLICY_OPEN
+is passed at creation time of the bus. Custom endpoint always have a policy,
+and by default, a policy database is empty.
 
 A set of policy rules is described by a name and multiple access rules, defined
 by the following struct.
