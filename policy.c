@@ -429,21 +429,6 @@ void kdbus_policy_purge_cache(struct kdbus_policy_db *db,
 	mutex_unlock(&db->cache_lock);
 }
 
-static int
-kdbus_policy_add_one(struct kdbus_policy_db *db,
-		     struct kdbus_policy_db_entry *e)
-{
-	int ret = 0;
-	u32 hash = kdbus_str_hash(e->name);
-
-	if (kdbus_policy_lookup(db, e->name, hash, false))
-		ret = -EEXIST;
-	else
-		hash_add(db->entries_hash, &e->hentry, hash);
-
-	return ret;
-}
-
 /*
  * Convert user provided policy access to internal kdbus policy
  * access
@@ -525,6 +510,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	HLIST_HEAD(restore);
 	size_t count = 0;
 	int i, ret = 0;
+	u32 hash;
 
 	if (items_size > KDBUS_POLICY_MAX_SIZE)
 		return -E2BIG;
@@ -621,11 +607,16 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 	hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
 		hlist_del(&e->hentry);
-		ret = kdbus_policy_add_one(db, e);
-		if (ret < 0) {
+		hash = kdbus_str_hash(e->name);
+
+		/* prevent duplicates */
+		if (kdbus_policy_lookup(db, e->name, hash, false)) {
+			ret = -EEXIST;
 			__kdbus_policy_remove_owner(db, owner);
 			goto exit;
 		}
+
+		hash_add(db->entries_hash, &e->hentry, hash);
 	}
 
 	hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
@@ -643,10 +634,8 @@ exit:
 		/* restore original entries from list */
 		hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
 			hlist_del(&e->hentry);
-			/* this should never fail, but lets be pedantic.. */
-			ret = kdbus_policy_add_one(db, e);
-			if (ret < 0)
-				kdbus_policy_entry_free(e);
+			hash = kdbus_str_hash(e->name);
+			hash_add(db->entries_hash, &e->hentry, hash);
 		}
 	}
 
