@@ -628,6 +628,11 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		}
 	}
 
+	hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
+		hlist_del(&e->hentry);
+		kdbus_policy_entry_free(e);
+	}
+
 exit:
 	if (ret < 0) {
 		hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
