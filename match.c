@@ -34,7 +34,7 @@
 struct kdbus_match_db {
 	struct list_head entries_list;
 	struct mutex entries_lock;
-	atomic_t entries;
+	unsigned int entries;
 };
 
 /**
@@ -159,7 +159,6 @@ int kdbus_match_db_new(struct kdbus_match_db **db)
 
 	mutex_init(&d->entries_lock);
 	INIT_LIST_HEAD(&d->entries_list);
-	atomic_set(&d->entries, 0);
 
 	*db = d;
 	return 0;
@@ -479,12 +478,11 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	    !KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
 		ret = -EINVAL;
 
-	if (atomic_inc_return(&db->entries) > KDBUS_MATCH_MAX) {
-		atomic_dec(&db->entries);
+	mutex_lock(&db->entries_lock);
+	if (++db->entries > KDBUS_MATCH_MAX) {
+		--db->entries;
 		ret = -EMFILE;
 	}
-
-	mutex_lock(&db->entries_lock);
 	if (ret == 0)
 		list_add_tail(&entry->list_entry, &db->entries_list);
 	else
@@ -517,7 +515,7 @@ void kdbus_match_db_remove(struct kdbus_conn *conn,
 	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
 		if (entry->cookie == cmd->cookie) {
 			kdbus_match_entry_free(entry);
-			atomic_dec(&db->entries);
+			--db->entries;
 		}
 	mutex_unlock(&db->entries_lock);
 }
