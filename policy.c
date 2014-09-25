@@ -528,6 +528,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	struct kdbus_policy_db_entry_access *a;
 	const struct kdbus_item *item;
 	struct hlist_node *tmp;
+	HLIST_HEAD(entries);
 	size_t count = 0;
 	LIST_HEAD(list);
 	int i, ret = 0;
@@ -570,12 +571,6 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		case KDBUS_ITEM_NAME: {
 			size_t len;
 
-			if (e) {
-				ret = kdbus_policy_add_one(db, e);
-				if (ret < 0)
-					goto exit;
-			}
-
 			if (max_policies && ++count > max_policies) {
 				ret = -E2BIG;
 				goto exit;
@@ -589,6 +584,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 			INIT_LIST_HEAD(&e->access_list);
 			e->owner = owner;
+			hlist_add_head(&e->hentry, &entries);
 
 			e->name = kstrdup(item->str, GFP_KERNEL);
 			if (!e->name) {
@@ -638,18 +634,29 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		goto exit;
 	}
 
-	if (e)
+	while (!hlist_empty(&entries)) {
+		e = hlist_entry(entries.first,
+				struct kdbus_policy_db_entry,
+				hentry);
+		hlist_del(&e->hentry);
 		ret = kdbus_policy_add_one(db, e);
+		if (ret < 0) {
+			__kdbus_policy_remove_owner(db, owner);
+			goto exit;
+		}
+	}
 
 exit:
 	if (ret < 0) {
 		struct kdbus_policy_list_entry *l, *l_tmp;
 
-		if (e)
+		while (!hlist_empty(&entries)) {
+			e = hlist_entry(entries.first,
+					struct kdbus_policy_db_entry,
+					hentry);
+			hlist_del(&e->hentry);
 			kdbus_policy_entry_free(e);
-
-		/* purge any entries that might have been added above */
-		__kdbus_policy_remove_owner(db, owner);
+		}
 
 		/* restore original entries from list */
 		list_for_each_entry_safe(l, l_tmp, &list, entry) {
