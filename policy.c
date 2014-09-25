@@ -364,8 +364,8 @@ exit_unlock_entries:
 }
 
 /**
- * kdbus_policy_check_see_access() - Check whether the current task is allowed
- *				     to see a given name
+ * kdbus_policy_check_see_access_unlocked() - Check whether the current task is
+ *					      allowed to see a given name
  * @db:		The policy database
  * @name:	The name
  *
