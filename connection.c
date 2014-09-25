@@ -637,10 +637,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 	} else {
 		/* unicast message to unique name */
-		mutex_lock(&bus->lock);
 		conn_dst = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
-		mutex_unlock(&bus->lock);
-
 		if (!conn_dst)
 			return -ENXIO;
 
@@ -1149,10 +1146,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		else if (entry->conn)
 			owner_conn = kdbus_conn_ref(entry->conn);
 	} else {
-		mutex_lock(&conn->bus->lock);
 		owner_conn = kdbus_bus_find_conn_by_id(conn->bus, cmd_info->id);
-		mutex_unlock(&conn->bus->lock);
-
 		if (!owner_conn) {
 			ret = -ENXIO;
 			goto exit;

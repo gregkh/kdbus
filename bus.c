@@ -110,18 +110,18 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
  * Looks up a connection with a given id. The returned connection
  * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
  * the connection can't be found.
- *
- * This function must be called with bus->lock held.
  */
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 {
 	struct kdbus_conn *conn, *found = NULL;
 
+	mutex_lock(&bus->lock);
 	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
 		if (conn->id == id) {
 			found = kdbus_conn_ref(conn);
 			break;
 		}
+	mutex_unlock(&bus->lock);
 
 	return found;
 }
