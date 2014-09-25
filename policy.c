@@ -504,7 +504,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		     const void *owner)
 {
 	struct kdbus_policy_db_entry_access *a;
-	struct kdbus_policy_db_entry *e;
+	struct kdbus_policy_db_entry *e, *p;
 	const struct kdbus_item *item;
 	struct hlist_node *tmp;
 	HLIST_HEAD(entries);
@@ -601,19 +601,23 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		}
 
 	hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
-		hlist_del(&e->hentry);
-		hash = kdbus_str_hash(e->name);
-
 		/* prevent duplicates */
-		if (kdbus_policy_lookup(db, e->name, hash, false)) {
-			ret = -EEXIST;
-			/* flush all entries we added so far */
-			__kdbus_policy_remove_owner(db, owner);
-			break;
-		}
+		hash = kdbus_str_hash(e->name);
+		hash_for_each_possible(db->entries_hash, p, hentry, hash)
+			if (strcmp(e->name, p->name) == 0 &&
+			    e->wildcard == p->wildcard) {
+				ret = -EEXIST;
+				goto restore;
+			}
 
+		hlist_del(&e->hentry);
 		hash_add(db->entries_hash, &e->hentry, hash);
 	}
+
+restore:
+	/* if we failed, flush all entries we added so far */
+	if (ret < 0)
+		__kdbus_policy_remove_owner(db, owner);
 
 	/* if we failed, restore entries, otherwise release them */
 	hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
