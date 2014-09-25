@@ -444,12 +444,6 @@ kdbus_policy_add_one(struct kdbus_policy_db *db,
 	return ret;
 }
 
-/* temporary struct to restore original state */
-struct kdbus_policy_list_entry {
-	struct kdbus_policy_db_entry *e;
-	struct list_head entry;
-};
-
 /*
  * Convert user provided policy access to internal kdbus policy
  * access
@@ -523,14 +517,13 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		     bool allow_wildcards,
 		     const void *owner)
 {
-	struct kdbus_policy_db_entry *e = NULL;
-	struct kdbus_policy_db_entry *tmp_entry = NULL;
 	struct kdbus_policy_db_entry_access *a;
+	struct kdbus_policy_db_entry *e;
 	const struct kdbus_item *item;
 	struct hlist_node *tmp;
 	HLIST_HEAD(entries);
+	HLIST_HEAD(restore);
 	size_t count = 0;
-	LIST_HEAD(list);
 	int i, ret = 0;
 
 	if (items_size > KDBUS_POLICY_MAX_SIZE)
@@ -545,22 +538,14 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	 * At the same time, the lookup mechanism won't find any collisions
 	 * when looking for already exising names.
 	 */
-	hash_for_each_safe(db->entries_hash, i, tmp, tmp_entry, hentry)
-		if (tmp_entry->owner == owner) {
-			struct kdbus_policy_list_entry *l;
-
-			l = kzalloc(sizeof(*l), GFP_KERNEL);
-			if (!l) {
-				ret = -ENOMEM;
-				goto exit;
-			}
-
-			l->e = tmp_entry;
-			list_add_tail(&l->entry, &list);
-			hash_del(&tmp_entry->hentry);
+	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry)
+		if (e->owner == owner) {
+			hash_del(&e->hentry);
+			hlist_add_head(&e->hentry, &restore);
 		}
 
 	/* Walk the list of items and look for new policies */
+	e = NULL;
 	KDBUS_ITEMS_FOREACH(item, items, items_size) {
 		if (!KDBUS_ITEM_VALID(item, items, items_size)) {
 			ret = -EINVAL;
@@ -648,8 +633,6 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 exit:
 	if (ret < 0) {
-		struct kdbus_policy_list_entry *l, *l_tmp;
-
 		while (!hlist_empty(&entries)) {
 			e = hlist_entry(entries.first,
 					struct kdbus_policy_db_entry,
@@ -659,9 +642,15 @@ exit:
 		}
 
 		/* restore original entries from list */
-		list_for_each_entry_safe(l, l_tmp, &list, entry) {
-			kdbus_policy_add_one(db, l->e);
-			kfree(l);
+		while (!hlist_empty(&restore)) {
+			e = hlist_entry(restore.first,
+					struct kdbus_policy_db_entry,
+					hentry);
+			hlist_del(&e->hentry);
+			/* this should never fail, but lets be pedantic.. */
+			ret = kdbus_policy_add_one(db, e);
+			if (ret < 0)
+				kdbus_policy_entry_free(e);
 		}
 	}
 
