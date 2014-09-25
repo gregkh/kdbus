@@ -136,6 +136,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
+		.name	= "policy",
+		.desc	= "policy",
+		.func	= kdbus_test_policy,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		.name	= "policy-ns",
 		.desc	= "policy in user namespaces",
 		.func	= kdbus_test_policy_ns,

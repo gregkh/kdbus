@@ -34,6 +34,7 @@ OBJS= \
 	test-metadata-ns.o	\
 	test-monitor.o		\
 	test-names.o		\
+	test-policy.o		\
 	test-policy-ns.o	\
 	test-race.o		\
 	test-sync.o		\
