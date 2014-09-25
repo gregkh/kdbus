@@ -619,10 +619,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		goto exit;
 	}
 
-	while (!hlist_empty(&entries)) {
-		e = hlist_entry(entries.first,
-				struct kdbus_policy_db_entry,
-				hentry);
+	hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
 		hlist_del(&e->hentry);
 		ret = kdbus_policy_add_one(db, e);
 		if (ret < 0) {
@@ -633,19 +630,13 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 exit:
 	if (ret < 0) {
-		while (!hlist_empty(&entries)) {
-			e = hlist_entry(entries.first,
-					struct kdbus_policy_db_entry,
-					hentry);
+		hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
 			hlist_del(&e->hentry);
 			kdbus_policy_entry_free(e);
 		}
 
 		/* restore original entries from list */
-		while (!hlist_empty(&restore)) {
-			e = hlist_entry(restore.first,
-					struct kdbus_policy_db_entry,
-					hentry);
+		hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
 			hlist_del(&e->hentry);
 			/* this should never fail, but lets be pedantic.. */
 			ret = kdbus_policy_add_one(db, e);
