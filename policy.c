@@ -532,6 +532,9 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	LIST_HEAD(list);
 	int i, ret = 0;
 
+	if (items_size > KDBUS_POLICY_MAX_SIZE)
+		return -E2BIG;
+
 	mutex_lock(&db->entries_lock);
 
 	/*
