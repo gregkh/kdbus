@@ -118,7 +118,8 @@ kdbus_policy_lookup(struct kdbus_policy_db *db,
 		hash_for_each_possible(db->entries_hash, e, hentry, hash)
 			if (strcmp(e->name, tmp) == 0 && e->wildcard) {
 				found = e;
-				break;
+				/* never "break;" in hash_for_each() */
+				goto exit_free;
 			}
 
 exit_free:
