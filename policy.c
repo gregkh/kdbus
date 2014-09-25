@@ -516,21 +516,6 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	if (items_size > KDBUS_POLICY_MAX_SIZE)
 		return -E2BIG;
 
-	mutex_lock(&db->entries_lock);
-
-	/*
-	 * First, walk the list of entries and move those of the
-	 * same owner into a temporary list. In case we fail to parse
-	 * the new content, we will restore them later.
-	 * At the same time, the lookup mechanism won't find any collisions
-	 * when looking for already exising names.
-	 */
-	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry)
-		if (e->owner == owner) {
-			hash_del(&e->hentry);
-			hlist_add_head(&e->hentry, &restore);
-		}
-
 	/* Walk the list of items and look for new policies */
 	e = NULL;
 	KDBUS_ITEMS_FOREACH(item, items, items_size) {
@@ -606,6 +591,15 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		goto exit;
 	}
 
+	mutex_lock(&db->entries_lock);
+
+	/* remember previous entries to restore in case of failure */
+	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry)
+		if (e->owner == owner) {
+			hash_del(&e->hentry);
+			hlist_add_head(&e->hentry, &restore);
+		}
+
 	hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
 		hlist_del(&e->hentry);
 		hash = kdbus_str_hash(e->name);
@@ -613,34 +607,32 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		/* prevent duplicates */
 		if (kdbus_policy_lookup(db, e->name, hash, false)) {
 			ret = -EEXIST;
+			/* flush all entries we added so far */
 			__kdbus_policy_remove_owner(db, owner);
-			goto exit;
+			break;
 		}
 
 		hash_add(db->entries_hash, &e->hentry, hash);
 	}
 
+	/* if we failed, restore entries, otherwise release them */
 	hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
 		hlist_del(&e->hentry);
-		kdbus_policy_entry_free(e);
-	}
-
-exit:
-	if (ret < 0) {
-		hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
-			hlist_del(&e->hentry);
-			kdbus_policy_entry_free(e);
-		}
-
-		/* restore original entries from list */
-		hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
-			hlist_del(&e->hentry);
+		if (ret < 0) {
 			hash = kdbus_str_hash(e->name);
 			hash_add(db->entries_hash, &e->hentry, hash);
+		} else {
+			kdbus_policy_entry_free(e);
 		}
 	}
 
 	mutex_unlock(&db->entries_lock);
+
+exit:
+	hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
+		hlist_del(&e->hentry);
+		kdbus_policy_entry_free(e);
+	}
 
 	return ret;
 }
