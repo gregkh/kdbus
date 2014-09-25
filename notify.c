@@ -21,6 +21,7 @@
 
 #include "bus.h"
 #include "connection.h"
+#include "endpoint.h"
 #include "message.h"
 #include "notify.h"
 
@@ -191,6 +192,13 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 {
 	LIST_HEAD(notify_list);
 	struct kdbus_kmsg *kmsg, *tmp;
+	struct kdbus_ep *ep = NULL;
+
+	/* bus->ep is only valid as long as the bus is alive */
+	mutex_lock(&bus->lock);
+	if (!bus->disconnected)
+		ep = kdbus_ep_ref(bus->ep);
+	mutex_unlock(&bus->lock);
 
 	mutex_lock(&bus->notify_flush_lock);
 
@@ -199,12 +207,15 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 	spin_unlock(&bus->notify_lock);
 
 	list_for_each_entry_safe(kmsg, tmp, &notify_list, queue_entry) {
-		kdbus_conn_kmsg_send(bus->ep, NULL, kmsg);
+		if (ep)
+			kdbus_conn_kmsg_send(ep, NULL, kmsg);
 		list_del(&kmsg->queue_entry);
 		kdbus_kmsg_free(kmsg);
 	}
 
 	mutex_unlock(&bus->notify_flush_lock);
+
+	kdbus_ep_unref(ep);
 }
 
 /**
