@@ -277,6 +277,18 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 	return kdbus_policy_set(&ep->policy_db, items, items_size, 0, true, ep);
 }
 
+/**
+ * kdbus_ep_policy_check_see_access_unlocked() - verify a connection can see
+ *						 the passed name
+ * @ep:			Endpoint to operate on
+ * @conn:		Connection that lists names
+ * @name:		Name that is tried to be listed
+ *
+ * This verifies that @conn is allowed to see the well-known name @name via the
+ * endpoint @ep.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
 int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 					      struct kdbus_conn *conn,
 					      const char *name)
@@ -305,6 +317,18 @@ int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 	return 0;
 }
 
+/**
+ * kdbus_ep_policy_check_talk_access() - verify a connection can talk to the
+ *					 the passed connection
+ * @ep:			Endpoint to operate on
+ * @conn_src:		Connection that tries to talk
+ * @conn_dst:		Connection that is talked to
+ *
+ * This verifies that @conn_src is allowed to talk to @conn_dst via the
+ * endpoint @ep.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
 int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 				      struct kdbus_conn *conn_src,
 				      struct kdbus_conn *conn_dst)
@@ -326,6 +350,18 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 	return 0;
 }
 
+/**
+ * kdbus_ep_policy_check_own_access() - verify a connection can own the passed
+ *					name
+ * @ep:			Endpoint to operate on
+ * @conn:		Connection that acquires a name
+ * @name:		Name that is about to be acquired
+ *
+ * This verifies that @conn is allowed to acquire the well-known name @name via
+ * the endpoint @ep.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
 int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
 				     const struct kdbus_conn *conn,
 				     const char *name)

@@ -317,12 +317,6 @@ struct kdbus_cmd_make {
     KDBUS_MAKE_ACCESS_WORLD
       Make the device node world-accessible
 
-    KDBUS_MAKE_POLICY_OPEN
-      When creating a bus, create an empty policy be default, so the bus
-      won't allow any action on the bus without permissive policy rules that
-      are uploaded via policy holders. For domains and endpoints, this flag
-      has no effect.
-
   struct kdbus_item items[0];
     A list of items, only used for creating custom endpoints. Ignored for
     buses and domains.
@@ -1247,9 +1241,10 @@ holder connection) or a custom endpoint.
 
 See section 8.1 for more details on the validity of well-known names.
 
-Default endpoints of buses have a policy database unless KDBUS_MAKE_POLICY_OPEN
-is passed at creation time of the bus. Custom endpoint always have a policy,
-and by default, a policy database is empty.
+Default endpoints of buses never have a policy database. There is no way to
+modify the policy of those endpoints, so their default policy is to allow all
+operations. Custom endpoint always have a policy, and by default, a policy
+database is empty.
 
 A set of policy rules is described by a name and multiple access rules, defined
 by the following struct.
@@ -1355,6 +1350,18 @@ If a policy database exists for a bus (because a policy holder created one on
 demand) or for a custom endpoint (which always has one), each one is consulted
 during name registry listing, name owning or message delivery. If either one
 fails, the operation is failed with -ENOPERM.
+
+11.5 Implicit policies
+----------------------
+
+On each bus, a set of implicit rules is always enforced:
+
+  * Privileged connections always override any installed policy. Those
+    connections could easily install their own policies, so there is no reason
+    to enforce installed policies.
+  * Connections can always talk to connections of the same user.
+  * A bus policy can never restrict the set of names that can be seen. Only
+    endpoint policies can install "SEE" policies.
 
 
 12. Pool
