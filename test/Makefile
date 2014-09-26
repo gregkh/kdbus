@@ -14,7 +14,7 @@ CFLAGS		+= -std=gnu99 -Wall -Wextra -g \
 		   -Wcast-align \
 		   -Wsign-compare \
 		   -Wno-missing-field-initializers
-LDFLAGS		:= -pthread
+LDFLAGS		:= -pthread -lcap
 CC		:= $(CROSS_COMPILE)gcc
 
 OBJS= \
@@ -36,6 +36,7 @@ OBJS= \
 	test-names.o		\
 	test-policy.o		\
 	test-policy-ns.o	\
+	test-policy-priv.o	\
 	test-race.o		\
 	test-sync.o		\
 	test-timeout.o
