@@ -33,6 +33,7 @@ int kdbus_policy_db_new(struct kdbus_policy_db **db);
 void kdbus_policy_db_free(struct kdbus_policy_db *db);
 
 int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
+					   struct kdbus_conn *conn,
 					   const char *name);
 int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,

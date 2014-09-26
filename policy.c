@@ -245,7 +245,7 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 	const struct kdbus_policy_db_entry *e;
 	int ret;
 
-	if (kdbus_bus_uid_is_privileged(conn->bus))
+	if (kdbus_bus_cred_is_privileged(conn->bus, conn->cred))
 		return 0;
 
 	mutex_lock(&db->entries_lock);
@@ -257,6 +257,7 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 }
 
 static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
+					    const struct cred *cred,
 					    struct kdbus_conn *conn_dst)
 {
 	struct kdbus_name_entry *name_entry;
@@ -268,7 +269,7 @@ static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 		const struct kdbus_policy_db_entry *e;
 
 		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
-		if (kdbus_policy_check_access(e, current_cred(),
+		if (kdbus_policy_check_access(e, cred,
 					      KDBUS_POLICY_TALK) == 0) {
 			ret = 0;
 			break;
@@ -313,16 +314,9 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	unsigned int hash = 0;
 	int ret;
 
-	/*
-	 * user->uid maps to a fsuid at the time of a KDBUS_CMD_HELLO
-	 * cmd, if they equal allow the TALK access, otherwise we
-	 * proceed and perform checks against current's cred.
-	 *
-	 * By using the user->uid check first we reduce the exposure to
-	 * creds changes. Privileged processes should be careful about
-	 * what to do with a file descriptor.
-	 */
-	if (uid_eq(conn_src->user->uid, conn_dst->user->uid))
+	if (kdbus_bus_cred_is_privileged(conn_src->bus, conn_src->cred))
+		return 0;
+	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
 		return 0;
 
 	/*
@@ -345,7 +339,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	 * a hash table entry if send access is granted.
 	 */
 	mutex_lock(&db->entries_lock);
-	ret = __kdbus_policy_check_talk_access(db, conn_dst);
+	ret = __kdbus_policy_check_talk_access(db, conn_src->cred, conn_dst);
 	if (ret == 0) {
 		ce = kdbus_policy_cache_entry_new(conn_src, conn_dst);
 		if (!ce) {
@@ -365,20 +359,25 @@ exit_unlock_entries:
 }
 
 /**
- * kdbus_policy_check_see_access_unlocked() - Check whether the current task is
+ * kdbus_policy_check_see_access_unlocked() - Check whether a connection is
  *					      allowed to see a given name
  * @db:		The policy database
+ * @conn:	The connection performing the lookup
  * @name:	The name
  *
  * Return: 0 if permission to see the name is granted, -EPERM otherwise
  */
 int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
+					   struct kdbus_conn *conn,
 					   const char *name)
 {
 	const struct kdbus_policy_db_entry *e;
 
+	if (kdbus_bus_cred_is_privileged(conn->bus, conn->cred))
+		return 0;
+
 	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
-	return kdbus_policy_check_access(e, current_cred(), KDBUS_POLICY_SEE);
+	return kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_SEE);
 }
 
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,

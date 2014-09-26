@@ -760,7 +760,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		 */
 		if (conn->ep->policy_db &&
 		    kdbus_policy_check_see_access_unlocked(conn->ep->policy_db,
-							   e->name) < 0)
+							   conn, e->name) < 0)
 				return 0;
 	}
 
