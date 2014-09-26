@@ -31,11 +31,13 @@
  * struct kdbus_policy_db_cache_entry - a cached entry
  * @conn_a:		Connection A
  * @conn_b:		Connection B
+ * @owner:		Owner of policy-entry that produced this cache-entry
  * @hentry:		The hash table entry for the database's entries_hash
  */
 struct kdbus_policy_db_cache_entry {
 	struct kdbus_conn *conn_a;
 	struct kdbus_conn *conn_b;
+	const void *owner;
 	struct hlist_node hentry;
 };
 
@@ -256,47 +258,6 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 	return ret;
 }
 
-static int __kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
-					    const struct cred *cred,
-					    struct kdbus_conn *conn_dst)
-{
-	struct kdbus_name_entry *name_entry;
-	int ret = -EPERM;
-
-	mutex_lock(&conn_dst->lock);
-	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
-		u32 hash = kdbus_str_hash(name_entry->name);
-		const struct kdbus_policy_db_entry *e;
-
-		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
-		if (kdbus_policy_check_access(e, cred,
-					      KDBUS_POLICY_TALK) == 0) {
-			ret = 0;
-			break;
-		}
-	}
-	mutex_unlock(&conn_dst->lock);
-
-	return ret;
-}
-
-static struct kdbus_policy_db_cache_entry *
-kdbus_policy_cache_entry_new(struct kdbus_conn *conn_a,
-			     struct kdbus_conn *conn_b)
-{
-	struct kdbus_policy_db_cache_entry *ce;
-
-	ce = kmalloc(sizeof(*ce), GFP_KERNEL);
-	if (!ce)
-		return NULL;
-
-	ce->conn_a = conn_a;
-	ce->conn_b = conn_b;
-	INIT_HLIST_NODE(&ce->hentry);
-
-	return ce;
-}
-
 /**
  * kdbus_policy_check_talk_access() - check if one connection is allowed
  *				       to send a message to another connection
@@ -311,7 +272,9 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_dst)
 {
 	struct kdbus_policy_db_cache_entry *ce;
+	struct kdbus_name_entry *name_entry;
 	unsigned int hash = 0;
+	const void *owner;
 	int ret;
 
 	if (kdbus_bus_cred_is_privileged(conn_src->bus, conn_src->cred))
@@ -335,24 +298,45 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	mutex_unlock(&db->cache_lock);
 
 	/*
-	 * Otherwise, walk the connection list and store and add
-	 * a hash table entry if send access is granted.
+	 * Otherwise, walk the connection list and store a hash-table entry if
+	 * send access is granted.
 	 */
-	mutex_lock(&db->entries_lock);
-	ret = __kdbus_policy_check_talk_access(db, conn_src->cred, conn_dst);
-	if (ret == 0) {
-		ce = kdbus_policy_cache_entry_new(conn_src, conn_dst);
-		if (!ce) {
-			ret = -ENOMEM;
-			goto exit_unlock_entries;
-		}
 
-		mutex_lock(&db->cache_lock);
-		hash_add(db->talk_access_hash, &ce->hentry, hash);
-		mutex_unlock(&db->cache_lock);
+	mutex_lock(&db->entries_lock);
+
+	ret = -EPERM;
+	mutex_lock(&conn_dst->lock);
+	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
+		u32 hash = kdbus_str_hash(name_entry->name);
+		const struct kdbus_policy_db_entry *e;
+
+		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
+		if (kdbus_policy_check_access(e, conn_src->cred,
+					      KDBUS_POLICY_TALK) == 0) {
+			owner = e->owner;
+			ret = 0;
+			break;
+		}
+	}
+	mutex_unlock(&conn_dst->lock);
+
+	if (ret >= 0) {
+		ret = -ENOMEM;
+		ce = kmalloc(sizeof(*ce), GFP_KERNEL);
+		if (ce) {
+			ce->conn_a = conn_src;
+			ce->conn_b = conn_dst;
+			ce->owner = owner;
+			INIT_HLIST_NODE(&ce->hentry);
+
+			mutex_lock(&db->cache_lock);
+			hash_add(db->talk_access_hash, &ce->hentry, hash);
+			mutex_unlock(&db->cache_lock);
+
+			ret = 0;
+		}
 	}
 
-exit_unlock_entries:
 	mutex_unlock(&db->entries_lock);
 
 	return ret;
