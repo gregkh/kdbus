@@ -197,6 +197,10 @@ int kdbus_test_metadata_ns(struct kdbus_test_env *env)
 	if (geteuid() > 0)
 		return TEST_SKIP;
 
+	/* we require user-namespaces */
+	if (access("/proc/self/uid_map", F_OK) != 0)
+		return TEST_SKIP;
+
 	ret = kdbus_add_match_empty(env->conn);
 	ASSERT_RETURN(ret == 0);
 

@@ -476,6 +476,10 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 		return TEST_SKIP;
 	}
 
+	/* we require user-namespaces */
+	if (access("/proc/self/uid_map", F_OK) != 0)
+		return TEST_SKIP;
+
 	conn_db = calloc(MAX_CONN, sizeof(struct kdbus_conn *));
 	ASSERT_RETURN(conn_db);
 
