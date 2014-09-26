@@ -92,15 +92,36 @@ static int test_policy_priv(struct kdbus_test_env *env)
 	sigaddset(&sset, SIGUSR1);
 	sigprocmask(SIG_BLOCK, &sset, NULL);
 
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn);
+
+	/* Before registering any policy holder */
+
 	/*
-	 * Make sure that unprivileged users cannot acquire names
+	 * Make sure unprivileged bus user cannot acquire names
 	 * before registring any policy holder.
 	 */
+
 	ret = RUN_UNPRIVILEGED_CONN(unpriv, env->buspath, ({
 		ret = kdbus_name_acquire(unpriv, "com.example.a", NULL);
 		ASSERT_EXIT(ret < 0);
 	}));
 	ASSERT_RETURN(ret >= 0);
+
+	/*
+	 * Make sure unprivileged bus users cannot talk by default
+	 * to privileged ones, unless a policy holder that allows
+	 * this was uploaded.
+	 */
+
+	ret = RUN_UNPRIVILEGED_CONN(unpriv, env->buspath, ({
+		ret = kdbus_msg_send(unpriv, NULL, 0xdeadbeef,
+				     0, 0, 0, conn->id);
+		ASSERT_EXIT(ret == -EPERM);
+	}));
+	ASSERT_RETURN(ret >= 0);
+
+	/* Register policy holder */
 
 	conn_a = kdbus_hello_registrar(env->buspath, "com.example.a",
 				       NULL, 0, KDBUS_HELLO_POLICY_HOLDER);
@@ -115,10 +136,6 @@ static int test_policy_priv(struct kdbus_test_env *env)
 	/*
 	 * Make sure bus-owners can always acquire names.
 	 */
-
-	conn = kdbus_hello(env->buspath, 0, NULL, 0);
-	ASSERT_RETURN(conn);
-
 	ret = kdbus_name_acquire(conn, "com.example.a", NULL);
 	ASSERT_EXIT(ret >= 0);
 
