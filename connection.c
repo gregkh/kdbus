@@ -921,8 +921,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	/* wake up the entry so that users can get a POLLERR */
 	wake_up_interruptible(&conn->wait);
 
-	kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_REMOVE, conn->id,
-			       conn->flags);
+	kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_REMOVE,
+			       conn->id, conn->flags);
 
 	kdbus_notify_flush(conn->bus);
 
