@@ -906,14 +906,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		kdbus_notify_reply_dead(conn->bus, reply->conn->id,
 					reply->cookie);
 
-		/* mark entry as handled, and trigger the timeout handler */
-		mutex_lock(&reply->conn->lock);
-		if (kdbus_conn_active(conn)) {
-			reply->deadline_ns = 0;
-			schedule_delayed_work(&reply->conn->work, 0);
-		}
-		mutex_unlock(&reply->conn->lock);
-
 		list_del(&reply->entry);
 		kdbus_conn_reply_free(reply);
 	}
