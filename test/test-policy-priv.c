@@ -92,6 +92,16 @@ static int test_policy_priv(struct kdbus_test_env *env)
 	sigaddset(&sset, SIGUSR1);
 	sigprocmask(SIG_BLOCK, &sset, NULL);
 
+	/*
+	 * Make sure that unprivileged users cannot acquire names
+	 * before registring any policy holder.
+	 */
+	ret = RUN_UNPRIVILEGED_CONN(unpriv, env->buspath, ({
+		ret = kdbus_name_acquire(unpriv, "com.example.a", NULL);
+		ASSERT_EXIT(ret < 0);
+	}));
+	ASSERT_RETURN(ret >= 0);
+
 	conn_a = kdbus_hello_registrar(env->buspath, "com.example.a",
 				       NULL, 0, KDBUS_HELLO_POLICY_HOLDER);
 	ASSERT_RETURN(conn_a);
