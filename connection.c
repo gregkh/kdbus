@@ -719,9 +719,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ret < 0)
 		goto exit_unref;
 
-	/* unlock name before sending monitors, bus-locking would deadlock */
-	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
-
 	/*
 	 * Monitor connections get all messages; ignore possible errors
 	 * when sending messages to monitor connections.
@@ -740,6 +737,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
 	}
 	up_read(&bus->conn_rwlock);
+
+	/* no reason to keep names locked for replies */
+	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
 
 	if (sync) {
 		int r;
