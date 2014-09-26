@@ -15,7 +15,6 @@
 
 #include <linux/hashtable.h>
 #include <linux/spinlock.h>
-#include <linux/idr.h>
 #include <linux/kref.h>
 
 #include "policy.h"
@@ -33,7 +32,6 @@
  * @ep:			Default "bus" endpoint
  * @ep_seq_last:	Last used endpoint id sequence number
  * @conn_seq_last:	Last used connection id sequence number
- * @conn_idr:		Map of connection device minor nummbers
  * @conn_hash:		Map of connection IDs
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
@@ -65,7 +63,6 @@ struct kdbus_bus {
 	struct kdbus_ep *ep;
 	u64 ep_seq_last;
 	atomic64_t conn_seq_last;
-	struct idr conn_idr;
 	DECLARE_HASHTABLE(conn_hash, 8);
 	struct list_head ep_list;
 	u64 bus_flags;
