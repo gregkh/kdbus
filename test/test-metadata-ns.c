@@ -18,6 +18,7 @@
 #include <sys/prctl.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>
+#include <sys/capability.h>
 #include <linux/sched.h>
 
 #include "kdbus-test.h"
@@ -192,20 +193,54 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 int kdbus_test_metadata_ns(struct kdbus_test_env *env)
 {
 	int ret;
-
-	/* this test needs root privileges */
-	if (geteuid() > 0)
-		return TEST_SKIP;
+	struct kdbus_conn *holder, *conn;
+	cap_t cap;
+	cap_flag_value_t flag_setuid, flag_setgid, flag_sys_admin;
+	struct kdbus_policy_access policy_access = {
+		/* Allow world so we can inspect metadata in namespace */
+		.type = KDBUS_POLICY_ACCESS_WORLD,
+		.id = geteuid(),
+		.access = KDBUS_POLICY_TALK,
+	};
 
 	/* we require user-namespaces */
 	if (access("/proc/self/uid_map", F_OK) != 0)
 		return TEST_SKIP;
 
-	ret = kdbus_add_match_empty(env->conn);
+	cap = cap_get_proc();
+	ASSERT_RETURN(cap);
+
+	ret = cap_get_flag(cap, CAP_SETUID, CAP_EFFECTIVE, &flag_setuid);
+	ASSERT_RETURN(ret >= 0);
+	ret = cap_get_flag(cap, CAP_SETGID, CAP_EFFECTIVE, &flag_setgid);
+	ASSERT_RETURN(ret >= 0);
+	ret = cap_get_flag(cap, CAP_SYS_ADMIN, CAP_EFFECTIVE, &flag_sys_admin);
+	ASSERT_RETURN(ret >= 0);
+
+	/* no enough privileges, SKIP test */
+	if (flag_setuid != CAP_SET || flag_setgid != CAP_SET ||
+	    flag_sys_admin != CAP_SET)
+		return TEST_SKIP;
+
+	holder = kdbus_hello_registrar(env->buspath, "com.example.metadata",
+				       &policy_access, 1,
+				       KDBUS_HELLO_POLICY_HOLDER);
+	ASSERT_RETURN(holder);
+
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn);
+
+	ret = kdbus_add_match_empty(conn);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_clone_userns_test(env->buspath, env->conn);
+	ret = kdbus_name_acquire(conn, "com.example.metadata", NULL);
+	ASSERT_EXIT(ret >= 0);
+
+	ret = kdbus_clone_userns_test(env->buspath, conn);
 	ASSERT_RETURN(ret == 0);
+
+	kdbus_conn_free(holder);
+	kdbus_conn_free(conn);
 
 	return TEST_OK;
 }
