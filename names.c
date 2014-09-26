@@ -629,6 +629,7 @@ static int kdbus_cmd_name_get_name(const struct kdbus_cmd_name *cmd,
 {
 	const struct kdbus_item *item;
 	const char *n = NULL;
+	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		if (!KDBUS_ITEM_VALID(item, &cmd->items,
@@ -637,8 +638,11 @@ static int kdbus_cmd_name_get_name(const struct kdbus_cmd_name *cmd,
 
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
-			if (!kdbus_check_strlen(item, str) ||
-			    !kdbus_name_is_valid(item->str, false))
+			ret = kdbus_item_validate_name(item);
+			if (ret < 0)
+				return ret;
+
+			if (!kdbus_name_is_valid(item->str, false))
 				return -EINVAL;
 
 			if (n)
