@@ -93,7 +93,7 @@ static void __kdbus_bus_free(struct kref *kref)
 	kdbus_domain_user_unref(bus->user);
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
-	kdbus_policy_db_free(bus->policy_db);
+	kdbus_policy_db_clear(&bus->policy_db);
 	kfree(bus->name);
 	kfree(bus);
 }
@@ -265,6 +265,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	mutex_init(&b->notify_flush_lock);
 	atomic64_set(&b->conn_seq_last, 0);
 	b->domain = kdbus_domain_ref(domain);
+	kdbus_policy_db_init(&b->policy_db);
 
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);
@@ -320,6 +321,7 @@ exit_free_reg:
 exit_free_name:
 	kfree(b->name);
 exit_free:
+	kdbus_policy_db_clear(&b->policy_db);
 	kdbus_domain_unref(b->domain);
 	kfree(b);
 	return ret;

@@ -118,7 +118,7 @@ static void __kdbus_ep_free(struct kref *kref)
 	BUG_ON(!ep->disconnected);
 	BUG_ON(!list_empty(&ep->conn_list));
 
-	kdbus_policy_db_free(ep->policy_db);
+	kdbus_policy_db_clear(&ep->policy_db);
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);
 	kfree(ep->name);
@@ -186,9 +186,11 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	mutex_init(&e->lock);
 	kref_init(&e->kref);
 	INIT_LIST_HEAD(&e->conn_list);
+	kdbus_policy_db_init(&e->policy_db);
 	e->uid = uid;
 	e->gid = gid;
 	e->mode = mode;
+	e->has_policy = policy;
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {
@@ -227,19 +229,12 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		goto exit_idr;
 	}
 
-	/* install policy */
-	if (policy) {
-		ret = kdbus_policy_db_new(&e->policy_db);
-		if (ret < 0)
-			goto exit_dev_unregister;
-	}
-
 	/* link into bus  */
 	mutex_lock(&bus->lock);
 	if (bus->disconnected) {
 		mutex_unlock(&bus->lock);
 		ret = -ESHUTDOWN;
-		goto exit_policy_db_free;
+		goto exit_dev_unregister;
 	}
 	e->id = ++bus->ep_seq_last;
 	e->bus = kdbus_bus_ref(bus);
@@ -250,9 +245,6 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		*ep = e;
 	return 0;
 
-exit_policy_db_free:
-	if (policy)
-		kdbus_policy_db_free(e->policy_db);
 exit_dev_unregister:
 	device_unregister(e->dev);
 exit_idr:
@@ -262,6 +254,7 @@ exit_idr:
 exit_free_name:
 	kfree(e->name);
 exit_free:
+	kdbus_policy_db_clear(&e->policy_db);
 	kfree(e);
 	return ret;
 }
@@ -278,13 +271,78 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 			const struct kdbus_item *items,
 			size_t items_size)
 {
-	if (!ep->policy_db)
-		return -EOPNOTSUPP;
-
 	if (items_size == 0)
 		return 0;
 
-	return kdbus_policy_set(ep->policy_db, items, items_size, 0, true, ep);
+	return kdbus_policy_set(&ep->policy_db, items, items_size, 0, true, ep);
+}
+
+int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
+					      struct kdbus_conn *conn,
+					      const char *name)
+{
+	int ret;
+
+	/*
+	 * Check policy, if the endpoint of the connection has a db.
+	 * Note that policy DBs instanciated along with connections
+	 * don't have SEE rules, so it's sufficient to check the
+	 * endpoint's database.
+	 *
+	 * The lock for the policy db is held across all calls of
+	 * kdbus_name_list_all(), so the entries in both writing
+	 * and non-writing runs of kdbus_name_list_write() are the
+	 * same.
+	 */
+
+	if (ep->has_policy) {
+		ret = kdbus_policy_check_see_access_unlocked(&ep->policy_db,
+							     conn, name);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
+				      struct kdbus_conn *conn_src,
+				      struct kdbus_conn *conn_dst)
+{
+	int ret;
+
+	if (ep->has_policy) {
+		ret = kdbus_policy_check_talk_access(&ep->policy_db,
+						     conn_src, conn_dst);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = kdbus_policy_check_talk_access(&ep->bus->policy_db,
+					     conn_src, conn_dst);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
+				     const struct kdbus_conn *conn,
+				     const char *name)
+{
+	int ret;
+
+	if (ep->has_policy) {
+		ret = kdbus_policy_check_own_access(&ep->policy_db, conn, name);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = kdbus_policy_check_own_access(&ep->bus->policy_db, conn, name);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 /**

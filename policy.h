@@ -13,7 +13,11 @@
 #ifndef __KDBUS_POLICY_H
 #define __KDBUS_POLICY_H
 
+#include <linux/hashtable.h>
+#include <linux/mutex.h>
+
 struct kdbus_conn;
+struct kdbus_item;
 
 /**
  * struct kdbus_policy_db - policy database
@@ -29,8 +33,8 @@ struct kdbus_policy_db {
 	struct mutex cache_lock;
 };
 
-int kdbus_policy_db_new(struct kdbus_policy_db **db);
-void kdbus_policy_db_free(struct kdbus_policy_db *db);
+void kdbus_policy_db_init(struct kdbus_policy_db *db);
+void kdbus_policy_db_clear(struct kdbus_policy_db *db);
 
 int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 					   struct kdbus_conn *conn,

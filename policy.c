@@ -132,18 +132,17 @@ exit_free:
 }
 
 /**
- * kdbus_policy_db_free - drop a policy database reference
+ * kdbus_policy_db_clear - release all memory from a policy db
  * @db:		The policy database
  */
-void kdbus_policy_db_free(struct kdbus_policy_db *db)
+void kdbus_policy_db_clear(struct kdbus_policy_db *db)
 {
 	struct kdbus_policy_db_cache_entry *ce;
 	struct kdbus_policy_db_entry *e;
 	struct hlist_node *tmp;
 	unsigned int i;
 
-	if (!db)
-		return;
+	BUG_ON(!db);
 
 	/* purge entries */
 	mutex_lock(&db->entries_lock);
@@ -160,34 +159,21 @@ void kdbus_policy_db_free(struct kdbus_policy_db *db)
 		kfree(ce);
 	}
 	mutex_unlock(&db->cache_lock);
-
-	kfree(db);
 }
 
 /**
- * kdbus_policy_db_new() - create a new policy database
- * @db:		The location where to store the new database
+ * kdbus_policy_db_init() - initialize a new policy database
+ * @db:		The location of the database
  *
- * Return: 0 on success, negative errno on failure
+ * This initializes a new policy-db. The underlying memory must have been
+ * cleared to zero by the caller.
  */
-int kdbus_policy_db_new(struct kdbus_policy_db **db)
+void kdbus_policy_db_init(struct kdbus_policy_db *db)
 {
-	struct kdbus_policy_db *d;
-
-	BUG_ON(*db);
-
-	d = kzalloc(sizeof(*d), GFP_KERNEL);
-	if (!d)
-		return -ENOMEM;
-
-	hash_init(d->entries_hash);
-	hash_init(d->talk_access_hash);
-	mutex_init(&d->entries_lock);
-	mutex_init(&d->cache_lock);
-
-	*db = d;
-
-	return 0;
+	hash_init(db->entries_hash);
+	hash_init(db->talk_access_hash);
+	mutex_init(&db->entries_lock);
+	mutex_init(&db->cache_lock);
 }
 
 static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,

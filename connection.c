@@ -397,19 +397,9 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 		return 0;
 
 	/* ... otherwise, ask the policy DBs for permission */
-	if (ep->policy_db) {
-		ret = kdbus_policy_check_talk_access(ep->policy_db,
-						     conn_src, conn_dst);
-		if (ret < 0)
-			return ret;
-	}
-
-	if (ep->bus->policy_db) {
-		ret = kdbus_policy_check_talk_access(ep->bus->policy_db,
-						     conn_src, conn_dst);
-		if (ret < 0)
-			return ret;
-	}
+	ret = kdbus_ep_policy_check_talk_access(ep, conn_src, conn_dst);
+	if (ret < 0)
+		return ret;
 
 	return 0;
 }
@@ -918,11 +908,8 @@ bool kdbus_conn_active(const struct kdbus_conn *conn)
  */
 void kdbus_conn_purge_policy_cache(struct kdbus_conn *conn)
 {
-	if (conn->ep->policy_db)
-		kdbus_policy_purge_cache(conn->ep->policy_db, conn);
-
-	if (conn->bus->policy_db)
-		kdbus_policy_purge_cache(conn->bus->policy_db, conn);
+	kdbus_policy_purge_cache(&conn->ep->policy_db, conn);
+	kdbus_policy_purge_cache(&conn->bus->policy_db, conn);
 }
 
 static void __kdbus_conn_free(struct kref *kref)
@@ -940,9 +927,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_domain_user_unref(conn->user);
 
 	kdbus_conn_purge_policy_cache(conn);
-
-	if (conn->bus->policy_db)
-		kdbus_policy_remove_owner(conn->bus->policy_db, conn);
+	kdbus_policy_remove_owner(&conn->bus->policy_db, conn);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
@@ -1273,13 +1258,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 		conn->attach_flags = attach_flags;
 
 	if (policy_provided) {
-		if (!conn->bus->policy_db) {
-			ret = kdbus_policy_db_new(&conn->bus->policy_db);
-			if (ret < 0)
-				return ret;
-		}
-
-		ret = kdbus_policy_set(conn->bus->policy_db, cmd->items,
+		ret = kdbus_policy_set(&conn->bus->policy_db, cmd->items,
 				       KDBUS_ITEMS_SIZE(cmd, items),
 				       1, true, conn);
 		if (ret < 0)
@@ -1411,17 +1390,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		return -ENOMEM;
 
 	if (is_activator || is_policy_holder) {
-		if (!bus->policy_db) {
-			ret = kdbus_policy_db_new(&bus->policy_db);
-			if (ret < 0)
-				goto exit_free_conn;
-		}
-
 		/*
 		 * Policy holders may install one name, and are
 		 * allowed to use wildcards.
 		 */
-		ret = kdbus_policy_set(bus->policy_db, hello->items,
+		ret = kdbus_policy_set(&bus->policy_db, hello->items,
 				       KDBUS_ITEMS_SIZE(hello, items),
 				       1, is_policy_holder, conn);
 		if (ret < 0)

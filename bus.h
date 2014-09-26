@@ -18,6 +18,7 @@
 #include <linux/idr.h>
 #include <linux/kref.h>
 
+#include "policy.h"
 #include "util.h"
 
 /**
@@ -74,7 +75,7 @@ struct kdbus_bus {
 	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
 	struct kdbus_domain_user *user;
-	struct kdbus_policy_db *policy_db;
+	struct kdbus_policy_db policy_db;
 	struct list_head notify_list;
 	spinlock_t notify_lock;
 	struct mutex notify_flush_lock;

@@ -14,12 +14,12 @@
 #define __KDBUS_EP_H
 
 #include "defaults.h"
+#include "policy.h"
 #include "util.h"
 
 /*
  * struct kdbus_endpoint - enpoint to access a bus
  * @kref:		Reference count
- * @disconnected:	Invalidated data
  * @bus:		Bus behind this endpoint
  * @name:		Name of the endpoint
  * @id:			ID of this endpoint on the bus
@@ -33,6 +33,8 @@
  * @lock:		Endpoint data lock
  * @user:		Custom enpoints account against an anonymous user
  * @policy_db:		Uploaded policy
+ * @disconnected:	Invalidated data
+ * @has_policy:		The policy-db is valid and should be used
  *
  * An enpoint offers access to a bus; the default device node name is "bus".
  * Additional custom endpoints to the same bus can be created and they can
@@ -40,7 +42,6 @@
  */
 struct kdbus_ep {
 	struct kref kref;
-	bool disconnected;
 	struct kdbus_bus *bus;
 	const char *name;
 	u64 id;
@@ -53,7 +54,10 @@ struct kdbus_ep {
 	struct list_head bus_entry;
 	struct mutex lock;
 	struct kdbus_domain_user *user;
-	struct kdbus_policy_db *policy_db;
+	struct kdbus_policy_db policy_db;
+
+	bool disconnected : 1;
+	bool has_policy : 1;
 };
 
 int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
@@ -66,4 +70,15 @@ int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name);
 int kdbus_ep_policy_set(struct kdbus_ep *ep,
 			const struct kdbus_item *items,
 			size_t items_size);
+
+int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
+					      struct kdbus_conn *conn,
+					      const char *name);
+int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
+				      struct kdbus_conn *conn_src,
+				      struct kdbus_conn *conn_dst);
+int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
+				     const struct kdbus_conn *conn,
+				     const char *name);
+
 #endif

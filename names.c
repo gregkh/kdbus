@@ -687,19 +687,9 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (ret < 0)
 		return -EINVAL;
 
-	if (conn->bus->policy_db) {
-		ret = kdbus_policy_check_own_access(conn->bus->policy_db,
-						    conn, name);
-		if (ret < 0)
-			goto exit;
-	}
-
-	if (conn->ep->policy_db) {
-		ret = kdbus_policy_check_own_access(conn->ep->policy_db,
-						    conn, name);
-		if (ret < 0)
-			goto exit;
-	}
+	ret = kdbus_ep_policy_check_own_access(conn->ep, conn, name);
+	if (ret < 0)
+		goto exit;
 
 	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags, &e);
 
@@ -747,21 +737,9 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	if (e) {
 		nlen = strlen(e->name) + 1;
 
-		/*
-		 * Check policy, if the endpoint of the connection has a db.
-		 * Note that policy DBs instanciated along with connections
-		 * don't have SEE rules, so it's sufficient to check the
-		 * endpoint's database.
-		 *
-		 * The lock for the policy db is held across all calls of
-		 * kdbus_name_list_all(), so the entries in both writing
-		 * and non-writing runs of kdbus_name_list_write() are the
-		 * same.
-		 */
-		if (conn->ep->policy_db &&
-		    kdbus_policy_check_see_access_unlocked(conn->ep->policy_db,
-							   conn, e->name) < 0)
-				return 0;
+		if (kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
+							      e->name) < 0)
+			return 0;
 	}
 
 	if (write) {
@@ -906,14 +884,13 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	size_t pos;
 	int ret;
 
-	policy_db = conn->ep->policy_db;
+	policy_db = &conn->ep->policy_db;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->bus->lock);
 	down_read(&reg->rwlock);
 
-	if (policy_db)
-		mutex_lock(&policy_db->entries_lock);
+	mutex_lock(&policy_db->entries_lock);
 
 	/* size of header + records */
 	pos = sizeof(struct kdbus_name_list);
@@ -944,8 +921,7 @@ exit_pool_free:
 	if (ret < 0)
 		kdbus_pool_slice_free(slice);
 exit_unlock:
-	if (policy_db)
-		mutex_unlock(&policy_db->entries_lock);
+	mutex_unlock(&policy_db->entries_lock);
 
 	up_read(&reg->rwlock);
 	mutex_unlock(&conn->bus->lock);
