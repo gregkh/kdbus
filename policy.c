@@ -364,6 +364,22 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 	return kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_SEE);
 }
 
+static void __kdbus_policy_remove_owner_cache(struct kdbus_policy_db *db,
+					      const void *owner)
+{
+	struct kdbus_policy_db_cache_entry *ce;
+	struct hlist_node *tmp;
+	int i;
+
+	mutex_lock(&db->cache_lock);
+	hash_for_each_safe(db->talk_access_hash, i, tmp, ce, hentry)
+		if (ce->owner == owner) {
+			hash_del(&ce->hentry);
+			kfree(ce);
+		}
+	mutex_unlock(&db->cache_lock);
+}
+
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 					const void *owner)
 {
@@ -388,6 +404,7 @@ void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 {
 	mutex_lock(&db->entries_lock);
 	__kdbus_policy_remove_owner(db, owner);
+	__kdbus_policy_remove_owner_cache(db, owner);
 	mutex_unlock(&db->entries_lock);
 }
 
@@ -597,8 +614,11 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		hash_add(db->entries_hash, &e->hentry, hash);
 	}
 
+	/* purge all cache-entries produced by previous rules */
+	__kdbus_policy_remove_owner_cache(db, owner);
+
 restore:
-	/* if we failed, flush all entries we added so far */
+	/* if we failed, flush all entries we added so far, but keep cache */
 	if (ret < 0)
 		__kdbus_policy_remove_owner(db, owner);
 
