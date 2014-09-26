@@ -737,7 +737,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		mutex_lock(&conn_dst->lock);
 		if (kdbus_conn_active(conn_dst))
 			ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
-						     &reply_wake->queue_entry);
+						      &reply_wake->queue_entry);
 		else
 			ret = -ECONNRESET;
 
@@ -1025,7 +1025,7 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  * However, you must not sleep for an indefinite period while holding an
  * active-reference. Otherwise, kdbus_conn_disconnect() might stall. If you need
  * to sleep for an indefinite period, either release the reference and try to
- * acquire it again after wakeing up, or make kdbus_conn_disconnect() wake up
+ * acquire it again after waking up, or make kdbus_conn_disconnect() wake up
  * your wait-queue.
  *
  * Return: 0 on success, negative error code on failure.
