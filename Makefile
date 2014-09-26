@@ -52,10 +52,21 @@ uninstall:
 coccicheck:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) coccicheck
 
-tt: all
+tt-pre:
 	sudo sh -c 'dmesg -c > /dev/null'
 	-sudo sh -c 'rmmod kdbus$(EXT)'
 	sudo sh -c 'insmod kdbus$(EXT).ko'
 	-sudo sh -c 'sync; umount / 2> /dev/null'
+
+tt-unpriv:
 	test/kdbus-test
+
+tt-priv:
+	sudo test/kdbus-test
+
+tt-post:
 	dmesg
+
+tt: all tt-pre tt-unpriv tt-post
+
+stt: all tt-pre tt-priv tt-post
