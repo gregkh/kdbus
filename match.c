@@ -404,10 +404,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			break;
 		}
 		case KDBUS_ITEM_NAME:
-			if (size == 0) {
-				ret = -EINVAL;
+			ret = kdbus_item_validate_name(item);
+			if (ret < 0)
 				break;
-			}
 
 			rule->name = kstrdup(item->str, GFP_KERNEL);
 			if (!rule->name)
