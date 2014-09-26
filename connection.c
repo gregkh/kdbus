@@ -529,6 +529,61 @@ exit_unlock:
 	return ret;
 }
 
+static int kdbus_conn_broadcast(struct kdbus_ep *ep,
+				struct kdbus_conn *conn_src,
+				struct kdbus_kmsg *kmsg)
+{
+	const struct kdbus_msg *msg = &kmsg->msg;
+	struct kdbus_bus *bus = ep->bus;
+	struct kdbus_conn *conn_dst;
+	u64 attach_flags;
+	unsigned int i;
+	int ret = 0;
+
+	mutex_lock(&bus->lock);
+
+	hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
+		if (conn_dst->id == msg->src_id)
+			continue;
+
+		/*
+		 * Activator or policy holder connections will
+		 * not receive any broadcast messages, only
+		 * ordinary and monitor ones.
+		 */
+		if (!kdbus_conn_is_connected(conn_dst) &&
+		    !kdbus_conn_is_monitor(conn_dst))
+			continue;
+
+		if (!kdbus_match_db_match_kmsg(conn_dst->match_db, conn_src,
+					       kmsg))
+			continue;
+
+		mutex_lock(&conn_dst->lock);
+		attach_flags = conn_dst->attach_flags;
+		mutex_unlock(&conn_dst->lock);
+
+		/*
+		 * The first receiver which requests additional
+		 * metadata causes the message to carry it; all
+		 * receivers after that will see all of the added
+		 * data, even when they did not ask for it.
+		 */
+		if (conn_src) {
+			ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
+						attach_flags);
+			if (ret < 0)
+				goto exit_unlock;
+		}
+
+		kdbus_conn_entry_insert(conn_dst, conn_src, kmsg, NULL);
+	}
+
+exit_unlock:
+	mutex_unlock(&bus->lock);
+	return ret;
+}
+
 /**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
@@ -562,54 +617,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			return ret;
 	}
 
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		/* broadcast message */
-		unsigned int i;
-
-		mutex_lock(&bus->lock);
-		hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
-			if (conn_dst->id == msg->src_id)
-				continue;
-
-			/*
-			 * Activator or policy holder connections will
-			 * not receive any broadcast messages, only
-			 * ordinary and monitor ones.
-			 */
-			if (!kdbus_conn_is_connected(conn_dst) &&
-			    !kdbus_conn_is_monitor(conn_dst))
-				continue;
-
-			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
-						       conn_src, kmsg))
-				continue;
-
-			mutex_lock(&conn_dst->lock);
-			dst_attach_flags = conn_dst->attach_flags;
-			mutex_unlock(&conn_dst->lock);
-
-			/*
-			 * The first receiver which requests additional
-			 * metadata causes the message to carry it; all
-			 * receivers after that will see all of the added
-			 * data, even when they did not ask for it.
-			 */
-			if (conn_src) {
-				ret = kdbus_meta_append(kmsg->meta,
-							conn_src, kmsg->seq,
-							dst_attach_flags);
-				if (ret < 0) {
-					mutex_unlock(&bus->lock);
-					return ret;
-				}
-			}
-
-			kdbus_conn_entry_insert(conn_dst, conn_src, kmsg, NULL);
-		}
-		mutex_unlock(&bus->lock);
-
-		return 0;
-	}
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
+		return kdbus_conn_broadcast(ep, conn_src, kmsg);
 
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
 		/* unicast message to well-known name */
