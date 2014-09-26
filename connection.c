@@ -1499,13 +1499,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	conn->flags = hello->conn_flags;
 	conn->attach_flags = hello->attach_flags;
 
-	/* notify about the new active connection */
-	ret = kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_ADD, conn->id,
-				     conn->flags);
-	if (ret < 0)
-		goto exit_unref_ep;
-	kdbus_notify_flush(conn->bus);
-
 	if (is_activator) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
 
@@ -1589,12 +1582,23 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	mutex_unlock(&bus->lock);
 	up_write(&bus->conn_rwlock);
 
+	/* notify subscribers about the new active connection */
+	ret = kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_ADD,
+				     conn->id, conn->flags);
+	if (ret < 0) {
+		atomic_dec(&conn->user->connections);
+		goto exit_domain_user_unref;
+	}
+
+	kdbus_notify_flush(conn->bus);
+
 	*c = conn;
 	return 0;
 
 exit_unref_user_unlock:
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
+exit_domain_user_unref:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
 	kdbus_meta_free(conn->owner_meta);
