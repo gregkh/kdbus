@@ -1254,9 +1254,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	if (!KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
 		return -EINVAL;
 
-	if (flags_provided)
-		conn->attach_flags = attach_flags;
-
 	if (policy_provided) {
 		ret = kdbus_policy_set(&conn->bus->policy_db, cmd->items,
 				       KDBUS_ITEMS_SIZE(cmd, items),
@@ -1264,6 +1261,9 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 		if (ret < 0)
 			return ret;
 	}
+
+	if (flags_provided)
+		conn->attach_flags = attach_flags;
 
 	return 0;
 }
