@@ -584,6 +584,33 @@ exit_unlock:
 	return ret;
 }
 
+static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
+				 struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_conn *c;
+	u64 attach_flags = 0;
+
+	/*
+	 * Monitor connections get all messages; ignore possible errors
+	 * when sending messages to monitor connections.
+	 */
+
+	if (conn) {
+		mutex_lock(&conn->lock);
+		attach_flags = conn->attach_flags;
+		mutex_unlock(&conn->lock);
+	}
+
+	down_read(&ep->bus->conn_rwlock);
+	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry) {
+		if (conn)
+			kdbus_meta_append(kmsg->meta, conn, kmsg->seq,
+					  attach_flags);
+		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
+	}
+	up_read(&ep->bus->conn_rwlock);
+}
+
 /**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
@@ -600,10 +627,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply *reply_wake = NULL;
 	struct kdbus_name_entry *name_entry = NULL;
 	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_conn *c, *conn_dst = NULL;
+	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
-	u64 src_attach_flags, dst_attach_flags;
+	u64 dst_attach_flags;
 	int ret = 0;
 
 	/* assign domain-global message sequence number */
@@ -719,24 +746,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	if (ret < 0)
 		goto exit_unref;
 
-	/*
-	 * Monitor connections get all messages; ignore possible errors
-	 * when sending messages to monitor connections.
-	 */
-	down_read(&bus->conn_rwlock);
-	src_attach_flags = 0;
-	if (conn_src) {
-		mutex_lock(&conn_src->lock);
-		src_attach_flags = conn_src->attach_flags;
-		mutex_unlock(&conn_src->lock);
-	}
-	list_for_each_entry(c, &bus->monitors_list, monitor_entry) {
-		if (conn_src)
-			kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
-					  src_attach_flags);
-		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
-	}
-	up_read(&bus->conn_rwlock);
+	/* forward to monitors */
+	kdbus_conn_eavesdrop(ep, conn_src, kmsg);
 
 	/* no reason to keep names locked for replies */
 	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
