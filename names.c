@@ -475,6 +475,9 @@ bool kdbus_name_is_valid(const char *p, bool allow_wildcard)
  * @flags:		Acquisition flags (KDBUS_NAME_*)
  * @entry:		Return pointer for the entry (may be NULL)
  *
+ * Callers must ensure that @conn is either a privileged bus user or has
+ * sufficient privileges in the policy-db to own the well-known name @name.
+ *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
