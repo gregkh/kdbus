@@ -588,24 +588,30 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 				 struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *c;
-	u64 attach_flags = 0;
+	u64 attach_flags;
 
 	/*
 	 * Monitor connections get all messages; ignore possible errors
 	 * when sending messages to monitor connections.
 	 */
 
-	if (conn) {
-		mutex_lock(&conn->lock);
-		attach_flags = conn->attach_flags;
-		mutex_unlock(&conn->lock);
-	}
-
 	down_read(&ep->bus->conn_rwlock);
 	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry) {
-		if (conn)
+		/*
+		 * The first monitor which requests additional
+		 * metadata causes the message to carry it; all
+		 * monitors after that will see all of the added
+		 * data, even when they did not ask for it.
+		 */
+		if (conn) {
+			mutex_lock(&c->lock);
+			attach_flags = c->attach_flags;
+			mutex_unlock(&c->lock);
+
 			kdbus_meta_append(kmsg->meta, conn, kmsg->seq,
 					  attach_flags);
+		}
+
 		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
 	}
 	up_read(&ep->bus->conn_rwlock);
