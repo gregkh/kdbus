@@ -589,6 +589,7 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 {
 	struct kdbus_conn *c;
 	u64 attach_flags;
+	int ret;
 
 	/*
 	 * Monitor connections get all messages; ignore possible errors
@@ -608,8 +609,10 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 			attach_flags = c->attach_flags;
 			mutex_unlock(&c->lock);
 
-			kdbus_meta_append(kmsg->meta, conn, kmsg->seq,
-					  attach_flags);
+			ret = kdbus_meta_append(kmsg->meta, conn, kmsg->seq,
+					      attach_flags);
+			if (ret < 0)
+				break;
 		}
 
 		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
