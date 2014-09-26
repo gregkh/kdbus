@@ -890,7 +890,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	mutex_lock(&conn->bus->lock);
 	down_read(&reg->rwlock);
 
-	mutex_lock(&policy_db->entries_lock);
+	down_read(&policy_db->entries_rwlock);
 
 	/* size of header + records */
 	pos = sizeof(struct kdbus_name_list);
@@ -921,7 +921,7 @@ exit_pool_free:
 	if (ret < 0)
 		kdbus_pool_slice_free(slice);
 exit_unlock:
-	mutex_unlock(&policy_db->entries_lock);
+	up_read(&policy_db->entries_rwlock);
 
 	up_read(&reg->rwlock);
 	mutex_unlock(&conn->bus->lock);

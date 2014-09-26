@@ -15,6 +15,7 @@
 
 #include <linux/hashtable.h>
 #include <linux/mutex.h>
+#include <linux/rwsem.h>
 
 struct kdbus_conn;
 struct kdbus_item;
@@ -29,7 +30,7 @@ struct kdbus_item;
 struct kdbus_policy_db {
 	DECLARE_HASHTABLE(entries_hash, 6);
 	DECLARE_HASHTABLE(talk_access_hash, 6);
-	struct mutex entries_lock;
+	struct rw_semaphore entries_rwlock;
 	struct mutex cache_lock;
 };
 

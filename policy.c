@@ -145,12 +145,12 @@ void kdbus_policy_db_clear(struct kdbus_policy_db *db)
 	BUG_ON(!db);
 
 	/* purge entries */
-	mutex_lock(&db->entries_lock);
+	down_write(&db->entries_rwlock);
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
 		hash_del(&e->hentry);
 		kdbus_policy_entry_free(e);
 	}
-	mutex_unlock(&db->entries_lock);
+	up_write(&db->entries_rwlock);
 
 	/* purge cache */
 	mutex_lock(&db->cache_lock);
@@ -172,7 +172,7 @@ void kdbus_policy_db_init(struct kdbus_policy_db *db)
 {
 	hash_init(db->entries_hash);
 	hash_init(db->talk_access_hash);
-	mutex_init(&db->entries_lock);
+	init_rwsem(&db->entries_rwlock);
 	mutex_init(&db->cache_lock);
 }
 
@@ -236,10 +236,10 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 	if (kdbus_bus_cred_is_privileged(conn->bus, conn->cred))
 		return 0;
 
-	mutex_lock(&db->entries_lock);
+	down_read(&db->entries_rwlock);
 	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
 	ret = kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_OWN);
-	mutex_unlock(&db->entries_lock);
+	up_read(&db->entries_rwlock);
 
 	return ret;
 }
@@ -288,7 +288,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	 * send access is granted.
 	 */
 
-	mutex_lock(&db->entries_lock);
+	down_read(&db->entries_rwlock);
 
 	ret = -EPERM;
 	mutex_lock(&conn_dst->lock);
@@ -323,7 +323,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 		}
 	}
 
-	mutex_unlock(&db->entries_lock);
+	up_read(&db->entries_rwlock);
 
 	return ret;
 }
@@ -388,10 +388,10 @@ static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 			       const void *owner)
 {
-	mutex_lock(&db->entries_lock);
+	down_write(&db->entries_rwlock);
 	__kdbus_policy_remove_owner(db, owner);
 	__kdbus_policy_remove_owner_cache(db, owner);
-	mutex_unlock(&db->entries_lock);
+	up_write(&db->entries_rwlock);
 }
 
 /**
@@ -577,7 +577,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		goto exit;
 	}
 
-	mutex_lock(&db->entries_lock);
+	down_write(&db->entries_rwlock);
 
 	/* remember previous entries to restore in case of failure */
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry)
@@ -619,7 +619,7 @@ restore:
 		}
 	}
 
-	mutex_unlock(&db->entries_lock);
+	up_write(&db->entries_rwlock);
 
 exit:
 	hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
