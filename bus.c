@@ -280,8 +280,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	if (ret < 0)
 		goto exit_free_name;
 
-	ret = kdbus_ep_new(b, "bus", mode, uid, gid,
-			   !(make->flags & KDBUS_MAKE_POLICY_OPEN), &b->ep);
+	ret = kdbus_ep_new(b, "bus", mode, uid, gid, false, &b->ep);
 	if (ret < 0)
 		goto exit_free_reg;
 
