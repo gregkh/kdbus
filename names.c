@@ -813,6 +813,7 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 			     KDBUS_NAME_LIST_ACTIVATORS)) {
 			struct kdbus_name_entry *e;
 
+			mutex_lock(&c->lock);
 			list_for_each_entry(e, &c->names_list, conn_entry) {
 				struct kdbus_conn *a = e->activator;
 
@@ -820,8 +821,10 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 				    a && a != c) {
 					ret = kdbus_name_list_write(conn, a,
 							slice, &p, e, write);
-					if (ret < 0)
+					if (ret < 0) {
+						mutex_unlock(&c->lock);
 						return ret;
+					}
 
 					added = true;
 				}
@@ -830,27 +833,34 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 				    kdbus_conn_is_activator(c)) {
 					ret = kdbus_name_list_write(conn, c,
 							slice, &p, e, write);
-					if (ret < 0)
+					if (ret < 0) {
+						mutex_unlock(&c->lock);
 						return ret;
+					}
 
 					added = true;
 				}
 			}
+			mutex_unlock(&c->lock);
 		}
 
 		/* queue of names the connection is currently waiting for */
 		if (flags & KDBUS_NAME_LIST_QUEUED) {
 			struct kdbus_name_queue_item *q;
 
+			mutex_lock(&c->lock);
 			list_for_each_entry(q, &c->names_queue_list,
 					    conn_entry) {
 				ret = kdbus_name_list_write(conn, c,
 						slice, &p, q->entry, write);
-				if (ret < 0)
+				if (ret < 0) {
+					mutex_unlock(&c->lock);
 					return ret;
+				}
 
 				added = true;
 			}
+			mutex_unlock(&c->lock);
 		}
 
 		/* nothing added so far, just add the unique ID */
