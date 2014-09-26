@@ -548,6 +548,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn *c, *conn_dst = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
+	u64 src_attach_flags, dst_attach_flags;
 	int ret = 0;
 
 	/* assign domain-global message sequence number */
@@ -583,6 +584,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 						       conn_src, kmsg))
 				continue;
 
+			mutex_lock(&conn_dst->lock);
+			dst_attach_flags = conn_dst->attach_flags;
+			mutex_unlock(&conn_dst->lock);
+
 			/*
 			 * The first receiver which requests additional
 			 * metadata causes the message to carry it; all
@@ -592,7 +597,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			if (conn_src) {
 				ret = kdbus_meta_append(kmsg->meta,
 							conn_src, kmsg->seq,
-							conn_dst->attach_flags);
+							dst_attach_flags);
 				if (ret < 0) {
 					mutex_unlock(&bus->lock);
 					return ret;
@@ -668,8 +673,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto exit_unref;
 		}
 
+		mutex_lock(&conn_dst->lock);
+		dst_attach_flags = conn_dst->attach_flags;
+		mutex_unlock(&conn_dst->lock);
+
 		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
-					conn_dst->attach_flags);
+					dst_attach_flags);
 		if (ret < 0)
 			goto exit_unref;
 	}
@@ -709,10 +718,16 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 * when sending messages to monitor connections.
 	 */
 	mutex_lock(&bus->lock);
+	src_attach_flags = 0;
+	if (conn_src) {
+		mutex_lock(&conn_src->lock);
+		src_attach_flags = conn_src->attach_flags;
+		mutex_unlock(&conn_src->lock);
+	}
 	list_for_each_entry(c, &bus->monitors_list, monitor_entry) {
 		if (conn_src)
 			kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
-					  c->attach_flags);
+					  src_attach_flags);
 		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
 	}
 	mutex_unlock(&bus->lock);
@@ -1219,7 +1234,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	const struct kdbus_item *item;
 	bool policy_provided = false;
 	bool flags_provided = false;
-	u64 attach_flags = 0;
+	u64 attach_flags;
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
@@ -1262,8 +1277,11 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			return ret;
 	}
 
-	if (flags_provided)
+	if (flags_provided) {
+		mutex_lock(&conn->lock);
 		conn->attach_flags = attach_flags;
+		mutex_unlock(&conn->lock);
+	}
 
 	return 0;
 }
