@@ -487,8 +487,7 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	ret = kdbus_add_match_empty(conn_db[0]);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_fork_test_by_id(bus, conn_db,
-				    EXIT_SUCCESS, EXIT_SUCCESS);
+	ret = kdbus_fork_test_by_id(bus, conn_db, -EPERM, -EPERM);
 	ASSERT_EXIT(ret == 0);
 
 	ret = kdbus_register_policy_holder(bus, POLICY_NAME,
@@ -522,10 +521,11 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	 * so expect EXIT_SUCCESS when sending from child. However,
 	 * since the child's connection does not own any well-known
 	 * name, The parent connection conn_db[0] should fail with
-	 * -EPERM when sending to it.
+	 * -EPERM but since it is a privileged bus user the TALK is
+	 *  allowed.
 	 */
 	ret = kdbus_fork_test_by_id(bus, conn_db,
-				    -EPERM, EXIT_SUCCESS);
+				    EXIT_SUCCESS, EXIT_SUCCESS);
 	ASSERT_EXIT(ret == 0);
 
 	/*
