@@ -583,23 +583,22 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 
 	case KDBUS_CMD_NAME_LIST: {
-		struct kdbus_cmd_name_list *cmd;
+		struct kdbus_cmd_name_list cmd;
 
 		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
 			return -EFAULT;
 
 		/* query current IDs and names */
-		p = memdup_user(buf, sizeof(struct kdbus_cmd_name_list));
-		if (IS_ERR(p))
-			return PTR_ERR(p);
+		if (copy_from_user(&cmd, buf, sizeof(cmd)))
+			return -EFAULT;
 
-		cmd = p;
-		ret = kdbus_cmd_name_list(conn->bus->name_registry, conn, cmd);
+		ret = kdbus_cmd_name_list(conn->bus->name_registry,
+					  conn, &cmd);
 		if (ret < 0)
 			break;
 
 		/* return allocated data */
-		if (kdbus_offset_set_user(&cmd->offset, buf,
+		if (kdbus_offset_set_user(&cmd.offset, buf,
 					  struct kdbus_cmd_name_list))
 			ret = -EFAULT;
 
