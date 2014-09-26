@@ -16,6 +16,7 @@
 #include <linux/hashtable.h>
 #include <linux/spinlock.h>
 #include <linux/kref.h>
+#include <linux/rwsem.h>
 
 #include "policy.h"
 #include "util.h"
@@ -32,12 +33,10 @@
  * @ep:			Default "bus" endpoint
  * @ep_seq_last:	Last used endpoint id sequence number
  * @conn_seq_last:	Last used connection id sequence number
- * @conn_hash:		Map of connection IDs
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @name_registry:	Domain's list of buses
  * @domain_entry:	Domain's list of buses
- * @monitors_list:	Connections that monitor this bus
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
  * @user:		Owner of the connection
@@ -45,6 +44,9 @@
  * @notify_list:	List of pending kernel-generated messages
  * @notify_lock:	Notification list lock
  * @notify_flush_lock:	Notification flushing lock
+ * @conn_rwlock:	Read/Write lock for all lists of child connections
+ * @conn_hash:		Map of connection IDs
+ * @monitors_list:	Connections that monitor this bus
  *
  * A bus provides a "bus" endpoint / device node.
  *
@@ -63,12 +65,10 @@ struct kdbus_bus {
 	struct kdbus_ep *ep;
 	u64 ep_seq_last;
 	atomic64_t conn_seq_last;
-	DECLARE_HASHTABLE(conn_hash, 8);
 	struct list_head ep_list;
 	u64 bus_flags;
 	struct kdbus_name_registry *name_registry;
 	struct list_head domain_entry;
-	struct list_head monitors_list;
 	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
 	struct kdbus_domain_user *user;
@@ -76,6 +76,10 @@ struct kdbus_bus {
 	struct list_head notify_list;
 	spinlock_t notify_lock;
 	struct mutex notify_flush_lock;
+
+	struct rw_semaphore conn_rwlock;
+	DECLARE_HASHTABLE(conn_hash, 8);
+	struct list_head monitors_list;
 };
 
 int kdbus_bus_make_user(const struct kdbus_cmd_make *make,

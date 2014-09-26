@@ -332,7 +332,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		return -ENOENT;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->bus->lock);
+	down_read(&conn->bus->conn_rwlock);
 	hash_for_each(conn->bus->conn_hash, i, c, hentry) {
 		if (c == conn)
 			continue;
@@ -349,7 +349,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		}
 		mutex_unlock(&c->lock);
 	}
-	mutex_unlock(&conn->bus->lock);
+	up_read(&conn->bus->conn_rwlock);
 
 	return found ? 0 : -ENOENT;
 }
@@ -540,7 +540,7 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 	unsigned int i;
 	int ret = 0;
 
-	mutex_lock(&bus->lock);
+	down_read(&bus->conn_rwlock);
 
 	hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
 		if (conn_dst->id == msg->src_id)
@@ -580,7 +580,7 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 	}
 
 exit_unlock:
-	mutex_unlock(&bus->lock);
+	up_read(&bus->conn_rwlock);
 	return ret;
 }
 
@@ -726,7 +726,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	 * Monitor connections get all messages; ignore possible errors
 	 * when sending messages to monitor connections.
 	 */
-	mutex_lock(&bus->lock);
+	down_read(&bus->conn_rwlock);
 	src_attach_flags = 0;
 	if (conn_src) {
 		mutex_lock(&conn_src->lock);
@@ -739,7 +739,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 					  src_attach_flags);
 		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
 	}
-	mutex_unlock(&bus->lock);
+	up_read(&bus->conn_rwlock);
 
 	if (sync) {
 		int r;
@@ -845,7 +845,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	cancel_delayed_work_sync(&conn->work);
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->bus->lock);
+	down_write(&conn->bus->conn_rwlock);
 	mutex_lock(&conn->ep->lock);
 
 	/* remove from bus and endpoint */
@@ -854,7 +854,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	list_del(&conn->ep_entry);
 
 	mutex_unlock(&conn->ep->lock);
-	mutex_unlock(&conn->bus->lock);
+	up_write(&conn->bus->conn_rwlock);
 
 	/*
 	 * Remove all names associated with this connection; this possibly
@@ -1496,9 +1496,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	if (is_monitor) {
-		mutex_lock(&bus->lock);
+		down_write(&bus->conn_rwlock);
 		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
-		mutex_unlock(&bus->lock);
+		up_write(&bus->conn_rwlock);
 	}
 
 	/* privileged processes can impersonate somebody else */
@@ -1545,6 +1545,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
+	down_write(&bus->conn_rwlock);
 	mutex_lock(&bus->lock);
 	mutex_lock(&ep->lock);
 
@@ -1566,6 +1567,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
+	up_write(&bus->conn_rwlock);
 
 	*c = conn;
 	return 0;

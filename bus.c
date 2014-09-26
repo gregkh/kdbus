@@ -129,13 +129,13 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 {
 	struct kdbus_conn *conn, *found = NULL;
 
-	mutex_lock(&bus->lock);
+	down_read(&bus->conn_rwlock);
 	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
 		if (conn->id == id) {
 			found = kdbus_conn_ref(conn);
 			break;
 		}
-	mutex_unlock(&bus->lock);
+	up_read(&bus->conn_rwlock);
 
 	return found;
 }
@@ -257,6 +257,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
 	mutex_init(&b->lock);
+	init_rwsem(&b->conn_rwlock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->ep_list);
 	INIT_LIST_HEAD(&b->monitors_list);
