@@ -565,10 +565,6 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 					       kmsg))
 			continue;
 
-		mutex_lock(&conn_dst->lock);
-		attach_flags = conn_dst->attach_flags;
-		mutex_unlock(&conn_dst->lock);
-
 		/*
 		 * The first receiver which requests additional
 		 * metadata causes the message to carry it; all
@@ -576,6 +572,10 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 		 * data, even when they did not ask for it.
 		 */
 		if (conn_src) {
+			mutex_lock(&conn_dst->lock);
+			attach_flags = conn_dst->attach_flags;
+			mutex_unlock(&conn_dst->lock);
+
 			ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
 						attach_flags);
 			if (ret < 0)
