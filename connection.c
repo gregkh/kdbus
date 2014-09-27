@@ -54,7 +54,6 @@ struct kdbus_conn_reply;
  *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
- * @wait:		The waitqueue for synchronous I/O
  * @sync:		The reply block is waiting for synchronous I/O
  * @waiting:		The condition to synchronously wait for
  * @err:		The error code for the synchronous reply
@@ -65,7 +64,6 @@ struct kdbus_conn_reply {
 	struct kdbus_queue_entry *queue_entry;
 	u64 deadline_ns;
 	u64 cookie;
-	wait_queue_head_t wait;
 	bool sync:1;
 	bool waiting:1;
 	int err;
@@ -85,7 +83,7 @@ static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
 	list_del(&reply->entry);
 	reply->waiting = false;
 	reply->err = err;
-	wake_up_interruptible(&reply->wait);
+	wake_up_interruptible(&reply->conn->wait);
 }
 
 /*
@@ -445,7 +443,6 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 	r->cookie = msg->cookie;
 
 	if (sync) {
-		init_waitqueue_head(&r->wait);
 		r->sync = true;
 		r->waiting = true;
 	} else {
@@ -781,7 +778,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * by the timeout scans that might be conducted for other,
 		 * asynchronous replies of conn_src.
 		 */
-		r = wait_event_interruptible_timeout(reply_wait->wait,
+		r = wait_event_interruptible_timeout(reply_wait->conn->wait,
 						     !reply_wait->waiting,
 						     usecs_to_jiffies(usecs));
 		if (r == 0)
