@@ -779,12 +779,14 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * asynchronous replies of conn_src.
 		 */
 		r = wait_event_interruptible_timeout(reply_wait->conn->wait,
-						     !reply_wait->waiting,
-						     usecs_to_jiffies(usecs));
+			!reply_wait->waiting || !kdbus_conn_active(conn_src),
+			usecs_to_jiffies(usecs));
 		if (r == 0)
 			ret = -ETIMEDOUT;
 		else if (r < 0)
 			ret = -EINTR;
+		else if (!kdbus_conn_active(conn_src))
+			ret = -ECONNRESET;
 		else
 			ret = reply_wait->err;
 
@@ -853,6 +855,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	atomic_add(KDBUS_CONN_ACTIVE_BIAS, &conn->active);
 	mutex_unlock(&conn->lock);
 
+	wake_up_interruptible(&conn->wait);
+
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	rwsem_acquire(&conn->dep_map, 0, 0, _RET_IP_);
 	if (atomic_read(&conn->active) != KDBUS_CONN_ACTIVE_BIAS)
@@ -914,9 +918,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		list_del(&reply->entry);
 		kdbus_conn_reply_free(reply);
 	}
-
-	/* wake up the entry so that users can get a POLLERR */
-	wake_up_interruptible(&conn->wait);
 
 	kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_REMOVE,
 			       conn->id, conn->flags);
