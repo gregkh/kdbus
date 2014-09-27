@@ -585,12 +585,16 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_NAME_LIST: {
 		struct kdbus_cmd_name_list cmd;
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-			return -EFAULT;
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
+			ret = -EFAULT;
+			break;
+		}
 
 		/* query current IDs and names */
-		if (copy_from_user(&cmd, buf, sizeof(cmd)))
-			return -EFAULT;
+		if (copy_from_user(&cmd, buf, sizeof(cmd))) {
+			ret = -EFAULT;
+			break;
+		}
 
 		ret = kdbus_cmd_name_list(conn->bus->name_registry,
 					  conn, &cmd);
@@ -735,12 +739,16 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-			return -EFAULT;
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
+			ret = -EFAULT;
+			break;
+		}
 
 		/* handle a queued message */
-		if (copy_from_user(&cmd, buf, sizeof(cmd)))
-			return -EFAULT;
+		if (copy_from_user(&cmd, buf, sizeof(cmd))) {
+			ret = -EFAULT;
+			break;
+		}
 
 		ret = kdbus_cmd_msg_recv(conn, &cmd);
 		if (ret < 0)
@@ -762,12 +770,16 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-			return -EFAULT;
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
+			ret = -EFAULT;
+			break;
+		}
 
 		/* cancel sync message send requests by cookie */
-		if (copy_from_user(&cookie, buf, sizeof(cookie)))
-			return -EFAULT;
+		if (copy_from_user(&cookie, buf, sizeof(cookie))) {
+			ret = -EFAULT;
+			break;
+		}
 
 		ret = kdbus_cmd_msg_cancel(conn, cookie);
 		break;
@@ -783,12 +795,16 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf))
-			return -EFAULT;
+		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
+			ret = -EFAULT;
+			break;
+		}
 
 		/* free the memory used in the receiver's pool */
-		if (copy_from_user(&off, buf, sizeof(off)))
-			return -EFAULT;
+		if (copy_from_user(&off, buf, sizeof(off))) {
+			ret = -EFAULT;
+			break;
+		}
 
 		slice = kdbus_pool_slice_find(conn->pool, off);
 		if (!slice)
