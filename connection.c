@@ -80,7 +80,7 @@ static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
 {
 	BUG_ON(!reply->sync);
 
-	list_del(&reply->entry);
+	list_del_init(&reply->entry);
 	reply->waiting = false;
 	reply->err = err;
 	wake_up_interruptible(&reply->conn->wait);
@@ -260,7 +260,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 			if (entry->reply->sync) {
 				kdbus_conn_reply_sync(entry->reply, -EPIPE);
 			} else {
-				list_del(&entry->reply->entry);
+				list_del_init(&entry->reply->entry);
 				reply = entry->reply;
 			}
 
@@ -790,16 +790,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		else
 			ret = reply_wait->err;
 
-		/*
-		 * If we weren't woken up sanely via kdbus_conn_reply_sync(),
-		 * reply_wait->entry is dangling in the connection's
-		 * reply_list and needs to be killed manually.
-		 */
-		if (r <= 0) {
-			mutex_lock(&conn_dst->lock);
-			list_del(&reply_wait->entry);
-			mutex_unlock(&conn_dst->lock);
-		}
+		mutex_lock(&conn_dst->lock);
+		list_del_init(&reply_wait->entry);
+		mutex_unlock(&conn_dst->lock);
 
 		mutex_lock(&conn_src->lock);
 		entry = reply_wait->queue_entry;
