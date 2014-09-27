@@ -106,6 +106,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
+		.name	= "sync-byebye",
+		.desc	= "synchronous replies vs. BYEBYE",
+		.func	= kdbus_test_sync_byebye,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		.name	= "sync-reply",
 		.desc	= "synchronous replies",
 		.func	= kdbus_test_sync_reply,
