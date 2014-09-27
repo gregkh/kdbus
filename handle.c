@@ -531,7 +531,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	long ret = 0;
 
 	/*
- 	 * BYEBYE is special; we must not acquire a connection when
+	 * BYEBYE is special; we must not acquire a connection when
 	 * calling into kdbus_conn_disconnect() or we will deadlock,
 	 * because kdbus_conn_disconnect() will wait for all acquired
 	 * references to be dropped.
@@ -568,7 +568,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 
 		/* return flags to the caller */
-		if (copy_to_user(buf, p, ((struct kdbus_cmd_name*)p)->size))
+		if (copy_to_user(buf, p, ((struct kdbus_cmd_name *)p)->size))
 			ret = -EFAULT;
 
 		break;

@@ -1030,7 +1030,8 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
  *
  * Return: 0 on success, negative error code on failure.
  */
-int kdbus_conn_acquire(struct kdbus_conn *conn) {
+int kdbus_conn_acquire(struct kdbus_conn *conn)
+{
 	if (!atomic_inc_unless_negative(&conn->active))
 		return -ECONNRESET;
 
@@ -1050,7 +1051,8 @@ int kdbus_conn_acquire(struct kdbus_conn *conn) {
  * last active-ref that is dropped, the disconnect-waiter will be woken up and
  * properly close the connection.
  */
-void kdbus_conn_release(struct kdbus_conn *conn) {
+void kdbus_conn_release(struct kdbus_conn *conn)
+{
 	int v;
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC

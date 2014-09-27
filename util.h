@@ -79,7 +79,7 @@
 
 /**
  * kdbus_check_strlen - check that the string at the end of a structure is
- * 			zero-terminated
+ *			zero-terminated
  * @_p:			A pointer to a structure that has a size member and
  *			a variable string at its end
  * @_s:			The name of the dynamically sized string member
