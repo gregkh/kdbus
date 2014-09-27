@@ -4,6 +4,7 @@
  * Copyright (C) 2013-2014 Linux Foundation
  * Copyright (C) 2013-2014 Lennart Poettering
  * Copyright (C) 2013-2014 Daniel Mack <daniel@zonque.org>
+ * Copyright (C) 2013-2014 David Herrmann <dh.herrmann@gmail.com>
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
