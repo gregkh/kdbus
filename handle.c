@@ -529,16 +529,20 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	void *p = NULL;
 	long ret = 0;
 
+	/* BYEBYE is special; we must not acquire a connection when
+	 * calling into kdbus_conn_disconnect() or we will deadlock. */
+	if (cmd == KDBUS_CMD_BYEBYE) {
+		if (!kdbus_conn_is_connected(conn))
+			return -EOPNOTSUPP;
+
+		return kdbus_conn_disconnect(conn, true);
+	}
+
+	ret = kdbus_conn_acquire(conn);
+	if (ret < 0)
+		return ret;
+
 	switch (cmd) {
-	case KDBUS_CMD_BYEBYE:
-		if (!kdbus_conn_is_connected(conn)) {
-			ret = -EOPNOTSUPP;
-			break;
-		}
-
-		ret = kdbus_conn_disconnect(conn, true);
-		break;
-
 	case KDBUS_CMD_NAME_ACQUIRE:
 		/* acquire a well-known name */
 
@@ -666,12 +670,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_conn_acquire(conn);
-		if (ret < 0)
-			break;
-
 		ret = kdbus_match_db_add(conn, p);
-		kdbus_conn_release(conn);
 		break;
 
 	case KDBUS_CMD_MATCH_REMOVE:
@@ -689,12 +688,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_conn_acquire(conn);
-		if (ret < 0)
-			break;
-
 		kdbus_match_db_remove(conn, p);
-		kdbus_conn_release(conn);
 		break;
 
 	case KDBUS_CMD_MSG_SEND: {
@@ -820,6 +814,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
+	kdbus_conn_release(conn);
 	kfree(p);
 	return ret;
 }
