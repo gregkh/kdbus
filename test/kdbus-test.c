@@ -241,9 +241,9 @@ static int test_prepare_env(const struct kdbus_test *t,
 			open("/dev/" KBUILD_MODNAME "/control", O_RDWR);
 		ASSERT_RETURN(env->control_fd >= 0);
 
-		srand(time(NULL));
-
 		if (!busname) {
+			srand(time(NULL));
+
 			for (i = 0; i < sizeof(n) - 1; i++)
 				n[i] = 'a' + (rand() % ('z' - 'a'));
 			n[sizeof(n) - 1] = 0;
