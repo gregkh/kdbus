@@ -414,9 +414,11 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 	struct timespec ts;
 	int ret = 0;
 
-	if (atomic_read(&conn_src->reply_count) >
-	    KDBUS_CONN_MAX_REQUESTS_PENDING)
-		return -EMLINK;
+	if (atomic_inc_return(&conn_src->reply_count) >
+	    KDBUS_CONN_MAX_REQUESTS_PENDING) {
+		ret = -EMLINK;
+		goto exit_dec_repy_count;
+	}
 
 	mutex_lock(&conn_dst->lock);
 	if (!kdbus_conn_active(conn_dst)) {
@@ -453,7 +455,6 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 	}
 
 	list_add(&r->entry, &conn_dst->reply_list);
-	atomic_inc(&conn_src->reply_count);
 	*reply_wait = r;
 
 	/*
@@ -470,6 +471,10 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 exit_unlock:
 	mutex_unlock(&conn_dst->lock);
 
+exit_dec_repy_count:
+	if (ret < 0)
+		atomic_dec(&conn_src->reply_count);
+
 	return ret;
 }
 
@@ -482,12 +487,15 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 	struct kdbus_queue_entry *entry;
 	int ret;
 
+	mutex_lock(&conn->lock);
+
 	/* limit the maximum number of queued messages */
 	if (!kdbus_bus_uid_is_privileged(conn->bus) &&
-	    conn->queue.msg_count > KDBUS_CONN_MAX_MSGS)
-		return -ENOBUFS;
+	    conn->queue.msg_count > KDBUS_CONN_MAX_MSGS) {
+		ret = -ENOBUFS;
+		goto exit_unlock;
+	}
 
-	mutex_lock(&conn->lock);
 	if (!kdbus_conn_active(conn)) {
 		ret = -ECONNRESET;
 		goto exit_unlock;
