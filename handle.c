@@ -807,8 +807,10 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		}
 
 		slice = kdbus_pool_slice_find(conn->pool, off);
-		if (!slice)
-			return -ENXIO;
+		if (!slice) {
+			ret = -ENXIO;
+			break;
+		}
 		kdbus_pool_slice_free(slice);
 		break;
 	}
