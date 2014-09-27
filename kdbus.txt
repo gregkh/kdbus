@@ -98,7 +98,7 @@ Articles about D-Bus and kdbus:
     See section 10 for more details.
 
   Policy:
-    A policy is a set of rules thet define which connections can see, talk to,
+    A policy is a set of rules that define which connections can see, talk to,
     or register a well-know name on the bus. A policy is attached to buses and
     custom endpoints, and modified by policy holder connection or owners of
     custom endpoints. See section 11 for more details.
@@ -1349,7 +1349,7 @@ the connection owns.
 If a policy database exists for a bus (because a policy holder created one on
 demand) or for a custom endpoint (which always has one), each one is consulted
 during name registry listing, name owning or message delivery. If either one
-fails, the operation is failed with -ENOPERM.
+fails, the operation is failed with -EPERM.
 
 11.5 Implicit policies
 ----------------------
