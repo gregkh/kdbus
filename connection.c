@@ -102,7 +102,7 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 	if (!conn_src)
 		return 0;
 
-	if (kdbus_bus_uid_is_privileged(conn->bus))
+	if (ns_capable(&init_user_ns, CAP_IPC_OWNER))
 		return 0;
 
 	/*
@@ -490,7 +490,7 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 	mutex_lock(&conn->lock);
 
 	/* limit the maximum number of queued messages */
-	if (!kdbus_bus_uid_is_privileged(conn->bus) &&
+	if (!ns_capable(&init_user_ns, CAP_IPC_OWNER) &&
 	    conn->queue.msg_count > KDBUS_CONN_MAX_MSGS) {
 		ret = -ENOBUFS;
 		goto exit_unlock;
