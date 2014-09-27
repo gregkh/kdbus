@@ -350,7 +350,7 @@ int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 		}
 	}
 
-	f = shmem_file_setup(n ? n : KBUILD_MODNAME "-conn", size, VM_NORESERVE);
+	f = shmem_file_setup(n ?: KBUILD_MODNAME "-conn", size, VM_NORESERVE);
 	kfree(n);
 
 	if (IS_ERR(f)) {
