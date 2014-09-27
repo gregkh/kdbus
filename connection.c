@@ -417,7 +417,7 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 	if (atomic_inc_return(&conn_src->reply_count) >
 	    KDBUS_CONN_MAX_REQUESTS_PENDING) {
 		ret = -EMLINK;
-		goto exit_dec_repy_count;
+		goto exit_dec_reply_count;
 	}
 
 	mutex_lock(&conn_dst->lock);
@@ -471,7 +471,7 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 exit_unlock:
 	mutex_unlock(&conn_dst->lock);
 
-exit_dec_repy_count:
+exit_dec_reply_count:
 	if (ret < 0)
 		atomic_dec(&conn_src->reply_count);
 
