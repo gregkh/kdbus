@@ -559,6 +559,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_name),
 					sizeof(struct kdbus_cmd_name) +
+						KDBUS_ITEM_HEADER_SIZE +
 						KDBUS_NAME_MAX_LEN + 1);
 		if (ret < 0)
 			break;
@@ -584,6 +585,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_name),
 					sizeof(struct kdbus_cmd_name) +
+						KDBUS_ITEM_HEADER_SIZE +
 						KDBUS_NAME_MAX_LEN + 1);
 		if (ret < 0)
 			break;
