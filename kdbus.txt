@@ -1592,6 +1592,9 @@ For KDBUS_CMD_MSG_CANCEL:
 For KDBUS_CMD_FREE:
 
   -ENXIO	No pool slice found at given offset
+  -EINVAL	The offset is valid, but the user is not allowed to free the
+		slice. This happens, for example, if the offset was retrieved
+		with KDBUS_RECV_PEEK.
 
 For KDBUS_CMD_NAME_ACQUIRE:
 

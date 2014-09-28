@@ -300,6 +300,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_queue_entry_install(entry);
+	kdbus_pool_slice_make_public(entry->slice);
 	kdbus_queue_entry_remove(conn, entry);
 	kdbus_queue_entry_free(entry);
 
@@ -803,6 +804,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 			kmsg->msg.offset_reply =
 				kdbus_pool_slice_offset(entry->slice);
+			kdbus_pool_slice_make_public(entry->slice);
 			kdbus_queue_entry_free(entry);
 		}
 		mutex_unlock(&conn_src->lock);
@@ -1227,6 +1229,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 	/* write back the offset */
 	cmd_info->offset = kdbus_pool_slice_offset(slice);
+	kdbus_pool_slice_make_public(slice);
 	kdbus_pool_slice_flush(slice);
 
 exit_free:

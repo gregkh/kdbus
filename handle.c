@@ -810,6 +810,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			ret = -ENXIO;
 			break;
 		}
+
+		if (!kdbus_pool_slice_is_public(slice)) {
+			ret = -EINVAL;
+			break;
+		}
+
 		kdbus_pool_slice_free(slice);
 		break;
 	}

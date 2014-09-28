@@ -37,4 +37,7 @@ ssize_t
 kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
 			    const void __user *data, size_t len);
 void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice);
+
+void kdbus_pool_slice_make_public(struct kdbus_pool_slice *slice);
+bool kdbus_pool_slice_is_public(const struct kdbus_pool_slice *slice);
 #endif

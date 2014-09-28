@@ -70,6 +70,8 @@ struct kdbus_pool {
  * @entry:		Entry in "all slices" list
  * @rb_node:		Entry in free or busy list
  * @free:		Unused slice
+ * @public:		Slice was exposed to userspace and may be freed
+ *			with KDBUS_CMD_FREE.
  *
  * The pool has one or more slices, always spanning the entire size of the
  * pool.
@@ -89,6 +91,7 @@ struct kdbus_pool_slice {
 	struct list_head entry;
 	struct rb_node rb_node;
 	bool free;
+	bool public;
 };
 
 static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,
@@ -104,6 +107,7 @@ static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,
 	slice->off = off;
 	slice->size = size;
 	slice->free = true;
+	slice->public = false;
 	return slice;
 }
 
@@ -250,6 +254,7 @@ int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	}
 
 	s->free = false;
+	s->public = false;
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
 
@@ -318,6 +323,26 @@ void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 {
 	return slice->off;
+}
+
+/**
+ * kdbus_pool_slice_make_public() - set a slice's public flag to true
+ * @slice:		The slice
+ */
+void kdbus_pool_slice_make_public(struct kdbus_pool_slice *slice)
+{
+	slice->public = true;
+}
+
+/**
+ * kdbus_pool_slice_is_public() - return the slice's public flag
+ * @slice:		The slice
+ *
+ * Return: true if the slice was exposed to userspace and may be freed
+ */
+bool kdbus_pool_slice_is_public(const struct kdbus_pool_slice *slice)
+{
+	return slice->public;
 }
 
 /**
