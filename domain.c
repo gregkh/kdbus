@@ -23,8 +23,8 @@
 
 #include "bus.h"
 #include "defaults.h"
-#include "handle.h"
 #include "domain.h"
+#include "handle.h"
 #include "util.h"
 
 /* map of majors to domains */

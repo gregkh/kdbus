@@ -27,12 +27,12 @@
 
 #include "bus.h"
 #include "connection.h"
+#include "domain.h"
 #include "endpoint.h"
 #include "handle.h"
 #include "match.h"
 #include "message.h"
 #include "names.h"
-#include "domain.h"
 #include "policy.h"
 
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)

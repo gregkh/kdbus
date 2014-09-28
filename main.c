@@ -14,12 +14,9 @@
 #define pr_fmt(fmt)    KBUILD_MODNAME ": " fmt
 #include <linux/device.h>
 #include <linux/fs.h>
-#include <linux/idr.h>
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/sched.h>
 
-#include "defaults.h"
 #include "util.h"
 #include "domain.h"
 

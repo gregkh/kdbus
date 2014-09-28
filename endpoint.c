@@ -21,10 +21,10 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#include "connection.h"
 #include "bus.h"
-#include "endpoint.h"
+#include "connection.h"
 #include "domain.h"
+#include "endpoint.h"
 #include "policy.h"
 
 /* endpoints are by default owned by the bus owner */
