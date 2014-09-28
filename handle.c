@@ -653,8 +653,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_update),
-					sizeof(struct kdbus_cmd_update) +
-						KDBUS_UPDATE_MAX_SIZE);
+					KDBUS_UPDATE_MAX_SIZE);
 		if (ret < 0)
 			break;
 
@@ -672,8 +671,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_match),
-					sizeof(struct kdbus_cmd_match) +
-						KDBUS_MATCH_MAX_SIZE);
+					KDBUS_MATCH_MAX_SIZE);
 		if (ret < 0)
 			break;
 
@@ -848,8 +846,7 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 		/* update the properties of a custom endpoint */
 		ret = kdbus_memdup_user(buf, &p,
 					sizeof(struct kdbus_cmd_update),
-					sizeof(struct kdbus_cmd_update) +
-					       KDBUS_UPDATE_MAX_SIZE);
+					KDBUS_UPDATE_MAX_SIZE);
 		if (ret < 0)
 			break;
 
