@@ -181,6 +181,7 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 			ASSERT_RETURN_VAL(0, -EINVAL);
 		}
 
+	kdbus_msg_free(msg);
 	ret = waitpid(pid, &status, 0);
 	ASSERT_RETURN(ret >= 0);
 

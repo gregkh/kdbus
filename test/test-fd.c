@@ -103,9 +103,11 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 			ASSERT_RETURN(memcmp(tmp, str, sizeof(tmp)) == 0);
 
 			close(item->fds[0]);
-			break;
 		}
 	}
+
+	close(fds[0]);
+	close(fds[1]);
 
 	kdbus_conn_free(conn_src);
 	kdbus_conn_free(conn_dst);

@@ -88,6 +88,7 @@ static int msg_recv_prio(struct kdbus_conn *conn,
 		return -EINVAL;
 	}
 
+	kdbus_msg_free(msg);
 	ret = kdbus_free(conn, recv.offset);
 	if (ret < 0)
 		return ret;

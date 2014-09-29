@@ -253,6 +253,8 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 		if (item->type == KDBUS_ITEM_TIMESTAMP)
 			found = 1;
 
+	kdbus_msg_free(msg);
+
 	ASSERT_RETURN(found == 1);
 
 	/*
@@ -276,6 +278,8 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 			found = 1;
 
 	ASSERT_RETURN(found == 0);
+
+	kdbus_msg_free(msg);
 
 	kdbus_conn_free(conn);
 

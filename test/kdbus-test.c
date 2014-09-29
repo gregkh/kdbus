@@ -330,13 +330,13 @@ static int run_all_tests(const char *busname)
 	unsigned int i;
 	const struct kdbus_test *t;
 
+	kdbus_util_verbose = false;
+
 	for (t = tests; t->name; t++) {
 		printf("Testing %s (%s) ", t->desc, t->name);
 		for (i = 0; i < 60 - strlen(t->desc) - strlen(t->name); i++)
 			printf(".");
 		printf(" ");
-
-		kdbus_util_verbose = false;
 
 		ret = test_run(t, busname, 0);
 		switch (ret) {

@@ -367,14 +367,14 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 	item = KDBUS_ITEM_NEXT(item);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	if (memfd >= 0)
+		close(memfd);
+
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
-
-	if (memfd >= 0)
-		close(memfd);
 
 	if (flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
 		struct kdbus_msg *reply;
@@ -382,6 +382,8 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 		kdbus_printf("SYNC REPLY @offset %llu:\n", msg->offset_reply);
 		reply = (struct kdbus_msg *)(conn->buf + msg->offset_reply);
 		kdbus_msg_dump(conn, reply);
+
+		kdbus_msg_free(reply);
 
 		ret = kdbus_free(conn, msg->offset_reply);
 		if (ret < 0)
