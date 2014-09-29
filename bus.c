@@ -348,10 +348,6 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 	const struct kdbus_bloom_parameter *bl = NULL;
 
 	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
-		size_t payload_size;
-
-		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
-
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
 			if (n)
