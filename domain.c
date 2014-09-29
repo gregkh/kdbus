@@ -261,28 +261,29 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	/* lock order: parent domain -> domain -> subsys_lock */
-	if (parent) {
-		mutex_lock(&parent->lock);
-		if (parent->disconnected) {
-			mutex_unlock(&parent->lock);
-			ret = -ESHUTDOWN;
-			goto exit_free;
-		}
-	}
-
-	mutex_lock(&kdbus_subsys_lock);
-
 	/* compose name and path of base directory in /dev */
 	if (!parent) {
 		/* initial domain */
 		d->devpath = kstrdup(KBUILD_MODNAME, GFP_KERNEL);
 		if (!d->devpath) {
 			ret = -ENOMEM;
-			goto exit_unlock;
+			goto exit_free;
 		}
+
+		mutex_lock(&kdbus_subsys_lock);
+
 	} else {
 		struct kdbus_domain *exists;
+
+		/* lock order: parent domain -> domain -> subsys_lock */
+		mutex_lock(&parent->lock);
+		if (parent->disconnected) {
+			mutex_unlock(&parent->lock);
+			ret = -ESHUTDOWN;
+			goto exit_free;
+		}
+
+		mutex_lock(&kdbus_subsys_lock);
 
 		exists = kdbus_domain_find(parent, name);
 		if (exists) {
