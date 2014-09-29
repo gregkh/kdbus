@@ -157,15 +157,8 @@ static void kdbus_pool_add_busy_slice(struct kdbus_pool *pool,
 	rb_insert_color(&slice->rb_node, &pool->slices_busy);
 }
 
-/**
- * kdbus_pool_slice_find() - find a slice by its offset
- * @pool:		The receiver's pool
- * @off:		The offset of the slice in the pool
- *
- * Return: allocated slice, NULL on failure.
- */
-struct kdbus_pool_slice *kdbus_pool_slice_find(struct kdbus_pool *pool,
-					       size_t off)
+static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
+						      size_t off)
 {
 	struct rb_node *n;
 
@@ -263,20 +256,12 @@ exit_unlock:
 	return ret;
 }
 
-/**
- * kdbus_pool_slice_free() - give allocated memory back to the pool
- * @slice:		Slice allocated from the the pool
- *
- * The slice was returned by the call to kdbus_pool_alloc_slice(), the
- * memory is returned to the pool.
- */
-void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
+static void __kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 {
 	struct kdbus_pool *pool = slice->pool;
 
 	BUG_ON(slice->free);
 
-	mutex_lock(&slice->pool->lock);
 	rb_erase(&slice->rb_node, &pool->slices_busy);
 	pool->busy -= slice->size;
 
@@ -311,7 +296,55 @@ void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 
 	slice->free = true;
 	kdbus_pool_add_free_slice(pool, slice);
-	mutex_unlock(&slice->pool->lock);
+}
+
+/**
+ * kdbus_pool_slice_free() - give allocated memory back to the pool
+ * @slice:		Slice allocated from the the pool
+ *
+ * The slice was returned by the call to kdbus_pool_alloc_slice(), the
+ * memory is returned to the pool.
+ */
+void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
+{
+	struct kdbus_pool *pool = slice->pool;
+
+	mutex_lock(&pool->lock);
+	__kdbus_pool_slice_free(slice);
+	mutex_unlock(&pool->lock);
+}
+
+/**
+ * kdbus_pool_release_offset() - release a public offset
+ * @pool:		pool to operate on
+ * @off:		offset to release
+ *
+ * This should be called whenever user-space frees a slice given to them. It
+ * verifies the slice is available and public, and then drops it. It ensures
+ * correct locking and barriers against queues.
+ *
+ * Return: 0 on success, ENXIO if the offset is invalid, EINVAL if the offset is
+ * valid but not public.
+ */
+int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
+{
+	struct kdbus_pool_slice *slice;
+	int ret = 0;
+
+	mutex_lock(&pool->lock);
+	slice = kdbus_pool_find_slice(pool, off);
+	if (slice) {
+		if (slice->public) {
+			__kdbus_pool_slice_free(slice);
+		} else {
+			ret = -EINVAL;
+		}
+	} else {
+		ret = -ENXIO;
+	}
+	mutex_unlock(&pool->lock);
+
+	return ret;
 }
 
 /**
@@ -332,17 +365,6 @@ size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 void kdbus_pool_slice_make_public(struct kdbus_pool_slice *slice)
 {
 	slice->public = true;
-}
-
-/**
- * kdbus_pool_slice_is_public() - return the slice's public flag
- * @slice:		The slice
- *
- * Return: true if the slice was exposed to userspace and may be freed
- */
-bool kdbus_pool_slice_is_public(const struct kdbus_pool_slice *slice)
-{
-	return slice->public;
 }
 
 /**

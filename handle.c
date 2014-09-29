@@ -786,7 +786,6 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_FREE: {
 		u64 off;
-		struct kdbus_pool_slice *slice;
 
 		if (!kdbus_conn_is_connected(conn) &&
 		    !kdbus_conn_is_monitor(conn)) {
@@ -805,18 +804,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		slice = kdbus_pool_slice_find(conn->pool, off);
-		if (!slice) {
-			ret = -ENXIO;
-			break;
-		}
-
-		if (!kdbus_pool_slice_is_public(slice)) {
-			ret = -EINVAL;
-			break;
-		}
-
-		kdbus_pool_slice_free(slice);
+		ret = kdbus_pool_release_offset(conn->pool, off);
 		break;
 	}
 

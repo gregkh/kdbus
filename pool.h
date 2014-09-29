@@ -24,6 +24,7 @@ int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);
 int kdbus_pool_move_slice(struct kdbus_pool *dst_pool,
 			  struct kdbus_pool *src_pool,
 			  struct kdbus_pool_slice **slice);
+int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off);
 
 int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 			   struct kdbus_pool_slice **slice, size_t size);
@@ -39,5 +40,4 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
 void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice);
 
 void kdbus_pool_slice_make_public(struct kdbus_pool_slice *slice);
-bool kdbus_pool_slice_is_public(const struct kdbus_pool_slice *slice);
 #endif
