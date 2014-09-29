@@ -18,6 +18,11 @@
 #include "limits.h"
 #include "util.h"
 
+#define KDBUS_ITEM_VALID(_i, _is, _s)					\
+	((_i)->size > KDBUS_ITEM_HEADER_SIZE &&				\
+	 (u8 *)(_i) + (_i)->size <= (u8 *)(_is) + (_s) &&		\
+	 (u8 *)(_i) >= (u8 *)(_is))
+
 /**
  * kdbus_item_validate_name() - validate an item containing a name
  * @item:		Item to validate
