@@ -570,6 +570,9 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	for (i = 0; i < MAX_CONN; i++)
 		kdbus_conn_free(conn_db[i]);
 
+	kdbus_conn_free(activator);
+	kdbus_conn_free(policy_holder);
+
 	free(conn_db);
 
 	return ret;

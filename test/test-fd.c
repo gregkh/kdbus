@@ -107,5 +107,8 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 		}
 	}
 
+	kdbus_conn_free(conn_src);
+	kdbus_conn_free(conn_dst);
+
 	return TEST_OK;
 }
