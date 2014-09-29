@@ -361,6 +361,9 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 			break;
 
 		case KDBUS_ITEM_BLOOM_PARAMETER:
+			if (bl)
+				return -EEXIST;
+
 			bl = &item->bloom_parameter;
 			break;
 		}
