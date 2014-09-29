@@ -38,3 +38,213 @@ int kdbus_item_validate_name(const struct kdbus_item *item)
 
 	return kdbus_sysname_is_valid(item->str);
 }
+
+static int kdbus_item_validate(const struct kdbus_item *item)
+{
+	size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
+	int ret;
+
+	if (item->size < KDBUS_ITEM_HEADER_SIZE)
+		return -EINVAL;
+
+	switch (item->type) {
+	case KDBUS_ITEM_PAYLOAD_VEC:
+		if (payload_size != sizeof(struct kdbus_vec))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_PAYLOAD_OFF:
+		if (payload_size != sizeof(struct kdbus_vec))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_PAYLOAD_MEMFD:
+		if (payload_size != sizeof(struct kdbus_memfd))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_FDS:
+		if (payload_size % sizeof(int) != 0)
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_BLOOM_PARAMETER:
+		if (payload_size != sizeof(struct kdbus_bloom_parameter))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_BLOOM_FILTER:
+		/* followed by the bloom-mask, depends on the bloom-size */
+		if (payload_size < sizeof(struct kdbus_bloom_filter))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_BLOOM_MASK:
+		/* size depends on bloom-size of bus */
+		break;
+
+	case KDBUS_ITEM_DST_NAME:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_MAKE_NAME:
+		ret = kdbus_item_validate_name(item);
+		if (ret < 0)
+			return ret;
+		break;
+
+	case KDBUS_ITEM_ATTACH_FLAGS:
+		if (payload_size != sizeof(u64))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_NAME:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_ID:
+		if (payload_size != sizeof(u64))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_TIMESTAMP:
+		if (payload_size != sizeof(struct kdbus_timestamp))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_CREDS:
+		if (payload_size != sizeof(struct kdbus_creds))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_AUXGROUPS:
+		if (payload_size % sizeof(u64) != 0)
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_PID_COMM:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_TID_COMM:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_EXE:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_CMDLINE:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_CGROUP:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_CAPS:
+		/* TODO */
+		break;
+
+	case KDBUS_ITEM_SECLABEL:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_AUDIT:
+		if (payload_size != sizeof(struct kdbus_audit))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_CONN_NAME:
+		if (!kdbus_item_validate_nul(item))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_POLICY_ACCESS:
+		if (payload_size != sizeof(struct kdbus_policy_access))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_NAME_ADD:
+		if (payload_size < sizeof(struct kdbus_notify_name_change))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_NAME_REMOVE:
+		if (payload_size < sizeof(struct kdbus_notify_name_change))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_NAME_CHANGE:
+		if (payload_size < sizeof(struct kdbus_notify_name_change))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_ID_ADD:
+		if (payload_size != sizeof(struct kdbus_notify_id_change))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_ID_REMOVE:
+		if (payload_size != sizeof(struct kdbus_notify_id_change))
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_REPLY_TIMEOUT:
+		if (payload_size != 0)
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_REPLY_DEAD:
+		if (payload_size != 0)
+			return -EINVAL;
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+/**
+ * kdbus_items_validate() - validate items passed by user-space
+ * @items:		items to validate
+ * @items_size:		number of items
+ *
+ * This verifies that the passed items pointer is consistent and valid.
+ * Furthermore, each item is checked for:
+ *  - valid "size" value
+ *  - payload is of expected type
+ *  - payload is fully included in the item
+ *  - string payloads are zero-terminated
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_items_validate(const struct kdbus_item *items, size_t items_size)
+{
+	const struct kdbus_item *item;
+	int ret;
+
+	KDBUS_ITEMS_FOREACH(item, items, items_size) {
+		if (!KDBUS_ITEM_VALID(item, items, items_size))
+			return -EINVAL;
+
+		ret = kdbus_item_validate(item);
+		if (ret < 0)
+			return ret;
+	}
+
+	if (!KDBUS_ITEMS_END(item, items, items_size))
+		return -EINVAL;
+
+	return 0;
+}

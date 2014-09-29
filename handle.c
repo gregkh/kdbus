@@ -297,6 +297,12 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		make = p;
+
+		ret = kdbus_items_validate(make->items,
+					   KDBUS_ITEMS_SIZE(make, items));
+		if (ret < 0)
+			break;
+
 		ret = kdbus_bus_make_user(make, &name, &bloom);
 		if (ret < 0)
 			break;
@@ -346,6 +352,12 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 
 		make = p;
+
+		ret = kdbus_items_validate(make->items,
+					   KDBUS_ITEMS_SIZE(make, items));
+		if (ret < 0)
+			break;
+
 		ret = kdbus_domain_make_user(make, &name);
 		if (ret < 0)
 			break;
@@ -414,6 +426,12 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 
 		make = p;
+
+		ret = kdbus_items_validate(make->items,
+					   KDBUS_ITEMS_SIZE(make, items));
+		if (ret < 0)
+			break;
+
 		ret = kdbus_ep_make_user(make, &name);
 		if (ret < 0)
 			break;
@@ -480,6 +498,11 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 
 		hello = p;
+
+		ret = kdbus_items_validate(hello->items,
+					   KDBUS_ITEMS_SIZE(hello, items));
+		if (ret < 0)
+			break;
 
 		if (!kdbus_check_flags(hello->conn_flags)) {
 			ret = -EOPNOTSUPP;
@@ -549,8 +572,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		return ret;
 
 	switch (cmd) {
-	case KDBUS_CMD_NAME_ACQUIRE:
+	case KDBUS_CMD_NAME_ACQUIRE: {
 		/* acquire a well-known name */
+		struct kdbus_cmd_name *cmd;
 
 		if (!kdbus_conn_is_connected(conn)) {
 			ret = -EOPNOTSUPP;
@@ -562,6 +586,13 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 					sizeof(struct kdbus_cmd_name) +
 						KDBUS_ITEM_HEADER_SIZE +
 						KDBUS_NAME_MAX_LEN + 1);
+		if (ret < 0)
+			break;
+
+		cmd = p;
+
+		ret = kdbus_items_validate(cmd->items,
+					   KDBUS_ITEMS_SIZE(cmd, items));
 		if (ret < 0)
 			break;
 
@@ -574,9 +605,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			ret = -EFAULT;
 
 		break;
+	}
 
-	case KDBUS_CMD_NAME_RELEASE:
+	case KDBUS_CMD_NAME_RELEASE: {
 		/* release a well-known name */
+		struct kdbus_cmd_name *cmd;
 
 		if (!kdbus_conn_is_connected(conn)) {
 			ret = -EOPNOTSUPP;
@@ -591,8 +624,16 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd = p;
+
+		ret = kdbus_items_validate(cmd->items,
+					   KDBUS_ITEMS_SIZE(cmd, items));
+		if (ret < 0)
+			break;
+
 		ret = kdbus_cmd_name_release(conn->bus->name_registry, conn, p);
 		break;
+	}
 
 	case KDBUS_CMD_NAME_LIST: {
 		struct kdbus_cmd_name_list cmd;
@@ -644,8 +685,10 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_CONN_UPDATE:
+	case KDBUS_CMD_CONN_UPDATE: {
 		/* update the properties of a connection */
+		struct kdbus_cmd_update *cmd;
+
 		if (!kdbus_conn_is_connected(conn) &&
 		    !kdbus_conn_is_policy_holder(conn)) {
 			ret = -EOPNOTSUPP;
@@ -658,11 +701,20 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd = p;
+
+		ret = kdbus_items_validate(cmd->items,
+					   KDBUS_ITEMS_SIZE(cmd, items));
+		if (ret < 0)
+			break;
+
 		ret = kdbus_cmd_conn_update(conn, p);
 		break;
+	}
 
-	case KDBUS_CMD_MATCH_ADD:
+	case KDBUS_CMD_MATCH_ADD: {
 		/* subscribe to/filter for broadcast messages */
+		struct kdbus_cmd_match *cmd;
 
 		if (!kdbus_conn_is_connected(conn) &&
 		    !kdbus_conn_is_monitor(conn)) {
@@ -676,11 +728,20 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd = p;
+
+		ret = kdbus_items_validate(cmd->items,
+					   KDBUS_ITEMS_SIZE(cmd, items));
+		if (ret < 0)
+			break;
+
 		ret = kdbus_match_db_add(conn, p);
 		break;
+	}
 
-	case KDBUS_CMD_MATCH_REMOVE:
+	case KDBUS_CMD_MATCH_REMOVE: {
 		/* unsubscribe from broadcast messages */
+		struct kdbus_cmd_match *cmd;
 
 		if (!kdbus_conn_is_connected(conn) &&
 		    !kdbus_conn_is_monitor(conn)) {
@@ -694,8 +755,16 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd = p;
+
+		ret = kdbus_items_validate(cmd->items,
+					   KDBUS_ITEMS_SIZE(cmd, items));
+		if (ret < 0)
+			break;
+
 		kdbus_match_db_remove(conn, p);
 		break;
+	}
 
 	case KDBUS_CMD_MSG_SEND: {
 		/* submit a message which will be queued in the receiver */
@@ -840,6 +909,12 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 			break;
 
 		cmd = p;
+
+		ret = kdbus_items_validate(cmd->items,
+					   KDBUS_ITEMS_SIZE(cmd, items));
+		if (ret < 0)
+			break;
+
 		ret = kdbus_ep_policy_set(ep, cmd->items,
 					  KDBUS_ITEMS_SIZE(cmd, items));
 		break;

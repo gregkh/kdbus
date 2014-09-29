@@ -56,5 +56,6 @@ static inline bool kdbus_item_validate_nul(const struct kdbus_item *item)
 }
 
 int kdbus_item_validate_name(const struct kdbus_item *item);
+int kdbus_items_validate(const struct kdbus_item *items, size_t items_size);
 
 #endif
