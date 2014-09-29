@@ -32,21 +32,6 @@
 	       ((u8 *)(_i) >= (u8 *)(_is));				\
 	     _i = KDBUS_ITEM_NEXT(_i))
 
-/**
- * kdbus_item_validate_nul - check the validity of an item containing a string
- * @item:		Item to check
- *
- * Validate that a string in a given item matches the given size, and the
- * string is \0 terminated.
- *
- * Return: true if the string in given item is valid
- */
-static inline bool kdbus_item_validate_nul(const struct kdbus_item *item)
-{
-	size_t l = item->size - KDBUS_ITEM_HEADER_SIZE;
-	return l > 0 && memchr(item->str, '\0', l) == item->str + l - 1;
-}
-
 int kdbus_item_validate_name(const struct kdbus_item *item);
 int kdbus_items_validate(const struct kdbus_item *items, size_t items_size);
 

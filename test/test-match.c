@@ -108,8 +108,8 @@ int kdbus_test_match_name_add(struct kdbus_test_env *env)
 			uint64_t size;
 			uint64_t type;
 			struct kdbus_notify_name_change chg;
-			char name[64];
 		} item;
+		char name[64];
 	} buf;
 	struct kdbus_msg *msg;
 	char *name;
@@ -119,12 +119,12 @@ int kdbus_test_match_name_add(struct kdbus_test_env *env)
 
 	/* install the match rule */
 	memset(&buf, 0, sizeof(buf));
-	buf.cmd.size = sizeof(buf);
-	buf.item.size = sizeof(buf.item);
 	buf.item.type = KDBUS_ITEM_NAME_ADD;
 	buf.item.chg.old_id.id = KDBUS_MATCH_ID_ANY;
 	buf.item.chg.new_id.id = KDBUS_MATCH_ID_ANY;
-	strncpy(buf.item.name, name, sizeof(buf.item.name));
+	strncpy(buf.name, name, sizeof(buf.name));
+	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
+	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
 	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
 	ASSERT_RETURN(ret == 0);
@@ -153,8 +153,8 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 			uint64_t size;
 			uint64_t type;
 			struct kdbus_notify_name_change chg;
-			char name[64];
 		} item;
+		char name[64];
 	} buf;
 	struct kdbus_msg *msg;
 	char *name;
@@ -168,12 +168,12 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 
 	/* install the match rule */
 	memset(&buf, 0, sizeof(buf));
-	buf.cmd.size = sizeof(buf);
-	buf.item.size = sizeof(buf.item);
 	buf.item.type = KDBUS_ITEM_NAME_REMOVE;
 	buf.item.chg.old_id.id = KDBUS_MATCH_ID_ANY;
 	buf.item.chg.new_id.id = KDBUS_MATCH_ID_ANY;
-	strncpy(buf.item.name, name, sizeof(buf.item.name));
+	strncpy(buf.name, name, sizeof(buf.name));
+	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
+	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
 	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
 	ASSERT_RETURN(ret == 0);
@@ -202,8 +202,8 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 			uint64_t size;
 			uint64_t type;
 			struct kdbus_notify_name_change chg;
-			char name[64];
 		} item;
+		char name[64];
 	} buf;
 	struct kdbus_conn *conn;
 	struct kdbus_msg *msg;
@@ -217,12 +217,12 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 
 	/* install the match rule */
 	memset(&buf, 0, sizeof(buf));
-	buf.cmd.size = sizeof(buf);
-	buf.item.size = sizeof(buf.item);
 	buf.item.type = KDBUS_ITEM_NAME_CHANGE;
 	buf.item.chg.old_id.id = KDBUS_MATCH_ID_ANY;
 	buf.item.chg.new_id.id = KDBUS_MATCH_ID_ANY;
-	strncpy(buf.item.name, name, sizeof(buf.item.name));
+	strncpy(buf.name, name, sizeof(buf.name));
+	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
+	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
 	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
 	ASSERT_RETURN(ret == 0);

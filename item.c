@@ -41,7 +41,7 @@ int kdbus_item_validate_name(const struct kdbus_item *item)
 			 KDBUS_SYSNAME_MAX_LEN + 1)
 		return -ENAMETOOLONG;
 
-	if (!kdbus_item_validate_nul(item))
+	if (!kdbus_str_valid(item->str, KDBUS_ITEM_PAYLOAD_SIZE(item)))
 		return -EINVAL;
 
 	return kdbus_sysname_is_valid(item->str);
@@ -50,6 +50,7 @@ int kdbus_item_validate_name(const struct kdbus_item *item)
 static int kdbus_item_validate(const struct kdbus_item *item)
 {
 	size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
+	size_t l;
 	int ret;
 
 	if (item->size < KDBUS_ITEM_HEADER_SIZE)
@@ -135,7 +136,7 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 	case KDBUS_ITEM_CMDLINE:
 	case KDBUS_ITEM_CGROUP:
 	case KDBUS_ITEM_SECLABEL:
-		if (!kdbus_item_validate_nul(item))
+		if (!kdbus_str_valid(item->str, payload_size))
 			return -EINVAL;
 		break;
 
@@ -157,6 +158,10 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 	case KDBUS_ITEM_NAME_REMOVE:
 	case KDBUS_ITEM_NAME_CHANGE:
 		if (payload_size < sizeof(struct kdbus_notify_name_change))
+			return -EINVAL;
+		l = payload_size - offsetof(struct kdbus_notify_name_change,
+					    name);
+		if (l > 0 && !kdbus_str_valid(item->name_change.name, l))
 			return -EINVAL;
 		break;
 
