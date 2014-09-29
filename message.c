@@ -122,10 +122,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size;
 
-		if (!KDBUS_ITEM_VALID(item, &msg->items,
-				      KDBUS_ITEMS_SIZE(msg, items)))
-			return -EINVAL;
-
 		if (++items_count > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 

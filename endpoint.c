@@ -391,29 +391,17 @@ int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name)
 {
 	const struct kdbus_item *item;
 	const char *n = NULL;
-	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
-		if (!KDBUS_ITEM_VALID(item, &make->items,
-				      KDBUS_ITEMS_SIZE(make, items)))
-			return -EINVAL;
-
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
 			if (n)
 				return -EEXIST;
 
-			ret = kdbus_item_validate_name(item);
-			if (ret < 0)
-				return ret;
-
 			n = item->str;
 			continue;
 		}
 	}
-
-	if (!KDBUS_ITEMS_END(item, make->items, KDBUS_ITEMS_SIZE(make, items)))
-		return -EINVAL;
 
 	if (!n)
 		return -EBADMSG;

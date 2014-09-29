@@ -1268,11 +1268,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-
-		if (!KDBUS_ITEM_VALID(item, &cmd->items,
-				      KDBUS_ITEMS_SIZE(cmd, items)))
-			return -EINVAL;
-
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
 			/* Only ordinary connections may update their
@@ -1295,9 +1290,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			break;
 		}
 	}
-
-	if (!KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
-		return -EINVAL;
 
 	if (policy_provided) {
 		ret = kdbus_policy_set(&conn->bus->policy_db, cmd->items,
@@ -1367,20 +1359,12 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	KDBUS_ITEMS_FOREACH(item, hello->items,
 			    KDBUS_ITEMS_SIZE(hello, items)) {
-
-		if (!KDBUS_ITEM_VALID(item, &hello->items,
-				      KDBUS_ITEMS_SIZE(hello, items)))
-			return -EINVAL;
-
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
 			if (!is_activator && !is_policy_holder)
 				return -EINVAL;
 
 			if (name)
-				return -EINVAL;
-
-			if (!kdbus_item_validate_nul(item))
 				return -EINVAL;
 
 			if (!kdbus_name_is_valid(item->str, true))
@@ -1405,9 +1389,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (!kdbus_bus_uid_is_privileged(bus))
 				return -EPERM;
 
-			if (!kdbus_item_validate_nul(item))
-				return -EINVAL;
-
 			seclabel = item->str;
 			seclabel_len = item->size - KDBUS_ITEM_HEADER_SIZE;
 			break;
@@ -1417,18 +1398,10 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 			if (conn_name)
 				return -EINVAL;
 
-			ret = kdbus_item_validate_name(item);
-			if (ret < 0)
-				return ret;
-
 			conn_name = item->str;
 			break;
 		}
 	}
-
-	if (!KDBUS_ITEMS_END(item, hello->items,
-			     KDBUS_ITEMS_SIZE(hello, items)))
-		return -EINVAL;
 
 	if ((is_activator || is_policy_holder) && !name)
 		return -EINVAL;

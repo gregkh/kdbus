@@ -314,11 +314,6 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 
 	KDBUS_ITEMS_FOREACH(item, kmsg->msg.items,
 			    KDBUS_ITEMS_SIZE(&kmsg->msg, items)) {
-
-		if (!KDBUS_ITEM_VALID(item, &kmsg->msg.items,
-				      KDBUS_ITEMS_SIZE(&kmsg->msg, items)))
-			return -EINVAL;
-
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
 			char tmp[KDBUS_ITEM_HEADER_SIZE +

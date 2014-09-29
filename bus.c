@@ -346,14 +346,9 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 	const struct kdbus_item *item;
 	const char *n = NULL;
 	const struct kdbus_bloom_parameter *bl = NULL;
-	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
 		size_t payload_size;
-
-		if (!KDBUS_ITEM_VALID(item, &make->items,
-				      KDBUS_ITEMS_SIZE(make, items)))
-			return -EINVAL;
 
 		payload_size = item->size - KDBUS_ITEM_HEADER_SIZE;
 
@@ -362,24 +357,14 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 			if (n)
 				return -EEXIST;
 
-			ret = kdbus_item_validate_name(item);
-			if (ret < 0)
-				return ret;
-
 			n = item->str;
 			break;
 
 		case KDBUS_ITEM_BLOOM_PARAMETER:
-			if (payload_size != sizeof(*bl))
-				return -EINVAL;
-
 			bl = &item->bloom_parameter;
 			break;
 		}
 	}
-
-	if (!KDBUS_ITEMS_END(item, make->items, KDBUS_ITEMS_SIZE(make, items)))
-		return -EINVAL;
 
 	if (!n || !bl)
 		return -EBADMSG;

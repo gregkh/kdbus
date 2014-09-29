@@ -507,11 +507,6 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	/* Walk the list of items and look for new policies */
 	e = NULL;
 	KDBUS_ITEMS_FOREACH(item, items, items_size) {
-		if (!KDBUS_ITEM_VALID(item, items, items_size)) {
-			ret = -EINVAL;
-			goto exit;
-		}
-
 		switch (item->type) {
 		case KDBUS_ITEM_NAME: {
 			size_t len;
@@ -572,11 +567,6 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 			list_add_tail(&a->list, &e->access_list);
 			break;
 		}
-	}
-
-	if (!KDBUS_ITEMS_END(item, items, items_size)) {
-		ret = -EINVAL;
-		goto exit;
 	}
 
 	down_write(&db->entries_rwlock);

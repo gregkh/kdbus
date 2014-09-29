@@ -368,12 +368,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		struct kdbus_match_rule *rule;
 		size_t size = item->size - offsetof(struct kdbus_item, data);
 
-		if (!KDBUS_ITEM_VALID(item, &cmd->items,
-				      KDBUS_ITEMS_SIZE(cmd, items))) {
-			ret = -EINVAL;
-			break;
-		}
-
 		rule = kzalloc(sizeof(*rule), GFP_KERNEL);
 		if (!rule) {
 			ret = -ENOMEM;
@@ -417,22 +411,12 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			break;
 
 		case KDBUS_ITEM_ID:
-			if (size < sizeof(u64)) {
-				ret = -EINVAL;
-				break;
-			}
-
 			rule->src_id = item->id;
 			break;
 
 		case KDBUS_ITEM_NAME_ADD:
 		case KDBUS_ITEM_NAME_REMOVE:
 		case KDBUS_ITEM_NAME_CHANGE: {
-			if (size < sizeof(struct kdbus_notify_name_change)) {
-				ret = -EINVAL;
-				break;
-			}
-
 			rule->old_id = item->name_change.old_id.id;
 			rule->new_id = item->name_change.new_id.id;
 
@@ -448,11 +432,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 		case KDBUS_ITEM_ID_ADD:
 		case KDBUS_ITEM_ID_REMOVE:
-			if (size < sizeof(struct kdbus_notify_id_change)) {
-				ret = -EINVAL;
-				break;
-			}
-
 			if (item->type == KDBUS_ITEM_ID_ADD)
 				rule->new_id = item->id_change.id;
 			else
@@ -474,10 +453,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
-
-	if (ret == 0 &&
-	    !KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
-		ret = -EINVAL;
 
 	mutex_lock(&db->entries_lock);
 	if (++db->entries > KDBUS_MATCH_MAX) {

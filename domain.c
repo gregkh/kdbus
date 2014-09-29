@@ -386,29 +386,17 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 {
 	const struct kdbus_item *item;
 	const char *n = NULL;
-	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-		if (!KDBUS_ITEM_VALID(item, &cmd->items,
-				      KDBUS_ITEMS_SIZE(cmd, items)))
-			return -EINVAL;
-
 		switch (item->type) {
 		case KDBUS_ITEM_MAKE_NAME:
 			if (n)
 				return -EEXIST;
 
-			ret = kdbus_item_validate_name(item);
-			if (ret < 0)
-				return ret;
-
 			n = item->str;
 			continue;
 		}
 	}
-
-	if (!KDBUS_ITEMS_END(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)))
-		return -EINVAL;
 
 	if (!name)
 		return -EBADMSG;
