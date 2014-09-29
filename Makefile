@@ -49,6 +49,7 @@ install: module
 
 uninstall:
 	rm -f /lib/modules/$(KERNELVER)/kernel/drivers/kdbus/kdbus$(EXT).ko
+	rm -f /lib/modules/$(KERNELVER)/kernel/drivers/misc/kdbus/kdbus$(EXT).ko
 
 coccicheck:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) coccicheck
