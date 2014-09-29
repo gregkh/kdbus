@@ -83,11 +83,7 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 		/* size depends on bloom-size of bus */
 		break;
 
-	case KDBUS_ITEM_DST_NAME:
-		if (!kdbus_item_validate_nul(item))
-			return -EINVAL;
-		break;
-
+	case KDBUS_ITEM_CONN_NAME:
 	case KDBUS_ITEM_MAKE_NAME:
 		ret = kdbus_item_validate_name(item);
 		if (ret < 0)
@@ -95,15 +91,6 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 		break;
 
 	case KDBUS_ITEM_ATTACH_FLAGS:
-		if (payload_size != sizeof(u64))
-			return -EINVAL;
-		break;
-
-	case KDBUS_ITEM_NAME:
-		if (!kdbus_item_validate_nul(item))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_ID:
 		if (payload_size != sizeof(u64))
 			return -EINVAL;
@@ -124,27 +111,14 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 			return -EINVAL;
 		break;
 
+	case KDBUS_ITEM_NAME:
+	case KDBUS_ITEM_DST_NAME:
 	case KDBUS_ITEM_PID_COMM:
-		if (!kdbus_item_validate_nul(item))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_TID_COMM:
-		if (!kdbus_item_validate_nul(item))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_EXE:
-		if (!kdbus_item_validate_nul(item))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_CMDLINE:
-		if (!kdbus_item_validate_nul(item))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_CGROUP:
+	case KDBUS_ITEM_SECLABEL:
 		if (!kdbus_item_validate_nul(item))
 			return -EINVAL;
 		break;
@@ -153,18 +127,8 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 		/* TODO */
 		break;
 
-	case KDBUS_ITEM_SECLABEL:
-		if (!kdbus_item_validate_nul(item))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_AUDIT:
 		if (payload_size != sizeof(struct kdbus_audit))
-			return -EINVAL;
-		break;
-
-	case KDBUS_ITEM_CONN_NAME:
-		if (!kdbus_item_validate_nul(item))
 			return -EINVAL;
 		break;
 
@@ -174,35 +138,19 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 		break;
 
 	case KDBUS_ITEM_NAME_ADD:
-		if (payload_size < sizeof(struct kdbus_notify_name_change))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_NAME_REMOVE:
-		if (payload_size < sizeof(struct kdbus_notify_name_change))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_NAME_CHANGE:
 		if (payload_size < sizeof(struct kdbus_notify_name_change))
 			return -EINVAL;
 		break;
 
 	case KDBUS_ITEM_ID_ADD:
-		if (payload_size != sizeof(struct kdbus_notify_id_change))
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_ID_REMOVE:
 		if (payload_size != sizeof(struct kdbus_notify_id_change))
 			return -EINVAL;
 		break;
 
 	case KDBUS_ITEM_REPLY_TIMEOUT:
-		if (payload_size != 0)
-			return -EINVAL;
-		break;
-
 	case KDBUS_ITEM_REPLY_DEAD:
 		if (payload_size != 0)
 			return -EINVAL;
