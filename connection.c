@@ -1158,8 +1158,13 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	u64 flags;
 
 	if (cmd_info->id == 0) {
-		if (!kdbus_check_strlen(cmd_info, name) ||
-		    !kdbus_name_is_valid(cmd_info->name, false))
+		size_t len = cmd_info->size -
+			     offsetof(struct kdbus_cmd_conn_info, name);
+
+		if (strnlen(cmd_info->name, len) + 1 != len)
+			return -EINVAL;
+
+		if (!kdbus_name_is_valid(cmd_info->name, false))
 			return -EINVAL;
 
 		entry = kdbus_name_lock(conn->bus->name_registry,
