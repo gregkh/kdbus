@@ -28,6 +28,7 @@
 #include "connection.h"
 #include "domain.h"
 #include "endpoint.h"
+#include "item.h"
 #include "names.h"
 #include "policy.h"
 

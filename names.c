@@ -27,6 +27,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "item.h"
 #include "names.h"
 #include "notify.h"
 #include "policy.h"

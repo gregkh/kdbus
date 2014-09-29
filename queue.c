@@ -30,6 +30,7 @@
 #include <linux/syscalls.h>
 
 #include "connection.h"
+#include "item.h"
 #include "message.h"
 #include "metadata.h"
 #include "util.h"

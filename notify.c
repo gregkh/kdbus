@@ -23,6 +23,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "item.h"
 #include "message.h"
 #include "notify.h"
 

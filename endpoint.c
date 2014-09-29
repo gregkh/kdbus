@@ -25,6 +25,7 @@
 #include "connection.h"
 #include "domain.h"
 #include "endpoint.h"
+#include "item.h"
 #include "policy.h"
 
 /* endpoints are by default owned by the bus owner */

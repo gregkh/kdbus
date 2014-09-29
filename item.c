@@ -14,36 +14,27 @@
 #include <linux/ctype.h>
 #include <linux/string.h>
 
-#include "util.h"
 #include "defaults.h"
+#include "item.h"
+#include "util.h"
 
 /**
- * kdbus_sysname_valid() - validate names showing up in /proc, /sys and /dev
- * @name:		Name of domain, bus, endpoint
+ * kdbus_item_validate_name() - validate an item containing a name
+ * @item:		Item to validate
  *
- * Return: 0 if the given name is valid, otherwise negative errno
+ * Return: zero on success or an negative error code on failure
  */
-int kdbus_sysname_is_valid(const char *name)
+int kdbus_item_validate_name(const struct kdbus_item *item)
 {
-	unsigned int i;
-	size_t len;
-
-	len = strlen(name);
-	if (len == 0)
+	if (item->size < KDBUS_ITEM_HEADER_SIZE + 2)
 		return -EINVAL;
 
-	for (i = 0; i < len; i++) {
-		if (isalpha(name[i]))
-			continue;
-		if (isdigit(name[i]))
-			continue;
-		if (name[i] == '_')
-			continue;
-		if (i > 0 && i + 1 < len && strchr("-.", name[i]))
-			continue;
+	if (item->size > KDBUS_ITEM_HEADER_SIZE +
+			 KDBUS_SYSNAME_MAX_LEN + 1)
+		return -ENAMETOOLONG;
 
+	if (!kdbus_item_validate_nul(item))
 		return -EINVAL;
-	}
 
-	return 0;
+	return kdbus_sysname_is_valid(item->str);
 }

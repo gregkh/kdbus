@@ -26,27 +26,6 @@
 #define KDBUS_ALIGN8(s) ALIGN((s), 8)
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
-/* generic access and iterators over a stream of items */
-#define KDBUS_ITEM_HEADER_SIZE offsetof(struct kdbus_item, data)
-#define KDBUS_ITEM_PAYLOAD_SIZE(_i) ((_i)->size - KDBUS_ITEM_HEADER_SIZE)
-#define KDBUS_ITEM_SIZE(_s) KDBUS_ALIGN8(KDBUS_ITEM_HEADER_SIZE + (_s))
-#define KDBUS_ITEM_NEXT(_i) (typeof(_i))(((u8 *)_i) + KDBUS_ALIGN8((_i)->size))
-#define KDBUS_ITEMS_SIZE(_h, _is) ((_h)->size - offsetof(typeof(*_h), _is))
-
-#define KDBUS_ITEMS_FOREACH(_i, _is, _s)				\
-	for (_i = _is;							\
-	     ((u8 *)(_i) < (u8 *)(_is) + (_s)) &&			\
-	       ((u8 *)(_i) >= (u8 *)(_is));				\
-	     _i = KDBUS_ITEM_NEXT(_i))
-
-#define KDBUS_ITEM_VALID(_i, _is, _s)					\
-	((_i)->size > KDBUS_ITEM_HEADER_SIZE &&				\
-	 (u8 *)(_i) + (_i)->size <= (u8 *)(_is) + (_s) &&		\
-	 (u8 *)(_i) >= (u8 *)(_is))
-
-#define KDBUS_ITEMS_END(_i, _is, _s) \
-	((u8 *)_i == ((u8 *)(_is) + KDBUS_ALIGN8(_s)))
-
 /**
  * kdbus_size_get_user - read the size variable from user memory
  * @_s:			Size variable
@@ -78,21 +57,6 @@
 })
 
 /**
- * kdbus_item_validate_nul - check the validity of an item containing a string
- * @item:		Item to check
- *
- * Validate that a string in a given item matches the given size, and the
- * string is \0 terminated.
- *
- * Return: true if the string in given item is valid
- */
-static inline bool kdbus_item_validate_nul(const struct kdbus_item *item)
-{
-	size_t l = item->size - KDBUS_ITEM_HEADER_SIZE;
-	return l > 0 && memchr(item->str, '\0', l) == item->str + l - 1;
-}
-
-/**
  * kdbus_str_hash - calculate a hash
  * @str:		String
  *
@@ -105,5 +69,4 @@ static inline unsigned int kdbus_str_hash(const char *str)
 
 int kdbus_sysname_is_valid(const char *name);
 
-int kdbus_item_validate_name(const struct kdbus_item *item);
 #endif

@@ -30,6 +30,7 @@
 #include "domain.h"
 #include "endpoint.h"
 #include "handle.h"
+#include "item.h"
 #include "match.h"
 #include "message.h"
 #include "names.h"

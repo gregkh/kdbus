@@ -25,6 +25,7 @@
 #include "defaults.h"
 #include "domain.h"
 #include "handle.h"
+#include "item.h"
 #include "util.h"
 
 /* map of majors to domains */

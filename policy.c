@@ -23,6 +23,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "domain.h"
+#include "item.h"
 #include "names.h"
 #include "policy.h"
 

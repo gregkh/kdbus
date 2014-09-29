@@ -28,6 +28,7 @@
 #include <linux/version.h>
 
 #include "connection.h"
+#include "item.h"
 #include "message.h"
 #include "metadata.h"
 #include "names.h"
