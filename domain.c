@@ -22,10 +22,10 @@
 #include <linux/uaccess.h>
 
 #include "bus.h"
-#include "defaults.h"
 #include "domain.h"
 #include "handle.h"
 #include "item.h"
+#include "limits.h"
 #include "util.h"
 
 /* map of majors to domains */

@@ -14,8 +14,8 @@
 #include <linux/ctype.h>
 #include <linux/string.h>
 
-#include "defaults.h"
 #include "item.h"
+#include "limits.h"
 #include "util.h"
 
 /**

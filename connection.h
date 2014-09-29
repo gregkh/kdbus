@@ -16,11 +16,11 @@
 #define __KDBUS_CONNECTION_H
 
 #include <linux/lockdep.h>
-#include "defaults.h"
-#include "util.h"
+#include "limits.h"
 #include "metadata.h"
 #include "pool.h"
 #include "queue.h"
+#include "util.h"
 
 #define KDBUS_HELLO_SPECIAL_CONN	(KDBUS_HELLO_ACTIVATOR | \
 					 KDBUS_HELLO_POLICY_HOLDER | \

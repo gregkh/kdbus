@@ -14,7 +14,7 @@
 #ifndef __KDBUS_EP_H
 #define __KDBUS_EP_H
 
-#include "defaults.h"
+#include "limits.h"
 #include "policy.h"
 #include "util.h"
 

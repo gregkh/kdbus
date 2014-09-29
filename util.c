@@ -14,8 +14,8 @@
 #include <linux/ctype.h>
 #include <linux/string.h>
 
+#include "limits.h"
 #include "util.h"
-#include "defaults.h"
 
 /**
  * kdbus_sysname_valid() - validate names showing up in /proc, /sys and /dev
