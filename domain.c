@@ -31,7 +31,7 @@
 /* map of majors to domains */
 static DEFINE_IDR(kdbus_domain_major_idr);
 
-/* next domain id sequence number */
+/* previous domain id sequence number */
 static u64 kdbus_domain_seq_last;
 
 /* kdbus subsystem lock */
@@ -209,9 +209,9 @@ static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain const *parent,
  * kdbus_domain_find_by_major() - lookup a domain by its major device number
  * @major:		Major number
  *
- * Looks up a domain by major number. The returned namspace
+ * Looks up a domain by major number. The returned domain
  * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
- * the namepace can't be found.
+ * the domain can't be found.
  *
  * Return: the domain, or NULL if not found
  */
@@ -233,7 +233,7 @@ struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major)
  * @parent:		Parent domain, NULL for initial one
  * @name:		Name of the domain, NULL for the initial one
  * @mode:		The access mode for the "control" device node
- * @domain:			The returned domain
+ * @domain:		The returned domain
  *
  * Return: 0 on success, negative errno on failure
  */
@@ -406,7 +406,7 @@ int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
 }
 
 /**
- * kdbus_domain_user_assign_id() - allocate ID and assign in it to the
+ * kdbus_domain_user_assign_id() - allocate ID and assign it to the
  *				   domain user
  * @domain:		The domain of the user
  * @user:		The kdbus_domain_user object of the user
