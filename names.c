@@ -932,8 +932,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		goto exit_pool_free;
 
 	cmd->offset = kdbus_pool_slice_offset(slice);
-	kdbus_pool_slice_make_public(slice);
 	kdbus_pool_slice_flush(slice);
+	kdbus_pool_slice_make_public(slice);
 
 exit_pool_free:
 	if (ret < 0)

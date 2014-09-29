@@ -1234,8 +1234,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 
 	/* write back the offset */
 	cmd_info->offset = kdbus_pool_slice_offset(slice);
-	kdbus_pool_slice_make_public(slice);
 	kdbus_pool_slice_flush(slice);
+	kdbus_pool_slice_make_public(slice);
 
 exit_free:
 	if (ret < 0)
