@@ -36,8 +36,8 @@
  * @conn_seq_last:	Last used connection id sequence number
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
- * @name_registry:	Domain's list of buses
- * @domain_entry:	Domain's list of buses
+ * @name_registry:	Name registry of this bus
+ * @domain_entry:	Entry in domain
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
  * @user:		Owner of the connection

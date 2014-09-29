@@ -210,7 +210,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
 
 /**
  * kdbus_bus_new() - create a new bus
- * @domain:			The domain to work on
+ * @domain:		The domain to work on
  * @make:		Pointer to a struct kdbus_cmd_make containing the
  *			details for the bus creation
  * @name:		Name of the bus
