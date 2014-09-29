@@ -55,30 +55,34 @@ int kdbus_create_bus(int control_fd, const char *name, char **path)
 			uint64_t size;
 			uint64_t type;
 			struct kdbus_bloom_parameter bloom;
-		} bs;
+		} bp;
 
 		/* name item */
-		uint64_t n_size;
-		uint64_t n_type;
-		char name[64];
+		struct {
+			uint64_t size;
+			uint64_t type;
+			char str[64];
+		} name;
 	} bus_make;
 	int ret;
 
 	memset(&bus_make, 0, sizeof(bus_make));
-	bus_make.bs.size = sizeof(bus_make.bs);
-	bus_make.bs.type = KDBUS_ITEM_BLOOM_PARAMETER;
-	bus_make.bs.bloom.size = 64;
-	bus_make.bs.bloom.n_hash = 1;
+	bus_make.bp.size = sizeof(bus_make.bp);
+	bus_make.bp.type = KDBUS_ITEM_BLOOM_PARAMETER;
+	bus_make.bp.bloom.size = 64;
+	bus_make.bp.bloom.n_hash = 1;
 
-	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s", getuid(), name);
+	snprintf(bus_make.name.str, sizeof(bus_make.name.str),
+		 "%u-%s", getuid(), name);
 
-	bus_make.n_type = KDBUS_ITEM_MAKE_NAME;
-	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.name.type = KDBUS_ITEM_MAKE_NAME;
+	bus_make.name.size = KDBUS_ITEM_HEADER_SIZE +
+			     strlen(bus_make.name.str) + 1;
 
 	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
-			     sizeof(bus_make.bs) +
-			     bus_make.n_size;
+	bus_make.head.size = sizeof(bus_make.head) +
+			     sizeof(bus_make.bp) +
+			     bus_make.name.size;
 
 	kdbus_printf("Creating bus with name >%s< on control fd %d ...\n",
 		     name, control_fd);
@@ -86,7 +90,8 @@ int kdbus_create_bus(int control_fd, const char *name, char **path)
 	ret = ioctl(control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 
 	if (ret == 0 && path)
-		asprintf(path, "/dev/" KBUILD_MODNAME "/%s/bus", bus_make.name);
+		asprintf(path, "/dev/" KBUILD_MODNAME "/%s/bus",
+			 bus_make.name.str);
 
 	return ret;
 }
