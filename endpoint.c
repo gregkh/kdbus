@@ -272,9 +272,6 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 			const struct kdbus_item *items,
 			size_t items_size)
 {
-	if (items_size == 0)
-		return 0;
-
 	return kdbus_policy_set(&ep->policy_db, items, items_size, 0, true, ep);
 }
 
