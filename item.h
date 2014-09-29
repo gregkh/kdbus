@@ -32,9 +32,6 @@
 	       ((u8 *)(_i) >= (u8 *)(_is));				\
 	     _i = KDBUS_ITEM_NEXT(_i))
 
-#define KDBUS_ITEMS_END(_i, _is, _s) \
-	((u8 *)_i == ((u8 *)(_is) + KDBUS_ALIGN8(_s)))
-
 /**
  * kdbus_item_validate_nul - check the validity of an item containing a string
  * @item:		Item to check

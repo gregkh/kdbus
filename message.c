@@ -129,16 +129,11 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC:
-			if (payload_size != sizeof(struct kdbus_vec))
-				return -EINVAL;
-
-			/* empty payload is invalid */
-			if (item->vec.size == 0)
-				return -EINVAL;
+			if (vecs_size + item->vec.size <= vecs_size)
+				return -EMSGSIZE;
 
 			vecs_size += item->vec.size;
-			if (vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE &&
-			    !kdbus_bus_uid_is_privileged(conn->bus))
+			if (vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
 
 			/* \0-bytes records store only the alignment bytes */
@@ -150,19 +145,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			break;
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD:
-			if (payload_size != sizeof(struct kdbus_memfd))
-				return -EINVAL;
-
 			/* do not allow to broadcast file descriptors */
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
-
-			if (item->memfd.fd < 0)
-				return -EBADF;
-
-			/* empty payload is invalid */
-			if (item->memfd.size == 0)
-				return -EINVAL;
 
 			kmsg->memfds_count++;
 			break;
@@ -212,9 +197,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
 				return -EBADMSG;
 
-			if (payload_size < sizeof(struct kdbus_bloom_filter))
-				return -EBADMSG;
-
 			bloom_size = payload_size -
 				     offsetof(struct kdbus_bloom_filter, data);
 
@@ -238,10 +220,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				return -EEXIST;
 			has_name = true;
 
-			/* enforce NUL-terminated strings */
-			if (!kdbus_item_validate_nul(item))
-				return -EINVAL;
-
 			if (!kdbus_name_is_valid(item->str, false))
 				return -EINVAL;
 
@@ -249,9 +227,6 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			break;
 		}
 	}
-
-	if (!KDBUS_ITEMS_END(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)))
-		return -EINVAL;
 
 	/* name is needed if no ID is given */
 	if (msg->dst_id == KDBUS_DST_ID_NAME && !has_name)
@@ -317,6 +292,11 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		ret = -EFAULT;
 		goto exit_free;
 	}
+
+	ret = kdbus_items_validate(m->msg.items,
+				   KDBUS_ITEMS_SIZE(&m->msg, items));
+	if (ret < 0)
+		goto exit_free;
 
 	/* do not accept kernel-generated messages */
 	if (m->msg.payload_type == KDBUS_PAYLOAD_KERNEL) {

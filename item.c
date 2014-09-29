@@ -23,6 +23,9 @@
 	 (u8 *)(_i) + (_i)->size <= (u8 *)(_is) + (_s) &&		\
 	 (u8 *)(_i) >= (u8 *)(_is))
 
+#define KDBUS_ITEMS_END(_i, _is, _s)					\
+	((u8 *)_i == ((u8 *)(_is) + KDBUS_ALIGN8(_s)))
+
 /**
  * kdbus_item_validate_name() - validate an item containing a name
  * @item:		Item to validate
@@ -56,16 +59,24 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 	case KDBUS_ITEM_PAYLOAD_VEC:
 		if (payload_size != sizeof(struct kdbus_vec))
 			return -EINVAL;
+		if (item->vec.size == 0 || item->vec.size > SIZE_MAX)
+			return -EINVAL;
 		break;
 
 	case KDBUS_ITEM_PAYLOAD_OFF:
 		if (payload_size != sizeof(struct kdbus_vec))
+			return -EINVAL;
+		if (item->vec.size == 0 || item->vec.size > SIZE_MAX)
 			return -EINVAL;
 		break;
 
 	case KDBUS_ITEM_PAYLOAD_MEMFD:
 		if (payload_size != sizeof(struct kdbus_memfd))
 			return -EINVAL;
+		if (item->memfd.size == 0 || item->memfd.size > SIZE_MAX)
+			return -EINVAL;
+		if (item->memfd.fd < 0)
+			return -EBADF;
 		break;
 
 	case KDBUS_ITEM_FDS:
