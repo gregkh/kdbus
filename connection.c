@@ -195,11 +195,10 @@ static void kdbus_conn_work(struct work_struct *work)
 	}
 
 	/* rearm delayed work with next timeout */
-	if (deadline != ~0ULL) {
-		u64 usecs = div_u64(deadline - now, 1000ULL);
+	if (deadline != ~0ULL)
+		schedule_delayed_work(&conn->work,
+				      nsecs_to_jiffies(deadline - now));
 
-		schedule_delayed_work(&conn->work, usecs_to_jiffies(usecs));
-	}
 	mutex_unlock(&conn->lock);
 
 	kdbus_notify_flush(conn->bus);
