@@ -334,11 +334,10 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
 	mutex_lock(&pool->lock);
 	slice = kdbus_pool_find_slice(pool, off);
 	if (slice) {
-		if (slice->public) {
+		if (slice->public)
 			__kdbus_pool_slice_free(slice);
-		} else {
+		else
 			ret = -EINVAL;
-		}
 	} else {
 		ret = -ENXIO;
 	}
