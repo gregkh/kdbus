@@ -9,7 +9,6 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <poll.h>
 #include <sys/ioctl.h>
 
 #include "kdbus-test.h"

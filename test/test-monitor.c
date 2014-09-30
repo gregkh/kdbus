@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
-#include <poll.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>

@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <poll.h>
 #include <sys/ioctl.h>
 #include <stdbool.h>
 
@@ -20,8 +19,7 @@ int kdbus_test_message_basic(struct kdbus_test_env *env)
 	struct kdbus_conn *conn;
 	struct kdbus_msg *msg;
 	uint64_t cookie = 0x1234abcd5678eeff;
-	struct pollfd fd;
-	struct kdbus_cmd_recv recv = {};
+	uint64_t offset;
 	int ret;
 
 	/* create a 2nd connection */
@@ -40,20 +38,13 @@ int kdbus_test_message_basic(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* ... and receive on the 2nd */
-	fd.fd = conn->fd;
-	fd.events = POLLIN | POLLPRI | POLLHUP;
-	fd.revents = 0;
-
-	ret = poll(&fd, 1, 100);
-	ASSERT_RETURN(ret > 0 && (fd.revents & POLLIN));
-
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = kdbus_msg_recv_poll(conn, 100, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
-
-	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
 	ASSERT_RETURN(msg->cookie == cookie);
 
-	ret = kdbus_free(conn, recv.offset);
+	kdbus_msg_free(msg);
+
+	ret = kdbus_free(conn, offset);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_conn_free(conn);

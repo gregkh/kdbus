@@ -11,7 +11,6 @@
 #include <string.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include <poll.h>
 #include <sched.h>
 #include <stdlib.h>
 #include <stddef.h>

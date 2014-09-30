@@ -687,20 +687,20 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 			struct kdbus_msg **msg_out,
 			uint64_t *offset)
 {
+	struct pollfd fd;
 	int ret;
 
-	for (; timeout_ms; timeout_ms--) {
-		ret = kdbus_msg_recv(conn, msg_out, offset);
-		if (ret == -EAGAIN) {
-			usleep(1000);
-			continue;
-		}
+	fd.fd = conn->fd;
+	fd.events = POLLIN | POLLPRI | POLLHUP;
+	fd.revents = 0;
 
-		if (ret < 0)
-			return ret;
+	ret = poll(&fd, 1, timeout_ms);
+	if (ret <= 0)
+		return ret;
 
-		if (ret == 0)
-			return 0;
+	if (fd.revents & POLLIN) {
+		kdbus_msg_recv(conn, msg_out, offset);
+		return 0;
 	}
 
 	return -ETIMEDOUT;

@@ -8,9 +8,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <poll.h>
 #include <limits.h>
-#include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <getopt.h>
 #include <stdbool.h>

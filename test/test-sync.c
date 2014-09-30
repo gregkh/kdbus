@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <poll.h>
 #include <sys/ioctl.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -22,24 +21,14 @@ static unsigned int cookie = 0xdeadbeef;
 
 static void *run_thread_reply(void *data)
 {
-	struct pollfd fd;
 	int ret;
 
-	fd.fd = conn_a->fd;
-	fd.events = POLLIN | POLLPRI | POLLHUP;
-	fd.revents = 0;
-
-	ret = poll(&fd, 1, 3000);
-	if (ret <= 0)
-		goto thread_exit;
-
-	if (fd.revents & POLLIN) {
+	ret = kdbus_msg_recv_poll(conn_a, 3000, NULL, NULL);
+	if (ret == 0) {
 		kdbus_printf("Thread received message, sending reply ...\n");
-		kdbus_msg_recv(conn_a, NULL, NULL);
 		kdbus_msg_send(conn_a, NULL, 0, 0, cookie, 0, conn_b->id);
 	}
 
-thread_exit:
 	pthread_exit(NULL);
 	return NULL;
 }
@@ -76,18 +65,10 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 
 static void *run_thread_byebye(void *data)
 {
-	struct pollfd fd;
 	int ret;
 
-	fd.fd = conn_a->fd;
-	fd.events = POLLIN | POLLPRI | POLLHUP;
-	fd.revents = 0;
-
-	ret = poll(&fd, 1, 3000);
-	if (ret <= 0)
-		goto thread_exit;
-
-	if (fd.revents & POLLIN) {
+	ret = kdbus_msg_recv_poll(conn_a, 3000, NULL, NULL);
+	if (ret == 0) {
 		kdbus_printf("Thread received message, invoking BYEBYE ...\n");
 		kdbus_msg_recv(conn_a, NULL, NULL);
 		if (data == BYEBYE_ME)
@@ -96,7 +77,6 @@ static void *run_thread_byebye(void *data)
 			ioctl(conn_a->fd, KDBUS_CMD_BYEBYE, 0);
 	}
 
-thread_exit:
 	pthread_exit(NULL);
 	return NULL;
 }

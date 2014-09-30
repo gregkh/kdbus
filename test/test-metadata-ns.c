@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <poll.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
