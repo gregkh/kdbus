@@ -686,11 +686,18 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 	return 0;
 }
 
+/*
+ * Returns: 0 on success, negative errno on failure.
+ *
+ * We must return -ETIMEDOUT, -ECONNREST, -EAGAIN and other errors.
+ * We must return the result of kdbus_msg_recv()
+ */
 int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 			unsigned int timeout_ms,
 			struct kdbus_msg **msg_out,
 			uint64_t *offset)
 {
+	int cnt = 3;
 	struct pollfd fd;
 	int ret;
 
@@ -698,16 +705,36 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 	fd.events = POLLIN | POLLPRI | POLLHUP;
 	fd.revents = 0;
 
-	ret = poll(&fd, 1, timeout_ms);
-	if (ret <= 0)
-		return ret;
+	while (cnt) {
+		cnt--;
+		ret = poll(&fd, 1, timeout_ms);
+		if (ret == 0) {
+			ret = -ETIMEDOUT;
+			break;
+		}
 
-	if (fd.revents & POLLIN) {
-		kdbus_msg_recv(conn, msg_out, offset);
-		return 0;
+		if (ret > 0) {
+			if (fd.revents & POLLIN)
+				ret = kdbus_msg_recv(conn, msg_out, offset);
+
+			if (fd.revents & (POLLHUP | POLLERR))
+				ret = -ECONNRESET;
+		}
+
+		if (ret == 0 || ret != -EAGAIN)
+			break;
+
+		/*
+		 * recv failed with -EAGAIN (Resource temporarily
+		 * unavailable), so just try again.
+		 *
+		 * Add the following even if poll will return
+		 * immediately.
+		 */
+		timeout_ms = 0;
 	}
 
-	return -ETIMEDOUT;
+	return ret;
 }
 
 int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
