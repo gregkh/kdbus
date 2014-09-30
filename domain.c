@@ -188,21 +188,16 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
 	return NULL;
 }
 
-static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain const *parent,
-				      const char *name)
+static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain *parent,
+					      const char *name)
 {
-	struct kdbus_domain *domain = NULL;
 	struct kdbus_domain *n;
 
-	list_for_each_entry(n, &parent->domain_list, domain_entry) {
-		if (strcmp(n->name, name))
-			continue;
+	list_for_each_entry(n, &parent->domain_list, domain_entry)
+		if (!strcmp(n->name, name))
+			return n;
 
-		domain = kdbus_domain_ref(n);
-		break;
-	}
-
-	return domain;
+	return NULL;
 }
 
 /**
@@ -273,8 +268,6 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 		mutex_lock(&kdbus_subsys_lock);
 
 	} else {
-		struct kdbus_domain *exists;
-
 		/* lock order: parent domain -> domain -> subsys_lock */
 		mutex_lock(&parent->lock);
 		if (parent->disconnected) {
@@ -285,9 +278,7 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 
 		mutex_lock(&kdbus_subsys_lock);
 
-		exists = kdbus_domain_find(parent, name);
-		if (exists) {
-			kdbus_domain_unref(exists);
+		if (kdbus_domain_find(parent, name)) {
 			ret = -EEXIST;
 			goto exit_unlock;
 		}
