@@ -103,9 +103,13 @@ kdbus_hello(const char *path, uint64_t flags,
 	int fd, ret;
 	struct {
 		struct kdbus_cmd_hello hello;
-		uint64_t size;
-		uint64_t type;
-		char comm[16];
+
+		struct {
+			uint64_t size;
+			uint64_t type;
+			char str[16];
+		} conn_name;
+
 		uint8_t extra_items[item_size];
 	} h;
 	struct kdbus_conn *conn;
@@ -124,9 +128,9 @@ kdbus_hello(const char *path, uint64_t flags,
 
 	h.hello.conn_flags = flags | KDBUS_HELLO_ACCEPT_FD;
 	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
-	h.type = KDBUS_ITEM_CONN_NAME;
-	h.size = KDBUS_ITEM_HEADER_SIZE + sizeof(h.comm);
-	strcpy(h.comm, "this-is-my-name");
+	h.conn_name.type = KDBUS_ITEM_CONN_NAME;
+	strcpy(h.conn_name.str, "this-is-my-name");
+	h.conn_name.size = KDBUS_ITEM_HEADER_SIZE + strlen(h.conn_name.str) + 1;
 
 	h.hello.size = sizeof(h);
 	h.hello.pool_size = POOL_SIZE;
