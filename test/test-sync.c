@@ -137,7 +137,6 @@ int kdbus_test_sync_byebye(struct kdbus_test_env *env)
 	kdbus_conn_free(conn_a);
 	kdbus_conn_free(conn_b);
 
-#if 0
 	conn_a = kdbus_hello(env->buspath, 0, NULL, 0);
 	conn_b = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn_a && conn_b);
@@ -155,7 +154,6 @@ int kdbus_test_sync_byebye(struct kdbus_test_env *env)
 
 	kdbus_conn_free(conn_a);
 	kdbus_conn_free(conn_b);
-#endif
 
 	return TEST_OK;
 }
