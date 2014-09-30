@@ -14,12 +14,13 @@
 #ifndef __KDBUS_DOMAIN_H
 #define __KDBUS_DOMAIN_H
 
+#include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/idr.h>
 
 /**
  * struct kdbus_domain - domain for buses
- * @kref:		Reference counter
+ * @dev:		Underlying device
  * @disconnected:	Invalidated data
  * @name:		Name of the domain
  * @devpath:		/dev base directory path
@@ -28,7 +29,6 @@
  * @major:		Device major number for all nodes
  * @mode:		Device node access mode
  * @idr:		Map of endpoint minors to buses
- * @dev:		Control device node, minor == 0
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
@@ -49,7 +49,7 @@
  * file immediately destroys the entire domain.
  */
 struct kdbus_domain {
-	struct kref kref;
+	struct device dev;
 	bool disconnected;
 	const char *name;
 	const char *devpath;
@@ -58,7 +58,6 @@ struct kdbus_domain {
 	unsigned int major;
 	umode_t mode;
 	struct idr idr;
-	struct device *dev;
 	struct mutex lock;
 	u64 bus_seq_last;
 	atomic64_t msg_seq_last;
