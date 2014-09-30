@@ -40,7 +40,7 @@
  * @domain_entry:	Entry in domain
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
- * @user:		Owner of the connection
+ * @user:		Owner of the bus
  * @policy_db:		Policy database for this bus
  * @notify_list:	List of pending kernel-generated messages
  * @notify_lock:	Notification list lock
