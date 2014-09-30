@@ -1571,6 +1571,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 exit_unref_user_unlock:
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
+	up_write(&bus->conn_rwlock);
 exit_domain_user_unref:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
