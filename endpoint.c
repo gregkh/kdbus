@@ -282,6 +282,8 @@ int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 					      struct kdbus_conn *conn,
 					      const char *name)
 {
+	int ret;
+
 	/*
 	 * Check policy, if the endpoint of the connection has a db.
 	 * Note that policy DBs instanciated along with connections
@@ -297,8 +299,14 @@ int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 	if (!ep->has_policy)
 		return 0;
 
-	return kdbus_policy_check_see_access_unlocked(&ep->policy_db,
-						      conn, name);
+	ret = kdbus_policy_check_see_access_unlocked(&ep->policy_db,
+						     conn, name);
+
+	/* don't leak hints whether a name exists on a custom endpoint. */
+	if (ret == -EPERM)
+		return -ENOENT;
+
+	return ret;
 }
 
 /**
@@ -322,6 +330,14 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 	if (ep->has_policy) {
 		ret = kdbus_policy_check_talk_access(&ep->policy_db,
 						     conn_src, conn_dst);
+
+		/*
+		 * Don't leak hints whether a name exists on a custom
+		 * endpoint.
+		 */
+		if (ret == -EPERM)
+			return -ENOENT;
+
 		if (ret < 0)
 			return ret;
 	}
