@@ -380,33 +380,3 @@ int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
 
 	return 0;
 }
-
-/**
- * kdbus_ep_make_user() - create endpoint data from user data
- * @make:		The returned copy of user data
- * @name:		The name of the endpoint to create
- *
- * Return: 0 on success, negative errno on failure.
- */
-int kdbus_ep_make_user(const struct kdbus_cmd_make *make, char **name)
-{
-	const struct kdbus_item *item;
-	const char *n = NULL;
-
-	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_MAKE_NAME:
-			if (n)
-				return -EEXIST;
-
-			n = item->str;
-			continue;
-		}
-	}
-
-	if (!n)
-		return -EBADMSG;
-
-	*name = (char *)n;
-	return 0;
-}

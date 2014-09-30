@@ -95,7 +95,6 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 void kdbus_domain_disconnect(struct kdbus_domain *domain);
 int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 		     umode_t mode, struct kdbus_domain **domain);
-int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name);
 struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major);
 
 int kdbus_domain_get_user_unlocked(struct kdbus_domain *domain,

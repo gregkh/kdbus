@@ -336,7 +336,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_DOMAIN_MAKE: {
-		char *name;
+		const char *name;
 
 		if (!capable(CAP_IPC_OWNER)) {
 			ret = -EPERM;
@@ -356,7 +356,9 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_domain_make_user(make, &name);
+		ret = kdbus_items_get_str(make->items,
+					  KDBUS_ITEMS_SIZE(make, items),
+					  KDBUS_ITEM_MAKE_NAME, &name);
 		if (ret < 0)
 			break;
 
@@ -408,7 +410,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_make *make;
 		umode_t mode = 0;
 		kgid_t gid = KGIDT_INIT(0);
-		char *name;
+		const char *name;
 		struct kdbus_ep *ep;
 
 		/* creating custom endpoints is a privileged operation */
@@ -430,7 +432,9 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_ep_make_user(make, &name);
+		ret = kdbus_items_get_str(make->items,
+					  KDBUS_ITEMS_SIZE(make, items),
+					  KDBUS_ITEM_MAKE_NAME, &name);
 		if (ret < 0)
 			break;
 

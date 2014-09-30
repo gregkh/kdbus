@@ -217,3 +217,40 @@ int kdbus_items_validate(const struct kdbus_item *items, size_t items_size)
 
 	return 0;
 }
+
+/**
+ * kdbus_items_get_str() - get string from a list of items
+ * @items:		The items to walk
+ * @items_size:		The size of all items
+ * @item_type:		The item type to look for
+ * @str_ret:		A pointer to store the found name
+ *
+ * This function walks a list of items and searches for items of type
+ * @item_type. If it finds exactly one such item, @str_ret will be set to
+ * the .str member of the item.
+ *
+ * Return: 0 if the item was found exactly once, -EEXIST if the item was
+ * found more than once, and -EBADMSG if there was no item of the given type.
+ */
+int kdbus_items_get_str(const struct kdbus_item *items, size_t items_size,
+			unsigned int item_type, const char **str_ret)
+{
+	const struct kdbus_item *item;
+	const char *n = NULL;
+
+	KDBUS_ITEMS_FOREACH(item, items, items_size) {
+		if (item->type == item_type) {
+			if (n)
+				return -EEXIST;
+
+			n = item->str;
+			continue;
+		}
+	}
+
+	if (!n)
+		return -EBADMSG;
+
+	*str_ret = n;
+	return 0;
+}

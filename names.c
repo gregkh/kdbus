@@ -626,30 +626,6 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_cmd_name_get_name(const struct kdbus_cmd_name *cmd,
-				   const char **name)
-{
-	const struct kdbus_item *item;
-	const char *n = NULL;
-
-	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_NAME:
-			if (n)
-				return -EINVAL;
-
-			n = item->str;
-			break;
-		}
-	}
-
-	if (!n)
-		return -EINVAL;
-
-	*name = n;
-	return 0;
-}
-
 /**
  * kdbus_cmd_name_acquire() - acquire a name from a ioctl command buffer
  * @reg:		The name registry
@@ -677,7 +653,8 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if ((cmd->flags & ~allowed) != 0)
 		return -EINVAL;
 
-	ret = kdbus_cmd_name_get_name(cmd, &name);
+	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
+				  KDBUS_ITEM_NAME, &name);
 	if (ret < 0)
 		return -EINVAL;
 
@@ -707,7 +684,8 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	int ret;
 	const char *name;
 
-	ret = kdbus_cmd_name_get_name(cmd, &name);
+	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
+				  KDBUS_ITEM_NAME, &name);
 	if (ret < 0)
 		return -EINVAL;
 

@@ -34,5 +34,7 @@
 
 int kdbus_item_validate_name(const struct kdbus_item *item);
 int kdbus_items_validate(const struct kdbus_item *items, size_t items_size);
+int kdbus_items_get_str(const struct kdbus_item *items, size_t items_size,
+			unsigned int item_type, const char **str_ret);
 
 #endif

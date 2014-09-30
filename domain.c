@@ -358,36 +358,6 @@ exit_put:
 }
 
 /**
- * kdbus_domain_make_user() - create domain data from user data
- * @cmd:		The command as passed in by the ioctl
- * @name:		The name of the domain to create
- *
- * Return: 0 on success, negative errno on failure
- */
-int kdbus_domain_make_user(struct kdbus_cmd_make *cmd, char **name)
-{
-	const struct kdbus_item *item;
-	const char *n = NULL;
-
-	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_MAKE_NAME:
-			if (n)
-				return -EEXIST;
-
-			n = item->str;
-			continue;
-		}
-	}
-
-	if (!name)
-		return -EBADMSG;
-
-	*name = (char *)n;
-	return 0;
-}
-
-/**
  * kdbus_domain_user_assign_id() - allocate ID and assign it to the
  *				   domain user
  * @domain:		The domain of the user
