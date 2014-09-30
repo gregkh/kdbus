@@ -60,20 +60,21 @@ enum kdbus_handle_type {
 
 /**
  * struct kdbus_handle - a handle to the kdbus system
- * @type:	Type of this handle (KDBUS_HANDLE_*)
- * @domain:	Domain for this handle
- * @meta:	Cached connection creator's metadata/credentials
- * @ep:		The endpoint this handle owns, in case @type
- *		is KDBUS_HANDLE_EP
+ * @type:		Type of this handle (KDBUS_HANDLE_*)
+ * @domain:		Domain for this handle
+ * @meta:		Cached connection creator's metadata/credentials
+ * @ep:			The endpoint for this handle, in case @type is
+ *			KDBUS_HANDLE_EP, KDBUS_HANDLE_EP_OWNER or
+ *			KDBUS_HANDLE_EP_CONNECTED
  * @domain_owner:	The domain this handle owns, in case @type
- *		is KDBUS_HANDLE_CONTROL_DOMAIN_OWNER
- * @bus_owner:	The bus this handle owns, in case @type
- *		is KDBUS_HANDLE_CONTROL_BUS_OWNER
- * @ep_owner	The endpoint this handle owns, in case @type
- *		is KDBUS_HANDLE_EP_OWNER
- * @conn	The connection this handle owns, in case @type
- *		is KDBUS_HANDLE_EP, after HELLO it is
- *		KDBUS_HANDLE_EP_CONNECTED
+ *			is KDBUS_HANDLE_CONTROL_DOMAIN_OWNER
+ * @bus_owner:		The bus this handle owns, in case @type
+ *			is KDBUS_HANDLE_CONTROL_BUS_OWNER
+ * @ep_owner:		The endpoint this handle owns, in case @type
+ *			is KDBUS_HANDLE_EP_OWNER
+ * @conn:		The connection this handle owns, in case @type
+ *			is KDBUS_HANDLE_EP, after HELLO it is
+ *			KDBUS_HANDLE_EP_CONNECTED
  */
 struct kdbus_handle {
 	enum kdbus_handle_type type;
