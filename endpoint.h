@@ -14,18 +14,18 @@
 #ifndef __KDBUS_EP_H
 #define __KDBUS_EP_H
 
+#include <linux/device.h>
 #include "limits.h"
 #include "policy.h"
 #include "util.h"
 
 /*
  * struct kdbus_endpoint - enpoint to access a bus
- * @kref:		Reference count
+ * @dev:		Device
  * @bus:		Bus behind this endpoint
  * @name:		Name of the endpoint
  * @id:			ID of this endpoint on the bus
  * @minor:		Minor of this endpoint in the domain major
- * @dev:		Device node of this endpoint
  * @mode:		File mode of this endpoint device node
  * @uid:		UID owning this endpoint
  * @gid:		GID owning this endpoint
@@ -42,12 +42,11 @@
  * carry their own policies/filters.
  */
 struct kdbus_ep {
-	struct kref kref;
+	struct device dev;
 	struct kdbus_bus *bus;
 	const char *name;
 	u64 id;
 	unsigned int minor;
-	struct device *dev;
 	umode_t mode;
 	kuid_t uid;
 	kgid_t gid;

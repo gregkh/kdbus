@@ -32,7 +32,7 @@
 static char *kdbus_devnode_ep(struct device *dev, umode_t *mode,
 			      kuid_t *uid, kgid_t *gid)
 {
-	struct kdbus_ep *ep = dev_get_drvdata(dev);
+	struct kdbus_ep *ep = container_of(dev, struct kdbus_ep, dev);
 
 	if (mode)
 		*mode = ep->mode;
@@ -57,7 +57,7 @@ static struct device_type kdbus_devtype_ep = {
 
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 {
-	kref_get(&ep->kref);
+	get_device(&ep->dev);
 	return ep;
 }
 
@@ -101,11 +101,8 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 	list_del(&ep->bus_entry);
 	mutex_unlock(&ep->bus->lock);
 
-	if (ep->dev) {
-		device_unregister(ep->dev);
-		ep->dev = NULL;
-	}
 	if (ep->minor > 0) {
+		device_del(&ep->dev);
 		mutex_lock(&ep->bus->domain->lock);
 		idr_remove(&ep->bus->domain->idr, ep->minor);
 		mutex_unlock(&ep->bus->domain->lock);
@@ -113,9 +110,9 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 	}
 }
 
-static void __kdbus_ep_free(struct kref *kref)
+static void __kdbus_ep_free(struct device *dev)
 {
-	struct kdbus_ep *ep = container_of(kref, struct kdbus_ep, kref);
+	struct kdbus_ep *ep = container_of(dev, struct kdbus_ep, dev);
 
 	BUG_ON(!ep->disconnected);
 	BUG_ON(!list_empty(&ep->conn_list));
@@ -129,10 +126,8 @@ static void __kdbus_ep_free(struct kref *kref)
 
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 {
-	if (!ep)
-		return NULL;
-
-	kref_put(&ep->kref, __kdbus_ep_free);
+	if (ep)
+		put_device(&ep->dev);
 	return NULL;
 }
 
@@ -185,8 +180,8 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (!e)
 		return -ENOMEM;
 
+	e->disconnected = true;
 	mutex_init(&e->lock);
-	kref_init(&e->kref);
 	INIT_LIST_HEAD(&e->conn_list);
 	kdbus_policy_db_init(&e->policy_db);
 	e->uid = uid;
@@ -194,10 +189,15 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->mode = mode;
 	e->has_policy = policy;
 
+	device_initialize(&e->dev);
+	e->dev.bus = &kdbus_subsys;
+	e->dev.type = &kdbus_devtype_ep;
+	e->dev.release = __kdbus_ep_free;
+
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {
 		ret = -ENOMEM;
-		goto exit_free;
+		goto exit_put;
 	}
 
 	mutex_lock(&bus->domain->lock);
@@ -207,39 +207,32 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		if (ret == -ENOSPC)
 			ret = -EEXIST;
 		mutex_unlock(&bus->domain->lock);
-		goto exit_free_name;
+		goto exit_put;
 	}
+
 	e->minor = ret;
+	e->dev.devt = MKDEV(bus->domain->major, e->minor);
 	mutex_unlock(&bus->domain->lock);
 
-	/* register bus endpoint device */
-	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);
-	if (!e->dev) {
-		ret = -ENOMEM;
+	ret = dev_set_name(&e->dev, "%s/%s/%s",
+			   bus->domain->devpath, bus->name, name);
+	if (ret < 0)
 		goto exit_idr;
-	}
 
-	dev_set_name(e->dev, "%s/%s/%s", bus->domain->devpath, bus->name, name);
-	e->dev->bus = &kdbus_subsys;
-	e->dev->type = &kdbus_devtype_ep;
-	e->dev->devt = MKDEV(bus->domain->major, e->minor);
-	dev_set_drvdata(e->dev, e);
-	ret = device_register(e->dev);
-	if (ret < 0) {
-		put_device(e->dev);
-		e->dev = NULL;
+	ret = device_add(&e->dev);
+	if (ret < 0)
 		goto exit_idr;
-	}
 
 	/* link into bus  */
 	mutex_lock(&bus->lock);
 	if (bus->disconnected) {
 		mutex_unlock(&bus->lock);
 		ret = -ESHUTDOWN;
-		goto exit_dev_unregister;
+		goto exit_dev;
 	}
 	e->id = ++bus->ep_seq_last;
 	e->bus = kdbus_bus_ref(bus);
+	e->disconnected = false;
 	list_add_tail(&e->bus_entry, &bus->ep_list);
 	mutex_unlock(&bus->lock);
 
@@ -247,17 +240,14 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		*ep = e;
 	return 0;
 
-exit_dev_unregister:
-	device_unregister(e->dev);
+exit_dev:
+	device_del(&e->dev);
 exit_idr:
 	mutex_lock(&bus->domain->lock);
 	idr_remove(&bus->domain->idr, e->minor);
 	mutex_unlock(&bus->domain->lock);
-exit_free_name:
-	kfree(e->name);
-exit_free:
-	kdbus_policy_db_clear(&e->policy_db);
-	kfree(e);
+exit_put:
+	put_device(&e->dev);
 	return ret;
 }
 
