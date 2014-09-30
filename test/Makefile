@@ -27,6 +27,7 @@ OBJS= \
 	test-connection.o	\
 	test-daemon.o		\
 	test-domain.o		\
+	test-endpoint.o		\
 	test-fd.o		\
 	test-free.o		\
 	test-match.o		\

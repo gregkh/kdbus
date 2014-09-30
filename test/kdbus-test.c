@@ -64,6 +64,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
+		.name	= "endpoint",
+		.desc	= "custom endpoint",
+		.func	= kdbus_test_custom_endpoint,
+		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
+	},
+	{
 		.name	= "monitor",
 		.desc	= "monitor functionality",
 		.func	= kdbus_test_monitor,
