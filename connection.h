@@ -29,10 +29,10 @@
 /**
  * struct kdbus_conn - connection to a bus
  * @kref:		Reference count
+ * @active:		Active references to the connection
  * @id:			Connection ID
  * @flags:		KDBUS_HELLO_* flags
  * @attach_flags:	KDBUS_ATTACH_* flags
- * @disconnected:	Invalidated data
  * @name:		Human-readable connection name, used for debugging
  * @bus:		The bus this connection belongs to
  * @ep:			The endpoint this connection belongs to
@@ -41,18 +41,18 @@
  *			individual user
  * @msg_users_max:	Size of the users array
  * @hentry:		Entry in ID <-> connection map
- * @ep_entry:		The enpoint this connection belongs to
- * @monitor_entry:	The connection is a monitor
+ * @ep_entry:		Entry in endpoint
+ * @monitor_entry:	Entry in monitor, if the connection is a monitor
  * @names_list:		List of well-known names
  * @names_queue_list:	Well-known names this connection waits for
- * @activator_of:	Well-known name entry this connection acts as an
- *			activator for
  * @reply_list:		List of connections this connection expects
  *			a reply from.
  * @work:		Delayed work to handle timeouts
+ * @activator_of:	Well-known name entry this connection acts as an
+ *			activator for
  * @match_db:		Subscription filter to broadcast messages
  * @meta:		Active connection creator's metadata/credentials,
- *			either from the handle of from HELLO
+ *			either from the handle or from HELLO
  * @owner_meta:		The connection's metadata/credentials supplied by
  *			HELLO
  * @pool:		The user's buffer to receive messages
