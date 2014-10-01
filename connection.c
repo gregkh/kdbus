@@ -146,12 +146,12 @@ static void kdbus_conn_work(struct work_struct *work)
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	LIST_HEAD(reply_list);
 	u64 deadline = ~0ULL;
-	struct timespec ts;
+	struct timespec64 ts;
 	u64 now;
 
 	conn = container_of(work, struct kdbus_conn, work.work);
-	ktime_get_ts(&ts);
-	now = timespec_to_ns(&ts);
+	ktime_get_ts64(&ts);
+	now = timespec64_to_ns(&ts);
 
 	mutex_lock(&conn->lock);
 	if (!kdbus_conn_active(conn)) {
@@ -411,7 +411,7 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 {
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	struct kdbus_conn_reply *r;
-	struct timespec ts;
+	struct timespec64 ts;
 	int ret = 0;
 
 	if (atomic_inc_return(&conn_src->reply_count) >
@@ -449,8 +449,8 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 		r->waiting = true;
 	} else {
 		/* calculate the deadline based on the current time */
-		ktime_get_ts(&ts);
-		r->deadline_ns = timespec_to_ns(&ts) + msg->timeout_ns;
+		ktime_get_ts64(&ts);
+		r->deadline_ns = timespec64_to_ns(&ts) + msg->timeout_ns;
 	}
 
 	list_add(&r->entry, &conn_dst->reply_list);
