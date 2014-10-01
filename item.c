@@ -227,7 +227,7 @@ int kdbus_items_validate(const struct kdbus_item *items, size_t items_size)
  *
  * This function walks a list of items and searches for items of type
  * @item_type. If it finds exactly one such item, @str_ret will be set to
- * the string member of the item.
+ * the .str member of the item.
  *
  * Return: 0 if the item was found exactly once, -EEXIST if the item was
  * found more than once, and -EBADMSG if there was no item of the given type.
@@ -243,21 +243,8 @@ int kdbus_items_get_str(const struct kdbus_item *items, size_t items_size,
 			if (n)
 				return -EEXIST;
 
-			switch (item_type) {
-			case KDBUS_ITEM_NAME_ADD:
-			case KDBUS_ITEM_NAME_REMOVE:
-			case KDBUS_ITEM_NAME_CHANGE:
-				n = (const char *) &item->name_change.name;
-				break;
-
-			case KDBUS_ITEM_NAME:
-			case KDBUS_ITEM_MAKE_NAME:
-				n = item->str;
-				break;
-
-			default:
-				break;
-			}
+			n = item->str;
+			continue;
 		}
 	}
 
