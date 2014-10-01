@@ -578,6 +578,12 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 		 * data, even when they did not ask for it.
 		 */
 		if (conn_src) {
+			ret = kdbus_ep_policy_check_src_names(conn_dst->ep,
+							      conn_src,
+							      conn_dst);
+			if (ret < 0)
+				continue;
+
 			mutex_lock(&conn_dst->lock);
 			attach_flags = conn_dst->attach_flags;
 			mutex_unlock(&conn_dst->lock);

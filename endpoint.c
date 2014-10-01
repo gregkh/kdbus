@@ -359,6 +359,45 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 }
 
 /**
+ * kdbus_ep_policy_check_src_names() - check whether a connection's endpoint
+ *				       is allowed to see any of another
+ *				       connection's currently owned names
+ * @ep:			Endpoint to operate on
+ * @conn_src:		Connection that owns the names
+ * @conn_src:		Destination connection to check credentials against
+ *
+ * This function checks whether @ep is allowed to see any of the names
+ * currently owned by @conn_src.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
+				    struct kdbus_conn *conn_src,
+				    struct kdbus_conn *conn_dst)
+{
+	struct kdbus_name_entry *e;
+	int ret = -ENOENT;
+
+	if (!ep->has_policy)
+		return 0;
+
+	down_read(&ep->policy_db.entries_rwlock);
+	mutex_lock(&conn_src->lock);
+
+	list_for_each_entry(e, &conn_src->names_list, conn_entry) {
+		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn_dst,
+								e->name);
+		if (ret == 0)
+			break;
+	}
+
+	mutex_unlock(&conn_src->lock);
+	up_read(&ep->policy_db.entries_rwlock);
+
+	return ret;
+}
+
+/**
  * kdbus_ep_policy_check_talk_access() - verify a connection can talk to the
  *					 the passed connection
  * @ep:			Endpoint to operate on
