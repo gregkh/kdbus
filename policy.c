@@ -235,9 +235,6 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 	const struct kdbus_policy_db_entry *e;
 	int ret;
 
-	if (kdbus_bus_cred_is_privileged(conn->bus, conn->cred))
-		return 0;
-
 	down_read(&db->entries_rwlock);
 	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
 	ret = kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_OWN);
