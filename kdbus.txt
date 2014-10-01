@@ -1359,7 +1359,9 @@ On each bus, a set of implicit rules is always enforced:
   * Privileged connections always override any installed policy. Those
     connections could easily install their own policies, so there is no reason
     to enforce installed policies.
-  * Connections can always talk to connections of the same user.
+  * Connections can always talk to connections of the same user if both are
+    connected to the default endpoint of a bus. On custom bus endpoints, policy
+    rules are enforced even if both ends are running under the same user.
   * A bus policy can never restrict the set of names that can be seen. Only
     endpoint policies can install "SEE" policies.
 
