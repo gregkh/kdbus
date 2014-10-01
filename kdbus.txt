@@ -1577,7 +1577,8 @@ KDBUS_CMD_MSG_SEND
   -EPIPE	When sending a message, a synchronous reply from the receiving
 		connection was expected but the connection died before
 		answering
-  -ECANCELED	A synchronous message sending was cancelled.
+  -ECANCELED	A synchronous message sending was cancelled
+  -ENOBUFS	Too many pending messages on the receiver side
 
 For KDBUS_CMD_MSG_RECV:
 
