@@ -6,7 +6,6 @@ endif
 
 CFLAGS		+= -std=gnu99 -Wall -Wextra -g \
 		   -include $(KERNELDIR)/include/uapi/linux/memfd.h \
-		   -include $(KERNELDIR)/include/uapi/asm-generic/unistd.h \
 		   -D_GNU_SOURCE \
 		   -Wno-unused-parameter \
 		   -Wmaybe-uninitialized \

@@ -31,6 +31,16 @@
 #include <linux/memfd.h>
 #endif
 
+#ifndef __NR_memfd_create
+  #ifdef __x86_64__
+    #define __NR_memfd_create 319
+  #elif defined __arm__
+    #define __NR_memfd_create 385
+  #else
+    #define __NR_memfd_create 356
+  #endif
+#endif
+
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
