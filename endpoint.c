@@ -311,16 +311,16 @@ int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 }
 
 /**
- * kdbus_ep_policy_check_notification() - verify a connection is allowed to the
- *					  name in a notification
+ * kdbus_ep_policy_check_notification() - verify a connection is allowed to see
+ *					  the name in a notification
  * @ep:			Endpoint to operate on
- * @conn:		Connection that lists names
+ * @conn:		Connection connected to the endpoint
  * @kmsg		The message carrying the notification
  *
- * This verifies that @conn is allowed to see the well-known name inside a
- * name-change notification contained in @msg via the endpoint @ep. If @msg
- * is not a notification for name changes, this function does nothing but
- * return 0.
+ * This function verifies that @conn is allowed to see the well-known name
+ * inside a name-change notification contained in @msg via the endpoint @ep.
+ * If @msg is not a notification for name changes, this function does nothing
+ * but return 0.
  *
  * Return: 0 if allowed, negative error code if not.
  */
