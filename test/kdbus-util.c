@@ -221,6 +221,37 @@ struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 				     KDBUS_HELLO_ACTIVATOR);
 }
 
+int kdbus_conn_info(struct kdbus_conn *conn, uint64_t id,
+		    const char *name, uint64_t *offset)
+{
+	struct kdbus_cmd_conn_info *cmd;
+	size_t size = sizeof(*cmd);
+	int ret;
+
+	if (name)
+		size += strlen(name) + 1;
+
+	cmd = alloca(size);
+	memset(cmd, 0, size);
+	cmd->size = size;
+
+	if (name)
+		strcpy(cmd->name, name);
+	else
+		cmd->id = id;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_CONN_INFO, cmd);
+	if (ret < 0)
+		return -errno;
+
+	if (offset)
+		*offset = cmd->offset;
+	else
+		kdbus_free(conn, cmd->offset);
+
+	return 0;
+}
+
 void kdbus_conn_free(struct kdbus_conn *conn)
 {
 	if (!conn)

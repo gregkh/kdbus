@@ -76,6 +76,8 @@ struct kdbus_conn *kdbus_hello_registrar(const char *path, const char *name,
 struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 					 const struct kdbus_policy_access *access,
 					 size_t num_access);
+int kdbus_conn_info(struct kdbus_conn *conn, uint64_t id,
+		    const char *name, uint64_t *offset);
 void kdbus_conn_free(struct kdbus_conn *conn);
 int kdbus_conn_update_attach_flags(struct kdbus_conn *conn, uint64_t flags);
 int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
