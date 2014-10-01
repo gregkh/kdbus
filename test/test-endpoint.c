@@ -113,7 +113,7 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* the filtered endpoint should NOT have received a notification */
-	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ret = kdbus_msg_recv(ep_conn, &msg, NULL);
 	ASSERT_RETURN(ret == -EAGAIN);
 
 	kdbus_conn_free(ep_conn);
