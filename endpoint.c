@@ -51,7 +51,7 @@ static void kdbus_dev_release(struct device *dev)
 }
 
 static struct device_type kdbus_devtype_ep = {
-	.name		= "ep",
+	.name		= "endpoint",
 	.release	= kdbus_dev_release,
 	.devnode	= kdbus_devnode_ep,
 };
