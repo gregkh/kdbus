@@ -35,7 +35,6 @@
 #include "metadata.h"
 #include "names.h"
 #include "domain.h"
-#include "notify.h"
 #include "policy.h"
 
 /**
