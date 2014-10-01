@@ -265,11 +265,6 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	const void *owner;
 	int ret;
 
-	if (kdbus_bus_cred_is_privileged(conn_src->bus, conn_src->cred))
-		return 0;
-	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
-		return 0;
-
 	/*
 	 * If there was a positive match for these two connections before,
 	 * there's an entry in the hash table for them.
@@ -344,9 +339,6 @@ int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
 					   const char *name)
 {
 	const struct kdbus_policy_db_entry *e;
-
-	if (kdbus_bus_cred_is_privileged(conn->bus, conn->cred))
-		return 0;
 
 	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
 	return kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_SEE);

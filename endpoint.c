@@ -425,6 +425,11 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 			return ret;
 	}
 
+	if (kdbus_bus_cred_is_privileged(conn_src->bus, conn_src->cred))
+		return 0;
+	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
+		return 0;
+
 	ret = kdbus_policy_check_talk_access(&ep->bus->policy_db,
 					     conn_src, conn_dst);
 	if (ret < 0)
@@ -456,6 +461,9 @@ int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
 		if (ret < 0)
 			return ret;
 	}
+
+	if (kdbus_bus_cred_is_privileged(conn->bus, conn->cred))
+		return 0;
 
 	ret = kdbus_policy_check_own_access(&ep->bus->policy_db, conn, name);
 	if (ret < 0)
