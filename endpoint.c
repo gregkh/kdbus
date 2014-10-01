@@ -26,6 +26,7 @@
 #include "domain.h"
 #include "endpoint.h"
 #include "item.h"
+#include "message.h"
 #include "policy.h"
 
 /* endpoints are by default owned by the bus owner */
@@ -305,6 +306,54 @@ int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 	/* don't leak hints whether a name exists on a custom endpoint. */
 	if (ret == -EPERM)
 		return -ENOENT;
+
+	return ret;
+}
+
+/**
+ * kdbus_ep_policy_check_notification() - verify a connection is allowed to the
+ *					  name in a notification
+ * @ep:			Endpoint to operate on
+ * @conn:		Connection that lists names
+ * @kmsg		The message carrying the notification
+ *
+ * This verifies that @conn is allowed to see the well-known name inside a
+ * name-change notification contained in @msg via the endpoint @ep. If @msg
+ * is not a notification for name changes, this function does nothing but
+ * return 0.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
+				       struct kdbus_conn *conn,
+				       const struct kdbus_kmsg *kmsg)
+{
+	int ret = 0;
+	const char *n = NULL;
+
+	if (kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL)
+		return 0;
+
+	switch (kmsg->notify_type) {
+	case KDBUS_ITEM_NAME_ADD:
+	case KDBUS_ITEM_NAME_REMOVE:
+	case KDBUS_ITEM_NAME_CHANGE:
+		ret = kdbus_items_get_str(kmsg->msg.items,
+					  KDBUS_ITEMS_SIZE(&kmsg->msg, items),
+					  kmsg->notify_type, &n);
+		BUG_ON(!n);
+
+		down_read(&ep->policy_db.entries_rwlock);
+		mutex_lock(&conn->lock);
+
+		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn, n);
+
+		mutex_unlock(&conn->lock);
+		up_read(&ep->policy_db.entries_rwlock);
+		break;
+	default:
+		break;
+	}
 
 	return ret;
 }

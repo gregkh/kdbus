@@ -566,6 +566,11 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 					       kmsg))
 			continue;
 
+		ret = kdbus_ep_policy_check_notification(conn_dst->ep,
+							 conn_dst, kmsg);
+		if (ret < 0)
+			continue;
+
 		/*
 		 * The first receiver which requests additional
 		 * metadata causes the message to carry it; all
