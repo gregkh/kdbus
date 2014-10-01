@@ -329,7 +329,6 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 				       const struct kdbus_kmsg *kmsg)
 {
 	int ret = 0;
-	const char *n = NULL;
 
 	if (kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL)
 		return 0;
@@ -338,15 +337,11 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 	case KDBUS_ITEM_NAME_ADD:
 	case KDBUS_ITEM_NAME_REMOVE:
 	case KDBUS_ITEM_NAME_CHANGE:
-		ret = kdbus_items_get_str(kmsg->msg.items,
-					  KDBUS_ITEMS_SIZE(&kmsg->msg, items),
-					  kmsg->notify_type, &n);
-		BUG_ON(!n);
-
 		down_read(&ep->policy_db.entries_rwlock);
 		mutex_lock(&conn->lock);
 
-		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn, n);
+		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn,
+							kmsg->notify_name);
 
 		mutex_unlock(&conn->lock);
 		up_read(&ep->policy_db.entries_rwlock);
