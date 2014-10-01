@@ -66,6 +66,8 @@ enum kdbus_handle_type {
  * @ep:			The endpoint for this handle, in case @type is
  *			KDBUS_HANDLE_EP, KDBUS_HANDLE_EP_OWNER or
  *			KDBUS_HANDLE_EP_CONNECTED
+ * @ptr:		Generic pointer used as alias for other members
+ *			in the same union by kdbus_handle_transform()
  * @domain_owner:	The domain this handle owns, in case @type
  *			is KDBUS_HANDLE_CONTROL_DOMAIN_OWNER
  * @bus_owner:		The bus this handle owns, in case @type
