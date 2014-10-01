@@ -25,6 +25,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <linux/unistd.h>
 #ifndef MFD_CLOEXEC
 #include <linux/memfd.h>
@@ -693,21 +694,24 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
  * We must return the result of kdbus_msg_recv()
  */
 int kdbus_msg_recv_poll(struct kdbus_conn *conn,
-			unsigned int timeout_ms,
+			int timeout_ms,
 			struct kdbus_msg **msg_out,
 			uint64_t *offset)
 {
-	int cnt = 3;
-	struct pollfd fd;
 	int ret;
 
-	fd.fd = conn->fd;
-	fd.events = POLLIN | POLLPRI | POLLHUP;
-	fd.revents = 0;
+	do {
+		struct timeval before, after, diff;
+		struct pollfd fd;
 
-	while (cnt) {
-		cnt--;
+		fd.fd = conn->fd;
+		fd.events = POLLIN | POLLPRI | POLLHUP;
+		fd.revents = 0;
+
+		gettimeofday(&before, NULL);
 		ret = poll(&fd, 1, timeout_ms);
+		gettimeofday(&after, NULL);
+
 		if (ret == 0) {
 			ret = -ETIMEDOUT;
 			break;
@@ -724,15 +728,10 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 		if (ret == 0 || ret != -EAGAIN)
 			break;
 
-		/*
-		 * recv failed with -EAGAIN (Resource temporarily
-		 * unavailable), so just try again.
-		 *
-		 * Add the following even if poll will return
-		 * immediately.
-		 */
-		timeout_ms = 0;
-	}
+		timersub(&after, &before, &diff);
+		timeout_ms -= diff.tv_sec * 1000UL +
+			      diff.tv_usec / 1000UL;
+	} while (timeout_ms > 0);
 
 	return ret;
 }
