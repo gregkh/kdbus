@@ -81,6 +81,47 @@ static int create_endpoint(const char *buspath, const char *name)
 	return fd;
 }
 
+static int update_endpoint(int fd, const char *name)
+{
+	int len = strlen(name) + 1;
+	struct {
+		struct kdbus_cmd_update head;
+
+		/* name item */
+		struct {
+			uint64_t size;
+			uint64_t type;
+			char str[KDBUS_ALIGN8(len)];
+		} name;
+
+		struct {
+			uint64_t size;
+			uint64_t type;
+			struct kdbus_policy_access access;
+		} access;
+	} ep_update;
+	int ret;
+
+	memset(&ep_update, 0, sizeof(ep_update));
+
+	ep_update.name.size = KDBUS_ITEM_HEADER_SIZE + len;
+	ep_update.name.type = KDBUS_ITEM_NAME;
+	strncpy(ep_update.name.str, name, sizeof(ep_update.name.str));
+
+	ep_update.access.size = sizeof(ep_update.access);
+	ep_update.access.type = KDBUS_ITEM_POLICY_ACCESS;
+	ep_update.access.access.type = KDBUS_POLICY_ACCESS_WORLD;
+	ep_update.access.access.access = KDBUS_POLICY_SEE;
+
+	ep_update.head.size = sizeof(ep_update);
+
+	ret = ioctl(fd, KDBUS_CMD_EP_UPDATE, &ep_update);
+	if (ret < 0)
+		return -errno;
+
+	return 0;
+}
+
 int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 {
 	char *ep, *tmp;
@@ -104,17 +145,55 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ep_conn = kdbus_hello(ep, 0, NULL, 0);
 	ASSERT_RETURN(ep_conn);
 
-	/* add a name add match */
+	/*
+	 * Add a name add match on the endpoint connection, acquire name from
+	 * the unfiltered connection, and make sure the filtered connection
+	 * did not get the notification on the name owner change. Also, the
+	 * endpoint connection may not be able to call conn_info, neither on
+	 * the name nor on the ID.
+	 */
 	ret = install_name_add_match(ep_conn, name);
 	ASSERT_RETURN(ret == 0);
 
-	/* now acquire name from the unfiltered connection */
 	ret = kdbus_name_acquire(env->conn, name, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	/* the filtered endpoint should NOT have received a notification */
-	ret = kdbus_msg_recv(ep_conn, &msg, NULL);
+	ret = kdbus_msg_recv(ep_conn, NULL, NULL);
 	ASSERT_RETURN(ret == -EAGAIN);
+
+	ret = kdbus_conn_info(ep_conn, 0, name, NULL);
+	ASSERT_RETURN(ret == -ENOENT);
+
+	ret = kdbus_conn_info(ep_conn, env->conn->id, NULL, NULL);
+	ASSERT_RETURN(ret == -ENOENT);
+
+	/*
+	 * Release the name again, update the custom endpoint policy,
+	 * and try again. This time, the connection on the custom endpoint
+	 * should have gotten it.
+	 */
+	ret = kdbus_name_release(env->conn, name);
+	ASSERT_RETURN(ret == 0);
+
+	ret = update_endpoint(ep_fd, name);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_name_acquire(env->conn, name, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(ep_conn, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->items[0].type == KDBUS_ITEM_NAME_ADD);
+	ASSERT_RETURN(msg->items[0].name_change.old_id.id == 0);
+	ASSERT_RETURN(msg->items[0].name_change.new_id.id == env->conn->id);
+	ASSERT_RETURN(strcmp(msg->items[0].name_change.name, name) == 0);
+	kdbus_msg_free(msg);
+
+	ret = kdbus_conn_info(ep_conn, 0, name, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_conn_info(ep_conn, env->conn->id, NULL, NULL);
+	ASSERT_RETURN(ret == 0);
 
 	kdbus_conn_free(ep_conn);
 	close(ep_fd);
