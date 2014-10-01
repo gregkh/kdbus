@@ -1178,6 +1178,19 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		if (!kdbus_name_is_valid(cmd_info->name, false))
 			return -EINVAL;
 
+		/* check if 'conn' is allowed to see 'name' */
+		down_read(&conn->ep->policy_db.entries_rwlock);
+		mutex_lock(&conn->lock);
+
+		ret = kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
+								cmd_info->name);
+
+		mutex_unlock(&conn->lock);
+		up_read(&conn->ep->policy_db.entries_rwlock);
+
+		if (ret < 0)
+			return ret;
+
 		entry = kdbus_name_lock(conn->bus->name_registry,
 					cmd_info->name);
 		if (!entry)
@@ -1190,6 +1203,12 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			ret = -ENXIO;
 			goto exit;
 		}
+
+		/* check if 'conn' is allowed to see any of owner_conn's names*/
+		ret = kdbus_ep_policy_check_src_names(conn->ep, owner_conn,
+						      conn);
+		if (ret < 0)
+			return ret;
 	}
 
 	info.size = sizeof(info);
