@@ -738,7 +738,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_match_db_add(conn, p);
+		ret = kdbus_match_db_add(conn, cmd_match);
 		break;
 	}
 

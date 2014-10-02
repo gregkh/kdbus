@@ -308,10 +308,28 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 	return matched;
 }
 
+static int __kdbus_match_db_remove_unlocked(struct kdbus_match_db *db,
+					    uint64_t cookie)
+{
+	struct kdbus_match_entry *entry, *tmp;
+	bool found = false;
+
+	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
+		if (entry->cookie == cookie) {
+			kdbus_match_entry_free(entry);
+			--db->entries;
+			found = true;
+		}
+
+	return found ? 0 : -ENOENT;
+}
+
 /**
  * kdbus_match_db_add() - add an entry to the match database
  * @conn:		The connection that was used in the ioctl call
  * @cmd:		The command as provided by the ioctl call
+ * @replace:		If an entry with the given cookie already exists,
+ *			replace it with the new one.
  *
  * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
  * interface.
@@ -455,6 +473,15 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	}
 
 	mutex_lock(&db->entries_lock);
+
+	/* Remove any entry that has the same cookie as the current one. */
+	if (cmd->flags & KDBUS_MATCH_REPLACE)
+		__kdbus_match_db_remove_unlocked(db, entry->cookie);
+
+	/*
+	 * If the above removal caught any entry, there will be room for the
+	 * new one.
+	 */
 	if (++db->entries > KDBUS_MATCH_MAX) {
 		--db->entries;
 		ret = -EMFILE;
@@ -483,19 +510,13 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 			  struct kdbus_cmd_match *cmd)
 {
 	struct kdbus_match_db *db = conn->match_db;
-	struct kdbus_match_entry *entry, *tmp;
-	bool found = false;
+	int ret;
 
 	lockdep_assert_held(conn);
 
 	mutex_lock(&db->entries_lock);
-	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
-		if (entry->cookie == cmd->cookie) {
-			kdbus_match_entry_free(entry);
-			--db->entries;
-			found = true;
-		}
+	ret = __kdbus_match_db_remove_unlocked(db, cmd->cookie);
 	mutex_unlock(&db->entries_lock);
 
-	return found ? 0 : -ENOENT;
+	return ret;
 }

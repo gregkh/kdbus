@@ -1127,6 +1127,13 @@ struct kdbus_cmd_match {
     A cookie which identifies the match, so it can be referred to at removal
     time.
 
+  __u64 flags;
+    Flags to control the behavior of the ioctl.
+
+    KDBUS_MATCH_REPLACE:
+      Remove all entries with the given cookie before installing the new one.
+      This allows for race-free replacement of matches.
+
   struct kdbus_item items[0];
     Items to define the actual match. The following item types are expected.
 
@@ -1227,6 +1234,9 @@ struct kdbus_cmd_match {
   __u64 cookie;
     The cookie of the match, as it was passed when the match was added.
     All matches that have this cookie will be removed.
+
+  __u64 flags;
+    Unused for this use case,
 
   struct kdbus_item items[0];
     Unused for this use case.
