@@ -285,8 +285,6 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 				start = now_ns;
 
 				dump_stats(false);
-				reset_stats();
-
 				break;
 			}
 		}
@@ -338,8 +336,6 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 				start = now_ns;
 
 				dump_stats(true);
-				reset_stats();
-
 				break;
 			}
 		}
