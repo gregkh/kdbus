@@ -1169,13 +1169,15 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	u64 flags;
 
 	if (cmd_info->id == 0) {
-		size_t len = cmd_info->size -
-			     offsetof(struct kdbus_cmd_conn_info, name);
+		const char *name;
 
-		if (strnlen(cmd_info->name, len) + 1 != len)
+		ret = kdbus_items_get_str(cmd_info->items,
+					  KDBUS_ITEMS_SIZE(cmd_info, items),
+					  KDBUS_ITEM_NAME, &name);
+		if (ret < 0)
 			return -EINVAL;
 
-		if (!kdbus_name_is_valid(cmd_info->name, false))
+		if (!kdbus_name_is_valid(name, false))
 			return -EINVAL;
 
 		/* check if 'conn' is allowed to see 'name' */
@@ -1183,7 +1185,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		mutex_lock(&conn->lock);
 
 		ret = kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
-								cmd_info->name);
+								name);
 
 		mutex_unlock(&conn->lock);
 		up_read(&conn->ep->policy_db.entries_rwlock);
@@ -1191,8 +1193,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		if (ret < 0)
 			return ret;
 
-		entry = kdbus_name_lock(conn->bus->name_registry,
-					cmd_info->name);
+		entry = kdbus_name_lock(conn->bus->name_registry, name);
 		if (!entry)
 			return -ESRCH;
 		else if (entry->conn)

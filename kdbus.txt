@@ -537,9 +537,10 @@ struct kdbus_cmd_conn_info {
     When the ioctl returns, this value will yield the offset of the connection
     information inside the caller's pool.
 
-  char name[0];
-    The name of the connection to retrieve information for. Only looked at if
-    the 'id' field is set to 0.
+  struct kdbus_item items[0];
+    The name of the connection to retrieve information for, stored in an item
+    of type KDBUS_ITEM_NAME. Only required at if the 'id' field is set to 0.
+    All other items are currently ignored.
 };
 
 After the ioctl returns, the following struct  will be stored in the caller's

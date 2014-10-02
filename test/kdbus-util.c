@@ -229,16 +229,19 @@ int kdbus_conn_info(struct kdbus_conn *conn, uint64_t id,
 	int ret;
 
 	if (name)
-		size += strlen(name) + 1;
+		size += KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
 
 	cmd = alloca(size);
 	memset(cmd, 0, size);
 	cmd->size = size;
 
-	if (name)
-		strcpy(cmd->name, name);
-	else
+	if (name) {
+		cmd->items[0].size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
+		cmd->items[0].type = KDBUS_ITEM_NAME;
+		strcpy(cmd->items[0].str, name);
+	} else {
 		cmd->id = id;
+	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_CONN_INFO, cmd);
 	if (ret < 0)

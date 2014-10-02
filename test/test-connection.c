@@ -207,7 +207,12 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	int ret;
 	struct {
 		struct kdbus_cmd_conn_info cmd_info;
-		char name[64];
+
+		struct {
+			uint64_t size;
+			uint64_t type;
+			char str[64];
+		} name;
 	} buf;
 
 	buf.cmd_info.size = sizeof(struct kdbus_cmd_conn_info);
@@ -218,9 +223,12 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* try to pass a name that is longer than the buffer's size */
-	strcpy(buf.cmd_info.name, "foo.bar.bla");
+	buf.name.size = KDBUS_ITEM_HEADER_SIZE + 1;
+	buf.name.type = KDBUS_ITEM_NAME;
+	strcpy(buf.name.str, "foo.bar.bla");
+
 	buf.cmd_info.id = 0;
-	buf.cmd_info.size = sizeof(struct kdbus_cmd_conn_info) + 10;
+	buf.cmd_info.size = sizeof(buf.cmd_info) + buf.name.size;
 	ret = ioctl(env->conn->fd, KDBUS_CMD_CONN_INFO, &buf);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
