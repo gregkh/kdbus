@@ -279,11 +279,15 @@ TEST_RACE2(kdbus_test_race_byebye_match, 10000,
 	}),
 	({
 		struct kdbus_cmd_match cmd = { };
+		int ret;
 
 		cmd.size = sizeof(cmd);
 		cmd.cookie = 0xdeadbeef;
-		return ioctl(env->conn->fd, KDBUS_CMD_MATCH_REMOVE, &cmd) ?
-			-errno : 0;
+		ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_REMOVE, &cmd);
+		if (ret == 0 || errno == ENOENT)
+			return 0;
+
+		return -errno;
 	}),
 	({
 		env->conn = kdbus_hello(env->buspath, 0, NULL, 0);

@@ -1642,4 +1642,6 @@ For KDBUS_CMD_MATCH_ADD:
   -EDOM		Illegal bloom filter size
   -EMFILE	Too many matches for this connection
 
-For KDBUS_CMD_MATCH_REMOVE: none
+For KDBUS_CMD_MATCH_REMOVE:
+
+  -ENOENT	A match entry with the given cookie could not be found.
