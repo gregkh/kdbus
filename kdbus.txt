@@ -1067,8 +1067,8 @@ A kernel notification is a regular kdbus message with the following details.
 10. Message Matching, Bloom filters
 ===============================================================================
 
-10.1 Matches for broadcast messages
------------------------------------
+10.1 Matches for broadcast messages from other connections
+----------------------------------------------------------
 
 A message addressed at the connection ID KDBUS_DST_ID_BROADCAST (~0ULL) is a
 broadcast message, delivered to all connected peers which installed a rule to
@@ -1110,14 +1110,25 @@ as the index into the mask array.
 
 To receive kernel generated notifications (see section 9), a connection must
 install special match rules that are different from the bloom filter matches
-described in the section before.
-
+described in the section above. They can be filtered by a sender connection's
+ID, by one of the name the sender connection owns at the time of sending the
+message, or by type of the notification (id/name add/remove/change).
 
 10.3 Adding a match
 -------------------
 
 To add a match, the KDBUS_CMD_MATCH_ADD ioctl is used, which takes a struct
-of the following type.
+of the struct described below.
+
+Note that each of the items attached to this command will internally create
+one match 'rule', and the collection of them, which is submitted as one block
+via the ioctl is called a 'match'. To allow a message to pass, all rules of a
+match have to be satisfied. Hence, adding more items to the command will only
+narrow the possibility of a match to effectively let the message pass, and will
+cause the connection's user space process to wake up less likely.
+
+Multiple matches can be installed per connection. As long as one of it has a
+set of rules which allows the message to pass, this one will be decisive.
 
 struct kdbus_cmd_match {
   __u64 size;
@@ -1135,7 +1146,8 @@ struct kdbus_cmd_match {
       This allows for race-free replacement of matches.
 
   struct kdbus_item items[0];
-    Items to define the actual match. The following item types are expected.
+    Items to define the actual rules of the matches. The following item types
+    are expected. Each item will cause one new match rule to be created.
 
     KDBUS_ITEM_BLOOM_MASK
       An item that carries the bloom filter mask to match against in its
@@ -1144,7 +1156,11 @@ struct kdbus_cmd_match {
       See section 10.4 for more information.
 
     KDBUS_ITEM_NAME
+      Specify a name that a sending connection must own at a time of sending
+      a broadcast message in order to match this rule.
+
     KDBUS_ITEM_ID
+      Specify a sender connection's ID that will match this rule.
 
     KDBUS_ITEM_NAME_ADD
     KDBUS_ITEM_NAME_REMOVE
