@@ -24,6 +24,7 @@
 
 static const bool use_memfd = true;		/* transmit memfd? */
 static const bool compare_uds = false;		/* unix-socket comparison? */
+static const bool attach_none = false;		/* clear attach-flags? */
 static char stress_payload[8192];
 
 struct stats {
@@ -223,6 +224,11 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 
 	ret = kdbus_name_acquire(conn_a, SERVICE_NAME, NULL);
 	ASSERT_RETURN(ret == 0);
+
+	if (attach_none) {
+		ret = kdbus_conn_update_attach_flags(conn_a, 0);
+		ASSERT_RETURN(ret == 0);
+	}
 
 	/* setup UDS pair */
 
