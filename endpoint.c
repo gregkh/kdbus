@@ -359,7 +359,7 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
  *				       connection's currently owned names
  * @ep:			Endpoint to operate on
  * @conn_src:		Connection that owns the names
- * @conn_src:		Destination connection to check credentials against
+ * @conn_dst:		Destination connection to check credentials against
  *
  * This function checks whether @ep is allowed to see any of the names
  * currently owned by @conn_src.
