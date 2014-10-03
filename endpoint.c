@@ -330,7 +330,7 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 {
 	int ret = 0;
 
-	if (kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL)
+	if (kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL || !ep->has_policy)
 		return 0;
 
 	switch (kmsg->notify_type) {
