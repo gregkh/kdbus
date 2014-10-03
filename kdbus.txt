@@ -1268,10 +1268,13 @@ holder connection) or a custom endpoint.
 
 See section 8.1 for more details on the validity of well-known names.
 
-Default endpoints of buses never have a policy database. There is no way to
-modify the policy of those endpoints, so their default policy is to allow all
-operations. Custom endpoint always have a policy, and by default, a policy
-database is empty.
+Default endpoints of buses always have a policy database. The default
+policy is to deny all operations except for operations that are covered by
+implicit policies. Custom endpoints always have a policy, and by default,
+a policy database is empty. Therefore, unless policy rules are added, all
+operations will also be denied by default.
+
+See section 11.5 for more details on implicit policies.
 
 A set of policy rules is described by a name and multiple access rules, defined
 by the following struct.
