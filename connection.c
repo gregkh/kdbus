@@ -1571,7 +1571,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_unref_user_unlock;
 	}
 
-	if (!capable(CAP_IPC_OWNER) &&
+	if (!kdbus_bus_uid_is_privileged(bus) &&
 	    atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
 		atomic_dec(&conn->user->connections);
 		ret = -EMFILE;
