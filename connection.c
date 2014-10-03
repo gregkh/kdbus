@@ -597,6 +597,9 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 		kdbus_conn_entry_insert(conn_dst, conn_src, kmsg, NULL);
 	}
 
+	/* Hide non-fatal errors when doing broadcast */
+	ret = 0;
+
 exit_unlock:
 	up_read(&bus->conn_rwlock);
 	return ret;
