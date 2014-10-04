@@ -1384,16 +1384,22 @@ fails, the operation is failed with -EPERM.
 11.5 Implicit policies
 ----------------------
 
-On each bus, a set of implicit rules is always enforced:
+Depending on the type of the endpoint, a set of implicit rules might be
+enforced. On default endpoints, the following set is enforced:
 
   * Privileged connections always override any installed policy. Those
-    connections could easily install their own policies, so there is no reason
-    to enforce installed policies.
-  * Connections can always talk to connections of the same user if both are
-    connected to the default endpoint of a bus. On custom bus endpoints, policy
-    rules are enforced even if both ends are running under the same user.
-  * A bus policy can never restrict the set of names that can be seen. Only
-    endpoint policies can install "SEE" policies.
+    connections could easily install their own policies, so there is no
+    reason to enforce installed policies.
+  * Connections can always talk to connections of the same user.
+
+Custom endpoints have stricter policies. The following rules apply:
+
+  * Policy rules are always enforced, even if the connection is a privileged
+    connection.
+  * Policy rules are always enforced for TALK access, even if both ends are
+    running under the same user.
+  * To restrict the set of names that can be seen, endpoint policies can
+    install "SEE" policies.
 
 
 12. Pool
