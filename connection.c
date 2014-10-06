@@ -536,9 +536,9 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_conn_broadcast(struct kdbus_ep *ep,
-				struct kdbus_conn *conn_src,
-				struct kdbus_kmsg *kmsg)
+static void kdbus_conn_broadcast(struct kdbus_ep *ep,
+				 struct kdbus_conn *conn_src,
+				 struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_bus *bus = ep->bus;
@@ -597,12 +597,8 @@ static int kdbus_conn_broadcast(struct kdbus_ep *ep,
 		kdbus_conn_entry_insert(conn_dst, conn_src, kmsg, NULL);
 	}
 
-	/* Hide non-fatal errors when doing broadcast */
-	ret = 0;
-
 exit_unlock:
 	up_read(&bus->conn_rwlock);
-	return ret;
 }
 
 static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
@@ -674,8 +670,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			return ret;
 	}
 
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
-		return kdbus_conn_broadcast(ep, conn_src, kmsg);
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
+		kdbus_conn_broadcast(ep, conn_src, kmsg);
+		return 0;
+	}
 
 	if (msg->dst_id == KDBUS_DST_ID_NAME) {
 		/* unicast message to well-known name */
