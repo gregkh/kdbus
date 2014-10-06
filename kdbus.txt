@@ -1649,7 +1649,8 @@ For KDBUS_CMD_NAME_RELEASE:
   -ESRCH	Name is not found found in the registry
   -EADDRINUSE	Name is owned by a different connection and can't be released
 
-For KDBUS_CMD_NAME_LIST: none
+For KDBUS_CMD_NAME_LIST:
+  -ENOBUFS	No available memory in the connection's pool.
 
 For KDBUS_CMD_CONN_INFO:
   -EINVAL	Neither an ID nor a name was provided, or the name is not
