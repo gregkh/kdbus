@@ -652,12 +652,11 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 
 	ret = kdbus_ep_policy_check_own_access(conn->ep, conn, name);
 	if (ret < 0)
-		goto exit;
+		return ret;
 
 	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags, &e);
-
-exit:
 	kdbus_notify_flush(conn->bus);
+
 	return ret;
 }
 
