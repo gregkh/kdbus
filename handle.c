@@ -835,7 +835,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_MSG_CANCEL: {
-		u64 cookie;
+		struct kdbus_cmd_cancel cmd_cancel;
 
 		if (!kdbus_conn_is_connected(conn)) {
 			ret = -EOPNOTSUPP;
@@ -848,17 +848,17 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		}
 
 		/* cancel sync message send requests by cookie */
-		if (copy_from_user(&cookie, buf, sizeof(cookie))) {
+		if (copy_from_user(&cmd_cancel, buf, sizeof(cmd_cancel))) {
 			ret = -EFAULT;
 			break;
 		}
 
-		ret = kdbus_cmd_msg_cancel(conn, cookie);
+		ret = kdbus_cmd_msg_cancel(conn, cmd_cancel.cookie);
 		break;
 	}
 
 	case KDBUS_CMD_FREE: {
-		u64 off;
+		struct kdbus_cmd_free cmd_free;
 
 		if (!kdbus_conn_is_connected(conn) &&
 		    !kdbus_conn_is_monitor(conn)) {
@@ -872,12 +872,12 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		}
 
 		/* free the memory used in the receiver's pool */
-		if (copy_from_user(&off, buf, sizeof(off))) {
+		if (copy_from_user(&cmd_free, buf, sizeof(cmd_free))) {
 			ret = -EFAULT;
 			break;
 		}
 
-		ret = kdbus_pool_release_offset(conn->pool, off);
+		ret = kdbus_pool_release_offset(conn->pool, cmd_free.offset);
 		break;
 	}
 

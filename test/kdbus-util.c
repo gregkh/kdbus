@@ -782,9 +782,13 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 
 int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
 {
+	struct kdbus_cmd_free cmd_free;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &offset);
+	cmd_free.offset = offset;
+	cmd_free.flags = 0;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &cmd_free);
 	if (ret < 0) {
 		kdbus_printf("KDBUS_CMD_FREE failed: %d (%m)\n", ret);
 		return -errno;

@@ -17,15 +17,18 @@
 int kdbus_test_free(struct kdbus_test_env *env)
 {
 	int ret;
-	uint64_t off = 0;
+	struct kdbus_cmd_free cmd_free;
+
+	cmd_free.flags = 0;
+	cmd_free.offset = 0;
 
 	/* free an unallocated buffer */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_FREE, &off);
+	ret = ioctl(env->conn->fd, KDBUS_CMD_FREE, &cmd_free);
 	ASSERT_RETURN(ret == -1 && errno == ENXIO);
 
 	/* free a buffer out of the pool's bounds */
-	off = POOL_SIZE + 1;
-	ret = ioctl(env->conn->fd, KDBUS_CMD_FREE, &off);
+	cmd_free.offset = POOL_SIZE + 1;
+	ret = ioctl(env->conn->fd, KDBUS_CMD_FREE, &cmd_free);
 	ASSERT_RETURN(ret == -1 && errno == ENXIO);
 
 	return TEST_OK;
