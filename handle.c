@@ -206,6 +206,19 @@ static bool kdbus_check_flags(u64 kernel_flags)
 	return upper_32_bits(kernel_flags) == 0;
 }
 
+static int kdbus_copy_from_user(void *dest,
+				void __user *user_ptr,
+				size_t size)
+{
+	if (!KDBUS_IS_ALIGNED8((uintptr_t)user_ptr))
+		return -EFAULT;
+
+	if (copy_from_user(dest, user_ptr, size))
+		return -EFAULT;
+
+	return 0;
+}
+
 static int kdbus_memdup_user(void __user *user_ptr,
 			     void **out,
 			     size_t size_min,
@@ -213,12 +226,11 @@ static int kdbus_memdup_user(void __user *user_ptr,
 {
 	void *ptr = NULL;
 	u64 size;
+	int ret;
 
-	if (!KDBUS_IS_ALIGNED8((uintptr_t) user_ptr))
-		return -EFAULT;
-
-	if (copy_from_user(&size, user_ptr, sizeof(size)))
-		return -EFAULT;
+	ret = kdbus_copy_from_user(&size, user_ptr, sizeof(size));
+	if (ret < 0)
+		return ret;
 
 	if (size < size_min)
 		return -EINVAL;
@@ -641,13 +653,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_NAME_LIST: {
 		struct kdbus_cmd_name_list cmd_list;
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		/* query current IDs and names */
-		if (copy_from_user(&cmd_list, buf, sizeof(cmd_list))) {
+		if (kdbus_copy_from_user(&cmd_list, buf, sizeof(cmd_list))) {
 			ret = -EFAULT;
 			break;
 		}
@@ -811,16 +818,10 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		/* handle a queued message */
-		if (copy_from_user(&cmd_recv, buf, sizeof(cmd_recv))) {
-			ret = -EFAULT;
+		ret = kdbus_copy_from_user(&cmd_recv, buf, sizeof(cmd_recv));
+		if (ret < 0)
 			break;
-		}
 
 		ret = kdbus_cmd_msg_recv(conn, &cmd_recv);
 		if (ret < 0)
@@ -842,16 +843,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		/* cancel sync message send requests by cookie */
-		if (copy_from_user(&cmd_cancel, buf, sizeof(cmd_cancel))) {
-			ret = -EFAULT;
+		ret = kdbus_copy_from_user(&cmd_cancel, buf,
+					   sizeof(cmd_cancel));
+		if (ret < 0)
 			break;
-		}
 
 		ret = kdbus_cmd_msg_cancel(conn, cmd_cancel.cookie);
 		break;
@@ -866,16 +862,10 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (!KDBUS_IS_ALIGNED8((uintptr_t)buf)) {
-			ret = -EFAULT;
-			break;
-		}
-
 		/* free the memory used in the receiver's pool */
-		if (copy_from_user(&cmd_free, buf, sizeof(cmd_free))) {
-			ret = -EFAULT;
+		ret = copy_from_user(&cmd_free, buf, sizeof(cmd_free));
+		if (ret < 0)
 			break;
-		}
 
 		ret = kdbus_pool_release_offset(conn->pool, cmd_free.offset);
 		break;
