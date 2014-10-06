@@ -640,18 +640,10 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_entry *e = NULL;
 	const char *name;
-	u64 allowed;
 	int ret;
 
 	if (conn->name_count > KDBUS_CONN_MAX_NAMES)
 		return -E2BIG;
-
-	/* refuse improper flags when requesting */
-	allowed = KDBUS_NAME_REPLACE_EXISTING  |
-		  KDBUS_NAME_ALLOW_REPLACEMENT |
-		  KDBUS_NAME_QUEUE;
-	if ((cmd->flags & ~allowed) != 0)
-		return -EINVAL;
 
 	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
 				  KDBUS_ITEM_NAME, &name);
