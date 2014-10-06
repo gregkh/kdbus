@@ -252,7 +252,10 @@ int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	mutex_unlock(&pool->lock);
 
 	*slice = s;
+	return 0;
+
 exit_unlock:
+	mutex_unlock(&pool->lock);
 	return ret;
 }
 

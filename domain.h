@@ -73,7 +73,7 @@ struct kdbus_domain {
  * @kref:		Reference counter
  * @domain:		Domain of the user
  * @hentry:		Entry in domain user map
- * @idr:		Smalles possible index number of all users
+ * @idr:		Smallest possible index number of all users
  * @uid:		UID of the user
  * @buses:		Number of buses the user has created
  * @connections:	Number of connections the user has created
