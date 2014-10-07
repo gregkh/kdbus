@@ -131,7 +131,6 @@ send_echo_request(struct kdbus_conn *conn, uint64_t dst_id)
 		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
 		item->memfd.size = sizeof(now_ns);
 		item->memfd.fd = memfd;
-		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
@@ -159,7 +158,6 @@ handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 	ASSERT_RETURN_VAL(ret == 0, -errno);
 
 	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
-	item = msg->items;
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
 		switch (item->type) {

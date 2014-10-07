@@ -40,7 +40,6 @@ static int send_fd(struct kdbus_conn *conn, uint64_t dst_id, int fd)
 	item->type = KDBUS_ITEM_FDS;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(int);
 	item->fds[0] = fd;
-	item = KDBUS_ITEM_NEXT(item);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
 	if (ret) {
