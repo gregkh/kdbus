@@ -33,7 +33,7 @@ static int install_name_add_match(struct kdbus_conn *conn, const char *name)
 	buf.item.type = KDBUS_ITEM_NAME_ADD;
 	buf.item.chg.old_id.id = KDBUS_MATCH_ID_ANY;
 	buf.item.chg.new_id.id = KDBUS_MATCH_ID_ANY;
-	strncpy(buf.name, name, sizeof(buf.name));
+	strncpy(buf.name, name, sizeof(buf.name) - 1);
 	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
