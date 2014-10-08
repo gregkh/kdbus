@@ -15,22 +15,22 @@ enum {
 
 #define ASSERT_RETURN_VAL(cond, val)		\
 	if (!(cond)) {			\
-		fprintf(stderr, "Assertion '%s' failed in %s(), line %d\n", \
-			#cond, __func__, __LINE__);	\
+		fprintf(stderr,	"Assertion '%s' failed in %s(), %s:%d\n", \
+			#cond, __func__, __FILE__, __LINE__);	\
 		return val;	\
 	}
 
 #define ASSERT_EXIT_VAL(cond, val)		\
 	if (!(cond)) {			\
-		fprintf(stderr, "Assertion '%s' failed in %s(), line %d\n", \
-			#cond, __func__, __LINE__);	\
+		fprintf(stderr, "Assertion '%s' failed in %s(), %s:%d\n", \
+			#cond, __func__, __FILE__, __LINE__);	\
 		_exit(val);	\
 	}
 
 #define ASSERT_BREAK(cond)		\
 	if (!(cond)) {			\
-		fprintf(stderr, "Assertion '%s' failed in %s(), line %d\n", \
-			#cond, __func__, __LINE__);	\
+		fprintf(stderr, "Assertion '%s' failed in %s(), %s:%d\n", \
+			#cond, __func__, __FILE__, __LINE__);	\
 		break; \
 	}
 
