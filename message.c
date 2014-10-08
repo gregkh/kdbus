@@ -232,12 +232,11 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	if (msg->dst_id == KDBUS_DST_ID_NAME && !has_name)
 		return -EDESTADDRREQ;
 
-	/* name and ID should not be given at the same time */
-	if (msg->dst_id > KDBUS_DST_ID_NAME &&
-	    msg->dst_id < KDBUS_DST_ID_BROADCAST && has_name)
-		return -EBADMSG;
-
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
+		/* broadcasts can't take names */
+		if (has_name)
+			return -EBADMSG;
+
 		/* broadcast messages require a bloom filter */
 		if (!has_bloom)
 			return -EBADMSG;
