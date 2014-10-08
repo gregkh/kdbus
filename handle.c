@@ -292,8 +292,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		struct kdbus_bloom_parameter bloom;
 		char *name;
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_make),
+		ret = kdbus_memdup_user(buf, &p, sizeof(*make),
 					KDBUS_MAKE_MAX_SIZE);
 		if (ret < 0)
 			break;
@@ -348,8 +347,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_make),
+		ret = kdbus_memdup_user(buf, &p, sizeof(*make),
 					KDBUS_MAKE_MAX_SIZE);
 		if (ret < 0)
 			break;
@@ -425,8 +423,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_make),
+		ret = kdbus_memdup_user(buf, &p, sizeof(*make),
 					KDBUS_MAKE_MAX_SIZE);
 		if (ret < 0)
 			break;
@@ -500,8 +497,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_hello *hello;
 		struct kdbus_conn *conn = NULL;
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_hello),
+		ret = kdbus_memdup_user(buf, &p, sizeof(*hello),
 					KDBUS_HELLO_MAX_SIZE);
 		if (ret < 0)
 			break;
@@ -539,7 +535,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (copy_to_user(buf, p, sizeof(struct kdbus_cmd_hello)))
+		if (copy_to_user(buf, hello, sizeof(*hello)))
 			ret = -EFAULT;
 
 		break;
@@ -591,9 +587,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_name),
-					sizeof(struct kdbus_cmd_name) +
+		ret = kdbus_memdup_user(buf, &p, sizeof(*cmd_name),
+					sizeof(*cmd_name) +
 						KDBUS_ITEM_HEADER_SIZE +
 						KDBUS_NAME_MAX_LEN + 1);
 		if (ret < 0)
@@ -626,9 +621,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_name),
-					sizeof(struct kdbus_cmd_name) +
+		ret = kdbus_memdup_user(buf, &p, sizeof(*cmd_name),
+					sizeof(*cmd_name) +
 						KDBUS_ITEM_HEADER_SIZE +
 						KDBUS_NAME_MAX_LEN + 1);
 		if (ret < 0)
@@ -671,9 +665,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_conn_info *cmd_info;
 
 		/* return the properties of a connection */
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_conn_info),
-					sizeof(struct kdbus_cmd_conn_info) +
+		ret = kdbus_memdup_user(buf, &p, sizeof(*cmd_info),
+					sizeof(*cmd_info) +
 						KDBUS_NAME_MAX_LEN + 1);
 		if (ret < 0)
 			break;
@@ -700,8 +693,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_update),
+		ret = kdbus_memdup_user(buf, &p, sizeof(*cmd_update),
 					KDBUS_UPDATE_MAX_SIZE);
 		if (ret < 0)
 			break;
@@ -727,8 +719,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_match),
+		ret = kdbus_memdup_user(buf, &p, sizeof(*cmd_match),
 					KDBUS_MATCH_MAX_SIZE);
 		if (ret < 0)
 			break;
@@ -755,8 +746,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		}
 
 		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_match),
-					sizeof(struct kdbus_cmd_match));
+					sizeof(*cmd_match),
+					sizeof(*cmd_match));
 		if (ret < 0)
 			break;
 
@@ -890,8 +881,7 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_update *cmd_update;
 
 		/* update the properties of a custom endpoint */
-		ret = kdbus_memdup_user(buf, &p,
-					sizeof(struct kdbus_cmd_update),
+		ret = kdbus_memdup_user(buf, &p, sizeof(*cmd_update),
 					KDBUS_UPDATE_MAX_SIZE);
 		if (ret < 0)
 			break;
