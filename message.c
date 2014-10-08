@@ -304,6 +304,14 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
+	/* Reject unknown flags */
+	if (m->msg.flags & ~(KDBUS_MSG_FLAGS_EXPECT_REPLY |
+			     KDBUS_MSG_FLAGS_SYNC_REPLY |
+			     KDBUS_MSG_FLAGS_NO_AUTO_START)) {
+		ret = -EOPNOTSUPP;
+		goto exit_free;
+	}
+
 	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
 		/* requests for replies need a timeout */
 		if (m->msg.timeout_ns == 0) {

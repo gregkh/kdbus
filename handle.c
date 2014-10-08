@@ -314,6 +314,13 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		/* Reject unknown flags */
+		if (make->flags & ~(KDBUS_MAKE_ACCESS_GROUP |
+				    KDBUS_MAKE_ACCESS_WORLD)) {
+			ret = -EOPNOTSUPP;
+			break;
+		}
+
 		if (make->flags & KDBUS_MAKE_ACCESS_WORLD) {
 			mode = 0666;
 		} else if (make->flags & KDBUS_MAKE_ACCESS_GROUP) {
@@ -367,6 +374,13 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 
 		/* Reject all feature requests for now */
 		if (make->features != 0) {
+			ret = -EOPNOTSUPP;
+			break;
+		}
+
+		/* Reject unknown flags */
+		if (make->flags & ~(KDBUS_MAKE_ACCESS_GROUP |
+				    KDBUS_MAKE_ACCESS_WORLD)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
@@ -452,6 +466,9 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		} else if (make->flags & KDBUS_MAKE_ACCESS_GROUP) {
 			mode = 0660;
 			gid = current_fsgid();
+		} else if (make->flags) {
+			ret = -EOPNOTSUPP;
+			break;
 		}
 
 		/* custom endpoints always have a policy db */
@@ -835,6 +852,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		if (cmd_cancel.flags != 0)
+			return -EOPNOTSUPP;
+
 		ret = kdbus_cmd_msg_cancel(conn, cmd_cancel.cookie);
 		break;
 	}
@@ -852,6 +872,9 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		ret = copy_from_user(&cmd_free, buf, sizeof(cmd_free));
 		if (ret < 0)
 			break;
+
+		if (cmd_free.flags != 0)
+			return -EOPNOTSUPP;
 
 		ret = kdbus_pool_release_offset(conn->pool, cmd_free.offset);
 		break;

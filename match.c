@@ -372,6 +372,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 	lockdep_assert_held(conn);
 
+	if (cmd->flags != 0)
+		return -EOPNOTSUPP;
+
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry) {
 		ret = -ENOMEM;
@@ -513,6 +516,9 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 	int ret;
 
 	lockdep_assert_held(conn);
+
+	if (cmd->flags != 0)
+		return -EOPNOTSUPP;
 
 	mutex_lock(&db->entries_lock);
 	ret = __kdbus_match_db_remove_unlocked(db, cmd->cookie);
