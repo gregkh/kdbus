@@ -542,6 +542,29 @@ exit_unlock:
 	return ret;
 }
 
+static int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
+				      struct kdbus_conn *conn_src,
+				      struct kdbus_conn *conn_dst)
+{
+	u64 attach_flags;
+
+	/*
+	 * Append metadata items according to the destination connection's
+	 * attach flags, unless the source connection has faked credentials.
+	 * In the latter case, the metadata objected associated with the kmsg
+	 * has been pre-filled with conn_src->owner_meta, and we don't want
+	 * to provide any other information to the receiver.
+	 */
+	if (conn_src->owner_meta)
+		return 0;
+
+	mutex_lock(&conn_dst->lock);
+	attach_flags = conn_dst->attach_flags;
+	mutex_unlock(&conn_dst->lock);
+
+	return kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq, attach_flags);
+}
+
 static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 				 struct kdbus_conn *conn_src,
 				 struct kdbus_kmsg *kmsg)
@@ -549,7 +572,6 @@ static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_bus *bus = ep->bus;
 	struct kdbus_conn *conn_dst;
-	u64 attach_flags;
 	unsigned int i;
 	int ret = 0;
 
@@ -590,12 +612,8 @@ static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 			if (ret < 0)
 				continue;
 
-			mutex_lock(&conn_dst->lock);
-			attach_flags = conn_dst->attach_flags;
-			mutex_unlock(&conn_dst->lock);
-
-			ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
-						attach_flags);
+			ret = kdbus_kmsg_attach_metadata(kmsg, conn_src,
+							 conn_dst);
 			if (ret < 0)
 				goto exit_unlock;
 		}
@@ -611,7 +629,6 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 				 struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *c;
-	u64 attach_flags;
 	int ret;
 
 	/*
@@ -628,12 +645,7 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 		 * data, even when they did not ask for it.
 		 */
 		if (conn) {
-			mutex_lock(&c->lock);
-			attach_flags = c->attach_flags;
-			mutex_unlock(&c->lock);
-
-			ret = kdbus_meta_append(kmsg->meta, conn, kmsg->seq,
-					      attach_flags);
+			ret = kdbus_kmsg_attach_metadata(kmsg, conn, c);
 			if (ret < 0)
 				break;
 		}
@@ -662,7 +674,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
-	u64 dst_attach_flags;
 	int ret = 0;
 
 	/* assign domain-global message sequence number */
@@ -671,7 +682,20 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 	/* non-kernel senders append credentials/metadata */
 	if (conn_src) {
-		ret = kdbus_meta_new(&kmsg->meta);
+		/*
+		 * If a connection has installed faked credentials when it was
+		 * created, make sure only those are sent out as attachments
+		 * of messages, and nothing that is gathered at retrieved from
+		 * 'current' at the time of sending.
+		 *
+		 * Hence, in such cases, duplicate the connection's owner_meta,
+		 * and take care not to augment it by attaching any new items.
+		 */
+		if (conn_src->owner_meta)
+			ret = kdbus_meta_dup(conn_src->owner_meta, &kmsg->meta);
+		else
+			ret = kdbus_meta_new(&kmsg->meta);
+
 		if (ret < 0)
 			return ret;
 	}
@@ -743,12 +767,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto exit_unref;
 		}
 
-		mutex_lock(&conn_dst->lock);
-		dst_attach_flags = conn_dst->attach_flags;
-		mutex_unlock(&conn_dst->lock);
-
-		ret = kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq,
-					dst_attach_flags);
+		ret = kdbus_kmsg_attach_metadata(kmsg, conn_src, conn_dst);
 		if (ret < 0)
 			goto exit_unref;
 	}
