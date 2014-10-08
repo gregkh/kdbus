@@ -197,15 +197,6 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static bool kdbus_check_flags(u64 kernel_flags)
-{
-	/*
-	 * The higher 32bit are considered 'incompatible flags'.
-	 * Refuse them all for now.
-	 */
-	return upper_32_bits(kernel_flags) == 0;
-}
-
 static int kdbus_copy_from_user(void *dest,
 				void __user *user_ptr,
 				size_t size)
@@ -318,7 +309,8 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(make->flags)) {
+		/* Reject all feature requests for now */
+		if (make->features != 0) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
@@ -375,7 +367,8 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(make->flags)) {
+		/* Reject all feature requests for now */
+		if (make->features != 0) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
@@ -451,7 +444,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(make->flags)) {
+		/* Reject all feature requests for now */
+		if (make->features != 0) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
@@ -519,7 +513,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (!kdbus_check_flags(hello->conn_flags)) {
+		/* Reject all feature requests for now */
+		if (hello->features != 0) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
