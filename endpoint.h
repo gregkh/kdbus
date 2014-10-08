@@ -11,8 +11,8 @@
  * your option) any later version.
  */
 
-#ifndef __KDBUS_EP_H
-#define __KDBUS_EP_H
+#ifndef __KDBUS_ENDPOINT_H
+#define __KDBUS_ENDPOINT_H
 
 #include <linux/device.h>
 #include "limits.h"

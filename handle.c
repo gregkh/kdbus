@@ -44,8 +44,8 @@
  * @KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:	File descriptor to hold a domain
  * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	File descriptor to hold a bus
  * @KDBUS_HANDLE_EP:			New file descriptor of a bus node
- * @KDBUS_HANDLE_EP_CONNECTED:		A bus connection after HELLO
- * @KDBUS_HANDLE_EP_OWNER:		File descriptor to hold an endpoint
+ * @KDBUS_HANDLE_ENDPOINT_CONNECTED:	A bus connection after HELLO
+ * @KDBUS_HANDLE_ENDPOINT_OWNER:	File descriptor to hold an endpoint
  */
 enum kdbus_handle_type {
 	_KDBUS_HANDLE_NULL,
@@ -53,8 +53,8 @@ enum kdbus_handle_type {
 	KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
 	KDBUS_HANDLE_CONTROL_BUS_OWNER,
 	KDBUS_HANDLE_EP,
-	KDBUS_HANDLE_EP_CONNECTED,
-	KDBUS_HANDLE_EP_OWNER,
+	KDBUS_HANDLE_ENDPOINT_CONNECTED,
+	KDBUS_HANDLE_ENDPOINT_OWNER,
 };
 
 /**
@@ -63,8 +63,8 @@ enum kdbus_handle_type {
  * @domain:		Domain for this handle
  * @meta:		Cached connection creator's metadata/credentials
  * @ep:			The endpoint for this handle, in case @type is
- *			KDBUS_HANDLE_EP, KDBUS_HANDLE_EP_OWNER or
- *			KDBUS_HANDLE_EP_CONNECTED
+ *			KDBUS_HANDLE_EP, KDBUS_HANDLE_ENDPOINT_OWNER or
+ *			KDBUS_HANDLE_ENDPOINT_CONNECTED
  * @ptr:		Generic pointer used as alias for other members
  *			in the same union by kdbus_handle_transform()
  * @domain_owner:	The domain this handle owns, in case @type
@@ -72,10 +72,10 @@ enum kdbus_handle_type {
  * @bus_owner:		The bus this handle owns, in case @type
  *			is KDBUS_HANDLE_CONTROL_BUS_OWNER
  * @ep_owner:		The endpoint this handle owns, in case @type
- *			is KDBUS_HANDLE_EP_OWNER
+ *			is KDBUS_HANDLE_ENDPOINT_OWNER
  * @conn:		The connection this handle owns, in case @type
  *			is KDBUS_HANDLE_EP, after HELLO it is
- *			KDBUS_HANDLE_EP_CONNECTED
+ *			KDBUS_HANDLE_ENDPOINT_CONNECTED
  */
 struct kdbus_handle {
 	enum kdbus_handle_type type;
@@ -175,12 +175,12 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		kdbus_bus_unref(handle->bus_owner);
 		break;
 
-	case KDBUS_HANDLE_EP_OWNER:
+	case KDBUS_HANDLE_ENDPOINT_OWNER:
 		kdbus_ep_disconnect(handle->ep_owner);
 		kdbus_ep_unref(handle->ep_owner);
 		break;
 
-	case KDBUS_HANDLE_EP_CONNECTED:
+	case KDBUS_HANDLE_ENDPOINT_CONNECTED:
 		kdbus_conn_disconnect(handle->conn, false);
 		kdbus_conn_unref(handle->conn);
 		break;
@@ -412,7 +412,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	long ret = 0;
 
 	switch (cmd) {
-	case KDBUS_CMD_EP_MAKE: {
+	case KDBUS_CMD_ENDPOINT_MAKE: {
 		struct kdbus_cmd_make *make;
 		umode_t mode = 0;
 		kgid_t gid = KGIDT_INIT(0);
@@ -486,7 +486,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		/* turn the ep fd into a new endpoint owner device */
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_EP,
-					     KDBUS_HANDLE_EP_OWNER, ep);
+					     KDBUS_HANDLE_ENDPOINT_OWNER, ep);
 		if (ret < 0) {
 			kdbus_ep_disconnect(ep);
 			kdbus_ep_unref(ep);
@@ -531,7 +531,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		/* turn the ep fd into a new connection */
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_EP,
-					     KDBUS_HANDLE_EP_CONNECTED,
+					     KDBUS_HANDLE_ENDPOINT_CONNECTED,
 					     conn);
 		if (ret < 0) {
 			kdbus_conn_disconnect(conn, false);
@@ -886,7 +886,7 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 	long ret = 0;
 
 	switch (cmd) {
-	case KDBUS_CMD_EP_UPDATE: {
+	case KDBUS_CMD_ENDPOINT_UPDATE: {
 		struct kdbus_cmd_update *cmd_update;
 
 		/* update the properties of a custom endpoint */
@@ -934,10 +934,10 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 	case KDBUS_HANDLE_EP:
 		return kdbus_handle_ioctl_ep(file, cmd, argp);
 
-	case KDBUS_HANDLE_EP_CONNECTED:
+	case KDBUS_HANDLE_ENDPOINT_CONNECTED:
 		return kdbus_handle_ioctl_ep_connected(file, cmd, argp);
 
-	case KDBUS_HANDLE_EP_OWNER:
+	case KDBUS_HANDLE_ENDPOINT_OWNER:
 		return kdbus_handle_ioctl_ep_owner(file, cmd, argp);
 
 	default:
@@ -953,7 +953,7 @@ static unsigned int kdbus_handle_poll(struct file *file,
 	unsigned int mask = POLLOUT | POLLWRNORM;
 
 	/* Only a connected endpoint can read/write data */
-	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
+	if (handle->type != KDBUS_HANDLE_ENDPOINT_CONNECTED)
 		return POLLERR | POLLHUP;
 
 	/* make sure handle->conn is set if handle->type is */
@@ -976,7 +976,7 @@ static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct kdbus_handle *handle = file->private_data;
 
-	if (handle->type != KDBUS_HANDLE_EP_CONNECTED)
+	if (handle->type != KDBUS_HANDLE_ENDPOINT_CONNECTED)
 		return -EPERM;
 
 	/* make sure handle->conn is set if handle->type is */

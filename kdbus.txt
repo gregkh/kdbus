@@ -292,7 +292,7 @@ Endpoints are entry points to a bus. By default, each bus has a default
 endpoint called 'bus'. The bus owner has the ability to create custom
 endpoints with specific names, permissions, and policy databases (see below).
 
-To create a custom endpoint, use the KDBUS_CMD_EP_MAKE ioctl with struct
+To create a custom endpoint, use the KDBUS_CMD_ENDPOINT_MAKE ioctl with struct
 kdbus_cmd_make. Custom endpoints always have a policy db that, by default,
 does not allow anything. Everything that users of this new endpoint should be
 able to do has to be explicitly specified through KDBUS_ITEM_NAME and
@@ -301,8 +301,8 @@ KDBUS_ITEM_POLICY_ACCESS items.
 5.3 Creating domains, buses and endpoints
 -----------------------------------------
 
-KDBUS_CMD_BUS_MAKE, KDBUS_CMD_DOMAIN_MAKE and KDBUS_CMD_EP_MAKE take a struct
-kdbus_cmd_make argument.
+KDBUS_CMD_BUS_MAKE, KDBUS_CMD_DOMAIN_MAKE and KDBUS_CMD_ENDPOINT_MAKE take a
+struct kdbus_cmd_make argument.
 
 struct kdbus_cmd_make {
   __u64 size;
@@ -1327,10 +1327,10 @@ struct kdbus_policy_access {
 
 Policies are set through KDBUS_CMD_HELLO (when creating a policy holder
 connection), KDBUS_CMD_CONN_UPDATE (when updating a policy holder connection),
-KDBUS_CMD_EP_MAKE (creating a custom endpoint) or KDBUS_CMD_EP_UPDATE (updating
-a custom endpoint). In all cases, the name and policy access information is
-stored in items of type KDBUS_ITEM_NAME and KDBUS_ITEM_POLICY_ACCESS. For this
-transport, the following rules apply.
+KDBUS_CMD_ENDPOINT_MAKE (creating a custom endpoint) or
+KDBUS_CMD_ENDPOINT_UPDATE (updating a custom endpoint). In all cases, the name
+and policy access information is stored in items of type KDBUS_ITEM_NAME and
+KDBUS_ITEM_POLICY_ACCESS. For this transport, the following rules apply.
 
   * An item of type KDBUS_ITEM_NAME must be followed by at least one
     KDBUS_ITEM_POLICY_ACCESS item
@@ -1561,7 +1561,7 @@ KDBUS_CMD_DOMAIN_MAKE
   -EINVAL	No name supplied for top-level domain
   -EEXIST	A domain of that name already exists
 
-KDBUS_CMD_EP_MAKE
+KDBUS_CMD_ENDPOINT_MAKE
 
   -EPERM	The calling user is not privileged (see Terminology)
   -EOPNOTSUPP	The flags supplied in the kdbus_cmd_make struct are invalid
@@ -1682,7 +1682,7 @@ For KDBUS_CMD_CONN_UPDATE:
   -EINVAL	Wildcards submitted in policy entries, or illegal sequence
 		of policy items
 
-For KDBUS_CMD_EP_UPDATE:
+For KDBUS_CMD_ENDPOINT_UPDATE:
 
   -E2BIG	Too many policy items attached
   -EINVAL	Wildcards submitted in policy entries, or illegal sequence

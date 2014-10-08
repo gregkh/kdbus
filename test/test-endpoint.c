@@ -74,7 +74,7 @@ static int create_endpoint(const char *buspath, const char *name)
 	ep_make.head.size = sizeof(ep_make.head) +
 			    ep_make.name.size;
 
-	ret = ioctl(fd, KDBUS_CMD_EP_MAKE, &ep_make);
+	ret = ioctl(fd, KDBUS_CMD_ENDPOINT_MAKE, &ep_make);
 	if (ret < 0)
 		return ret;
 
@@ -115,7 +115,7 @@ static int update_endpoint(int fd, const char *name)
 
 	ep_update.head.size = sizeof(ep_update);
 
-	ret = ioctl(fd, KDBUS_CMD_EP_UPDATE, &ep_update);
+	ret = ioctl(fd, KDBUS_CMD_ENDPOINT_UPDATE, &ep_update);
 	if (ret < 0)
 		return -errno;
 
