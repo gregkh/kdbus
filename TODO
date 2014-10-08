@@ -1,12 +1,7 @@
 Features:
-  - test kdbus_match_bloom() multi-generation bloom masks, we need to
-    be sure it works with old kernels when we update userspace tools
-
   - attach seclabel to well-known names
 
   - also attach queued names to message metadata?
-
-  - actually return compatible/incompatible flags to users
 
   - test message budget limits
 
