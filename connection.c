@@ -705,14 +705,25 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		return 0;
 	}
 
-	if (msg->dst_id == KDBUS_DST_ID_NAME) {
-		/* unicast message to well-known name */
-		BUG_ON(!kmsg->dst_name);
-
+	if (kmsg->dst_name) {
 		name_entry = kdbus_name_lock(bus->name_registry,
 					     kmsg->dst_name);
 		if (!name_entry)
 			return -ESRCH;
+
+		/*
+		 * If both a name and a connection ID are given as destination
+		 * of a message, check that the currently owning connection of
+		 * the name matches the specified ID.
+		 * This way, we allow userspace to send the message to a
+		 * specific connection by ID only if the connection currently
+		 * owns the given name.
+		 */
+		if (msg->dst_id != KDBUS_DST_ID_NAME &&
+		    msg->dst_id != name_entry->conn->id) {
+			ret = -EREMCHG;
+			goto exit_name_unlock;
+		}
 
 		if (!name_entry->conn && name_entry->activator)
 			conn_dst = kdbus_conn_ref(name_entry->activator);
@@ -851,6 +862,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 exit_unref:
 	kdbus_conn_unref(conn_dst);
+exit_name_unlock:
 	kdbus_name_unlock(bus->name_registry, name_entry);
 
 	return ret;

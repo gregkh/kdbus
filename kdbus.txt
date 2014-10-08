@@ -751,6 +751,10 @@ struct kdbus_msg {
       Well-known name to send this message to. Required if dst_id is set
       to KDBUS_DST_ID_NAME. If a connection holding the given name can't
       be found, -ESRCH is returned.
+      For messages to a unique name (ID), this item is optional. If present,
+      the kernel will make sure the name owner matches the given unique name.
+      This allows userspace tie the message sending to the condition that a
+      name is currently owned by a certain unique name.
 };
 
 The message will be augmented by the requested metadata items when queued into
@@ -1664,6 +1668,8 @@ KDBUS_CMD_MSG_SEND
 		answering
   -ECANCELED	A synchronous message sending was cancelled
   -ENOBUFS	Too many pending messages on the receiver side
+  -EREMCHG	Both a well-known name and a unique name (ID) was given, but
+		the name is not currently owned by that connection.
 
 For KDBUS_CMD_MSG_RECV:
 
