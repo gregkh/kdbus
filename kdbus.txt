@@ -497,6 +497,15 @@ struct kdbus_cmd_hello {
         For activators and policy holders only, combinations of these two
         items describe policy access entries (see section about policy db).
 
+      KDBUS_ITEM_CREDS
+      KDBUS_ITEM_SECLABEL
+        Privileged bus users may submit these types in order to create
+        connections with faked credentials. The only real use case for this
+        is a proxy service which acts on behalf of some other tasks. For a
+        connection that runs in that mode, the message's metadata items will
+        be limited to what's specified here. See section 13 for more
+        information.
+
       Items of other types are silently ignored.
 };
 
@@ -1449,18 +1458,40 @@ this:
 13. Metadata
 ===============================================================================
 
+When a message is delivered to a receiver connection, it is augmented by
+metadata items in accordance to the destination's current attach flags. The
+information stored in those metadata items refer to the sender task at the
+time of sending the message, so even if any detail of the sender task has
+already changed upon message reception (or if the sender task does not exist
+anymore), the information is still preserved and won't be modfied until the
+message is freed.
+
+Note that there are two exceptions to the above rules:
+
+  a) Kernel generated messages don't have a source connection, so they won't be
+     augmented.
+
+  b) If a connection was created with faked credentials (see section 6.2),
+     the only attached metadata items are the ones provided by the connection
+     itself. The destination's attach_flags won't be looked at in such cases.
+
+Also, there are two things to be considered by userspace programs regarding
+those metadata items:
+
+  a) Userspace must cope with the fact that it might get more metadata than
+     they requested. That happens, for example, when a broadcast message is
+     sent and receivers have different attach flags. Items that haven't been
+     requested should hence be silently ignored.
+
+  b) Userspace might not always get all requested metadata items that it
+     requested. That is because some of those items are only added if a
+     corresponding kernel feature has been enabled. Also, the two exceptions
+     described above will as well lead to less items be attached than
+     requested.
+
+
 13.1 Known item types
 ---------------------
-
-A connection chooses which metadata it wants to have attached to each message
-it receives with kdbus_cmd_hello.attach_flags. The metadata will be attached as
-items to the messages. All metadata refers to information about the sending
-task at sending time, unless otherwise stated. Also, the metadata is copied,
-not referenced, so even if the sending task doesn't exist anymore at the time
-the message is received, the information is still preserved.
-
-As previously stated, a connection must be prepared to receive metadata it did
-not ask for in its attach_flags.
 
 The following attach flags are currently supported.
 
