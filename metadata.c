@@ -62,6 +62,42 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 }
 
 /**
+ * kdbus_meta_dup() - Duplicate a meta object
+ *
+ * @orig:	The meta object to duplicate
+ * @copy:	Return pointer for the duplicated object
+ *
+ * Return: 0 on success, -ENOMEM on memory allocation failures.
+ */
+int kdbus_meta_dup(const struct kdbus_meta *orig,
+		   struct kdbus_meta **copy)
+{
+	struct kdbus_meta *m;
+
+	BUG_ON(!orig || !copy);
+
+	m = kmalloc(sizeof(*m), GFP_KERNEL);
+	if (!m)
+		return -ENOMEM;
+
+	m->data = kmemdup(orig->data, orig->allocated_size, GFP_KERNEL);
+	if (!m->data) {
+		kfree(m);
+		return -ENOMEM;
+	}
+
+	m->pid_namespace = get_pid_ns(orig->pid_namespace);
+	m->user_namespace = get_user_ns(orig->user_namespace);
+
+	m->attached = orig->attached;
+	m->allocated_size = orig->allocated_size;
+	m->size = orig->size;
+
+	*copy = m;
+	return 0;
+}
+
+/**
  * kdbus_meta_ns_eq() - check whether the namespaces of two metadata objects
  *			are equal.
  * @meta_a:	Metadata A
