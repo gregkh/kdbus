@@ -1602,9 +1602,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	 * Account the connection against the current user (UID), or for
 	 * custom endpoints use the anonymous user assigned to the endpoint.
 	 */
-	if (ep->user)
+	if (ep->user) {
 		conn->user = kdbus_domain_user_ref(ep->user);
-	else {
+	} else {
 		ret = kdbus_domain_get_user(ep->bus->domain,
 					    current_fsuid(),
 					    &conn->user);
