@@ -550,17 +550,17 @@ static int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
 
 	/*
 	 * Append metadata items according to the destination connection's
-	 * attach flags, unless the source connection has faked credentials.
-	 * In the latter case, the metadata objected associated with the kmsg
-	 * has been pre-filled with conn_src->owner_meta, and we don't want
-	 * to provide any other information to the receiver.
+	 * attach flags. If the source connection has faked credentials, the
+	 * metadata object associated with the kmsg has been pre-filled with
+	 * conn_src->owner_meta, and we only attach the connection's name and
+	 * currently owned names on top of that.
 	 */
-	if (conn_src->owner_meta)
-		return 0;
-
 	mutex_lock(&conn_dst->lock);
 	attach_flags = conn_dst->attach_flags;
 	mutex_unlock(&conn_dst->lock);
+
+	if (conn_src->owner_meta)
+		attach_flags &= KDBUS_ATTACH_NAMES | KDBUS_ATTACH_CONN_NAME;
 
 	return kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq, attach_flags);
 }
