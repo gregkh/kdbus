@@ -1520,6 +1520,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->reply_list);
+	atomic_set(&conn->name_count, 0);
 	atomic_set(&conn->reply_count, 0);
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
 	conn->cred = get_current_cred();

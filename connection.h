@@ -93,7 +93,7 @@ struct kdbus_conn {
 	struct kdbus_pool *pool;
 	struct kdbus_domain_user *user;
 	const struct cred *cred;
-	size_t name_count;
+	atomic_t name_count;
 	atomic_t reply_count;
 	wait_queue_head_t wait;
 	struct kdbus_queue queue;
