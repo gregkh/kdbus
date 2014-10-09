@@ -1103,7 +1103,11 @@ A message addressed at the connection ID KDBUS_DST_ID_BROADCAST (~0ULL) is a
 broadcast message, delivered to all connected peers which installed a rule to
 match certain properties of the message. Without any rules installed in the
 connection, no broadcast message or kernel-side notifications will be delivered
-to the connection.
+to the connection. Broadcast messages are subject to policy rules and TALK
+access checks.
+
+See section 11 for details on policies, and section 11.5 for more
+details on implicit policies.
 
 Matches for messages from other connections (not kernel notifications) are
 implemented as bloom filters. The sender adds certain properties of the message
@@ -1410,6 +1414,11 @@ demand) or for a custom endpoint (which always has one), each one is consulted
 during name registry listing, name owning or message delivery. If either one
 fails, the operation is failed with -EPERM.
 
+For best practices, connections that own names with a restricted TALK
+access should not install matches. This avoids cases where the sent
+message may pass the bloom filter due to false-positives and may also
+satisfy the policy rules.
+
 11.5 Implicit policies
 ----------------------
 
@@ -1419,14 +1428,18 @@ enforced. On default endpoints, the following set is enforced:
   * Privileged connections always override any installed policy. Those
     connections could easily install their own policies, so there is no
     reason to enforce installed policies.
-  * Connections can always talk to connections of the same user.
+  * Connections can always talk to connections of the same user. This
+    includes broadcast messages.
+  * Connections that own names might send broadcast messages to other
+    connections that belong to a different user, but only if that
+    destination connection does not own any name.
 
 Custom endpoints have stricter policies. The following rules apply:
 
   * Policy rules are always enforced, even if the connection is a privileged
     connection.
   * Policy rules are always enforced for TALK access, even if both ends are
-    running under the same user.
+    running under the same user. This includes broadcast messages.
   * To restrict the set of names that can be seen, endpoint policies can
     install "SEE" policies.
 
