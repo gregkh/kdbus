@@ -1229,15 +1229,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			return -EINVAL;
 
 		/* check if 'conn' is allowed to see 'name' */
-		down_read(&conn->ep->policy_db.entries_rwlock);
-		mutex_lock(&conn->lock);
-
-		ret = kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
-								name);
-
-		mutex_unlock(&conn->lock);
-		up_read(&conn->ep->policy_db.entries_rwlock);
-
+		ret = kdbus_ep_policy_check_see_access(conn->ep, conn, name);
 		if (ret < 0)
 			return ret;
 

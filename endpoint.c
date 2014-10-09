@@ -311,6 +311,35 @@ int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 }
 
 /**
+ * kdbus_ep_policy_check_see_access() - verify a connection can see
+ *					the passed name
+ * @ep:			Endpoint to operate on
+ * @conn:		Connection that lists names
+ * @name:		Name that is tried to be listed
+ *
+ * This verifies that @conn is allowed to see the well-known name @name via the
+ * endpoint @ep.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_ep_policy_check_see_access(struct kdbus_ep *ep,
+				     struct kdbus_conn *conn,
+				     const char *name)
+{
+	int ret;
+
+	down_read(&ep->policy_db.entries_rwlock);
+	mutex_lock(&conn->lock);
+
+	ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn, name);
+
+	mutex_unlock(&conn->lock);
+	up_read(&ep->policy_db.entries_rwlock);
+
+	return ret;
+}
+
+/**
  * kdbus_ep_policy_check_notification() - verify a connection is allowed to see
  *					  the name in a notification
  * @ep:			Endpoint to operate on
@@ -337,14 +366,8 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 	case KDBUS_ITEM_NAME_ADD:
 	case KDBUS_ITEM_NAME_REMOVE:
 	case KDBUS_ITEM_NAME_CHANGE:
-		down_read(&ep->policy_db.entries_rwlock);
-		mutex_lock(&conn->lock);
-
-		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn,
-							kmsg->notify_name);
-
-		mutex_unlock(&conn->lock);
-		up_read(&ep->policy_db.entries_rwlock);
+		ret = kdbus_ep_policy_check_see_access(ep, conn,
+						       kmsg->notify_name);
 		break;
 	default:
 		break;
