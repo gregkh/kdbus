@@ -696,6 +696,10 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	if (ret < 0)
 		return -EINVAL;
 
+	ret = kdbus_ep_policy_check_see_access(conn->ep, conn, name);
+	if (ret < 0)
+		return ret;
+
 	ret = kdbus_name_release(reg, conn, name);
 
 	kdbus_notify_flush(conn->bus);
