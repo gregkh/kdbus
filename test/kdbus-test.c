@@ -41,7 +41,7 @@ static const struct kdbus_test tests[] = {
 	},
 	{
 		.name	= "byebye",
-		.desc	= "the BYEBYBE command",
+		.desc	= "the BYEBYE command",
 		.func	= kdbus_test_byebye,
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
