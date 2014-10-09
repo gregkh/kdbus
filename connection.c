@@ -606,6 +606,13 @@ static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 		 * data, even when they did not ask for it.
 		 */
 		if (conn_src) {
+			/* Check if conn_src is allowed to signal */
+			ret = kdbus_ep_policy_check_broadcast(conn_dst->ep,
+							      conn_src,
+							      conn_dst);
+			if (ret < 0)
+				continue;
+
 			ret = kdbus_ep_policy_check_src_names(conn_dst->ep,
 							      conn_src,
 							      conn_dst);

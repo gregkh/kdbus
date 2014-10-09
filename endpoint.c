@@ -392,6 +392,43 @@ int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 	return ret;
 }
 
+static int
+kdbus_custom_ep_check_talk_access(struct kdbus_ep *ep,
+				  struct kdbus_conn *conn_src,
+				  struct kdbus_conn *conn_dst)
+{
+	int ret;
+
+	if (!ep->has_policy)
+		return 0;
+
+	/* Custom endpoints have stricter policies */
+	ret = kdbus_policy_check_talk_access(&ep->policy_db,
+					     conn_src, conn_dst);
+
+	/*
+	 * Don't leak hints whether a name exists on a custom
+	 * endpoint.
+	 */
+	if (ret == -EPERM)
+		ret = -ENOENT;
+
+	return ret;
+}
+
+static bool
+kdbus_ep_has_default_talk_access(struct kdbus_conn *conn_src,
+				 struct kdbus_conn *conn_dst)
+{
+	if (kdbus_bus_cred_is_privileged(conn_src->bus, conn_src->cred))
+		return true;
+
+	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
+		return true;
+
+	return false;
+}
+
 /**
  * kdbus_ep_policy_check_talk_access() - verify a connection can talk to the
  *					 the passed connection
@@ -410,26 +447,69 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 {
 	int ret;
 
-	if (ep->has_policy) {
-		ret = kdbus_policy_check_talk_access(&ep->policy_db,
-						     conn_src, conn_dst);
+	/* First check the custom endpoint with its policies */
+	ret = kdbus_custom_ep_check_talk_access(ep, conn_src, conn_dst);
+	if (ret < 0)
+		return ret;
 
-		/*
-		 * Don't leak hints whether a name exists on a custom
-		 * endpoint.
-		 */
-		if (ret == -EPERM)
-			return -ENOENT;
-
-		if (ret < 0)
-			return ret;
-	}
-
-	if (kdbus_bus_cred_is_privileged(conn_src->bus, conn_src->cred))
-		return 0;
-	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
+	/* Then check if it satisfies the implicit policies */
+	if (kdbus_ep_has_default_talk_access(conn_src, conn_dst))
 		return 0;
 
+	/* Fallback to the default endpoint policy */
+	ret = kdbus_policy_check_talk_access(&ep->bus->policy_db,
+					     conn_src, conn_dst);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+/**
+ * kdbus_ep_policy_check_broadcast() - verify a connection can send
+ *				       broadcast messages to the
+ *				       passed connection
+ * @ep:			Endpoint to operate on
+ * @conn_src:		Connection that tries to talk
+ * @conn_dst:		Connection that is talked to
+ *
+ * This verifies that @conn_src is allowed to send broadcast messages
+ * to @conn_dst via the endpoint @ep.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_ep_policy_check_broadcast(struct kdbus_ep *ep,
+				    struct kdbus_conn *conn_src,
+				    struct kdbus_conn *conn_dst)
+{
+	int ret;
+
+	/* First check the custom endpoint with its policies */
+	ret = kdbus_custom_ep_check_talk_access(ep, conn_src, conn_dst);
+	if (ret < 0)
+		return ret;
+
+	/* Then check if it satisfies the implicit policies */
+	if (kdbus_ep_has_default_talk_access(conn_src, conn_dst))
+		return 0;
+
+	/*
+	 * If conn_src owns names on the bus, and the conn_dst does
+	 * not own any name, then allow conn_src to signal to
+	 * conn_dst. Otherwise fallback and perform the bus policy
+	 * check on conn_dst.
+	 *
+	 * This way we allow services to signal on the bus, and we
+	 * block broadcasts directed to services that own names and
+	 * do not want to receive these messages unless there is a
+	 * policy entry to permit it. By this we try to follow the
+	 * same logic used for unicat messages.
+	 */
+	if (atomic_read(&conn_src->name_count) > 0 &&
+	    atomic_read(&conn_dst->name_count) == 0)
+		return 0;
+
+	/* Fallback to the default endpoint policy */
 	ret = kdbus_policy_check_talk_access(&ep->bus->policy_db,
 					     conn_src, conn_dst);
 	if (ret < 0)
