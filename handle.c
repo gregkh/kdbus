@@ -308,12 +308,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		/* Reject all feature requests for now */
-		if (make->features != 0) {
-			ret = -EOPNOTSUPP;
-			break;
-		}
-
 		/* Reject unknown flags */
 		if (make->flags & ~(KDBUS_MAKE_ACCESS_GROUP |
 				    KDBUS_MAKE_ACCESS_WORLD)) {
@@ -371,12 +365,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 					  KDBUS_ITEM_MAKE_NAME, &name);
 		if (ret < 0)
 			break;
-
-		/* Reject all feature requests for now */
-		if (make->features != 0) {
-			ret = -EOPNOTSUPP;
-			break;
-		}
 
 		/* Reject unknown flags */
 		if (make->flags & ~(KDBUS_MAKE_ACCESS_GROUP |
@@ -454,12 +442,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 					  KDBUS_ITEM_MAKE_NAME, &name);
 		if (ret < 0)
 			break;
-
-		/* Reject all feature requests for now */
-		if (make->features != 0) {
-			ret = -EOPNOTSUPP;
-			break;
-		}
 
 		if (make->flags & KDBUS_MAKE_ACCESS_WORLD) {
 			mode = 0666;

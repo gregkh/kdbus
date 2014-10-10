@@ -120,13 +120,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 
 	hello.size = sizeof(struct kdbus_cmd_hello);
 
-	/* check faulty features */
-	hello.features = 1;
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EOPNOTSUPP);
-	hello.features = 0;
-
-	/* check faulty features */
+	/* check faulty flags */
 	hello.conn_flags = 1ULL << 32;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EOPNOTSUPP);
