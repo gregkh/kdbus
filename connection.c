@@ -606,6 +606,13 @@ static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 		 * data, even when they did not ask for it.
 		 */
 		if (conn_src) {
+			/* Check if conn_src is allowed to signal */
+			ret = kdbus_ep_policy_check_broadcast(conn_dst->ep,
+							      conn_src,
+							      conn_dst);
+			if (ret < 0)
+				continue;
+
 			ret = kdbus_ep_policy_check_src_names(conn_dst->ep,
 							      conn_src,
 							      conn_dst);
@@ -1222,15 +1229,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			return -EINVAL;
 
 		/* check if 'conn' is allowed to see 'name' */
-		down_read(&conn->ep->policy_db.entries_rwlock);
-		mutex_lock(&conn->lock);
-
-		ret = kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
-								name);
-
-		mutex_unlock(&conn->lock);
-		up_read(&conn->ep->policy_db.entries_rwlock);
-
+		ret = kdbus_ep_policy_check_see_access(conn->ep, conn, name);
 		if (ret < 0)
 			return ret;
 
@@ -1520,6 +1519,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->names_list);
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->reply_list);
+	atomic_set(&conn->name_count, 0);
 	atomic_set(&conn->reply_count, 0);
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
 	conn->cred = get_current_cred();

@@ -122,7 +122,7 @@ static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 	BUG_ON(!e->conn);
 	BUG_ON(!mutex_is_locked(&e->conn->lock));
 
-	e->conn->name_count--;
+	atomic_dec(&e->conn->name_count);
 	list_del(&e->conn_entry);
 	e->conn = kdbus_conn_unref(e->conn);
 }
@@ -135,7 +135,7 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 
 	e->conn = kdbus_conn_ref(conn);
 	list_add_tail(&e->conn_entry, &e->conn->names_list);
-	conn->name_count++;
+	atomic_inc(&conn->name_count);
 }
 
 static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
@@ -647,21 +647,29 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   KDBUS_NAME_QUEUE))
 		return -EOPNOTSUPP;
 
-	if (conn->name_count > KDBUS_CONN_MAX_NAMES)
-		return -E2BIG;
-
 	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
 				  KDBUS_ITEM_NAME, &name);
 	if (ret < 0)
 		return -EINVAL;
 
+	/*
+	 * Do atomic_inc_return here to reserve our slot, then decrement
+	 * it before returning.
+	 */
+	ret = -E2BIG;
+	if (atomic_inc_return(&conn->name_count) > KDBUS_CONN_MAX_NAMES)
+		goto out_dec;
+
 	ret = kdbus_ep_policy_check_own_access(conn->ep, conn, name);
 	if (ret < 0)
-		return ret;
+		goto out_dec;
 
 	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags, &e);
 	kdbus_notify_flush(conn->bus);
 
+out_dec:
+	/* Decrement the previous allocated slot */
+	atomic_dec(&conn->name_count);
 	return ret;
 }
 
@@ -687,6 +695,10 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 				  KDBUS_ITEM_NAME, &name);
 	if (ret < 0)
 		return -EINVAL;
+
+	ret = kdbus_ep_policy_check_see_access(conn->ep, conn, name);
+	if (ret < 0)
+		return ret;
 
 	ret = kdbus_name_release(reg, conn, name);
 
