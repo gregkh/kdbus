@@ -17,6 +17,57 @@
 
 #define KDBUS_USER_MAX_CONN	256
 
+static int send_memfd(struct kdbus_conn *conn, uint64_t dst_id)
+{
+	struct kdbus_item *item;
+	struct kdbus_msg *msg;
+	uint64_t size;
+	time_t now;
+	int ret, memfd;
+
+	now = time(NULL);
+
+	size = sizeof(struct kdbus_msg);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+
+	memfd = sys_memfd_create("memfd-name", 0);
+	ASSERT_RETURN_VAL(memfd >= 0, memfd);
+
+	ret = write(memfd, &now, sizeof(now));
+	ASSERT_RETURN_VAL(ret == sizeof(now), -EAGAIN);
+
+	ret = sys_memfd_seal_set(memfd);
+	ASSERT_RETURN_VAL(ret == 0, -errno);
+
+	msg = malloc(size);
+	ASSERT_RETURN_VAL(msg, -ENOMEM);
+
+	memset(msg, 0, size);
+	msg->size = size;
+	msg->src_id = conn->id;
+	msg->dst_id = dst_id;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
+
+	item = msg->items;
+
+	item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
+	item->memfd.size = sizeof(now);
+	item->memfd.fd = memfd;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	if (ret) {
+		kdbus_printf("error sending message: %d err %d (%m)\n",
+			     ret, errno);
+		return -errno;
+	}
+
+	close(memfd);
+	free(msg);
+
+	return 0;
+}
+
 static int send_fd(struct kdbus_conn *conn, uint64_t dst_id, int fd)
 {
 	struct kdbus_item *item;
@@ -82,6 +133,10 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	i = write(fds[1], str, strlen(str));
 	ASSERT_RETURN(i == strlen(str));
 
+	/* Try to broadcast file descriptors. This must fail. */
+	ret = send_fd(conn_src, KDBUS_DST_ID_BROADCAST, fds[0]);
+	ASSERT_RETURN(ret == -ENOTUNIQ);
+
 	ret = send_fd(conn_src, conn_dst->id, fds[0]);
 	ASSERT_RETURN(ret == 0);
 
@@ -103,6 +158,10 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 			close(item->fds[0]);
 		}
 	}
+
+	/* Try to broadcast memfd. This must fail. */
+	ret = send_memfd(conn_src, KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == -ENOTUNIQ);
 
 	close(fds[0]);
 	close(fds[1]);
