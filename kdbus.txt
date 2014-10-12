@@ -103,12 +103,11 @@ Articles about D-Bus and kdbus:
     custom endpoints, and modified by policy holder connection or owners of
     custom endpoints. See section 11 for more details.
 
-Access rules to
-    allow who can see a name on the bus are only checked on custom endpoints.
-    Policies may be defined with names that end with '.*'. When matching a
-    well-known name against such a wildcard entry, the last part of the name
-    is ignored and checked against the wildcard name without the trailing '.*'.
-    See section 11 for more details.
+    Access rules to allow who can see a name on the bus are only checked on
+    custom endpoints. Policies may be defined with names that end with '.*'.
+    When matching a well-known name against such a wildcard entry, the last
+    part of the name is ignored and checked against the wildcard name without
+    the trailing '.*'. See section 11 for more details.
 
   Privileged bus users:
     A user connecting to the bus is considered privileged if it is either the
@@ -904,7 +903,7 @@ All of the below is subject to policy rules for SEE and OWN permissions.
 
 A name has to comply to the following rules to be considered valid:
 
- - The name has one or more elements separated by a period ('.') character
+ - The name has two or more elements separated by a period ('.') character
  - All elements must contain at least one character
  - Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_"
    and must not begin with a digit
