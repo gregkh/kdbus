@@ -53,6 +53,33 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	ret = kdbus_msg_recv(monitor, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
+
+	kdbus_msg_free(msg);
+	kdbus_free(monitor, offset);
+
+	cookie++;
+	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0, 0,
+			     KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	/* The monitor did not install matches, this will timeout */
+	ret = kdbus_msg_recv_poll(monitor, 100, NULL, NULL);
+	ASSERT_RETURN(ret == -ETIMEDOUT);
+
+	/* Install empty match for monitor */
+	ret = kdbus_add_match_empty(monitor);
+	ASSERT_RETURN(ret == 0);
+
+	cookie++;
+	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0, 0,
+			     KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	/* The monitor should get the message now. */
+	ret = kdbus_msg_recv_poll(monitor, 100, &msg, &offset);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->cookie == cookie);
+
 	kdbus_msg_free(msg);
 	kdbus_free(monitor, offset);
 
