@@ -32,6 +32,9 @@
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
 
+#define UNPRIV_UID 65534
+#define UNPRIV_GID 65534
+
 /* Dump as user of process, useful for user namespace testing */
 #define SUID_DUMP_USER	1
 
@@ -40,6 +43,48 @@ extern int kdbus_util_verbose;
 #define kdbus_printf(X...) \
 	if (kdbus_util_verbose) \
 		printf(X)
+
+#define RUN_UNPRIVILEGED(child_uid, child_gid, _child_, _parent_) ({	\
+		pid_t pid, rpid;					\
+		int ret;						\
+									\
+		pid = fork();						\
+		if (pid == 0) {						\
+			ret = drop_privileges(child_uid, child_gid);	\
+			if (ret < 0)					\
+				_exit(ret);				\
+									\
+			_child_;					\
+			_exit(0);					\
+		} else if (pid > 0) {					\
+			_parent_;					\
+			rpid = waitpid(pid, &ret, 0);			\
+			ASSERT_RETURN(rpid == pid);			\
+			ASSERT_RETURN(WIFEXITED(ret));			\
+			ASSERT_RETURN(WEXITSTATUS(ret) == 0);		\
+			ret = TEST_OK;					\
+		} else {						\
+			ret = pid;					\
+		}							\
+									\
+		ret;							\
+	})
+
+#define RUN_UNPRIVILEGED_CONN(_var_, _bus_, _code_)			\
+	RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_GID, ({			\
+		struct kdbus_conn *_var_;				\
+		_var_ = kdbus_hello(_bus_, 0, NULL, 0);			\
+		ASSERT_EXIT(_var_);					\
+		_code_;							\
+		kdbus_conn_free(_var_);					\
+	}), ({ 0; }))
+
+/* Enums for parent if it should drop privs or not */
+enum kdbus_drop_parent {
+	DO_NOT_DROP,
+	DROP_SAME_UNPRIV,
+	DROP_OTHER_UNPRIV,
+};
 
 struct kdbus_conn {
 	int fd;

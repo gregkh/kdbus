@@ -16,50 +16,6 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-#define UNPRIV_UID 65534
-#define UNPRIV_GID 65534
-
-enum kdbus_drop_user {
-	DO_NOT_DROP,
-	DROP_SAME_UNPRIV_USER,
-	DROP_OTHER_UNPRIV_USER,
-};
-
-#define RUN_UNPRIVILEGED(child_uid, child_gid, _child_, _parent_) ({	\
-		pid_t pid, rpid;					\
-		int ret;						\
-									\
-		pid = fork();						\
-		if (pid == 0) {						\
-			ret = drop_privileges(child_uid, child_gid);	\
-			if (ret < 0)					\
-				_exit(ret);				\
-									\
-			_child_;					\
-			_exit(0);					\
-		} else if (pid > 0) {					\
-			_parent_;					\
-			rpid = waitpid(pid, &ret, 0);			\
-			ASSERT_RETURN(rpid == pid);			\
-			ASSERT_RETURN(WIFEXITED(ret));			\
-			ASSERT_RETURN(WEXITSTATUS(ret) == 0);		\
-			ret = TEST_OK;					\
-		} else {						\
-			ret = pid;					\
-		}							\
-									\
-		ret;							\
-	})
-
-#define RUN_UNPRIVILEGED_CONN(_var_, _bus_, _code_)			\
-	RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_GID, ({			\
-		struct kdbus_conn *_var_;				\
-		_var_ = kdbus_hello(_bus_, 0, NULL, 0);			\
-		ASSERT_EXIT(_var_);					\
-		_code_;							\
-		kdbus_conn_free(_var_);					\
-	}), ({ 0; }))
-
 static int test_policy_priv_by_id(const char *bus,
 				  struct kdbus_conn *conn_dst,
 				  bool drop_second_user,
@@ -101,7 +57,7 @@ static int test_policy_priv_by_broadcast(const char *bus,
 	uint64_t expected_cookie = time(NULL) ^ 0xdeadbeef;
 
 	/* Drop to another unprivileged user other than UNPRIV_UID */
-	if (drop_second_user == DROP_OTHER_UNPRIV_USER) {
+	if (drop_second_user == DROP_OTHER_UNPRIV) {
 		second_uid = UNPRIV_UID - 1;
 		second_gid = UNPRIV_GID - 1;
 	}
@@ -289,7 +245,7 @@ static int test_priv_before_policy_upload(struct kdbus_test_env *env)
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, NULL,
-					    DROP_SAME_UNPRIV_USER,
+					    DROP_SAME_UNPRIV,
 					    EXIT_SUCCESS, EXIT_SUCCESS);
 	ASSERT_RETURN(ret == 0);
 
@@ -301,7 +257,7 @@ static int test_priv_before_policy_upload(struct kdbus_test_env *env)
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, NULL,
-					    DROP_OTHER_UNPRIV_USER,
+					    DROP_OTHER_UNPRIV,
 					    -ETIMEDOUT, -ETIMEDOUT);
 	ASSERT_RETURN(ret == 0);
 
@@ -370,7 +326,7 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, NULL,
-					    DROP_SAME_UNPRIV_USER,
+					    DROP_SAME_UNPRIV,
 					    EXIT_SUCCESS, EXIT_SUCCESS);
 	ASSERT_RETURN(ret == 0);
 
@@ -557,7 +513,7 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, NULL,
-					    DROP_OTHER_UNPRIV_USER,
+					    DROP_OTHER_UNPRIV,
 					    -ETIMEDOUT, -ETIMEDOUT);
 	ASSERT_RETURN(ret == 0);
 
