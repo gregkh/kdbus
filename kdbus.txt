@@ -681,7 +681,8 @@ struct kdbus_msg {
       message and wait for a reply in a synchronous fashion. This is what
       the KDBUS_MSG_FLAGS_SYNC_REPLY controls. The KDBUS_CMD_MSG_SEND ioctl
       will block until the reply has arrived, the timeout limit is reached,
-      or in case the remote connection was shut down.
+      in case the remote connection was shut down, or if interrupted by
+      a signal before any reply; see signal(7).
 
       The offset of the reply message in the sender's pool is stored in
       in 'offset_reply' when the ioctl has returned without error. Hence,
