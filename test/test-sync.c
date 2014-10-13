@@ -11,6 +11,8 @@
 #include <sys/ioctl.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 #include "kdbus-test.h"
 #include "kdbus-util.h"
@@ -18,6 +20,66 @@
 
 static struct kdbus_conn *conn_a, *conn_b;
 static unsigned int cookie = 0xdeadbeef;
+
+static void nop_handler(int sig) {}
+
+static int interrupt_sync(struct kdbus_conn *conn_src,
+			  struct kdbus_conn *conn_dst,
+			  int sa_flags)
+{
+	pid_t pid;
+	int ret, status;
+	struct kdbus_msg *msg = NULL;
+	struct sigaction sa = {
+		.sa_handler = nop_handler,
+		.sa_flags = sa_flags,
+	};
+
+	cookie++;
+	pid = fork();
+	ASSERT_RETURN_VAL(pid >= 0, pid);
+
+	if (pid == 0) {
+		ret = sigaction(SIGINT, &sa, NULL);
+		ASSERT_RETURN(ret == 0);
+
+		ret = kdbus_msg_send(conn_dst, NULL, cookie,
+				     KDBUS_MSG_FLAGS_EXPECT_REPLY |
+				     KDBUS_MSG_FLAGS_SYNC_REPLY,
+				     5000000000ULL, 0, conn_src->id);
+		ASSERT_EXIT(ret == -EINTR);
+
+		_exit(EXIT_SUCCESS);
+	}
+
+	ret = kdbus_msg_recv_poll(conn_src, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
+
+	kdbus_msg_free(msg);
+
+	ret = kill(pid, SIGINT);
+	ASSERT_RETURN_VAL(ret == 0, ret);
+
+	ret = waitpid(pid, &status, 0);
+	ASSERT_RETURN_VAL(ret >= 0, ret);
+
+	if (WIFSIGNALED(status))
+		return TEST_ERR;
+
+	if (sa_flags | SA_RESTART) {
+		/*
+		 * Our SYNC logic do not support SA_RESTART flag, so we
+		 * don't receive the same packet again. We fail with
+		 * ETIMEDOUT.
+		 *
+		 * For more information, please check "man 7 signal".
+		 */
+		ret = kdbus_msg_recv_poll(conn_src, 100, NULL, NULL);
+		ASSERT_RETURN(ret == -ETIMEDOUT);
+	}
+
+	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
+}
 
 static void *run_thread_reply(void *data)
 {
@@ -50,6 +112,12 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 			     5000000000ULL, 0, conn_a->id);
 
 	pthread_join(thread, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	ret = interrupt_sync(conn_a, conn_b, SA_NOCLDSTOP);
+	ASSERT_RETURN(ret == 0);
+
+	ret = interrupt_sync(conn_a, conn_b, SA_NOCLDSTOP|SA_RESTART);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_printf("-- closing bus connections\n");
