@@ -137,7 +137,8 @@ kdbus_hello(const char *path, uint64_t flags,
 		return NULL;
 	}
 
-	h.hello.conn_flags = flags | KDBUS_HELLO_ACCEPT_FD;
+	h.hello.conn_flags = flags | KDBUS_HELLO_ACCEPT_FD |
+			     KDBUS_HELLO_ACCEPT_MEMFD;
 	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
 	h.conn_name.type = KDBUS_ITEM_CONN_NAME;
 	strcpy(h.conn_name.str, "this-is-my-name");
