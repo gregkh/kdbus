@@ -136,3 +136,4 @@ int drop_privileges(uid_t uid, gid_t gid);
 int userns_map_uid_gid(pid_t pid,
 		       const char *map_uid,
 		       const char *map_gid);
+int test_is_capable(int cap, ...);

@@ -194,8 +194,6 @@ int kdbus_test_metadata_ns(struct kdbus_test_env *env)
 {
 	int ret;
 	struct kdbus_conn *holder, *conn;
-	cap_t cap;
-	cap_flag_value_t flag_setuid, flag_setgid, flag_sys_admin;
 	struct kdbus_policy_access policy_access = {
 		/* Allow world so we can inspect metadata in namespace */
 		.type = KDBUS_POLICY_ACCESS_WORLD,
@@ -207,19 +205,11 @@ int kdbus_test_metadata_ns(struct kdbus_test_env *env)
 	if (access("/proc/self/uid_map", F_OK) != 0)
 		return TEST_SKIP;
 
-	cap = cap_get_proc();
-	ASSERT_RETURN(cap);
-
-	ret = cap_get_flag(cap, CAP_SETUID, CAP_EFFECTIVE, &flag_setuid);
-	ASSERT_RETURN(ret >= 0);
-	ret = cap_get_flag(cap, CAP_SETGID, CAP_EFFECTIVE, &flag_setgid);
-	ASSERT_RETURN(ret >= 0);
-	ret = cap_get_flag(cap, CAP_SYS_ADMIN, CAP_EFFECTIVE, &flag_sys_admin);
+	ret = test_is_capable(CAP_SETUID, CAP_SETGID, CAP_SYS_ADMIN, -1);
 	ASSERT_RETURN(ret >= 0);
 
 	/* no enough privileges, SKIP test */
-	if (flag_setuid != CAP_SET || flag_setgid != CAP_SET ||
-	    flag_sys_admin != CAP_SET)
+	if (!ret)
 		return TEST_SKIP;
 
 	holder = kdbus_hello_registrar(env->buspath, "com.example.metadata",

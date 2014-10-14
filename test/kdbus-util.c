@@ -10,6 +10,7 @@
  */
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <time.h>
 #include <fcntl.h>
@@ -22,6 +23,7 @@
 #include <assert.h>
 #include <poll.h>
 #include <grp.h>
+#include <sys/capability.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -1098,4 +1100,58 @@ int userns_map_uid_gid(pid_t pid,
 		 (long) pid);
 
 	return do_userns_map_id(pid, file_id, map_gid);
+}
+
+static int do_cap_get_flag(cap_t caps, cap_value_t cap)
+{
+	int ret;
+	cap_flag_value_t flag_set;
+
+	ret = cap_get_flag(caps, cap, CAP_EFFECTIVE, &flag_set);
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("error cap_get_flag(): %d (%m)\n", ret);
+		return ret;
+	}
+
+	return (flag_set == CAP_SET);
+}
+
+/*
+ * Returns:
+ *  1 in case all the requested effective capabilities are set.
+ *  0 in case we do not have the requested capabilities. This value
+ *    will be used to abort tests with TEST_SKIP
+ *  Negative errno on failure.
+ *
+ *  Terminate args with a negative value.
+ */
+int test_is_capable(int cap, ...)
+{
+	int ret;
+	va_list ap;
+	cap_t caps;
+
+	caps = cap_get_proc();
+	if (!cap) {
+		ret = -errno;
+		kdbus_printf("error cap_get_proc(): %d (%m)\n", ret);
+		return ret;
+	}
+
+	ret = do_cap_get_flag(caps, (cap_value_t)cap);
+	if (ret <= 0)
+		goto out;
+
+	va_start(ap, cap);
+	while ((cap = va_arg(ap, int)) > 0) {
+		ret = do_cap_get_flag(caps, (cap_value_t)cap);
+		if (ret <= 0)
+			break;
+	}
+	va_end(ap);
+
+out:
+	cap_free(caps);
+	return ret;
 }

@@ -600,25 +600,18 @@ static int test_policy_priv(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *conn_a, *conn_b, *conn, *owner;
 	struct kdbus_policy_access access, *acc;
-	cap_flag_value_t flag_setuid, flag_setgid;
 	sigset_t sset;
 	size_t num;
-	cap_t cap;
 	int ret;
 
 	/*
 	 * Make sure we have CAP_SETUID/SETGID so we can drop privileges
 	 */
 
-	cap = cap_get_proc();
-	ASSERT_RETURN(cap);
-
-	ret = cap_get_flag(cap, CAP_SETUID, CAP_EFFECTIVE, &flag_setuid);
-	ASSERT_RETURN(ret >= 0);
-	ret = cap_get_flag(cap, CAP_SETGID, CAP_EFFECTIVE, &flag_setgid);
+	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
 	ASSERT_RETURN(ret >= 0);
 
-	if (flag_setuid != CAP_SET || flag_setgid != CAP_SET)
+	if (!ret)
 		return TEST_SKIP;
 
 	/*
