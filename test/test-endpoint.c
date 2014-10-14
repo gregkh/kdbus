@@ -106,7 +106,7 @@ static int update_endpoint(int fd, const char *name)
 
 	ep_update.name.size = KDBUS_ITEM_HEADER_SIZE + len;
 	ep_update.name.type = KDBUS_ITEM_NAME;
-	strncpy(ep_update.name.str, name, sizeof(ep_update.name.str));
+	strncpy(ep_update.name.str, name, sizeof(ep_update.name.str) - 1);
 
 	ep_update.access.size = sizeof(ep_update.access);
 	ep_update.access.type = KDBUS_ITEM_POLICY_ACCESS;
