@@ -507,7 +507,7 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 	}
 
 	if ((kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD)) ||
-	    (kmsg->memfds_count && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))) {
+	    (kmsg->memfds_count && !(conn->flags & KDBUS_HELLO_ACCEPT_MEMFD))) {
 		ret = -ECOMM;
 		goto exit_unlock;
 	}
