@@ -20,8 +20,11 @@
 /* maximum number of message items */
 #define KDBUS_MSG_MAX_ITEMS		128
 
-/* maximum number of passed file descriptors */
-#define KDBUS_MSG_MAX_FDS		256
+/*
+ * Maximum number of passed file descriptors
+ * Number taken from AF_UNIX upper limits
+ */
+#define KDBUS_MSG_MAX_FDS		253
 
 /* maximum message payload size */
 #define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE		SZ_2M
