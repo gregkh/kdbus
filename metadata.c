@@ -502,24 +502,32 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		ret = kdbus_meta_append_timestamp(meta, seq);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_TIMESTAMP;
 	}
 
 	if (mask & KDBUS_ATTACH_CREDS) {
 		ret = kdbus_meta_append_cred(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_CREDS;
 	}
 
 	if (mask & KDBUS_ATTACH_AUXGROUPS) {
 		ret = kdbus_meta_append_auxgroups(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_AUXGROUPS;
 	}
 
 	if (mask & KDBUS_ATTACH_NAMES && conn) {
 		ret = kdbus_meta_append_src_names(meta, conn);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_NAMES;
 	}
 
 	if (mask & KDBUS_ATTACH_COMM) {
@@ -534,18 +542,24 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_PID_COMM, comm);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_COMM;
 	}
 
 	if (mask & KDBUS_ATTACH_EXE) {
 		ret = kdbus_meta_append_exe(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_EXE;
 	}
 
 	if (mask & KDBUS_ATTACH_CMDLINE) {
 		ret = kdbus_meta_append_cmdline(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_CMDLINE;
 	}
 
 	/* we always return a 4 elements, the element size is 1/4  */
@@ -553,6 +567,8 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		ret = kdbus_meta_append_caps(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_CAPS;
 	}
 
 #ifdef CONFIG_CGROUPS
@@ -561,6 +577,8 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		ret = kdbus_meta_append_cgroup(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_CGROUP;
 	}
 #endif
 
@@ -569,6 +587,8 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		ret = kdbus_meta_append_audit(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_AUDIT;
 	}
 #endif
 
@@ -577,6 +597,8 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		ret = kdbus_meta_append_seclabel(meta);
 		if (ret < 0)
 			return ret;
+
+		meta->attached |= KDBUS_ATTACH_SECLABEL;
 	}
 #endif
 
@@ -585,13 +607,9 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 					    conn->name);
 		if (ret < 0)
 			return ret;
-	}
 
-	/*
-	 * We tried to add everything we got asked for; do not get
-	 * here again for the same question.
-	 */
-	meta->attached |= mask;
+		meta->attached |= KDBUS_ATTACH_CONN_NAME;
+	}
 
 	return 0;
 }
