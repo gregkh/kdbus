@@ -307,14 +307,6 @@ struct kdbus_cmd_make {
   __u64 size;
     The overall size of the struct, including its items.
 
-  __u64 features;
-    Feature negotiation bitmask. In this field, userspace specifies a set
-    of features it requires from the kernel driver. When the ioctl returns,
-    the kernel has set this field to a value describing the features it
-    requires from the userspace. This field is intended for future forward-
-    compatibility and has to be set to 0. Userspace should check the value
-    after the ioctl returned and treat non-null values as error.
-
   __u64 flags;
     The flags for creation.
 
@@ -425,14 +417,6 @@ The KDBUS_CMD_HELLO ioctl takes the following struct as argument.
 struct kdbus_cmd_hello {
   __u64 size;
     The overall size of the struct, including all attached items.
-
-  __u64 features;
-    Feature negotiation bitmask. In this field, userspace specifies a set
-    of features it requires from the kernel driver. When the ioctl returns,
-    the kernel has set this field to a value describing the features it
-    requires from the userspace. This field is intended for future forward-
-    compatibility and has to be set to 0. Userspace should check the value
-    after the ioctl returned and treat non-null values as error.
 
   __u64 conn_flags;
     Flags to apply to this connection:

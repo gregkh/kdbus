@@ -508,12 +508,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		/* Reject all feature requests for now */
-		if (hello->features != 0) {
-			ret = -EOPNOTSUPP;
-			break;
-		}
-
 		if (hello->pool_size == 0 ||
 		    !IS_ALIGNED(hello->pool_size, PAGE_SIZE)) {
 			ret = -EFAULT;
