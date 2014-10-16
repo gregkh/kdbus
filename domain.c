@@ -107,6 +107,9 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain)
 		unregister_chrdev(domain->major, KBUILD_MODNAME);
 		domain->major = 0;
 
+		if (idr_is_empty(&kdbus_domain_major_idr))
+			idr_destroy(&kdbus_domain_major_idr);
+
 		mutex_unlock(&kdbus_subsys_lock);
 	}
 
@@ -164,6 +167,8 @@ static void __kdbus_domain_free(struct device *dev)
 	BUG_ON(!hash_empty(domain->user_hash));
 
 	kdbus_domain_unref(domain->parent);
+	idr_destroy(&domain->user_idr);
+	idr_destroy(&domain->idr);
 	kfree(domain->name);
 	kfree(domain->devpath);
 	kfree(domain);
