@@ -579,6 +579,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 			    struct kdbus_queue_entry **e)
 {
 	struct kdbus_queue_entry *entry;
+	struct kdbus_item *it;
 	u64 msg_size;
 	size_t size;
 	size_t dst_name_len = 0;
@@ -664,8 +665,8 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	if (dst_name_len  > 0) {
 		char tmp[KDBUS_ITEM_HEADER_SIZE + dst_name_len];
-		struct kdbus_item *it = (struct kdbus_item *)tmp;
 
+		it = (struct kdbus_item *)tmp;
 		it->size = KDBUS_ITEM_HEADER_SIZE + dst_name_len;
 		it->type = KDBUS_ITEM_DST_NAME;
 		memcpy(it->str, kmsg->dst_name, dst_name_len);
@@ -686,8 +687,8 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	/* add a FDS item; the array content will be updated at RECV time */
 	if (kmsg->fds_count > 0) {
 		char tmp[KDBUS_ITEM_HEADER_SIZE];
-		struct kdbus_item *it = (struct kdbus_item *)tmp;
 
+		it = (struct kdbus_item *)tmp;
 		it->type = KDBUS_ITEM_FDS;
 		it->size = KDBUS_ITEM_HEADER_SIZE +
 			   (kmsg->fds_count * sizeof(int));
