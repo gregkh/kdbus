@@ -442,11 +442,6 @@ struct kdbus_cmd_hello {
       as message payload. If it's not set, any attempt of doing so will
       result in -ECOMM on the sender's side.
 
-    KDBUS_HELLO_ACCEPT_MEMFD
-      When this flag is set, the connection can be sent memfd file
-      descriptors as message payload. If it's not set, any attempt of
-      doing so will result in -ECOMM on the sender's side.
-
     KDBUS_HELLO_ACTIVATOR
       Make this connection an activator (see below). With this bit set,
       an item of type KDBUS_ITEM_NAME has to be attached which describes
@@ -876,10 +871,9 @@ pool. The message is stored as struct kdbus_msg at this offset, and can be
 interpreted with the semantics described above.
 
 Also, if the connection allowed for file descriptor to be passed
-(KDBUS_HELLO_ACCEPT_FD or KDBUS_HELLO_ACCEPT_MEMFD), and if the message
-contained any, they will be installed into the receiving process after the
-KDBUS_CMD_MSG_RECV ioctl returns. The receiving task is obliged to close all
-of them appropriately.
+(KDBUS_HELLO_ACCEPT_FD), and if the message contained any, they will be
+installed into the receiving process after the KDBUS_CMD_MSG_RECV ioctl
+returns. The receiving task is obliged to close all of them appropriately.
 
 The caller is obliged to call KDBUS_CMD_FREE with the returned offset when
 the memory is no longer needed.

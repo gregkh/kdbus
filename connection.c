@@ -507,7 +507,7 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 	}
 
 	if ((kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD)) ||
-	    (kmsg->memfds_count && !(conn->flags & KDBUS_HELLO_ACCEPT_MEMFD))) {
+	    (kmsg->memfds_count && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))) {
 		ret = -ECOMM;
 		goto exit_unlock;
 	}
@@ -1415,10 +1415,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	BUG_ON(*c);
 
 	/* Reject unknown flags */
-	if (hello->conn_flags & ~(KDBUS_HELLO_ACCEPT_FD		|
-				  KDBUS_HELLO_ACCEPT_MEMFD	|
-				  KDBUS_HELLO_ACTIVATOR		|
-				  KDBUS_HELLO_POLICY_HOLDER	|
+	if (hello->conn_flags & ~(KDBUS_HELLO_ACCEPT_FD |
+				  KDBUS_HELLO_ACTIVATOR |
+				  KDBUS_HELLO_POLICY_HOLDER |
 				  KDBUS_HELLO_MONITOR))
 		return -EOPNOTSUPP;
 
