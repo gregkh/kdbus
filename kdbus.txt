@@ -156,8 +156,11 @@ Note:
   use should be limited to the absolute minimum for the same reason.
 
 
-3. Data Structures
+3. Data Structures and flags
 ===============================================================================
+
+3.1 Data structures and interconnections
+----------------------------------------
 
   +-------------------------------------------------------------------------+
   | Domain (Init Domain)                                                    |
@@ -223,6 +226,19 @@ The above description uses the D-Bus notation of unique connection names that
 adds a ":1." prefix to the connection's unique ID. kbus itself doesn't
 use that notation, neither internally nor externally. However, libraries and
 other usespace code that aims for compatibility to D-Bus might.
+
+3.2 Flags
+---------
+
+All ioctls used in the communication with the driver contain a 64-bit flags
+field. All bits that are not recognized by the kernel are rejected, and the
+ioctl fails with -EINVAL. Regardless of whether the kernel accepts the
+provided flags or not, the flags field in the ioctl buffer will be updated with
+all the bits the kernel driver knows about in its current state, and set the
+highest bit (KDBUS_FLAGS_KERNEL) as well. Userspace can use the returned value
+to negotiate features. The KDBUS_FLAGS_KERNEL bit will never be valid in any
+flags field of any command, so setting it will always make the ioctl fail.
+Hence, this is a way to probe possible kernel features.
 
 
 4. Items
@@ -1586,30 +1602,30 @@ For all ioctls that carry a struct as payload:
 
 For KDBUS_CMD_BUS_MAKE:
 
-  -EOPNOTSUPP	The flags supplied in the kdbus_cmd_make struct are invalid
-  -EINVAL	The supplied name does not start with the current uid and a '-'
+  -EINVAL	The flags supplied in the kdbus_cmd_make struct are invalid or
+		the supplied name does not start with the current uid and a '-'
   -EEXIST	A bus of that name already exists
   -ESHUTDOWN	The domain for the bus is already shut down
   -EMFILE	The maximum number of buses for the current user is exhausted
 
-KDBUS_CMD_DOMAIN_MAKE
+For KDBUS_CMD_DOMAIN_MAKE:
 
-  -EPERM	The calling user does not have CAP_IPC_OWNER set
-  -EOPNOTSUPP	The flags supplied in the kdbus_cmd_make struct are invalid
-  -EINVAL	No name supplied for top-level domain
+  -EPERM	The calling user does not have CAP_IPC_OWNER set, or
+  -EINVAL	The flags supplied in the kdbus_cmd_make struct are invalid, or
+		no name supplied for top-level domain
   -EEXIST	A domain of that name already exists
 
-KDBUS_CMD_ENDPOINT_MAKE
+For KDBUS_CMD_ENDPOINT_MAKE:
 
   -EPERM	The calling user is not privileged (see Terminology)
-  -EOPNOTSUPP	The flags supplied in the kdbus_cmd_make struct are invalid
+  -EINVAL	The flags supplied in the kdbus_cmd_make struct are invalid
   -EEXIST	An endpoint of that name already exists
 
-KDBUS_CMD_HELLO
+For KDBUS_CMD_HELLO:
 
-  -EOPNOTSUPP	The flags supplied in the kdbus_cmd_make struct are invalid
   -EFAULT	The supplied pool size was 0 or not a multiple of the page size
-  -EINVAL	An illegal combination of KDBUS_HELLO_MONITOR,
+  -EINVAL	The flags supplied in the kdbus_cmd_make struct are invalid, or
+		an illegal combination of KDBUS_HELLO_MONITOR,
 		KDBUS_HELLO_ACTIVATOR and KDBUS_HELLO_POLICY_HOLDER was passed
 		in the flags, or an invalid set of items was supplied
   -EPERM	An KDBUS_ITEM_CREDS items was supplied, but the current user is
@@ -1617,12 +1633,12 @@ KDBUS_CMD_HELLO
   -ESHUTDOWN	The bus has already been shut down
   -EMFILE	The maximum number of connection on the bus has been reached
 
-KDBUS_CMD_BYEBYE
+For KDBUS_CMD_BYEBYE:
 
   -EALREADY	The connection has already been shut down
   -EBUSY	There are still messages queued up in the connection's pool
 
-KDBUS_CMD_MSG_SEND
+For KDBUS_CMD_MSG_SEND:
 
   -EOPNOTSUPP	The connection is unconnected, or a fd was passed that is
 		either a kdbus handle itself or a unix domain socket. Both is
@@ -1676,20 +1692,21 @@ KDBUS_CMD_MSG_SEND
 
 For KDBUS_CMD_MSG_RECV:
 
-  -EINVAL	The offset parameter was != 0 when entering the ioctl
+  -EINVAL	Invalid flags or offset
   -EAGAIN	No message found in the queue
   -ENOMSG	No message of the requested priority found
 
 For KDBUS_CMD_MSG_CANCEL:
 
+  -EINVAL	Invalid flags
   -ENOENT	Pending message with the supplied cookie not found
 
 For KDBUS_CMD_FREE:
 
   -ENXIO	No pool slice found at given offset
-  -EINVAL	The offset is valid, but the user is not allowed to free the
-		slice. This happens, for example, if the offset was retrieved
-		with KDBUS_RECV_PEEK.
+  -EINVAL	Invalid flags provided, the offset is valid, but the user is
+		not allowed to free the slice. This happens, for example, if
+		the offset was retrieved with KDBUS_RECV_PEEK.
 
 For KDBUS_CMD_NAME_ACQUIRE:
 
@@ -1702,21 +1719,25 @@ For KDBUS_CMD_NAME_ACQUIRE:
 
 For KDBUS_CMD_NAME_RELEASE:
 
+  -EINVAL	Invalid command flags provided
   -ESRCH	Name is not found found in the registry
   -EADDRINUSE	Name is owned by a different connection and can't be released
 
 For KDBUS_CMD_NAME_LIST:
+
+  -EINVAL	Invalid flags
   -ENOBUFS	No available memory in the connection's pool.
 
 For KDBUS_CMD_CONN_INFO:
-  -EINVAL	Neither an ID nor a name was provided, or the name is not
-		valid.
+
+  -EINVAL	Invalid flags, or neither an ID nor a name was provided,
+		or the name is invalid.
   -ESRCH	Connection lookup by name failed
   -ENXIO	No connection with the provided number connection ID found
 
 For KDBUS_CMD_CONN_UPDATE:
 
-  -EINVAL	Invalid item attached
+  -EINVAL	Illegal flags or items
   -EOPNOTSUPP	Connection is not attached to bus
   -E2BIG	Too many policy items attached
   -EINVAL	Wildcards submitted in policy entries, or illegal sequence
@@ -1725,15 +1746,16 @@ For KDBUS_CMD_CONN_UPDATE:
 For KDBUS_CMD_ENDPOINT_UPDATE:
 
   -E2BIG	Too many policy items attached
-  -EINVAL	Wildcards submitted in policy entries, or illegal sequence
-		of policy items
+  -EINVAL	Invalid flags, or wildcards submitted in policy entries,
+		or illegal sequence of policy items
 
 For KDBUS_CMD_MATCH_ADD:
 
-  -EINVAL	Illegal items
+  -EINVAL	Illegal flags or items
   -EDOM		Illegal bloom filter size
   -EMFILE	Too many matches for this connection
 
 For KDBUS_CMD_MATCH_REMOVE:
 
+  -EINVAL	Illegal flags
   -ENOENT	A match entry with the given cookie could not be found.

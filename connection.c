@@ -220,18 +220,11 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	struct kdbus_queue_entry *entry = NULL;
 	int ret;
 
-	/* Reject unknown flags */
-	if (recv->flags & ~(KDBUS_RECV_PEEK |
-			    KDBUS_RECV_DROP |
-			    KDBUS_RECV_USE_PRIORITY))
-		return -EOPNOTSUPP;
-
 	if (recv->offset > 0)
 		return -EINVAL;
 
 	mutex_lock(&conn->lock);
-	ret = kdbus_queue_entry_peek(&conn->queue,
-				     recv->priority,
+	ret = kdbus_queue_entry_peek(&conn->queue, recv->priority,
 				     recv->flags & KDBUS_RECV_USE_PRIORITY,
 				     &entry);
 	if (ret < 0)
@@ -1214,9 +1207,6 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	int ret = 0;
 	u64 flags;
 
-	if (cmd_info->flags & ~_KDBUS_ATTACH_ALL)
-		return -EOPNOTSUPP;
-
 	if (cmd_info->id == 0) {
 		const char *name;
 
@@ -1338,9 +1328,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	u64 attach_flags;
 	int ret;
 
-	if (cmd->flags != 0)
-		return -EOPNOTSUPP;
-
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
@@ -1413,13 +1400,6 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	int ret;
 
 	BUG_ON(*c);
-
-	/* Reject unknown flags */
-	if (hello->conn_flags & ~(KDBUS_HELLO_ACCEPT_FD |
-				  KDBUS_HELLO_ACTIVATOR |
-				  KDBUS_HELLO_POLICY_HOLDER |
-				  KDBUS_HELLO_MONITOR))
-		return -EOPNOTSUPP;
 
 	is_monitor = hello->conn_flags & KDBUS_HELLO_MONITOR;
 	is_activator = hello->conn_flags & KDBUS_HELLO_ACTIVATOR;

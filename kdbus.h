@@ -26,6 +26,7 @@
 #define KDBUS_DST_ID_NAME		(0)
 #define KDBUS_MATCH_ID_ANY		(~0ULL)
 #define KDBUS_DST_ID_BROADCAST		(~0ULL)
+#define KDBUS_FLAG_KERNEL		(1ULL << 63)
 
 /**
  * struct kdbus_notify_id_change - name registry change message

@@ -642,11 +642,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	const char *name;
 	int ret;
 
-	if (cmd->flags & ~(KDBUS_NAME_REPLACE_EXISTING |
-			   KDBUS_NAME_ALLOW_REPLACEMENT |
-			   KDBUS_NAME_QUEUE))
-		return -EOPNOTSUPP;
-
 	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
 				  KDBUS_ITEM_NAME, &name);
 	if (ret < 0)
@@ -687,9 +682,6 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 {
 	int ret;
 	const char *name;
-
-	if (cmd->flags != 0)
-		return -EOPNOTSUPP;
 
 	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
 				  KDBUS_ITEM_NAME, &name);
@@ -878,13 +870,6 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	int ret;
 
 	policy_db = &conn->ep->policy_db;
-
-	/* Reject unknown flags */
-	if (cmd->flags & ~(KDBUS_NAME_LIST_UNIQUE |
-			   KDBUS_NAME_LIST_NAMES |
-			   KDBUS_NAME_LIST_ACTIVATORS |
-			   KDBUS_NAME_LIST_QUEUED))
-		return -EOPNOTSUPP;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_read(&conn->bus->conn_rwlock);

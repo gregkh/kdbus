@@ -57,6 +57,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
+	bus_make.head.flags = 0;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
@@ -65,6 +66,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
+	bus_make.head.flags = 0;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
@@ -73,6 +75,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
+	bus_make.head.flags = 0;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
@@ -81,6 +84,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
+	bus_make.head.flags = 0;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
 	snprintf(s, sizeof(s), "/dev/" KBUILD_MODNAME "/%u-blah-1/bus", uid);
@@ -115,6 +119,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 
 	/* a size of 0 must return EMSGSIZE */
 	hello.size = 1;
+	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
@@ -123,22 +128,28 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	/* check faulty flags */
 	hello.conn_flags = 1ULL << 32;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EOPNOTSUPP);
+	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+
+	/* kernel must have set its bit in the ioctl buffer */
+	ASSERT_RETURN(hello.conn_flags & KDBUS_FLAG_KERNEL);
 
 	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
 
 	/* check for faulty pool sizes */
 	hello.pool_size = 0;
+	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EFAULT);
 
 	hello.pool_size = 4097;
+	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EFAULT);
 
 	hello.pool_size = POOL_SIZE;
 
 	/* success test */
+	hello.conn_flags = KDBUS_HELLO_ACCEPT_FD;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == 0);
 

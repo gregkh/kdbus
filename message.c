@@ -262,7 +262,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
-			     const struct kdbus_msg __user *msg,
+			     struct kdbus_msg __user *msg,
 			     struct kdbus_kmsg **kmsg)
 {
 	struct kdbus_kmsg *m;
@@ -303,13 +303,13 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	/* Reject unknown flags */
-	if (m->msg.flags & ~(KDBUS_MSG_FLAGS_EXPECT_REPLY |
-			     KDBUS_MSG_FLAGS_SYNC_REPLY |
-			     KDBUS_MSG_FLAGS_NO_AUTO_START)) {
-		ret = -EOPNOTSUPP;
+	ret = kdbus_negotiate_flags(m->msg.flags, msg,
+				    offsetof(struct kdbus_msg, flags),
+				    KDBUS_MSG_FLAGS_EXPECT_REPLY |
+				    KDBUS_MSG_FLAGS_SYNC_REPLY |
+				    KDBUS_MSG_FLAGS_NO_AUTO_START);
+	if (ret < 0)
 		goto exit_free;
-	}
 
 	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
 		/* requests for replies need a timeout */
