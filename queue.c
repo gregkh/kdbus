@@ -115,7 +115,7 @@ static int kdbus_queue_entry_fds_install(struct kdbus_queue_entry *entry,
 
 	/* allocate new file descriptors in the receiver's process */
 	for (i = 0; i < entry->fds_count; i++) {
-		fds[i] = get_unused_fd();
+		fds[i] = get_unused_fd_flags(O_CLOEXEC);
 		if (fds[i] < 0) {
 			ret = fds[i];
 			goto remove_unused;
@@ -161,7 +161,7 @@ static int kdbus_queue_entry_memfds_install(struct kdbus_queue_entry *entry,
 
 	/* allocate new file descriptors in the receiver's process */
 	for (i = 0; i < entry->memfds_count; i++) {
-		fds[i] = get_unused_fd();
+		fds[i] = get_unused_fd_flags(O_CLOEXEC);
 		if (fds[i] < 0) {
 			ret = fds[i];
 			goto remove_unused;
