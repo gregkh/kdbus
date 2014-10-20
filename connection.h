@@ -15,6 +15,7 @@
 #ifndef __KDBUS_CONNECTION_H
 #define __KDBUS_CONNECTION_H
 
+#include <linux/atomic.h>
 #include <linux/lockdep.h>
 #include "limits.h"
 #include "metadata.h"
@@ -72,7 +73,7 @@ struct kdbus_conn {
 #endif
 	u64 id;
 	u64 flags;
-	u64 attach_flags;
+	atomic64_t attach_flags;
 	const char *name;
 	struct kdbus_bus *bus;
 	struct kdbus_ep *ep;

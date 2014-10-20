@@ -549,9 +549,7 @@ static int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
 	 * conn_src->owner_meta, and we only attach the connection's name and
 	 * currently owned names on top of that.
 	 */
-	mutex_lock(&conn_dst->lock);
-	attach_flags = conn_dst->attach_flags;
-	mutex_unlock(&conn_dst->lock);
+	attach_flags = atomic64_read(&conn_dst->attach_flags);
 
 	if (conn_src->owner_meta)
 		attach_flags &= KDBUS_ATTACH_NAMES | KDBUS_ATTACH_CONN_NAME;
@@ -1372,11 +1370,8 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			return ret;
 	}
 
-	if (flags_provided) {
-		mutex_lock(&conn->lock);
-		conn->attach_flags = attach_flags;
-		mutex_unlock(&conn->lock);
-	}
+	if (flags_provided)
+		atomic64_set(&conn->attach_flags, attach_flags);
 
 	return 0;
 }
@@ -1545,7 +1540,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
 	conn->flags = hello->conn_flags;
-	conn->attach_flags = hello->attach_flags;
+	atomic64_set(&conn->attach_flags, hello->attach_flags);
 
 	if (is_activator) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
