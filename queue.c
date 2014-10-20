@@ -35,94 +35,71 @@
 #include "util.h"
 #include "queue.h"
 
-static int kdbus_queue_entry_fds_install(struct kdbus_queue_entry *entry,
-					 int **ret_fds)
+static int kdbus_queue_entry_fds_install(struct kdbus_queue_entry *entry)
 {
 	unsigned int i;
 	int ret, *fds;
-	size_t size;
+	size_t count;
 
 	/* get array of file descriptors */
-	size = entry->fds_count * sizeof(int);
-	fds = kmalloc(size, GFP_KERNEL);
+	count = entry->fds_count + entry->memfds_count;
+	if (!count)
+		return 0;
+
+	fds = kcalloc(count, sizeof(int), GFP_KERNEL);
 	if (!fds)
 		return -ENOMEM;
 
 	/* allocate new file descriptors in the receiver's process */
-	for (i = 0; i < entry->fds_count; i++) {
+	for (i = 0; i < count; i++) {
 		fds[i] = get_unused_fd_flags(O_CLOEXEC);
 		if (fds[i] < 0) {
 			ret = fds[i];
-			goto remove_unused;
+			goto exit_remove_unused;
 		}
 	}
 
-	/* copy the array into the message item */
-	ret = kdbus_pool_slice_copy(entry->slice, entry->fds, fds, size);
-	if (ret < 0)
-		goto remove_unused;
-
-	/* install files in the receiver's process */
-	for (i = 0; i < entry->fds_count; i++)
-		fd_install(fds[i], get_file(entry->fds_fp[i]));
-
-	kfree(fds);
-	return 0;
-
-remove_unused:
-	for (i = 0; i < entry->fds_count; i++) {
-		if (fds[i] < 0)
-			break;
-
-		put_unused_fd(fds[i]);
-	}
-
-	*ret_fds = fds;
-	return ret;
-}
-
-static int kdbus_queue_entry_memfds_install(struct kdbus_queue_entry *entry,
-					    int **memfds)
-{
-	int *fds;
-	unsigned int i;
-	size_t size;
-	int ret = 0;
-
-	size = entry->memfds_count * sizeof(int);
-	fds = kmalloc(size, GFP_KERNEL);
-	if (!fds)
-		return -ENOMEM;
-
-	/* allocate new file descriptors in the receiver's process */
-	for (i = 0; i < entry->memfds_count; i++) {
-		fds[i] = get_unused_fd_flags(O_CLOEXEC);
-		if (fds[i] < 0) {
-			ret = fds[i];
-			goto remove_unused;
-		}
-	}
-
-	/*
-	 * Update the file descriptor number in the items. We remembered
-	 * the locations of the values in the buffer.
-	 */
-	for (i = 0; i < entry->memfds_count; i++) {
-		ret = kdbus_pool_slice_copy(entry->slice, entry->memfds[i],
-					     &fds[i], sizeof(int));
+	if (entry->fds_count) {
+		/* copy the array into the message item */
+		ret = kdbus_pool_slice_copy(entry->slice, entry->fds, fds,
+					    entry->fds_count * sizeof(int));
 		if (ret < 0)
-			goto remove_unused;
+			goto exit_remove_unused;
+
+		/* install files in the receiver's process */
+		for (i = 0; i < entry->fds_count; i++)
+			fd_install(fds[i], get_file(entry->fds_fp[i]));
 	}
 
-	/* install files in the receiver's process */
-	for (i = 0; i < entry->memfds_count; i++)
-		fd_install(fds[i], get_file(entry->memfds_fp[i]));
+	if (entry->memfds_count) {
+		off_t o = entry->fds_count;
 
-	*memfds = fds;
+		/*
+		 * Update the file descriptor number in the items.
+		 * We remembered the locations of the values in the buffer.
+		 */
+		for (i = 0; i < entry->memfds_count; i++) {
+			ret = kdbus_pool_slice_copy(entry->slice,
+						    entry->memfds[i],
+						    &fds[o + i], sizeof(int));
+			if (ret < 0)
+				goto exit_rewind_fds;
+		}
+
+		/* install files in the receiver's process */
+		for (i = 0; i < entry->memfds_count; i++)
+			fd_install(fds[o + i], get_file(entry->memfds_fp[i]));
+	}
+
+	kfree(fds);
 	return 0;
 
-remove_unused:
-	for (i = 0; i < entry->memfds_count; i++) {
+exit_rewind_fds:
+	for (i = 0; i < entry->fds_count; i++)
+		sys_close(fds[i]);
+
+exit_remove_unused:
+	for (i = 0; i < count; i++) {
 		if (fds[i] < 0)
 			break;
 
@@ -130,7 +107,6 @@ remove_unused:
 	}
 
 	kfree(fds);
-	*memfds = NULL;
 	return ret;
 }
 
@@ -150,38 +126,16 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry)
 {
 	int *memfds = NULL;
 	int *fds = NULL;
-	unsigned int i;
 	int ret = 0;
 
-	/*
-	 * Install KDBUS_MSG_PAYLOAD_MEMFDs file descriptors, we return
-	 * the list of file descriptors to be able to cleanup on error.
-	 */
-	if (entry->memfds_count > 0) {
-		ret = kdbus_queue_entry_memfds_install(entry, &memfds);
-		if (ret < 0)
-			return ret;
-	}
-
-	/* install KDBUS_MSG_FDS file descriptors */
-	if (entry->fds_count > 0) {
-		ret = kdbus_queue_entry_fds_install(entry, &fds);
-		if (ret < 0)
-			goto exit_rewind_memfds;
-	}
+	ret = kdbus_queue_entry_fds_install(entry);
+	if (ret < 0)
+		return ret;
 
 	kfree(fds);
 	kfree(memfds);
 	kdbus_pool_slice_flush(entry->slice);
-
 	return 0;
-
-exit_rewind_memfds:
-	for (i = 0; i < entry->memfds_count; i++)
-		sys_close(memfds[i]);
-	kfree(memfds);
-
-	return ret;
 }
 
 static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
