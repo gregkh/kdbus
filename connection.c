@@ -656,6 +656,54 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 	up_read(&ep->bus->conn_rwlock);
 }
 
+static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
+				 struct kdbus_conn *conn_src,
+				 struct kdbus_conn *conn_dst,
+				 struct kdbus_msg *msg,
+				 struct kdbus_conn_reply *reply_wait,
+				 u64 timeout_us)
+{
+	struct kdbus_queue_entry *entry;
+	int r, ret;
+
+	/*
+	 * Block until the reply arrives. reply_wait is left untouched
+	 * by the timeout scans that might be conducted for other,
+	 * asynchronous replies of conn_src.
+	 */
+	r = wait_event_interruptible_timeout(reply_wait->conn->wait,
+		!reply_wait->waiting || !kdbus_conn_active(conn_src),
+		usecs_to_jiffies(timeout_us));
+	if (r == 0)
+		ret = -ETIMEDOUT;
+	else if (r < 0)
+		ret = -EINTR;
+	else if (!kdbus_conn_active(conn_src))
+		ret = -ECONNRESET;
+	else
+		ret = reply_wait->err;
+
+	mutex_lock(&conn_dst->lock);
+	list_del_init(&reply_wait->entry);
+	mutex_unlock(&conn_dst->lock);
+
+	mutex_lock(&conn_src->lock);
+	entry = reply_wait->queue_entry;
+	if (entry) {
+		if (ret == 0)
+			ret = kdbus_queue_entry_install(entry);
+
+		msg->offset_reply = kdbus_pool_slice_offset(entry->slice);
+		kdbus_pool_slice_make_public(entry->slice);
+		kdbus_queue_entry_free(entry);
+	}
+	mutex_unlock(&conn_src->lock);
+
+	kdbus_conn_reply_free(reply_wait);
+
+	return ret;
+}
+
 /**
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
@@ -671,11 +719,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_conn_reply *reply_wait = NULL;
 	struct kdbus_conn_reply *reply_wake = NULL;
 	struct kdbus_name_entry *name_entry = NULL;
-	const struct kdbus_msg *msg = &kmsg->msg;
+	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	int ret = 0;
+	u64 usecs;
 
 	/* assign domain-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
@@ -818,47 +867,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
 
 	if (sync) {
-		int r;
-		struct kdbus_queue_entry *entry;
-		u64 usecs = div_u64(msg->timeout_ns, 1000ULL);
-
 		BUG_ON(!reply_wait);
-
-		/*
-		 * Block until the reply arrives. reply_wait is left untouched
-		 * by the timeout scans that might be conducted for other,
-		 * asynchronous replies of conn_src.
-		 */
-		r = wait_event_interruptible_timeout(reply_wait->conn->wait,
-			!reply_wait->waiting || !kdbus_conn_active(conn_src),
-			usecs_to_jiffies(usecs));
-		if (r == 0)
-			ret = -ETIMEDOUT;
-		else if (r < 0)
-			ret = -EINTR;
-		else if (!kdbus_conn_active(conn_src))
-			ret = -ECONNRESET;
-		else
-			ret = reply_wait->err;
-
-		mutex_lock(&conn_dst->lock);
-		list_del_init(&reply_wait->entry);
-		mutex_unlock(&conn_dst->lock);
-
-		mutex_lock(&conn_src->lock);
-		entry = reply_wait->queue_entry;
-		if (entry) {
-			if (ret == 0)
-				ret = kdbus_queue_entry_install(entry);
-
-			kmsg->msg.offset_reply =
-				kdbus_pool_slice_offset(entry->slice);
-			kdbus_pool_slice_make_public(entry->slice);
-			kdbus_queue_entry_free(entry);
-		}
-		mutex_unlock(&conn_src->lock);
-
-		kdbus_conn_reply_free(reply_wait);
+		usecs = div_u64(msg->timeout_ns, 1000ULL);
+		ret = kdbus_conn_wait_reply(ep, conn_src, conn_dst, msg,
+					    reply_wait, usecs);
 	}
 
 exit_unref:
