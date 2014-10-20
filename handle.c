@@ -98,16 +98,15 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	struct kdbus_ep *ep;
 	int ret;
 
+	/* find and reference domain */
+	domain = kdbus_domain_find_by_major(MAJOR(inode->i_rdev));
+	if (!domain || domain->disconnected)
+		return -ESHUTDOWN;
+
 	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
 	if (!handle)
 		return -ENOMEM;
 
-	/* find and reference domain */
-	domain = kdbus_domain_find_by_major(MAJOR(inode->i_rdev));
-	if (!domain || domain->disconnected) {
-		kfree(handle);
-		return -ESHUTDOWN;
-	}
 	handle->domain = domain;
 	file->private_data = handle;
 
