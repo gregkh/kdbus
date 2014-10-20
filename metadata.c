@@ -530,7 +530,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		meta->attached |= KDBUS_ATTACH_NAMES;
 	}
 
-	if (mask & KDBUS_ATTACH_COMM) {
+	if (mask & KDBUS_ATTACH_TID_COMM) {
 		char comm[TASK_COMM_LEN];
 
 		get_task_comm(comm, current->group_leader);
@@ -538,12 +538,18 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		if (ret < 0)
 			return ret;
 
+		meta->attached |= KDBUS_ATTACH_TID_COMM;
+	}
+
+	if (mask & KDBUS_ATTACH_PID_COMM) {
+		char comm[TASK_COMM_LEN];
+
 		get_task_comm(comm, current);
 		ret = kdbus_meta_append_str(meta, KDBUS_ITEM_PID_COMM, comm);
 		if (ret < 0)
 			return ret;
 
-		meta->attached |= KDBUS_ATTACH_COMM;
+		meta->attached |= KDBUS_ATTACH_PID_COMM;
 	}
 
 	if (mask & KDBUS_ATTACH_EXE) {

@@ -135,13 +135,14 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		goto exit_ep_unref;
 
 	ret = kdbus_meta_append(handle->meta, NULL, 0,
-				KDBUS_ATTACH_CREDS |
-				KDBUS_ATTACH_COMM |
-				KDBUS_ATTACH_EXE |
-				KDBUS_ATTACH_CMDLINE |
-				KDBUS_ATTACH_CGROUP |
-				KDBUS_ATTACH_CAPS |
-				KDBUS_ATTACH_SECLABEL |
+				KDBUS_ATTACH_CREDS	|
+				KDBUS_ATTACH_TID_COMM	|
+				KDBUS_ATTACH_PID_COMM	|
+				KDBUS_ATTACH_EXE	|
+				KDBUS_ATTACH_CMDLINE	|
+				KDBUS_ATTACH_CGROUP	|
+				KDBUS_ATTACH_CAPS	|
+				KDBUS_ATTACH_SECLABEL	|
 				KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
 		goto exit_meta_free;
