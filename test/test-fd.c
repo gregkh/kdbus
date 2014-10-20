@@ -225,10 +225,17 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	kdbus_msg_free(msg);
 
 
-	/* Combine multiple 154 fds and 100 memfds */
+	/* Combine multiple 254 fds and 100 memfds */
 	ret = send_fds_memfds(conn_src, conn_dst->id,
-			      fds, 154, memfds, 100);
+			      fds, KDBUS_MSG_MAX_FDS + 1,
+			      memfds, 100);
 	ASSERT_RETURN(ret == -EMFILE);
+
+	/* Combine multiple 253 fds and 100 memfds */
+	ret = send_fds_memfds(conn_src, conn_dst->id,
+			      fds, KDBUS_MSG_MAX_FDS,
+			      memfds, KDBUS_MSG_MAX_ITEMS + 1);
+	ASSERT_RETURN(ret == -E2BIG);
 
 	ret = send_fds_memfds(conn_src, conn_dst->id,
 			      fds, 153, memfds, 100);
