@@ -112,6 +112,9 @@ static int kdbus_handle_check_file(struct file *file)
  * @kmsg:		Message
  *
  * Return: 0 on success, negative errno on failure.
+ *
+ * On errors, the caller should drop any taken reference with
+ * kdbus_kmsg_free()
  */
 static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				struct kdbus_kmsg *kmsg)
@@ -174,6 +177,10 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			int seals, mask;
 			int fd = item->memfd.fd;
 
+			/*
+			 * Verify the fd and increment the usage
+			 * count
+			 */
 			if (fd < 0 || !(f = fget(fd)))
 				return -EBADF;
 
@@ -229,6 +236,10 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				int ret;
 				int fd = item->fds[i];
 
+				/*
+				 * Verify the fd and increment the
+				 * usage count
+				 */
 				if (fd < 0 || !(f = fget(fd)))
 					return -EBADF;
 
