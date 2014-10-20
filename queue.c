@@ -24,7 +24,6 @@
 #include <linux/mutex.h>
 #include <linux/poll.h>
 #include <linux/sched.h>
-#include <linux/shmem_fs.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
@@ -35,70 +34,6 @@
 #include "metadata.h"
 #include "util.h"
 #include "queue.h"
-
-static void kdbus_queue_entry_fds_unref(struct kdbus_queue_entry *entry)
-{
-	unsigned int i;
-
-	if (!entry->fds_fp)
-		return;
-
-	for (i = 0; i < entry->fds_count; i++) {
-		if (!entry->fds_fp[i])
-			break;
-
-		fput(entry->fds_fp[i]);
-	}
-
-	kfree(entry->fds_fp);
-	entry->fds_fp = NULL;
-
-	entry->fds_count = 0;
-}
-
-/* grab references of passed-in FDS for the queued message */
-static int kdbus_queue_entry_fds_ref(struct kdbus_queue_entry *entry,
-				     const int *fds, unsigned int fds_count)
-{
-	unsigned int i;
-
-	entry->fds_fp = kcalloc(fds_count, sizeof(struct file *), GFP_KERNEL);
-	if (!entry->fds_fp)
-		return -ENOMEM;
-
-	for (i = 0; i < fds_count; i++) {
-		entry->fds_fp[i] = fget(fds[i]);
-		if (!entry->fds_fp[i]) {
-			kdbus_queue_entry_fds_unref(entry);
-			return -EBADF;
-		}
-	}
-
-	return 0;
-}
-
-static void kdbus_queue_entry_memfds_unref(struct kdbus_queue_entry *entry)
-{
-	unsigned int i;
-
-	if (!entry->memfds_fp)
-		return;
-
-	for (i = 0; i < entry->memfds_count; i++) {
-		if (!entry->memfds_fp[i])
-			break;
-
-		fput(entry->memfds_fp[i]);
-	}
-
-	kfree(entry->memfds_fp);
-	entry->memfds_fp = NULL;
-
-	kfree(entry->memfds);
-	entry->memfds = NULL;
-
-	entry->memfds_count = 0;
-}
 
 static int kdbus_queue_entry_fds_install(struct kdbus_queue_entry *entry,
 					 int **ret_fds)
@@ -249,50 +184,6 @@ exit_rewind_memfds:
 	return ret;
 }
 
-
-
-/* Validate the state of the incoming PAYLOAD_MEMFD, and grab a reference
- * to put it into the receiver's queue. */
-static int kdbus_conn_memfd_ref(const struct kdbus_item *item,
-				struct file **file)
-{
-	struct file *fp;
-	int seals, mask;
-	int ret;
-
-	fp = fget(item->memfd.fd);
-	if (!fp)
-		return -EBADF;
-
-	/*
-	 * We only accept a sealed memfd file whose content cannot be altered
-	 * by the sender or anybody else while it is shared or in-flight.
-	 * Other files need to be passed with KDBUS_MSG_FDS.
-	 */
-	seals = shmem_get_seals(fp);
-	if (seals < 0)
-		return -EMEDIUMTYPE;
-
-	mask = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
-	if ((seals & mask) != mask) {
-		ret = -ETXTBSY;
-		goto exit_unref;
-	}
-
-	/* The specified size in the item cannot be larger than the file. */
-	if (item->memfd.size > i_size_read(file_inode(fp))) {
-		ret = -EBADF;
-		goto exit_unref;
-	}
-
-	*file = fp;
-	return 0;
-
-exit_unref:
-	fput(fp);
-	return ret;
-}
-
 static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 					 const struct kdbus_kmsg *kmsg,
 					 size_t items, size_t vec_data)
@@ -302,7 +193,7 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 
 	if (kmsg->memfds_count > 0) {
 		entry->memfds = kcalloc(kmsg->memfds_count,
-					sizeof(size_t), GFP_KERNEL);
+					sizeof(off_t), GFP_KERNEL);
 		if (!entry->memfds)
 			return -ENOMEM;
 
@@ -373,8 +264,6 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 			char tmp[KDBUS_ITEM_HEADER_SIZE +
 				 sizeof(struct kdbus_memfd)];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
-			struct file *fp;
-			size_t memfd;
 
 			/* add item */
 			it->type = KDBUS_ITEM_PAYLOAD_MEMFD;
@@ -386,18 +275,14 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 			if (ret < 0)
 				return ret;
 
-			/* grab reference of incoming file */
-			ret = kdbus_conn_memfd_ref(item, &fp);
-			if (ret < 0)
-				return ret;
-
 			/*
 			 * Remember the file and the location of the fd number
 			 * which will be updated at RECV time.
 			 */
-			memfd = items + offsetof(struct kdbus_item, memfd.fd);
-			entry->memfds[entry->memfds_count] = memfd;
-			entry->memfds_fp[entry->memfds_count] = fp;
+			entry->memfds[entry->memfds_count] =
+				items + offsetof(struct kdbus_item, memfd.fd);
+			entry->memfds_fp[entry->memfds_count] =
+				get_file(kmsg->memfds[entry->memfds_count]);
 			entry->memfds_count++;
 
 			items += KDBUS_ALIGN8(it->size);
@@ -625,6 +510,11 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	/* space for FDS item */
 	if (kmsg->fds_count > 0) {
+		entry->fds_fp = kcalloc(kmsg->fds_count, sizeof(struct file *),
+					GFP_KERNEL);
+		if (!entry->fds_fp)
+			return -ENOMEM;
+
 		fds = msg_size;
 		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
 	}
@@ -687,6 +577,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	/* add a FDS item; the array content will be updated at RECV time */
 	if (kmsg->fds_count > 0) {
 		char tmp[KDBUS_ITEM_HEADER_SIZE];
+		unsigned int i;
 
 		it = (struct kdbus_item *)tmp;
 		it->type = KDBUS_ITEM_FDS;
@@ -697,10 +588,13 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 		if (ret < 0)
 			goto exit_pool_free;
 
-		ret = kdbus_queue_entry_fds_ref(entry, kmsg->fds,
-						kmsg->fds_count);
-		if (ret < 0)
-			goto exit_pool_free;
+		for (i = 0; i < kmsg->fds_count; i++) {
+			entry->fds_fp[i] = get_file(kmsg->fds[i]);
+			if (!entry->fds_fp[i]) {
+				ret = -EBADF;
+				goto exit_pool_free;
+			}
+		}
 
 		/* remember the array to update at RECV */
 		entry->fds = fds + offsetof(struct kdbus_item, fds);
@@ -736,8 +630,10 @@ exit:
  */
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
-	kdbus_queue_entry_memfds_unref(entry);
-	kdbus_queue_entry_fds_unref(entry);
+	kdbus_fput_files(entry->memfds_fp, entry->memfds_count);
+	kdbus_fput_files(entry->fds_fp, entry->fds_count);
+	kfree(entry->memfds_fp);
+	kfree(entry->fds_fp);
 	kfree(entry);
 }
 

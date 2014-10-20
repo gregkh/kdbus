@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
+#include <linux/shmem_fs.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -44,7 +45,11 @@
  */
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
+	kdbus_fput_files(kmsg->memfds, kmsg->memfds_count);
+	kdbus_fput_files(kmsg->fds, kmsg->fds_count);
 	kdbus_meta_free(kmsg->meta);
+	kfree(kmsg->memfds);
+	kfree(kmsg->fds);
 	kfree(kmsg);
 }
 
@@ -118,6 +123,27 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	bool has_bloom = false;
 	bool has_name = false;
 	bool has_fds = false;
+	struct file *f;
+
+	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
+		if (item->type == KDBUS_ITEM_PAYLOAD_MEMFD) {
+			/* do not allow to broadcast file descriptors */
+			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
+				return -ENOTUNIQ;
+
+			kmsg->memfds_count++;
+		}
+	}
+
+	if (kmsg->memfds_count > 0) {
+		kmsg->memfds = kcalloc(kmsg->memfds_count,
+				       sizeof(struct file *), GFP_KERNEL);
+		if (!kmsg->memfds)
+			return -ENOMEM;
+
+		/* reset counter so we can reuse it */
+		kmsg->memfds_count = 0;
+	}
 
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size;
@@ -144,16 +170,42 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			kmsg->vecs_count++;
 			break;
 
-		case KDBUS_ITEM_PAYLOAD_MEMFD:
-			/* do not allow to broadcast file descriptors */
-			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
-				return -ENOTUNIQ;
+		case KDBUS_ITEM_PAYLOAD_MEMFD: {
+			int seals, mask;
 
+			f = fget(item->memfd.fd);
+			if (!f)
+				return -EBADF;
+
+			kmsg->memfds[kmsg->memfds_count] = f;
 			kmsg->memfds_count++;
+
+			/*
+			 * We only accept a sealed memfd file whose content
+			 * cannot be altered by the sender or anybody else
+			 * while it is shared or in-flight. Other files need
+			 * to be passed with KDBUS_MSG_FDS.
+			 */
+			seals = shmem_get_seals(f);
+			if (seals < 0)
+				return -EMEDIUMTYPE;
+
+			mask = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
+			if ((seals & mask) != mask)
+				return -ETXTBSY;
+
+			/*
+			 * The specified size in the item cannot be larger
+			 * than the backing file.
+			 */
+			if (item->memfd.size > i_size_read(file_inode(f)))
+				return -EBADF;
+
 			break;
+		}
 
 		case KDBUS_ITEM_FDS: {
-			unsigned int i, n;
+			unsigned int n, i;
 
 			/* do not allow multiple fd arrays */
 			if (has_fds)
@@ -164,24 +216,30 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			n = payload_size / sizeof(int);
+			n = KDBUS_ITEM_PAYLOAD_SIZE(item) / sizeof(int);
 			if (n > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
+			kmsg->fds = kcalloc(n, sizeof(struct file *),
+					    GFP_KERNEL);
+			if (!kmsg->fds)
+				return -ENOMEM;
+
 			for (i = 0; i < n; i++) {
-				struct file *f;
 				int ret;
 
 				f = fget(item->fds[i]);
-				ret = kdbus_handle_check_file(f);
-				fput(f);
+				if (!f)
+					return -EBADF;
 
+				kmsg->fds[i] = f;
+				kmsg->fds_count++;
+
+				ret = kdbus_handle_check_file(f);
 				if (ret < 0)
 					return ret;
 			}
 
-			kmsg->fds = item->fds;
-			kmsg->fds_count = n;
 			break;
 		}
 

@@ -12,6 +12,7 @@
  */
 
 #include <linux/ctype.h>
+#include <linux/file.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 
@@ -81,4 +82,26 @@ int kdbus_negotiate_flags(u64 flags, void __user *buf, off_t offset, u64 valid)
 		return -EINVAL;
 
 	return 0;
+}
+
+/**
+ * kdbus_fput_files() - fput() an array of struct files
+ * @files:	The array of files to put, may be NULL
+ * @count:	The number of elements in @files
+ *
+ * Call fput() on all non-NULL elements in @files, and set the entries to
+ * NULL afterwards.
+ */
+void kdbus_fput_files(struct file **files, unsigned int count)
+{
+	unsigned int i;
+
+	if (!files)
+		return;
+
+	for (i = 0; i < count; i++)
+		if (files[i]) {
+			fput(files[i]);
+			files[i] = NULL;
+		}
 }

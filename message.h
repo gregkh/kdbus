@@ -48,11 +48,12 @@ struct kdbus_kmsg {
 	u64 dst_name_id;
 	const struct kdbus_bloom_filter *bloom_filter;
 	u64 bloom_generation;
-	const int *fds;
+	struct file **fds;
 	unsigned int fds_count;
 	struct kdbus_meta *meta;
 	size_t vecs_size;
 	unsigned int vecs_count;
+	struct file **memfds;
 	unsigned int memfds_count;
 	struct list_head queue_entry;
 
