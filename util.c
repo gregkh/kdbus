@@ -70,10 +70,10 @@ int kdbus_negotiate_flags(u64 flags, void __user *buf, off_t offset, u64 valid)
 	u64 val = valid | KDBUS_FLAG_KERNEL;
 
 	/*
-	 * KDBUS_FLAG_KERNEL is reserved. Make sure it is never considered
+	 * KDBUS_FLAG_KERNEL is reserved and will never be considered
 	 * valid by any user of this function.
 	 */
-	BUG_ON(valid & KDBUS_FLAG_KERNEL);
+	WARN_ON_ONCE(valid & KDBUS_FLAG_KERNEL);
 
 	if (copy_to_user(((u8 __user *) buf) + offset, &val, sizeof(val)))
 		return -EFAULT;
