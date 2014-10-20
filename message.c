@@ -119,6 +119,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
 	unsigned int items_count = 0;
+	unsigned int fds_count = 0;
 	size_t vecs_size = 0;
 	bool has_bloom = false;
 	bool has_name = false;
@@ -148,6 +149,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size;
 
+		/* first check the items_count */
 		if (++items_count > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 
@@ -172,6 +174,10 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			int seals, mask;
+
+			fds_count++;
+			if (fds_count > KDBUS_MSG_MAX_FDS)
+				return -EMFILE;
 
 			f = fget(item->memfd.fd);
 			if (!f)
@@ -217,7 +223,8 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				return -ENOTUNIQ;
 
 			n = KDBUS_ITEM_PAYLOAD_SIZE(item) / sizeof(int);
-			if (n > KDBUS_MSG_MAX_FDS)
+			fds_count += n;
+			if (fds_count > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
 			kmsg->fds = kcalloc(n, sizeof(struct file *),
