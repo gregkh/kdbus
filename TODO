@@ -4,8 +4,3 @@ Features:
   - also attach queued names to message metadata?
 
   - test message budget limits
-
-External API:
-  - rules for:
-      -unknown items to ignore in userspace lib?
-      -unknown items to ignore if SEND sees them?
