@@ -172,9 +172,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			int seals, mask;
+			int fd = item->memfd.fd;
 
-			f = fget(item->memfd.fd);
-			if (!f)
+			if (fd < 0 || !(f = fget(fd)))
 				return -EBADF;
 
 			kmsg->memfds[kmsg->memfds_count] = f;
@@ -227,9 +227,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 			for (i = 0; i < n; i++) {
 				int ret;
+				int fd = item->fds[i];
 
-				f = fget(item->fds[i]);
-				if (!f)
+				if (fd < 0 || !(f = fget(fd)))
 					return -EBADF;
 
 				kmsg->fds[i] = f;
