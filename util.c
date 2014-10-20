@@ -94,12 +94,12 @@ int kdbus_negotiate_flags(u64 flags, void __user *buf, off_t offset, u64 valid)
  */
 void kdbus_fput_files(struct file **files, unsigned int count)
 {
-	unsigned int i;
+	int i;
 
 	if (!files)
 		return;
 
-	for (i = 0; i < count; i++)
+	for (i = count - 1; i >= 0; i--)
 		if (files[i]) {
 			fput(files[i]);
 			files[i] = NULL;
