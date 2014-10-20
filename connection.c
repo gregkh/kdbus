@@ -932,16 +932,16 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	cancel_delayed_work_sync(&conn->work);
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	down_write(&conn->bus->conn_rwlock);
 	mutex_lock(&conn->ep->lock);
+	down_write(&conn->bus->conn_rwlock);
 
 	/* remove from bus and endpoint */
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
 	list_del(&conn->ep_entry);
 
-	mutex_unlock(&conn->ep->lock);
 	up_write(&conn->bus->conn_rwlock);
+	mutex_unlock(&conn->ep->lock);
 
 	/*
 	 * Remove all names associated with this connection; this possibly
@@ -1606,9 +1606,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	down_write(&bus->conn_rwlock);
 	mutex_lock(&bus->lock);
 	mutex_lock(&ep->lock);
+	down_write(&bus->conn_rwlock);
 
 	if (bus->disconnected || ep->disconnected) {
 		ret = -ESHUTDOWN;
@@ -1626,9 +1626,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	list_add_tail(&conn->ep_entry, &ep->conn_list);
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
 
+	up_write(&bus->conn_rwlock);
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
-	up_write(&bus->conn_rwlock);
 
 	/* notify subscribers about the new active connection */
 	ret = kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_ADD,
@@ -1644,9 +1644,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	return 0;
 
 exit_unref_user_unlock:
+	up_write(&bus->conn_rwlock);
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
-	up_write(&bus->conn_rwlock);
 exit_domain_user_unref:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:

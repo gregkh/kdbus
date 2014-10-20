@@ -872,8 +872,8 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	policy_db = &conn->ep->policy_db;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	down_read(&conn->bus->conn_rwlock);
 	down_read(&reg->rwlock);
+	down_read(&conn->bus->conn_rwlock);
 	down_read(&policy_db->entries_rwlock);
 
 	/* size of header + records */
@@ -907,7 +907,7 @@ exit_pool_free:
 		kdbus_pool_slice_free(slice);
 exit_unlock:
 	up_read(&policy_db->entries_rwlock);
-	up_read(&reg->rwlock);
 	up_read(&conn->bus->conn_rwlock);
+	up_read(&reg->rwlock);
 	return ret;
 }
