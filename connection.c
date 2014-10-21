@@ -185,7 +185,7 @@ static void kdbus_conn_work(struct work_struct *work)
 
 		/*
 		 * A zero deadline means the connection died, was
-		 * cleaned up already and the notify sent.
+		 * cleaned up already and the notification was sent.
 		 */
 		if (reply->deadline_ns == 0)
 			continue;
@@ -426,13 +426,11 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 	}
 
 	/*
-	 * This message expects a reply, so let's interpret
-	 * msg->timeout_ns and add a kdbus_conn_reply object.
-	 * Add it to the list of expected replies on the
-	 * destination connection.
-	 * When a reply is received later on, this entry will
-	 * be used to allow the reply to pass, circumventing the
-	 * policy.
+	 * This message expects a reply, so let's interpret msg->timeout_ns and
+	 * add a kdbus_conn_reply object. Add it to the list of expected replies
+	 * on the destination connection.
+	 * When a reply is received later on, this entry will be used to allow
+	 * the reply to pass, circumventing the policy.
 	 */
 	r = kzalloc(sizeof(*r), GFP_KERNEL);
 	if (!r) {
@@ -442,26 +440,24 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 
 	r->conn = kdbus_conn_ref(conn_src);
 	r->cookie = msg->cookie;
+printk(" ADDING expected reply for cookie %lld sync %d\n", r->cookie, sync);
 
 	if (sync) {
 		r->sync = true;
 		r->waiting = true;
 	} else {
-		/* calculate the deadline based on the current time */
-		ktime_get_ts64(&ts);
-		r->deadline_ns = timespec64_to_ns(&ts) + msg->timeout_ns;
+		r->deadline_ns = msg->timeout_ns;
 	}
 
 	list_add(&r->entry, &conn_dst->reply_list);
 	*reply_wait = r;
 
 	/*
-	 * For async operation, schedule the scan now. It won't do
-	 * any real work at this point, but walk the list of all
-	 * pending replies and rearm the connection's delayed work
-	 * to the closest entry.
-	 * For synchronous operation, the timeout will be handled
-	 * by wait_event_interruptible_timeout().
+	 * For async operation, schedule the scan now. It won't do any real work
+	 * at this point, but walk the list of all pending replies and rearm the
+	 * connection's delayed work to the closest entry.
+	 * For synchronous operation, the timeout will be handled by
+	 * wait_event_interruptible_timeout().
 	 */
 	if (!sync)
 		schedule_delayed_work(&conn_dst->work, 0);
