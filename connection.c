@@ -440,7 +440,6 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 
 	r->conn = kdbus_conn_ref(conn_src);
 	r->cookie = msg->cookie;
-printk(" ADDING expected reply for cookie %lld sync %d\n", r->cookie, sync);
 
 	if (sync) {
 		r->sync = true;
