@@ -48,13 +48,11 @@ int kdbus_test_domain_make(struct kdbus_test_env *env)
 			     F_OK) == 0);
 
 	/* can't use the same fd for domain make twice */
-	domain_make.head.flags = 0;
 	ret = ioctl(fd, KDBUS_CMD_DOMAIN_MAKE, &domain_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
 	/* can't register the same name twice */
 	fd2 = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
-	domain_make.head.flags = 0;
 	ret = ioctl(fd2, KDBUS_CMD_DOMAIN_MAKE, &domain_make);
 	ASSERT_RETURN(ret == -1 && errno == EEXIST);
 	close(fd2);

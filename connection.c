@@ -1408,9 +1408,9 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	BUG_ON(*c);
 
-	is_monitor = hello->conn_flags & KDBUS_HELLO_MONITOR;
-	is_activator = hello->conn_flags & KDBUS_HELLO_ACTIVATOR;
-	is_policy_holder = hello->conn_flags & KDBUS_HELLO_POLICY_HOLDER;
+	is_monitor = hello->flags & KDBUS_HELLO_MONITOR;
+	is_activator = hello->flags & KDBUS_HELLO_ACTIVATOR;
+	is_policy_holder = hello->flags & KDBUS_HELLO_POLICY_HOLDER;
 
 	/* can't be activator or policy holder and monitor at the same time */
 	if (is_monitor && (is_activator || is_policy_holder))
@@ -1539,7 +1539,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
-	conn->flags = hello->conn_flags;
+	conn->flags = hello->flags;
 	atomic64_set(&conn->attach_flags, hello->attach_flags);
 
 	if (is_activator) {

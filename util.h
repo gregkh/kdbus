@@ -83,7 +83,12 @@ static inline bool kdbus_str_valid(const char *str, size_t size)
 }
 
 int kdbus_sysname_is_valid(const char *name);
-int kdbus_negotiate_flags(u64 flags, void __user *buf, off_t offset, u64 valid);
 void kdbus_fput_files(struct file **files, unsigned int count);
+int kdbus_check_and_write_flags(u64 flags, void __user *buf,
+				off_t offset_out, u64 valid);
+
+#define kdbus_negotiate_flags(_s, _b, _t, _v)				\
+	kdbus_check_and_write_flags((_s)->flags, _b,			\
+				    offsetof(_t, kernel_flags), _v)	\
 
 #endif

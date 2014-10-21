@@ -440,8 +440,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 
 		make = p;
 
-		ret = kdbus_negotiate_flags(make->flags, buf,
-					    offsetof(typeof(*make), flags),
+		ret = kdbus_negotiate_flags(make, buf, typeof(*make),
 					    KDBUS_MAKE_ACCESS_GROUP |
 					    KDBUS_MAKE_ACCESS_WORLD);
 		if (ret < 0)
@@ -496,8 +495,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 
 		make = p;
 
-		ret = kdbus_negotiate_flags(make->flags, buf,
-					    offsetof(typeof(*make), flags),
+		ret = kdbus_negotiate_flags(make, buf, typeof(*make),
 					    KDBUS_MAKE_ACCESS_GROUP |
 					    KDBUS_MAKE_ACCESS_WORLD);
 		if (ret < 0)
@@ -573,8 +571,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		make = p;
 
-		ret = kdbus_negotiate_flags(make->flags, buf,
-					    offsetof(typeof(*make), flags),
+		ret = kdbus_negotiate_flags(make, buf, typeof(*make),
 					    KDBUS_MAKE_ACCESS_GROUP |
 					    KDBUS_MAKE_ACCESS_WORLD);
 		if (ret < 0)
@@ -648,9 +645,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 		hello = p;
 
-		ret = kdbus_negotiate_flags(hello->conn_flags, buf,
-					    offsetof(struct kdbus_cmd_hello,
-						     conn_flags),
+		ret = kdbus_negotiate_flags(hello, buf, typeof(*hello),
 					    KDBUS_HELLO_ACCEPT_FD |
 					    KDBUS_HELLO_ACTIVATOR |
 					    KDBUS_HELLO_POLICY_HOLDER |
@@ -744,8 +739,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		cmd_name = p;
 
-		ret = kdbus_negotiate_flags(cmd_name->flags, buf,
-					    offsetof(typeof(*cmd_name), flags),
+		ret = kdbus_negotiate_flags(cmd_name, buf, typeof(*cmd_name),
 					    KDBUS_NAME_REPLACE_EXISTING |
 					    KDBUS_NAME_ALLOW_REPLACEMENT |
 					    KDBUS_NAME_QUEUE);
@@ -762,7 +756,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 
 		/* return flags to the caller */
-		if (copy_to_user(buf, p, ((struct kdbus_cmd_name *)p)->size))
+		if (copy_to_user(buf, p, cmd_name->size))
 			ret = -EFAULT;
 
 		break;
@@ -786,8 +780,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		cmd_name = p;
 
-		ret = kdbus_negotiate_flags(cmd_name->flags, buf,
-					    offsetof(typeof(*cmd_name), flags),
+		ret = kdbus_negotiate_flags(cmd_name, buf, typeof(*cmd_name),
 					    0);
 		if (ret < 0)
 			break;
@@ -810,8 +803,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_negotiate_flags(cmd_list.flags, buf,
-					    offsetof(typeof(cmd_list), flags),
+		ret = kdbus_negotiate_flags(&cmd_list, buf, typeof(cmd_list),
 					    KDBUS_NAME_LIST_UNIQUE |
 					    KDBUS_NAME_LIST_NAMES |
 					    KDBUS_NAME_LIST_ACTIVATORS |
@@ -844,8 +836,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		cmd_info = p;
 
-		ret = kdbus_negotiate_flags(cmd_info->flags, buf,
-					    offsetof(typeof(*cmd_info), flags),
+		ret = kdbus_negotiate_flags(cmd_info, buf, typeof(*cmd_info),
 					    _KDBUS_ATTACH_ALL);
 		if (ret < 0)
 			break;
@@ -878,10 +869,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		cmd_update = p;
 
-		ret = kdbus_negotiate_flags(cmd_update->flags, buf,
-					    offsetof(typeof(*cmd_update),
-						     flags),
-					    0);
+		ret = kdbus_negotiate_flags(cmd_update, buf,
+					    typeof(*cmd_update), 0);
 		if (ret < 0)
 			break;
 
@@ -911,9 +900,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		cmd_match = p;
 
-		ret = kdbus_negotiate_flags(cmd_match->flags, buf,
-					    offsetof(typeof(*cmd_match),
-						     flags),
+		ret = kdbus_negotiate_flags(cmd_match, buf, typeof(*cmd_match),
 					    KDBUS_MATCH_REPLACE);
 		if (ret < 0)
 			break;
@@ -945,9 +932,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 		cmd_match = p;
 
-		ret = kdbus_negotiate_flags(cmd_match->flags, buf,
-					    offsetof(typeof(*cmd_match),
-						     flags),
+		ret = kdbus_negotiate_flags(cmd_match, buf, typeof(*cmd_match),
 					    0);
 		if (ret < 0)
 			break;
@@ -1007,8 +992,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_negotiate_flags(cmd_recv.flags, buf,
-					    offsetof(typeof(cmd_recv), flags),
+		ret = kdbus_negotiate_flags(&cmd_recv, buf, typeof(cmd_recv),
 					    KDBUS_RECV_PEEK | KDBUS_RECV_DROP |
 					    KDBUS_RECV_USE_PRIORITY);
 		if (ret < 0)
@@ -1061,8 +1045,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_negotiate_flags(cmd_free.flags, buf,
-					    offsetof(typeof(cmd_free), flags),
+		ret = kdbus_negotiate_flags(&cmd_free, buf, typeof(cmd_free),
 					    0);
 		if (ret < 0)
 			break;
@@ -1102,10 +1085,8 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int cmd,
 
 		cmd_update = p;
 
-		ret = kdbus_negotiate_flags(cmd_update->flags, buf,
-					    offsetof(typeof(*cmd_update),
-						     flags),
-					    0);
+		ret = kdbus_negotiate_flags(cmd_update, buf,
+					    typeof(*cmd_update), 0);
 		if (ret < 0)
 			break;
 

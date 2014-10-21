@@ -230,15 +230,15 @@ other usespace code that aims for compatibility to D-Bus might.
 3.2 Flags
 ---------
 
-All ioctls used in the communication with the driver contain a 64-bit flags
-field. All bits that are not recognized by the kernel are rejected, and the
-ioctl fails with -EINVAL. Regardless of whether the kernel accepts the
-provided flags or not, the flags field in the ioctl buffer will be updated with
-all the bits the kernel driver knows about in its current state, and set the
-highest bit (KDBUS_FLAGS_KERNEL) as well. Userspace can use the returned value
-to negotiate features. The KDBUS_FLAGS_KERNEL bit will never be valid in any
-flags field of any command, so setting it will always make the ioctl fail.
-Hence, this is a way to probe possible kernel features.
+All ioctls used in the communication with the driver contain two 64-bit fields,
+'flags' and 'kernel_flags'. In 'flags', the behavior of the command can be
+tweaked, whereas in 'kernel_flags', the kernel driver writes back the mask of
+supported bits upon each call, and sets the KDBUS_FLAGS_KERNEL bit. This is a
+way to probe possible kernel features and make code forward and backward
+compatible.
+
+All bits that are not recognized by the kernel in 'flags' are rejected, and the
+ioctl fails with -EINVAL.
 
 
 4. Items
@@ -331,6 +331,9 @@ struct kdbus_cmd_make {
 
     KDBUS_MAKE_ACCESS_WORLD
       Make the device node world-accessible
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
     A list of items, only used for creating custom endpoints. Ignored for
@@ -553,6 +556,9 @@ struct kdbus_cmd_conn_info {
     After the ioctl returns, this field will contain the current metadata
     attach flags of the connection.
 
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
   __u64 id;
     The connection's numerical ID to retrieve information for. If set to
     non-zero value, the 'name' field is ignored.
@@ -579,6 +585,9 @@ struct kdbus_conn_info {
 
   __u64 flags;
     The connection's flags as specified when it was created.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
     Depending on the 'flags' field in struct kdbus_cmd_conn_info, items of
@@ -694,6 +703,10 @@ struct kdbus_msg {
       activator notified and will start an implementor. This flag inhibits
       that behavior. With this bit set, and the remote being an activator,
       -EADDRNOTAVAIL is returned from the ioctl.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call of
+    KDBUS_MSG_SEND.
 
   __s64 priority;
     The priority of this message. Receiving messages (see below) may
@@ -855,6 +868,9 @@ struct kdbus_cmd_recv {
     KDBUS_RECV_USE_PRIORITY
       Use the priority field (see below).
 
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
   __s64 priority;
       With KDBUS_RECV_USE_PRIORITY set in flags, receive the next message in
       the queue with at least the given priority. If no such message is waiting
@@ -948,9 +964,8 @@ struct kdbus_cmd_name {
       first connection in that queue becomes the new owner and is notified
       accordingly.
 
-  __u64 owner_id;
-  __u64 conn_flags;
-    Unused in this use case.
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
     Items to submit the name. Currently, one one item of type KDBUS_ITEM_NAME
@@ -976,9 +991,6 @@ struct kdbus_cmd_name {
     terminator.
 
   __u64 flags;
-  __u64 owner_id;
-  __u64 conn_flags;
-    All unused for this use case.
 
   struct kdbus_item items[0];
     Items to submit the name. Currently, one one item of type KDBUS_ITEM_NAME
@@ -1021,7 +1033,7 @@ The returned list of names is stored in a struct kdbus_name_list that in turn
 contains a dynamic number of struct kdbus_cmd_name that carry the actual
 information. The fields inside that struct kdbus_cmd_name is described next.
 
-struct kdbus_cmd_name {
+struct kdbus_name_info {
   __u64 size;
     The overall size of this struct, including the name with its 0-byte string
     terminator.
@@ -1292,6 +1304,9 @@ struct kdbus_cmd_match {
 
   __u64 flags;
     Unused for this use case,
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
     Unused for this use case.

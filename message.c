@@ -372,8 +372,7 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	ret = kdbus_negotiate_flags(m->msg.flags, msg,
-				    offsetof(struct kdbus_msg, flags),
+	ret = kdbus_negotiate_flags(&m->msg, msg, struct kdbus_msg,
 				    KDBUS_MSG_FLAGS_EXPECT_REPLY |
 				    KDBUS_MSG_FLAGS_SYNC_REPLY |
 				    KDBUS_MSG_FLAGS_NO_AUTO_START);

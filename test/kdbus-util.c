@@ -139,7 +139,7 @@ kdbus_hello(const char *path, uint64_t flags,
 		return NULL;
 	}
 
-	h.hello.conn_flags = flags | KDBUS_HELLO_ACCEPT_FD;
+	h.hello.flags = flags | KDBUS_HELLO_ACCEPT_FD;
 	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
 	h.conn_name.type = KDBUS_ITEM_CONN_NAME;
 	strcpy(h.conn_name.str, "this-is-my-name");
@@ -820,8 +820,6 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 	cmd_name->size = size;
 	if (flags)
 		cmd_name->flags = *flags;
-	else
-		cmd_name->flags = 0;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
 	if (ret < 0) {
