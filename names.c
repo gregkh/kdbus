@@ -705,7 +705,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 				 struct kdbus_name_entry *e,
 				 bool write)
 {
-	const size_t len = sizeof(struct kdbus_cmd_name);
+	const size_t len = sizeof(struct kdbus_name_info);
 	size_t p = *pos;
 	size_t nlen = 0;
 
@@ -719,7 +719,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 
 	if (write) {
 		int ret;
-		struct kdbus_cmd_name n = {
+		struct kdbus_name_info info = {
 			.size = len,
 			.owner_id = c->id,
 			.flags = e ? e->flags : 0,
@@ -727,10 +727,10 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		};
 
 		if (nlen)
-			n.size += KDBUS_ITEM_SIZE(nlen);
+			info.size += KDBUS_ITEM_SIZE(nlen);
 
 		/* write record */
-		ret = kdbus_pool_slice_copy(slice, p, &n, len);
+		ret = kdbus_pool_slice_copy(slice, p, &info, len);
 		if (ret < 0)
 			return ret;
 		p += len;

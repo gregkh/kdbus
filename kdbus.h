@@ -631,8 +631,6 @@ enum kdbus_name_flags {
  * struct kdbus_cmd_name - struct to describe a well-known name
  * @size:		The total size of the struct
  * @flags:		Flags for a name entry (KDBUS_NAME_*)
- * @owner_id:		The current owner of the name
- * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
  * @items:		Item list, containing the well-known name as
  *			KDBUS_ITEM_NAME
  *
@@ -641,8 +639,25 @@ enum kdbus_name_flags {
 struct kdbus_cmd_name {
 	__u64 size;
 	__u64 flags;
-	__u64 owner_id;
+	struct kdbus_item items[0];
+} __attribute__((aligned(8)));
+
+/**
+ * struct kdbus_name_info - struct to describe a well-known name
+ * @size:		The total size of the struct
+ * @flags:		Flags for a name entry (KDBUS_NAME_*),
+ * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
+ * @owner_id:		The current owner of the name
+ * @items:		Item list, containing the well-known name as
+ *			KDBUS_ITEM_NAME
+ *
+ * This structure is used as return struct for the KDBUS_CMD_NAME_LIST ioctl.
+ */
+struct kdbus_name_info {
+	__u64 size;
+	__u64 flags;
 	__u64 conn_flags;
+	__u64 owner_id;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
@@ -684,7 +699,7 @@ struct kdbus_cmd_name_list {
  */
 struct kdbus_name_list {
 	__u64 size;
-	struct kdbus_cmd_name names[0];
+	struct kdbus_name_info names[0];
 };
 
 /**

@@ -875,7 +875,7 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 {
 	struct kdbus_cmd_name_list cmd_list;
 	struct kdbus_name_list *list;
-	struct kdbus_cmd_name *name;
+	struct kdbus_name_info *name;
 	int ret;
 
 	cmd_list.flags = flags;
