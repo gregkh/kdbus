@@ -363,18 +363,15 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	int ret;
 
 	/*
-	 * Walk the conn_src's list of expected replies.
-	 * If there's any matching entry, allow the message to
-	 * be sent, and remove the entry.
+	 * Walk the conn_src's list of expected replies. If there's any
+	 * matching entry, allow the message to be sent, and remove it.
 	 */
 	if (reply_wake && msg->cookie_reply > 0) {
-		struct kdbus_conn_reply *r, *r_tmp;
+		struct kdbus_conn_reply *r, *tmp;
 		LIST_HEAD(reply_list);
 
 		mutex_lock(&conn_src->lock);
-		list_for_each_entry_safe(r, r_tmp,
-					 &conn_src->reply_list,
-					 entry) {
+		list_for_each_entry_safe(r, tmp, &conn_src->reply_list, entry) {
 			if (r->conn == conn_dst &&
 			    r->cookie == msg->cookie_reply) {
 				if (r->sync)
@@ -388,7 +385,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 		}
 		mutex_unlock(&conn_src->lock);
 
-		list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
+		list_for_each_entry_safe(r, tmp, &reply_list, entry)
 			kdbus_conn_reply_free(r);
 	}
 
