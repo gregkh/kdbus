@@ -28,14 +28,8 @@
 #include "limits.h"
 #include "util.h"
 
-/* map of majors to domains */
-static DEFINE_IDR(kdbus_domain_major_idr);
-
 /* previous domain id sequence number */
-static u64 kdbus_domain_seq_last;
-
-/* kdbus subsystem lock */
-static DEFINE_MUTEX(kdbus_subsys_lock);
+static atomic64_t kdbus_domain_seq_last;
 
 /* kdbus sysfs subsystem */
 struct bus_type kdbus_subsys = {
@@ -99,19 +93,10 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain)
 		mutex_unlock(&domain->parent->lock);
 	}
 
-	if (domain->major > 0) {
-		mutex_lock(&kdbus_subsys_lock);
-
+	if (device_is_registered(&domain->dev))
 		device_del(&domain->dev);
-		idr_remove(&kdbus_domain_major_idr, domain->major);
-		unregister_chrdev(domain->major, KBUILD_MODNAME);
-		domain->major = 0;
 
-		if (idr_is_empty(&kdbus_domain_major_idr))
-			idr_destroy(&kdbus_domain_major_idr);
-
-		mutex_unlock(&kdbus_subsys_lock);
-	}
+	kdbus_minor_set(domain->dev.devt, KDBUS_MINOR_CONTROL, NULL);
 
 	/* disconnect all sub-domains */
 	for (;;) {
@@ -166,9 +151,9 @@ static void __kdbus_domain_free(struct device *dev)
 	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
+	kdbus_minor_free(domain->dev.devt);
 	kdbus_domain_unref(domain->parent);
 	idr_destroy(&domain->user_idr);
-	idr_destroy(&domain->idr);
 	kfree(domain->name);
 	kfree(domain->devpath);
 	kfree(domain);
@@ -203,29 +188,6 @@ static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain *parent,
 }
 
 /**
- * kdbus_domain_find_by_major() - lookup a domain by its major device number
- * @major:		Major number
- *
- * Looks up a domain by major number. The returned domain
- * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
- * the domain can't be found.
- *
- * Return: the domain, or NULL if not found
- */
-struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major)
-{
-	struct kdbus_domain *domain;
-
-	mutex_lock(&kdbus_subsys_lock);
-	domain = idr_find(&kdbus_domain_major_idr, major);
-	if (domain)
-		kdbus_domain_ref(domain);
-	mutex_unlock(&kdbus_subsys_lock);
-
-	return domain;
-}
-
-/**
  * kdbus_domain_new() - create a new domain
  * @parent:		Parent domain, NULL for initial one
  * @name:		Name of the domain, NULL for the initial one
@@ -253,7 +215,6 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	INIT_LIST_HEAD(&d->bus_list);
 	INIT_LIST_HEAD(&d->domain_list);
 	d->mode = mode;
-	idr_init(&d->idr);
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
@@ -264,99 +225,84 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	d->dev.release = __kdbus_domain_free;
 
 	/* compose name and path of base directory in /dev */
-	if (!parent) {
+	if (parent) {
+		d->devpath = kasprintf(GFP_KERNEL, "%s/domain/%s",
+				       parent->devpath, name);
+		if (!d->devpath) {
+			ret = -ENOMEM;
+			goto exit_put;
+		}
+
+		d->name = kstrdup(name, GFP_KERNEL);
+		if (!d->name) {
+			ret = -ENOMEM;
+			goto exit_put;
+		}
+	} else {
 		/* initial domain */
 		d->devpath = kstrdup(KBUILD_MODNAME, GFP_KERNEL);
 		if (!d->devpath) {
 			ret = -ENOMEM;
 			goto exit_put;
 		}
+	}
 
-		mutex_lock(&kdbus_subsys_lock);
+	ret = dev_set_name(&d->dev, "%s/control", d->devpath);
+	if (ret < 0)
+		goto exit_put;
 
-	} else {
-		/* lock order: parent domain -> domain -> subsys_lock */
+	ret = kdbus_minor_alloc(KDBUS_MINOR_CONTROL, NULL, &d->dev.devt);
+	if (ret < 0)
+		goto exit_put;
+
+	if (parent) {
+		/* lock order: parent domain -> domain */
 		mutex_lock(&parent->lock);
+
 		if (parent->disconnected) {
 			mutex_unlock(&parent->lock);
 			ret = -ESHUTDOWN;
 			goto exit_put;
 		}
 
-		mutex_lock(&kdbus_subsys_lock);
-
 		if (kdbus_domain_find(parent, name)) {
+			mutex_unlock(&parent->lock);
 			ret = -EEXIST;
-			goto exit_unlock;
+			goto exit_put;
 		}
 
-		d->devpath = kasprintf(GFP_KERNEL, "%s/domain/%s",
-				       parent->devpath, name);
-		if (!d->devpath) {
-			ret = -ENOMEM;
-			goto exit_unlock;
-		}
-
-		d->name = kstrdup(name, GFP_KERNEL);
-		if (!d->name) {
-			ret = -ENOMEM;
-			goto exit_unlock;
-		}
-	}
-
-	/* get dynamic major */
-	ret = register_chrdev(0, d->devpath, &kdbus_device_ops);
-	if (ret < 0)
-		goto exit_unlock;
-
-	d->major = ret;
-	d->dev.devt = MKDEV(d->major, 0);
-
-	ret = dev_set_name(&d->dev, "%s/control", d->devpath);
-	if (ret < 0)
-		goto exit_chrdev;
-
-	/*
-	 * kdbus_device_ops' dev_t finds the domain in the major map,
-	 * and the bus in the minor map of that domain
-	 */
-	ret = idr_alloc(&kdbus_domain_major_idr, d, d->major, 0, GFP_KERNEL);
-	if (ret < 0) {
-		if (ret == -ENOSPC)
-			ret = -EEXIST;
-		goto exit_chrdev;
-	}
-
-	/* get id for this domain */
-	d->id = ++kdbus_domain_seq_last;
-
-	ret = device_add(&d->dev);
-	if (ret < 0)
-		goto exit_idr;
-
-	/* link into parent domain */
-	if (parent) {
 		d->parent = kdbus_domain_ref(parent);
 		list_add_tail(&d->domain_entry, &parent->domain_list);
 	}
 
-	d->disconnected = false;
+	d->id = atomic64_inc_return(&kdbus_domain_seq_last);
 
-	mutex_unlock(&kdbus_subsys_lock);
+	/*
+	 * We have to mark the domain as enabled _before_ running device_add().
+	 * Otherwise, there's a race between UEVENT_ADD (generated by
+	 * device_add()) and us enabling the minor.
+	 * However, this means user-space can open the minor before we called
+	 * device_add(). This is fine, as we never require the device to be
+	 * registered, anyway.
+	 */
+
+	d->disconnected = false;
+	kdbus_minor_set_control(d->dev.devt, d);
+
+	ret = device_add(&d->dev);
+
 	if (parent)
 		mutex_unlock(&parent->lock);
+
+	if (ret < 0) {
+		kdbus_domain_disconnect(d);
+		kdbus_domain_unref(d);
+		return ret;
+	}
 
 	*domain = d;
 	return 0;
 
-exit_idr:
-	idr_remove(&kdbus_domain_major_idr, d->major);
-exit_chrdev:
-	unregister_chrdev(d->major, d->devpath);
-exit_unlock:
-	mutex_unlock(&kdbus_subsys_lock);
-	if (parent)
-		mutex_unlock(&parent->lock);
 exit_put:
 	put_device(&d->dev);
 	return ret;

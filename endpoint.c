@@ -25,6 +25,7 @@
 #include "connection.h"
 #include "domain.h"
 #include "endpoint.h"
+#include "handle.h"
 #include "item.h"
 #include "message.h"
 #include "policy.h"
@@ -76,6 +77,16 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 	ep->disconnected = true;
 	mutex_unlock(&ep->lock);
 
+	/* disconnect from bus */
+	mutex_lock(&ep->bus->lock);
+	list_del(&ep->bus_entry);
+	mutex_unlock(&ep->bus->lock);
+
+	if (device_is_registered(&ep->dev))
+		device_del(&ep->dev);
+
+	kdbus_minor_set(ep->dev.devt, KDBUS_MINOR_EP, NULL);
+
 	/* disconnect all connections to this endpoint */
 	for (;;) {
 		struct kdbus_conn *conn;
@@ -96,19 +107,6 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 		kdbus_conn_disconnect(conn, false);
 		kdbus_conn_unref(conn);
 	}
-
-	/* disconnect from bus */
-	mutex_lock(&ep->bus->lock);
-	list_del(&ep->bus_entry);
-	mutex_unlock(&ep->bus->lock);
-
-	if (ep->minor > 0) {
-		device_del(&ep->dev);
-		mutex_lock(&ep->bus->domain->lock);
-		idr_remove(&ep->bus->domain->idr, ep->minor);
-		mutex_unlock(&ep->bus->domain->lock);
-		ep->minor = 0;
-	}
 }
 
 static void __kdbus_ep_free(struct device *dev)
@@ -119,6 +117,7 @@ static void __kdbus_ep_free(struct device *dev)
 	BUG_ON(!list_empty(&ep->conn_list));
 
 	kdbus_policy_db_clear(&ep->policy_db);
+	kdbus_minor_free(ep->dev.devt);
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);
 	kfree(ep->name);
@@ -134,19 +133,13 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 
 static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 {
-	struct kdbus_ep *e, *ep = NULL;
+	struct kdbus_ep *e;
 
-	mutex_lock(&bus->lock);
-	list_for_each_entry(e, &bus->ep_list, bus_entry) {
-		if (strcmp(e->name, name) != 0)
-			continue;
+	list_for_each_entry(e, &bus->ep_list, bus_entry)
+		if (!strcmp(e->name, name))
+			return e;
 
-		ep = kdbus_ep_ref(e);
-		break;
-	}
-	mutex_unlock(&bus->lock);
-
-	return ep;
+	return NULL;
 }
 
 /**
@@ -170,12 +163,6 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 {
 	struct kdbus_ep *e;
 	int ret;
-
-	e = kdbus_ep_find(bus, name);
-	if (e) {
-		kdbus_ep_unref(e);
-		return -EEXIST;
-	}
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e)
@@ -201,52 +188,56 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		goto exit_put;
 	}
 
-	mutex_lock(&bus->domain->lock);
-	/* register minor in our endpoint map */
-	ret = idr_alloc(&bus->domain->idr, e, 1, 0, GFP_KERNEL);
-	if (ret < 0) {
-		if (ret == -ENOSPC)
-			ret = -EEXIST;
-		mutex_unlock(&bus->domain->lock);
-		goto exit_put;
-	}
-
-	e->minor = ret;
-	e->dev.devt = MKDEV(bus->domain->major, e->minor);
-	mutex_unlock(&bus->domain->lock);
-
 	ret = dev_set_name(&e->dev, "%s/%s/%s",
 			   bus->domain->devpath, bus->name, name);
 	if (ret < 0)
-		goto exit_idr;
+		goto exit_put;
 
-	ret = device_add(&e->dev);
+	ret = kdbus_minor_alloc(KDBUS_MINOR_EP, NULL, &e->dev.devt);
 	if (ret < 0)
-		goto exit_idr;
+		goto exit_put;
 
-	/* link into bus  */
 	mutex_lock(&bus->lock);
+
 	if (bus->disconnected) {
 		mutex_unlock(&bus->lock);
 		ret = -ESHUTDOWN;
-		goto exit_dev;
+		goto exit_put;
 	}
-	e->id = ++bus->ep_seq_last;
+
+	if (kdbus_ep_find(bus, name)) {
+		mutex_unlock(&bus->lock);
+		ret = -EEXIST;
+		goto exit_put;
+	}
+
 	e->bus = kdbus_bus_ref(bus);
-	e->disconnected = false;
 	list_add_tail(&e->bus_entry, &bus->ep_list);
+
+	e->id = ++bus->ep_seq_last;
+
+	/*
+	 * Same as with domains, we have to mark it enabled _before_ running
+	 * device_add() to avoid messing with state after UEVENT_ADD was sent.
+	 */
+
+	e->disconnected = false;
+	kdbus_minor_set_ep(e->dev.devt, e);
+
+	ret = device_add(&e->dev);
+
 	mutex_unlock(&bus->lock);
+
+	if (ret < 0) {
+		kdbus_ep_disconnect(e);
+		kdbus_ep_unref(e);
+		return ret;
+	}
 
 	if (ep)
 		*ep = e;
 	return 0;
 
-exit_dev:
-	device_del(&e->dev);
-exit_idr:
-	mutex_lock(&bus->domain->lock);
-	idr_remove(&bus->domain->idr, e->minor);
-	mutex_unlock(&bus->domain->lock);
 exit_put:
 	put_device(&e->dev);
 	return ret;

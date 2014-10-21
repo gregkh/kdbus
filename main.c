@@ -19,6 +19,7 @@
 
 #include "util.h"
 #include "domain.h"
+#include "handle.h"
 
 /* kdbus initial domain */
 static struct kdbus_domain *kdbus_domain_init;
@@ -31,25 +32,35 @@ static int __init kdbus_init(void)
 	if (ret < 0)
 		return ret;
 
+	ret = kdbus_minor_init();
+	if (ret < 0)
+		goto exit_subsys;
+
 	/*
 	 * Create the initial domain; it is world-accessible and
 	 * provides the /dev/kdbus/control device node.
 	 */
 	ret = kdbus_domain_new(NULL, NULL, 0666, &kdbus_domain_init);
 	if (ret < 0) {
-		bus_unregister(&kdbus_subsys);
 		pr_err("failed to initialize, error=%i\n", ret);
-		return ret;
+		goto exit_minor;
 	}
 
 	pr_info("initialized\n");
 	return 0;
+
+exit_minor:
+	kdbus_minor_exit();
+exit_subsys:
+	bus_unregister(&kdbus_subsys);
+	return ret;
 }
 
 static void __exit kdbus_exit(void)
 {
 	kdbus_domain_disconnect(kdbus_domain_init);
 	kdbus_domain_unref(kdbus_domain_init);
+	kdbus_minor_exit();
 	bus_unregister(&kdbus_subsys);
 }
 

@@ -91,70 +91,211 @@ struct kdbus_handle {
 	};
 };
 
-static int kdbus_handle_open(struct inode *inode, struct file *file)
+/* kdbus major */
+static unsigned int kdbus_major;
+
+/* map of minors to objects */
+static DEFINE_IDR(kdbus_minor_idr);
+
+/* kdbus minor lock */
+static DEFINE_SPINLOCK(kdbus_minor_lock);
+
+int kdbus_minor_init(void)
 {
-	struct kdbus_handle *handle;
-	struct kdbus_domain *domain;
-	struct kdbus_ep *ep;
 	int ret;
 
-	/* find and reference domain */
-	domain = kdbus_domain_find_by_major(MAJOR(inode->i_rdev));
-	if (!domain || domain->disconnected)
+	ret = __register_chrdev(0, 0, 0xfffff, KBUILD_MODNAME,
+				&kdbus_handle_ops);
+	if (ret < 0)
+		return ret;
+
+	kdbus_major = ret;
+	return 0;
+}
+
+void kdbus_minor_exit(void)
+{
+	__unregister_chrdev(kdbus_major, 0, 0xfffff, KBUILD_MODNAME);
+	idr_destroy(&kdbus_minor_idr);
+}
+
+static void *kdbus_minor_pack(enum kdbus_minor_type type, void *ptr)
+{
+	unsigned long p = (unsigned long)ptr;
+
+	BUILD_BUG_ON(KDBUS_MINOR_CNT > 4);
+
+	if (WARN_ON(p & 0x3UL || type >= KDBUS_MINOR_CNT))
+		return NULL;
+
+	return (void*)(p | (unsigned long)type);
+}
+
+static enum kdbus_minor_type kdbus_minor_unpack(void **ptr)
+{
+	unsigned long p = (unsigned long)*ptr;
+
+	*ptr = (void*)(p & ~0x3UL);
+	return p & 0x3UL;
+}
+
+static void kdbus_minor_ref(enum kdbus_minor_type type, void *ptr)
+{
+	if (ptr) {
+		switch (type) {
+		case KDBUS_MINOR_CONTROL:
+			kdbus_domain_ref(ptr);
+			break;
+		case KDBUS_MINOR_EP:
+			kdbus_ep_ref(ptr);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+static void kdbus_minor_unref(enum kdbus_minor_type type, void *ptr)
+{
+	if (ptr) {
+		switch (type) {
+		case KDBUS_MINOR_CONTROL:
+			kdbus_domain_unref(ptr);
+			break;
+		case KDBUS_MINOR_EP:
+			kdbus_ep_unref(ptr);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+int kdbus_minor_alloc(enum kdbus_minor_type type, void *ptr, dev_t *out)
+{
+	int ret;
+
+	ptr = kdbus_minor_pack(type, ptr);
+
+	idr_preload(GFP_KERNEL);
+	spin_lock(&kdbus_minor_lock);
+	ret = idr_alloc(&kdbus_minor_idr, ptr, 0, 0, GFP_NOWAIT);
+	spin_unlock(&kdbus_minor_lock);
+	idr_preload_end();
+
+	if (ret < 0)
+		return ret;
+
+	*out = MKDEV(kdbus_major, ret);
+	return 0;
+}
+
+void kdbus_minor_free(dev_t devt)
+{
+	unsigned int minor = MINOR(devt);
+
+	if (!devt)
+		return;
+
+	spin_lock(&kdbus_minor_lock);
+	idr_remove(&kdbus_minor_idr, minor);
+	spin_unlock(&kdbus_minor_lock);
+}
+
+void kdbus_minor_set(dev_t devt, enum kdbus_minor_type type, void *ptr)
+{
+	unsigned int minor = MINOR(devt);
+
+	ptr = kdbus_minor_pack(type, ptr);
+
+	spin_lock(&kdbus_minor_lock);
+	ptr = idr_replace(&kdbus_minor_idr, ptr, minor);
+	spin_unlock(&kdbus_minor_lock);
+}
+
+static int kdbus_minor_lookup(dev_t devt, void **out)
+{
+	unsigned int minor = MINOR(devt);
+	enum kdbus_minor_type type;
+	void *ptr;
+
+	spin_lock(&kdbus_minor_lock);
+	ptr = idr_find(&kdbus_minor_idr, minor);
+	type = kdbus_minor_unpack(&ptr);
+	kdbus_minor_ref(type, ptr);
+	spin_unlock(&kdbus_minor_lock);
+
+	if (!ptr)
 		return -ESHUTDOWN;
 
-	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
-	if (!handle)
-		return -ENOMEM;
+	*out = ptr;
+	return type;
+}
 
-	handle->domain = domain;
+static int kdbus_handle_open(struct inode *inode, struct file *file)
+{
+	enum kdbus_minor_type minor_type;
+	struct kdbus_handle *handle;
+	void *minor_ptr;
+	int ret;
+
+	ret = kdbus_minor_lookup(inode->i_rdev, &minor_ptr);
+	if (ret < 0)
+		return ret;
+
+	minor_type = ret;
+
+	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
+	if (!handle) {
+		kdbus_minor_unref(minor_type, minor_ptr);
+		return -ENOMEM;
+	}
+
 	file->private_data = handle;
 
-	/* control device node */
-	if (MINOR(inode->i_rdev) == 0) {
+	switch (minor_type) {
+	case KDBUS_MINOR_CONTROL:
 		handle->type = KDBUS_HANDLE_CONTROL;
-		return 0;
+		handle->domain = minor_ptr;
+
+		break;
+
+	case KDBUS_MINOR_EP:
+		handle->type = KDBUS_HANDLE_EP;
+		handle->ep = minor_ptr;
+		handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
+
+		/* cache the metadata/credentials of the creator */
+		ret = kdbus_meta_new(&handle->meta);
+		if (ret < 0)
+			goto exit_free;
+
+		ret = kdbus_meta_append(handle->meta, NULL, 0,
+					KDBUS_ATTACH_CREDS	|
+					KDBUS_ATTACH_TID_COMM	|
+					KDBUS_ATTACH_PID_COMM	|
+					KDBUS_ATTACH_EXE	|
+					KDBUS_ATTACH_CMDLINE	|
+					KDBUS_ATTACH_CGROUP	|
+					KDBUS_ATTACH_CAPS	|
+					KDBUS_ATTACH_SECLABEL	|
+					KDBUS_ATTACH_AUDIT);
+		if (ret < 0)
+			goto exit_free;
+
+		break;
+
+	default:
+		kdbus_minor_unref(minor_type, minor_ptr);
+		ret = -EINVAL;
+		goto exit_free;
 	}
 
-	/* find endpoint for device node */
-	mutex_lock(&handle->domain->lock);
-	ep = idr_find(&handle->domain->idr, MINOR(inode->i_rdev));
-	if (!ep || ep->disconnected) {
-		ret = -ESHUTDOWN;
-		goto exit_unlock;
-	}
-
-	/* create endpoint connection */
-	handle->type = KDBUS_HANDLE_EP;
-	handle->ep = kdbus_ep_ref(ep);
-
-	/* cache the metadata/credentials of the creator of the connection */
-	ret = kdbus_meta_new(&handle->meta);
-	if (ret < 0)
-		goto exit_ep_unref;
-
-	ret = kdbus_meta_append(handle->meta, NULL, 0,
-				KDBUS_ATTACH_CREDS	|
-				KDBUS_ATTACH_TID_COMM	|
-				KDBUS_ATTACH_PID_COMM	|
-				KDBUS_ATTACH_EXE	|
-				KDBUS_ATTACH_CMDLINE	|
-				KDBUS_ATTACH_CGROUP	|
-				KDBUS_ATTACH_CAPS	|
-				KDBUS_ATTACH_SECLABEL	|
-				KDBUS_ATTACH_AUDIT);
-	if (ret < 0)
-		goto exit_meta_free;
-
-	mutex_unlock(&handle->domain->lock);
 	return 0;
 
-exit_meta_free:
+exit_free:
 	kdbus_meta_free(handle->meta);
-exit_ep_unref:
 	kdbus_ep_unref(handle->ep);
-exit_unlock:
-	mutex_unlock(&handle->domain->lock);
 	kdbus_domain_unref(handle->domain);
 	kfree(handle);
 	return ret;
@@ -1055,7 +1196,7 @@ static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 	return kdbus_pool_mmap(handle->conn->pool, vma);
 }
 
-const struct file_operations kdbus_device_ops = {
+const struct file_operations kdbus_handle_ops = {
 	.owner =		THIS_MODULE,
 	.open =			kdbus_handle_open,
 	.release =		kdbus_handle_release,

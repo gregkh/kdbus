@@ -26,7 +26,6 @@
  * @bus:		Bus behind this endpoint
  * @name:		Name of the endpoint
  * @id:			ID of this endpoint on the bus
- * @minor:		Minor of this endpoint in the domain major
  * @mode:		File mode of this endpoint device node
  * @uid:		UID owning this endpoint
  * @gid:		GID owning this endpoint
@@ -47,7 +46,6 @@ struct kdbus_ep {
 	struct kdbus_bus *bus;
 	const char *name;
 	u64 id;
-	unsigned int minor;
 	umode_t mode;
 	kuid_t uid;
 	kgid_t gid;

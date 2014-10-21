@@ -26,9 +26,7 @@
  * @devpath:		/dev base directory path
  * @parent:		Parent domain
  * @id:			Global id of this domain
- * @major:		Device major number for all nodes
  * @mode:		Device node access mode
- * @idr:		Map of endpoint minors to buses
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
@@ -55,9 +53,7 @@ struct kdbus_domain {
 	const char *devpath;
 	struct kdbus_domain *parent;
 	u64 id;
-	unsigned int major;
 	umode_t mode;
-	struct idr idr;
 	struct mutex lock;
 	u64 bus_seq_last;
 	atomic64_t msg_seq_last;
@@ -95,7 +91,6 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 void kdbus_domain_disconnect(struct kdbus_domain *domain);
 int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 		     umode_t mode, struct kdbus_domain **domain);
-struct kdbus_domain *kdbus_domain_find_by_major(unsigned int major);
 
 int kdbus_domain_get_user_unlocked(struct kdbus_domain *domain,
 				   kuid_t uid,
