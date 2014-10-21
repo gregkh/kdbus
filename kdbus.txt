@@ -673,7 +673,8 @@ struct kdbus_msg {
       the timeout_ns field must be set to a non-zero number of nanoseconds in
       which the receiving peer is expected to reply. If such a reply is not
       received in time, the sender will be notified with a timeout message
-      (see below).
+      (see below). The value must be an absolute value, in nanoseconds and
+      based on CLOCK_MONOTONIC.
 
       For a message to be accepted as reply, it must be a direct message to
       the original sender (not a broadcast), and its kdbus_msg.reply_cookie
@@ -737,7 +738,8 @@ struct kdbus_msg {
 
   __u64 timeout_ns;
     If the message sent requires a reply from the remote peer (see above),
-    this field contains the timeout in nanoseconds.
+    this field contains the timeout in absolute nanoseconds based on
+    CLOCK_MONOTONIC.
 
   __u64 cookie_reply;
     If the message sent is a reply to another message, this field must

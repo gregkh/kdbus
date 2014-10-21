@@ -323,6 +323,7 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	const char ref2[] = "0123456789_1";
 	struct kdbus_item *item;
+	struct timespec now;
 	uint64_t size;
 	int memfd = -1;
 	int ret;
@@ -369,13 +370,21 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 
 	memset(msg, 0, size);
 	msg->flags = flags;
-	msg->timeout_ns = timeout;
 	msg->priority = priority;
 	msg->size = size;
 	msg->src_id = conn->id;
 	msg->dst_id = name ? 0 : dst_id;
 	msg->cookie = cookie;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS;
+
+	if (timeout) {
+		ret = clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+		if (ret < 0)
+			return ret;
+
+		msg->timeout_ns = now.tv_sec * 1000000000ULL +
+				  now.tv_nsec + timeout;
+	}
 
 	item = msg->items;
 

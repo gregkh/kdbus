@@ -653,7 +653,7 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 				 struct kdbus_conn *conn_dst,
 				 struct kdbus_msg *msg,
 				 struct kdbus_conn_reply *reply_wait,
-				 u64 timeout_us)
+				 u64 timeout_ns)
 {
 	struct kdbus_queue_entry *entry;
 	int r, ret;
@@ -665,7 +665,7 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 	 */
 	r = wait_event_interruptible_timeout(reply_wait->conn->wait,
 		!reply_wait->waiting || !kdbus_conn_active(conn_src),
-		usecs_to_jiffies(timeout_us));
+		nsecs_to_jiffies(timeout_ns));
 	if (r == 0)
 		ret = -ETIMEDOUT;
 	else if (r < 0)
@@ -859,10 +859,22 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
 
 	if (sync) {
+		struct timespec64 ts;
+		u64 now, timeout;
+
 		BUG_ON(!reply_wait);
+
+		ktime_get_ts64(&ts);
+		now = timespec64_to_ns(&ts);
+
+		if (unlikely(msg->timeout_ns <= now))
+			timeout = 0;
+		else
+			timeout = msg->timeout_ns - now;
+
 		usecs = div_u64(msg->timeout_ns, 1000ULL);
 		ret = kdbus_conn_wait_reply(ep, conn_src, conn_dst, msg,
-					    reply_wait, usecs);
+					    reply_wait, timeout);
 	}
 
 exit_unref:
