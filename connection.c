@@ -410,7 +410,6 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 {
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	struct kdbus_conn_reply *r;
-	struct timespec64 ts;
 	int ret = 0;
 
 	if (atomic_inc_return(&conn_src->reply_count) >
