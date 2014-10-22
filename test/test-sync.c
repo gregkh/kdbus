@@ -113,7 +113,7 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 	if (WIFSIGNALED(status))
 		return TEST_ERR;
 
-	if (sa_flags | SA_RESTART) {
+	if (sa_flags & SA_RESTART) {
 		/*
 		 * Our SYNC logic do not support SA_RESTART flag, so we
 		 * don't receive the same packet again. We fail with
