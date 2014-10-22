@@ -465,13 +465,14 @@ static char *msg_id(uint64_t id, char *buf)
 	return buf;
 }
 
-void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
+int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 {
 	const struct kdbus_item *item = msg->items;
 	char buf_src[32];
 	char buf_dst[32];
 	uint64_t timeout = 0;
 	uint64_t cookie_reply = 0;
+	int ret = 0;
 
 	if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
 		timeout = msg->timeout_ns;
@@ -490,6 +491,7 @@ void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 		if (item->size < KDBUS_ITEM_HEADER_SIZE) {
 			kdbus_printf("  +%s (%llu bytes) invalid data record\n",
 				     enum_MSG(item->type), item->size);
+			ret = -EINVAL;
 			break;
 		}
 
@@ -677,10 +679,14 @@ void kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 		}
 	}
 
-	if ((char *)item - ((char *)msg + msg->size) >= 8)
+	if ((char *)item - ((char *)msg + msg->size) >= 8) {
 		kdbus_printf("invalid padding at end of message\n");
+		ret = -EINVAL;
+	}
 
 	kdbus_printf("\n");
+
+	return ret;
 }
 
 void kdbus_msg_free(struct kdbus_msg *msg)
@@ -724,7 +730,11 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 	}
 
 	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
-	kdbus_msg_dump(conn, msg);
+	ret = kdbus_msg_dump(conn, msg);
+	if (ret < 0) {
+		kdbus_msg_free(msg);
+		return ret;
+	}
 
 	if (msg_out) {
 		*msg_out = msg;
