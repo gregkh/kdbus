@@ -9,7 +9,9 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 
 #include "kdbus-test.h"
 #include "kdbus-util.h"
@@ -274,6 +276,7 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	unsigned int i;
 	time_t now;
 	int fds_conn[2];
+	int sock_pair[2];
 	int fds[2];
 	int memfd;
 	int ret;
@@ -288,6 +291,9 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	fds_conn[0] = conn_src->fd;
 	fds_conn[1] = conn_dst->fd;
 
+	ret = socketpair(AF_UNIX, SOCK_STREAM, 0, sock_pair);
+	ASSERT_RETURN(ret == 0);
+
 	/*
 	 * Try to ass the handle of a connection as message payload.
 	 * This must fail.
@@ -295,7 +301,10 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	ret = send_fds(conn_src, conn_dst->id, fds_conn, 2);
 	ASSERT_RETURN(ret == -ENOTSUP);
 
-	ret = send_fds(conn_src, conn_dst->id, fds_conn, 2);
+	ret = send_fds(conn_dst, conn_src->id, fds_conn, 2);
+	ASSERT_RETURN(ret == -ENOTSUP);
+
+	ret = send_fds(conn_src, conn_dst->id, sock_pair, 2);
 	ASSERT_RETURN(ret == -ENOTSUP);
 
 	ret = pipe(fds);
@@ -343,6 +352,8 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 
 	close(fds[0]);
 	close(fds[1]);
+	close(sock_pair[0]);
+	close(sock_pair[1]);
 	close(memfd);
 
 	kdbus_conn_free(conn_src);
