@@ -42,6 +42,9 @@ clean:
 check:
 	test/kdbus-test
 
+doc:
+	$(KERNELDIR)/scripts/kernel-doc *.c >/dev/null | grep "^Warning"
+
 install: module
 	mkdir -p /lib/modules/$(KERNELVER)/kernel/drivers/misc/kdbus$(EXT)/
 	cp -f kdbus$(EXT).ko /lib/modules/$(KERNELVER)/kernel/drivers/misc/kdbus$(EXT)/
