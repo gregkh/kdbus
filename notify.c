@@ -49,7 +49,6 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
 	kmsg->msg.cookie_reply = cookie;
-	kmsg->msg.items[0].size = KDBUS_ITEM_HEADER_SIZE;
 	kmsg->msg.items[0].type = msg_type;
 
 	spin_lock(&bus->notify_lock);
@@ -124,7 +123,6 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 	kmsg->notify_type = type;
 	kmsg->notify_old_id = old_id;
 	kmsg->notify_new_id = new_id;
-	kmsg->msg.items[0].size = extra_size;
 	kmsg->msg.items[0].type = type;
 	kmsg->msg.items[0].name_change.old_id.id = old_id;
 	kmsg->msg.items[0].name_change.old_id.flags = old_flags;
@@ -176,7 +174,6 @@ int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 		BUG();
 	}
 
-	kmsg->msg.items[0].size = sizeof(struct kdbus_notify_id_change);
 	kmsg->msg.items[0].type = type;
 	kmsg->msg.items[0].id_change.id = id;
 	kmsg->msg.items[0].id_change.flags = flags;
