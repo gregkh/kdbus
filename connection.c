@@ -1199,18 +1199,18 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 }
 
 /**
- * kdbus_cmd_conn_info() - retrieve info about a connection
+ * kdbus_cmd_info() - retrieve info about a connection
  * @conn:		Connection
  * @cmd_info:		The command as passed in by the ioctl
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_cmd_conn_info(struct kdbus_conn *conn,
-			struct kdbus_cmd_conn_info *cmd_info)
+int kdbus_cmd_info(struct kdbus_conn *conn,
+			struct kdbus_cmd_info *cmd_info)
 {
 	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_conn *owner_conn = NULL;
-	struct kdbus_conn_info info = {};
+	struct kdbus_info info = {};
 	struct kdbus_meta *meta = NULL;
 	struct kdbus_pool_slice *slice;
 	size_t pos;

@@ -223,10 +223,10 @@ struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 				     KDBUS_HELLO_ACTIVATOR);
 }
 
-int kdbus_conn_info(struct kdbus_conn *conn, uint64_t id,
+int kdbus_info(struct kdbus_conn *conn, uint64_t id,
 		    const char *name, uint64_t *offset)
 {
-	struct kdbus_cmd_conn_info *cmd;
+	struct kdbus_cmd_info *cmd;
 	size_t size = sizeof(*cmd);
 	int ret;
 

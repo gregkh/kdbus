@@ -537,7 +537,7 @@ The KDBUS_CMD_CONN_INFO ioctl can be used to retrieve credentials and
 properties of the initial creator of a connection. This ioctl uses the
 following struct:
 
-struct kdbus_cmd_conn_info {
+struct kdbus_cmd_info {
   __u64 size;
     The overall size of the struct, including the name with its 0-byte string
     terminator.
@@ -576,7 +576,7 @@ struct kdbus_cmd_conn_info {
 After the ioctl returns, the following struct  will be stored in the caller's
 pool at 'offset'.
 
-struct kdbus_conn_info {
+struct kdbus_info {
   __u64 size;
     The overall size of the struct, including all its items.
 
@@ -590,7 +590,7 @@ struct kdbus_conn_info {
     Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
-    Depending on the 'flags' field in struct kdbus_cmd_conn_info, items of
+    Depending on the 'flags' field in struct kdbus_cmd_info, items of
     types KDBUS_ITEM_NAME and KDBUS_ITEM_CONN_NAME are followed here.
 };
 
@@ -609,10 +609,10 @@ it provides pristine information on the task that created the bus, at the
 moment when it did so.
 
 In response to this call, a slice in the connection's pool is allocated and
-filled with an object of type struct kdbus_conn_info, pointed to by the ioctl's
+filled with an object of type struct kdbus_info, pointed to by the ioctl's
 'offset' field.
 
-struct kdbus_conn_info {
+struct kdbus_info {
   __u64 size;
     The overall size of the struct, including all its items.
 

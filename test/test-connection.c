@@ -132,7 +132,7 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 {
 	int ret;
 	struct {
-		struct kdbus_cmd_conn_info cmd_info;
+		struct kdbus_cmd_info cmd_info;
 
 		struct {
 			uint64_t size;
@@ -141,7 +141,7 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 		} name;
 	} buf;
 
-	buf.cmd_info.size = sizeof(struct kdbus_cmd_conn_info);
+	buf.cmd_info.size = sizeof(struct kdbus_cmd_info);
 	buf.cmd_info.flags = 0;
 	buf.cmd_info.id = env->conn->id;
 

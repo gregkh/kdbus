@@ -845,7 +845,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_CONN_INFO:
 	case KDBUS_CMD_BUS_CREATOR_INFO: {
-		struct kdbus_cmd_conn_info *cmd_info;
+		struct kdbus_cmd_info *cmd_info;
 
 		/* return the properties of a connection */
 		ret = kdbus_memdup_user(buf, &p, sizeof(*cmd_info),
@@ -862,7 +862,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 
 		if (cmd == KDBUS_CMD_CONN_INFO)
-			ret = kdbus_cmd_conn_info(conn, cmd_info);
+			ret = kdbus_cmd_info(conn, cmd_info);
 		else
 			ret = kdbus_cmd_bus_creator_info(conn, cmd_info);
 
@@ -870,7 +870,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 
 		if (kdbus_offset_set_user(&cmd_info->offset, buf,
-					  struct kdbus_cmd_conn_info))
+					  struct kdbus_cmd_info))
 			ret = -EFAULT;
 
 		break;

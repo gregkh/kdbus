@@ -219,11 +219,11 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
  * Return: 0 on success, error otherwise.
  */
 int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
-			       struct kdbus_cmd_conn_info *cmd_info)
+			       struct kdbus_cmd_info *cmd_info)
 {
 	struct kdbus_bus *bus = conn->bus;
 	struct kdbus_pool_slice *slice;
-	struct kdbus_conn_info info = {};
+	struct kdbus_info info = {};
 	int ret;
 
 	info.size = sizeof(info) + bus->meta->size;

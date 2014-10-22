@@ -20,7 +20,7 @@ static int test_bus_creator_info(const char *bus_path)
 {
 	int ret;
 	struct kdbus_conn *conn;
-	struct kdbus_cmd_conn_info cmd = {};
+	struct kdbus_cmd_info cmd = {};
 
 	cmd.size = sizeof(cmd);
 
