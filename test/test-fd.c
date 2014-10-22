@@ -93,10 +93,19 @@ static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 	size = sizeof(struct kdbus_msg);
 	size += memfd_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 
+	if (dst_id == KDBUS_DST_ID_BROADCAST)
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
+
 	ret = make_msg_payload_dbus(conn->id, dst_id, size, &msg);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
 	item = msg->items;
+
+	if (dst_id == KDBUS_DST_ID_BROADCAST) {
+		item->type = KDBUS_ITEM_BLOOM_FILTER;
+		item->size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
+		item = KDBUS_ITEM_NEXT(item);
+	}
 
 	make_item_memfds(item, memfds_array, memfd_count);
 
@@ -325,10 +334,9 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	memfd = memfd_write("memfd-name", &now, sizeof(now));
 	ASSERT_RETURN(memfd >= 0);
 
-	/* Try to broadcast memfd. This must fail. */
-	ret = send_memfds(conn_src, KDBUS_DST_ID_BROADCAST,
-			  (int *)&memfd, 1);
-	ASSERT_RETURN(ret == -ENOTUNIQ);
+	/* Try to broadcast memfd. This must succeed. */
+	ret = send_memfds(conn_src, KDBUS_DST_ID_BROADCAST, (int *)&memfd, 1);
+	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_send_multiple_fds(conn_src, conn_dst);
 	ASSERT_RETURN(ret == 0);
