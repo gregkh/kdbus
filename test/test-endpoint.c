@@ -15,6 +15,8 @@
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
 
+#define KDBUS_SYSNAME_MAX_LEN			63
+
 static int install_name_add_match(struct kdbus_conn *conn, const char *name)
 {
 	struct {

@@ -12,7 +12,6 @@
 #define BIT(X) (1 << (X))
 
 #include "../kdbus.h"
-#include "../limits.h"
 
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
