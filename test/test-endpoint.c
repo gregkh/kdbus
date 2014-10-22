@@ -53,7 +53,8 @@ static int create_endpoint(const char *buspath, const char *name)
 		struct {
 			uint64_t size;
 			uint64_t type;
-			char str[32];
+			/* max should be KDBUS_SYSNAME_MAX_LEN */
+			char str[128];
 		} name;
 	} ep_make;
 	int fd, ret;
@@ -64,7 +65,10 @@ static int create_endpoint(const char *buspath, const char *name)
 
 	memset(&ep_make, 0, sizeof(ep_make));
 
-	snprintf(ep_make.name.str, sizeof(ep_make.name.str),
+	snprintf(ep_make.name.str,
+		 /* Use the KDBUS_SYSNAME_MAX_LEN or sizeof(str) */
+		 KDBUS_SYSNAME_MAX_LEN > strlen(name) ?
+		 KDBUS_SYSNAME_MAX_LEN : sizeof(ep_make.name.str),
 		 "%u-%s", getuid(), name);
 
 	ep_make.name.type = KDBUS_ITEM_MAKE_NAME;
@@ -75,8 +79,11 @@ static int create_endpoint(const char *buspath, const char *name)
 			    ep_make.name.size;
 
 	ret = ioctl(fd, KDBUS_CMD_ENDPOINT_MAKE, &ep_make);
-	if (ret < 0)
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("error creating endpoint: %d (%m)\n", ret);
 		return ret;
+	}
 
 	return fd;
 }
@@ -116,8 +123,11 @@ static int update_endpoint(int fd, const char *name)
 	ep_update.head.size = sizeof(ep_update);
 
 	ret = ioctl(fd, KDBUS_CMD_ENDPOINT_UPDATE, &ep_update);
-	if (ret < 0)
-		return -errno;
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("error updating endpoint: %d (%m)\n", ret);
+		return ret;
+	}
 
 	return 0;
 }
@@ -130,6 +140,13 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	struct kdbus_conn *ep_conn;
 	const char *name = "foo.bar.baz";
 	const char *epname = "foo";
+	char fake_ep[KDBUS_SYSNAME_MAX_LEN + 1] = {'\0'};
+
+	memset(fake_ep, 'X', sizeof(fake_ep) - 1);
+
+	/* Try to create a custom endpoint with a long name */
+	ret = create_endpoint(env->buspath, fake_ep);
+	ASSERT_RETURN(ret == -ENAMETOOLONG);
 
 	/* create a custom endpoint, and open a connection on it */
 	ep_fd = create_endpoint(env->buspath, "foo");
