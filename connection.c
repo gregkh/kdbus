@@ -713,7 +713,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_bus *bus = ep->bus;
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	int ret = 0;
-	u64 usecs;
 
 	/* assign domain-global message sequence number */
 	BUG_ON(kmsg->seq > 0);
@@ -869,7 +868,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		else
 			timeout = msg->timeout_ns - now;
 
-		usecs = div_u64(msg->timeout_ns, 1000ULL);
 		ret = kdbus_conn_wait_reply(ep, conn_src, conn_dst, msg,
 					    reply_wait, timeout);
 	}
