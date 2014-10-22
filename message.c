@@ -128,15 +128,9 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	bool has_fds = false;
 	struct file *f;
 
-	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
-		if (item->type == KDBUS_ITEM_PAYLOAD_MEMFD) {
-			/* do not allow to broadcast file descriptors */
-			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
-				return -ENOTUNIQ;
-
+	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items))
+		if (item->type == KDBUS_ITEM_PAYLOAD_MEMFD)
 			kmsg->memfds_count++;
-		}
-	}
 
 	if (kmsg->memfds_count > 0) {
 		kmsg->memfds = kcalloc(kmsg->memfds_count,
