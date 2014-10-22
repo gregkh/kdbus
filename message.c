@@ -232,9 +232,10 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 				/*
 				 * Verify the fd and increment the
-				 * usage count
+				 * usage count. Use fget_raw() to allow
+				 * passing O_PATH fds
 				 */
-				if (fd < 0 || !(f = fget(fd)))
+				if (fd < 0 || !(f = fget_raw(fd)))
 					return -EBADF;
 
 				kmsg->fds[i] = f;
