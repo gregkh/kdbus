@@ -335,7 +335,7 @@ int kdbus_ep_policy_check_see_access(struct kdbus_ep *ep,
  *					  the name in a notification
  * @ep:			Endpoint to operate on
  * @conn:		Connection connected to the endpoint
- * @kmsg		The message carrying the notification
+ * @kmsg:		The message carrying the notification
  *
  * This function verifies that @conn is allowed to see the well-known name
  * inside a name-change notification contained in @msg via the endpoint @ep.

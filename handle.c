@@ -171,6 +171,15 @@ static void kdbus_minor_unref(enum kdbus_minor_type type, void *ptr)
 	}
 }
 
+/**
+ * kdbus_minor_alloc() - allocate a minor for a new kdbus device node
+ * @type:	The type of device to allocate
+ * @ptr:	The opaque pointer of the new device to store
+ * @out:	Pointer to a dev_t for storing the result.
+ *
+ * Returns: 0 on success, in which case @out is set to the newly allocated
+ * device node.
+ */
 int kdbus_minor_alloc(enum kdbus_minor_type type, void *ptr, dev_t *out)
 {
 	int ret;
@@ -190,6 +199,10 @@ int kdbus_minor_alloc(enum kdbus_minor_type type, void *ptr, dev_t *out)
 	return 0;
 }
 
+/**
+ * kdbus_minor_free() - free a minor of a kdbus device node
+ * @devt:	The device node to remove
+ */
 void kdbus_minor_free(dev_t devt)
 {
 	unsigned int minor = MINOR(devt);
@@ -202,6 +215,12 @@ void kdbus_minor_free(dev_t devt)
 	spin_unlock(&kdbus_minor_lock);
 }
 
+/**
+ * kdbus_minor_set() - set an existing minor type of a kdbus device node
+ * @devt:	The device node to remove
+ * @type:	New type to set
+ * @ptr:	Associated pointer when node was initially registered
+ */
 void kdbus_minor_set(dev_t devt, enum kdbus_minor_type type, void *ptr)
 {
 	unsigned int minor = MINOR(devt);

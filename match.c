@@ -32,6 +32,7 @@
  * struct kdbus_match_db - message filters
  * @entries_list:	List of matches
  * @entries_lock:	Match data lock
+ * @entries:		Number of entries in database
  */
 struct kdbus_match_db {
 	struct list_head entries_list;
@@ -328,8 +329,6 @@ static int __kdbus_match_db_remove_unlocked(struct kdbus_match_db *db,
  * kdbus_match_db_add() - add an entry to the match database
  * @conn:		The connection that was used in the ioctl call
  * @cmd:		The command as provided by the ioctl call
- * @replace:		If an entry with the given cookie already exists,
- *			replace it with the new one.
  *
  * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
  * interface.
