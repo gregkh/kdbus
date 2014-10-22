@@ -28,6 +28,7 @@
 #include "domain.h"
 #include "endpoint.h"
 #include "item.h"
+#include "metadata.h"
 #include "names.h"
 #include "policy.h"
 
@@ -95,6 +96,7 @@ static void __kdbus_bus_free(struct kref *kref)
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
+	kdbus_meta_free(bus->meta);
 	kfree(bus->name);
 	kfree(bus);
 }
@@ -208,6 +210,55 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
 }
 
 /**
+ * kdbus_cmd_bus_creator_info() - get information on a bus creator
+ * @conn:	The querying connection
+ * @cmd_info:	The command buffer, as passed in from the ioctl
+ *
+ * Gather information on the creator of the bus @conn is connected to.
+ *
+ * Return: 0 on success, error otherwise.
+ */
+int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
+			       struct kdbus_cmd_conn_info *cmd_info)
+{
+	struct kdbus_bus *bus = conn->bus;
+	struct kdbus_pool_slice *slice;
+	struct kdbus_conn_info info = {};
+	int ret;
+
+	info.size = sizeof(info) + bus->meta->size;
+	info.id = bus->id;
+	info.flags = bus->bus_flags;
+
+	if (!kdbus_meta_ns_eq(conn->meta, bus->meta))
+		return -EPERM;
+
+	ret = kdbus_pool_slice_alloc(conn->pool, &slice, info.size);
+	if (ret < 0)
+		return ret;
+
+	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
+	if (ret < 0)
+		goto exit_free_slice;
+
+	ret = kdbus_pool_slice_copy(slice, sizeof(info), bus->meta->data,
+				    bus->meta->size);
+	if (ret < 0)
+		goto exit_free_slice;
+
+	/* write back the offset */
+	cmd_info->offset = kdbus_pool_slice_offset(slice);
+	kdbus_pool_slice_flush(slice);
+	kdbus_pool_slice_make_public(slice);
+
+	return 0;
+
+exit_free_slice:
+	kdbus_pool_slice_free(slice);
+	return ret;
+}
+
+/**
  * kdbus_bus_new() - create a new bus
  * @domain:		The domain to work on
  * @make:		Pointer to a struct kdbus_cmd_make containing the
@@ -272,6 +323,24 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);
 
+	/* cache the metadata/credentials of the creator */
+	ret = kdbus_meta_new(&b->meta);
+	if (ret < 0)
+		return ret;
+
+	ret = kdbus_meta_append(b->meta, NULL, 0,
+				KDBUS_ATTACH_CREDS	|
+				KDBUS_ATTACH_TID_COMM	|
+				KDBUS_ATTACH_PID_COMM	|
+				KDBUS_ATTACH_EXE	|
+				KDBUS_ATTACH_CMDLINE	|
+				KDBUS_ATTACH_CGROUP	|
+				KDBUS_ATTACH_CAPS	|
+				KDBUS_ATTACH_SECLABEL	|
+				KDBUS_ATTACH_AUDIT);
+	if (ret < 0)
+		goto exit_free;
+
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;
@@ -322,6 +391,7 @@ exit_free_reg:
 exit_free_name:
 	kfree(b->name);
 exit_free:
+	kdbus_meta_free(b->meta);
 	kdbus_policy_db_clear(&b->policy_db);
 	kdbus_domain_unref(b->domain);
 	kfree(b);

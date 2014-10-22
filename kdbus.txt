@@ -598,7 +598,42 @@ Once the caller is finished with parsing the return buffer, it needs to call
 KDBUS_CMD_FREE for the offset.
 
 
-6.5 Updating connection details
+6.5 Getting information about a connection's bus creator
+--------------------------------------------------------
+
+The KDBUS_CMD_BUS_CREATOR_INFO ioctl takes the same struct as
+KDBUS_CMD_CONN_INFO but is used to retrieve information about the creator of
+the bus the connection is attached to. The metadata returned by this call is
+collected during the creation of the bus and is never altered afterwards, so
+it provides pristine information on the task that created the bus, at the
+moment when it did so.
+
+In response to this call, a slice in the connection's pool is allocated and
+filled with an object of type struct kdbus_conn_info, pointed to by the ioctl's
+'offset' field.
+
+struct kdbus_conn_info {
+  __u64 size;
+    The overall size of the struct, including all its items.
+
+  __u64 id;
+    The bus' ID
+
+  __u64 flags;
+    The bus' flags as specified when it was created.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
+  struct kdbus_item items[0];
+    Metadata information is stored in items here.
+};
+
+Once the caller is finished with parsing the return buffer, it needs to call
+KDBUS_CMD_FREE for the offset.
+
+
+6.6 Updating connection details
 -------------------------------
 
 Some of a connection's details can be updated with the KDBUS_CMD_CONN_UPDATE

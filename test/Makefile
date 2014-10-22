@@ -22,6 +22,7 @@ OBJS= \
 	kdbus-test.o		\
 	test-activator.o	\
 	test-benchmark.o	\
+	test-bus.o		\
 	test-chat.o		\
 	test-connection.o	\
 	test-daemon.o		\

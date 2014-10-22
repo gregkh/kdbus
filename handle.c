@@ -843,7 +843,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_CONN_INFO: {
+	case KDBUS_CMD_CONN_INFO:
+	case KDBUS_CMD_BUS_CREATOR_INFO: {
 		struct kdbus_cmd_conn_info *cmd_info;
 
 		/* return the properties of a connection */
@@ -860,7 +861,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_conn_info(conn, cmd_info);
+		if (cmd == KDBUS_CMD_CONN_INFO)
+			ret = kdbus_cmd_conn_info(conn, cmd_info);
+		else
+			ret = kdbus_cmd_bus_creator_info(conn, cmd_info);
+
 		if (ret < 0)
 			break;
 

@@ -856,6 +856,8 @@ struct kdbus_cmd_match {
  * @KDBUS_CMD_CONN_UPDATE:	Update the properties of a connection. Used to
  *				update the metadata subscription mask and
  *				policy.
+ * @KDBUS_CMD_BUS_CREATOR_INFO:	Retrieve information of the creator of the bus
+ *				a connection is attached to.
  * @KDBUS_CMD_ENDPOINT_UPDATE:	Update the properties of a custom enpoint. Used
  *				to update the policy.
  * @KDBUS_CMD_MATCH_ADD:	Install a match which broadcast messages should
@@ -894,6 +896,8 @@ enum kdbus_ioctl_type {
 					      struct kdbus_cmd_conn_info),
 	KDBUS_CMD_CONN_UPDATE =		_IOW(KDBUS_IOCTL_MAGIC, 0x61,
 					     struct kdbus_cmd_update),
+	KDBUS_CMD_BUS_CREATOR_INFO =	_IOWR(KDBUS_IOCTL_MAGIC, 0x62,
+					      struct kdbus_cmd_conn_info),
 
 	KDBUS_CMD_ENDPOINT_UPDATE =	_IOW(KDBUS_IOCTL_MAGIC, 0x71,
 					     struct kdbus_cmd_update),
