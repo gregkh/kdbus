@@ -425,12 +425,11 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 		list_for_each_entry_safe(r, tmp, &conn_src->reply_list, entry) {
 			if (r->reply_dst == conn_dst &&
 			    r->cookie == msg->cookie_reply) {
-				if (r->sync) {
+				list_del_init(&r->entry);
+				if (r->sync)
 					*reply_wake = kdbus_conn_reply_ref(r);
-				} else {
-					list_del_init(&r->entry);
+				else
 					kdbus_conn_reply_unref(r);
-				}
 
 				allowed = true;
 				break;
