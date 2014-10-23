@@ -50,6 +50,7 @@ struct kdbus_conn_reply;
 
 /**
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
+ * @kref:		Ref-count of this object
  * @entry:		The entry of the connection's reply_list
  * @reply_dst:		The connection the reply will be sent to (method origin)
  * @queue_entry:	The queue enty item that is prepared by the replying
@@ -62,6 +63,7 @@ struct kdbus_conn_reply;
  * @err:		The error code for the synchronous reply
  */
 struct kdbus_conn_reply {
+	struct kref kref;
 	struct list_head entry;
 	struct kdbus_conn *reply_dst;
 	struct kdbus_queue_entry *queue_entry;
@@ -94,6 +96,7 @@ static int kdbus_conn_reply_new(struct kdbus_conn_reply **reply_wait,
 		goto exit_dec_reply_count;
 	}
 
+	kref_init(&r->kref);
 	r->reply_dst = kdbus_conn_ref(reply_dst);
 	r->cookie = msg->cookie;
 	r->name_id = name_entry ? name_entry->name_id : 0;
@@ -114,11 +117,31 @@ exit_dec_reply_count:
 	return ret;
 }
 
-static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
+static void __kdbus_conn_reply_free(struct kref *kref)
 {
+	struct kdbus_conn_reply *reply = container_of(kref,
+						      struct kdbus_conn_reply,
+						      kref);
+
 	atomic_dec(&reply->reply_dst->reply_count);
 	kdbus_conn_unref(reply->reply_dst);
 	kfree(reply);
+}
+
+static struct kdbus_conn_reply*
+kdbus_conn_reply_ref(struct kdbus_conn_reply *r)
+{
+	if (r)
+		kref_get(&r->kref);
+	return r;
+}
+
+static struct kdbus_conn_reply*
+kdbus_conn_reply_unref(struct kdbus_conn_reply *r)
+{
+	if (r)
+		kref_put(&r->kref, __kdbus_conn_reply_free);
+	return NULL;
 }
 
 static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
@@ -228,7 +251,7 @@ static void kdbus_conn_work(struct work_struct *work)
 						   reply->cookie);
 
 		list_del_init(&reply->entry);
-		kdbus_conn_reply_free(reply);
+		kdbus_conn_reply_unref(reply);
 	}
 
 	/* rearm delayed work with next timeout */
@@ -294,7 +317,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 				kdbus_conn_reply_sync(entry->reply, -EPIPE);
 			} else {
 				list_del_init(&entry->reply->entry);
-				kdbus_conn_reply_free(entry->reply);
+				kdbus_conn_reply_unref(entry->reply);
 				kdbus_notify_reply_dead(conn->bus,
 							entry->src_id,
 							entry->cookie);
@@ -406,7 +429,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 					*reply_wake = r;
 				} else {
 					list_del_init(&r->entry);
-					kdbus_conn_reply_free(r);
+					kdbus_conn_reply_unref(r);
 				}
 
 				allowed = true;
@@ -654,7 +677,7 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 	}
 	mutex_unlock(&conn_src->lock);
 
-	kdbus_conn_reply_free(reply_wait);
+	kdbus_conn_reply_unref(reply_wait);
 
 	return ret;
 }
@@ -814,7 +837,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 					      kmsg, reply_wait);
 		if (ret < 0) {
 			if (reply_wait)
-				kdbus_conn_reply_free(reply_wait);
+				kdbus_conn_reply_unref(reply_wait);
 			goto exit_unref;
 		}
 	}
@@ -944,7 +967,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 					reply->cookie);
 
 		list_del(&reply->entry);
-		kdbus_conn_reply_free(reply);
+		kdbus_conn_reply_unref(reply);
 	}
 
 	kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_REMOVE,
@@ -1155,7 +1178,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		list_for_each_entry_safe(q, q_tmp, &msg_list, entry)
 			kdbus_queue_entry_free(q);
 		list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
-			kdbus_conn_reply_free(r);
+			kdbus_conn_reply_unref(r);
 		return -ECONNRESET;
 	}
 
