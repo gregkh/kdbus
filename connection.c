@@ -56,6 +56,7 @@ struct kdbus_conn_reply;
  *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
+ * @name_id:		ID of the well-known name the original msg was sent to
  * @sync:		The reply block is waiting for synchronous I/O
  * @waiting:		The condition to synchronously wait for
  * @err:		The error code for the synchronous reply
@@ -66,6 +67,7 @@ struct kdbus_conn_reply {
 	struct kdbus_queue_entry *queue_entry;
 	u64 deadline_ns;
 	u64 cookie;
+	u64 name_id;
 	bool sync:1;
 	bool waiting:1;
 	int err;
@@ -387,6 +389,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 					 struct kdbus_conn *conn_dst,
 					 const struct kdbus_msg *msg,
+					 struct kdbus_name_entry *name_entry,
 					 struct kdbus_conn_reply **reply_wait)
 {
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
@@ -420,6 +423,7 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 
 	r->reply_dst = kdbus_conn_ref(conn_src);
 	r->cookie = msg->cookie;
+	r->name_id = name_entry ? name_entry->name_id : 0;
 
 	if (sync) {
 		r->sync = true;
@@ -790,7 +794,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto exit_unref;
 
 			ret = kdbus_conn_add_expected_reply(conn_src, conn_dst,
-							    msg, &reply_wait);
+							    msg, name_entry,
+							    &reply_wait);
 			if (ret < 0)
 				goto exit_unref;
 		} else {
@@ -1131,6 +1136,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     u64 name_id)
 {
 	struct kdbus_queue_entry *q, *q_tmp;
+	struct kdbus_conn_reply *r, *r_tmp;
 	LIST_HEAD(reply_list);
 	LIST_HEAD(msg_list);
 	int ret = 0;
@@ -1140,8 +1146,18 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
-	list_splice_init(&conn_src->reply_list, &reply_list);
+	list_for_each_entry_safe(r, r_tmp, &conn_src->reply_list, entry) {
+		/* filter messages for a specific name */
+		if (name_id > 0 && r->name_id != name_id)
+			continue;
+
+		list_move_tail(&r->entry, &reply_list);
+	}
 	list_for_each_entry_safe(q, q_tmp, &conn_src->queue.msg_list, entry) {
+		/* filter messages for a specific name */
+		if (name_id > 0 && q->dst_name_id != name_id)
+			continue;
+
 		kdbus_queue_entry_remove(conn_src, q);
 		list_add_tail(&q->entry, &msg_list);
 	}
@@ -1162,10 +1178,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	}
 
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
-		/* filter messages for a specific name */
-		if (name_id > 0 && q->dst_name_id != name_id)
-			continue;
-
 		ret = kdbus_pool_move_slice(conn_dst->pool, conn_src->pool,
 					    &q->slice);
 		if (ret < 0)
