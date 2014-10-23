@@ -73,6 +73,47 @@ struct kdbus_conn_reply {
 	int err;
 };
 
+static int kdbus_conn_reply_new(struct kdbus_conn_reply **reply_wait,
+				struct kdbus_conn *reply_dst,
+				const struct kdbus_msg *msg,
+				struct kdbus_name_entry *name_entry)
+{
+	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
+	struct kdbus_conn_reply *r;
+	int ret = 0;
+
+	if (atomic_inc_return(&reply_dst->reply_count) >
+	    KDBUS_CONN_MAX_REQUESTS_PENDING) {
+		ret = -EMLINK;
+		goto exit_dec_reply_count;
+	}
+
+	r = kzalloc(sizeof(*r), GFP_KERNEL);
+	if (!r) {
+		ret = -ENOMEM;
+		goto exit_dec_reply_count;
+	}
+
+	r->reply_dst = kdbus_conn_ref(reply_dst);
+	r->cookie = msg->cookie;
+	r->name_id = name_entry ? name_entry->name_id : 0;
+
+	if (sync) {
+		r->sync = true;
+		r->waiting = true;
+	} else {
+		r->deadline_ns = msg->timeout_ns;
+	}
+
+	*reply_wait = r;
+
+exit_dec_reply_count:
+	if (ret < 0)
+		atomic_dec(&reply_dst->reply_count);
+
+	return ret;
+}
+
 static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 {
 	atomic_dec(&reply->reply_dst->reply_count);
@@ -384,55 +425,6 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 		return ret;
 
 	return 0;
-}
-
-static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
-					 struct kdbus_conn *conn_dst,
-					 const struct kdbus_msg *msg,
-					 struct kdbus_name_entry *name_entry,
-					 struct kdbus_conn_reply **reply_wait)
-{
-	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
-	struct kdbus_conn_reply *r;
-	int ret = 0;
-
-	if (atomic_inc_return(&conn_src->reply_count) >
-	    KDBUS_CONN_MAX_REQUESTS_PENDING) {
-		ret = -EMLINK;
-		goto exit_dec_reply_count;
-	}
-
-	/*
-	 * This message expects a reply, so let's interpret msg->timeout_ns and
-	 * add a kdbus_conn_reply object. Add it to the list of expected replies
-	 * on the destination connection.
-	 * When a reply is received later on, this entry will be used to allow
-	 * the reply to pass, circumventing the policy.
-	 */
-	r = kzalloc(sizeof(*r), GFP_KERNEL);
-	if (!r) {
-		ret = -ENOMEM;
-		goto exit_dec_reply_count;
-	}
-
-	r->reply_dst = kdbus_conn_ref(conn_src);
-	r->cookie = msg->cookie;
-	r->name_id = name_entry ? name_entry->name_id : 0;
-
-	if (sync) {
-		r->sync = true;
-		r->waiting = true;
-	} else {
-		r->deadline_ns = msg->timeout_ns;
-	}
-
-	*reply_wait = r;
-
-exit_dec_reply_count:
-	if (ret < 0)
-		atomic_dec(&conn_src->reply_count);
-
-	return ret;
 }
 
 /* enqueue a message into the receiver's pool */
@@ -783,9 +775,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			if (ret < 0)
 				goto exit_unref;
 
-			ret = kdbus_conn_add_expected_reply(conn_src, conn_dst,
-							    msg, name_entry,
-							    &reply_wait);
+			ret = kdbus_conn_reply_new(&reply_wait, conn_src, msg,
+						   name_entry);
 			if (ret < 0)
 				goto exit_unref;
 		} else {
