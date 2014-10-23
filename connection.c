@@ -51,7 +51,7 @@ struct kdbus_conn_reply;
 /**
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
  * @entry:		The entry of the connection's reply_list
- * @conn:		The counterpart connection that is expected to answer
+ * @reply_dst:		The connection the reply will be sent to (method origin)
  * @queue_entry:	The queue enty item that is prepared by the replying
  *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
@@ -62,7 +62,7 @@ struct kdbus_conn_reply;
  */
 struct kdbus_conn_reply {
 	struct list_head entry;
-	struct kdbus_conn *conn;
+	struct kdbus_conn *reply_dst;
 	struct kdbus_queue_entry *queue_entry;
 	u64 deadline_ns;
 	u64 cookie;
@@ -73,8 +73,8 @@ struct kdbus_conn_reply {
 
 static void kdbus_conn_reply_free(struct kdbus_conn_reply *reply)
 {
-	atomic_dec(&reply->conn->reply_count);
-	kdbus_conn_unref(reply->conn);
+	atomic_dec(&reply->reply_dst->reply_count);
+	kdbus_conn_unref(reply->reply_dst);
 	kfree(reply);
 }
 
@@ -85,7 +85,7 @@ static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
 	list_del_init(&reply->entry);
 	reply->waiting = false;
 	reply->err = err;
-	wake_up_interruptible(&reply->conn->wait);
+	wake_up_interruptible(&reply->reply_dst->wait);
 }
 
 /*
@@ -180,7 +180,8 @@ static void kdbus_conn_work(struct work_struct *work)
 		 * cleaned up already and the notification was sent.
 		 */
 		if (reply->deadline_ns != 0)
-			kdbus_notify_reply_timeout(conn->bus, reply->conn->id,
+			kdbus_notify_reply_timeout(conn->bus,
+						   reply->reply_dst->id,
 						   reply->cookie);
 
 		list_del_init(&reply->entry);
@@ -325,7 +326,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		list_for_each_entry_safe(reply, reply_tmp,
 					 &c->reply_list, entry) {
 			if (reply->sync &&
-			    reply->conn == conn &&
+			    reply->reply_dst == conn &&
 			    reply->cookie == cookie) {
 				kdbus_conn_reply_sync(reply, -ECANCELED);
 				found = true;
@@ -356,7 +357,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 
 		mutex_lock(&conn_src->lock);
 		list_for_each_entry_safe(r, tmp, &conn_src->reply_list, entry) {
-			if (r->conn == conn_dst &&
+			if (r->reply_dst == conn_dst &&
 			    r->cookie == msg->cookie_reply) {
 				if (r->sync) {
 					*reply_wake = r;
@@ -417,7 +418,7 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 		goto exit_unlock;
 	}
 
-	r->conn = kdbus_conn_ref(conn_src);
+	r->reply_dst = kdbus_conn_ref(conn_src);
 	r->cookie = msg->cookie;
 
 	if (sync) {
@@ -643,7 +644,7 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 	 * by the timeout scans that might be conducted for other,
 	 * asynchronous replies of conn_src.
 	 */
-	r = wait_event_interruptible_timeout(reply_wait->conn->wait,
+	r = wait_event_interruptible_timeout(reply_wait->reply_dst->wait,
 		!reply_wait->waiting || !kdbus_conn_active(conn_src),
 		nsecs_to_jiffies(timeout_ns));
 	if (r == 0)
@@ -952,7 +953,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		}
 
 		/* send a 'connection dead' notification */
-		kdbus_notify_reply_dead(conn->bus, reply->conn->id,
+		kdbus_notify_reply_dead(conn->bus, reply->reply_dst->id,
 					reply->cookie);
 
 		list_del(&reply->entry);
