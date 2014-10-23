@@ -144,7 +144,6 @@ static void kdbus_conn_work(struct work_struct *work)
 {
 	struct kdbus_conn *conn;
 	struct kdbus_conn_reply *reply, *reply_tmp;
-	LIST_HEAD(reply_list);
 	u64 deadline = ~0ULL;
 	struct timespec64 ts;
 	u64 now;
@@ -177,21 +176,15 @@ static void kdbus_conn_work(struct work_struct *work)
 		}
 
 		/*
-		 * Move to temporary cleanup list; we cannot unref and
-		 * possibly cleanup a connection that is holding a ref
-		 * back to us, while we are locking ourselves.
-		 */
-		list_move_tail(&reply->entry, &reply_list);
-
-		/*
 		 * A zero deadline means the connection died, was
 		 * cleaned up already and the notification was sent.
 		 */
-		if (reply->deadline_ns == 0)
-			continue;
+		if (reply->deadline_ns != 0)
+			kdbus_notify_reply_timeout(conn->bus, reply->conn->id,
+						   reply->cookie);
 
-		kdbus_notify_reply_timeout(conn->bus, reply->conn->id,
-					   reply->cookie);
+		list_del_init(&reply->entry);
+		kdbus_conn_reply_free(reply);
 	}
 
 	/* rearm delayed work with next timeout */
@@ -202,9 +195,6 @@ static void kdbus_conn_work(struct work_struct *work)
 	mutex_unlock(&conn->lock);
 
 	kdbus_notify_flush(conn->bus);
-
-	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry)
-		kdbus_conn_reply_free(reply);
 }
 
 /**
@@ -234,7 +224,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		struct kdbus_conn_reply *reply = NULL;
 		bool reply_found = false;
 
 		if (entry->reply) {
@@ -261,7 +250,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 				kdbus_conn_reply_sync(entry->reply, -EPIPE);
 			} else {
 				list_del_init(&entry->reply->entry);
-				reply = entry->reply;
+				kdbus_conn_reply_free(entry->reply);
 			}
 
 			kdbus_notify_reply_dead(conn->bus,
@@ -272,9 +261,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_free(entry->slice);
 		mutex_unlock(&conn->lock);
-
-		if (reply)
-			kdbus_conn_reply_free(reply);
 
 		kdbus_queue_entry_free(entry);
 
@@ -368,25 +354,23 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	 */
 	if (reply_wake && msg->cookie_reply > 0) {
 		struct kdbus_conn_reply *r, *tmp;
-		LIST_HEAD(reply_list);
 
 		mutex_lock(&conn_src->lock);
 		list_for_each_entry_safe(r, tmp, &conn_src->reply_list, entry) {
 			if (r->conn == conn_dst &&
 			    r->cookie == msg->cookie_reply) {
-				if (r->sync)
+				if (r->sync) {
 					*reply_wake = r;
-				else
-					list_move_tail(&r->entry, &reply_list);
+				} else {
+					list_del_init(&r->entry);
+					kdbus_conn_reply_free(r);
+				}
 
 				allowed = true;
 				break;
 			}
 		}
 		mutex_unlock(&conn_src->lock);
-
-		list_for_each_entry_safe(r, tmp, &reply_list, entry)
-			kdbus_conn_reply_free(r);
 	}
 
 	if (allowed)
