@@ -665,6 +665,7 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 	mutex_unlock(&conn_dst->lock);
 
 	mutex_lock(&conn_src->lock);
+	reply_wait->waiting = false;
 	entry = reply_wait->queue_entry;
 	if (entry) {
 		if (ret == 0)
@@ -816,7 +817,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * The connection's queue will never get to see it.
 		 */
 		mutex_lock(&conn_dst->lock);
-		if (kdbus_conn_active(conn_dst))
+		if (reply_wake->waiting && kdbus_conn_active(conn_dst))
 			ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
 						      &reply_wake->queue_entry);
 		else
