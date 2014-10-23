@@ -71,15 +71,14 @@ static int send_reply(const struct kdbus_conn *conn,
 }
 
 static int interrupt_sync(struct kdbus_conn *conn_src,
-			  struct kdbus_conn *conn_dst,
-			  int sa_flags)
+			  struct kdbus_conn *conn_dst)
 {
 	pid_t pid;
 	int ret, status;
 	struct kdbus_msg *msg = NULL;
 	struct sigaction sa = {
 		.sa_handler = nop_handler,
-		.sa_flags = sa_flags,
+		.sa_flags = SA_NOCLDSTOP|SA_RESTART,
 	};
 
 	cookie++;
@@ -93,8 +92,20 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 		ret = kdbus_msg_send(conn_dst, NULL, cookie,
 				     KDBUS_MSG_FLAGS_EXPECT_REPLY |
 				     KDBUS_MSG_FLAGS_SYNC_REPLY,
-				     5000000000ULL, 0, conn_src->id);
-		ASSERT_EXIT(ret == -EINTR);
+				     100000000ULL, 0, conn_src->id);
+		ASSERT_EXIT(ret == -EINPROGRESS);
+
+		/* conn_reply is now async, thus we will receive a timeout */
+
+		ret = kdbus_msg_recv_poll(conn_dst, 100, &msg, NULL);
+		ASSERT_EXIT(ret >= 0);
+
+		ASSERT_EXIT(msg->size >= sizeof(struct kdbus_msg) +
+					 KDBUS_ITEM_HEADER_SIZE);
+		ASSERT_EXIT(msg->items[0].size >= KDBUS_ITEM_HEADER_SIZE);
+		ASSERT_EXIT(msg->items[0].type == KDBUS_ITEM_REPLY_TIMEOUT);
+
+		kdbus_msg_free(msg);
 
 		_exit(EXIT_SUCCESS);
 	}
@@ -113,17 +124,8 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 	if (WIFSIGNALED(status))
 		return TEST_ERR;
 
-	if (sa_flags & SA_RESTART) {
-		/*
-		 * Our SYNC logic do not support SA_RESTART flag, so we
-		 * don't receive the same packet again. We fail with
-		 * ETIMEDOUT.
-		 *
-		 * For more information, please check "man 7 signal".
-		 */
-		ret = kdbus_msg_recv_poll(conn_src, 100, NULL, NULL);
-		ASSERT_RETURN(ret == -ETIMEDOUT);
-	}
+	ret = kdbus_msg_recv_poll(conn_src, 100, NULL, NULL);
+	ASSERT_RETURN(ret == -ETIMEDOUT);
 
 	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
 }
@@ -161,10 +163,7 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 	pthread_join(thread, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	ret = interrupt_sync(conn_a, conn_b, SA_NOCLDSTOP);
-	ASSERT_RETURN(ret == 0);
-
-	ret = interrupt_sync(conn_a, conn_b, SA_NOCLDSTOP|SA_RESTART);
+	ret = interrupt_sync(conn_a, conn_b);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_printf("-- closing bus connections\n");

@@ -100,12 +100,11 @@ static int kdbus_conn_reply_new(struct kdbus_conn_reply **reply_wait,
 	r->reply_dst = kdbus_conn_ref(reply_dst);
 	r->cookie = msg->cookie;
 	r->name_id = name_entry ? name_entry->name_id : 0;
+	r->deadline_ns = msg->timeout_ns;
 
 	if (sync) {
 		r->sync = true;
 		r->waiting = true;
-	} else {
-		r->deadline_ns = msg->timeout_ns;
 	}
 
 	*reply_wait = r;
@@ -641,6 +640,7 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 				 u64 timeout_ns)
 {
 	struct kdbus_queue_entry *entry;
+	bool waiting;
 	int r, ret;
 
 	/*
@@ -651,10 +651,34 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 	r = wait_event_interruptible_timeout(reply_wait->reply_dst->wait,
 		!reply_wait->waiting || !kdbus_conn_active(conn_src),
 		nsecs_to_jiffies(timeout_ns));
+	if (r < 0) {
+		/*
+		 * We got interrupted by a signal. We have to return to
+		 * user-space, but we cannot support SA_RESTART. If we returned
+		 * ERESTARTSYS, we would queue the message again on restart
+		 * instead of only waiting for a response.
+		 * Therefore, we require callers of SEND to always handle
+		 * EINPROGRESS if they use SYNC_REPLY. This means, the message
+		 * got queued but no response was received, yet. They must use
+		 * normal RECV to retrieve it.
+		 */
+		mutex_lock(&conn_src->lock);
+		waiting = reply_wait->waiting;
+		if (waiting) {
+			reply_wait->waiting = false;
+			reply_wait->sync = false;
+			schedule_delayed_work(&conn_dst->work, 0);
+		}
+		mutex_unlock(&conn_src->lock);
+
+		if (waiting)
+			return -EINPROGRESS;
+
+		r = 1;
+	}
+
 	if (r == 0)
 		ret = -ETIMEDOUT;
-	else if (r < 0)
-		ret = -EINTR;
 	else if (!kdbus_conn_active(conn_src))
 		ret = -ECONNRESET;
 	else
@@ -817,20 +841,29 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * The connection's queue will never get to see it.
 		 */
 		mutex_lock(&conn_dst->lock);
-		if (reply_wake->waiting && kdbus_conn_active(conn_dst))
-			ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
-						      &reply_wake->queue_entry);
-		else
-			ret = -ECONNRESET;
+		if (reply_wake->sync) {
+			if (reply_wake->waiting && kdbus_conn_active(conn_dst))
+				ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
+						&reply_wake->queue_entry);
+			else
+				ret = -ECONNRESET;
 
-		kdbus_conn_reply_sync(reply_wake, ret);
+			kdbus_conn_reply_sync(reply_wake, ret);
+			kdbus_conn_reply_unref(reply_wake);
+		} else {
+			/* Object went into async mode; unref reply_wake and
+			 * fall-through to normal queuing below. */
+			kdbus_conn_reply_unref(reply_wake);
+			reply_wake = NULL;
+			ret = 0;
+		}
 		mutex_unlock(&conn_dst->lock);
-
-		kdbus_conn_reply_unref(reply_wake);
 
 		if (ret < 0)
 			goto exit_unref;
-	} else {
+	}
+
+	if (!reply_wake) {
 		/*
 		 * Otherwise, put it in the queue and wait for the connection
 		 * to dequeue and receive the message.
