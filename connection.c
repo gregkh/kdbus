@@ -251,11 +251,10 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 			} else {
 				list_del_init(&entry->reply->entry);
 				kdbus_conn_reply_free(entry->reply);
+				kdbus_notify_reply_dead(conn->bus,
+							entry->src_id,
+							entry->cookie);
 			}
-
-			kdbus_notify_reply_dead(conn->bus,
-						entry->src_id,
-						entry->cookie);
 		}
 
 		kdbus_queue_entry_remove(conn, entry);
