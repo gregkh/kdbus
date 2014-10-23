@@ -426,7 +426,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 			if (r->reply_dst == conn_dst &&
 			    r->cookie == msg->cookie_reply) {
 				if (r->sync) {
-					*reply_wake = r;
+					*reply_wake = kdbus_conn_reply_ref(r);
 				} else {
 					list_del_init(&r->entry);
 					kdbus_conn_reply_unref(r);
@@ -825,6 +825,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		kdbus_conn_reply_sync(reply_wake, ret);
 		mutex_unlock(&conn_dst->lock);
+
+		kdbus_conn_reply_unref(reply_wake);
 
 		if (ret < 0)
 			goto exit_unref;
