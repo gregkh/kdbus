@@ -402,12 +402,6 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 		goto exit_dec_reply_count;
 	}
 
-	mutex_lock(&conn_dst->lock);
-	if (!kdbus_conn_active(conn_dst)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
 	/*
 	 * This message expects a reply, so let's interpret msg->timeout_ns and
 	 * add a kdbus_conn_reply object. Add it to the list of expected replies
@@ -418,7 +412,7 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 	r = kzalloc(sizeof(*r), GFP_KERNEL);
 	if (!r) {
 		ret = -ENOMEM;
-		goto exit_unlock;
+		goto exit_dec_reply_count;
 	}
 
 	r->reply_dst = kdbus_conn_ref(conn_src);
@@ -432,21 +426,7 @@ static int kdbus_conn_add_expected_reply(struct kdbus_conn *conn_src,
 		r->deadline_ns = msg->timeout_ns;
 	}
 
-	list_add(&r->entry, &conn_dst->reply_list);
 	*reply_wait = r;
-
-	/*
-	 * For async operation, schedule the scan now. It won't do any real work
-	 * at this point, but walk the list of all pending replies and rearm the
-	 * connection's delayed work to the closest entry.
-	 * For synchronous operation, the timeout will be handled by
-	 * wait_event_interruptible_timeout().
-	 */
-	if (!sync)
-		schedule_delayed_work(&conn_dst->work, 0);
-
-exit_unlock:
-	mutex_unlock(&conn_dst->lock);
 
 exit_dec_reply_count:
 	if (ret < 0)
@@ -499,6 +479,12 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 	 * activator to an implementor.
 	 */
 	entry->reply = reply;
+
+	if (reply) {
+		list_add(&reply->entry, &conn->reply_list);
+		if (!reply->sync)
+			schedule_delayed_work(&conn->work, 0);
+	}
 
 	/* link the message into the receiver's entry */
 	kdbus_queue_entry_add(&conn->queue, entry);
@@ -787,6 +773,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kmsg->dst_name_id = name_entry->name_id;
 
 	if (conn_src) {
+		ret = kdbus_kmsg_attach_metadata(kmsg, conn_src, conn_dst);
+		if (ret < 0)
+			goto exit_unref;
+
 		if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
 			ret = kdbus_conn_check_access(ep, msg, conn_src,
 						      conn_dst, NULL);
@@ -804,10 +794,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			if (ret < 0)
 				goto exit_unref;
 		}
-
-		ret = kdbus_kmsg_attach_metadata(kmsg, conn_src, conn_dst);
-		if (ret < 0)
-			goto exit_unref;
 	}
 
 	if (reply_wake) {
@@ -825,6 +811,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		kdbus_conn_reply_sync(reply_wake, ret);
 		mutex_unlock(&conn_dst->lock);
+
+		if (ret < 0)
+			goto exit_unref;
 	} else {
 		/*
 		 * Otherwise, put it in the queue and wait for the connection
@@ -832,10 +821,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		ret = kdbus_conn_entry_insert(conn_dst, conn_src,
 					      kmsg, reply_wait);
+		if (ret < 0) {
+			if (reply_wait)
+				kdbus_conn_reply_free(reply_wait);
+			goto exit_unref;
+		}
 	}
-
-	if (ret < 0)
-		goto exit_unref;
 
 	/* forward to monitors */
 	kdbus_conn_eavesdrop(ep, conn_src, kmsg);
