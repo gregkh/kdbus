@@ -55,10 +55,23 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 
 int kdbus_test_name_basic(struct kdbus_test_env *env)
 {
-	char *name;
+	char *name, *dot_name, *invalid_name, *wildcard_name;
 	int ret;
 
 	name = "foo.bla.blaz";
+	dot_name = ".bla.blaz";
+	invalid_name = "foo";
+	wildcard_name = "foo.bla.bl.*";
+
+	/* Name is not valid, must fail */
+	ret = kdbus_name_acquire(env->conn, dot_name, NULL);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	ret = kdbus_name_acquire(env->conn, invalid_name, NULL);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	ret = kdbus_name_acquire(env->conn, wildcard_name, NULL);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	/* check that we can acquire a name */
 	ret = kdbus_name_acquire(env->conn, name, NULL);
@@ -81,6 +94,16 @@ int kdbus_test_name_basic(struct kdbus_test_env *env)
 	/* check that we can't release a name that we don't own */
 	ret = kdbus_name_release(env->conn, "foo.bar.xxx");
 	ASSERT_RETURN(ret == -ESRCH);
+
+	/* Name is not valid, must fail */
+	ret = kdbus_name_release(env->conn, dot_name);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	ret = kdbus_name_release(env->conn, invalid_name);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	ret = kdbus_name_release(env->conn, wildcard_name);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	return TEST_OK;
 }
