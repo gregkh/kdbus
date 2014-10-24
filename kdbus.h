@@ -731,8 +731,9 @@ struct kdbus_name_list {
  * @offset:		Returned offset in the caller's pool buffer where the
  *			kdbus_info struct result is stored. The user must
  *			use KDBUS_CMD_FREE to free the allocated memory.
- * @name:		The optional well-known name to look up. Only needed in
- *			case @id is zero.
+ * @items:		The optional item list, containing the
+ *			well-known name to look up as a KDBUS_ITEM_NAME.
+ *			Only needed in case @id is zero.
  *
  * On success, the KDBUS_CMD_CONN_INFO ioctl will return 0 and @offset will
  * tell the user the offset in the connection pool buffer at which to find the
