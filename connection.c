@@ -1242,7 +1242,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_cmd_info(struct kdbus_conn *conn,
-			struct kdbus_cmd_info *cmd_info)
+		   struct kdbus_cmd_info *cmd_info)
 {
 	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_conn *owner_conn = NULL;
