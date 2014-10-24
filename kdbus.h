@@ -800,8 +800,8 @@ enum kdbus_cmd_match_flags {
  * @kernel_flags:	Supported flags of the used command, kernel → userspace
  * @items:		A list of items for additional information
  *
- * This structure is used with the KDBUS_CMD_ADD_MATCH and
- * KDBUS_CMD_REMOVE_MATCH ioctl.
+ * This structure is used with the KDBUS_CMD_MATCH_ADD and
+ * KDBUS_CMD_MATCH_REMOVE ioctl.
  */
 struct kdbus_cmd_match {
 	__u64 size;
