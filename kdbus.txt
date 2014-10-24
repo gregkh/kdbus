@@ -1771,7 +1771,7 @@ For KDBUS_CMD_NAME_ACQUIRE:
 
 For KDBUS_CMD_NAME_RELEASE:
 
-  -EINVAL	Invalid command flags provided
+  -EINVAL	Invalid command flags, or invalid name provided
   -ESRCH	Name is not found found in the registry
   -EADDRINUSE	Name is owned by a different connection and can't be released
 

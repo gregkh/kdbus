@@ -4,6 +4,7 @@
  * Copyright (C) 2013-2014 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013-2014 David Herrmann <dh.herrmann@gmail.com>
  * Copyright (C) 2013-2014 Linux Foundation
+ * Copyright (C) 2014 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -647,6 +648,9 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	if (ret < 0)
 		return -EINVAL;
 
+	if (!kdbus_name_is_valid(name, false))
+		return -EINVAL;
+
 	/*
 	 * Do atomic_inc_return here to reserve our slot, then decrement
 	 * it before returning.
@@ -686,6 +690,9 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
 				  KDBUS_ITEM_NAME, &name);
 	if (ret < 0)
+		return -EINVAL;
+
+	if (!kdbus_name_is_valid(name, false))
 		return -EINVAL;
 
 	ret = kdbus_ep_policy_check_see_access(conn->ep, conn, name);
