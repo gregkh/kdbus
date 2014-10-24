@@ -861,6 +861,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		ret = kdbus_items_validate(cmd_info->items,
+					   KDBUS_ITEMS_SIZE(cmd_info, items));
+		if (ret < 0)
+			break;
+
 		if (cmd == KDBUS_CMD_CONN_INFO)
 			ret = kdbus_cmd_info(conn, cmd_info);
 		else
