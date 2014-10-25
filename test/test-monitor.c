@@ -21,6 +21,18 @@
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
 
+static bool kdbus_item_in_message(struct kdbus_msg *msg,
+				  uint64_t type)
+{
+	const struct kdbus_item *item;
+
+	KDBUS_ITEM_FOREACH(item, msg, items)
+		if (item->type == type)
+			return true;
+
+	return false;
+}
+
 int kdbus_test_monitor(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *monitor, *conn;
@@ -79,6 +91,60 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	ret = kdbus_msg_recv_poll(monitor, 100, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
+
+	kdbus_msg_free(msg);
+	kdbus_free(monitor, offset);
+
+	/*
+	 * Since we are the only monitor, update the attach flags
+	 * and tell we are not interessted in attach flags
+	*/
+
+	ret = kdbus_conn_update_attach_flags(monitor, 0);
+	ASSERT_RETURN(ret == 0);
+
+	cookie++;
+	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0, 0,
+			     KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv_poll(monitor, 100, &msg, &offset);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->cookie == cookie);
+
+	ret = kdbus_item_in_message(msg, KDBUS_ITEM_TIMESTAMP);
+	ASSERT_RETURN(ret == 0);
+
+	kdbus_msg_free(msg);
+	kdbus_free(monitor, offset);
+
+	/*
+	 * Now we are interested in KDBUS_ITEM_TIMESTAMP and
+	 * KDBUS_ITEM_CREDS
+	 */
+	ret = kdbus_conn_update_attach_flags(monitor,
+					     KDBUS_ATTACH_TIMESTAMP |
+					     KDBUS_ATTACH_CREDS);
+	ASSERT_RETURN(ret == 0);
+
+	cookie++;
+	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0, 0,
+			     KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv_poll(monitor, 100, &msg, &offset);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->cookie == cookie);
+
+	ret = kdbus_item_in_message(msg, KDBUS_ITEM_TIMESTAMP);
+	ASSERT_RETURN(ret == 1);
+
+	ret = kdbus_item_in_message(msg, KDBUS_ITEM_CREDS);
+	ASSERT_RETURN(ret == 1);
+
+	/* the KDBUS_ITEM_PID_COMM was not requested */
+	ret = kdbus_item_in_message(msg, KDBUS_ITEM_PID_COMM);
+	ASSERT_RETURN(ret == 0);
 
 	kdbus_msg_free(msg);
 	kdbus_free(monitor, offset);
