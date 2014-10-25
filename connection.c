@@ -1377,9 +1377,10 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
-			/* Only ordinary connections may update their
-			 * attach-flags */
-			if (!kdbus_conn_is_connected(conn))
+			/* Only ordinary or monitor connections
+			 * may update their attach-flags */
+			if (!kdbus_conn_is_connected(conn) &&
+			    !kdbus_conn_is_monitor(conn))
 				return -EOPNOTSUPP;
 
 			flags_provided = true;

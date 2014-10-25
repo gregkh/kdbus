@@ -1790,7 +1790,7 @@ For KDBUS_CMD_CONN_INFO:
 For KDBUS_CMD_CONN_UPDATE:
 
   -EINVAL	Illegal flags or items
-  -EOPNOTSUPP	Connection is not attached to bus
+  -EOPNOTSUPP	Operation not supported by connection.
   -E2BIG	Too many policy items attached
   -EINVAL	Wildcards submitted in policy entries, or illegal sequence
 		of policy items

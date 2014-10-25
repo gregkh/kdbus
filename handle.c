@@ -886,7 +886,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_update *cmd_update;
 
 		if (!kdbus_conn_is_connected(conn) &&
-		    !kdbus_conn_is_policy_holder(conn)) {
+		    !kdbus_conn_is_policy_holder(conn) &&
+		    !kdbus_conn_is_monitor(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
