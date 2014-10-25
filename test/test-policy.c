@@ -18,6 +18,15 @@ int kdbus_test_policy(struct kdbus_test_env *env)
 	struct kdbus_policy_access access;
 	int ret;
 
+	/* Invalid name */
+	conn_a = kdbus_hello_registrar(env->buspath, ".example.a",
+				       NULL, 0, KDBUS_HELLO_POLICY_HOLDER);
+	ASSERT_RETURN(conn_a == NULL);
+
+	conn_a = kdbus_hello_registrar(env->buspath, "example",
+				       NULL, 0, KDBUS_HELLO_POLICY_HOLDER);
+	ASSERT_RETURN(conn_a == NULL);
+
 	conn_a = kdbus_hello_registrar(env->buspath, "com.example.a",
 				       NULL, 0, KDBUS_HELLO_POLICY_HOLDER);
 	ASSERT_RETURN(conn_a);
@@ -57,6 +66,13 @@ int kdbus_test_policy(struct kdbus_test_env *env)
 
 	ret = kdbus_conn_update_policy(conn_b, "com.example.*", &access, 1);
 	ASSERT_RETURN(ret == -EEXIST);
+
+	/* Invalid name */
+	ret = kdbus_conn_update_policy(conn_b, ".example.*", &access, 1);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	ret = kdbus_conn_update_policy(conn_b, "example", &access, 1);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	kdbus_conn_free(conn_b);
 	kdbus_conn_free(conn_a);

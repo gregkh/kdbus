@@ -505,6 +505,11 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 				goto exit;
 			}
 
+			if (!kdbus_name_is_valid(item->str, true)) {
+				ret = -EINVAL;
+				goto exit;
+			}
+
 			e = kzalloc(sizeof(*e), GFP_KERNEL);
 			if (!e) {
 				ret = -ENOMEM;
