@@ -1377,8 +1377,10 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS:
-			/* Only ordinary or monitor connections
-			 * may update their attach-flags */
+			/*
+			 * Only ordinary or monitor connections
+			 * may update their attach-flags.
+			 */
 			if (!kdbus_conn_is_connected(conn) &&
 			    !kdbus_conn_is_monitor(conn))
 				return -EOPNOTSUPP;
@@ -1389,8 +1391,9 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 
 		case KDBUS_ITEM_NAME:
 		case KDBUS_ITEM_POLICY_ACCESS:
-			/* Only policy holders may update their policy
-			 * entries */
+			/*
+			 * Only policy holders may update their policy entries.
+			 */
 			if (!kdbus_conn_is_policy_holder(conn))
 				return -EOPNOTSUPP;
 

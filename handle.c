@@ -128,14 +128,14 @@ static void *kdbus_minor_pack(enum kdbus_minor_type type, void *ptr)
 	if (WARN_ON(p & 0x3UL || type >= KDBUS_MINOR_CNT))
 		return NULL;
 
-	return (void*)(p | (unsigned long)type);
+	return (void *)(p | (unsigned long)type);
 }
 
 static enum kdbus_minor_type kdbus_minor_unpack(void **ptr)
 {
 	unsigned long p = (unsigned long)*ptr;
 
-	*ptr = (void*)(p & ~0x3UL);
+	*ptr = (void *)(p & ~0x3UL);
 	return p & 0x3UL;
 }
 

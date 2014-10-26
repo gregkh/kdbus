@@ -171,11 +171,12 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			int seals, mask;
 			int fd = item->memfd.fd;
 
-			/*
-			 * Verify the fd and increment the usage
-			 * count
-			 */
-			if (fd < 0 || !(f = fget(fd)))
+			/* Verify the fd and increment the usage count */
+			if (fd < 0)
+				return -EBADF;
+
+			f = fget(fd);
+			if (!f)
 				return -EBADF;
 
 			kmsg->memfds[kmsg->memfds_count] = f;
@@ -231,11 +232,14 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				int fd = item->fds[i];
 
 				/*
-				 * Verify the fd and increment the
-				 * usage count. Use fget_raw() to allow
-				 * passing O_PATH fds
+				 * Verify the fd and increment the usage count.
+				 * Use fget_raw() to allow passing O_PATH fds.
 				 */
-				if (fd < 0 || !(f = fget_raw(fd)))
+				if (fd < 0)
+					return -EBADF;
+
+				f = fget_raw(fd);
+				if (!f)
 					return -EBADF;
 
 				kmsg->fds[i] = f;
