@@ -242,7 +242,7 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 			      memfds, 100);
 	ASSERT_RETURN(ret == -EMFILE);
 
-	/* Combine multiple 253 fds and 100 memfds */
+	/* Combine multiple 253 fds and 128 + 1 memfds */
 	ret = send_fds_memfds(conn_src, conn_dst->id,
 			      fds, KDBUS_MSG_MAX_FDS,
 			      memfds, KDBUS_MSG_MAX_ITEMS + 1);
@@ -269,9 +269,10 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 
 int kdbus_test_fd_passing(struct kdbus_test_env *env)
 {
-	struct kdbus_conn *conn_src, *conn_dst;
+	struct kdbus_conn *conn_src, *conn_dst, *conn_dummy;
 	const char *str = "stackenblocken";
 	const struct kdbus_item *item;
+	struct kdbus_cmd_hello hello;
 	struct kdbus_msg *msg;
 	unsigned int i;
 	time_t now;
@@ -279,9 +280,32 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	int sock_pair[2];
 	int fds[2];
 	int memfd;
-	int ret;
+	int ret, connfd;
 
 	now = time(NULL);
+
+	connfd = open(env->buspath, O_RDWR|O_CLOEXEC);
+	ASSERT_RETURN(connfd >= 0);
+
+	conn_dummy = malloc(sizeof(*conn_dummy));
+	ASSERT_RETURN(conn_dummy);
+
+	/*
+	 * Create dummy connection without KDBUS_HELLO_ACCEPT_FD
+	 * to test if send fd operations are blocked
+	 */
+	memset(&hello, 0, sizeof(hello));
+	hello.size = sizeof(struct kdbus_cmd_hello);
+	hello.pool_size = POOL_SIZE;
+
+	ret = ioctl(connfd, KDBUS_CMD_HELLO, &hello);
+	if (ret < 0) {
+		kdbus_printf("--- error when saying hello: %d (%m)\n", ret);
+		return TEST_ERR;
+	}
+
+	conn_dummy->fd = connfd;
+	conn_dummy->id = hello.id;
 
 	/* create two connections */
 	conn_src = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -293,6 +317,17 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 
 	ret = socketpair(AF_UNIX, SOCK_STREAM, 0, sock_pair);
 	ASSERT_RETURN(ret == 0);
+
+	/* Setup memfd */
+	memfd = memfd_write("memfd-name", &now, sizeof(now));
+	ASSERT_RETURN(memfd >= 0);
+
+	/* Setup pipes */
+	ret = pipe(fds);
+	ASSERT_RETURN(ret == 0);
+
+	i = write(fds[1], str, strlen(str));
+	ASSERT_RETURN(i == strlen(str));
 
 	/*
 	 * Try to ass the handle of a connection as message payload.
@@ -307,11 +342,14 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	ret = send_fds(conn_src, conn_dst->id, sock_pair, 2);
 	ASSERT_RETURN(ret == -ENOTSUP);
 
-	ret = pipe(fds);
-	ASSERT_RETURN(ret == 0);
+	/*
+	 * Send fds to connection that do not accept fd passing
+	 */
+	ret = send_fds(conn_src, conn_dummy->id, fds, 1);
+	ASSERT_RETURN(ret == -ECOMM);
 
-	i = write(fds[1], str, strlen(str));
-	ASSERT_RETURN(i == strlen(str));
+	ret = send_memfds(conn_src, conn_dummy->id, (int *)&memfd, 1);
+	ASSERT_RETURN(ret == -ECOMM);
 
 	/* Try to broadcast file descriptors. This must fail. */
 	ret = send_fds(conn_src, KDBUS_DST_ID_BROADCAST, fds, 1);
@@ -340,9 +378,6 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 
 	kdbus_msg_free(msg);
 
-	memfd = memfd_write("memfd-name", &now, sizeof(now));
-	ASSERT_RETURN(memfd >= 0);
-
 	/* Try to broadcast memfd. This must succeed. */
 	ret = send_memfds(conn_src, KDBUS_DST_ID_BROADCAST, (int *)&memfd, 1);
 	ASSERT_RETURN(ret == 0);
@@ -355,6 +390,9 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	close(sock_pair[0]);
 	close(sock_pair[1]);
 	close(memfd);
+
+	close(conn_dummy->fd);
+	free(conn_dummy);
 
 	kdbus_conn_free(conn_src);
 	kdbus_conn_free(conn_dst);
