@@ -355,8 +355,19 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	ret = send_fds(conn_src, KDBUS_DST_ID_BROADCAST, fds, 1);
 	ASSERT_RETURN(ret == -ENOTUNIQ);
 
+	/* Try to broadcast memfd. This must succeed. */
+	ret = send_memfds(conn_src, KDBUS_DST_ID_BROADCAST, (int *)&memfd, 1);
+	ASSERT_RETURN(ret == 0);
+
+	/* Open code this loop */
+loop_send_fds:
+
+	/*
+	 * Send the read end of the pipe and close it.
+	 */
 	ret = send_fds(conn_src, conn_dst->id, fds, 1);
 	ASSERT_RETURN(ret == 0);
+	close(fds[0]);
 
 	ret = kdbus_msg_recv(conn_dst, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
@@ -369,24 +380,47 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 			ASSERT_RETURN(nfds == 1);
 
 			i = read(item->fds[0], tmp, sizeof(tmp));
-			ASSERT_RETURN(i == sizeof(tmp));
-			ASSERT_RETURN(memcmp(tmp, str, sizeof(tmp)) == 0);
+			if (i != 0) {
+				ASSERT_RETURN(i == sizeof(tmp));
+				ASSERT_RETURN(memcmp(tmp, str, sizeof(tmp)) == 0);
 
+				/* Write EOF */
+				close(fds[1]);
+
+				/*
+				 * Resend the read end of the pipe,
+				 * the receiver still holds a reference
+				 * to it...
+				 */
+				goto loop_send_fds;
+			}
+
+			/* Got EOF */
+
+			/*
+			 * Close the last reference to the read end
+			 * of the pipe, other references are
+			 * automatically closed just after send.
+			 */
 			close(item->fds[0]);
 		}
 	}
 
-	kdbus_msg_free(msg);
+	/*
+	 * Try to resend the read end of the pipe. Must fail with
+	 * -EBADF since both the sender and receiver closed their
+	 * references to it. We assume the above since sender and
+	 * receiver are on the same process.
+	 */
+	ret = send_fds(conn_src, conn_dst->id, fds, 1);
+	ASSERT_RETURN(ret == -EBADF);
 
-	/* Try to broadcast memfd. This must succeed. */
-	ret = send_memfds(conn_src, KDBUS_DST_ID_BROADCAST, (int *)&memfd, 1);
-	ASSERT_RETURN(ret == 0);
+	/* Then we clear out received any data... */
+	kdbus_msg_free(msg);
 
 	ret = kdbus_send_multiple_fds(conn_src, conn_dst);
 	ASSERT_RETURN(ret == 0);
 
-	close(fds[0]);
-	close(fds[1]);
 	close(sock_pair[0]);
 	close(sock_pair[1]);
 	close(memfd);
