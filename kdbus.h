@@ -90,6 +90,21 @@ struct kdbus_creds {
 };
 
 /**
+ * struct kdbus_caps - process capabilities
+ * @last_cap:	Highest currently known capability bit
+ * @caps:	Variable number of 32-bit capabilities flags
+ *
+ * Contains a variable number of 32-bit capabilities flags.
+ *
+ * Attached to:
+ *   KDBUS_ITEM_CAPS
+ */
+struct kdbus_caps {
+	__u32 last_cap;
+	__u32 caps[0];
+};
+
+/**
  * struct kdbus_audit - audit information
  * @sessionid:		The audit session ID
  * @loginuid:		The audit login uid
@@ -322,6 +337,7 @@ struct kdbus_item {
 		struct kdbus_vec vec;
 		struct kdbus_creds creds;
 		struct kdbus_audit audit;
+		struct kdbus_caps caps;
 		struct kdbus_timestamp timestamp;
 		struct kdbus_name name;
 		struct kdbus_bloom_parameter bloom_parameter;

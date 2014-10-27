@@ -605,17 +605,18 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			break;
 
 		case KDBUS_ITEM_CAPS: {
-			int n;
 			const uint32_t *cap;
-			int i;
+			int n, i;
 
-			kdbus_printf("  +%s (%llu bytes) len=%llu bytes\n",
-			       enum_MSG(item->type), item->size,
-			       (unsigned long long)item->size -
-					KDBUS_ITEM_HEADER_SIZE);
+			kdbus_printf("  +%s (%llu bytes) len=%llu bytes, last_cap %d\n",
+				     enum_MSG(item->type), item->size,
+				     (unsigned long long)item->size -
+					KDBUS_ITEM_HEADER_SIZE,
+				     (int) item->caps.last_cap);
 
-			cap = item->data32;
-			n = (item->size - KDBUS_ITEM_HEADER_SIZE) / 4 / sizeof(uint32_t);
+			cap = item->caps.caps;
+			n = (item->size - offsetof(struct kdbus_item, caps.caps))
+				/ 4 / sizeof(uint32_t);
 
 			kdbus_printf("    CapInh=");
 			for (i = 0; i < n; i++)

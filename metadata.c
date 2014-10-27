@@ -393,25 +393,30 @@ exit_free_page:
 static int kdbus_meta_append_caps(struct kdbus_meta *meta)
 {
 	struct caps {
-		u32 cap[_KERNEL_CAPABILITY_U32S];
-	} cap[4];
+		u32 last_cap;
+		struct {
+			u32 caps[_KERNEL_CAPABILITY_U32S];
+		} set[4];
+	} caps;
 	unsigned int i;
 	const struct cred *cred = current_cred();
 
+	caps.last_cap = CAP_LAST_CAP;
+
 	for (i = 0; i < _KERNEL_CAPABILITY_U32S; i++) {
-		cap[0].cap[i] = cred->cap_inheritable.cap[i];
-		cap[1].cap[i] = cred->cap_permitted.cap[i];
-		cap[2].cap[i] = cred->cap_effective.cap[i];
-		cap[3].cap[i] = cred->cap_bset.cap[i];
+		caps.set[0].caps[i] = cred->cap_inheritable.cap[i];
+		caps.set[1].caps[i] = cred->cap_permitted.cap[i];
+		caps.set[2].caps[i] = cred->cap_effective.cap[i];
+		caps.set[3].caps[i] = cred->cap_bset.cap[i];
 	}
 
 	/* clear unused bits */
 	for (i = 0; i < 4; i++)
-		cap[i].cap[CAP_TO_INDEX(CAP_LAST_CAP)] &=
+		caps.set[i].caps[CAP_TO_INDEX(CAP_LAST_CAP)] &=
 			CAP_TO_MASK(CAP_LAST_CAP + 1) - 1;
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_CAPS,
-				      cap, sizeof(cap));
+				      &caps, sizeof(caps));
 }
 
 #ifdef CONFIG_CGROUPS

@@ -1606,9 +1606,11 @@ The following attach flags are currently supported.
     Attaches an item of type KDBUS_ITEM_CGROUP with the task's cgroup path.
 
   KDBUS_ATTACH_CAPS
-    Attaches an item of type KDBUS_ITEM_CAPS, carrying 4 sets of capabilities:
-    inheritable, permitted, effective and bset. Those should be accessed via
-    kdbus_item.data32.
+    Attaches an item of type KDBUS_ITEM_CAPS, carrying sets of capabilities
+    that should be accessed via kdbus_item.caps.caps. Also, userspace should
+    be written in a way that it takes kdbus_item.caps.last_cap into account,
+    and derive the number of sets and rows from the item size and the reported
+    number of valid capability bits.
 
   KDBUS_ATTACH_SECLABEL
     Attaches an item of type KDBUS_ITEM_SECLABEL, which contains the SELinux
