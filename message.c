@@ -222,8 +222,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			if (n > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
-			kmsg->fds = kcalloc(n, sizeof(struct file *),
-					    GFP_KERNEL);
+			kmsg->fds = kcalloc(n, sizeof(*kmsg->fds), GFP_KERNEL);
 			if (!kmsg->fds)
 				return -ENOMEM;
 

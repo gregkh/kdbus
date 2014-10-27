@@ -118,9 +118,8 @@ exit_dec_reply_count:
 
 static void __kdbus_conn_reply_free(struct kref *kref)
 {
-	struct kdbus_conn_reply *reply = container_of(kref,
-						      struct kdbus_conn_reply,
-						      kref);
+	struct kdbus_conn_reply *reply =
+		container_of(kref, struct kdbus_conn_reply, kref);
 
 	atomic_dec(&reply->reply_dst->reply_count);
 	kdbus_conn_unref(reply->reply_dst);
