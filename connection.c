@@ -878,9 +878,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		if (ret < 0)
 			goto exit_unref;
-	}
-
-	if (!reply_wake) {
+	} else {
 		/*
 		 * Otherwise, put it in the queue and wait for the connection
 		 * to dequeue and receive the message.
