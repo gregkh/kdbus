@@ -387,7 +387,7 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -ECOMM);
 
 	ret = send_memfds(conn_src, conn_dummy->id, (int *)&memfd, 1);
-	ASSERT_RETURN(ret == -ECOMM);
+	ASSERT_RETURN(ret == 0);
 
 	/* Try to broadcast file descriptors. This must fail. */
 	ret = send_fds(conn_src, KDBUS_DST_ID_BROADCAST, fds, 1);
