@@ -470,8 +470,9 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	if ((kmsg->fds && !(conn->flags & KDBUS_HELLO_ACCEPT_FD)) ||
-	    (kmsg->memfds_count && !(conn->flags & KDBUS_HELLO_ACCEPT_FD))) {
+	/* The connection does not accept file descriptors */
+	if (!(conn->flags & KDBUS_HELLO_ACCEPT_FD) &&
+	    (kmsg->fds_count > 0 || kmsg->memfds_count > 0)) {
 		ret = -ECOMM;
 		goto exit_unlock;
 	}
