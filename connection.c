@@ -360,6 +360,29 @@ exit:
 	return ret;
 }
 
+static int kdbus_conn_find_reply(struct kdbus_conn *conn_replying,
+				 struct kdbus_conn *conn_reply_dst,
+				 uint64_t cookie,
+				 struct kdbus_conn_reply **reply)
+{
+	struct kdbus_conn_reply *r;
+	int ret = -ENOENT;
+
+	if (atomic_read(&conn_reply_dst->reply_count) == 0)
+		return -ENOENT;
+
+	list_for_each_entry(r, &conn_replying->reply_list, entry) {
+		if (r->reply_dst == conn_reply_dst &&
+		    r->cookie == cookie) {
+			*reply = r;
+			ret = 0;
+			break;
+		}
+	}
+
+	return ret;
+}
+
 /**
  * kdbus_cmd_msg_cancel() - cancel all pending sync requests
  *			    with the given cookie
@@ -372,10 +395,10 @@ exit:
 int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			 u64 cookie)
 {
-	struct kdbus_conn_reply *reply, *reply_tmp;
+	struct kdbus_conn_reply *reply;
 	struct kdbus_conn *c;
 	bool found = false;
-	int i;
+	int ret, i;
 
 	if (atomic_read(&conn->reply_count) == 0)
 		return -ENOENT;
@@ -387,14 +410,10 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			continue;
 
 		mutex_lock(&c->lock);
-		list_for_each_entry_safe(reply, reply_tmp,
-					 &c->reply_list, entry) {
-			if (reply->sync &&
-			    reply->reply_dst == conn &&
-			    reply->cookie == cookie) {
-				kdbus_conn_reply_sync(reply, -ECANCELED);
-				found = true;
-			}
+		ret = kdbus_conn_find_reply(c, conn, cookie, &reply);
+		if (ret == 0) {
+			kdbus_conn_reply_sync(reply, -ECANCELED);
+			found = true;
 		}
 		mutex_unlock(&c->lock);
 	}
@@ -417,21 +436,19 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	 * matching entry, allow the message to be sent, and remove it.
 	 */
 	if (reply_wake && msg->cookie_reply > 0) {
-		struct kdbus_conn_reply *r, *tmp;
+		struct kdbus_conn_reply *r;
 
 		mutex_lock(&conn_src->lock);
-		list_for_each_entry_safe(r, tmp, &conn_src->reply_list, entry) {
-			if (r->reply_dst == conn_dst &&
-			    r->cookie == msg->cookie_reply) {
-				list_del_init(&r->entry);
-				if (r->sync)
-					*reply_wake = kdbus_conn_reply_ref(r);
-				else
-					kdbus_conn_reply_unref(r);
+		ret = kdbus_conn_find_reply(conn_src, conn_dst,
+					    msg->cookie_reply, &r);
+		if (ret == 0) {
+			list_del_init(&r->entry);
+			if (r->sync)
+				*reply_wake = kdbus_conn_reply_ref(r);
+			else
+				kdbus_conn_reply_unref(r);
 
-				allowed = true;
-				break;
-			}
+			allowed = true;
 		}
 		mutex_unlock(&conn_src->lock);
 	}
