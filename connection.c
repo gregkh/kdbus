@@ -661,7 +661,6 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 				 u64 timeout_ns)
 {
 	struct kdbus_queue_entry *entry;
-	bool waiting;
 	int r, ret;
 
 	/*
@@ -674,28 +673,18 @@ static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
 		nsecs_to_jiffies(timeout_ns));
 	if (r < 0) {
 		/*
-		 * We got interrupted by a signal. We have to return to
-		 * user-space, but we cannot support SA_RESTART. If we returned
-		 * ERESTARTSYS, we would queue the message again on restart
-		 * instead of only waiting for a response.
-		 * Therefore, we require callers of SEND to always handle
-		 * EINPROGRESS if they use SYNC_REPLY. This means, the message
-		 * got queued but no response was received, yet. They must use
-		 * normal RECV to retrieve it.
+		 * Interrupted system call. Unref the reply object, and
+		 * pass the return value down the chain. Mark the reply as
+		 * interrupted, so the cleanup work can remove it, but do
+		 * not unlink it from the list. Once the syscall restarts,
+		 * we'll pick it up and wait on it again.
 		 */
-		mutex_lock(&conn_src->lock);
-		waiting = reply_wait->waiting;
-		if (waiting) {
-			reply_wait->waiting = false;
-			reply_wait->sync = false;
-			schedule_delayed_work(&conn_dst->work, 0);
-		}
-		mutex_unlock(&conn_src->lock);
+		mutex_lock(&conn_dst->lock);
+		reply_wait->interrupted = true;
+		schedule_delayed_work(&conn_dst->work, 0);
+		mutex_unlock(&conn_dst->lock);
 
-		if (waiting)
-			return -EINPROGRESS;
-
-		r = 1;
+		return r;
 	}
 
 	if (r == 0)
@@ -833,6 +822,29 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kmsg->dst_name_id = name_entry->name_id;
 
 	if (conn_src) {
+		/*
+		 * If we got here due to an interrupted system call, our reply
+		 * wait object is still queued on conn_dst, with the former
+		 * cookie. Look it up, and in case it exists, go dormant right
+		 * away again, and don't queue the message again.
+		 */
+		if (sync) {
+			mutex_lock(&conn_dst->lock);
+			ret = kdbus_conn_find_reply(conn_dst, conn_src,
+						    kmsg->msg.cookie,
+						    &reply_wait);
+			if (ret == 0) {
+				if (reply_wait->interrupted)
+					reply_wait->interrupted = false;
+				else
+					reply_wait = NULL;
+			}
+			mutex_unlock(&conn_dst->lock);
+
+			if (reply_wait)
+				goto wait_sync;
+		}
+
 		ret = kdbus_kmsg_attach_metadata(kmsg, conn_src, conn_dst);
 		if (ret < 0)
 			goto exit_unref;
@@ -862,22 +874,14 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * The connection's queue will never get to see it.
 		 */
 		mutex_lock(&conn_dst->lock);
-		if (reply_wake->sync) {
-			if (reply_wake->waiting && kdbus_conn_active(conn_dst))
-				ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
-						&reply_wake->queue_entry);
-			else
-				ret = -ECONNRESET;
+		if (reply_wake->waiting && kdbus_conn_active(conn_dst))
+			ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
+						      &reply_wake->queue_entry);
+		else
+			ret = -ECONNRESET;
 
-			kdbus_conn_reply_sync(reply_wake, ret);
-			kdbus_conn_reply_unref(reply_wake);
-		} else {
-			/* Object went into async mode; unref reply_wake and
-			 * fall-through to normal queuing below. */
-			kdbus_conn_reply_unref(reply_wake);
-			reply_wake = NULL;
-			ret = 0;
-		}
+		kdbus_conn_reply_sync(reply_wake, ret);
+		kdbus_conn_reply_unref(reply_wake);
 		mutex_unlock(&conn_dst->lock);
 
 		if (ret < 0)
@@ -899,6 +903,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	/* forward to monitors */
 	kdbus_conn_eavesdrop(ep, conn_src, kmsg);
 
+wait_sync:
 	/* no reason to keep names locked for replies */
 	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
 
