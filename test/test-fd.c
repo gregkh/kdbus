@@ -184,10 +184,37 @@ static int send_fds_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 	return ret;
 }
 
+/* Return the number of received fds */
+static unsigned int kdbus_item_get_nfds(struct kdbus_msg *msg)
+{
+	unsigned int fds = 0;
+	const struct kdbus_item *item;
+
+	KDBUS_ITEM_FOREACH(item, msg, items) {
+		switch (item->type) {
+		case KDBUS_ITEM_FDS: {
+			fds += (item->size - KDBUS_ITEM_HEADER_SIZE) /
+				sizeof(int);
+			break;
+		}
+
+		case KDBUS_ITEM_PAYLOAD_MEMFD:
+			fds++;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	return fds;
+}
+
 static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst)
 {
 	int ret, i;
+	unsigned int nfds;
 	int fds[KDBUS_MSG_MAX_FDS + 1];
 	int memfds[KDBUS_MSG_MAX_ITEMS + 1];
 	struct kdbus_msg *msg;
@@ -211,6 +238,10 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	ret = kdbus_msg_recv(conn_dst, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
+	/* Check we got the right number of fds */
+	nfds = kdbus_item_get_nfds(msg);
+	ASSERT_RETURN(nfds == KDBUS_MSG_MAX_FDS);
+
 	kdbus_msg_free(msg);
 
 	for (i = 0; i < KDBUS_MSG_MAX_ITEMS + 1; i++, dummy_value++) {
@@ -232,6 +263,10 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 
 	ret = kdbus_msg_recv(conn_dst, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
+
+	/* Check we got the right number of fds */
+	nfds = kdbus_item_get_nfds(msg);
+	ASSERT_RETURN(nfds == KDBUS_MSG_MAX_ITEMS);
 
 	kdbus_msg_free(msg);
 
@@ -255,8 +290,11 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	ret = kdbus_msg_recv(conn_dst, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	kdbus_msg_free(msg);
+	/* Check we got the right number of fds */
+	nfds = kdbus_item_get_nfds(msg);
+	ASSERT_RETURN(nfds == 253);
 
+	kdbus_msg_free(msg);
 
 	for (i = 0; i < KDBUS_MSG_MAX_FDS + 1; i++)
 		close(fds[i]);
