@@ -22,6 +22,13 @@
 
 #define SERVICE_NAME "foo.bar.echo"
 
+/*
+ * To have a banchmark comparison with unix socket, set:
+ * user_memfd	= false;
+ * compare_uds	= true;
+ * attach_none	= true;		do not attached metadata
+ */
+
 static const bool use_memfd = true;		/* transmit memfd? */
 static const bool compare_uds = false;		/* unix-socket comparison? */
 static const bool attach_none = false;		/* clear attach-flags? */
@@ -81,33 +88,16 @@ static void add_stats(uint64_t prev)
 		stats.latency_high = diff;
 }
 
-static int
-send_echo_request(struct kdbus_conn *conn, uint64_t dst_id)
+static int setup_simple_kdbus_msg(struct kdbus_conn *conn,
+				  uint64_t dst_id,
+				  struct kdbus_msg **msg_out)
 {
 	struct kdbus_msg *msg;
 	struct kdbus_item *item;
 	uint64_t size;
-	int memfd = -1;
-	int ret;
-	uint64_t now_ns;
-
-	now_ns = now();
 
 	size = sizeof(struct kdbus_msg);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-
-	if (use_memfd) {
-		memfd = sys_memfd_create("memfd-name", 0);
-		ASSERT_RETURN_VAL(memfd >= 0, memfd);
-
-		ret = write(memfd, &now_ns, sizeof(now_ns));
-		ASSERT_RETURN_VAL(ret == sizeof(now_ns), -EAGAIN);
-
-		ret = sys_memfd_seal_set(memfd);
-		ASSERT_RETURN_VAL(ret == 0, -errno);
-
-		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
-	}
 
 	msg = malloc(size);
 	ASSERT_RETURN_VAL(msg, -ENOMEM);
@@ -126,18 +116,77 @@ send_echo_request(struct kdbus_conn *conn, uint64_t dst_id)
 	item->vec.size = sizeof(stress_payload);
 	item = KDBUS_ITEM_NEXT(item);
 
+	*msg_out = msg;
+
+	return 0;
+}
+
+static int setup_memfd_kdbus_msg(struct kdbus_conn *conn,
+				 uint64_t dst_id,
+				 off_t *memfd_item_offset,
+				 struct kdbus_msg **msg_out)
+{
+	struct kdbus_msg *msg;
+	struct kdbus_item *item;
+	uint64_t size;
+
+	size = sizeof(struct kdbus_msg);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+
+	msg = malloc(size);
+	ASSERT_RETURN_VAL(msg, -ENOMEM);
+
+	memset(msg, 0, size);
+	msg->size = size;
+	msg->src_id = conn->id;
+	msg->dst_id = dst_id;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
+
+	item = msg->items;
+
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->vec.address = (uintptr_t) stress_payload;
+	item->vec.size = sizeof(stress_payload);
+	item = KDBUS_ITEM_NEXT(item);
+
+	item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
+	item->memfd.size = sizeof(uint64_t);
+
+	*memfd_item_offset = (unsigned char *)item - (unsigned char *)msg;
+	*msg_out = msg;
+
+	return 0;
+}
+
+static int
+send_echo_request(struct kdbus_conn *conn, uint64_t dst_id,
+		  void *kdbus_msg, off_t memfd_item_offset)
+{
+	int memfd = -1;
+	int ret;
+
 	if (use_memfd) {
-		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_memfd);
-		item->memfd.size = sizeof(now_ns);
+		uint64_t now_ns = now();
+		struct kdbus_item *item = memfd_item_offset + kdbus_msg;
+		memfd = sys_memfd_create("memfd-name", 0);
+		ASSERT_RETURN_VAL(memfd >= 0, memfd);
+
+		ret = write(memfd, &now_ns, sizeof(now_ns));
+		ASSERT_RETURN_VAL(ret == sizeof(now_ns), -EAGAIN);
+
+		ret = sys_memfd_seal_set(memfd);
+		ASSERT_RETURN_VAL(ret == 0, -errno);
+
 		item->memfd.fd = memfd;
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, kdbus_msg);
 	ASSERT_RETURN_VAL(ret == 0, -errno);
 
 	close(memfd);
-	free(msg);
 
 	return 0;
 }
@@ -156,6 +205,9 @@ handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 		return -EAGAIN;
 
 	ASSERT_RETURN_VAL(ret == 0, -errno);
+
+	if (!use_memfd)
+		goto out;
 
 	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
 
@@ -177,13 +229,13 @@ handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 			break;
 		}
 
-		case KDBUS_ITEM_PAYLOAD_OFF: {
+		case KDBUS_ITEM_PAYLOAD_OFF:
 			/* ignore */
 			break;
 		}
-		}
 	}
 
+out:
 	if (!has_memfd)
 		add_stats(send_ns);
 
@@ -196,6 +248,8 @@ handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 int kdbus_test_benchmark(struct kdbus_test_env *env)
 {
 	static char buf[sizeof(stress_payload)];
+	struct kdbus_msg *kdbus_msg = NULL;
+	off_t memfd_cached_offset = 0;
 	int ret;
 	struct kdbus_conn *conn_a, *conn_b;
 	struct pollfd fds[2];
@@ -233,24 +287,35 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 	ret = socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK, 0, uds);
 	ASSERT_RETURN(ret == 0);
 
+	/* setup a kdbus msg now */
+	if (use_memfd) {
+		ret = setup_memfd_kdbus_msg(conn_b, conn_a->id,
+					    &memfd_cached_offset,
+					    &kdbus_msg);
+		ASSERT_RETURN(ret == 0);
+	} else {
+		ret = setup_simple_kdbus_msg(conn_b, conn_a->id, &kdbus_msg);
+		ASSERT_RETURN(ret == 0);
+	}
+
 	/* start benchmark */
 
 	kdbus_printf("-- entering poll loop ...\n");
 
 	do {
 		/* run kdbus benchmark */
-
 		fds[0].fd = conn_a->fd;
 		fds[1].fd = conn_b->fd;
 
-		/* cancel any prending message */
+		/* cancel any pending message */
 		handle_echo_reply(conn_a, 0);
 
 		start = now();
 		reset_stats();
 
 		send_ns = now();
-		ret = send_echo_request(conn_b, conn_a->id);
+		ret = send_echo_request(conn_b, conn_a->id,
+					kdbus_msg, memfd_cached_offset);
 		ASSERT_RETURN(ret == 0);
 
 		while (1) {
@@ -268,13 +333,13 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 
 			if (fds[0].revents & POLLIN) {
 				ret = handle_echo_reply(conn_a, send_ns);
-				if (ret)
-					break;
+				ASSERT_RETURN(ret == 0);
 
 				send_ns = now();
-				ret = send_echo_request(conn_b, conn_a->id);
-				if (ret)
-					break;
+				ret = send_echo_request(conn_b, conn_a->id,
+							kdbus_msg,
+							memfd_cached_offset);
+				ASSERT_RETURN(ret == 0);
 			}
 
 			now_ns = now();
@@ -321,6 +386,7 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 			if (fds[1].revents & POLLIN) {
 				ret = read(uds[1], buf, sizeof(buf));
 				ASSERT_RETURN(ret == sizeof(buf));
+
 				add_stats(send_ns);
 
 				send_ns = now();
@@ -341,6 +407,8 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 	} while (kdbus_util_verbose);
 
 	kdbus_printf("-- closing bus connections\n");
+
+	free(kdbus_msg);
 
 	kdbus_conn_free(conn_a);
 	kdbus_conn_free(conn_b);
