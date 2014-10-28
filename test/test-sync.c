@@ -93,19 +93,7 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 				     KDBUS_MSG_FLAGS_EXPECT_REPLY |
 				     KDBUS_MSG_FLAGS_SYNC_REPLY,
 				     100000000ULL, 0, conn_src->id);
-		ASSERT_EXIT(ret == -EINPROGRESS);
-
-		/* conn_reply is now async, thus we will receive a timeout */
-
-		ret = kdbus_msg_recv_poll(conn_dst, 100, &msg, NULL);
-		ASSERT_EXIT(ret >= 0);
-
-		ASSERT_EXIT(msg->size >= sizeof(struct kdbus_msg) +
-					 KDBUS_ITEM_HEADER_SIZE);
-		ASSERT_EXIT(msg->items[0].size >= KDBUS_ITEM_HEADER_SIZE);
-		ASSERT_EXIT(msg->items[0].type == KDBUS_ITEM_REPLY_TIMEOUT);
-
-		kdbus_msg_free(msg);
+		ASSERT_EXIT(ret == -ETIMEDOUT);
 
 		_exit(EXIT_SUCCESS);
 	}
