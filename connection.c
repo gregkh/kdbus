@@ -60,6 +60,7 @@ struct kdbus_conn_reply;
  * @name_id:		ID of the well-known name the original msg was sent to
  * @sync:		The reply block is waiting for synchronous I/O
  * @waiting:		The condition to synchronously wait for
+ * @interrupted:	The sync reply was left in an interrupted state
  * @err:		The error code for the synchronous reply
  */
 struct kdbus_conn_reply {
@@ -72,6 +73,7 @@ struct kdbus_conn_reply {
 	u64 name_id;
 	bool sync:1;
 	bool waiting:1;
+	bool interrupted:1;
 	int err;
 };
 
@@ -228,7 +230,7 @@ static void kdbus_conn_work(struct work_struct *work)
 		 * the timeout is handled by wait_event_*_timeout(),
 		 * so we don't have to care for it here.
 		 */
-		if (reply->sync)
+		if (reply->sync && !reply->interrupted)
 			continue;
 
 		if (reply->deadline_ns > now) {
@@ -242,8 +244,10 @@ static void kdbus_conn_work(struct work_struct *work)
 		/*
 		 * A zero deadline means the connection died, was
 		 * cleaned up already and the notification was sent.
+		 * Don't send notifications for reply trackers that were
+		 * left in an interrupted syscall state.
 		 */
-		if (reply->deadline_ns != 0)
+		if (reply->deadline_ns != 0 && !reply->interrupted)
 			kdbus_notify_reply_timeout(conn->bus,
 						   reply->reply_dst->id,
 						   reply->cookie);
