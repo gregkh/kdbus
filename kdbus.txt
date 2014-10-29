@@ -223,7 +223,7 @@ Note:
   +-------------------------------------------------------------------------+
 
 The above description uses the D-Bus notation of unique connection names that
-adds a ":1." prefix to the connection's unique ID. kbus itself doesn't
+adds a ":1." prefix to the connection's unique ID. kdbus itself doesn't
 use that notation, neither internally nor externally. However, libraries and
 other usespace code that aims for compatibility to D-Bus might.
 
