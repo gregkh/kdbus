@@ -12,6 +12,7 @@
  */
 
 #include <linux/ctype.h>
+#include <linux/fs.h>
 #include <linux/string.h>
 
 #include "item.h"
