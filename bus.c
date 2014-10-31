@@ -268,41 +268,37 @@ exit_free_slice:
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
- * @bus:		Pointer to a reference where the new bus is stored
  *
  * This function will allocate a new kdbus_bus and link it to the given
  * domain.
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: a new kdbus_bus object on success, ERR_PTR value on failure.
  */
-int kdbus_bus_new(struct kdbus_domain *domain,
-		  const struct kdbus_cmd_make *make,
-		  const char *name,
-		  const struct kdbus_bloom_parameter *bloom,
-		  umode_t mode, kuid_t uid, kgid_t gid,
-		  struct kdbus_bus **bus)
+struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
+				const struct kdbus_cmd_make *make,
+				const char *name,
+				const struct kdbus_bloom_parameter *bloom,
+				umode_t mode, kuid_t uid, kgid_t gid)
 {
 	struct kdbus_bus *b;
 	char prefix[16];
 	int ret;
 
-	BUG_ON(*bus);
-
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-",
 		 from_kuid(current_user_ns(), uid));
 	if (strncmp(name, prefix, strlen(prefix) != 0))
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	b = kdbus_bus_find(domain, name);
 	if (b) {
 		kdbus_bus_unref(b);
-		return -EEXIST;
+		return ERR_PTR(-EEXIST);
 	}
 
 	b = kzalloc(sizeof(*b), GFP_KERNEL);
 	if (!b)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	kref_init(&b->kref);
 	b->uid_owner = uid;
@@ -324,9 +320,9 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	generate_random_uuid(b->id128);
 
 	/* cache the metadata/credentials of the creator */
-	ret = kdbus_meta_new(&b->meta);
-	if (ret < 0)
-		return ret;
+	b->meta = kdbus_meta_new();
+	if (IS_ERR(b->meta))
+		return ERR_PTR(PTR_ERR(b->meta));
 
 	ret = kdbus_meta_append(b->meta, NULL, 0,
 				KDBUS_ATTACH_CREDS	|
@@ -347,13 +343,17 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_free;
 	}
 
-	ret = kdbus_name_registry_new(&b->name_registry);
-	if (ret < 0)
+	b->name_registry = kdbus_name_registry_new();
+	if (IS_ERR(b->name_registry)) {
+		ret = PTR_ERR(b->name_registry);
 		goto exit_free_name;
+	}
 
-	ret = kdbus_ep_new(b, "bus", mode, uid, gid, false, &b->ep);
-	if (ret < 0)
+	b->ep = kdbus_ep_new(b, "bus", mode, uid, gid, false);
+	if (IS_ERR(b->ep) < 0) {
+		ret = PTR_ERR(b->ep);
 		goto exit_free_reg;
+	}
 
 	/* link into domain */
 	mutex_lock(&domain->lock);
@@ -378,8 +378,7 @@ int kdbus_bus_new(struct kdbus_domain *domain,
 	list_add_tail(&b->domain_entry, &domain->bus_list);
 	mutex_unlock(&domain->lock);
 
-	*bus = b;
-	return 0;
+	return b;
 
 exit_unref_user_unlock:
 	mutex_unlock(&domain->lock);
@@ -395,7 +394,8 @@ exit_free:
 	kdbus_policy_db_clear(&b->policy_db);
 	kdbus_domain_unref(b->domain);
 	kfree(b);
-	return ret;
+
+	return ERR_PTR(ret);
 }
 
 /**

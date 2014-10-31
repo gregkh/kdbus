@@ -18,7 +18,7 @@ struct kdbus_conn;
 struct kdbus_kmsg;
 struct kdbus_match_db;
 
-int kdbus_match_db_new(struct kdbus_match_db **db);
+struct kdbus_match_db *kdbus_match_db_new(void);
 void kdbus_match_db_free(struct kdbus_match_db *db);
 int kdbus_match_db_add(struct kdbus_conn *conn,
 		       struct kdbus_cmd_match *cmd);

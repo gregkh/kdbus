@@ -150,23 +150,22 @@ static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
  * @policy:		Whether or not the endpoint should have a policy db
- * @ep:			Pointer to a reference where the new endpoint is stored
  *
  * This function will create a new enpoint with the given
  * name and properties for a given bus.
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: a new kdbus_ep on success, ERR_PTR on failure.
  */
-int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
-		 umode_t mode, kuid_t uid, kgid_t gid,
-		 bool policy, struct kdbus_ep **ep)
+struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
+			      umode_t mode, kuid_t uid, kgid_t gid,
+			      bool policy)
 {
 	struct kdbus_ep *e;
 	int ret;
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	e->disconnected = true;
 	mutex_init(&e->lock);
@@ -231,16 +230,14 @@ int kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (ret < 0) {
 		kdbus_ep_disconnect(e);
 		kdbus_ep_unref(e);
-		return ret;
+		return ERR_PTR(ret);
 	}
 
-	if (ep)
-		*ep = e;
-	return 0;
+	return e;
 
 exit_put:
 	put_device(&e->dev);
-	return ret;
+	return ERR_PTR(ret);
 }
 
 /**

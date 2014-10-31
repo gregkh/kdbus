@@ -40,8 +40,9 @@ static int __init kdbus_init(void)
 	 * Create the initial domain; it is world-accessible and
 	 * provides the /dev/kdbus/control device node.
 	 */
-	ret = kdbus_domain_new(NULL, NULL, 0666, &kdbus_domain_init);
-	if (ret < 0) {
+	kdbus_domain_init = kdbus_domain_new(NULL, NULL, 0666);
+	if (IS_ERR(kdbus_domain_init) < 0) {
+		ret = PTR_ERR(kdbus_domain_init);
 		pr_err("failed to initialize, error=%i\n", ret);
 		goto exit_minor;
 	}

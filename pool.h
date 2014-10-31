@@ -17,7 +17,7 @@
 struct kdbus_pool;
 struct kdbus_pool_slice;
 
-int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size);
+struct kdbus_pool *kdbus_pool_new(const char *name, size_t size);
 void kdbus_pool_free(struct kdbus_pool *pool);
 size_t kdbus_pool_remain(struct kdbus_pool *pool);
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);

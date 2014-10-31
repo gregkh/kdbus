@@ -31,13 +31,12 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 			      u64 cookie, u64 msg_type)
 {
 	struct kdbus_kmsg *kmsg = NULL;
-	int ret;
 
 	BUG_ON(id == 0);
 
-	ret = kdbus_kmsg_new(0, &kmsg);
-	if (ret < 0)
-		return ret;
+	kmsg = kdbus_kmsg_new(0);
+	if (IS_ERR(kmsg))
+		return PTR_ERR(kmsg);
 
 	/*
 	 * a kernel-generated notification can only contain one
@@ -54,7 +53,7 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 	spin_lock(&bus->notify_lock);
 	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
 	spin_unlock(&bus->notify_lock);
-	return ret;
+	return 0;
 }
 
 /**
@@ -109,13 +108,12 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 {
 	struct kdbus_kmsg *kmsg = NULL;
 	size_t name_len, extra_size;
-	int ret;
 
 	name_len = strlen(name) + 1;
 	extra_size = sizeof(struct kdbus_notify_name_change) + name_len;
-	ret = kdbus_kmsg_new(extra_size, &kmsg);
-	if (ret < 0)
-		return ret;
+	kmsg = kdbus_kmsg_new(extra_size);
+	if (IS_ERR(kmsg))
+		return PTR_ERR(kmsg);
 
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
@@ -134,7 +132,7 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 	spin_lock(&bus->notify_lock);
 	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
 	spin_unlock(&bus->notify_lock);
-	return ret;
+	return 0;
 }
 
 /**
@@ -150,11 +148,10 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 {
 	struct kdbus_kmsg *kmsg = NULL;
-	int ret;
 
-	ret = kdbus_kmsg_new(sizeof(struct kdbus_notify_id_change), &kmsg);
-	if (ret < 0)
-		return ret;
+	kmsg = kdbus_kmsg_new(sizeof(struct kdbus_notify_id_change));
+	if (IS_ERR(kmsg))
+		return PTR_ERR(kmsg);
 
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
@@ -181,7 +178,7 @@ int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 	spin_lock(&bus->notify_lock);
 	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
 	spin_unlock(&bus->notify_lock);
-	return ret;
+	return 0;
 }
 
 /**

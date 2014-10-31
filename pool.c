@@ -373,12 +373,11 @@ void kdbus_pool_slice_make_public(struct kdbus_pool_slice *slice)
  * kdbus_pool_new() - create a new pool
  * @name:		Name of the (deleted) file which shows up in
  *			/proc, used for debugging
- * @pool:		Newly allocated pool
  * @size:		Maximum size of the pool
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: a new kdbus_pool on success, ERR_PTR on failure.
  */
-int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
+struct kdbus_pool *kdbus_pool_new(const char *name, size_t size)
 {
 	struct kdbus_pool_slice *s;
 	struct kdbus_pool *p;
@@ -386,11 +385,9 @@ int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 	char *n = NULL;
 	int ret;
 
-	BUG_ON(*pool);
-
 	p = kzalloc(sizeof(*p), GFP_KERNEL);
 	if (!p)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	if (name) {
 		n = kasprintf(GFP_KERNEL, KBUILD_MODNAME "-conn:%s", name);
@@ -430,8 +427,7 @@ int kdbus_pool_new(const char *name, struct kdbus_pool **pool, size_t size)
 	list_add(&s->entry, &p->slices);
 
 	kdbus_pool_add_free_slice(p, s);
-	*pool = p;
-	return 0;
+	return p;
 
 exit_put_write:
 	put_write_access(file_inode(f));
@@ -439,7 +435,7 @@ exit_put_shmem:
 	fput(f);
 exit_free:
 	kfree(p);
-	return ret;
+	return ERR_PTR(ret);
 }
 
 /**

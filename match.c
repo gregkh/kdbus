@@ -148,23 +148,21 @@ void kdbus_match_db_free(struct kdbus_match_db *db)
 
 /**
  * kdbus_match_db_new() - create a new match database
- * @db:			Pointer location for the returned database
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: a new kdbus_match_db on success, ERR_PTR on failure.
  */
-int kdbus_match_db_new(struct kdbus_match_db **db)
+struct kdbus_match_db *kdbus_match_db_new(void)
 {
 	struct kdbus_match_db *d;
 
 	d = kzalloc(sizeof(*d), GFP_KERNEL);
 	if (!d)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	mutex_init(&d->entries_lock);
 	INIT_LIST_HEAD(&d->entries_list);
 
-	*db = d;
-	return 0;
+	return d;
 }
 
 static bool kdbus_match_bloom(const struct kdbus_bloom_filter *filter,

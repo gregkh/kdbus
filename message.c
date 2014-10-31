@@ -56,27 +56,23 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 /**
  * kdbus_kmsg_new() - allocate message
  * @extra_size:		additional size to reserve for data
- * @kmsg:			Returned Message
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: new kdbus_kmsg on success, ERR_PTR on failure.
  */
-int kdbus_kmsg_new(size_t extra_size, struct kdbus_kmsg **kmsg)
+struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 {
 	struct kdbus_kmsg *m;
 	size_t size;
 
-	BUG_ON(*kmsg);
-
 	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	m = kzalloc(size, GFP_KERNEL);
 	if (!m)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
-	*kmsg = m;
-	return 0;
+	return m;
 }
 
 static int kdbus_handle_check_file(struct file *file)
@@ -324,34 +320,30 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
  * kdbus_kmsg_new_from_user() - copy message from user memory
  * @conn:		Connection
  * @msg:		User-provided message
- * @kmsg:		Copy of message
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: a new kdbus_kmsg on success, ERR_PTR on failure.
  */
-int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
-			     struct kdbus_msg __user *msg,
-			     struct kdbus_kmsg **kmsg)
+struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
+					    struct kdbus_msg __user *msg)
 {
 	struct kdbus_kmsg *m;
 	u64 size, alloc_size;
 	int ret;
 
-	BUG_ON(*kmsg);
-
 	if (!KDBUS_IS_ALIGNED8((unsigned long)msg))
-		return -EFAULT;
+		return ERR_PTR(-EFAULT);
 
 	if (kdbus_size_get_user(&size, msg, struct kdbus_msg))
-		return -EFAULT;
+		return ERR_PTR(-EFAULT);
 
 	if (size < sizeof(struct kdbus_msg) || size > KDBUS_MSG_MAX_SIZE)
-		return -EMSGSIZE;
+		return ERR_PTR(-EMSGSIZE);
 
 	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;
 
 	m = kmalloc(alloc_size, GFP_KERNEL);
 	if (!m)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
 
 	if (copy_from_user(&m->msg, msg, size)) {
@@ -411,10 +403,9 @@ int kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	}
 	m->msg.src_id = conn->id;
 
-	*kmsg = m;
-	return 0;
+	return m;
 
 exit_free:
 	kdbus_kmsg_free(m);
-	return ret;
+	return ERR_PTR(ret);
 }

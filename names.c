@@ -76,23 +76,21 @@ void kdbus_name_registry_free(struct kdbus_name_registry *reg)
 
 /**
  * kdbus_name_registry_new() - create a new name registry
- * @reg:		The returned name registry
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: a new kdbus_name_registry on success, ERR_PTR on failure.
  */
-int kdbus_name_registry_new(struct kdbus_name_registry **reg)
+struct kdbus_name_registry *kdbus_name_registry_new(void)
 {
 	struct kdbus_name_registry *r;
 
 	r = kzalloc(sizeof(*r), GFP_KERNEL);
 	if (!r)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	hash_init(r->entries_hash);
 	init_rwsem(&r->rwlock);
 
-	*reg = r;
-	return 0;
+	return r;
 }
 
 static struct kdbus_name_entry *

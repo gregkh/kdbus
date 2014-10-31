@@ -77,10 +77,10 @@ struct kdbus_conn_reply {
 	int err;
 };
 
-static int kdbus_conn_reply_new(struct kdbus_conn_reply **reply_wait,
-				struct kdbus_conn *reply_dst,
-				const struct kdbus_msg *msg,
-				struct kdbus_name_entry *name_entry)
+static struct kdbus_conn_reply *
+kdbus_conn_reply_new(struct kdbus_conn *reply_dst,
+		     const struct kdbus_msg *msg,
+		     struct kdbus_name_entry *name_entry)
 {
 	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	struct kdbus_conn_reply *r;
@@ -109,13 +109,13 @@ static int kdbus_conn_reply_new(struct kdbus_conn_reply **reply_wait,
 		r->waiting = true;
 	}
 
-	*reply_wait = r;
-
 exit_dec_reply_count:
-	if (ret < 0)
+	if (ret < 0) {
 		atomic_dec(&reply_dst->reply_count);
+		return ERR_PTR(ret);
+	}
 
-	return ret;
+	return r;
 }
 
 static void __kdbus_conn_reply_free(struct kref *kref)
@@ -752,12 +752,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * and take care not to augment it by attaching any new items.
 		 */
 		if (conn_src->owner_meta)
-			ret = kdbus_meta_dup(conn_src->owner_meta, &kmsg->meta);
+			kmsg->meta = kdbus_meta_dup(conn_src->owner_meta);
 		else
-			ret = kdbus_meta_new(&kmsg->meta);
+			kmsg->meta = kdbus_meta_new();
 
-		if (ret < 0)
-			return ret;
+		if (IS_ERR(kmsg->meta))
+			return PTR_ERR(kmsg->meta);
 	}
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
@@ -854,10 +854,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			if (ret < 0)
 				goto exit_unref;
 
-			ret = kdbus_conn_reply_new(&reply_wait, conn_src, msg,
-						   name_entry);
-			if (ret < 0)
+			reply_wait = kdbus_conn_reply_new(conn_src, msg,
+							  name_entry);
+			if (IS_ERR(reply_wait)) {
+				ret = PTR_ERR(reply_wait);
 				goto exit_unref;
+			}
 		} else {
 			ret = kdbus_conn_check_access(ep, msg, conn_src,
 						      conn_dst, &reply_wake);
@@ -1328,9 +1330,11 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	 */
 	flags = cmd_info->flags & (KDBUS_ATTACH_NAMES | KDBUS_ATTACH_CONN_NAME);
 	if (flags) {
-		ret = kdbus_meta_new(&meta);
-		if (ret < 0)
+		meta = kdbus_meta_new();
+		if (IS_ERR(meta)) {
+			ret = PTR_ERR(meta);
 			goto exit;
+		}
 
 		ret = kdbus_meta_append(meta, owner_conn, 0, flags);
 		if (ret < 0)
@@ -1444,14 +1448,12 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
  * @ep:			The endpoint the connection is connected to
  * @hello:		The kdbus_cmd_hello as passed in by the user
  * @meta:		The metadata gathered at open() time of the handle
- * @c:			Returned connection
  *
- * Return: 0 on success, negative errno on failure
+ * Return: a new kdbus_conn on success, ERR_PTR on failure
  */
-int kdbus_conn_new(struct kdbus_ep *ep,
-		   struct kdbus_cmd_hello *hello,
-		   struct kdbus_meta *meta,
-		   struct kdbus_conn **c)
+struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
+				  struct kdbus_cmd_hello *hello,
+				  struct kdbus_meta *meta)
 {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	static struct lock_class_key __key;
@@ -1469,37 +1471,35 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	bool is_monitor;
 	int ret;
 
-	BUG_ON(*c);
-
 	is_monitor = hello->flags & KDBUS_HELLO_MONITOR;
 	is_activator = hello->flags & KDBUS_HELLO_ACTIVATOR;
 	is_policy_holder = hello->flags & KDBUS_HELLO_POLICY_HOLDER;
 
 	/* can't be activator or policy holder and monitor at the same time */
 	if (is_monitor && (is_activator || is_policy_holder))
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	/* can't be policy holder and activator at the same time */
 	if (is_activator && is_policy_holder)
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	/* only privileged connections can activate and monitor */
 	if (!kdbus_bus_uid_is_privileged(bus) &&
 	    (is_activator || is_policy_holder || is_monitor))
-		return -EPERM;
+		return ERR_PTR(-EPERM);
 
 	KDBUS_ITEMS_FOREACH(item, hello->items,
 			    KDBUS_ITEMS_SIZE(hello, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_NAME:
 			if (!is_activator && !is_policy_holder)
-				return -EINVAL;
+				return ERR_PTR(-EINVAL);
 
 			if (name)
-				return -EINVAL;
+				return ERR_PTR(-EINVAL);
 
 			if (!kdbus_name_is_valid(item->str, true))
-				return -EINVAL;
+				return ERR_PTR(-EINVAL);
 
 			name = item->str;
 			break;
@@ -1507,10 +1507,10 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		case KDBUS_ITEM_CREDS:
 			/* privileged processes can impersonate somebody else */
 			if (!kdbus_bus_uid_is_privileged(bus))
-				return -EPERM;
+				return ERR_PTR(-EPERM);
 
 			if (item->size != KDBUS_ITEM_SIZE(sizeof(*creds)))
-				return -EINVAL;
+				return ERR_PTR(-EINVAL);
 
 			creds = &item->creds;
 			break;
@@ -1518,7 +1518,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		case KDBUS_ITEM_SECLABEL:
 			/* privileged processes can impersonate somebody else */
 			if (!kdbus_bus_uid_is_privileged(bus))
-				return -EPERM;
+				return ERR_PTR(-EPERM);
 
 			seclabel = item->str;
 			seclabel_len = item->size - KDBUS_ITEM_HEADER_SIZE;
@@ -1527,7 +1527,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 		case KDBUS_ITEM_CONN_NAME:
 			/* human-readable connection name (debugging) */
 			if (conn_name)
-				return -EINVAL;
+				return ERR_PTR(-EINVAL);
 
 			conn_name = item->str;
 			break;
@@ -1535,11 +1535,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	if ((is_activator || is_policy_holder) && !name)
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	if (is_activator || is_policy_holder) {
 		/*
@@ -1580,13 +1580,17 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);
 
-	ret = kdbus_pool_new(conn->name, &conn->pool, hello->pool_size);
-	if (ret < 0)
+	conn->pool = kdbus_pool_new(conn->name, hello->pool_size);
+	if (IS_ERR(conn->pool)) {
+		ret = PTR_ERR(conn->pool);
 		goto exit_unref_cred;
+	}
 
-	ret = kdbus_match_db_new(&conn->match_db);
-	if (ret < 0)
+	conn->match_db = kdbus_match_db_new();
+	if (IS_ERR(conn->match_db)) {
+		ret = PTR_ERR(conn->match_db);
 		goto exit_free_pool;
+	}
 
 	conn->bus = kdbus_bus_ref(ep->bus);
 	conn->ep = kdbus_ep_ref(ep);
@@ -1622,9 +1626,11 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* privileged processes can impersonate somebody else */
 	if (creds || seclabel) {
-		ret = kdbus_meta_new(&conn->owner_meta);
-		if (ret < 0)
+		conn->owner_meta = kdbus_meta_new();
+		if (IS_ERR(conn->owner_meta)) {
+			ret = PTR_ERR(conn->owner_meta);
 			goto exit_release_names;
+		}
 
 		if (creds) {
 			ret = kdbus_meta_append_data(conn->owner_meta,
@@ -1698,8 +1704,7 @@ int kdbus_conn_new(struct kdbus_ep *ep,
 
 	kdbus_notify_flush(conn->bus);
 
-	*c = conn;
-	return 0;
+	return conn;
 
 exit_unref_user_unlock:
 	up_write(&bus->conn_rwlock);
@@ -1723,7 +1728,7 @@ exit_free_conn:
 	kfree(conn->name);
 	kfree(conn);
 
-	return ret;
+	return ERR_PTR(ret);
 }
 
 /**

@@ -35,19 +35,16 @@
 
 /**
  * kdbus_meta_new() - create new metadata object
- * @meta:		New metadata object
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: a new kdbus_meta object on success, ERR_PTR on failure.
  */
-int kdbus_meta_new(struct kdbus_meta **meta)
+struct kdbus_meta *kdbus_meta_new(void)
 {
 	struct kdbus_meta *m;
 
-	BUG_ON(*meta);
-
 	m = kzalloc(sizeof(*m), GFP_KERNEL);
 	if (!m)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	/*
 	 * Remember the PID and user namespaces our credentials belong to;
@@ -57,33 +54,30 @@ int kdbus_meta_new(struct kdbus_meta **meta)
 	m->pid_namespace = get_pid_ns(task_active_pid_ns(current));
 	m->user_namespace = get_user_ns(current_user_ns());
 
-	*meta = m;
-	return 0;
+	return m;
 }
 
 /**
  * kdbus_meta_dup() - Duplicate a meta object
  *
  * @orig:	The meta object to duplicate
- * @copy:	Return pointer for the duplicated object
  *
- * Return: 0 on success, -ENOMEM on memory allocation failures.
+ * Return: a new kdbus_meta object on success, ERR_PTR on failure.
  */
-int kdbus_meta_dup(const struct kdbus_meta *orig,
-		   struct kdbus_meta **copy)
+struct kdbus_meta *kdbus_meta_dup(const struct kdbus_meta *orig)
 {
 	struct kdbus_meta *m;
 
-	BUG_ON(!orig || !copy);
+	BUG_ON(!orig);
 
 	m = kmalloc(sizeof(*m), GFP_KERNEL);
 	if (!m)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	m->data = kmemdup(orig->data, orig->allocated_size, GFP_KERNEL);
 	if (!m->data) {
 		kfree(m);
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 	}
 
 	m->pid_namespace = get_pid_ns(orig->pid_namespace);
@@ -93,8 +87,7 @@ int kdbus_meta_dup(const struct kdbus_meta *orig,
 	m->allocated_size = orig->allocated_size;
 	m->size = orig->size;
 
-	*copy = m;
-	return 0;
+	return m;
 }
 
 /**

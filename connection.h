@@ -103,10 +103,9 @@ struct kdbus_conn {
 struct kdbus_kmsg;
 struct kdbus_name_registry;
 
-int kdbus_conn_new(struct kdbus_ep *ep,
-		   struct kdbus_cmd_hello *hello,
-		   struct kdbus_meta *meta,
-		   struct kdbus_conn **conn);
+struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
+				  struct kdbus_cmd_hello *hello,
+				  struct kdbus_meta *meta);
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
 int kdbus_conn_acquire(struct kdbus_conn *conn);

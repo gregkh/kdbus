@@ -192,24 +192,21 @@ static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain *parent,
  * @parent:		Parent domain, NULL for initial one
  * @name:		Name of the domain, NULL for the initial one
  * @mode:		The access mode for the "control" device node
- * @domain:		The returned domain
  *
- * Return: 0 on success, negative errno on failure
+ * Return: a new kdbus_domain on success, ERR_PTR on failure
  */
-int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
-		     umode_t mode, struct kdbus_domain **domain)
+struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
+				      const char *name, umode_t mode)
 {
 	struct kdbus_domain *d;
 	int ret;
 
-	BUG_ON(*domain);
-
 	if ((parent && !name) || (!parent && name))
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	d = kzalloc(sizeof(*d), GFP_KERNEL);
 	if (!d)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	d->disconnected = true;
 	INIT_LIST_HEAD(&d->bus_list);
@@ -297,15 +294,14 @@ int kdbus_domain_new(struct kdbus_domain *parent, const char *name,
 	if (ret < 0) {
 		kdbus_domain_disconnect(d);
 		kdbus_domain_unref(d);
-		return ret;
+		return ERR_PTR(ret);
 	}
 
-	*domain = d;
-	return 0;
+	return d;
 
 exit_put:
 	put_device(&d->dev);
-	return ret;
+	return ERR_PTR(ret);
 }
 
 /**

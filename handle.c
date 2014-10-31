@@ -285,9 +285,11 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
 
 		/* cache the metadata/credentials of the creator */
-		ret = kdbus_meta_new(&handle->meta);
-		if (ret < 0)
+		handle->meta = kdbus_meta_new();
+		if (IS_ERR(handle->meta)) {
+			ret = PTR_ERR(handle->meta);
 			goto exit_free;
+		}
 
 		ret = kdbus_meta_append(handle->meta, NULL, 0,
 					KDBUS_ATTACH_CREDS	|
@@ -481,10 +483,12 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		ret = kdbus_bus_new(handle->domain, make, name, &bloom,
-				    mode, current_fsuid(), gid, &bus);
-		if (ret < 0)
+		bus = kdbus_bus_new(handle->domain, make, name, &bloom,
+				    mode, current_fsuid(), gid);
+		if (IS_ERR(bus)) {
+			ret = PTR_ERR(bus);
 			break;
+		}
 
 		/* turn the control fd into a new bus owner device */
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
@@ -534,9 +538,11 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
 
-		ret = kdbus_domain_new(handle->domain, name, mode, &domain);
-		if (ret < 0)
+		domain = kdbus_domain_new(handle->domain, name, mode);
+		if (IS_ERR(domain)) {
+			ret = PTR_ERR(domain);
 			break;
+		}
 
 		/* turn the control fd into a new domain owner device */
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
@@ -615,10 +621,12 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		/* custom endpoints always have a policy db */
-		ret = kdbus_ep_new(handle->ep->bus, name, mode,
-				   current_fsuid(), gid, true, &ep);
-		if (ret < 0)
+		ep = kdbus_ep_new(handle->ep->bus, name, mode,
+				  current_fsuid(), gid, true);
+		if (IS_ERR(ep)) {
+			ret = PTR_ERR(ep);
 			break;
+		}
 
 		ret = kdbus_ep_policy_set(ep, make->items,
 					  KDBUS_ITEMS_SIZE(make, items));
@@ -683,9 +691,11 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_conn_new(handle->ep, hello, handle->meta, &conn);
-		if (ret < 0)
+		conn = kdbus_conn_new(handle->ep, hello, handle->meta);
+		if (IS_ERR(conn)) {
+			ret = PTR_ERR(conn);
 			break;
+		}
 
 		/* turn the ep fd into a new connection */
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_EP,
@@ -985,9 +995,11 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_kmsg_new_from_user(conn, buf, &kmsg);
-		if (ret < 0)
+		kmsg = kdbus_kmsg_new_from_user(conn, buf);
+		if (IS_ERR(kmsg)) {
+			ret = PTR_ERR(kmsg);
 			break;
+		}
 
 		ret = kdbus_conn_kmsg_send(conn->ep, conn, kmsg);
 		if (ret < 0) {
