@@ -228,7 +228,7 @@ void kdbus_minor_set(dev_t devt, enum kdbus_minor_type type, void *ptr)
 	ptr = kdbus_minor_pack(type, ptr);
 
 	spin_lock(&kdbus_minor_lock);
-	ptr = idr_replace(&kdbus_minor_idr, ptr, minor);
+	idr_replace(&kdbus_minor_idr, ptr, minor);
 	spin_unlock(&kdbus_minor_lock);
 }
 
