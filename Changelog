@@ -1,0 +1,22 @@
+since RFC v1:
+
+ * Make functions that create new objects return the newly allocated
+   memory directly, rather than in a referenced function arguments.
+   That implies using ERR_PTR() logic in many areas. Requested by
+   Al Viro.
+
+  * Use #defines rather than an enum for the ioctl signatures, so when
+    new ones are added, usespace can use #ifdeffery to determine the
+    function set at compile time. Suggested by Arnd Bergmann.
+
+  * Rework pointer assignment logic and some other trivial fixes in
+    handle.c. Reported by Thomas Gleixner.
+
+  * Rename two details in kdbus.h to not overload the term 'name' too
+    much:
+
+     KDBUS_ITEM_CONN_NAME	→ KDBUS_ITEM_CONN_DESCRIPTION
+     KDBUS_ATTACH_CONN_NAME	→ KDBUS_ATTACH_CONN_DESCRIPTION
+
+  * Documentation fixes, by Peter Meerwald and others.
+
