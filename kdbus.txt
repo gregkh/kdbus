@@ -490,7 +490,7 @@ struct kdbus_cmd_hello {
       Variable list of items to add optional additional information. The
       following items are currently expected/valid:
 
-      KDBUS_ITEM_CONN_NAME
+      KDBUS_ITEM_CONN_DESCRIPTION
         Contains a string to describes this connection's name, so it can be
         identified later.
 
@@ -591,7 +591,7 @@ struct kdbus_info {
 
   struct kdbus_item items[0];
     Depending on the 'flags' field in struct kdbus_cmd_info, items of
-    types KDBUS_ITEM_NAME and KDBUS_ITEM_CONN_NAME are followed here.
+    types KDBUS_ITEM_NAME and KDBUS_ITEM_CONN_DESCRIPTION are followed here.
 };
 
 Once the caller is finished with parsing the return buffer, it needs to call
@@ -1620,8 +1620,8 @@ The following attach flags are currently supported.
     of the sending taskj. Access via kdbus_item->str.
 
   KDBUS_ATTACH_CONN_NAME
-    Attaches an item of type KDBUS_ITEM_CONN_NAME that contain's the
-    sending's connection current name in kdbus_item.str.
+    Attaches an item of type KDBUS_ITEM_CONN_DESCRIPTION that contains the
+    sender connection's current name in kdbus_item.str.
 
 
 13.1 Metadata and namespaces

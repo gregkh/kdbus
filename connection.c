@@ -550,7 +550,8 @@ static int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
 	attach_flags = atomic64_read(&conn_dst->attach_flags);
 
 	if (conn_src->owner_meta)
-		attach_flags &= KDBUS_ATTACH_NAMES | KDBUS_ATTACH_CONN_NAME;
+		attach_flags &= KDBUS_ATTACH_NAMES |
+				KDBUS_ATTACH_CONN_DESCRIPTION;
 
 	return kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq, attach_flags);
 }
@@ -1328,7 +1329,8 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	 * at creation time a connection does not have names and other
 	 * properties.
 	 */
-	flags = cmd_info->flags & (KDBUS_ATTACH_NAMES | KDBUS_ATTACH_CONN_NAME);
+	flags = cmd_info->flags & (KDBUS_ATTACH_NAMES |
+				   KDBUS_ATTACH_CONN_DESCRIPTION);
 	if (flags) {
 		meta = kdbus_meta_new();
 		if (IS_ERR(meta)) {
@@ -1524,7 +1526,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 			seclabel_len = item->size - KDBUS_ITEM_HEADER_SIZE;
 			break;
 
-		case KDBUS_ITEM_CONN_NAME:
+		case KDBUS_ITEM_CONN_DESCRIPTION:
 			/* human-readable connection name (debugging) */
 			if (conn_name)
 				return ERR_PTR(-EINVAL);

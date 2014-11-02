@@ -101,7 +101,7 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 		/* size depends on bloom-size of bus */
 		break;
 
-	case KDBUS_ITEM_CONN_NAME:
+	case KDBUS_ITEM_CONN_DESCRIPTION:
 	case KDBUS_ITEM_MAKE_NAME:
 		ret = kdbus_item_validate_name(item);
 		if (ret < 0)

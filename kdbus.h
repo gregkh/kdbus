@@ -275,7 +275,7 @@ enum kdbus_item_type {
 	KDBUS_ITEM_CAPS,
 	KDBUS_ITEM_SECLABEL,
 	KDBUS_ITEM_AUDIT,
-	KDBUS_ITEM_CONN_NAME,
+	KDBUS_ITEM_CONN_DESCRIPTION,
 
 	_KDBUS_ITEM_POLICY_BASE	= 0x2000,
 	KDBUS_ITEM_POLICY_ACCESS = _KDBUS_ITEM_POLICY_BASE,
@@ -535,20 +535,20 @@ enum kdbus_hello_flags {
 
 /**
  * enum kdbus_attach_flags - flags for metadata attachments
- * @KDBUS_ATTACH_TIMESTAMP:	Timestamp
- * @KDBUS_ATTACH_CREDS:		Credentials
- * @KDBUS_ATTACH_AUXGROUPS:	Auxiliary groups
- * @KDBUS_ATTACH_NAMES:		Well-known names
- * @KDBUS_ATTACH_COMM_TID:	The "comm" process identifier of the TID
- * @KDBUS_ATTACH_COMM_PID:	The "comm" process identifier of the PID
- * @KDBUS_ATTACH_EXE:		The path of the executable
- * @KDBUS_ATTACH_CMDLINE:	The process command line
- * @KDBUS_ATTACH_CGROUP:	The croup membership
- * @KDBUS_ATTACH_CAPS:		The process capabilities
- * @KDBUS_ATTACH_SECLABEL:	The security label
- * @KDBUS_ATTACH_AUDIT:		The audit IDs
- * @KDBUS_ATTACH_CONN_NAME:	The human-readable connection name
- * @_KDBUS_ATTACH_ALL:		All of the above
+ * @KDBUS_ATTACH_TIMESTAMP:		Timestamp
+ * @KDBUS_ATTACH_CREDS:			Credentials
+ * @KDBUS_ATTACH_AUXGROUPS:		Auxiliary groups
+ * @KDBUS_ATTACH_NAMES:			Well-known names
+ * @KDBUS_ATTACH_COMM_TID:		The "comm" process identifier of the TID
+ * @KDBUS_ATTACH_COMM_PID:		The "comm" process identifier of the PID
+ * @KDBUS_ATTACH_EXE:			The path of the executable
+ * @KDBUS_ATTACH_CMDLINE:		The process command line
+ * @KDBUS_ATTACH_CGROUP:		The croup membership
+ * @KDBUS_ATTACH_CAPS:			The process capabilities
+ * @KDBUS_ATTACH_SECLABEL:		The security label
+ * @KDBUS_ATTACH_AUDIT:			The audit IDs
+ * @KDBUS_ATTACH_CONN_DESCRIPTION:	The human-readable connection name
+ * @_KDBUS_ATTACH_ALL:			All of the above
  */
 enum kdbus_attach_flags {
 	KDBUS_ATTACH_TIMESTAMP		=  1ULL <<  0,
@@ -563,7 +563,7 @@ enum kdbus_attach_flags {
 	KDBUS_ATTACH_CAPS		=  1ULL <<  9,
 	KDBUS_ATTACH_SECLABEL		=  1ULL << 10,
 	KDBUS_ATTACH_AUDIT		=  1ULL << 11,
-	KDBUS_ATTACH_CONN_NAME		=  1ULL << 12,
+	KDBUS_ATTACH_CONN_DESCRIPTION	=  1ULL << 12,
 	_KDBUS_ATTACH_ALL		=  (1ULL << 13) - 1,
 };
 

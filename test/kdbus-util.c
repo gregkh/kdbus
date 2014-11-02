@@ -141,7 +141,7 @@ kdbus_hello(const char *path, uint64_t flags,
 
 	h.hello.flags = flags | KDBUS_HELLO_ACCEPT_FD;
 	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
-	h.conn_name.type = KDBUS_ITEM_CONN_NAME;
+	h.conn_name.type = KDBUS_ITEM_CONN_DESCRIPTION;
 	strcpy(h.conn_name.str, "this-is-my-name");
 	h.conn_name.size = KDBUS_ITEM_HEADER_SIZE + strlen(h.conn_name.str) + 1;
 
@@ -564,7 +564,7 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 		case KDBUS_ITEM_CGROUP:
 		case KDBUS_ITEM_SECLABEL:
 		case KDBUS_ITEM_DST_NAME:
-		case KDBUS_ITEM_CONN_NAME:
+		case KDBUS_ITEM_CONN_DESCRIPTION:
 			kdbus_printf("  +%s (%llu bytes) '%s' (%zu)\n",
 				     enum_MSG(item->type), item->size,
 				     item->str, strlen(item->str));
