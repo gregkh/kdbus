@@ -32,6 +32,7 @@
 #include "message.h"
 #include "metadata.h"
 #include "names.h"
+#include "pool.h"
 
 /**
  * kdbus_meta_new() - create new metadata object
@@ -614,6 +615,77 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 		meta->attached |= KDBUS_ATTACH_CONN_DESCRIPTION;
 	}
+
+	return 0;
+}
+
+static inline u64 kdbus_item_attach_flag(u64 type)
+{
+	BUG_ON(type < _KDBUS_ITEM_ATTACH_BASE);
+	BUG_ON(type >= _KDBUS_ITEM_ATTACH_BASE + 64);
+	return 1ULL << (type - _KDBUS_ITEM_ATTACH_BASE);
+}
+
+/**
+ * kdbus_meta_size() - calculate the size of an excerpt of a metadata db
+ * @meta:	The database object containing the metadata
+ * @conn_dst:	The connection that is about to receive the data
+ * @mask:	KDBUS_ATTACH_* bitmask to calculate the size for
+ *
+ * Return: the size in bytes the masked data will consume. Data that should
+ * not received by @conn_dst will be filtered out.
+ */
+size_t kdbus_meta_size(const struct kdbus_meta *meta,
+		       const struct kdbus_conn *conn_dst,
+		       u64 mask)
+{
+	const struct kdbus_item *item;
+	size_t size = 0;
+
+	if (!kdbus_meta_ns_eq(meta, conn_dst->meta))
+		return 0;
+
+	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
+		if (mask & kdbus_item_attach_flag(item->type))
+			size += KDBUS_ALIGN8(item->size);
+
+	return size;
+}
+
+/**
+ * kdbus_meta_write() - Write an excerpt of a metadata db to a slice
+ * @meta:	The database object containing the metadata
+ * @conn_dst:	The connection that is about to receive the data
+ * @mask:	KDBUS_ATTACH_* bitmask to calculate the size for
+ * @slice:	The slice to copy the data to
+ * @off:	The initial offset in the slice to write to
+ *
+ * Copies some of the metadata's items to @slice, if that the item is
+ * suitable for @conn_dst to be received. Otherwise, the item is omitted.
+ * Privided the same input parameters, this function will write exactly as
+ * many bytes as reported by kdbus_meta_size().
+ *
+ * Return: 0 on success, negative error number otherwise.
+ */
+int kdbus_meta_write(const struct kdbus_meta *meta,
+		     const struct kdbus_conn *conn_dst, u64 mask,
+		     const struct kdbus_pool_slice *slice, size_t off)
+{
+	const struct kdbus_item *item;
+	int ret;
+
+	if (!kdbus_meta_ns_eq(meta, conn_dst->meta))
+		return 0;
+
+	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
+		if (mask & kdbus_item_attach_flag(item->type)) {
+			ret = kdbus_pool_slice_copy(slice, off, item,
+						    KDBUS_ALIGN8(item->size));
+			if (ret < 0)
+				return ret;
+
+			off += KDBUS_ALIGN8(item->size);
+		}
 
 	return 0;
 }

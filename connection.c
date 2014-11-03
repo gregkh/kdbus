@@ -588,10 +588,10 @@ static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 			continue;
 
 		/*
-		 * The first receiver which requests additional
-		 * metadata causes the message to carry it; all
-		 * receivers after that will see all of the added
-		 * data, even when they did not ask for it.
+		 * The first receiver which requests additional metadata
+		 * causes the message to carry it; data that is in fact added
+		 * to the message is still subject to what the receiver
+		 * requested, and will be filtered by kdbus_meta_write().
 		 */
 		if (conn_src) {
 			/* Check if conn_src is allowed to signal */

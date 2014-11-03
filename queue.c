@@ -420,7 +420,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 {
 	struct kdbus_queue_entry *entry;
 	struct kdbus_item *it;
-	u64 msg_size;
+	size_t msg_size;
 	size_t size;
 	size_t dst_name_len = 0;
 	size_t payloads = 0;
@@ -428,6 +428,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	size_t meta_off = 0;
 	size_t vec_data;
 	size_t want, have;
+	u64 attach_flags;
 	int ret = 0;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -472,11 +473,17 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
 	}
 
+	attach_flags = atomic64_read(&conn->attach_flags);
+
 	/* space for metadata/credential items */
-	if (kmsg->meta && kmsg->meta->size > 0 &&
-	    kdbus_meta_ns_eq(kmsg->meta, conn->meta)) {
-		meta_off = msg_size;
-		msg_size += kmsg->meta->size;
+	if (kmsg->meta) {
+		size_t meta_size;
+
+		meta_size = kdbus_meta_size(kmsg->meta, conn, attach_flags);
+		if (meta_size > 0) {
+			meta_off = msg_size;
+			msg_size += meta_size;
+		}
 	}
 
 	/* data starts after the message */
@@ -558,9 +565,8 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	/* append message metadata/credential items */
 	if (meta_off > 0) {
-		ret = kdbus_pool_slice_copy(entry->slice, meta_off,
-					    kmsg->meta->data,
-					    kmsg->meta->size);
+		ret = kdbus_meta_write(kmsg->meta, conn, attach_flags,
+				       entry->slice, meta_off);
 		if (ret < 0)
 			goto exit_pool_free;
 	}
