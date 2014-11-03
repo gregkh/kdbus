@@ -369,8 +369,15 @@ int kdbus_domain_get_user_unlocked(struct kdbus_domain *domain,
 			if (!uid_eq(tmp_user->uid, uid))
 				continue;
 
-			u = kdbus_domain_user_ref(tmp_user);
-			goto out;
+			/*
+			 * If the ref-count is already 0, the destructor is
+			 * about to unlink and destroy the object. Continue
+			 * looking for a next one or create one, if none found.
+			 */
+			if (kref_get_unless_zero(&tmp_user->kref)) {
+				u = tmp_user;
+				goto out;
+			}
 		}
 	}
 
@@ -435,6 +442,11 @@ static void __kdbus_domain_user_free(struct kref *kref)
 	BUG_ON(atomic_read(&user->buses) > 0);
 	BUG_ON(atomic_read(&user->connections) > 0);
 
+	/*
+	 * Lookups ignore objects with a ref-count of 0. Therefore, we can
+	 * safely remove it from the table after dropping the last reference.
+	 * No-one will acquire a ref in parallel.
+	 */
 	mutex_lock(&user->domain->lock);
 	idr_remove(&user->domain->user_idr, user->idr);
 	hash_del(&user->hentry);
