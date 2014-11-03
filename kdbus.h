@@ -181,7 +181,7 @@ struct kdbus_memfd {
  * @name:		Well-known name
  *
  * Attached to:
- *   KDBUS_ITEM_NAME
+ *   KDBUS_ITEM_OWNED_NAME
  */
 struct kdbus_name {
 	__u64 flags;
@@ -221,14 +221,15 @@ struct kdbus_policy_access {
  * @KDBUS_ITEM_MAKE_NAME:	Name of domain, bus, endpoint
  * @KDBUS_ITEM_ATTACH_FLAGS:	Attach-flags, used for updating which metadata
  *				a connection subscribes to
- * @_KDBUS_ITEM_ATTACH_BASE:	Start of metadata attach items
- * @KDBUS_ITEM_NAME:		Well-know name with flags
  * @KDBUS_ITEM_ID:		Connection ID
+ * @KDBUS_ITEM_NAME:		Well-know name with flags
+ * @_KDBUS_ITEM_ATTACH_BASE:	Start of metadata attach items
  * @KDBUS_ITEM_TIMESTAMP:	Timestamp
  * @KDBUS_ITEM_CREDS:		Process credential
  * @KDBUS_ITEM_AUXGROUPS:	Auxiliary process groups
- * @KDBUS_ITEM_PID_COMM:	Process ID "comm" identifier
+ * @KDBUS_ITEM_OWNED_NAME:	A name owned by the associated connection
  * @KDBUS_ITEM_TID_COMM:	Thread ID "comm" identifier
+ * @KDBUS_ITEM_PID_COMM:	Process ID "comm" identifier
  * @KDBUS_ITEM_EXE:		The path of the executable
  * @KDBUS_ITEM_CMDLINE:		The process command line
  * @KDBUS_ITEM_CGROUP:		The croup membership
@@ -260,15 +261,17 @@ enum kdbus_item_type {
 	KDBUS_ITEM_DST_NAME,
 	KDBUS_ITEM_MAKE_NAME,
 	KDBUS_ITEM_ATTACH_FLAGS,
-
-	_KDBUS_ITEM_ATTACH_BASE	= 0x1000,
-	KDBUS_ITEM_NAME		= _KDBUS_ITEM_ATTACH_BASE,
 	KDBUS_ITEM_ID,
-	KDBUS_ITEM_TIMESTAMP,
+	KDBUS_ITEM_NAME,
+
+	/* keep these item types in sync with KDBUS_ATTACH_* flags */
+	_KDBUS_ITEM_ATTACH_BASE	= 0x1000,
+	KDBUS_ITEM_TIMESTAMP	= _KDBUS_ITEM_ATTACH_BASE,
 	KDBUS_ITEM_CREDS,
 	KDBUS_ITEM_AUXGROUPS,
-	KDBUS_ITEM_PID_COMM,
+	KDBUS_ITEM_OWNED_NAME,
 	KDBUS_ITEM_TID_COMM,
+	KDBUS_ITEM_PID_COMM,
 	KDBUS_ITEM_EXE,
 	KDBUS_ITEM_CMDLINE,
 	KDBUS_ITEM_CGROUP,
@@ -457,8 +460,8 @@ struct kdbus_cmd_recv {
 
 /**
  * struct kdbus_cmd_cancel - struct to cancel a synchronously pending message
- * @cookie		The cookie of the pending message
- * @flags		Flags for the free command. Currently unused.
+ * @cookie:		The cookie of the pending message
+ * @flags:		Flags for the free command. Currently unused.
  *
  * This struct is used with the KDBUS_CMD_CANCEL ioctl.
  */
@@ -539,8 +542,8 @@ enum kdbus_hello_flags {
  * @KDBUS_ATTACH_CREDS:			Credentials
  * @KDBUS_ATTACH_AUXGROUPS:		Auxiliary groups
  * @KDBUS_ATTACH_NAMES:			Well-known names
- * @KDBUS_ATTACH_COMM_TID:		The "comm" process identifier of the TID
- * @KDBUS_ATTACH_COMM_PID:		The "comm" process identifier of the PID
+ * @KDBUS_ATTACH_TID_COMM:		The "comm" process identifier of the TID
+ * @KDBUS_ATTACH_PID_COMM:		The "comm" process identifier of the PID
  * @KDBUS_ATTACH_EXE:			The path of the executable
  * @KDBUS_ATTACH_CMDLINE:		The process command line
  * @KDBUS_ATTACH_CGROUP:		The croup membership
@@ -666,17 +669,15 @@ struct kdbus_cmd_name {
 /**
  * struct kdbus_name_info - struct to describe a well-known name
  * @size:		The total size of the struct
- * @flags:		Flags for a name entry (KDBUS_NAME_*),
  * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
  * @owner_id:		The current owner of the name
  * @items:		Item list, containing the well-known name as
- *			KDBUS_ITEM_NAME
+ *			KDBUS_ITEM_OWNED_NAME
  *
  * This structure is used as return struct for the KDBUS_CMD_NAME_LIST ioctl.
  */
 struct kdbus_name_info {
 	__u64 size;
-	__u64 flags;
 	__u64 conn_flags;
 	__u64 owner_id;
 	struct kdbus_item items[0];

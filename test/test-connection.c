@@ -196,7 +196,7 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	info = (struct kdbus_info *)(conn->buf + offset);
 	ASSERT_RETURN(info->id == conn->id);
 
-	item = kdbus_get_item(info, KDBUS_ITEM_NAME);
+	item = kdbus_get_item(info, KDBUS_ITEM_OWNED_NAME);
 	ASSERT_RETURN(item && !strcmp(item->name.name, "com.example.a"));
 
 	kdbus_free(conn, offset);

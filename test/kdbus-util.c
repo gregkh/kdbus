@@ -563,6 +563,7 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			break;
 		}
 
+		case KDBUS_ITEM_NAME:
 		case KDBUS_ITEM_PID_COMM:
 		case KDBUS_ITEM_TID_COMM:
 		case KDBUS_ITEM_EXE:
@@ -575,7 +576,7 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 				     item->str, strlen(item->str));
 			break;
 
-		case KDBUS_ITEM_NAME: {
+		case KDBUS_ITEM_OWNED_NAME: {
 			kdbus_printf("  +%s (%llu bytes) '%s' (%zu) flags=0x%08llx\n",
 				     enum_MSG(item->type), item->size,
 				     item->name.name, strlen(item->name.name),
@@ -912,6 +913,7 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 	kdbus_printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
 	KDBUS_ITEM_FOREACH(name, list, names) {
+		uint64_t flags = 0;
 		struct kdbus_item *item;
 		const char *n = "MISSING-NAME";
 
@@ -919,11 +921,14 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 			continue;
 
 		KDBUS_ITEM_FOREACH(item, name, items)
-			if (item->type == KDBUS_ITEM_NAME)
-				n = item->str;
+			if (item->type == KDBUS_ITEM_OWNED_NAME) {
+				n = item->name.name;
+				flags = item->name.flags;
+			}
 
 		kdbus_printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n",
-			     name->owner_id, name->flags, name->conn_flags, n);
+			     name->owner_id, (unsigned long long )flags,
+			     name->conn_flags, n);
 	}
 	kdbus_printf("\n");
 

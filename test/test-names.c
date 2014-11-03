@@ -37,8 +37,8 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 		const char *n = NULL;
 
 		KDBUS_ITEM_FOREACH(item, name, items)
-			if (item->type == KDBUS_ITEM_NAME)
-				n = item->str;
+			if (item->type == KDBUS_ITEM_OWNED_NAME)
+				n = item->name.name;
 
 		if (name->owner_id == conn->id &&
 		    n && strcmp(needle, n) == 0) {

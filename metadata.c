@@ -280,7 +280,7 @@ static int kdbus_meta_append_src_names(struct kdbus_meta *meta,
 		size_t len;
 
 		len = strlen(e->name) + 1;
-		item = kdbus_meta_append_item(meta, KDBUS_ITEM_NAME,
+		item = kdbus_meta_append_item(meta, KDBUS_ITEM_OWNED_NAME,
 					      sizeof(struct kdbus_name) + len);
 		if (IS_ERR(item)) {
 			ret = PTR_ERR(item);

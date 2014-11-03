@@ -706,10 +706,11 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 {
 	const size_t len = sizeof(struct kdbus_name_info);
 	size_t p = *pos;
-	size_t nlen = 0;
+	size_t name_item_size = 0;
 
 	if (e) {
-		nlen = strlen(e->name) + 1;
+		name_item_size = offsetof(struct kdbus_item, name.name) +
+				 KDBUS_ALIGN8(strlen(e->name) + 1);
 
 		if (kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
 							      e->name) < 0)
@@ -721,12 +722,10 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		struct kdbus_name_info info = {
 			.size = len,
 			.owner_id = c->id,
-			.flags = e ? e->flags : 0,
 			.conn_flags = c->flags,
 		};
 
-		if (nlen)
-			info.size += KDBUS_ITEM_SIZE(nlen);
+		info.size += name_item_size;
 
 		/* write record */
 		ret = kdbus_pool_slice_copy(slice, p, &info, len);
@@ -736,13 +735,17 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 
 		/* append name */
 		if (e) {
-			struct kdbus_item_header {
+			/* fake the header of a kdbus_name item */
+			struct {
 				__u64 size;
 				__u64 type;
+				__u64 flags;
 			} h;
+			size_t nlen;
 
-			h.size = KDBUS_ITEM_HEADER_SIZE + nlen;
-			h.type = KDBUS_ITEM_NAME;
+			h.size = name_item_size;
+			h.type = KDBUS_ITEM_OWNED_NAME;
+			h.flags = e->flags;
 
 			ret = kdbus_pool_slice_copy(slice, p, &h, sizeof(h));
 			if (ret < 0)
@@ -750,16 +753,15 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 
 			p += sizeof(h);
 
+			nlen = name_item_size - sizeof(h);
 			ret = kdbus_pool_slice_copy(slice, p, e->name, nlen);
 			if (ret < 0)
 				return ret;
 
-			p += KDBUS_ALIGN8(nlen);
+			p += nlen;
 		}
 	} else {
-		p += len;
-		if (nlen)
-			p += KDBUS_ITEM_SIZE(nlen);
+		p += len + name_item_size;
 	}
 
 	*pos = p;
