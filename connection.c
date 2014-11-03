@@ -183,18 +183,14 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 
 	/* extend array to store the user message counters */
 	if (user >= conn->msg_users_max) {
-		unsigned int *users;
 		unsigned int i;
 
 		i = 8 + KDBUS_ALIGN8(user);
-		users = kcalloc(i, sizeof(unsigned int), GFP_KERNEL);
-		if (!users)
+		conn->msg_users = krealloc(conn->msg_users,
+					   i * sizeof(unsigned int),
+					   GFP_KERNEL);
+		if (!conn->msg_users)
 			return -ENOMEM;
-
-		memcpy(users, conn->msg_users,
-		       sizeof(unsigned int) * conn->msg_users_max);
-		kfree(conn->msg_users);
-		conn->msg_users = users;
 
 		/*
 		 * The user who triggered the initial allocation of the
