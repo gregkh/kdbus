@@ -577,7 +577,7 @@ static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 		 * not receive any broadcast messages, only
 		 * ordinary and monitor ones.
 		 */
-		if (!kdbus_conn_is_connected(conn_dst) &&
+		if (!kdbus_conn_is_ordinary(conn_dst) &&
 		    !kdbus_conn_is_monitor(conn_dst))
 			continue;
 
@@ -806,7 +806,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * Special-purpose connections are not allowed to be addressed
 		 * via their unique IDs.
 		 */
-		if (!kdbus_conn_is_connected(conn_dst)) {
+		if (!kdbus_conn_is_ordinary(conn_dst)) {
 			ret = -ENXIO;
 			goto exit_unref;
 		}
@@ -1412,7 +1412,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			 * Only ordinary or monitor connections
 			 * may update their attach-flags.
 			 */
-			if (!kdbus_conn_is_connected(conn) &&
+			if (!kdbus_conn_is_ordinary(conn) &&
 			    !kdbus_conn_is_monitor(conn))
 				return -EOPNOTSUPP;
 

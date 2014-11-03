@@ -131,12 +131,12 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 
 /**
- * kdbus_conn_is_connected() - Check if connection is ordinary
+ * kdbus_conn_is_ordinary() - Check if connection is ordinary
  * @conn:		The connection to check
  *
  * Return: Non-zero if the connection is an ordinary connection
  */
-static inline int kdbus_conn_is_connected(const struct kdbus_conn *conn)
+static inline int kdbus_conn_is_ordinary(const struct kdbus_conn *conn)
 {
 	return !(conn->flags & KDBUS_HELLO_SPECIAL_CONN);
 }
