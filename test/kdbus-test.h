@@ -61,6 +61,7 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env);
 int kdbus_test_match_name_remove(struct kdbus_test_env *env);
 int kdbus_test_message_basic(struct kdbus_test_env *env);
 int kdbus_test_message_prio(struct kdbus_test_env *env);
+int kdbus_test_message_quota(struct kdbus_test_env *env);
 int kdbus_test_metadata_ns(struct kdbus_test_env *env);
 int kdbus_test_monitor(struct kdbus_test_env *env);
 int kdbus_test_name_basic(struct kdbus_test_env *env);

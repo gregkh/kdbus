@@ -106,6 +106,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
+		.name	= "message-quota",
+		.desc	= "message quotas are enforced",
+		.func	= kdbus_test_message_quota,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		.name	= "timeout",
 		.desc	= "timeout",
 		.func	= kdbus_test_timeout,

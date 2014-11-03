@@ -14,6 +14,9 @@
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
 
+/* maximum number of queued messages from the same indvidual user */
+#define KDBUS_CONN_MAX_MSGS_PER_USER            16
+
 int kdbus_test_message_basic(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *conn;
@@ -118,6 +121,36 @@ int kdbus_test_message_prio(struct kdbus_test_env *env)
 
 	kdbus_printf("--- get priority (all)\n");
 	ASSERT_RETURN(kdbus_msg_recv(a, NULL, NULL) == 0);
+
+	kdbus_conn_free(a);
+	kdbus_conn_free(b);
+
+	return TEST_OK;
+}
+
+int kdbus_test_message_quota(struct kdbus_test_env *env)
+{
+	struct kdbus_conn *a, *b;
+	uint64_t cookie = 0;
+	int ret;
+	int i;
+
+	if (geteuid() == 0) {
+		kdbus_printf("error geteuid() == 0, %s() can't be root\n",
+			     __func__);
+		return TEST_SKIP;
+	}
+
+	a = kdbus_hello(env->buspath, 0, NULL, 0);
+	b = kdbus_hello(env->buspath, 0, NULL, 0);
+
+	for (i = 0; i <= KDBUS_CONN_MAX_MSGS_PER_USER; i++) {
+		ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
+		ASSERT_RETURN(ret == 0);
+	}
+
+	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
+	ASSERT_RETURN(ret == -ENOBUFS);
 
 	kdbus_conn_free(a);
 	kdbus_conn_free(b);
