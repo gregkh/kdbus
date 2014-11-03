@@ -192,7 +192,8 @@ int kdbus_minor_alloc(enum kdbus_minor_type type, void *ptr, dev_t *out)
 
 	idr_preload(GFP_KERNEL);
 	spin_lock(&kdbus_minor_lock);
-	ret = idr_alloc(&kdbus_minor_idr, ptr, 0, 0, GFP_NOWAIT);
+	ret = idr_alloc(&kdbus_minor_idr, ptr, 0, KDBUS_MINOR_MAX + 1,
+			GFP_NOWAIT);
 	spin_unlock(&kdbus_minor_lock);
 	idr_preload_end();
 
