@@ -33,10 +33,10 @@ struct kdbus_pool_slice *kdbus_pool_slice_find(struct kdbus_pool *pool,
 					       size_t off);
 size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice);
 ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
-			       const void *data, size_t len);
-ssize_t
-kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
-			    const void __user *data, size_t len);
+			      const void *data, size_t len);
+ssize_t kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice,
+				   size_t off, const void __user *data,
+				   size_t len);
 void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice);
 
 void kdbus_pool_slice_make_public(struct kdbus_pool_slice *slice);
