@@ -180,10 +180,10 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ret = kdbus_msg_recv(ep_conn, NULL, NULL);
 	ASSERT_RETURN(ret == -EAGAIN);
 
-	ret = kdbus_info(ep_conn, 0, name, NULL);
+	ret = kdbus_info(ep_conn, 0, name, 0, NULL);
 	ASSERT_RETURN(ret == -ENOENT);
 
-	ret = kdbus_info(ep_conn, env->conn->id, NULL, NULL);
+	ret = kdbus_info(ep_conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == -ENOENT);
 
 	/*
@@ -208,10 +208,10 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ASSERT_RETURN(strcmp(msg->items[0].name_change.name, name) == 0);
 	kdbus_msg_free(msg);
 
-	ret = kdbus_info(ep_conn, 0, name, NULL);
+	ret = kdbus_info(ep_conn, 0, name, 0, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_info(ep_conn, env->conn->id, NULL, NULL);
+	ret = kdbus_info(ep_conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_conn_free(ep_conn);

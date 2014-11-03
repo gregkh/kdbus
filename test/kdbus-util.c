@@ -224,7 +224,8 @@ struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 }
 
 int kdbus_info(struct kdbus_conn *conn, uint64_t id,
-		    const char *name, uint64_t *offset)
+	       const char *name, uint64_t flags,
+	       uint64_t *offset)
 {
 	struct kdbus_cmd_info *cmd;
 	size_t size = sizeof(*cmd);
@@ -236,6 +237,7 @@ int kdbus_info(struct kdbus_conn *conn, uint64_t id,
 	cmd = alloca(size);
 	memset(cmd, 0, size);
 	cmd->size = size;
+	cmd->flags = flags;
 
 	if (name) {
 		cmd->items[0].size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;
@@ -246,8 +248,11 @@ int kdbus_info(struct kdbus_conn *conn, uint64_t id,
 	}
 
 	ret = ioctl(conn->fd, KDBUS_CMD_CONN_INFO, cmd);
-	if (ret < 0)
-		return -errno;
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("--- error when requesting info: %d (%m)\n", ret);
+		return ret;
+	}
 
 	if (offset)
 		*offset = cmd->offset;

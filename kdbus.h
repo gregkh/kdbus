@@ -235,7 +235,7 @@ struct kdbus_policy_access {
  * @KDBUS_ITEM_CAPS:		The process capabilities
  * @KDBUS_ITEM_SECLABEL:	The security label
  * @KDBUS_ITEM_AUDIT:		The audit IDs
- * @KDBUS_ITEM_CONN_NAME:	The connection's human-readable name (debugging)
+ * @KDBUS_ITEM_CONN_DESCRIPTION:The connection's human-readable name (debugging)
  * @_KDBUS_ITEM_POLICY_BASE:	Start of policy items
  * @KDBUS_ITEM_POLICY_ACCESS:	Policy access block
  * @_KDBUS_ITEM_KERNEL_BASE:	Start of kernel-generated message items

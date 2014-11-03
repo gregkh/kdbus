@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <limits.h>
+#include <sys/capability.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <stdbool.h>
@@ -128,6 +129,89 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	return TEST_OK;
 }
 
+/* get first item, use it here */
+static struct kdbus_item *kdbus_get_item(struct kdbus_info *info,
+					 uint64_t type)
+{
+	struct kdbus_item *item;
+
+	KDBUS_ITEM_FOREACH(item, info, items)
+		if (item->type == type)
+			return item;
+
+	return NULL;
+}
+
+static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
+{
+	int ret;
+	uint64_t offset = 0;
+	struct kdbus_info *info;
+	struct kdbus_conn *conn;
+	struct kdbus_conn *privileged;
+	const struct kdbus_item *item;
+	uint64_t valid_flags = KDBUS_ATTACH_NAMES  |
+			       KDBUS_ATTACH_CONN_DESCRIPTION;
+
+	ret = kdbus_info(env->conn, env->conn->id, NULL,
+			 valid_flags, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(env->conn->buf + offset);
+	ASSERT_RETURN(info->id == env->conn->id);
+
+	/* We do not have any well-known name */
+	item = kdbus_get_item(info, KDBUS_ITEM_NAME);
+	ASSERT_RETURN(item == NULL);
+
+	item = kdbus_get_item(info, KDBUS_ITEM_CONN_DESCRIPTION);
+	ASSERT_RETURN(item);
+
+	kdbus_free(env->conn, offset);
+
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn);
+
+	privileged = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(privileged);
+
+	ret = kdbus_info(conn, conn->id, NULL, valid_flags, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(conn->buf + offset);
+	ASSERT_RETURN(info->id == conn->id);
+
+	/* We do not have any well-known name */
+	item = kdbus_get_item(info, KDBUS_ITEM_NAME);
+	ASSERT_RETURN(item == NULL);
+
+	kdbus_free(conn, offset);
+
+	ret = kdbus_name_acquire(conn, "com.example.a", NULL);
+	ASSERT_RETURN(ret >= 0);
+
+	ret = kdbus_info(conn, conn->id, NULL, valid_flags, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(conn->buf + offset);
+	ASSERT_RETURN(info->id == conn->id);
+
+	item = kdbus_get_item(info, KDBUS_ITEM_NAME);
+	ASSERT_RETURN(item && !strcmp(item->name.name, "com.example.a"));
+
+	kdbus_free(conn, offset);
+
+	ret = kdbus_info(conn, 0, "com.example.a", valid_flags, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(conn->buf + offset);
+	ASSERT_RETURN(info->id == conn->id);
+
+	kdbus_free(conn, offset);
+
+	return 0;
+}
+
 int kdbus_test_conn_info(struct kdbus_test_env *env)
 {
 	int ret;
@@ -145,7 +229,7 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	buf.cmd_info.flags = 0;
 	buf.cmd_info.id = env->conn->id;
 
-	ret = ioctl(env->conn->fd, KDBUS_CMD_CONN_INFO, &buf);
+	ret = kdbus_info(env->conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* try to pass a name that is longer than the buffer's size */
@@ -157,6 +241,20 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	buf.cmd_info.size = sizeof(buf.cmd_info) + buf.name.size;
 	ret = ioctl(env->conn->fd, KDBUS_CMD_CONN_INFO, &buf);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+
+	/* Pass a non existent name */
+	ret = kdbus_info(env->conn, 0, "non.existent.name", 0, NULL);
+	ASSERT_RETURN(ret == -ESRCH);
+
+	/* Test for caps here, so we run the previous test */
+	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
+	ASSERT_RETURN(ret >= 0);
+
+	if (!ret)
+		return TEST_SKIP;
+
+	ret = kdbus_fuzz_conn_info(env);
+	ASSERT_RETURN(ret == 0);
 
 	return TEST_OK;
 }
