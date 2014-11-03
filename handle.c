@@ -91,6 +91,9 @@ struct kdbus_handle {
 	};
 };
 
+/* max minor; limited to 2^20-1 due to dev_t ABI */
+#define KDBUS_MINOR_MAX 0xfffff
+
 /* kdbus major */
 static unsigned int kdbus_major;
 
@@ -104,7 +107,7 @@ int kdbus_minor_init(void)
 {
 	int ret;
 
-	ret = __register_chrdev(0, 0, 0xfffff, KBUILD_MODNAME,
+	ret = __register_chrdev(0, 0, KDBUS_MINOR_MAX + 1, KBUILD_MODNAME,
 				&kdbus_handle_ops);
 	if (ret < 0)
 		return ret;
@@ -115,7 +118,8 @@ int kdbus_minor_init(void)
 
 void kdbus_minor_exit(void)
 {
-	__unregister_chrdev(kdbus_major, 0, 0xfffff, KBUILD_MODNAME);
+	__unregister_chrdev(kdbus_major, 0, KDBUS_MINOR_MAX + 1,
+			    KBUILD_MODNAME);
 	idr_destroy(&kdbus_minor_idr);
 }
 
