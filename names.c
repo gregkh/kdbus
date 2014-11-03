@@ -474,17 +474,15 @@ bool kdbus_name_is_valid(const char *p, bool allow_wildcard)
  * @conn:		The connection to pin this entry to
  * @name:		The name to acquire
  * @flags:		Acquisition flags (KDBUS_NAME_*)
- * @entry:		Return pointer for the entry (may be NULL)
  *
  * Callers must ensure that @conn is either a privileged bus user or has
  * sufficient privileges in the policy-db to own the well-known name @name.
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: 0 success, negative error number on failure.
  */
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
-		       const char *name, u64 *flags,
-		       struct kdbus_name_entry **entry)
+		       const char *name, u64 *flags)
 {
 	struct kdbus_name_entry *e = NULL;
 	u32 hash;
@@ -614,14 +612,10 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 				 0, e->conn->id,
 				 0, e->flags, e->name);
 
-	if (entry)
-		*entry = e;
-
 exit_unlock:
 	up_write(&reg->rwlock);
 	mutex_unlock(&conn->bus->lock);
 	kdbus_notify_flush(conn->bus);
-
 	return ret;
 }
 
@@ -637,13 +631,12 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
 			   struct kdbus_cmd_name *cmd)
 {
-	struct kdbus_name_entry *e = NULL;
 	const char *name;
 	int ret;
 
-	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
-				  KDBUS_ITEM_NAME, &name);
-	if (ret < 0)
+	name = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
+				   KDBUS_ITEM_NAME);
+	if (IS_ERR(name))
 		return -EINVAL;
 
 	if (!kdbus_name_is_valid(name, false))
@@ -653,15 +646,16 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	 * Do atomic_inc_return here to reserve our slot, then decrement
 	 * it before returning.
 	 */
-	ret = -E2BIG;
-	if (atomic_inc_return(&conn->name_count) > KDBUS_CONN_MAX_NAMES)
+	if (atomic_inc_return(&conn->name_count) > KDBUS_CONN_MAX_NAMES) {
+		ret = -E2BIG;
 		goto out_dec;
+	}
 
 	ret = kdbus_ep_policy_check_own_access(conn->ep, conn, name);
 	if (ret < 0)
 		goto out_dec;
 
-	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags, &e);
+	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags);
 	kdbus_notify_flush(conn->bus);
 
 out_dec:
@@ -685,9 +679,9 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	int ret;
 	const char *name;
 
-	ret = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
-				  KDBUS_ITEM_NAME, &name);
-	if (ret < 0)
+	name = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
+				   KDBUS_ITEM_NAME);
+	if (IS_ERR(name))
 		return -EINVAL;
 
 	if (!kdbus_name_is_valid(name, false))
@@ -887,9 +881,11 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	if (ret < 0)
 		goto exit_unlock;
 
-	ret = kdbus_pool_slice_alloc(conn->pool, &slice, pos);
-	if (ret < 0)
+	slice = kdbus_pool_slice_alloc(conn->pool, pos);
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
 		goto exit_unlock;
+	}
 
 	/* copy the header, specifying the overall size */
 	list.size = pos;

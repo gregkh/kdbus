@@ -1282,10 +1282,10 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	if (cmd_info->id == 0) {
 		const char *name;
 
-		ret = kdbus_items_get_str(cmd_info->items,
-					  KDBUS_ITEMS_SIZE(cmd_info, items),
-					  KDBUS_ITEM_NAME, &name);
-		if (ret < 0)
+		name = kdbus_items_get_str(cmd_info->items,
+					   KDBUS_ITEMS_SIZE(cmd_info, items),
+					   KDBUS_ITEM_NAME);
+		if (IS_ERR(name))
 			return -EINVAL;
 
 		if (!kdbus_name_is_valid(name, false))
@@ -1345,9 +1345,11 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		info.size += meta->size;
 	}
 
-	ret = kdbus_pool_slice_alloc(conn->pool, &slice, info.size);
-	if (ret < 0)
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
 		goto exit;
+	}
 
 	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
 	if (ret < 0)
@@ -1615,7 +1617,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		u64 flags = KDBUS_NAME_ACTIVATOR;
 
 		ret = kdbus_name_acquire(bus->name_registry, conn,
-					 name, &flags, NULL);
+					 name, &flags);
 		if (ret < 0)
 			goto exit_unref_ep;
 	}
@@ -1664,11 +1666,12 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	if (ep->user) {
 		conn->user = kdbus_domain_user_ref(ep->user);
 	} else {
-		ret = kdbus_domain_get_user(ep->bus->domain,
-					    current_fsuid(),
-					    &conn->user);
-		if (ret < 0)
+		conn->user = kdbus_domain_get_user(ep->bus->domain,
+						   current_fsuid());
+		if (IS_ERR(conn->user)) {
+			ret = PTR_ERR(conn->user);
 			goto exit_free_meta;
+		}
 	}
 
 	/* lock order: domain -> bus -> ep -> names -> conn */

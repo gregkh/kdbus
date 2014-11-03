@@ -527,11 +527,13 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_items_get_str(make->items,
-					  KDBUS_ITEMS_SIZE(make, items),
-					  KDBUS_ITEM_MAKE_NAME, &name);
-		if (ret < 0)
+		name = kdbus_items_get_str(make->items,
+					   KDBUS_ITEMS_SIZE(make, items),
+					   KDBUS_ITEM_MAKE_NAME);
+		if (IS_ERR(name)) {
+			ret = PTR_ERR(name);
 			break;
+		}
 
 		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
@@ -607,11 +609,13 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_items_get_str(make->items,
-					  KDBUS_ITEMS_SIZE(make, items),
-					  KDBUS_ITEM_MAKE_NAME, &name);
-		if (ret < 0)
+		name = kdbus_items_get_str(make->items,
+					   KDBUS_ITEMS_SIZE(make, items),
+					   KDBUS_ITEM_MAKE_NAME);
+		if (IS_ERR(name)) {
+			ret = PTR_ERR(name);
 			break;
+		}
 
 		if (make->flags & KDBUS_MAKE_ACCESS_WORLD) {
 			mode = 0666;
@@ -641,9 +645,10 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		 * endpoint users do not share the budget with the ordinary
 		 * users created for a UID.
 		 */
-		ret = kdbus_domain_get_user(handle->ep->bus->domain,
-					    INVALID_UID, &ep->user);
-		if (ret < 0) {
+		ep->user = kdbus_domain_get_user(handle->ep->bus->domain,
+						 INVALID_UID);
+		if (IS_ERR(ep->user)) {
+			ret = PTR_ERR(ep->user);
 			kdbus_ep_disconnect(ep);
 			kdbus_ep_unref(ep);
 			break;

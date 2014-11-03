@@ -92,13 +92,10 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 				      const char *name, umode_t mode);
 
-int kdbus_domain_get_user_unlocked(struct kdbus_domain *domain,
-				   kuid_t uid,
-				   struct kdbus_domain_user **user);
-
-int kdbus_domain_get_user(struct kdbus_domain *domain,
-			  kuid_t uid,
-			  struct kdbus_domain_user **user);
+struct kdbus_domain_user *
+kdbus_domain_get_user_unlocked(struct kdbus_domain *domain, kuid_t uid);
+struct kdbus_domain_user *
+kdbus_domain_get_user(struct kdbus_domain *domain, kuid_t uid);
 
 struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
 struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u);

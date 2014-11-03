@@ -181,16 +181,15 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
 /**
  * kdbus_pool_slice_alloc() - allocate memory from a pool
  * @pool:		The receiver's pool
- * @slice:		Slice allocated from the the pool
  * @size:		The number of bytes to allocate
  *
  * The returned slice is used for kdbus_pool_slice_free() to
  * free the allocated memory.
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: the allocated slice on success, ERR_PTR on failure.
  */
-int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-			   struct kdbus_pool_slice **slice, size_t size)
+struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
+						size_t size)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
 	struct rb_node *n, *found = NULL;
@@ -251,12 +250,11 @@ int kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
 
-	*slice = s;
-	return 0;
+	return s;
 
 exit_unlock:
 	mutex_unlock(&pool->lock);
-	return ret;
+	return ERR_PTR(ret);
 }
 
 static void __kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
@@ -644,9 +642,9 @@ int kdbus_pool_move_slice(struct kdbus_pool *dst_pool,
 	struct kdbus_pool_slice *slice_new;
 	int ret;
 
-	ret = kdbus_pool_slice_alloc(dst_pool, &slice_new, (*slice)->size);
-	if (ret < 0)
-		return ret;
+	slice_new = kdbus_pool_slice_alloc(dst_pool, (*slice)->size);
+	if (IS_ERR(slice_new))
+		return PTR_ERR(slice_new);
 
 	old_fs = get_fs();
 	set_fs(get_ds());

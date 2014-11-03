@@ -492,9 +492,11 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	}
 
 	/* allocate the needed space in the pool of the receiver */
-	ret = kdbus_pool_slice_alloc(conn->pool, &entry->slice, want);
-	if (ret < 0)
+	entry->slice = kdbus_pool_slice_alloc(conn->pool, want);
+	if (IS_ERR(entry->slice)) {
+		ret = PTR_ERR(entry->slice);
 		goto exit;
+	}
 
 	/* copy the message header */
 	ret = kdbus_pool_slice_copy(entry->slice, 0, &kmsg->msg, size);

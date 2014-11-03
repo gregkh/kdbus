@@ -233,9 +233,9 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	if (!kdbus_meta_ns_eq(conn->meta, bus->meta))
 		return -EPERM;
 
-	ret = kdbus_pool_slice_alloc(conn->pool, &slice, info.size);
-	if (ret < 0)
-		return ret;
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
+	if (IS_ERR(slice))
+		return PTR_ERR(slice);
 
 	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
 	if (ret < 0)
@@ -363,9 +363,11 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	}
 
 	/* account the bus against the user */
-	ret = kdbus_domain_get_user_unlocked(domain, uid, &b->user);
-	if (ret < 0)
+	b->user = kdbus_domain_get_user_unlocked(domain, uid);
+	if (IS_ERR(b->user)) {
+		ret = PTR_ERR(b->user);
 		goto exit_unref_user_unlock;
+	}
 
 	if (!capable(CAP_IPC_OWNER) &&
 	    atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
