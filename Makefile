@@ -43,7 +43,7 @@ check:
 	test/kdbus-test
 
 doc:
-	$(KERNELDIR)/scripts/kernel-doc *.c >/dev/null | grep "^Warning"
+	$(KERNELDIR)/scripts/kernel-doc *.c kdbus.h >/dev/null | grep "^Warning"
 
 install: module
 	mkdir -p /lib/modules/$(KERNELVER)/kernel/drivers/misc/kdbus$(EXT)/
