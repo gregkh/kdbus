@@ -466,8 +466,10 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	if (kmsg->fds_count > 0) {
 		entry->fds_fp = kcalloc(kmsg->fds_count, sizeof(struct file *),
 					GFP_KERNEL);
-		if (!entry->fds_fp)
-			return -ENOMEM;
+		if (!entry->fds_fp) {
+			ret = -ENOMEM;
+			goto exit_free_entry;
+		}
 
 		fds = msg_size;
 		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
@@ -494,26 +496,26 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	have = kdbus_pool_remain(conn->pool);
 	if (want < have && want > have / 2) {
 		ret = -EXFULL;
-		goto exit;
+		goto exit_free_fds;
 	}
 
 	/* allocate the needed space in the pool of the receiver */
 	entry->slice = kdbus_pool_slice_alloc(conn->pool, want);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
-		goto exit;
+		goto exit_free_fds;
 	}
 
 	/* copy the message header */
 	ret = kdbus_pool_slice_copy(entry->slice, 0, &kmsg->msg, size);
 	if (ret < 0)
-		goto exit_pool_free;
+		goto exit_free_slice;
 
 	/* update the size */
 	ret = kdbus_pool_slice_copy(entry->slice, 0, &msg_size,
 				    sizeof(kmsg->msg.size));
 	if (ret < 0)
-		goto exit_pool_free;
+		goto exit_free_slice;
 
 	if (dst_name_len  > 0) {
 		char tmp[KDBUS_ITEM_HEADER_SIZE + dst_name_len];
@@ -525,7 +527,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 		ret = kdbus_pool_slice_copy(entry->slice, size, it, it->size);
 		if (ret < 0)
-			goto exit_pool_free;
+			goto exit_free_slice;
 	}
 
 	/* add PAYLOAD items */
@@ -533,7 +535,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 		ret = kdbus_queue_entry_payload_add(entry, kmsg,
 						    payloads, vec_data);
 		if (ret < 0)
-			goto exit_pool_free;
+			goto exit_free_slice;
 	}
 
 	/* add a FDS item; the array content will be updated at RECV time */
@@ -548,13 +550,13 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 		ret = kdbus_pool_slice_copy(entry->slice, fds,
 					    it, KDBUS_ITEM_HEADER_SIZE);
 		if (ret < 0)
-			goto exit_pool_free;
+			goto exit_free_slice;
 
 		for (i = 0; i < kmsg->fds_count; i++) {
 			entry->fds_fp[i] = get_file(kmsg->fds[i]);
 			if (!entry->fds_fp[i]) {
 				ret = -EBADF;
-				goto exit_pool_free;
+				goto exit_free_slice;
 			}
 		}
 
@@ -568,16 +570,18 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 		ret = kdbus_meta_write(kmsg->meta, conn, attach_flags,
 				       entry->slice, meta_off);
 		if (ret < 0)
-			goto exit_pool_free;
+			goto exit_free_slice;
 	}
 
 	entry->priority = kmsg->msg.priority;
 	*e = entry;
 	return 0;
 
-exit_pool_free:
+exit_free_slice:
 	kdbus_pool_slice_free(entry->slice);
-exit:
+exit_free_fds:
+	kfree(entry->fds_fp);
+exit_free_entry:
 	kdbus_queue_entry_free(entry);
 	return ret;
 }
