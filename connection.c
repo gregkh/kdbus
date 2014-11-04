@@ -466,42 +466,42 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 }
 
 /* enqueue a message into the receiver's pool */
-static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
-				   struct kdbus_conn *conn_src,
+static int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
+				   struct kdbus_conn *conn_dst,
 				   const struct kdbus_kmsg *kmsg,
 				   struct kdbus_conn_reply *reply)
 {
 	struct kdbus_queue_entry *entry;
 	int ret;
 
-	mutex_lock(&conn->lock);
+	mutex_lock(&conn_dst->lock);
 
 	/* limit the maximum number of queued messages */
 	if (!ns_capable(&init_user_ns, CAP_IPC_OWNER) &&
-	    conn->queue.msg_count > KDBUS_CONN_MAX_MSGS) {
+	    conn_dst->queue.msg_count > KDBUS_CONN_MAX_MSGS) {
 		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
 
-	if (!kdbus_conn_active(conn)) {
+	if (!kdbus_conn_active(conn_dst)) {
 		ret = -ECONNRESET;
 		goto exit_unlock;
 	}
 
 	/* The connection does not accept file descriptors */
-	if (!(conn->flags & KDBUS_HELLO_ACCEPT_FD) && kmsg->fds_count > 0) {
+	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) && kmsg->fds_count > 0) {
 		ret = -ECOMM;
 		goto exit_unlock;
 	}
 
-	entry = kdbus_queue_entry_alloc(conn, kmsg);
+	entry = kdbus_queue_entry_alloc(conn_dst, kmsg);
 	if (IS_ERR(entry)) {
 		ret = PTR_ERR(entry);
 		goto exit_unlock;
 	}
 
 	/* limit the number of queued messages from the same individual user */
-	ret = kdbus_conn_queue_user_quota(conn, conn_src, entry);
+	ret = kdbus_conn_queue_user_quota(conn_dst, conn_src, entry);
 	if (ret < 0)
 		goto exit_queue_free;
 
@@ -513,23 +513,23 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 	entry->reply = reply;
 
 	if (reply) {
-		list_add(&reply->entry, &conn->reply_list);
+		list_add(&reply->entry, &conn_dst->reply_list);
 		if (!reply->sync)
-			schedule_delayed_work(&conn->work, 0);
+			schedule_delayed_work(&conn_dst->work, 0);
 	}
 
 	/* link the message into the receiver's entry */
-	kdbus_queue_entry_add(&conn->queue, entry);
-	mutex_unlock(&conn->lock);
+	kdbus_queue_entry_add(&conn_dst->queue, entry);
+	mutex_unlock(&conn_dst->lock);
 
 	/* wake up poll() */
-	wake_up_interruptible(&conn->wait);
+	wake_up_interruptible(&conn_dst->wait);
 	return 0;
 
 exit_queue_free:
 	kdbus_queue_entry_free(entry);
 exit_unlock:
-	mutex_unlock(&conn->lock);
+	mutex_unlock(&conn_dst->lock);
 	return ret;
 }
 
@@ -615,7 +615,7 @@ static void kdbus_conn_broadcast(struct kdbus_ep *ep,
 				goto exit_unlock;
 		}
 
-		kdbus_conn_entry_insert(conn_dst, conn_src, kmsg, NULL);
+		kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
 	}
 
 exit_unlock:
@@ -647,7 +647,7 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 				break;
 		}
 
-		kdbus_conn_entry_insert(c, NULL, kmsg, NULL);
+		kdbus_conn_entry_insert(NULL, c, kmsg, NULL);
 	}
 	up_read(&ep->bus->conn_rwlock);
 }
@@ -895,7 +895,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * Otherwise, put it in the queue and wait for the connection
 		 * to dequeue and receive the message.
 		 */
-		ret = kdbus_conn_entry_insert(conn_dst, conn_src,
+		ret = kdbus_conn_entry_insert(conn_src, conn_dst,
 					      kmsg, reply_wait);
 		if (ret < 0) {
 			if (reply_wait)
