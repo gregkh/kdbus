@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -9,6 +10,7 @@
 #include <assert.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <sys/wait.h>
 
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -302,20 +304,34 @@ static int test_run(const struct kdbus_test *t, const char *busname, int wait)
 {
 	int ret;
 	struct kdbus_test_env env = {};
+	pid_t pid;
 
-	ret = test_prepare_env(t, &env, busname);
-	if (ret != TEST_OK)
-		return ret;
+	pid = fork();
+	if (pid < 0) {
+		return TEST_ERR;
+	} else if (pid == 0) {
+		ret = test_prepare_env(t, &env, busname);
+		if (ret != TEST_OK)
+			_exit(ret);
 
-	if (wait > 0) {
-		printf("Sleeping %d seconds before running test ...\n", wait);
-		sleep(wait);
+		if (wait > 0) {
+			printf("Sleeping %d seconds before running test ...\n", wait);
+			sleep(wait);
+		}
+
+		ret = t->func(&env);
+		test_unprepare_env(t, &env);
+
+		_exit(ret);
 	}
 
-	ret = t->func(&env);
-	test_unprepare_env(t, &env);
-
-	return ret;
+	pid = waitpid(pid, &ret, 0);
+	if (pid <= 0)
+		return TEST_ERR;
+	else if (!WIFEXITED(ret))
+		return TEST_ERR;
+	else
+		return WEXITSTATUS(ret);
 }
 
 static void print_test_result(int ret)
