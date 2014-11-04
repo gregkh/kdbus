@@ -195,7 +195,7 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		conn->msg_users_max = i;
 	}
 
-	if (conn->msg_users[user] > KDBUS_CONN_MAX_MSGS_PER_USER)
+	if (conn->msg_users[user] >= KDBUS_CONN_MAX_MSGS_PER_USER)
 		return -ENOBUFS;
 
 	conn->msg_users[user]++;
