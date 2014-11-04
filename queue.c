@@ -422,6 +422,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 {
 	struct kdbus_queue_entry *entry;
 	struct kdbus_item *it;
+	u64 attach_flags = 0;
 	size_t msg_size;
 	size_t size;
 	size_t dst_name_len = 0;
@@ -430,7 +431,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	size_t meta_off = 0;
 	size_t vec_data;
 	size_t want, have;
-	u64 attach_flags;
 	int ret = 0;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -477,10 +477,12 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
 	}
 
-	attach_flags = atomic64_read(&conn_dst->attach_flags);
+	if (conn_src)
+		attach_flags = atomic64_read(&conn_src->attach_flags_send) &
+			       atomic64_read(&conn_dst->attach_flags_recv);
 
 	/* space for metadata/credential items */
-	if (kmsg->meta) {
+	if (kmsg->meta && attach_flags) {
 		size_t meta_size;
 
 		meta_size = kdbus_meta_size(kmsg->meta, conn_dst, attach_flags);

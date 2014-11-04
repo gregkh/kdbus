@@ -82,7 +82,8 @@ static struct conn *kdbus_hello(const char *path, uint64_t flags)
 	}
 
 	h.hello.flags = flags | KDBUS_HELLO_ACCEPT_FD;
-	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
+	h.hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+	h.hello.attach_flags_recv = _KDBUS_ATTACH_ALL;
 	h.type = KDBUS_ITEM_CONN_DESCRIPTION;
 	strncpy(h.comm, "monitor", sizeof(h.comm) - 1);
 	h.size = KDBUS_ITEM_HEADER_SIZE + strlen(h.comm) + 1;

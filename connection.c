@@ -546,7 +546,7 @@ static int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
 	 * conn_src->owner_meta, and we only attach the connection's name and
 	 * currently owned names on top of that.
 	 */
-	attach_flags = atomic64_read(&conn_dst->attach_flags);
+	attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
 
 	if (conn_src->owner_meta)
 		attach_flags &= KDBUS_ATTACH_NAMES |
@@ -1406,13 +1406,16 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 {
 	const struct kdbus_item *item;
 	bool policy_provided = false;
-	bool flags_provided = false;
-	u64 attach_flags;
+	bool send_flags_provided = false;
+	bool recv_flags_provided = false;
+	u64 attach_flags_send;
+	u64 attach_flags_recv;
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
-		case KDBUS_ITEM_ATTACH_FLAGS:
+		case KDBUS_ITEM_ATTACH_FLAGS_SEND:
+		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
 			/*
 			 * Only ordinary or monitor connections
 			 * may update their attach-flags.
@@ -1421,8 +1424,13 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			    !kdbus_conn_is_monitor(conn))
 				return -EOPNOTSUPP;
 
-			flags_provided = true;
-			attach_flags = item->data64[0];
+			if (item->type == KDBUS_ITEM_ATTACH_FLAGS_SEND) {
+				send_flags_provided = true;
+				attach_flags_send = item->data64[0];
+			} else {
+				recv_flags_provided = true;
+				attach_flags_recv = item->data64[0];
+			}
 			break;
 
 		case KDBUS_ITEM_NAME:
@@ -1446,8 +1454,11 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			return ret;
 	}
 
-	if (flags_provided)
-		atomic64_set(&conn->attach_flags, attach_flags);
+	if (send_flags_provided)
+		atomic64_set(&conn->attach_flags_send, attach_flags_send);
+
+	if (recv_flags_provided)
+		atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
 
 	return 0;
 }
@@ -1475,6 +1486,8 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	struct kdbus_conn *conn;
 	struct kdbus_bus *bus = ep->bus;
 	size_t seclabel_len = 0;
+	u64 attach_flags_send;
+	u64 attach_flags_recv;
 	bool is_policy_holder;
 	bool is_activator;
 	bool is_monitor;
@@ -1546,6 +1559,29 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	if ((is_activator || is_policy_holder) && !name)
 		return ERR_PTR(-EINVAL);
 
+	attach_flags_send = hello->attach_flags_send;
+	attach_flags_recv = hello->attach_flags_recv;
+
+	/* 'any' degrades to 'all' for compatibility */
+	if (attach_flags_send == _KDBUS_ATTACH_ANY)
+		attach_flags_send = _KDBUS_ATTACH_ALL;
+
+	if (attach_flags_recv == _KDBUS_ATTACH_ANY)
+		attach_flags_recv = _KDBUS_ATTACH_ALL;
+
+	/* reject unknown attach flags */
+	if (hello->attach_flags_send & ~_KDBUS_ATTACH_ALL)
+		return ERR_PTR(-EINVAL);
+
+	if (hello->attach_flags_recv & ~_KDBUS_ATTACH_ALL)
+		return ERR_PTR(-EINVAL);
+
+	/* Let userspace know which flags are enforced by the bus */
+	hello->attach_flags_send = bus->attach_flags_req | KDBUS_FLAG_KERNEL;
+
+	if (bus->attach_flags_req & ~attach_flags_send)
+		return ERR_PTR(-ECONNREFUSED);
+
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn)
 		return ERR_PTR(-ENOMEM);
@@ -1616,7 +1652,8 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
 	conn->flags = hello->flags;
-	atomic64_set(&conn->attach_flags, hello->attach_flags);
+	atomic64_set(&conn->attach_flags_send, attach_flags_send);
+	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
 
 	if (is_activator) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;

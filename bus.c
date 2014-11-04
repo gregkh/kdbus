@@ -269,6 +269,7 @@ exit_free_slice:
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
+ * @attach_flags_req:	Attach flags required from peer members
  *
  * This function will allocate a new kdbus_bus and link it to the given
  * domain.
@@ -279,7 +280,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				const struct kdbus_cmd_make *make,
 				const char *name,
 				const struct kdbus_bloom_parameter *bloom,
-				umode_t mode, kuid_t uid, kgid_t gid)
+				umode_t mode, kuid_t uid, kgid_t gid,
+				u64 attach_flags_req)
 {
 	struct kdbus_bus *b;
 	char prefix[16];
@@ -305,6 +307,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->uid_owner = uid;
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
+	b->attach_flags_req = attach_flags_req;
 	mutex_init(&b->lock);
 	init_rwsem(&b->conn_rwlock);
 	hash_init(b->conn_hash);
@@ -406,6 +409,7 @@ exit_free:
  * @make:		Reference to the location where to store the result
  * @name:		Shortcut to the requested name
  * @bloom:		Bloom parameters for this bus
+ * @attach_flags_req:	Storage for required attach flags
  *
  * This function is part of the connection ioctl() interface and will parse
  * the user-supplied data.
@@ -413,11 +417,13 @@ exit_free:
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
-			char **name, struct kdbus_bloom_parameter *bloom)
+			char **name, struct kdbus_bloom_parameter *bloom,
+			u64 *attach_flags_req)
 {
 	const struct kdbus_item *item;
 	const char *n = NULL;
 	const struct kdbus_bloom_parameter *bl = NULL;
+	u64 attach_flags = 0;
 
 	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
 		switch (item->type) {
@@ -434,12 +440,26 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 
 			bl = &item->bloom_parameter;
 			break;
+
+		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
+			if (attach_flags)
+				return -EEXIST;
+
+			attach_flags = item->data64[0];
+			break;
 		}
 	}
 
 	if (!n || !bl)
 		return -EBADMSG;
 
+	/* 'any' degrades to 'all' for compatibility */
+	if (attach_flags == _KDBUS_ATTACH_ANY)
+		attach_flags = _KDBUS_ATTACH_ALL;
+
+	/* reject unknown attach flags */
+	if (attach_flags & ~_KDBUS_ATTACH_ALL)
+		return -EINVAL;
 	if (bl->size < 8 || bl->size > KDBUS_BUS_BLOOM_MAX_SIZE)
 		return -EINVAL;
 	if (!KDBUS_IS_ALIGNED8(bl->size))
@@ -449,5 +469,6 @@ int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
 
 	*name = (char *)n;
 	*bloom = *bl;
+	*attach_flags_req = attach_flags;
 	return 0;
 }

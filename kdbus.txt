@@ -299,6 +299,10 @@ userspace to bind-mount domain subtrees of /dev/kdbus into a container's
 filesystem view, and hence achieve complete isolation from the host's domain
 and those of other containers.
 
+Optionally, an item of type KDBUS_ITEM_ATTACH_FLAGS_RECV can be attached. In
+that, a set of required attach flags can be passed, which is used as negotation
+measure during connection creation.
+
 
 5.2 Endpoints
 -------------
@@ -312,6 +316,7 @@ kdbus_cmd_make. Custom endpoints always have a policy database that, by
 default, does not allow anything. Everything that users of this new endpoint
 should be able to do has to be explicitly specified through KDBUS_ITEM_NAME and
 KDBUS_ITEM_POLICY_ACCESS items.
+
 
 5.3 Creating domains, buses and endpoints
 -----------------------------------------
@@ -336,8 +341,9 @@ struct kdbus_cmd_make {
     Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
-    A list of items, only used for creating custom endpoints. Ignored for
-    buses and domains.
+    A list of items, only used for creating custom endpoints. Has specific
+    meanings for KDBUS_CMD_BUS_MAKE and KDBUS_CMD_ENDPOINT_MAKE (see above),
+    ignored for KDBUS_CMD_DOMAIN_MAKE.
 };
 
 
@@ -461,7 +467,17 @@ struct kdbus_cmd_hello {
       the connection has to upload appropriate matches as well.
       This flag is only valid for privileged bus connections.
 
-  __u64 attach_flags;
+  __u64 attach_flags_send;
+      Set the bits for metadata this connection permits to be sent to the
+      receiving peer. Only metadata items that are both allowed to be sent by
+      the sender and that are requested by the receiver will effectively be
+      attached to the message eventually. Note, however, that the bus may
+      optionally enforce some of those bits to be set. If the match fails,
+      -ECONNREFUSED will be returned. In either case, this field will be set
+      to the mask of metadata items that are enforced by the bus. The
+      KDBUS_FLAGS_KERNEL bit will as well be set.
+
+  __u64 attach_flags_recv;
       Request the attachment of metadata for each message received by this
       connection. The metadata actually attached may actually augment the list
       of requested items. See section 13 for more details.
@@ -649,7 +665,11 @@ struct kdbus_cmd_update {
     Items to describe the connection details to be updated. The following item
     types are supported:
 
-    KDBUS_ITEM_ATTACH_FLAGS
+    KDBUS_ITEM_ATTACH_FLAGS_SEND
+      Supply a new set of items that this connection permits to be sent along
+      with messages.
+
+    KDBUS_ITEM_ATTACH_FLAGS_RECV
       Supply a new set of items to be attached to each message.
 
     KDBUS_ITEM_NAME
@@ -1475,6 +1495,7 @@ access should not install matches. This avoids cases where the sent
 message may pass the bloom filter due to false-positives and may also
 satisfy the policy rules.
 
+
 11.5 Implicit policies
 ----------------------
 
@@ -1546,7 +1567,8 @@ Note that there are two exceptions to the above rules:
 
   b) If a connection was created with faked credentials (see section 6.2),
      the only attached metadata items are the ones provided by the connection
-     itself. The destination's attach_flags won't be looked at in such cases.
+     itself. Other bits in the destination's attach_flags_recv won't have any
+     effect in such cases.
 
 Also, there are two things to be considered by userspace programs regarding
 those metadata items:
@@ -1680,6 +1702,8 @@ For KDBUS_CMD_HELLO:
 		an illegal combination of KDBUS_HELLO_MONITOR,
 		KDBUS_HELLO_ACTIVATOR and KDBUS_HELLO_POLICY_HOLDER was passed
 		in the flags, or an invalid set of items was supplied
+  -ECONNREFUSED	The attach_flags_send field did not satisfy the requirements of
+		the bus
   -EPERM	An KDBUS_ITEM_CREDS items was supplied, but the current user is
 		not privileged
   -ESHUTDOWN	The bus has already been shut down

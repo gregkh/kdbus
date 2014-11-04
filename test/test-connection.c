@@ -32,7 +32,8 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 		return TEST_ERR;
 
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
-	hello.attach_flags = _KDBUS_ATTACH_ALL;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+	hello.attach_flags_recv = _KDBUS_ATTACH_ALL;
 	hello.size = sizeof(struct kdbus_cmd_hello);
 	hello.pool_size = POOL_SIZE;
 
@@ -450,7 +451,8 @@ int kdbus_test_writable_pool(struct kdbus_test_env *env)
 
 	memset(&hello, 0, sizeof(hello));
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
-	hello.attach_flags = _KDBUS_ATTACH_ALL;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+	hello.attach_flags_recv = _KDBUS_ATTACH_ALL;
 	hello.size = sizeof(struct kdbus_cmd_hello);
 	hello.pool_size = POOL_SIZE;
 

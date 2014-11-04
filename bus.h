@@ -36,6 +36,7 @@
  * @conn_seq_last:	Last used connection id sequence number
  * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
+ * @attach_flags_req:	Attach flags required by connecting peers
  * @name_registry:	Name registry of this bus
  * @domain_entry:	Entry in domain
  * @bloom:		Bloom parameters
@@ -69,6 +70,7 @@ struct kdbus_bus {
 	atomic64_t conn_seq_last;
 	struct list_head ep_list;
 	u64 bus_flags;
+	u64 attach_flags_req;
 	struct kdbus_name_registry *name_registry;
 	struct list_head domain_entry;
 	struct kdbus_bloom_parameter bloom;
@@ -87,12 +89,14 @@ struct kdbus_bus {
 };
 
 int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
-			char **name, struct kdbus_bloom_parameter *bloom);
+			char **name, struct kdbus_bloom_parameter *bloom,
+			u64 *attach_flags_req);
 struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				const struct kdbus_cmd_make *make,
 				const char *name,
 				const struct kdbus_bloom_parameter *bloom,
-				umode_t mode, kuid_t uid, kgid_t gid);
+				umode_t mode, kuid_t uid, kgid_t gid,
+				u64 attach_flags_req);
 int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 			       struct kdbus_cmd_info *cmd_info);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);

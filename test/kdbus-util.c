@@ -140,7 +140,8 @@ kdbus_hello(const char *path, uint64_t flags,
 	}
 
 	h.hello.flags = flags | KDBUS_HELLO_ACCEPT_FD;
-	h.hello.attach_flags = _KDBUS_ATTACH_ALL;
+	h.hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+	h.hello.attach_flags_recv = _KDBUS_ATTACH_ALL;
 	h.conn_name.type = KDBUS_ITEM_CONN_DESCRIPTION;
 	strcpy(h.conn_name.str, "this-is-my-name");
 	h.conn_name.size = KDBUS_ITEM_HEADER_SIZE + strlen(h.conn_name.str) + 1;
@@ -959,7 +960,7 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn, uint64_t flags)
 
 	item = update->items;
 
-	item->type = KDBUS_ITEM_ATTACH_FLAGS;
+	item->type = KDBUS_ITEM_ATTACH_FLAGS_RECV;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
 	item->data64[0] = flags;
 	item = KDBUS_ITEM_NEXT(item);

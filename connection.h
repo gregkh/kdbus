@@ -33,7 +33,8 @@
  * @active:		Active references to the connection
  * @id:			Connection ID
  * @flags:		KDBUS_HELLO_* flags
- * @attach_flags:	KDBUS_ATTACH_* flags
+ * @attach_flags_send:	KDBUS_ATTACH_* flags for sending
+ * @attach_flags_recv:	KDBUS_ATTACH_* flags for receiving
  * @name:		Human-readable connection name, used for debugging
  * @bus:		The bus this connection belongs to
  * @ep:			The endpoint this connection belongs to
@@ -73,7 +74,8 @@ struct kdbus_conn {
 #endif
 	u64 id;
 	u64 flags;
-	atomic64_t attach_flags;
+	atomic64_t attach_flags_send;
+	atomic64_t attach_flags_recv;
 	const char *name;
 	struct kdbus_bus *bus;
 	struct kdbus_ep *ep;
