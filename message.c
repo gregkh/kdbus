@@ -188,7 +188,10 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			if (seals < 0)
 				return -EMEDIUMTYPE;
 
-			mask = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
+			mask = F_SEAL_SHRINK |
+			       F_SEAL_GROW |
+			       F_SEAL_WRITE |
+			       F_SEAL_SEAL;
 			if ((seals & mask) != mask)
 				return -ETXTBSY;
 

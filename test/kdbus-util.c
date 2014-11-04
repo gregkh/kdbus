@@ -298,7 +298,7 @@ int sys_memfd_create(const char *name, __u64 size)
 int sys_memfd_seal_set(int fd)
 {
 	return fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK |
-			 F_SEAL_GROW | F_SEAL_WRITE);
+			 F_SEAL_GROW | F_SEAL_WRITE | F_SEAL_SEAL);
 }
 
 off_t sys_memfd_get_size(int fd, off_t *size)
