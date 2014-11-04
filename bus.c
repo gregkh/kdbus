@@ -351,7 +351,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	}
 
 	b->ep = kdbus_ep_new(b, "bus", mode, uid, gid, false);
-	if (IS_ERR(b->ep) < 0) {
+	if (IS_ERR(b->ep)) {
 		ret = PTR_ERR(b->ep);
 		goto exit_free_reg;
 	}

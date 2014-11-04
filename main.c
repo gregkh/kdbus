@@ -41,7 +41,7 @@ static int __init kdbus_init(void)
 	 * provides the /dev/kdbus/control device node.
 	 */
 	kdbus_domain_init = kdbus_domain_new(NULL, NULL, 0666);
-	if (IS_ERR(kdbus_domain_init) < 0) {
+	if (IS_ERR(kdbus_domain_init)) {
 		ret = PTR_ERR(kdbus_domain_init);
 		pr_err("failed to initialize, error=%i\n", ret);
 		goto exit_minor;
