@@ -172,9 +172,9 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		return 0;
 
 	/*
-	 * Only after the queue grows above the maximum number of messages
-	 * per individual user, we start to count all further messages
-	 * from the sending users.
+	 * Per-user accounting can be expensive if we have many different
+	 * users on the bus. Allow one set of messages to pass through
+	 * un-accounted. Only once we hit that limit, we start accounting.
 	 */
 	if (conn->queue.msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
 		return 0;
@@ -193,12 +193,6 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 			return -ENOMEM;
 
 		conn->msg_users_max = i;
-
-		/*
-		 * The user who triggered the initial allocation of the
-		 * array has now exceeded its limit.
-		 */
-		conn->msg_users[user] = conn->queue.msg_count;
 	}
 
 	if (conn->msg_users[user] > KDBUS_CONN_MAX_MSGS_PER_USER)

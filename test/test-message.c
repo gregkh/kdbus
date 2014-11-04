@@ -144,7 +144,20 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	a = kdbus_hello(env->buspath, 0, NULL, 0);
 	b = kdbus_hello(env->buspath, 0, NULL, 0);
 
-	for (i = 0; i <= KDBUS_CONN_MAX_MSGS_PER_USER; i++) {
+	for (i = 0; i <= KDBUS_CONN_MAX_MSGS_PER_USER * 2; i++) {
+		ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
+		ASSERT_RETURN(ret == 0);
+	}
+
+	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
+	ASSERT_RETURN(ret == -ENOBUFS);
+
+	for (i = 0; i <= KDBUS_CONN_MAX_MSGS_PER_USER * 2; ++i) {
+		ret = kdbus_msg_recv(a, NULL, NULL);
+		ASSERT_RETURN(ret == 0);
+	}
+
+	for (i = 0; i <= KDBUS_CONN_MAX_MSGS_PER_USER * 2; i++) {
 		ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
 		ASSERT_RETURN(ret == 0);
 	}
