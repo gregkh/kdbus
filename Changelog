@@ -1,9 +1,9 @@
 since RFC v1:
 
- * Make functions that create new objects return the newly allocated
-   memory directly, rather than in a referenced function arguments.
-   That implies using ERR_PTR() logic in many areas. Requested by
-   Al Viro.
+  * Make functions that create new objects return the newly allocated
+    memory directly, rather than in a referenced function arguments.
+    That implies using ERR_PTR() logic in many areas. Requested by
+    Al Viro.
 
   * Use #defines rather than an enum for the ioctl signatures, so when
     new ones are added, usespace can use #ifdeffery to determine the
@@ -19,4 +19,9 @@ since RFC v1:
      KDBUS_ATTACH_CONN_NAME	→ KDBUS_ATTACH_CONN_DESCRIPTION
 
   * Documentation fixes, by Peter Meerwald and others.
+
+  * Per-user message count quota logic fixed, and new test added.
+    By John de la Garza.
+
+  * More test code for CONN_INFO ioctl
 
