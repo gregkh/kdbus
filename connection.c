@@ -494,7 +494,7 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 		goto exit_unlock;
 	}
 
-	entry = kdbus_queue_entry_alloc(conn_dst, kmsg);
+	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
 	if (IS_ERR(entry)) {
 		ret = PTR_ERR(entry);
 		goto exit_unlock;
@@ -876,10 +876,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		mutex_lock(&conn_dst->lock);
 		if (reply_wake->waiting && kdbus_conn_active(conn_dst)) {
-			reply_wake->queue_entry =
-				kdbus_queue_entry_alloc(conn_dst, kmsg);
-			if (IS_ERR(reply_wake->queue_entry))
-				ret = PTR_ERR(reply_wake->queue_entry);
+			struct kdbus_queue_entry *e;
+
+			e = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
+			if (IS_ERR(e))
+				ret = PTR_ERR(e);
+			else
+				reply_wake->queue_entry = e;
 		} else {
 			ret = -ECONNRESET;
 		}

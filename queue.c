@@ -406,7 +406,8 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 
 /**
  * kdbus_queue_entry_alloc() - allocate a queue entry
- * @conn:	The connection that holds the queue
+ * @conn_src:	The connection used to create the message
+ * @conn_dst:	The connection that holds the queue
  * @kmsg:	The kmsg object the queue entry should track
  *
  * Allocates a queue entry based on a given kmsg and allocate space for
@@ -415,7 +416,8 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
  *
  * Return: the allocated entry on success, or an ERR_PTR on failures.
  */
-struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn,
+struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
+						  struct kdbus_conn *conn_dst,
 						  const struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_queue_entry *entry;
@@ -475,13 +477,13 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
 	}
 
-	attach_flags = atomic64_read(&conn->attach_flags);
+	attach_flags = atomic64_read(&conn_dst->attach_flags);
 
 	/* space for metadata/credential items */
 	if (kmsg->meta) {
 		size_t meta_size;
 
-		meta_size = kdbus_meta_size(kmsg->meta, conn, attach_flags);
+		meta_size = kdbus_meta_size(kmsg->meta, conn_dst, attach_flags);
 		if (meta_size > 0) {
 			meta_off = msg_size;
 			msg_size += meta_size;
@@ -493,14 +495,14 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	/* do not give out more than half of the remaining space */
 	want = vec_data + kmsg->vecs_size;
-	have = kdbus_pool_remain(conn->pool);
+	have = kdbus_pool_remain(conn_dst->pool);
 	if (want < have && want > have / 2) {
 		ret = -EXFULL;
 		goto exit_free_fds;
 	}
 
 	/* allocate the needed space in the pool of the receiver */
-	entry->slice = kdbus_pool_slice_alloc(conn->pool, want);
+	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, want);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		goto exit_free_fds;
@@ -567,7 +569,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	/* append message metadata/credential items */
 	if (meta_off > 0) {
-		ret = kdbus_meta_write(kmsg->meta, conn, attach_flags,
+		ret = kdbus_meta_write(kmsg->meta, conn_dst, attach_flags,
 				       entry->slice, meta_off);
 		if (ret < 0)
 			goto exit_free_slice;

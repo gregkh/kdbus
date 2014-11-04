@@ -68,7 +68,8 @@ struct kdbus_kmsg;
 void kdbus_queue_init(struct kdbus_queue *queue);
 
 struct kdbus_queue_entry *
-kdbus_queue_entry_alloc(struct kdbus_conn *conn,
+kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
+			struct kdbus_conn *conn_dst,
 			const struct kdbus_kmsg *kmsg);
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry);
 
