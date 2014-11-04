@@ -192,14 +192,13 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		if (!conn->msg_users)
 			return -ENOMEM;
 
+		conn->msg_users_max = i;
+
 		/*
 		 * The user who triggered the initial allocation of the
 		 * array has now exceeded its limit.
 		 */
-		if (conn->msg_users_max == 0)
-			conn->msg_users[user] = conn->queue.msg_count;
-
-		conn->msg_users_max = i;
+		conn->msg_users[user] = conn->queue.msg_count;
 	}
 
 	if (conn->msg_users[user] > KDBUS_CONN_MAX_MSGS_PER_USER)
