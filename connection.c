@@ -494,9 +494,11 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_queue_entry_alloc(conn, kmsg, &entry);
-	if (ret < 0)
+	entry = kdbus_queue_entry_alloc(conn, kmsg);
+	if (IS_ERR(entry)) {
+		ret = PTR_ERR(entry);
 		goto exit_unlock;
+	}
 
 	/* limit the number of queued messages from the same individual user */
 	ret = kdbus_conn_queue_user_quota(conn, conn_src, entry);
@@ -873,11 +875,14 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * The connection's queue will never get to see it.
 		 */
 		mutex_lock(&conn_dst->lock);
-		if (reply_wake->waiting && kdbus_conn_active(conn_dst))
-			ret = kdbus_queue_entry_alloc(conn_dst, kmsg,
-						      &reply_wake->queue_entry);
-		else
+		if (reply_wake->waiting && kdbus_conn_active(conn_dst)) {
+			reply_wake->queue_entry =
+				kdbus_queue_entry_alloc(conn_dst, kmsg);
+			if (IS_ERR(reply_wake->queue_entry))
+				ret = PTR_ERR(reply_wake->queue_entry);
+		} else {
 			ret = -ECONNRESET;
+		}
 
 		kdbus_conn_reply_sync(reply_wake, ret);
 		kdbus_conn_reply_unref(reply_wake);

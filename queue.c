@@ -408,15 +408,15 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
  * kdbus_queue_entry_alloc() - allocate a queue entry
  * @conn:	The connection that holds the queue
  * @kmsg:	The kmsg object the queue entry should track
- * @e:		Pointer to return the allocated entry
  *
  * Allocates a queue entry based on a given kmsg and allocate space for
  * the message payload and the requested metadata in the connection's pool.
  * The entry is not actually added to the queue's lists at this point.
+ *
+ * Return: the allocated entry on success, or an ERR_PTR on failures.
  */
-int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
-			    const struct kdbus_kmsg *kmsg,
-			    struct kdbus_queue_entry **e)
+struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn,
+						  const struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_queue_entry *entry;
 	struct kdbus_item *it;
@@ -433,7 +433,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	/* copy message properties we need for the entry management */
 	entry->src_id = kmsg->msg.src_id;
@@ -574,8 +574,7 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	}
 
 	entry->priority = kmsg->msg.priority;
-	*e = entry;
-	return 0;
+	return entry;
 
 exit_free_slice:
 	kdbus_pool_slice_free(entry->slice);
@@ -583,7 +582,7 @@ exit_free_fds:
 	kfree(entry->fds_fp);
 exit_free_entry:
 	kdbus_queue_entry_free(entry);
-	return ret;
+	return ERR_PTR(ret);
 }
 
 /**
