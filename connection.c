@@ -188,7 +188,7 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		i = 8 + KDBUS_ALIGN8(user);
 		conn->msg_users = krealloc(conn->msg_users,
 					   i * sizeof(unsigned int),
-					   GFP_KERNEL);
+					   GFP_KERNEL | __GFP_ZERO);
 		if (!conn->msg_users)
 			return -ENOMEM;
 
