@@ -136,9 +136,8 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	int i;
 
 	if (geteuid() == 0) {
-		kdbus_printf("error geteuid() == 0, %s() can't be root\n",
-			     __func__);
-		return TEST_SKIP;
+		ret = setresuid(65534, 65534, 65534); /* user ID of 'nobody' */
+		ASSERT_RETURN(ret == 0);
 	}
 
 	a = kdbus_hello(env->buspath, 0, NULL, 0);
