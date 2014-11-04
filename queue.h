@@ -14,6 +14,8 @@
 #ifndef __KDBUS_QUEUE_H
 #define __KDBUS_QUEUE_H
 
+struct kdbus_domain_user;
+
 struct kdbus_queue {
 	size_t msg_count;
 	struct list_head msg_list;
@@ -58,7 +60,7 @@ struct kdbus_queue_entry {
 	u64 cookie;
 	u64 dst_name_id;
 	struct kdbus_conn_reply *reply;
-	int user;
+	struct kdbus_domain_user *user;
 };
 
 struct kdbus_kmsg;

@@ -28,6 +28,7 @@
 #include <linux/slab.h>
 #include <linux/syscalls.h>
 
+#include "domain.h"
 #include "connection.h"
 #include "item.h"
 #include "message.h"
@@ -361,10 +362,10 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 	queue->msg_count--;
 
 	/* user quota */
-	if (entry->user >= 0) {
-		BUG_ON(conn->msg_users[entry->user] == 0);
-		conn->msg_users[entry->user]--;
-		entry->user = -1;
+	if (entry->user) {
+		BUG_ON(conn->msg_users[entry->user->idr] == 0);
+		conn->msg_users[entry->user->idr]--;
+		entry->user = kdbus_domain_user_unref(entry->user);
 	}
 
 	/* the queue is empty, remove the user quota accounting */
@@ -432,8 +433,6 @@ int kdbus_queue_entry_alloc(struct kdbus_conn *conn,
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return -ENOMEM;
-
-	entry->user = -1;
 
 	/* copy message properties we need for the entry management */
 	entry->src_id = kmsg->msg.src_id;

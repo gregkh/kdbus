@@ -163,7 +163,7 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 				       const struct kdbus_conn *conn_src,
 				       struct kdbus_queue_entry *entry)
 {
-	unsigned int user;
+	struct kdbus_domain_user *user;
 
 	if (!conn_src)
 		return 0;
@@ -179,13 +179,13 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 	if (conn->queue.msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
 		return 0;
 
-	user = conn_src->user->idr;
+	user = conn_src->user;
 
 	/* extend array to store the user message counters */
-	if (user >= conn->msg_users_max) {
+	if (user->idr >= conn->msg_users_max) {
 		unsigned int i;
 
-		i = 8 + KDBUS_ALIGN8(user);
+		i = 8 + KDBUS_ALIGN8(user->idr);
 		conn->msg_users = krealloc(conn->msg_users,
 					   i * sizeof(unsigned int),
 					   GFP_KERNEL | __GFP_ZERO);
@@ -195,11 +195,11 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 		conn->msg_users_max = i;
 	}
 
-	if (conn->msg_users[user] >= KDBUS_CONN_MAX_MSGS_PER_USER)
+	if (conn->msg_users[user->idr] >= KDBUS_CONN_MAX_MSGS_PER_USER)
 		return -ENOBUFS;
 
-	conn->msg_users[user]++;
-	entry->user = user;
+	conn->msg_users[user->idr]++;
+	entry->user = kdbus_domain_user_ref(user);
 	return 0;
 }
 
