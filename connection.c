@@ -1351,7 +1351,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		if (ret < 0)
 			goto exit;
 
-		info.size += meta->size;
+		info.size += kdbus_meta_size(meta, conn, extra_flags);
 	}
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
@@ -1376,7 +1376,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	}
 
 	if (extra_flags) {
-		ret = kdbus_pool_slice_copy(slice, pos, meta->data, meta->size);
+		ret = kdbus_meta_write(meta, conn, extra_flags, slice, pos);
 		if (ret < 0)
 			goto exit_free;
 	}
