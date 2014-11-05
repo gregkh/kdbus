@@ -8,9 +8,12 @@
 #include <errno.h>
 #include <assert.h>
 #include <limits.h>
+#include <sys/types.h>
 #include <sys/capability.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
+#include <sys/wait.h>
 #include <stdbool.h>
 
 #include "kdbus-util.h"
@@ -129,7 +132,7 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	return TEST_OK;
 }
 
-/* get first item, use it here */
+/* Get only the first item */
 static struct kdbus_item *kdbus_get_item(struct kdbus_info *info,
 					 uint64_t type)
 {
@@ -142,16 +145,43 @@ static struct kdbus_item *kdbus_get_item(struct kdbus_info *info,
 	return NULL;
 }
 
+static unsigned int kdbus_count_item(struct kdbus_info *info,
+				     uint64_t type)
+{
+	unsigned int i = 0;
+	const struct kdbus_item *item;
+
+	KDBUS_ITEM_FOREACH(item, info, items)
+		if (item->type == type)
+			i++;
+
+	return i;
+}
+
 static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 {
 	int ret;
+	unsigned int cnt = 0;
 	uint64_t offset = 0;
 	struct kdbus_info *info;
 	struct kdbus_conn *conn;
 	struct kdbus_conn *privileged;
 	const struct kdbus_item *item;
-	uint64_t valid_flags = KDBUS_ATTACH_NAMES  |
+	uint64_t valid_flags = KDBUS_ATTACH_NAMES |
 			       KDBUS_ATTACH_CONN_DESCRIPTION;
+
+	uint64_t invalid_flags = KDBUS_ATTACH_NAMES	|
+				 KDBUS_ATTACH_CREDS	|
+				 KDBUS_ATTACH_CAPS	|
+				 KDBUS_ATTACH_CGROUP	|
+				 KDBUS_ATTACH_CONN_DESCRIPTION;
+
+	struct kdbus_creds cached_creds = {
+		.uid	= getuid(),
+		.gid	= getgid(),
+		.pid	= getpid(),
+		.tid	= syscall(SYS_gettid),
+	};
 
 	ret = kdbus_info(env->conn, env->conn->id, NULL,
 			 valid_flags, &offset);
@@ -185,6 +215,18 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	item = kdbus_get_item(info, KDBUS_ITEM_NAME);
 	ASSERT_RETURN(item == NULL);
 
+	cnt = kdbus_count_item(info, KDBUS_ITEM_CREDS);
+	ASSERT_RETURN(cnt == 1);
+
+	item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
+	ASSERT_RETURN(item);
+
+	/* Compare item->creds with cached creds */
+	ASSERT_RETURN(item->creds.uid == cached_creds.uid &&
+		      item->creds.gid == cached_creds.gid &&
+		      item->creds.pid == cached_creds.pid &&
+		      item->creds.tid == cached_creds.tid);
+
 	kdbus_free(conn, offset);
 
 	ret = kdbus_name_acquire(conn, "com.example.a", NULL);
@@ -208,6 +250,85 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(info->id == conn->id);
 
 	kdbus_free(conn, offset);
+
+	ret = RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_GID, ({
+		ret = kdbus_info(conn, conn->id, NULL,
+				 valid_flags, &offset);
+		ASSERT_EXIT(ret == 0);
+
+		info = (struct kdbus_info *)(conn->buf + offset);
+		ASSERT_EXIT(info->id == conn->id);
+
+		item = kdbus_get_item(info, KDBUS_ITEM_OWNED_NAME);
+		ASSERT_EXIT(item &&
+			!strcmp(item->name.name, "com.example.a"));
+
+		item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
+		ASSERT_EXIT(item);
+
+		/*
+		 * Compare item->creds with cached creds of
+		 * privileged one.
+		 *
+		 * cmd_info will always return cached creds.
+		 */
+		ASSERT_EXIT(item->creds.uid == cached_creds.uid &&
+			    item->creds.gid == cached_creds.gid &&
+			    item->creds.pid == cached_creds.pid &&
+			    item->creds.tid == cached_creds.tid);
+
+		kdbus_free(conn, offset);
+
+		/*
+		 * Use invalid_flags and make sure that userspace
+		 * do not play with us.
+		 */
+		ret = kdbus_info(conn, conn->id, NULL,
+				 invalid_flags, &offset);
+		ASSERT_EXIT(ret == 0);
+
+		/*
+		 * Make sure that we return only one creds item and
+		 * it points to the cached creds.
+		 */
+		cnt = kdbus_count_item(info, KDBUS_ITEM_CREDS);
+		ASSERT_EXIT(cnt == 1);
+
+		item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
+		ASSERT_EXIT(item);
+
+		/* Compare item->creds with cached creds */
+		ASSERT_EXIT(item->creds.uid == cached_creds.uid &&
+			    item->creds.gid == cached_creds.gid &&
+			    item->creds.pid == cached_creds.pid &&
+			    item->creds.tid == cached_creds.tid);
+
+		cnt = kdbus_count_item(info, KDBUS_ITEM_CGROUP);
+		ASSERT_EXIT(cnt == 1);
+
+		cnt = kdbus_count_item(info, KDBUS_ITEM_CAPS);
+		ASSERT_EXIT(cnt == 1);
+
+		kdbus_free(conn, offset);
+	}),
+	({ 0; }));
+
+	/* A second name */
+	ret = kdbus_name_acquire(conn, "com.example.b", NULL);
+	ASSERT_RETURN(ret >= 0);
+
+	ret = kdbus_info(conn, conn->id, NULL, valid_flags, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(conn->buf + offset);
+	ASSERT_RETURN(info->id == conn->id);
+
+	cnt = kdbus_count_item(info, KDBUS_ITEM_OWNED_NAME);
+	ASSERT_RETURN(cnt == 2);
+
+	kdbus_free(conn, offset);
+
+	ASSERT_RETURN(ret == 0);
 
 	return 0;
 }
