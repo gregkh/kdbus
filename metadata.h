@@ -14,26 +14,7 @@
 #ifndef __KDBUS_METADATA_H
 #define __KDBUS_METADATA_H
 
-/**
- * struct kdbus_meta - metadata buffer
- * @attached:		Flags for already attached data
- * @domain:		Domain the metadata belongs to
- * @data:		Allocated buffer
- * @size:		Number of bytes used
- * @allocated_size:	Size of buffer
- *
- * Used to collect and store connection metadata in a pre-compiled
- * buffer containing struct kdbus_item.
- */
-struct kdbus_meta {
-	u64 attached;
-	struct pid_namespace *pid_namespace;
-	struct user_namespace *user_namespace;
-	struct kdbus_item *data;
-	size_t size;
-	size_t allocated_size;
-};
-
+struct kdbus_meta;
 struct kdbus_conn;
 struct kdbus_pool_slice;
 

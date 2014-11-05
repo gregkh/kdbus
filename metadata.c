@@ -35,6 +35,26 @@
 #include "pool.h"
 
 /**
+ * struct kdbus_meta - metadata buffer
+ * @attached:		Flags for already attached data
+ * @domain:		Domain the metadata belongs to
+ * @data:		Allocated buffer
+ * @size:		Number of bytes used
+ * @allocated_size:	Size of buffer
+ *
+ * Used to collect and store connection metadata in a pre-compiled
+ * buffer containing struct kdbus_item.
+ */
+struct kdbus_meta {
+	u64 attached;
+	struct pid_namespace *pid_namespace;
+	struct user_namespace *user_namespace;
+	struct kdbus_item *data;
+	size_t size;
+	size_t allocated_size;
+};
+
+/**
  * kdbus_meta_new() - create new metadata object
  *
  * Return: a new kdbus_meta object on success, ERR_PTR on failure.
