@@ -101,7 +101,7 @@ static unsigned int kdbus_major;
 static DEFINE_IDR(kdbus_cdev_idr);
 
 /* kdbus cdev lock */
-static DEFINE_SPINLOCK(kdbus_cdev_lock);
+static DEFINE_MUTEX(kdbus_cdev_lock);
 
 int kdbus_cdev_init(void)
 {
@@ -191,10 +191,10 @@ int kdbus_cdev_alloc(enum kdbus_cdev_type type, void *ptr, dev_t *out)
 	ptr = kdbus_cdev_pack(type, ptr);
 
 	idr_preload(GFP_KERNEL);
-	spin_lock(&kdbus_cdev_lock);
+	mutex_lock(&kdbus_cdev_lock);
 	ret = idr_alloc(&kdbus_cdev_idr, ptr, 0, KDBUS_CDEV_MAX + 1,
 			GFP_NOWAIT);
-	spin_unlock(&kdbus_cdev_lock);
+	mutex_unlock(&kdbus_cdev_lock);
 	idr_preload_end();
 
 	if (ret < 0)
@@ -215,9 +215,9 @@ void kdbus_cdev_free(dev_t devt)
 	if (!devt)
 		return;
 
-	spin_lock(&kdbus_cdev_lock);
+	mutex_lock(&kdbus_cdev_lock);
 	idr_remove(&kdbus_cdev_idr, minor);
-	spin_unlock(&kdbus_cdev_lock);
+	mutex_unlock(&kdbus_cdev_lock);
 }
 
 /**
@@ -232,9 +232,9 @@ void kdbus_cdev_set(dev_t devt, enum kdbus_cdev_type type, void *ptr)
 
 	ptr = kdbus_cdev_pack(type, ptr);
 
-	spin_lock(&kdbus_cdev_lock);
+	mutex_lock(&kdbus_cdev_lock);
 	idr_replace(&kdbus_cdev_idr, ptr, minor);
-	spin_unlock(&kdbus_cdev_lock);
+	mutex_unlock(&kdbus_cdev_lock);
 }
 
 static int kdbus_cdev_lookup(dev_t devt, void **out)
@@ -243,11 +243,11 @@ static int kdbus_cdev_lookup(dev_t devt, void **out)
 	enum kdbus_cdev_type type;
 	void *ptr;
 
-	spin_lock(&kdbus_cdev_lock);
+	mutex_lock(&kdbus_cdev_lock);
 	ptr = idr_find(&kdbus_cdev_idr, minor);
 	type = kdbus_cdev_unpack(&ptr);
 	kdbus_cdev_ref(type, ptr);
-	spin_unlock(&kdbus_cdev_lock);
+	mutex_unlock(&kdbus_cdev_lock);
 
 	if (!ptr)
 		return -ESHUTDOWN;
