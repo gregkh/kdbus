@@ -476,6 +476,15 @@ static int kdbus_handle_transform(struct kdbus_handle *handle,
 	 * is accessible, too (given appropriate read-barriers).
 	 */
 
+	WARN_ON(old_type != KDBUS_HANDLE_CONTROL &&
+		old_type != KDBUS_HANDLE_EP);
+	WARN_ON(old_type == KDBUS_HANDLE_CONTROL &&
+		(new_type != KDBUS_HANDLE_CONTROL_DOMAIN_OWNER &&
+		 new_type != KDBUS_HANDLE_CONTROL_BUS_OWNER));
+	WARN_ON(old_type == KDBUS_HANDLE_EP &&
+		(new_type != KDBUS_HANDLE_ENDPOINT_CONNECTED &&
+		 new_type != KDBUS_HANDLE_ENDPOINT_OWNER));
+
 	mutex_lock(&handle->domain->lock);
 	if (handle->type == old_type) {
 		handle->ptr = ctx_ptr;
