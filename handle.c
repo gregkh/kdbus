@@ -405,7 +405,9 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		kdbus_conn_unref(handle->conn);
 		break;
 
-	default:
+	case KDBUS_HANDLE_CONTROL:
+	case KDBUS_HANDLE_EP:
+		/* nothing to clean up */
 		break;
 	}
 
