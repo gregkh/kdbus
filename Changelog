@@ -53,3 +53,4 @@ since RFC v1:
     That way, old clients can opt-in for whethever newer kernels might
     offer to send.
 
+  * Moved the driver to ipc/kdbus, as suggested by Arnd Bergmann
