@@ -88,15 +88,9 @@ struct kdbus_bus {
 	struct kdbus_meta *meta;
 };
 
-int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
-			char **name, struct kdbus_bloom_parameter *bloom,
-			u64 *attach_flags_req);
-struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
-				const struct kdbus_cmd_make *make,
-				const char *name,
-				const struct kdbus_bloom_parameter *bloom,
-				umode_t mode, kuid_t uid, kgid_t gid,
-				u64 attach_flags_req);
+struct kdbus_bus *kdbus_bus_make_user(struct kdbus_domain *domain,
+				      const struct kdbus_cmd_make *make,
+				      umode_t mode, kuid_t uid, kgid_t gid);
 int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 			       struct kdbus_cmd_info *cmd_info);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);

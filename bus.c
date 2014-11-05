@@ -260,32 +260,72 @@ exit_free_slice:
 }
 
 /**
- * kdbus_bus_new() - create a new bus
+ * kdbus_bus_make_user() - create a kdbus_cmd_make from user-supplied data
  * @domain:		The domain to work on
- * @make:		Pointer to a struct kdbus_cmd_make containing the
- *			details for the bus creation
- * @name:		Name of the bus
- * @bloom:		Bloom parameters for this bus
+ * @make:		Information as passed in by userspace
  * @mode:		The access mode for the device node
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
- * @attach_flags_req:	Attach flags required from peer members
  *
- * This function will allocate a new kdbus_bus and link it to the given
- * domain.
+ * This function is part of the connection ioctl() interface and will parse
+ * the user-supplied data in order to create a new kdbus_bus.
  *
- * Return: a new kdbus_bus object on success, ERR_PTR value on failure.
+ * Return: the new bus on success, ERR_PTR on failure.
  */
-struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
-				const struct kdbus_cmd_make *make,
-				const char *name,
-				const struct kdbus_bloom_parameter *bloom,
-				umode_t mode, kuid_t uid, kgid_t gid,
-				u64 attach_flags_req)
+struct kdbus_bus *kdbus_bus_make_user(struct kdbus_domain *domain,
+				      const struct kdbus_cmd_make *make,
+				      umode_t mode, kuid_t uid, kgid_t gid)
 {
+	const struct kdbus_bloom_parameter *bloom = NULL;
+	const struct kdbus_item *item;
+	const char *name = NULL;
 	struct kdbus_bus *b;
 	char prefix[16];
 	int ret;
+
+	u64 attach_flags = 0;
+
+	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
+		switch (item->type) {
+		case KDBUS_ITEM_MAKE_NAME:
+			if (name)
+				return ERR_PTR(-EEXIST);
+
+			name = item->str;
+			break;
+
+		case KDBUS_ITEM_BLOOM_PARAMETER:
+			if (bloom)
+				return ERR_PTR(-EEXIST);
+
+			bloom = &item->bloom_parameter;
+			break;
+
+		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
+			if (attach_flags)
+				return ERR_PTR(-EEXIST);
+
+			attach_flags = item->data64[0];
+			break;
+		}
+	}
+
+	if (!name || !bloom)
+		return ERR_PTR(-EBADMSG);
+
+	/* 'any' degrades to 'all' for compatibility */
+	if (attach_flags == _KDBUS_ATTACH_ANY)
+		attach_flags = _KDBUS_ATTACH_ALL;
+
+	/* reject unknown attach flags */
+	if (attach_flags & ~_KDBUS_ATTACH_ALL)
+		return ERR_PTR(-EINVAL);
+	if (bloom->size < 8 || bloom->size > KDBUS_BUS_BLOOM_MAX_SIZE)
+		return ERR_PTR(-EINVAL);
+	if (!KDBUS_IS_ALIGNED8(bloom->size))
+		return ERR_PTR(-EINVAL);
+	if (bloom->n_hash < 1)
+		return ERR_PTR(-EINVAL);
 
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-",
@@ -307,7 +347,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->uid_owner = uid;
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
-	b->attach_flags_req = attach_flags_req;
+	b->attach_flags_req = attach_flags;
 	mutex_init(&b->lock);
 	init_rwsem(&b->conn_rwlock);
 	hash_init(b->conn_hash);
@@ -325,8 +365,10 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 
 	/* cache the metadata/credentials of the creator */
 	b->meta = kdbus_meta_new();
-	if (IS_ERR(b->meta))
-		return ERR_PTR(PTR_ERR(b->meta));
+	if (IS_ERR(b->meta)) {
+		ret = PTR_ERR(b->meta);
+		goto exit_free;
+	}
 
 	ret = kdbus_meta_append(b->meta, NULL, 0,
 				KDBUS_ATTACH_CREDS	|
@@ -339,12 +381,12 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				KDBUS_ATTACH_SECLABEL	|
 				KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
-		goto exit_free;
+		goto exit_free_meta;
 
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;
-		goto exit_free;
+		goto exit_free_meta;
 	}
 
 	b->name_registry = kdbus_name_registry_new();
@@ -395,80 +437,12 @@ exit_free_reg:
 	kdbus_name_registry_free(b->name_registry);
 exit_free_name:
 	kfree(b->name);
-exit_free:
+exit_free_meta:
 	kdbus_meta_free(b->meta);
+exit_free:
 	kdbus_policy_db_clear(&b->policy_db);
 	kdbus_domain_unref(b->domain);
 	kfree(b);
 
 	return ERR_PTR(ret);
-}
-
-/**
- * kdbus_bus_make_user() - create a kdbus_cmd_make from user-supplied data
- * @make:		Reference to the location where to store the result
- * @name:		Shortcut to the requested name
- * @bloom:		Bloom parameters for this bus
- * @attach_flags_req:	Storage for required attach flags
- *
- * This function is part of the connection ioctl() interface and will parse
- * the user-supplied data.
- *
- * Return: 0 on success, negative errno on failure.
- */
-int kdbus_bus_make_user(const struct kdbus_cmd_make *make,
-			char **name, struct kdbus_bloom_parameter *bloom,
-			u64 *attach_flags_req)
-{
-	const struct kdbus_item *item;
-	const char *n = NULL;
-	const struct kdbus_bloom_parameter *bl = NULL;
-	u64 attach_flags = 0;
-
-	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_MAKE_NAME:
-			if (n)
-				return -EEXIST;
-
-			n = item->str;
-			break;
-
-		case KDBUS_ITEM_BLOOM_PARAMETER:
-			if (bl)
-				return -EEXIST;
-
-			bl = &item->bloom_parameter;
-			break;
-
-		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
-			if (attach_flags)
-				return -EEXIST;
-
-			attach_flags = item->data64[0];
-			break;
-		}
-	}
-
-	if (!n || !bl)
-		return -EBADMSG;
-
-	/* 'any' degrades to 'all' for compatibility */
-	if (attach_flags == _KDBUS_ATTACH_ANY)
-		attach_flags = _KDBUS_ATTACH_ALL;
-
-	/* reject unknown attach flags */
-	if (attach_flags & ~_KDBUS_ATTACH_ALL)
-		return -EINVAL;
-	if (bl->size < 8 || bl->size > KDBUS_BUS_BLOOM_MAX_SIZE)
-		return -EINVAL;
-	if (!KDBUS_IS_ALIGNED8(bl->size))
-		return -EINVAL;
-	if (bl->n_hash < 1)
-		return -EINVAL;
-
-	*name = (char *)n;
-	*bloom = *bl;
-	*attach_flags_req = attach_flags;
-	return 0;
 }
