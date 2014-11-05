@@ -1281,9 +1281,9 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	struct kdbus_info info = {};
 	struct kdbus_meta *meta = NULL;
 	struct kdbus_pool_slice *slice;
-	size_t pos;
+	u64 extra_flags, attach_flags;
+	size_t pos, meta_size;
 	int ret = 0;
-	u64 flags;
 
 	if (cmd_info->id == 0) {
 		const char *name;
@@ -1325,9 +1325,12 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
-	/* do not leak domain-specific credentials */
-	if (kdbus_meta_ns_eq(conn->meta, owner_conn->meta))
-		info.size += owner_conn->meta->size;
+	/* mask out what information the connection wants to pass us */
+	attach_flags = cmd_info->flags &
+		       atomic64_read(&owner_conn->attach_flags_send);
+
+	meta_size = kdbus_meta_size(owner_conn->meta, conn, attach_flags);
+	info.size += meta_size;
 
 	/*
 	 * Unlike the rest of the values which are cached at connection
@@ -1335,16 +1338,16 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	 * at creation time a connection does not have names and other
 	 * properties.
 	 */
-	flags = cmd_info->flags & (KDBUS_ATTACH_NAMES |
-				   KDBUS_ATTACH_CONN_DESCRIPTION);
-	if (flags) {
+	extra_flags = attach_flags & (KDBUS_ATTACH_NAMES |
+				      KDBUS_ATTACH_CONN_DESCRIPTION);
+	if (extra_flags) {
 		meta = kdbus_meta_new();
 		if (IS_ERR(meta)) {
 			ret = PTR_ERR(meta);
 			goto exit;
 		}
 
-		ret = kdbus_meta_append(meta, owner_conn, 0, flags);
+		ret = kdbus_meta_append(meta, owner_conn, 0, extra_flags);
 		if (ret < 0)
 			goto exit;
 
@@ -1360,18 +1363,19 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
 	if (ret < 0)
 		goto exit_free;
+
 	pos = sizeof(info);
 
-	if (kdbus_meta_ns_eq(conn->meta, owner_conn->meta)) {
-		ret = kdbus_pool_slice_copy(slice, pos, owner_conn->meta->data,
-					    owner_conn->meta->size);
+	if (meta_size) {
+		ret = kdbus_meta_write(owner_conn->meta, conn,
+				       attach_flags, slice, pos);
 		if (ret < 0)
 			goto exit_free;
 
-		pos += owner_conn->meta->size;
+		pos += meta_size;
 	}
 
-	if (meta) {
+	if (extra_flags) {
 		ret = kdbus_pool_slice_copy(slice, pos, meta->data, meta->size);
 		if (ret < 0)
 			goto exit_free;
