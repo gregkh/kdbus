@@ -21,7 +21,7 @@ extern const struct file_operations kdbus_handle_ops;
 
 enum kdbus_cdev_type {
 	KDBUS_CDEV_CONTROL,
-	KDBUS_CDEV_EP,
+	KDBUS_CDEV_ENDPOINT,
 	KDBUS_CDEV_CNT
 };
 
@@ -40,7 +40,7 @@ static inline void kdbus_cdev_set_control(dev_t devt, struct kdbus_domain *d)
 /* type-safe kdbus_cdev_set() */
 static inline void kdbus_cdev_set_ep(dev_t devt, struct kdbus_ep *e)
 {
-	kdbus_cdev_set(devt, KDBUS_CDEV_EP, e);
+	kdbus_cdev_set(devt, KDBUS_CDEV_ENDPOINT, e);
 }
 
 #endif

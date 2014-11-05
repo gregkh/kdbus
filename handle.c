@@ -42,7 +42,7 @@
  * @KDBUS_HANDLE_CONTROL:		New file descriptor of a control node
  * @KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:	File descriptor to hold a domain
  * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	File descriptor to hold a bus
- * @KDBUS_HANDLE_EP:			New file descriptor of a bus node
+ * @KDBUS_HANDLE_ENDPOINT:		New file descriptor of a bus node
  * @KDBUS_HANDLE_ENDPOINT_CONNECTED:	A bus connection after HELLO
  * @KDBUS_HANDLE_ENDPOINT_OWNER:	File descriptor to hold an endpoint
  */
@@ -50,7 +50,7 @@ enum kdbus_handle_type {
 	KDBUS_HANDLE_CONTROL,
 	KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
 	KDBUS_HANDLE_CONTROL_BUS_OWNER,
-	KDBUS_HANDLE_EP,
+	KDBUS_HANDLE_ENDPOINT,
 	KDBUS_HANDLE_ENDPOINT_CONNECTED,
 	KDBUS_HANDLE_ENDPOINT_OWNER,
 };
@@ -61,7 +61,7 @@ enum kdbus_handle_type {
  * @domain:		Domain for this handle
  * @meta:		Cached connection creator's metadata/credentials
  * @ep:			The endpoint for this handle, in case @type is
- *			KDBUS_HANDLE_EP, KDBUS_HANDLE_ENDPOINT_OWNER or
+ *			KDBUS_HANDLE_ENDPOINT, KDBUS_HANDLE_ENDPOINT_OWNER or
  *			KDBUS_HANDLE_ENDPOINT_CONNECTED
  * @ptr:		Generic pointer used as alias for other members
  *			in the same union by kdbus_handle_transform()
@@ -72,7 +72,7 @@ enum kdbus_handle_type {
  * @ep_owner:		The endpoint this handle owns, in case @type
  *			is KDBUS_HANDLE_ENDPOINT_OWNER
  * @conn:		The connection this handle owns, in case @type
- *			is KDBUS_HANDLE_EP, after HELLO it is
+ *			is KDBUS_HANDLE_ENDPOINT, after HELLO it is
  *			KDBUS_HANDLE_ENDPOINT_CONNECTED
  */
 struct kdbus_handle {
@@ -202,7 +202,7 @@ static void kdbus_cdev_ref(enum kdbus_cdev_type type, void *ptr)
 		case KDBUS_CDEV_CONTROL:
 			kdbus_domain_ref(ptr);
 			break;
-		case KDBUS_CDEV_EP:
+		case KDBUS_CDEV_ENDPOINT:
 			kdbus_ep_ref(ptr);
 			break;
 		default:
@@ -218,7 +218,7 @@ static void kdbus_cdev_unref(enum kdbus_cdev_type type, void *ptr)
 		case KDBUS_CDEV_CONTROL:
 			kdbus_domain_unref(ptr);
 			break;
-		case KDBUS_CDEV_EP:
+		case KDBUS_CDEV_ENDPOINT:
 			kdbus_ep_unref(ptr);
 			break;
 		default:
@@ -336,8 +336,8 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 
 		break;
 
-	case KDBUS_CDEV_EP:
-		handle->type = KDBUS_HANDLE_EP;
+	case KDBUS_CDEV_ENDPOINT:
+		handle->type = KDBUS_HANDLE_ENDPOINT;
 		handle->ep = cdev_ptr;
 		handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
 
@@ -406,7 +406,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_HANDLE_CONTROL:
-	case KDBUS_HANDLE_EP:
+	case KDBUS_HANDLE_ENDPOINT:
 		/* nothing to clean up */
 		break;
 	}
@@ -477,11 +477,11 @@ static int kdbus_handle_transform(struct kdbus_handle *handle,
 	 */
 
 	WARN_ON(old_type != KDBUS_HANDLE_CONTROL &&
-		old_type != KDBUS_HANDLE_EP);
+		old_type != KDBUS_HANDLE_ENDPOINT);
 	WARN_ON(old_type == KDBUS_HANDLE_CONTROL &&
 		(new_type != KDBUS_HANDLE_CONTROL_DOMAIN_OWNER &&
 		 new_type != KDBUS_HANDLE_CONTROL_BUS_OWNER));
-	WARN_ON(old_type == KDBUS_HANDLE_EP &&
+	WARN_ON(old_type == KDBUS_HANDLE_ENDPOINT &&
 		(new_type != KDBUS_HANDLE_ENDPOINT_CONNECTED &&
 		 new_type != KDBUS_HANDLE_ENDPOINT_OWNER));
 
@@ -724,7 +724,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		/* turn the ep fd into a new endpoint owner device */
-		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_EP,
+		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_ENDPOINT,
 					     KDBUS_HANDLE_ENDPOINT_OWNER, ep);
 		if (ret < 0) {
 			kdbus_ep_disconnect(ep);
@@ -774,7 +774,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		/* turn the ep fd into a new connection */
-		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_EP,
+		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_ENDPOINT,
 					     KDBUS_HANDLE_ENDPOINT_CONNECTED,
 					     conn);
 		if (ret < 0) {
@@ -1256,7 +1256,7 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 	case KDBUS_HANDLE_CONTROL:
 		return kdbus_handle_ioctl_control(file, cmd, argp);
 
-	case KDBUS_HANDLE_EP:
+	case KDBUS_HANDLE_ENDPOINT:
 		return kdbus_handle_ioctl_ep(file, cmd, argp);
 
 	case KDBUS_HANDLE_ENDPOINT_CONNECTED:

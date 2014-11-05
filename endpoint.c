@@ -192,7 +192,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (ret < 0)
 		goto exit_put;
 
-	ret = kdbus_cdev_alloc(KDBUS_CDEV_EP, NULL, &e->dev.devt);
+	ret = kdbus_cdev_alloc(KDBUS_CDEV_ENDPOINT, NULL, &e->dev.devt);
 	if (ret < 0)
 		goto exit_put;
 
