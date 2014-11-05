@@ -16,6 +16,7 @@
 #include <linux/fs.h>
 #include <linux/idr.h>
 #include <linux/init.h>
+#include <linux/kdev_t.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/poll.h>
@@ -89,8 +90,8 @@ struct kdbus_handle {
 	};
 };
 
-/* max minor number; limited to 2^20-1 due to dev_t ABI */
-#define KDBUS_CDEV_MAX 0xfffff
+/* max minor number; use all we can get */
+#define KDBUS_CDEV_MAX MINORMASK
 
 /*
  * We use the lower 2 bits of a pointer to store type information. In the IDR,
