@@ -39,7 +39,6 @@
 
 /**
  * enum kdbus_handle_type - type a handle can be of
- * @_KDBUS_HANDLE_NULL:			Uninitialized/invalid
  * @KDBUS_HANDLE_CONTROL:		New file descriptor of a control node
  * @KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:	File descriptor to hold a domain
  * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	File descriptor to hold a bus
@@ -48,7 +47,6 @@
  * @KDBUS_HANDLE_ENDPOINT_OWNER:	File descriptor to hold an endpoint
  */
 enum kdbus_handle_type {
-	_KDBUS_HANDLE_NULL,
 	KDBUS_HANDLE_CONTROL,
 	KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
 	KDBUS_HANDLE_CONTROL_BUS_OWNER,
