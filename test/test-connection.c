@@ -44,6 +44,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	/* a size of 0 must return EMSGSIZE */
 	hello.size = 1;
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
@@ -51,6 +52,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 
 	/* check faulty flags */
 	hello.flags = 1ULL << 32;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
@@ -60,18 +62,34 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	/* check for faulty pool sizes */
 	hello.pool_size = 0;
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EFAULT);
 
 	hello.pool_size = 4097;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EFAULT);
 
 	hello.pool_size = POOL_SIZE;
 
+	/*
+	 * The connection created by the core requires ALL meta flags
+	 * to be sent. An attempt to send less that that should result
+	 * in -ECONNREFUSED.
+	 */
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL & ~KDBUS_ATTACH_TIMESTAMP;
+	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
+	ASSERT_RETURN(ret == -1 && errno == ECONNREFUSED);
+
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+
 	/* success test */
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == 0);
+
+	/* The kernel should have set KDBUS_FLAG_KERNEL */
+	ASSERT_RETURN(hello.attach_flags_send & KDBUS_FLAG_KERNEL);
 
 	close(fd);
 

@@ -335,6 +335,7 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	memset(&hello, 0, sizeof(hello));
 	hello.size = sizeof(struct kdbus_cmd_hello);
 	hello.pool_size = POOL_SIZE;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 
 	ret = ioctl(connfd, KDBUS_CMD_HELLO, &hello);
 	if (ret < 0) {

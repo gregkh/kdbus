@@ -270,7 +270,7 @@ static int test_prepare_env(const struct kdbus_test *t,
 		}
 
 		ret = kdbus_create_bus(env->control_fd, busname ?: n,
-				       &env->buspath);
+				       _KDBUS_ATTACH_ALL, &env->buspath);
 		ASSERT_RETURN(ret == 0);
 	}
 

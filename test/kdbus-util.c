@@ -58,7 +58,8 @@
 
 int kdbus_util_verbose = true;
 
-int kdbus_create_bus(int control_fd, const char *name, char **path)
+int kdbus_create_bus(int control_fd, const char *name, uint64_t req_meta,
+		     char **path)
 {
 	struct {
 		struct kdbus_cmd_make head;
@@ -69,6 +70,13 @@ int kdbus_create_bus(int control_fd, const char *name, char **path)
 			uint64_t type;
 			struct kdbus_bloom_parameter bloom;
 		} bp;
+
+		/* required metadata item */
+		struct {
+			uint64_t size;
+			uint64_t type;
+			uint64_t flags;
+		} attach;
 
 		/* name item */
 		struct {
@@ -88,13 +96,18 @@ int kdbus_create_bus(int control_fd, const char *name, char **path)
 	snprintf(bus_make.name.str, sizeof(bus_make.name.str),
 		 "%u-%s", getuid(), name);
 
+	bus_make.attach.type = KDBUS_ITEM_ATTACH_FLAGS_RECV;
+	bus_make.attach.size = sizeof(bus_make.attach);
+	bus_make.attach.flags = req_meta;
+
 	bus_make.name.type = KDBUS_ITEM_MAKE_NAME;
 	bus_make.name.size = KDBUS_ITEM_HEADER_SIZE +
 			     strlen(bus_make.name.str) + 1;
 
 	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
 	bus_make.head.size = sizeof(bus_make.head) +
-			     sizeof(bus_make.bp) +
+			     bus_make.bp.size +
+			     bus_make.attach.size +
 			     bus_make.name.size;
 
 	kdbus_printf("Creating bus with name >%s< on control fd %d ...\n",
