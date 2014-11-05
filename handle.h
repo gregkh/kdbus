@@ -19,28 +19,28 @@ struct kdbus_ep;
 
 extern const struct file_operations kdbus_handle_ops;
 
-enum kdbus_minor_type {
-	KDBUS_MINOR_CONTROL,
-	KDBUS_MINOR_EP,
-	KDBUS_MINOR_CNT
+enum kdbus_cdev_type {
+	KDBUS_CDEV_CONTROL,
+	KDBUS_CDEV_EP,
+	KDBUS_CDEV_CNT
 };
 
-int kdbus_minor_init(void);
-void kdbus_minor_exit(void);
-int kdbus_minor_alloc(enum kdbus_minor_type type, void *ptr, dev_t *out);
-void kdbus_minor_free(dev_t devt);
-void kdbus_minor_set(dev_t devt, enum kdbus_minor_type type, void *ptr);
+int kdbus_cdev_init(void);
+void kdbus_cdev_exit(void);
+int kdbus_cdev_alloc(enum kdbus_cdev_type type, void *ptr, dev_t *out);
+void kdbus_cdev_free(dev_t devt);
+void kdbus_cdev_set(dev_t devt, enum kdbus_cdev_type type, void *ptr);
 
-/* type-safe kdbus_minor_set() */
-static inline void kdbus_minor_set_control(dev_t devt, struct kdbus_domain *d)
+/* type-safe kdbus_cdev_set() */
+static inline void kdbus_cdev_set_control(dev_t devt, struct kdbus_domain *d)
 {
-	kdbus_minor_set(devt, KDBUS_MINOR_CONTROL, d);
+	kdbus_cdev_set(devt, KDBUS_CDEV_CONTROL, d);
 }
 
-/* type-safe kdbus_minor_set() */
-static inline void kdbus_minor_set_ep(dev_t devt, struct kdbus_ep *e)
+/* type-safe kdbus_cdev_set() */
+static inline void kdbus_cdev_set_ep(dev_t devt, struct kdbus_ep *e)
 {
-	kdbus_minor_set(devt, KDBUS_MINOR_EP, e);
+	kdbus_cdev_set(devt, KDBUS_CDEV_EP, e);
 }
 
 #endif

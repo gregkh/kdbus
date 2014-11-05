@@ -85,7 +85,7 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 	if (device_is_registered(&ep->dev))
 		device_del(&ep->dev);
 
-	kdbus_minor_set(ep->dev.devt, KDBUS_MINOR_EP, NULL);
+	kdbus_cdev_set_ep(ep->dev.devt, NULL);
 
 	/* disconnect all connections to this endpoint */
 	for (;;) {
@@ -117,7 +117,7 @@ static void __kdbus_ep_free(struct device *dev)
 	BUG_ON(!list_empty(&ep->conn_list));
 
 	kdbus_policy_db_clear(&ep->policy_db);
-	kdbus_minor_free(ep->dev.devt);
+	kdbus_cdev_free(ep->dev.devt);
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);
 	kfree(ep->name);
@@ -192,7 +192,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (ret < 0)
 		goto exit_put;
 
-	ret = kdbus_minor_alloc(KDBUS_MINOR_EP, NULL, &e->dev.devt);
+	ret = kdbus_cdev_alloc(KDBUS_CDEV_EP, NULL, &e->dev.devt);
 	if (ret < 0)
 		goto exit_put;
 
@@ -221,7 +221,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	 */
 
 	e->disconnected = false;
-	kdbus_minor_set_ep(e->dev.devt, e);
+	kdbus_cdev_set_ep(e->dev.devt, e);
 
 	ret = device_add(&e->dev);
 

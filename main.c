@@ -32,7 +32,7 @@ static int __init kdbus_init(void)
 	if (ret < 0)
 		return ret;
 
-	ret = kdbus_minor_init();
+	ret = kdbus_cdev_init();
 	if (ret < 0)
 		goto exit_subsys;
 
@@ -51,7 +51,7 @@ static int __init kdbus_init(void)
 	return 0;
 
 exit_minor:
-	kdbus_minor_exit();
+	kdbus_cdev_exit();
 exit_subsys:
 	bus_unregister(&kdbus_subsys);
 	return ret;
@@ -61,7 +61,7 @@ static void __exit kdbus_exit(void)
 {
 	kdbus_domain_disconnect(kdbus_domain_init);
 	kdbus_domain_unref(kdbus_domain_init);
-	kdbus_minor_exit();
+	kdbus_cdev_exit();
 	bus_unregister(&kdbus_subsys);
 }
 

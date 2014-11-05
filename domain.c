@@ -96,7 +96,7 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain)
 	if (device_is_registered(&domain->dev))
 		device_del(&domain->dev);
 
-	kdbus_minor_set(domain->dev.devt, KDBUS_MINOR_CONTROL, NULL);
+	kdbus_cdev_set_control(domain->dev.devt, NULL);
 
 	/* disconnect all sub-domains */
 	for (;;) {
@@ -151,7 +151,7 @@ static void __kdbus_domain_free(struct device *dev)
 	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
-	kdbus_minor_free(domain->dev.devt);
+	kdbus_cdev_free(domain->dev.devt);
 	kdbus_domain_unref(domain->parent);
 	idr_destroy(&domain->user_idr);
 	kfree(domain->name);
@@ -248,7 +248,7 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	if (ret < 0)
 		goto exit_put;
 
-	ret = kdbus_minor_alloc(KDBUS_MINOR_CONTROL, NULL, &d->dev.devt);
+	ret = kdbus_cdev_alloc(KDBUS_CDEV_CONTROL, NULL, &d->dev.devt);
 	if (ret < 0)
 		goto exit_put;
 
@@ -284,7 +284,7 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	 */
 
 	d->disconnected = false;
-	kdbus_minor_set_control(d->dev.devt, d);
+	kdbus_cdev_set_control(d->dev.devt, d);
 
 	ret = device_add(&d->dev);
 
