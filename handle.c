@@ -94,6 +94,17 @@ struct kdbus_handle {
 /* max minor number; limited to 2^20-1 due to dev_t ABI */
 #define KDBUS_CDEV_MAX 0xfffff
 
+/*
+ * We use the lower 2 bits of a pointer to store type information. In the IDR,
+ * the upper 30bits of a pointer contain the address, the lower 2 bits contain
+ * the kdbus_cdev_type of the stored object with an offset of 1. The offset is
+ * used to explicitly avoid ambiguity between overloaded and non-overloaded
+ * pointers in memory dumps.
+ */
+#define KDBUS_CDEV_TYPE_MASK 0x3UL
+#define KDBUS_CDEV_TYPE_MAX 3
+#define KDBUS_CDEV_TYPE_OFFSET 1
+
 /* kdbus major */
 static unsigned int kdbus_major;
 
@@ -103,6 +114,14 @@ static DEFINE_IDR(kdbus_cdev_idr);
 /* kdbus cdev lock */
 static DEFINE_MUTEX(kdbus_cdev_lock);
 
+/**
+ * kdbus_cdev_init() - initialize the kdbus_cdev helpers
+ *
+ * This must be called on module initialization to prepare the cdev helpers and
+ * allocate the kdbus major number.
+ *
+ * Returns: 0 on success, negative error code on failure.
+ */
 int kdbus_cdev_init(void)
 {
 	int ret;
@@ -116,6 +135,13 @@ int kdbus_cdev_init(void)
 	return 0;
 }
 
+/**
+ * kdbus_cdev_exit() - tidy up kdbus_cdev helpers
+ *
+ * This must be called on module-exit iff kdbus_cdev_init() succeeded. It
+ * releases the kdbus major and all memory allocated by kdbus_cdev state
+ * tracking.
+ */
 void kdbus_cdev_exit(void)
 {
 	__unregister_chrdev(kdbus_major, 0, KDBUS_CDEV_MAX + 1,
@@ -123,24 +149,52 @@ void kdbus_cdev_exit(void)
 	idr_destroy(&kdbus_cdev_idr);
 }
 
+/**
+ * kdbus_cdev_pack() - pack object-type and object-ptr for cdev IDR storage
+ * @type:	The type of the object
+ * @ptr:	A pointer to the object
+ *
+ * Kdbus char-devs can be of multiple different types. We store the
+ * object-pointer together with the object-type in the cdev IDR so we can
+ * detect the type whenever we lookup minors in the cdev IDR.
+ *
+ * We rely on 32bit pointer alignments and store the type information in the
+ * lower 2 bits of the pointer stored in the IDR. We also add an offset of 1 to
+ * avoid any ambiguity between overloaded and non-overloaded pointers.
+ *
+ * Returns: The overloaded pointer to store in the cdev IDR.
+ */
 static void *kdbus_cdev_pack(enum kdbus_cdev_type type, void *ptr)
 {
 	unsigned long p = (unsigned long)ptr;
 
-	BUILD_BUG_ON(KDBUS_CDEV_CNT > 4);
+	/* make sure all types can be stored in the lower 2 bits */
+	BUILD_BUG_ON(KDBUS_CDEV_CNT > KDBUS_CDEV_TYPE_MAX);
 
-	if (WARN_ON(p & 0x3UL || type >= KDBUS_CDEV_CNT))
+	if (WARN_ON(p & KDBUS_CDEV_TYPE_MASK || type >= KDBUS_CDEV_CNT))
 		return NULL;
 
-	return (void *)(p | (unsigned long)type);
+	return (void *)(p | (unsigned long)(type + KDBUS_CDEV_TYPE_OFFSET));
 }
 
+/**
+ * kdbus_cdev_unpack() - unpack object-type and object-ptr from cdev IDR storage
+ * @ptr:	Pointer to the overloaded pointer retrieved from the cdev IDR
+ *
+ * This does the reverse of kdbus_cdev_pack(). It takes an overloaded pointer
+ * and returns the type of the pointer. The storage of the pointer itself is
+ * also updated so it is no longer overloaded, but can be accessed directly.
+ *
+ * Returns: The object-type of the overloaded pointer
+ */
 static enum kdbus_cdev_type kdbus_cdev_unpack(void **ptr)
 {
 	unsigned long p = (unsigned long)*ptr;
 
-	*ptr = (void *)(p & ~0x3UL);
-	return p & 0x3UL;
+	WARN_ON(!(p & KDBUS_CDEV_TYPE_MASK));
+
+	*ptr = (void *)(p & ~KDBUS_CDEV_TYPE_MASK);
+	return (p & KDBUS_CDEV_TYPE_MASK) - KDBUS_CDEV_TYPE_OFFSET;
 }
 
 static void kdbus_cdev_ref(enum kdbus_cdev_type type, void *ptr)
