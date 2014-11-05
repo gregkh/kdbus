@@ -236,16 +236,18 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 			ret = eventfd_write(efd2, cnt);
 			ASSERT_EXIT(ret == 0);
 		}),
-		({
-			ret = eventfd_read(efd2, &child2_count);
-			ASSERT_RETURN(ret >= 0);
-		}));
+		({ 0; }));
 		ASSERT_RETURN(ret == 0);
 
-		ret = eventfd_read(efd1, &child1_count);
-		ASSERT_RETURN(ret >= 0);
 	}));
 	ASSERT_RETURN(ret == 0);
+
+	/* Delay reading, so if childs die we are not blocked */
+	ret = eventfd_read(efd1, &child1_count);
+	ASSERT_RETURN(ret >= 0);
+
+	ret = eventfd_read(efd2, &child2_count);
+	ASSERT_RETURN(ret >= 0);
 
 	recved_count = child1_count + child2_count;
 
@@ -269,45 +271,42 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 	ASSERT_RETURN(recved_count > (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1)
 
 	/*
-	 * Both threads will send more than KDBUS_CONN_MAX_MSGS_PER_USER
+	 * A process should never send more than
+	 * (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1)
 	 */
-	if (child1_count > KDBUS_CONN_MAX_MSGS_PER_USER &&
-	    child1_count < (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1) {
-		unsigned int child2_sent_msgs;
+	ASSERT_RETURN(child1_count < (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1);
 
-		child2_sent_msgs = recved_count - child1_count;
+	/*
+	 * Now both no accounted messages should give us
+	 * KDBUS_CONN_MAX_MSGS_PER_USER when the accounting
+	 * started.
+	 *
+	 * child1 non accounted + child2 non accounted =
+	 * KDBUS_CONN_MAX_MSGS_PER_USER
+	 */
+	ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_PER_USER ==
+		((child1_count - KDBUS_CONN_MAX_MSGS_PER_USER) +
+		 ((recved_count - child1_count) -
+		  KDBUS_CONN_MAX_MSGS_PER_USER)));
 
-		/*
-		 * Now both no accounted messages should give us
-		 * KDBUS_CONN_MAX_MSGS_PER_USER when the accounting
-		 * started.
-		 */
-		ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_PER_USER ==
-			((child1_count - KDBUS_CONN_MAX_MSGS_PER_USER) +
-			(child2_sent_msgs - KDBUS_CONN_MAX_MSGS_PER_USER)))
-	} else {
-		/* We do this so we have trace logs of assert */
-		ASSERT_RETURN(false);
-	}
+	/*
+	 * A process should never send more than
+	 * (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1)
+	 */
+	ASSERT_RETURN(child2_count < (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1);
 
-	if (child2_count > KDBUS_CONN_MAX_MSGS_PER_USER &&
-	    child2_count < (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1) {
-		unsigned int child1_sent_msgs;
-
-		child1_sent_msgs = recved_count - child2_count;
-
-		/*
-		 * Now both no accounted messages should give us
-		 * KDBUS_CONN_MAX_MSGS_PER_USER when the accounting
-		 * started.
-		 */
-		ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_PER_USER ==
-			((child2_count - KDBUS_CONN_MAX_MSGS_PER_USER) +
-			(child1_sent_msgs - KDBUS_CONN_MAX_MSGS_PER_USER)))
-	} else {
-		/* We do this so we have trace logs of assert */
-		ASSERT_RETURN(false);
-	}
+	/*
+	 * Now both no accounted messages should give us
+	 * KDBUS_CONN_MAX_MSGS_PER_USER when the accounting
+	 * started.
+	 *
+	 * child1 non accounted + child2 non accounted =
+	 * KDBUS_CONN_MAX_MSGS_PER_USER
+	 */
+	ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_PER_USER ==
+		((child2_count - KDBUS_CONN_MAX_MSGS_PER_USER) +
+		 ((recved_count - child2_count) -
+		  KDBUS_CONN_MAX_MSGS_PER_USER)));
 
 	/* Try to queue up more, but we fail no space in the pool */
 	cnt = kdbus_fill_conn_queue(privileged, conn, KDBUS_CONN_MAX_MSGS);
