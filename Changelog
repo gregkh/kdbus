@@ -9,6 +9,24 @@ since RFC v1:
     new ones are added, usespace can use #ifdeffery to determine the
     function set at compile time. Suggested by Arnd Bergmann.
 
+  * Rework the metadata attachment logic to address concerns raised by
+    Andy Lutomirsky and Alan Cox:
+
+     * Split the attach_flags in kdbus_cmd_hello into two parts,
+       attach_flags_send and attach_flags_recv. Also, split the
+       existing KDBUS_ITEM_ATTACH_FLAGS into
+       KDBUS_ITEM_ATTACH_FLAGS_SEND and KDBUS_ITEM_ATTACH_FLAGS_RECV,
+       and allow updating both connection details through
+       KDBUS_CMD_CONN_UPDATE.
+    
+     * Only attach metadata to the final message in the receiver's pool
+       if both the sender's attach_flags_send and the receiver's
+       attach_flags_recv bit are set.
+    
+     * Add an optional metadata mask to the bus during its creation, so
+       bus owners can denote their minimal requirements of metadata to
+       be attached by connections of the bus.
+
   * Rename two details in kdbus.h to not overload the term 'name' too
     much:
 
@@ -30,30 +48,6 @@ since RFC v1:
     * rework kdbus_cdev_* pack/unpack helpers
     * explicitly handle all types in destructors
 
-  * Rework the metadata attachment logic to address concerns raised by
-    Andy Lutomirsky and Alan Cox:
-
-     * Split the attach_flags in kdbus_cmd_hello into two parts,
-       attach_flags_send and attach_flags_recv. Also, split the
-       existing KDBUS_ITEM_ATTACH_FLAGS into
-       KDBUS_ITEM_ATTACH_FLAGS_SEND and KDBUS_ITEM_ATTACH_FLAGS_RECV,
-       and allow updating both connection details through
-       KDBUS_CMD_CONN_UPDATE.
-    
-     * Only attach metadata to the final message in the receiver's pool
-       if both the sender's attach_flags_send and the receiver's
-       attach_flags_recv bit are set.
-    
-     * Add an optional metadata mask to the bus during its creation, so
-       bus owners can denote their minimal requirements of metadata to
-       be attached by connections of the bus.
-
-    That way, the question which metadata is really transported on the
-    bus is ultimately an implementation detail of the userspace code,
-    while the kernel interface allows for all sorts of setups, and
-    nothing is blindly attached without an explicit opt-in from
-    userspace.
-       
   * Add a new attach flags constant called _KDBUS_ATTACH_ANY (~0)
     which automatically degrades to _KDBUS_ATTACH_ALL in the kernel.
     That way, old clients can opt-in for whethever newer kernels might
