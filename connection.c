@@ -1469,12 +1469,14 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
  * @ep:			The endpoint the connection is connected to
  * @hello:		The kdbus_cmd_hello as passed in by the user
  * @meta:		The metadata gathered at open() time of the handle
+ * @privileged:		Whether to create a privileged connection
  *
  * Return: a new kdbus_conn on success, ERR_PTR on failure
  */
 struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 				  struct kdbus_cmd_hello *hello,
-				  struct kdbus_meta *meta)
+				  struct kdbus_meta *meta,
+				  bool privileged)
 {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	static struct lock_class_key __key;
@@ -1622,6 +1624,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	conn->cred = get_current_cred();
 	init_waitqueue_head(&conn->wait);
 	kdbus_queue_init(&conn->queue);
+	conn->privileged = privileged;
 
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);

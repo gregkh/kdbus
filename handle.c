@@ -88,6 +88,7 @@ struct kdbus_handle {
 		struct kdbus_ep *ep_owner;
 		struct kdbus_conn *conn;
 	};
+	bool privileged : 1;
 };
 
 /* max minor number; use all we can get */
@@ -335,12 +336,19 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		handle->type = KDBUS_HANDLE_CONTROL;
 		handle->domain = cdev_ptr;
 
+		if (ns_capable(&init_user_ns, CAP_IPC_OWNER))
+			handle->privileged = true;
+
 		break;
 
 	case KDBUS_CDEV_ENDPOINT:
 		handle->type = KDBUS_HANDLE_ENDPOINT;
 		handle->ep = cdev_ptr;
 		handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
+
+		if (ns_capable(&init_user_ns, CAP_IPC_OWNER) ||
+		    uid_eq(handle->ep->bus->uid_owner, file->f_cred->fsuid))
+			handle->privileged = true;
 
 		/* cache the metadata/credentials of the creator */
 		handle->meta = kdbus_meta_new();
@@ -761,7 +769,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		conn = kdbus_conn_new(handle->ep, hello, handle->meta);
+		conn = kdbus_conn_new(handle->ep, hello, handle->meta,
+				      handle->privileged);
 		if (IS_ERR(conn)) {
 			ret = PTR_ERR(conn);
 			break;
