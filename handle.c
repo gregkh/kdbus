@@ -655,7 +655,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		struct kdbus_ep *ep;
 
 		/* creating custom endpoints is a privileged operation */
-		if (!kdbus_bus_uid_is_privileged(handle->ep->bus)) {
+		if (!handle->privileged) {
 			ret = -EPERM;
 			break;
 		}
