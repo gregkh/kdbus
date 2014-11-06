@@ -314,7 +314,7 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 
 	ret = kdbus_msg_send(privileged, NULL, 0xdeadbeef, 0, 0,
 			     0, conn->id);
-	ASSERT_RETURN(ret == -EXFULL);
+	ASSERT_RETURN(ret == -ENOBUFS);
 
 	close(efd1);
 	close(efd2);

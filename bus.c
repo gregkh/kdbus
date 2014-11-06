@@ -415,8 +415,7 @@ struct kdbus_bus *kdbus_bus_make_user(struct kdbus_domain *domain,
 		goto exit_unref_user_unlock;
 	}
 
-	if (!capable(CAP_IPC_OWNER) &&
-	    atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
+	if (atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
 		atomic_dec(&b->user->buses);
 		ret = -EMFILE;
 		goto exit_unref_user_unlock;

@@ -168,9 +168,6 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 	if (!conn_src)
 		return 0;
 
-	if (ns_capable(&init_user_ns, CAP_IPC_OWNER))
-		return 0;
-
 	/*
 	 * Per-user accounting can be expensive if we have many different
 	 * users on the bus. Allow one set of messages to pass through
@@ -478,8 +475,7 @@ static int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	mutex_lock(&conn_dst->lock);
 
 	/* limit the maximum number of queued messages */
-	if (!ns_capable(&init_user_ns, CAP_IPC_OWNER) &&
-	    conn_dst->queue.msg_count > KDBUS_CONN_MAX_MSGS) {
+	if (conn_dst->queue.msg_count > KDBUS_CONN_MAX_MSGS) {
 		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
@@ -1731,8 +1727,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_unref_user_unlock;
 	}
 
-	if (!kdbus_bus_uid_is_privileged(bus) &&
-	    atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
+	if (atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
 		atomic_dec(&conn->user->connections);
 		ret = -EMFILE;
 		goto exit_unref_user_unlock;
