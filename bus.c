@@ -33,40 +33,6 @@
 #include "policy.h"
 
 /**
- * kdbus_bus_cred_is_privileged() - check whether the given credentials in
- *				    combination with the capabilities of the
- *				    current thead are privileged on the bus
- * @bus:		The bus to check
- * @cred:		The credentials to match
- *
- * Return: true if the credentials are privileged, otherwise false.
- */
-bool kdbus_bus_cred_is_privileged(const struct kdbus_bus *bus,
-				  const struct cred *cred)
-{
-	/* Capabilities are *ALWAYS* tested against the current thread, they're
-	 * never remembered from conn-credentials. */
-	if (ns_capable(&init_user_ns, CAP_IPC_OWNER))
-		return true;
-
-	return uid_eq(bus->uid_owner, cred->fsuid);
-}
-
-/**
- * kdbus_bus_uid_is_privileged() - check whether the current user is a
- *				   priviledged bus user
- * @bus:		The bus to check
- *
- * Return: true if the current user has CAP_IPC_OWNER capabilities, or
- * if it has the same UID as the user that created the bus. Otherwise,
- * false is returned.
- */
-bool kdbus_bus_uid_is_privileged(const struct kdbus_bus *bus)
-{
-	return kdbus_bus_cred_is_privileged(bus, current_cred());
-}
-
-/**
  * kdbus_bus_ref() - increase the reference counter of a kdbus_bus
  * @bus:		The bus to reference
  *

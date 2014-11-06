@@ -1509,8 +1509,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		return ERR_PTR(-EINVAL);
 
 	/* only privileged connections can activate and monitor */
-	if (!kdbus_bus_uid_is_privileged(bus) &&
-	    (is_activator || is_policy_holder || is_monitor))
+	if (!privileged && (is_activator || is_policy_holder || is_monitor))
 		return ERR_PTR(-EPERM);
 
 	KDBUS_ITEMS_FOREACH(item, hello->items,
@@ -1531,7 +1530,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 		case KDBUS_ITEM_CREDS:
 			/* privileged processes can impersonate somebody else */
-			if (!kdbus_bus_uid_is_privileged(bus))
+			if (!privileged)
 				return ERR_PTR(-EPERM);
 
 			if (item->size != KDBUS_ITEM_SIZE(sizeof(*creds)))
@@ -1542,7 +1541,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 		case KDBUS_ITEM_SECLABEL:
 			/* privileged processes can impersonate somebody else */
-			if (!kdbus_bus_uid_is_privileged(bus))
+			if (!privileged)
 				return ERR_PTR(-EPERM);
 
 			seclabel = item->str;

@@ -431,7 +431,7 @@ static bool
 kdbus_ep_has_default_talk_access(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst)
 {
-	if (kdbus_bus_cred_is_privileged(conn_src->bus, conn_src->cred))
+	if (conn_src->privileged)
 		return true;
 
 	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
@@ -553,7 +553,7 @@ int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
 			return ret;
 	}
 
-	if (kdbus_bus_cred_is_privileged(conn->bus, conn->cred))
+	if (conn->privileged)
 		return 0;
 
 	ret = kdbus_policy_check_own_access(&ep->bus->policy_db, conn, name);
