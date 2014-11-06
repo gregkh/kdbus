@@ -573,7 +573,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_DOMAIN_MAKE: {
 		const char *name;
 
-		if (!capable(CAP_IPC_OWNER)) {
+		if (!handle->privileged) {
 			ret = -EPERM;
 			break;
 		}
