@@ -1571,10 +1571,10 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		attach_flags_recv = _KDBUS_ATTACH_ALL;
 
 	/* reject unknown attach flags */
-	if (hello->attach_flags_send & ~_KDBUS_ATTACH_ALL)
+	if (attach_flags_send & ~_KDBUS_ATTACH_ALL)
 		return ERR_PTR(-EINVAL);
 
-	if (hello->attach_flags_recv & ~_KDBUS_ATTACH_ALL)
+	if (attach_flags_recv & ~_KDBUS_ATTACH_ALL)
 		return ERR_PTR(-EINVAL);
 
 	/* Let userspace know which flags are enforced by the bus */
