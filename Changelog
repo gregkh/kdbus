@@ -54,3 +54,5 @@ since RFC v1:
     offer to send.
 
   * Moved the driver to ipc/kdbus, as suggested by Arnd Bergmann
+
+  * Cache privilege levels during open().
