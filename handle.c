@@ -299,12 +299,13 @@ static int kdbus_cdev_lookup(dev_t devt, void **out)
 
 	mutex_lock(&kdbus_cdev_lock);
 	ptr = idr_find(&kdbus_cdev_idr, minor);
+	if (!ptr) {
+		mutex_unlock(&kdbus_cdev_lock);
+		return -ESHUTDOWN;
+	}
 	type = kdbus_cdev_unpack(&ptr);
 	kdbus_cdev_ref(type, ptr);
 	mutex_unlock(&kdbus_cdev_lock);
-
-	if (!ptr)
-		return -ESHUTDOWN;
 
 	*out = ptr;
 	return type;
