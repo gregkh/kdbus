@@ -92,6 +92,7 @@ static int kdbus_handle_check_file(struct file *file)
 	if (!S_ISSOCK(inode->i_mode))
 		return 0;
 
+	/* Almost nothing can be done with O_PATHed files */
 	if (file->f_mode & FMODE_PATH)
 		return 0;
 
