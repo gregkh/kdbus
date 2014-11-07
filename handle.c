@@ -244,12 +244,10 @@ int kdbus_cdev_alloc(enum kdbus_cdev_type type, void *ptr, dev_t *out)
 
 	ptr = kdbus_cdev_pack(type, ptr);
 
-	idr_preload(GFP_KERNEL);
 	mutex_lock(&kdbus_cdev_lock);
 	ret = idr_alloc(&kdbus_cdev_idr, ptr, 0, KDBUS_CDEV_MAX + 1,
-			GFP_NOWAIT);
+			GFP_KERNEL);
 	mutex_unlock(&kdbus_cdev_lock);
-	idr_preload_end();
 
 	if (ret < 0)
 		return ret;
