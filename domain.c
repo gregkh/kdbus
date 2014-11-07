@@ -457,7 +457,7 @@ struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u)
 }
 
 /**
- * kdbus_domain_user_unref() - drop a domain user eference
+ * kdbus_domain_user_unref() - drop a domain user reference
  * @u:		User
  *
  * When the last reference is dropped, the domain internal structure
