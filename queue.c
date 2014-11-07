@@ -125,16 +125,12 @@ exit_remove_unused:
  */
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry)
 {
-	int *memfds = NULL;
-	int *fds = NULL;
 	int ret = 0;
 
 	ret = kdbus_queue_entry_fds_install(entry);
 	if (ret < 0)
 		return ret;
 
-	kfree(fds);
-	kfree(memfds);
 	kdbus_pool_slice_flush(entry->slice);
 	return 0;
 }
