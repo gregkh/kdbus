@@ -247,6 +247,9 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 		      item->creds.pid == cached_creds.pid &&
 		      item->creds.tid == cached_creds.tid);
 
+	item = kdbus_get_item(info, KDBUS_ITEM_CAPS);
+	ASSERT_RETURN(item == NULL);
+
 	kdbus_free(conn, offset);
 
 	ret = kdbus_name_acquire(conn, "com.example.a", NULL);
