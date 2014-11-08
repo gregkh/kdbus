@@ -1716,9 +1716,9 @@ For KDBUS_CMD_BYEBYE:
 
 For KDBUS_CMD_MSG_SEND:
 
-  -EOPNOTSUPP	The connection is unconnected, or a fd was passed that is
-		either a kdbus handle itself or a unix domain socket. Both is
-		currently unsupported.
+  -EOPNOTSUPP	The connection is not an ordinary connection, or the passed
+		file descriptors are either kdbus handles or unix domain
+		sockets. Both are currently unsupported
   -EINVAL	The submitted payload type is KDBUS_PAYLOAD_KERNEL,
 		KDBUS_MSG_FLAGS_EXPECT_REPLY was set without a timeout value,
 		KDBUS_MSG_FLAGS_SYNC_REPLY was set without
@@ -1726,24 +1726,24 @@ For KDBUS_CMD_MSG_SEND:
 		src_id was != 0 and different from the current connection's ID,
 		a supplied memfd had a size of 0, a string was not properly
 		nul-terminated
-  -ENOTUNIQ	KDBUS_MSG_FLAGS_EXPECT_REPLY was set, but the dst_id is set
-		to KDBUS_DST_ID_BROADCAST
+  -ENOTUNIQ	The supplied destination is KDBUS_DST_ID_BROADCAST, a file
+		descriptor was passed, KDBUS_MSG_FLAGS_EXPECT_REPLY was set,
+		or a timeout was given for a broadcast message
   -E2BIG	Too many items
-  -EMSGSIZE	A payload vector was too big, and the current user is
-		unprivileged.
-  -ENOTUNIQ	A fd or memfd payload was passed in a broadcast message, or
-		a timeout was given for a broadcast message
-  -EEXIST	Multiple KDBUS_ITEM_FDS or KDBUS_ITEM_BLOOM_FILTER,
-		KDBUS_ITEM_DST_NAME were supplied
-  -EBADF	A memfd item contained an illegal fd
-  -EMEDIUMTYPE	A file descriptor which is not a kdbus memfd was
-		refused to send as KDBUS_MSG_PAYLOAD_MEMFD.
+  -EMSGSIZE	The size of the message header and items or the payload vector
+		is too big.
+  -EEXIST	Multiple KDBUS_ITEM_FDS, KDBUS_ITEM_BLOOM_FILTER or
+		KDBUS_ITEM_DST_NAME items were supplied
+  -EBADF	The supplied KDBUS_ITEM_FDS or KDBUS_MSG_PAYLOAD_MEMFD items
+		contained an illegal file descriptor
+  -EMEDIUMTYPE	The supplied memfd is not a sealed kdbus memfd
   -EMFILE	Too many file descriptors inside a KDBUS_ITEM_FDS
   -EBADMSG	An item had illegal size, both a dst_id and a
 		KDBUS_ITEM_DST_NAME was given, or both a name and a bloom
 		filter was given
-  -ETXTBSY	A kdbus memfd file cannot be sealed or the seal removed,
-		because it is shared with other processes or still mmap()ed
+  -ETXTBSY	The supplied kdbus memfd file cannot be sealed or the seal
+		was removed, because it is shared with other processes or
+		still mmap()ed
   -ECOMM	A peer does not accept the file descriptors addressed to it
   -EFAULT	The supplied bloom filter size was not 64-bit aligned
   -EDOM		The supplied bloom filter size did not match the bloom filter
