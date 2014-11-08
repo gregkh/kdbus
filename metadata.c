@@ -132,7 +132,7 @@ bool kdbus_meta_ns_eq(const struct kdbus_meta *meta_a,
  */
 void kdbus_meta_free(struct kdbus_meta *meta)
 {
-	if (!meta)
+	if (IS_ERR_OR_NULL(meta))
 		return;
 
 	put_pid_ns(meta->pid_namespace);
