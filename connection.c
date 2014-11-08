@@ -272,19 +272,18 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
 	struct kdbus_queue_entry *entry = NULL;
-	int ret;
+	int ret = 0;
 
 	if (recv->offset > 0)
 		return -EINVAL;
 
 	mutex_lock(&conn->lock);
-	ret = kdbus_queue_entry_peek(&conn->queue, recv->priority,
-				     recv->flags & KDBUS_RECV_USE_PRIORITY,
-				     &entry);
-	if (ret < 0)
+	entry = kdbus_queue_entry_peek(&conn->queue, recv->priority,
+				       recv->flags & KDBUS_RECV_USE_PRIORITY);
+	if (IS_ERR(entry)) {
+		ret = PTR_ERR(entry);
 		goto exit_unlock;
-
-	BUG_ON(!entry);
+	}
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {

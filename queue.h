@@ -77,9 +77,9 @@ void kdbus_queue_entry_add(struct kdbus_queue *queue,
 			   struct kdbus_queue_entry *entry);
 void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 			      struct kdbus_queue_entry *entry);
-int kdbus_queue_entry_peek(struct kdbus_queue *queue,
-			   s64 priority, bool use_priority,
-			   struct kdbus_queue_entry **entry);
+struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
+						 s64 priority,
+						 bool use_priority);
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry);
 
 #endif /* __KDBUS_QUEUE_H */
