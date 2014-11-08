@@ -116,16 +116,14 @@ exit_remove_unused:
  *				 receiver's process
  * @entry:	The queue entry to install
  *
- * This function will install file descriptors into 'current'.
- * Also, it the associated message has metadata attached which's final values
- * couldn't be determined before (such as details that are related to name
- * spaces etc), the correct information is patched in at this point.
+ * This function will install file descriptors transported in a queue enrty
+ * into 'current'.
  *
  * Return: 0 on success.
  */
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry)
 {
-	int ret = 0;
+	int ret;
 
 	ret = kdbus_queue_entry_fds_install(entry);
 	if (ret < 0)
