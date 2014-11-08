@@ -354,7 +354,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		handle->meta = kdbus_meta_new();
 		if (IS_ERR(handle->meta)) {
 			ret = PTR_ERR(handle->meta);
-			goto exit_free;
+			goto exit_ep_unref;
 		}
 
 		ret = kdbus_meta_append(handle->meta, NULL, 0,
@@ -383,6 +383,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 
 exit_free:
 	kdbus_meta_free(handle->meta);
+exit_ep_unref:
 	kdbus_ep_unref(handle->ep);
 	kdbus_domain_unref(handle->domain);
 	kfree(handle);
