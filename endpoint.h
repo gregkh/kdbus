@@ -20,6 +20,8 @@
 #include "policy.h"
 #include "util.h"
 
+struct kdbus_kmsg;
+
 /*
  * struct kdbus_endpoint - enpoint to access a bus
  * @dev:		Device
