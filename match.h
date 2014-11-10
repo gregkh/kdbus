@@ -27,4 +27,5 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,
 			       struct kdbus_kmsg *kmsg);
+
 #endif

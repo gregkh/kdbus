@@ -25,4 +25,5 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 			     const char *name);
 void kdbus_notify_flush(struct kdbus_bus *bus);
 void kdbus_notify_free(struct kdbus_bus *bus);
+
 #endif

@@ -77,4 +77,5 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn);
 
 bool kdbus_name_is_valid(const char *p, bool allow_wildcard);
+
 #endif

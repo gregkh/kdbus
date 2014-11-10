@@ -178,4 +178,5 @@ static inline int kdbus_conn_is_monitor(const struct kdbus_conn *conn)
 {
 	return conn->flags & KDBUS_HELLO_MONITOR;
 }
+
 #endif

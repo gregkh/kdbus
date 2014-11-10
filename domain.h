@@ -99,4 +99,5 @@ kdbus_domain_get_user(struct kdbus_domain *domain, kuid_t uid);
 
 struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
 struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u);
+
 #endif
