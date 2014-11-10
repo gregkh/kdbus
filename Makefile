@@ -9,6 +9,7 @@ kdbus$(EXT)-y := \
 	message.o \
 	metadata.o \
 	names.o \
+	node.o \
 	notify.o \
 	domain.o \
 	policy.o \
