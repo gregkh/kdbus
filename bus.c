@@ -163,7 +163,7 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
 
 	list_for_each_entry(b, &domain->bus_list, domain_entry)
 		if (!strcmp(b->name, name))
-			return kdbus_bus_ref(b);
+			return b;
 
 	return NULL;
 }
@@ -363,7 +363,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	/* see if a bus of that name already exists */
 	b_tmp = kdbus_bus_find(domain, name);
 	if (b_tmp) {
-		kdbus_bus_unref(b_tmp);
 		ret = -EEXIST;
 		goto exit_unref_user_unlock;
 	}
