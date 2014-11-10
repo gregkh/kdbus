@@ -358,27 +358,39 @@ exit:
 	return ret;
 }
 
-static int kdbus_conn_find_reply(struct kdbus_conn *conn_replying,
-				 struct kdbus_conn *conn_reply_dst,
-				 uint64_t cookie,
-				 struct kdbus_conn_reply **reply)
+/**
+ * kdbus_conn_reply_find() - Find the corresponding reply object
+ * @conn_replying	The replying connection
+ * @conn_reply_dst	The connection the reply will be sent to
+ *			(method origin)
+ * @cookie		The cookie of the requesting message
+ *
+ * Lookup a reply object that should be sent as a reply by
+ * @conn_replying to @conn_reply_dst with the given cookie.
+ *
+ * For optimizations, callers should first check 'reply_count' of
+ * @conn_reply_dst to see if the connection has issued any requests
+ * that are waiting for replies, before calling this function.
+ *
+ * Return: the corresponding reply object or NULL if not found
+ */
+static struct kdbus_conn_reply *
+kdbus_conn_reply_find(struct kdbus_conn *conn_replying,
+		      struct kdbus_conn *conn_reply_dst,
+		      uint64_t cookie)
 {
 	struct kdbus_conn_reply *r;
-	int ret = -ENOENT;
-
-	if (atomic_read(&conn_reply_dst->reply_count) == 0)
-		return -ENOENT;
+	struct kdbus_conn_reply *reply = NULL;
 
 	list_for_each_entry(r, &conn_replying->reply_list, entry) {
 		if (r->reply_dst == conn_reply_dst &&
 		    r->cookie == cookie) {
-			*reply = r;
-			ret = 0;
+			reply = r;
 			break;
 		}
 	}
 
-	return ret;
+	return reply;
 }
 
 /**
@@ -395,8 +407,8 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 {
 	struct kdbus_conn_reply *reply;
 	struct kdbus_conn *c;
-	bool found = false;
-	int ret, i;
+	int ret = -ENOENT;
+	int i;
 
 	if (atomic_read(&conn->reply_count) == 0)
 		return -ENOENT;
@@ -408,16 +420,16 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			continue;
 
 		mutex_lock(&c->lock);
-		ret = kdbus_conn_find_reply(c, conn, cookie, &reply);
-		if (ret == 0) {
+		reply = kdbus_conn_reply_find(c, conn, cookie);
+		if (reply) {
 			kdbus_conn_reply_sync(reply, -ECANCELED);
-			found = true;
+			ret = 0;
 		}
 		mutex_unlock(&c->lock);
 	}
 	up_read(&conn->bus->conn_rwlock);
 
-	return found ? 0 : -ENOENT;
+	return ret;
 }
 
 static int kdbus_conn_check_access(struct kdbus_ep *ep,
@@ -442,9 +454,9 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 		struct kdbus_conn_reply *r;
 
 		mutex_lock(&conn_src->lock);
-		ret = kdbus_conn_find_reply(conn_src, conn_dst,
-					    msg->cookie_reply, &r);
-		if (ret == 0) {
+		r = kdbus_conn_reply_find(conn_src, conn_dst,
+					  msg->cookie_reply);
+		if (r) {
 			list_del_init(&r->entry);
 			if (r->sync)
 				*reply_wake = kdbus_conn_reply_ref(r);
@@ -835,10 +847,11 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 */
 		if (sync && atomic_read(&conn_src->reply_count) > 0) {
 			mutex_lock(&conn_dst->lock);
-			ret = kdbus_conn_find_reply(conn_dst, conn_src,
-						    kmsg->msg.cookie,
-						    &reply_wait);
-			if (ret == 0) {
+			reply_wait = kdbus_conn_reply_find(conn_dst,
+							   conn_src,
+							   kmsg->msg.cookie);
+			if (reply_wait) {
+				/* It was interrupted */
 				if (reply_wait->interrupted)
 					reply_wait->interrupted = false;
 				else
