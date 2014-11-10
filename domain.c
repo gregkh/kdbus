@@ -476,7 +476,7 @@ struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u)
  */
 struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u)
 {
-	if (u)
+	if (!IS_ERR_OR_NULL(u))
 		kref_put(&u->kref, __kdbus_domain_user_free);
 	return NULL;
 }
