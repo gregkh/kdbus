@@ -551,8 +551,8 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			gid = current_fsgid();
 		}
 
-		bus = kdbus_bus_make_user(handle->domain, make,
-					  mode, current_fsuid(), gid);
+		bus = kdbus_bus_new(handle->domain, make,
+				    mode, current_fsuid(), gid);
 		if (IS_ERR(bus)) {
 			ret = PTR_ERR(bus);
 			break;

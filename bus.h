@@ -88,9 +88,9 @@ struct kdbus_bus {
 	struct kdbus_meta *meta;
 };
 
-struct kdbus_bus *kdbus_bus_make_user(struct kdbus_domain *domain,
-				      const struct kdbus_cmd_make *make,
-				      umode_t mode, kuid_t uid, kgid_t gid);
+struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
+				const struct kdbus_cmd_make *make,
+				umode_t mode, kuid_t uid, kgid_t gid);
 int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 			       struct kdbus_cmd_info *cmd_info);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);

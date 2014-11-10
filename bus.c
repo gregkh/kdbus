@@ -226,7 +226,7 @@ exit_free_slice:
 }
 
 /**
- * kdbus_bus_make_user() - create a kdbus_cmd_make from user-supplied data
+ * kdbus_bus_new() - create a kdbus_cmd_make from user-supplied data
  * @domain:		The domain to work on
  * @make:		Information as passed in by userspace
  * @mode:		The access mode for the device node
@@ -238,9 +238,9 @@ exit_free_slice:
  *
  * Return: the new bus on success, ERR_PTR on failure.
  */
-struct kdbus_bus *kdbus_bus_make_user(struct kdbus_domain *domain,
-				      const struct kdbus_cmd_make *make,
-				      umode_t mode, kuid_t uid, kgid_t gid)
+struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
+				const struct kdbus_cmd_make *make,
+				umode_t mode, kuid_t uid, kgid_t gid)
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;
 	const struct kdbus_item *item;
