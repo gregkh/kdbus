@@ -568,12 +568,11 @@ static int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
 	return kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq, attach_flags);
 }
 
-static void kdbus_conn_broadcast(struct kdbus_ep *ep,
+static void kdbus_conn_broadcast(struct kdbus_bus *bus,
 				 struct kdbus_conn *conn_src,
 				 struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_bus *bus = ep->bus;
 	struct kdbus_conn *conn_dst;
 	unsigned int i;
 	int ret = 0;
@@ -635,7 +634,8 @@ exit_unlock:
 	up_read(&bus->conn_rwlock);
 }
 
-static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
+static void kdbus_conn_eavesdrop(struct kdbus_bus *bus,
+				 struct kdbus_conn *conn,
 				 struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *c;
@@ -646,8 +646,8 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 	 * when sending messages to monitor connections.
 	 */
 
-	down_read(&ep->bus->conn_rwlock);
-	list_for_each_entry(c, &ep->bus->monitors_list, monitor_entry) {
+	down_read(&bus->conn_rwlock);
+	list_for_each_entry(c, &bus->monitors_list, monitor_entry) {
 		/*
 		 * The first monitor which requests additional
 		 * metadata causes the message to carry it; all
@@ -662,11 +662,10 @@ static void kdbus_conn_eavesdrop(struct kdbus_ep *ep, struct kdbus_conn *conn,
 
 		kdbus_conn_entry_insert(NULL, c, kmsg, NULL);
 	}
-	up_read(&ep->bus->conn_rwlock);
+	up_read(&bus->conn_rwlock);
 }
 
-static int kdbus_conn_wait_reply(struct kdbus_ep *ep,
-				 struct kdbus_conn *conn_src,
+static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
 				 struct kdbus_msg *msg,
 				 struct kdbus_conn_reply *reply_wait,
@@ -774,7 +773,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		kdbus_conn_broadcast(ep, conn_src, kmsg);
+		kdbus_conn_broadcast(bus, conn_src, kmsg);
 		return 0;
 	}
 
@@ -927,7 +926,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	/* forward to monitors */
-	kdbus_conn_eavesdrop(ep, conn_src, kmsg);
+	kdbus_conn_eavesdrop(bus, conn_src, kmsg);
 
 wait_sync:
 	/* no reason to keep names locked for replies */
@@ -947,7 +946,7 @@ wait_sync:
 		else
 			timeout = msg->timeout_ns - now;
 
-		ret = kdbus_conn_wait_reply(ep, conn_src, conn_dst, msg,
+		ret = kdbus_conn_wait_reply(conn_src, conn_dst, msg,
 					    reply_wait, timeout);
 	}
 
