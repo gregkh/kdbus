@@ -11,8 +11,6 @@
  * your option) any later version.
  */
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
 #include <linux/atomic.h>
 #include <linux/idr.h>
 #include <linux/kdev_t.h>
