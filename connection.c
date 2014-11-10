@@ -432,8 +432,13 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	/*
 	 * Walk the conn_src's list of expected replies. If there's any
 	 * matching entry, allow the message to be sent, and remove it.
+	 *
+	 * If conn_dst did not issue any previous request or if the
+	 * request was canceled then nothing to do, and fallback to
+	 * to a normal permission check
 	 */
-	if (reply_wake && msg->cookie_reply > 0) {
+	if (reply_wake && msg->cookie_reply > 0 &&
+	    atomic_read(&conn_dst->reply_count) > 0) {
 		struct kdbus_conn_reply *r;
 
 		mutex_lock(&conn_src->lock);
@@ -822,8 +827,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * wait object is still queued on conn_dst, with the former
 		 * cookie. Look it up, and in case it exists, go dormant right
 		 * away again, and don't queue the message again.
+		 *
+		 * We also need to make sure that conn_src did really
+		 * issue a request or if the request did not get
+		 * canceled on the way before looking up any reply
+		 * object.
 		 */
-		if (sync) {
+		if (sync && atomic_read(&conn_src->reply_count) > 0) {
 			mutex_lock(&conn_dst->lock);
 			ret = kdbus_conn_find_reply(conn_dst, conn_src,
 						    kmsg->msg.cookie,
