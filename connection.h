@@ -47,8 +47,8 @@
  * @monitor_entry:	Entry in monitor, if the connection is a monitor
  * @names_list:		List of well-known names
  * @names_queue_list:	Well-known names this connection waits for
- * @reply_list:		List of connections this connection expects
- *			a reply from.
+ * @reply_list:		List of connections this connection should
+ *			reply to
  * @work:		Delayed work to handle timeouts
  * @activator_of:	Well-known name entry this connection acts as an
  *			activator for
@@ -62,7 +62,7 @@
  * @cred:		The credentials of the connection at creation time
  * @name_count:		Number of owned well-known names
  * @reply_count:	Number of requests this connection has issued, and
- *			waits for replies from the peer
+ *			waits for replies from other peers
  * @wait:		Wake up this endpoint
  * @queue:		The message queue associcated with this connection
  * @privileged:		Whether this connection is privileged on the bus
