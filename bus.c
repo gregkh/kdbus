@@ -159,20 +159,13 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
 					const char *name)
 {
-	struct kdbus_bus *bus = NULL;
 	struct kdbus_bus *b;
 
-	mutex_lock(&domain->lock);
-	list_for_each_entry(b, &domain->bus_list, domain_entry) {
-		if (strcmp(b->name, name))
-			continue;
+	list_for_each_entry(b, &domain->bus_list, domain_entry)
+		if (!strcmp(b->name, name))
+			return kdbus_bus_ref(b);
 
-		bus = kdbus_bus_ref(b);
-		break;
-	}
-	mutex_unlock(&domain->lock);
-
-	return bus;
+	return NULL;
 }
 
 /**
@@ -244,8 +237,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;
 	const struct kdbus_item *item;
+	struct kdbus_bus *b, *b_tmp;
 	const char *name = NULL;
-	struct kdbus_bus *b;
 	char prefix[16];
 	int ret;
 
@@ -298,12 +291,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		 from_kuid(current_user_ns(), uid));
 	if (strncmp(name, prefix, strlen(prefix) != 0))
 		return ERR_PTR(-EINVAL);
-
-	b = kdbus_bus_find(domain, name);
-	if (b) {
-		kdbus_bus_unref(b);
-		return ERR_PTR(-EEXIST);
-	}
 
 	b = kzalloc(sizeof(*b), GFP_KERNEL);
 	if (!b)
@@ -367,10 +354,17 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_free_reg;
 	}
 
-	/* link into domain */
 	mutex_lock(&domain->lock);
 	if (domain->disconnected) {
 		ret = -ESHUTDOWN;
+		goto exit_unref_user_unlock;
+	}
+
+	/* see if a bus of that name already exists */
+	b_tmp = kdbus_bus_find(domain, name);
+	if (b_tmp) {
+		kdbus_bus_unref(b_tmp);
+		ret = -EEXIST;
 		goto exit_unref_user_unlock;
 	}
 
@@ -387,6 +381,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref_user_unlock;
 	}
 
+	/* link into domain */
 	b->id = ++domain->bus_seq_last;
 	list_add_tail(&b->domain_entry, &domain->bus_list);
 	mutex_unlock(&domain->lock);
