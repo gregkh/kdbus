@@ -421,7 +421,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 
 		mutex_lock(&c->lock);
 		reply = kdbus_conn_reply_find(c, conn, cookie);
-		if (reply) {
+		if (reply && reply->sync) {
 			kdbus_conn_reply_sync(reply, -ECANCELED);
 			ret = 0;
 		}
