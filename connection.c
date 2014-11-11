@@ -479,6 +479,49 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	return 0;
 }
 
+/*
+ * Synchronously responding to a message, allocate a queue entry
+ * and attach it to the reply tracking object.
+ * The connection's queue will never get to see it.
+ */
+static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
+					struct kdbus_conn *conn_dst,
+					const struct kdbus_kmsg *kmsg,
+					struct kdbus_conn_reply *reply)
+{
+	struct kdbus_queue_entry *entry;
+	int ret = 0;
+
+	mutex_lock(&conn_dst->lock);
+
+	if (!reply->waiting || !kdbus_conn_active(conn_dst)) {
+		ret = -ECONNRESET;
+		goto out;
+	}
+
+	/*
+	 * If we are still waiting then proceed, allocate a queue
+	 * entry and attach it to the reply object
+	 */
+	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
+	if (IS_ERR(entry))
+		ret = PTR_ERR(entry);
+	else
+		/* Attach the entry to the reply object */
+		reply->queue_entry = entry;
+
+out:
+	/*
+	 * Update the reply object and wake up remote peer
+	 */
+	kdbus_conn_reply_sync(reply, ret);
+	kdbus_conn_reply_unref(reply);
+
+	mutex_unlock(&conn_dst->lock);
+
+	return ret;
+}
+
 /* enqueue a message into the receiver's pool */
 static int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst,
@@ -892,23 +935,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * queue item and attach it to the reply tracking object.
 		 * The connection's queue will never get to see it.
 		 */
-		mutex_lock(&conn_dst->lock);
-		if (reply_wake->waiting && kdbus_conn_active(conn_dst)) {
-			struct kdbus_queue_entry *e;
-
-			e = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
-			if (IS_ERR(e))
-				ret = PTR_ERR(e);
-			else
-				reply_wake->queue_entry = e;
-		} else {
-			ret = -ECONNRESET;
-		}
-
-		kdbus_conn_reply_sync(reply_wake, ret);
-		kdbus_conn_reply_unref(reply_wake);
-		mutex_unlock(&conn_dst->lock);
-
+		ret = kdbus_conn_entry_sync_attach(conn_src, conn_dst,
+						   kmsg, reply_wake);
 		if (ret < 0)
 			goto exit_unref;
 	} else {
