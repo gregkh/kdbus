@@ -355,7 +355,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	}
 
 	mutex_lock(&domain->lock);
-	if (!kdbus_domain_is_active(domain)) {
+	if (domain->disconnected) {
 		ret = -ESHUTDOWN;
 		goto exit_unref_user_unlock;
 	}
