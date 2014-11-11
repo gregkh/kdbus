@@ -325,6 +325,7 @@ static void kdbus_domain_release(struct kdbus_node *node)
 void kdbus_domain_deactivate(struct kdbus_domain *domain)
 {
 	kdbus_node_deactivate(&domain->node);
+	kdbus_node_drain(&domain->node);
 }
 
 /**

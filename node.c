@@ -15,7 +15,6 @@
 #include <linux/fs.h>
 #include <linux/idr.h>
 #include <linux/kdev_t.h>
-#include <linux/lockdep.h>
 #include <linux/rwsem.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
@@ -27,9 +26,10 @@
 #include "handle.h"
 #include "node.h"
 
-#define KDBUS_NODE_ACTIVE_BIAS		(INT_MIN + 2)
-#define KDBUS_NODE_ACTIVE_NEW		(KDBUS_NODE_ACTIVE_BIAS - 2)
-#define KDBUS_NODE_ACTIVE_DRAINED	(KDBUS_NODE_ACTIVE_BIAS - 1)
+#define KDBUS_NODE_ACTIVE_BIAS		(INT_MIN + 3)
+#define KDBUS_NODE_ACTIVE_RELEASE	(KDBUS_NODE_ACTIVE_BIAS - 1)
+#define KDBUS_NODE_ACTIVE_DRAINED	(KDBUS_NODE_ACTIVE_BIAS - 2)
+#define KDBUS_NODE_ACTIVE_NEW		(KDBUS_NODE_ACTIVE_BIAS - 3)
 
 /* IDs may be used as minor-numbers, so limit it to the highest minor */
 #define KDBUS_NODE_IDR_MAX MINORMASK
@@ -71,9 +71,6 @@ void kdbus_exit_nodes(void)
 int kdbus_node_init(struct kdbus_node *node, unsigned int type,
 		    kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
 {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	static struct lock_class_key __key;
-#endif
 	int ret;
 
 	atomic_set(&node->refcnt, 1);
@@ -84,9 +81,6 @@ int kdbus_node_init(struct kdbus_node *node, unsigned int type,
 	node->free_cb = free_cb;
 	init_waitqueue_head(&node->waitq);
 	atomic_set(&node->active, KDBUS_NODE_ACTIVE_NEW);
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	lockdep_init_map(&node->dep_map, "active", &__key, 0);
-#endif
 
 	down_write(&kdbus_node_idr_lock);
 	ret = idr_alloc(&kdbus_node_idr, node, 1, KDBUS_NODE_IDR_MAX + 1,
@@ -123,15 +117,6 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 	return NULL;
 }
 
-static void kdbus_node_dropped(struct kdbus_node *node)
-{
-	if (node->release_cb)
-		node->release_cb(node);
-
-	atomic_set(&node->active, KDBUS_NODE_ACTIVE_DRAINED);
-	wake_up_all(&node->waitq);
-}
-
 bool kdbus_node_is_active(struct kdbus_node *node)
 {
 	return atomic_read(&node->active) >= 0;
@@ -154,55 +139,49 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 	if (v >= 0)
 		v = atomic_add_return(KDBUS_NODE_ACTIVE_BIAS, &node->active);
 	else if (v == KDBUS_NODE_ACTIVE_NEW)
-		v = atomic_add_return(2, &node->active);
+		v = atomic_add_return(3, &node->active);
 	else
 		v = 0;
 	mutex_unlock(&node->lock);
 
 	if (v == KDBUS_NODE_ACTIVE_BIAS)
-		kdbus_node_dropped(node);
+		wake_up(&node->waitq);
 }
 
 void kdbus_node_drain(struct kdbus_node *node)
 {
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	rwsem_acquire(&node->dep_map, 0, 0, _RET_IP_);
-	if (atomic_read(&node->active) != KDBUS_NODE_ACTIVE_BIAS)
-		lock_contended(&node->dep_map, _RET_IP_);
-#endif
+	int v;
+
+	wait_event(node->waitq,
+		   atomic_read(&node->active) <= KDBUS_NODE_ACTIVE_BIAS);
+
+	mutex_lock(&node->lock);
+	v = atomic_read(&node->active);
+	if (v == KDBUS_NODE_ACTIVE_BIAS)
+		atomic_dec(&node->active);
+	mutex_unlock(&node->lock);
+
+	if (v == KDBUS_NODE_ACTIVE_BIAS) {
+		if (node->release_cb)
+			node->release_cb(node);
+
+		atomic_dec(&node->active);
+		wake_up_all(&node->waitq);
+	}
 
 	wait_event(node->waitq,
 		   atomic_read(&node->active) == KDBUS_NODE_ACTIVE_DRAINED);
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	lock_acquired(&node->dep_map, _RET_IP_);
-	rwsem_release(&node->dep_map, 1, _RET_IP_);
-#endif
 }
 
 bool kdbus_node_acquire(struct kdbus_node *node)
 {
-	if (!node || !atomic_inc_unless_negative(&node->active))
-		return false;
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	rwsem_acquire_read(&node->dep_map, 0, 1, _RET_IP_);
-#endif
-
-	return true;
+	return node && atomic_inc_unless_negative(&node->active);
 }
 
 void kdbus_node_release(struct kdbus_node *node)
 {
-	if (!node)
-		return;
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	rwsem_release(&node->dep_map, 1, _RET_IP_);
-#endif
-
-	if (atomic_dec_return(&node->active) == KDBUS_NODE_ACTIVE_BIAS)
-		kdbus_node_dropped(node);
+	if (node && atomic_dec_return(&node->active) == KDBUS_NODE_ACTIVE_BIAS)
+		wake_up(&node->waitq);
 }
 
 struct kdbus_node *kdbus_node_find_by_id(unsigned int id)

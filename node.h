@@ -16,7 +16,6 @@
 
 #include <linux/atomic.h>
 #include <linux/kernel.h>
-#include <linux/lockdep.h>
 #include <linux/mutex.h>
 #include <linux/wait.h>
 
@@ -44,9 +43,6 @@ struct kdbus_node {
 
 	wait_queue_head_t waitq;
 	atomic_t active;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	struct lockdep_map dep_map;
-#endif
 };
 
 extern unsigned int kdbus_major;
