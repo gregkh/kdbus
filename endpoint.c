@@ -30,6 +30,9 @@
 #include "message.h"
 #include "policy.h"
 
+static void kdbus_ep_free(struct kdbus_node *node);
+static void kdbus_ep_release(struct kdbus_node *node);
+
 /* endpoints are by default owned by the bus owner */
 static char *kdbus_ep_dev_devnode(struct device *dev, umode_t *mode,
 				  kuid_t *uid, kgid_t *gid)
@@ -92,7 +95,8 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->bus = kdbus_bus_ref(bus);
 	e->id = atomic64_inc_return(&bus->ep_seq_last);
 
-	ret = kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT);
+	ret = kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT, kdbus_ep_free,
+			      kdbus_ep_release);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -113,12 +117,9 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	dev_set_drvdata(e->dev, e);
 	e->dev->bus = &kdbus_subsys;
 	e->dev->type = &kdbus_ep_dev_type;
+	e->dev->devt = MKDEV(kdbus_major, e->node.id);
 
 	dev_set_name(e->dev, "%s/%s/%s", bus->domain->devpath, bus->name, name);
-	if (ret < 0)
-		goto exit_unref;
-
-	ret = kdbus_cdev_alloc(KDBUS_CDEV_ENDPOINT, NULL, &e->dev->devt);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -137,7 +138,6 @@ static void kdbus_ep_free(struct kdbus_node *node)
 	BUG_ON(!list_empty(&ep->conn_list));
 
 	kdbus_policy_db_clear(&ep->policy_db);
-	kdbus_cdev_free(ep->dev->devt);
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);
 	put_device(ep->dev);
@@ -155,7 +155,7 @@ struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 {
 	if (ep)
-		kdbus_node_unref(&ep->node, kdbus_ep_free);
+		kdbus_node_unref(&ep->node);
 	return NULL;
 }
 
@@ -194,7 +194,6 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
 	 */
 
 	kdbus_node_activate(&ep->node);
-	kdbus_cdev_set_ep(ep->dev->devt, ep);
 
 	ret = device_add(ep->dev);
 
@@ -221,8 +220,6 @@ static void kdbus_ep_release(struct kdbus_node *node)
 
 	if (ep->dev)
 		device_del(ep->dev);
-
-	kdbus_cdev_set_ep(ep->dev->devt, NULL);
 
 	/* disconnect all connections to this endpoint */
 	for (;;) {
@@ -252,7 +249,7 @@ static void kdbus_ep_release(struct kdbus_node *node)
  */
 void kdbus_ep_deactivate(struct kdbus_ep *ep)
 {
-	kdbus_node_deactivate(&ep->node, kdbus_ep_release);
+	kdbus_node_deactivate(&ep->node);
 }
 
 /**

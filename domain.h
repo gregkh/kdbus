@@ -88,6 +88,10 @@ struct kdbus_domain_user {
 
 extern struct bus_type kdbus_subsys;
 
+#define kdbus_domain_from_node(_node) container_of((_node), \
+						   struct kdbus_domain, \
+						   node)
+
 struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 				      const char *name, umode_t mode);
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);

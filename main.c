@@ -33,11 +33,9 @@ static int __init kdbus_init(void)
 	if (ret < 0)
 		return ret;
 
-	ret = kdbus_cdev_init();
+	ret = kdbus_init_nodes();
 	if (ret < 0)
 		goto exit_subsys;
-
-	kdbus_init_nodes();
 
 	/*
 	 * Create the initial domain; it is world-accessible and
@@ -63,7 +61,6 @@ exit_domain:
 	kdbus_domain_unref(kdbus_domain_init);
 exit_node:
 	kdbus_exit_nodes();
-	kdbus_cdev_exit();
 exit_subsys:
 	bus_unregister(&kdbus_subsys);
 	return ret;
@@ -74,7 +71,6 @@ static void __exit kdbus_exit(void)
 	kdbus_domain_deactivate(kdbus_domain_init);
 	kdbus_domain_unref(kdbus_domain_init);
 	kdbus_exit_nodes();
-	kdbus_cdev_exit();
 	bus_unregister(&kdbus_subsys);
 }
 

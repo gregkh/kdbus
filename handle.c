@@ -91,259 +91,37 @@ struct kdbus_handle {
 	bool privileged : 1;
 };
 
-/* max minor number; use all we can get */
-#define KDBUS_CDEV_MAX MINORMASK
-
-/*
- * We use the lower 2 bits of a pointer to store type information. In the IDR,
- * the upper 30bits of a pointer contain the address, the lower 2 bits contain
- * the kdbus_cdev_type of the stored object with an offset of 1. The offset is
- * used to explicitly avoid ambiguity between overloaded and non-overloaded
- * pointers in memory dumps.
- */
-#define KDBUS_CDEV_TYPE_MASK 0x3UL
-#define KDBUS_CDEV_TYPE_MAX 3
-#define KDBUS_CDEV_TYPE_OFFSET 1
-
-/* kdbus major */
-static unsigned int kdbus_major;
-
-/* map of minors to objects */
-static DEFINE_IDR(kdbus_cdev_idr);
-
-/* kdbus cdev lock */
-static DEFINE_MUTEX(kdbus_cdev_lock);
-
-/**
- * kdbus_cdev_init() - initialize the kdbus_cdev helpers
- *
- * This must be called on module initialization to prepare the cdev helpers and
- * allocate the kdbus major number.
- *
- * Returns: 0 on success, negative error code on failure.
- */
-int kdbus_cdev_init(void)
-{
-	int ret;
-
-	ret = __register_chrdev(0, 0, KDBUS_CDEV_MAX + 1, KBUILD_MODNAME,
-				&kdbus_handle_ops);
-	if (ret < 0)
-		return ret;
-
-	kdbus_major = ret;
-	return 0;
-}
-
-/**
- * kdbus_cdev_exit() - tidy up kdbus_cdev helpers
- *
- * This must be called on module-exit iff kdbus_cdev_init() succeeded. It
- * releases the kdbus major and all memory allocated by kdbus_cdev state
- * tracking.
- */
-void kdbus_cdev_exit(void)
-{
-	__unregister_chrdev(kdbus_major, 0, KDBUS_CDEV_MAX + 1,
-			    KBUILD_MODNAME);
-	idr_destroy(&kdbus_cdev_idr);
-}
-
-/**
- * kdbus_cdev_pack() - pack object-type and object-ptr for cdev IDR storage
- * @type:	The type of the object
- * @ptr:	A pointer to the object
- *
- * Kdbus char-devs can be of multiple different types. We store the
- * object-pointer together with the object-type in the cdev IDR so we can
- * detect the type whenever we lookup minors in the cdev IDR.
- *
- * We rely on 32bit pointer alignments and store the type information in the
- * lower 2 bits of the pointer stored in the IDR. We also add an offset of 1 to
- * avoid any ambiguity between overloaded and non-overloaded pointers.
- *
- * Returns: The overloaded pointer to store in the cdev IDR.
- */
-static void *kdbus_cdev_pack(enum kdbus_cdev_type type, void *ptr)
-{
-	unsigned long p = (unsigned long)ptr;
-
-	/* make sure all types can be stored in the lower 2 bits */
-	BUILD_BUG_ON(KDBUS_CDEV_CNT > KDBUS_CDEV_TYPE_MAX);
-
-	if (WARN_ON(p & KDBUS_CDEV_TYPE_MASK || type >= KDBUS_CDEV_CNT))
-		return NULL;
-
-	return (void *)(p | (unsigned long)(type + KDBUS_CDEV_TYPE_OFFSET));
-}
-
-/**
- * kdbus_cdev_unpack() - unpack object-type and object-ptr from cdev IDR storage
- * @ptr:	Pointer to the overloaded pointer retrieved from the cdev IDR
- *
- * This does the reverse of kdbus_cdev_pack(). It takes an overloaded pointer
- * and returns the type of the pointer. The storage of the pointer itself is
- * also updated so it is no longer overloaded, but can be accessed directly.
- *
- * Returns: The object-type of the overloaded pointer
- */
-static enum kdbus_cdev_type kdbus_cdev_unpack(void **ptr)
-{
-	unsigned long p = (unsigned long)*ptr;
-
-	WARN_ON(!(p & KDBUS_CDEV_TYPE_MASK));
-
-	*ptr = (void *)(p & ~KDBUS_CDEV_TYPE_MASK);
-	return (p & KDBUS_CDEV_TYPE_MASK) - KDBUS_CDEV_TYPE_OFFSET;
-}
-
-static void kdbus_cdev_ref(enum kdbus_cdev_type type, void *ptr)
-{
-	if (ptr) {
-		switch (type) {
-		case KDBUS_CDEV_CONTROL:
-			kdbus_domain_ref(ptr);
-			break;
-		case KDBUS_CDEV_ENDPOINT:
-			kdbus_ep_ref(ptr);
-			break;
-		default:
-			break;
-		}
-	}
-}
-
-static void kdbus_cdev_unref(enum kdbus_cdev_type type, void *ptr)
-{
-	if (ptr) {
-		switch (type) {
-		case KDBUS_CDEV_CONTROL:
-			kdbus_domain_unref(ptr);
-			break;
-		case KDBUS_CDEV_ENDPOINT:
-			kdbus_ep_unref(ptr);
-			break;
-		default:
-			break;
-		}
-	}
-}
-
-/**
- * kdbus_cdev_alloc() - allocate a minor for a new kdbus character device
- * @type:	The type of device to allocate
- * @ptr:	The opaque pointer of the new device to store
- * @out:	Pointer to a dev_t for storing the result.
- *
- * Returns: 0 on success, in which case @out is set to the newly allocated
- * device node.
- */
-int kdbus_cdev_alloc(enum kdbus_cdev_type type, void *ptr, dev_t *out)
-{
-	int ret;
-
-	ptr = kdbus_cdev_pack(type, ptr);
-
-	mutex_lock(&kdbus_cdev_lock);
-	ret = idr_alloc(&kdbus_cdev_idr, ptr, 0, KDBUS_CDEV_MAX + 1,
-			GFP_KERNEL);
-	mutex_unlock(&kdbus_cdev_lock);
-
-	if (ret < 0)
-		return ret;
-
-	*out = MKDEV(kdbus_major, ret);
-	return 0;
-}
-
-/**
- * kdbus_cdev_free() - free a minor of a kdbus character device
- * @devt:	The device node to remove
- */
-void kdbus_cdev_free(dev_t devt)
-{
-	unsigned int minor = MINOR(devt);
-
-	if (!devt)
-		return;
-
-	mutex_lock(&kdbus_cdev_lock);
-	idr_remove(&kdbus_cdev_idr, minor);
-	mutex_unlock(&kdbus_cdev_lock);
-}
-
-/**
- * kdbus_cdev_set() - change the object associated with a kdbus character device
- * @devt:	The device node to modify
- * @type:	New type to set
- * @ptr:	New object to set on the node
- */
-void kdbus_cdev_set(dev_t devt, enum kdbus_cdev_type type, void *ptr)
-{
-	unsigned int minor = MINOR(devt);
-
-	ptr = kdbus_cdev_pack(type, ptr);
-
-	mutex_lock(&kdbus_cdev_lock);
-	idr_replace(&kdbus_cdev_idr, ptr, minor);
-	mutex_unlock(&kdbus_cdev_lock);
-}
-
-static int kdbus_cdev_lookup(dev_t devt, void **out)
-{
-	unsigned int minor = MINOR(devt);
-	enum kdbus_cdev_type type;
-	void *ptr;
-
-	mutex_lock(&kdbus_cdev_lock);
-	ptr = idr_find(&kdbus_cdev_idr, minor);
-	if (ptr) {
-		type = kdbus_cdev_unpack(&ptr);
-		kdbus_cdev_ref(type, ptr);
-	}
-	mutex_unlock(&kdbus_cdev_lock);
-
-	if (!ptr)
-		return -ESHUTDOWN;
-
-	*out = ptr;
-	return type;
-}
-
 static int kdbus_handle_open(struct inode *inode, struct file *file)
 {
-	enum kdbus_cdev_type cdev_type;
 	struct kdbus_handle *handle;
-	void *cdev_ptr;
+	struct kdbus_node *node;
 	int ret;
 
-	ret = kdbus_cdev_lookup(inode->i_rdev, &cdev_ptr);
-	if (ret < 0)
-		return ret;
-
-	cdev_type = ret;
+	node = kdbus_node_find_by_id(MINOR(inode->i_rdev));
+	if (!node)
+		return -ESHUTDOWN;
 
 	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
 	if (!handle) {
-		kdbus_cdev_unref(cdev_type, cdev_ptr);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto exit_node;
 	}
 
 	file->private_data = handle;
 
-	switch (cdev_type) {
-	case KDBUS_CDEV_CONTROL:
+	switch (node->type) {
+	case KDBUS_NODE_DOMAIN:
 		handle->type = KDBUS_HANDLE_CONTROL;
-		handle->domain = cdev_ptr;
+		handle->domain = kdbus_domain_ref(kdbus_domain_from_node(node));
 
 		if (ns_capable(&init_user_ns, CAP_IPC_OWNER))
 			handle->privileged = true;
 
 		break;
 
-	case KDBUS_CDEV_ENDPOINT:
+	case KDBUS_NODE_ENDPOINT:
 		handle->type = KDBUS_HANDLE_ENDPOINT;
-		handle->ep = cdev_ptr;
+		handle->ep = kdbus_ep_ref(kdbus_ep_from_node(node));
 		handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
 
 		if (ns_capable(&init_user_ns, CAP_IPC_OWNER) ||
@@ -354,7 +132,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		handle->meta = kdbus_meta_new();
 		if (IS_ERR(handle->meta)) {
 			ret = PTR_ERR(handle->meta);
-			goto exit_ep_unref;
+			goto exit_free;
 		}
 
 		ret = kdbus_meta_append(handle->meta, NULL, 0,
@@ -374,19 +152,23 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		break;
 
 	default:
-		kdbus_cdev_unref(cdev_type, cdev_ptr);
 		ret = -EINVAL;
 		goto exit_free;
 	}
+
+	kdbus_node_release(node);
+	kdbus_node_unref(node);
 
 	return 0;
 
 exit_free:
 	kdbus_meta_free(handle->meta);
-exit_ep_unref:
-	kdbus_ep_unref(handle->ep);
 	kdbus_domain_unref(handle->domain);
+	kdbus_ep_unref(handle->ep);
 	kfree(handle);
+exit_node:
+	kdbus_node_release(node);
+	kdbus_node_unref(node);
 	return ret;
 }
 

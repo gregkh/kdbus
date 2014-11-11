@@ -36,6 +36,9 @@ struct bus_type kdbus_subsys = {
 	.name = KBUILD_MODNAME,
 };
 
+static void kdbus_domain_free(struct kdbus_node *node);
+static void kdbus_domain_release(struct kdbus_node *node);
+
 /* control nodes are world accessible */
 static char *kdbus_domain_dev_devnode(struct device *dev, umode_t *mode,
 				      kuid_t *uid, kgid_t *gid)
@@ -88,7 +91,8 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	ret = kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN);
+	ret = kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN,
+			      kdbus_domain_free, kdbus_domain_release);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -125,12 +129,9 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	dev_set_drvdata(d->dev, d);
 	d->dev->bus = &kdbus_subsys;
 	d->dev->type = &kdbus_domain_dev_type;
+	d->dev->devt = MKDEV(kdbus_major, d->node.id);
 
 	ret = dev_set_name(d->dev, "%s/control", d->devpath);
-	if (ret < 0)
-		goto exit_unref;
-
-	ret = kdbus_cdev_alloc(KDBUS_CDEV_CONTROL, NULL, &d->dev->devt);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -153,7 +154,6 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
-	kdbus_cdev_free(domain->dev->devt);
 	kdbus_domain_unref(domain->parent);
 	idr_destroy(&domain->user_idr);
 	put_device(domain->dev);
@@ -187,7 +187,7 @@ struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
 {
 	if (domain)
-		kdbus_node_unref(&domain->node, kdbus_domain_free);
+		kdbus_node_unref(&domain->node);
 	return NULL;
 }
 
@@ -244,7 +244,6 @@ int kdbus_domain_activate(struct kdbus_domain *domain)
 	 */
 
 	kdbus_node_activate(&domain->node);
-	kdbus_cdev_set_control(domain->dev->devt, domain);
 
 	ret = device_add(domain->dev);
 
@@ -275,8 +274,6 @@ static void kdbus_domain_release(struct kdbus_node *node)
 
 	if (device_is_registered(domain->dev))
 		device_del(domain->dev);
-
-	kdbus_cdev_set_control(domain->dev->devt, NULL);
 
 	/* disconnect all sub-domains */
 	for (;;) {
@@ -327,7 +324,7 @@ static void kdbus_domain_release(struct kdbus_node *node)
  */
 void kdbus_domain_deactivate(struct kdbus_domain *domain)
 {
-	kdbus_node_deactivate(&domain->node, kdbus_domain_release);
+	kdbus_node_deactivate(&domain->node);
 }
 
 /**
