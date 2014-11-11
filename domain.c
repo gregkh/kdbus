@@ -59,123 +59,6 @@ static struct device_type kdbus_domain_dev_type = {
 	.release	= kdbus_domain_dev_release,
 };
 
-/**
- * kdbus_domain_ref() - take a domain reference
- * @domain:		Domain
- *
- * Return: the domain itself
- */
-struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
-{
-	if (domain)
-		kdbus_node_ref(&domain->node);
-	return domain;
-}
-
-static void kdbus_domain_release(struct kdbus_node *node)
-{
-	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
-						   node);
-
-	/* disconnect from parent domain */
-	if (domain->parent) {
-		mutex_lock(&domain->parent->lock);
-		list_del(&domain->domain_entry);
-		mutex_unlock(&domain->parent->lock);
-	}
-
-	if (device_is_registered(domain->dev))
-		device_del(domain->dev);
-
-	kdbus_cdev_set_control(domain->dev->devt, NULL);
-
-	/* disconnect all sub-domains */
-	for (;;) {
-		struct kdbus_domain *dom;
-
-		mutex_lock(&domain->lock);
-		dom = list_first_entry_or_null(&domain->domain_list,
-					       struct kdbus_domain,
-					       domain_entry);
-		if (!dom) {
-			mutex_unlock(&domain->lock);
-			break;
-		}
-
-		/* take reference, release lock, disconnect without lock */
-		kdbus_domain_ref(dom);
-		mutex_unlock(&domain->lock);
-
-		kdbus_domain_disconnect(dom);
-		kdbus_domain_unref(dom);
-	}
-
-	/* disconnect all buses in this domain */
-	for (;;) {
-		struct kdbus_bus *bus;
-
-		mutex_lock(&domain->lock);
-		bus = list_first_entry_or_null(&domain->bus_list,
-					       struct kdbus_bus,
-					       domain_entry);
-		if (!bus) {
-			mutex_unlock(&domain->lock);
-			break;
-		}
-
-		/* take reference, release lock, disconnect without lock */
-		kdbus_bus_ref(bus);
-		mutex_unlock(&domain->lock);
-
-		kdbus_bus_disconnect(bus);
-		kdbus_bus_unref(bus);
-	}
-}
-
-/**
- * kdbus_domain_disconnect() - invalidate a domain
- * @domain:		Domain
- */
-void kdbus_domain_disconnect(struct kdbus_domain *domain)
-{
-	kdbus_node_deactivate(&domain->node, kdbus_domain_release);
-}
-
-static void kdbus_domain_free(struct kdbus_node *node)
-{
-	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
-						   node);
-
-	BUG_ON(kdbus_domain_is_active(domain));
-	BUG_ON(!list_empty(&domain->domain_list));
-	BUG_ON(!list_empty(&domain->bus_list));
-	BUG_ON(!hash_empty(domain->user_hash));
-
-	kdbus_cdev_free(domain->dev->devt);
-	kdbus_domain_unref(domain->parent);
-	idr_destroy(&domain->user_idr);
-	put_device(domain->dev);
-	kfree(domain->name);
-	kfree(domain->devpath);
-	kfree(domain);
-}
-
-/**
- * kdbus_domain_unref() - drop a domain reference
- * @domain:		Domain
- *
- * When the last reference is dropped, the domain internal structure
- * is freed.
- *
- * Return: NULL
- */
-struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
-{
-	if (domain)
-		kdbus_node_unref(&domain->node, kdbus_domain_free);
-	return NULL;
-}
-
 static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain *parent,
 					      const char *name)
 {
@@ -312,6 +195,123 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 exit_unref:
 	kdbus_domain_unref(d);
 	return ERR_PTR(ret);
+}
+
+static void kdbus_domain_free(struct kdbus_node *node)
+{
+	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
+						   node);
+
+	BUG_ON(kdbus_domain_is_active(domain));
+	BUG_ON(!list_empty(&domain->domain_list));
+	BUG_ON(!list_empty(&domain->bus_list));
+	BUG_ON(!hash_empty(domain->user_hash));
+
+	kdbus_cdev_free(domain->dev->devt);
+	kdbus_domain_unref(domain->parent);
+	idr_destroy(&domain->user_idr);
+	put_device(domain->dev);
+	kfree(domain->name);
+	kfree(domain->devpath);
+	kfree(domain);
+}
+
+/**
+ * kdbus_domain_ref() - take a domain reference
+ * @domain:		Domain
+ *
+ * Return: the domain itself
+ */
+struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
+{
+	if (domain)
+		kdbus_node_ref(&domain->node);
+	return domain;
+}
+
+/**
+ * kdbus_domain_unref() - drop a domain reference
+ * @domain:		Domain
+ *
+ * When the last reference is dropped, the domain internal structure
+ * is freed.
+ *
+ * Return: NULL
+ */
+struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
+{
+	if (domain)
+		kdbus_node_unref(&domain->node, kdbus_domain_free);
+	return NULL;
+}
+
+static void kdbus_domain_release(struct kdbus_node *node)
+{
+	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
+						   node);
+
+	/* disconnect from parent domain */
+	if (domain->parent) {
+		mutex_lock(&domain->parent->lock);
+		list_del(&domain->domain_entry);
+		mutex_unlock(&domain->parent->lock);
+	}
+
+	if (device_is_registered(domain->dev))
+		device_del(domain->dev);
+
+	kdbus_cdev_set_control(domain->dev->devt, NULL);
+
+	/* disconnect all sub-domains */
+	for (;;) {
+		struct kdbus_domain *dom;
+
+		mutex_lock(&domain->lock);
+		dom = list_first_entry_or_null(&domain->domain_list,
+					       struct kdbus_domain,
+					       domain_entry);
+		if (!dom) {
+			mutex_unlock(&domain->lock);
+			break;
+		}
+
+		/* take reference, release lock, disconnect without lock */
+		kdbus_domain_ref(dom);
+		mutex_unlock(&domain->lock);
+
+		kdbus_domain_disconnect(dom);
+		kdbus_domain_unref(dom);
+	}
+
+	/* disconnect all buses in this domain */
+	for (;;) {
+		struct kdbus_bus *bus;
+
+		mutex_lock(&domain->lock);
+		bus = list_first_entry_or_null(&domain->bus_list,
+					       struct kdbus_bus,
+					       domain_entry);
+		if (!bus) {
+			mutex_unlock(&domain->lock);
+			break;
+		}
+
+		/* take reference, release lock, disconnect without lock */
+		kdbus_bus_ref(bus);
+		mutex_unlock(&domain->lock);
+
+		kdbus_bus_disconnect(bus);
+		kdbus_bus_unref(bus);
+	}
+}
+
+/**
+ * kdbus_domain_disconnect() - invalidate a domain
+ * @domain:		Domain
+ */
+void kdbus_domain_disconnect(struct kdbus_domain *domain)
+{
+	kdbus_node_deactivate(&domain->node, kdbus_domain_release);
 }
 
 /**
