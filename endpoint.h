@@ -17,6 +17,7 @@
 #include <linux/device.h>
 #include "limits.h"
 #include "names.h"
+#include "node.h"
 #include "policy.h"
 #include "util.h"
 
@@ -24,6 +25,7 @@ struct kdbus_kmsg;
 
 /*
  * struct kdbus_endpoint - enpoint to access a bus
+ * @node:		The kdbus node
  * @dev:		Device
  * @bus:		Bus behind this endpoint
  * @name:		Name of the endpoint
@@ -44,7 +46,8 @@ struct kdbus_kmsg;
  * carry their own policies/filters.
  */
 struct kdbus_ep {
-	struct device dev;
+	struct kdbus_node node;
+	struct device *dev;
 	struct kdbus_bus *bus;
 	const char *name;
 	u64 id;

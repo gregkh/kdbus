@@ -31,10 +31,10 @@
 #include "policy.h"
 
 /* endpoints are by default owned by the bus owner */
-static char *kdbus_devnode_ep(struct device *dev, umode_t *mode,
-			      kuid_t *uid, kgid_t *gid)
+static char *kdbus_ep_dev_devnode(struct device *dev, umode_t *mode,
+				  kuid_t *uid, kgid_t *gid)
 {
-	struct kdbus_ep *ep = container_of(dev, struct kdbus_ep, dev);
+	struct kdbus_ep *ep = dev_get_drvdata(dev);
 
 	if (mode)
 		*mode = ep->mode;
@@ -46,29 +46,28 @@ static char *kdbus_devnode_ep(struct device *dev, umode_t *mode,
 	return NULL;
 }
 
-static void kdbus_dev_release(struct device *dev)
+static void kdbus_ep_dev_release(struct device *dev)
 {
 	kfree(dev);
 }
 
-static struct device_type kdbus_devtype_ep = {
+static struct device_type kdbus_ep_dev_type = {
 	.name		= "endpoint",
-	.release	= kdbus_dev_release,
-	.devnode	= kdbus_devnode_ep,
+	.devnode	= kdbus_ep_dev_devnode,
+	.release	= kdbus_ep_dev_release,
 };
 
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 {
-	get_device(&ep->dev);
+	if (ep)
+		kdbus_node_ref(&ep->node);
 	return ep;
 }
 
-/**
- * kdbus_ep_disconnect() - disconnect an endpoint
- * @ep:			Endpoint
- */
-void kdbus_ep_disconnect(struct kdbus_ep *ep)
+static void kdbus_ep_release(struct kdbus_node *node)
 {
+	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
+
 	mutex_lock(&ep->lock);
 	if (ep->disconnected) {
 		mutex_unlock(&ep->lock);
@@ -82,10 +81,10 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 	list_del(&ep->bus_entry);
 	mutex_unlock(&ep->bus->lock);
 
-	if (device_is_registered(&ep->dev))
-		device_del(&ep->dev);
+	if (ep->dev)
+		device_del(ep->dev);
 
-	kdbus_cdev_set_ep(ep->dev.devt, NULL);
+	kdbus_cdev_set_ep(ep->dev->devt, NULL);
 
 	/* disconnect all connections to this endpoint */
 	for (;;) {
@@ -109,17 +108,27 @@ void kdbus_ep_disconnect(struct kdbus_ep *ep)
 	}
 }
 
-static void __kdbus_ep_free(struct device *dev)
+/**
+ * kdbus_ep_disconnect() - disconnect an endpoint
+ * @ep:			Endpoint
+ */
+void kdbus_ep_disconnect(struct kdbus_ep *ep)
 {
-	struct kdbus_ep *ep = container_of(dev, struct kdbus_ep, dev);
+	kdbus_node_deactivate(&ep->node, kdbus_ep_release);
+}
+
+static void kdbus_ep_free(struct kdbus_node *node)
+{
+	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
 
 	BUG_ON(!ep->disconnected);
 	BUG_ON(!list_empty(&ep->conn_list));
 
 	kdbus_policy_db_clear(&ep->policy_db);
-	kdbus_cdev_free(ep->dev.devt);
+	kdbus_cdev_free(ep->dev->devt);
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);
+	put_device(ep->dev);
 	kfree(ep->name);
 	kfree(ep);
 }
@@ -127,7 +136,7 @@ static void __kdbus_ep_free(struct device *dev)
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 {
 	if (ep)
-		put_device(&ep->dev);
+		kdbus_node_unref(&ep->node, kdbus_ep_free);
 	return NULL;
 }
 
@@ -176,38 +185,28 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->mode = mode;
 	e->has_policy = policy;
 
-	device_initialize(&e->dev);
-	e->dev.bus = &kdbus_subsys;
-	e->dev.type = &kdbus_devtype_ep;
-	e->dev.release = __kdbus_ep_free;
+	ret = kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT);
+	if (ret < 0)
+		goto exit_unref;
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {
 		ret = -ENOMEM;
-		goto exit_put;
+		goto exit_unref;
 	}
-
-	ret = dev_set_name(&e->dev, "%s/%s/%s",
-			   bus->domain->devpath, bus->name, name);
-	if (ret < 0)
-		goto exit_put;
-
-	ret = kdbus_cdev_alloc(KDBUS_CDEV_ENDPOINT, NULL, &e->dev.devt);
-	if (ret < 0)
-		goto exit_put;
 
 	mutex_lock(&bus->lock);
 
 	if (bus->disconnected) {
 		mutex_unlock(&bus->lock);
 		ret = -ESHUTDOWN;
-		goto exit_put;
+		goto exit_unref;
 	}
 
 	if (kdbus_ep_find(bus, name)) {
 		mutex_unlock(&bus->lock);
 		ret = -EEXIST;
-		goto exit_put;
+		goto exit_unref;
 	}
 
 	e->bus = kdbus_bus_ref(bus);
@@ -221,22 +220,43 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	 */
 
 	e->disconnected = false;
-	kdbus_cdev_set_ep(e->dev.devt, e);
 
-	ret = device_add(&e->dev);
+	/* register bus endpoint device */
+	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);
+	if (!e->dev) {
+		ret = -ENOMEM;
+		goto exit_unref;
+	}
 
+	device_initialize(e->dev);
+	dev_set_drvdata(e->dev, e);
+	e->dev->bus = &kdbus_subsys;
+	e->dev->type = &kdbus_ep_dev_type;
+
+	dev_set_name(e->dev, "%s/%s/%s", bus->domain->devpath, bus->name, name);
+	if (ret < 0) {
+		put_device(e->dev);
+		goto exit_unref;
+	}
 	mutex_unlock(&bus->lock);
 
-	if (ret < 0) {
-		kdbus_ep_disconnect(e);
-		kdbus_ep_unref(e);
-		return ERR_PTR(ret);
-	}
+	ret = kdbus_cdev_alloc(KDBUS_CDEV_ENDPOINT, NULL, &e->dev->devt);
+	if (ret < 0)
+		goto exit_ep_disconnect;
+
+	kdbus_node_activate(&e->node);
+	kdbus_cdev_set_ep(e->dev->devt, e);
+
+	ret = device_add(e->dev);
+	if (ret < 0)
+		goto exit_ep_disconnect;
 
 	return e;
 
-exit_put:
-	put_device(&e->dev);
+exit_ep_disconnect:
+	kdbus_ep_disconnect(e);
+exit_unref:
+	kdbus_ep_unref(e);
 	return ERR_PTR(ret);
 }
 
