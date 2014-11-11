@@ -16,15 +16,13 @@
 
 #include <linux/atomic.h>
 #include <linux/kernel.h>
-#include <linux/kref.h>
 #include <linux/lockdep.h>
+#include <linux/mutex.h>
 #include <linux/wait.h>
 
 struct kdbus_domain;
 struct kdbus_bus;
 struct kdbus_ep;
-
-#define KDBUS_NODE_ACTIVE_BIAS (INT_MIN + 1)
 
 enum kdbus_node_type {
 	KDBUS_NODE_DOMAIN,
@@ -33,7 +31,8 @@ enum kdbus_node_type {
 };
 
 struct kdbus_node {
-	struct kref ref;
+	atomic_t refcnt;
+	struct mutex lock;
 	unsigned int id;
 	unsigned int type;
 
@@ -42,30 +41,28 @@ struct kdbus_node {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lockdep_map dep_map;
 #endif
-
-	union {
-		struct kdbus_domain *domain;
-		struct kdbus_bus *bus;
-		struct kdbus_ep *endpoint;
-	};
 };
 
-void kdbus_node_init(void);
-void kdbus_node_exit(void);
+typedef void (*kdbus_node_free_t) (struct kdbus_node *node);
+typedef void (*kdbus_node_release_t) (struct kdbus_node *node);
 
-struct kdbus_node *kdbus_node_new_domain(struct kdbus_domain *domain);
-struct kdbus_node *kdbus_node_new_bus(struct kdbus_bus *bus);
-struct kdbus_node *kdbus_node_new_endpoint(struct kdbus_ep *endpoint);
+void kdbus_init_nodes(void);
+void kdbus_exit_nodes(void);
+
+int kdbus_node_init(struct kdbus_node *node, unsigned int type);
 struct kdbus_node *kdbus_node_ref(struct kdbus_node *node);
-struct kdbus_node *kdbus_node_unref(struct kdbus_node *node);
+struct kdbus_node *kdbus_node_unref(struct kdbus_node *node,
+				    kdbus_node_free_t free_cb);
 
 bool kdbus_node_is_active(struct kdbus_node *node);
 void kdbus_node_activate(struct kdbus_node *node);
-void kdbus_node_deactivate(struct kdbus_node *node);
+void kdbus_node_deactivate(struct kdbus_node *node,
+			   kdbus_node_release_t release_cb);
 void kdbus_node_drain(struct kdbus_node *node);
 
 bool kdbus_node_acquire(struct kdbus_node *node);
-void kdbus_node_release(struct kdbus_node *node);
+void kdbus_node_release(struct kdbus_node *node,
+			kdbus_node_release_t release_cb);
 
 struct kdbus_node *kdbus_node_find_by_id(unsigned int id);
 
