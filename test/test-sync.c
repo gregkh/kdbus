@@ -87,7 +87,7 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 
 	if (pid == 0) {
 		ret = sigaction(SIGINT, &sa, NULL);
-		ASSERT_RETURN(ret == 0);
+		ASSERT_EXIT(ret == 0);
 
 		ret = kdbus_msg_send(conn_dst, NULL, cookie,
 				     KDBUS_MSG_FLAGS_EXPECT_REPLY |
