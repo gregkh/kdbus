@@ -57,89 +57,6 @@ static struct device_type kdbus_ep_dev_type = {
 	.release	= kdbus_ep_dev_release,
 };
 
-struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
-{
-	if (ep)
-		kdbus_node_ref(&ep->node);
-	return ep;
-}
-
-static void kdbus_ep_release(struct kdbus_node *node)
-{
-	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
-
-	mutex_lock(&ep->lock);
-	if (ep->disconnected) {
-		mutex_unlock(&ep->lock);
-		return;
-	}
-	ep->disconnected = true;
-	mutex_unlock(&ep->lock);
-
-	/* disconnect from bus */
-	mutex_lock(&ep->bus->lock);
-	list_del(&ep->bus_entry);
-	mutex_unlock(&ep->bus->lock);
-
-	if (ep->dev)
-		device_del(ep->dev);
-
-	kdbus_cdev_set_ep(ep->dev->devt, NULL);
-
-	/* disconnect all connections to this endpoint */
-	for (;;) {
-		struct kdbus_conn *conn;
-
-		mutex_lock(&ep->lock);
-		conn = list_first_entry_or_null(&ep->conn_list,
-						struct kdbus_conn,
-						ep_entry);
-		if (!conn) {
-			mutex_unlock(&ep->lock);
-			break;
-		}
-
-		/* take reference, release lock, disconnect without lock */
-		kdbus_conn_ref(conn);
-		mutex_unlock(&ep->lock);
-
-		kdbus_conn_disconnect(conn, false);
-		kdbus_conn_unref(conn);
-	}
-}
-
-/**
- * kdbus_ep_disconnect() - disconnect an endpoint
- * @ep:			Endpoint
- */
-void kdbus_ep_disconnect(struct kdbus_ep *ep)
-{
-	kdbus_node_deactivate(&ep->node, kdbus_ep_release);
-}
-
-static void kdbus_ep_free(struct kdbus_node *node)
-{
-	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
-
-	BUG_ON(!ep->disconnected);
-	BUG_ON(!list_empty(&ep->conn_list));
-
-	kdbus_policy_db_clear(&ep->policy_db);
-	kdbus_cdev_free(ep->dev->devt);
-	kdbus_bus_unref(ep->bus);
-	kdbus_domain_user_unref(ep->user);
-	put_device(ep->dev);
-	kfree(ep->name);
-	kfree(ep);
-}
-
-struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
-{
-	if (ep)
-		kdbus_node_unref(&ep->node, kdbus_ep_free);
-	return NULL;
-}
-
 static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
 {
 	struct kdbus_ep *e;
@@ -257,6 +174,89 @@ exit_ep_disconnect:
 exit_unref:
 	kdbus_ep_unref(e);
 	return ERR_PTR(ret);
+}
+
+static void kdbus_ep_free(struct kdbus_node *node)
+{
+	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
+
+	BUG_ON(!ep->disconnected);
+	BUG_ON(!list_empty(&ep->conn_list));
+
+	kdbus_policy_db_clear(&ep->policy_db);
+	kdbus_cdev_free(ep->dev->devt);
+	kdbus_bus_unref(ep->bus);
+	kdbus_domain_user_unref(ep->user);
+	put_device(ep->dev);
+	kfree(ep->name);
+	kfree(ep);
+}
+
+struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
+{
+	if (ep)
+		kdbus_node_ref(&ep->node);
+	return ep;
+}
+
+struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
+{
+	if (ep)
+		kdbus_node_unref(&ep->node, kdbus_ep_free);
+	return NULL;
+}
+
+static void kdbus_ep_release(struct kdbus_node *node)
+{
+	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
+
+	mutex_lock(&ep->lock);
+	if (ep->disconnected) {
+		mutex_unlock(&ep->lock);
+		return;
+	}
+	ep->disconnected = true;
+	mutex_unlock(&ep->lock);
+
+	/* disconnect from bus */
+	mutex_lock(&ep->bus->lock);
+	list_del(&ep->bus_entry);
+	mutex_unlock(&ep->bus->lock);
+
+	if (ep->dev)
+		device_del(ep->dev);
+
+	kdbus_cdev_set_ep(ep->dev->devt, NULL);
+
+	/* disconnect all connections to this endpoint */
+	for (;;) {
+		struct kdbus_conn *conn;
+
+		mutex_lock(&ep->lock);
+		conn = list_first_entry_or_null(&ep->conn_list,
+						struct kdbus_conn,
+						ep_entry);
+		if (!conn) {
+			mutex_unlock(&ep->lock);
+			break;
+		}
+
+		/* take reference, release lock, disconnect without lock */
+		kdbus_conn_ref(conn);
+		mutex_unlock(&ep->lock);
+
+		kdbus_conn_disconnect(conn, false);
+		kdbus_conn_unref(conn);
+	}
+}
+
+/**
+ * kdbus_ep_disconnect() - disconnect an endpoint
+ * @ep:			Endpoint
+ */
+void kdbus_ep_disconnect(struct kdbus_ep *ep)
+{
+	kdbus_node_deactivate(&ep->node, kdbus_ep_release);
 }
 
 /**
