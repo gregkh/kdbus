@@ -18,10 +18,12 @@
 #include <linux/hashtable.h>
 #include <linux/idr.h>
 
+#include "node.h"
+
 /**
  * struct kdbus_domain - domain for buses
- * @dev:		Underlying device
- * @disconnected:	Invalidated data
+ * @node:		Underlying API node
+ * @dev:		Sysfs device
  * @name:		Name of the domain
  * @devpath:		/dev base directory path
  * @parent:		Parent domain
@@ -47,8 +49,8 @@
  * file immediately destroys the entire domain.
  */
 struct kdbus_domain {
-	struct device dev;
-	bool disconnected;
+	struct kdbus_node node;
+	struct device *dev;
 	const char *name;
 	const char *devpath;
 	struct kdbus_domain *parent;
@@ -91,6 +93,11 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 void kdbus_domain_disconnect(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 				      const char *name, umode_t mode);
+
+static inline bool kdbus_domain_is_active(struct kdbus_domain *domain)
+{
+	return kdbus_node_is_active(&domain->node);
+}
 
 struct kdbus_domain_user *
 kdbus_domain_get_user_unlocked(struct kdbus_domain *domain, kuid_t uid);

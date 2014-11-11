@@ -37,11 +37,10 @@ struct bus_type kdbus_subsys = {
 };
 
 /* control nodes are world accessible */
-static char *kdbus_devnode_control(struct device *dev, umode_t *mode,
-				   kuid_t *uid, kgid_t *gid)
+static char *kdbus_domain_dev_devnode(struct device *dev, umode_t *mode,
+				      kuid_t *uid, kgid_t *gid)
 {
-	struct kdbus_domain *domain = container_of(dev, struct kdbus_domain,
-						   dev);
+	struct kdbus_domain *domain = dev_get_drvdata(dev);
 
 	if (mode)
 		*mode = domain->mode;
@@ -49,15 +48,15 @@ static char *kdbus_devnode_control(struct device *dev, umode_t *mode,
 	return NULL;
 }
 
-static void kdbus_dev_release(struct device *dev)
+static void kdbus_domain_dev_release(struct device *dev)
 {
 	kfree(dev);
 }
 
-static struct device_type kdbus_devtype_control = {
+static struct device_type kdbus_domain_dev_type = {
 	.name		= "control",
-	.release	= kdbus_dev_release,
-	.devnode	= kdbus_devnode_control,
+	.devnode	= kdbus_domain_dev_devnode,
+	.release	= kdbus_domain_dev_release,
 };
 
 /**
@@ -68,23 +67,15 @@ static struct device_type kdbus_devtype_control = {
  */
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain)
 {
-	get_device(&domain->dev);
+	if (domain)
+		kdbus_node_ref(&domain->node);
 	return domain;
 }
 
-/**
- * kdbus_domain_disconnect() - invalidate a domain
- * @domain:		Domain
- */
-void kdbus_domain_disconnect(struct kdbus_domain *domain)
+static void kdbus_domain_release(struct kdbus_node *node)
 {
-	mutex_lock(&domain->lock);
-	if (domain->disconnected) {
-		mutex_unlock(&domain->lock);
-		return;
-	}
-	domain->disconnected = true;
-	mutex_unlock(&domain->lock);
+	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
+						   node);
 
 	/* disconnect from parent domain */
 	if (domain->parent) {
@@ -93,10 +84,10 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain)
 		mutex_unlock(&domain->parent->lock);
 	}
 
-	if (device_is_registered(&domain->dev))
-		device_del(&domain->dev);
+	if (device_is_registered(domain->dev))
+		device_del(domain->dev);
 
-	kdbus_cdev_set_control(domain->dev.devt, NULL);
+	kdbus_cdev_set_control(domain->dev->devt, NULL);
 
 	/* disconnect all sub-domains */
 	for (;;) {
@@ -141,19 +132,29 @@ void kdbus_domain_disconnect(struct kdbus_domain *domain)
 	}
 }
 
-static void __kdbus_domain_free(struct device *dev)
+/**
+ * kdbus_domain_disconnect() - invalidate a domain
+ * @domain:		Domain
+ */
+void kdbus_domain_disconnect(struct kdbus_domain *domain)
 {
-	struct kdbus_domain *domain = container_of(dev, struct kdbus_domain,
-						   dev);
+	kdbus_node_deactivate(&domain->node, kdbus_domain_release);
+}
 
-	BUG_ON(!domain->disconnected);
+static void kdbus_domain_free(struct kdbus_node *node)
+{
+	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
+						   node);
+
+	BUG_ON(kdbus_domain_is_active(domain));
 	BUG_ON(!list_empty(&domain->domain_list));
 	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
-	kdbus_cdev_free(domain->dev.devt);
+	kdbus_cdev_free(domain->dev->devt);
 	kdbus_domain_unref(domain->parent);
 	idr_destroy(&domain->user_idr);
+	put_device(domain->dev);
 	kfree(domain->name);
 	kfree(domain->devpath);
 	kfree(domain);
@@ -171,7 +172,7 @@ static void __kdbus_domain_free(struct device *dev)
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
 {
 	if (domain)
-		put_device(&domain->dev);
+		kdbus_node_unref(&domain->node, kdbus_domain_free);
 	return NULL;
 }
 
@@ -208,7 +209,6 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	if (!d)
 		return ERR_PTR(-ENOMEM);
 
-	d->disconnected = true;
 	INIT_LIST_HEAD(&d->bus_list);
 	INIT_LIST_HEAD(&d->domain_list);
 	d->mode = mode;
@@ -216,10 +216,9 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	device_initialize(&d->dev);
-	d->dev.bus = &kdbus_subsys;
-	d->dev.type = &kdbus_devtype_control;
-	d->dev.release = __kdbus_domain_free;
+	ret = kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN);
+	if (ret < 0)
+		goto exit_unref;
 
 	/* compose name and path of base directory in /dev */
 	if (parent) {
@@ -227,45 +226,56 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 				       parent->devpath, name);
 		if (!d->devpath) {
 			ret = -ENOMEM;
-			goto exit_put;
+			goto exit_unref;
 		}
 
 		d->name = kstrdup(name, GFP_KERNEL);
 		if (!d->name) {
 			ret = -ENOMEM;
-			goto exit_put;
+			goto exit_unref;
 		}
 	} else {
 		/* initial domain */
 		d->devpath = kstrdup(KBUILD_MODNAME, GFP_KERNEL);
 		if (!d->devpath) {
 			ret = -ENOMEM;
-			goto exit_put;
+			goto exit_unref;
 		}
 	}
 
-	ret = dev_set_name(&d->dev, "%s/control", d->devpath);
-	if (ret < 0)
-		goto exit_put;
+	d->dev = kzalloc(sizeof(*d->dev), GFP_KERNEL);
+	if (!d->dev) {
+		ret = -ENOMEM;
+		goto exit_unref;
+	}
 
-	ret = kdbus_cdev_alloc(KDBUS_CDEV_CONTROL, NULL, &d->dev.devt);
+	device_initialize(d->dev);
+	dev_set_drvdata(d->dev, d);
+	d->dev->bus = &kdbus_subsys;
+	d->dev->type = &kdbus_domain_dev_type;
+
+	ret = dev_set_name(d->dev, "%s/control", d->devpath);
 	if (ret < 0)
-		goto exit_put;
+		goto exit_unref;
+
+	ret = kdbus_cdev_alloc(KDBUS_CDEV_CONTROL, NULL, &d->dev->devt);
+	if (ret < 0)
+		goto exit_unref;
 
 	if (parent) {
 		/* lock order: parent domain -> domain */
 		mutex_lock(&parent->lock);
 
-		if (parent->disconnected) {
+		if (!kdbus_domain_is_active(parent)) {
 			mutex_unlock(&parent->lock);
 			ret = -ESHUTDOWN;
-			goto exit_put;
+			goto exit_unref;
 		}
 
 		if (kdbus_domain_find(parent, name)) {
 			mutex_unlock(&parent->lock);
 			ret = -EEXIST;
-			goto exit_put;
+			goto exit_unref;
 		}
 
 		d->parent = kdbus_domain_ref(parent);
@@ -283,10 +293,10 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	 * registered, anyway.
 	 */
 
-	d->disconnected = false;
-	kdbus_cdev_set_control(d->dev.devt, d);
+	kdbus_node_activate(&d->node);
+	kdbus_cdev_set_control(d->dev->devt, d);
 
-	ret = device_add(&d->dev);
+	ret = device_add(d->dev);
 
 	if (parent)
 		mutex_unlock(&parent->lock);
@@ -299,8 +309,8 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 
 	return d;
 
-exit_put:
-	put_device(&d->dev);
+exit_unref:
+	kdbus_domain_unref(d);
 	return ERR_PTR(ret);
 }
 
@@ -415,7 +425,7 @@ kdbus_domain_get_user(struct kdbus_domain *domain, kuid_t uid)
 	struct kdbus_domain_user *u = NULL;
 
 	mutex_lock(&domain->lock);
-	if (!domain->disconnected)
+	if (kdbus_domain_is_active(domain))
 		u = kdbus_domain_get_user_unlocked(domain, uid);
 	mutex_unlock(&domain->lock);
 
