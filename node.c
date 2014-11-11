@@ -88,7 +88,8 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node,
 {
 	if (node && atomic_dec_and_test(&node->refcnt)) {
 		down_write(&kdbus_node_idr_lock);
-		idr_remove(&kdbus_node_idr, node->id);
+		if (node->id > 0)
+			idr_remove(&kdbus_node_idr, node->id);
 		up_write(&kdbus_node_idr_lock);
 
 		if (free_cb)
