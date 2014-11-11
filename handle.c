@@ -406,7 +406,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_HANDLE_ENDPOINT_OWNER:
-		kdbus_ep_disconnect(handle->ep_owner);
+		kdbus_ep_deactivate(handle->ep_owner);
 		kdbus_ep_unref(handle->ep_owner);
 		break;
 
@@ -710,10 +710,16 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		ret = kdbus_ep_activate(ep);
+		if (ret < 0) {
+			kdbus_ep_unref(ep);
+			break;
+		}
+
 		ret = kdbus_ep_policy_set(ep, make->items,
 					  KDBUS_ITEMS_SIZE(make, items));
 		if (ret < 0) {
-			kdbus_ep_disconnect(ep);
+			kdbus_ep_deactivate(ep);
 			kdbus_ep_unref(ep);
 			break;
 		}
@@ -727,7 +733,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 						 INVALID_UID);
 		if (IS_ERR(ep->user)) {
 			ret = PTR_ERR(ep->user);
-			kdbus_ep_disconnect(ep);
+			kdbus_ep_deactivate(ep);
 			kdbus_ep_unref(ep);
 			break;
 		}
@@ -736,7 +742,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_ENDPOINT,
 					     KDBUS_HANDLE_ENDPOINT_OWNER, ep);
 		if (ret < 0) {
-			kdbus_ep_disconnect(ep);
+			kdbus_ep_deactivate(ep);
 			kdbus_ep_unref(ep);
 			break;
 		}

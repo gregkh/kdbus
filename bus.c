@@ -148,7 +148,7 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 		kdbus_ep_ref(ep);
 		mutex_unlock(&bus->lock);
 
-		kdbus_ep_disconnect(ep);
+		kdbus_ep_deactivate(ep);
 		kdbus_ep_unref(ep);
 	}
 
@@ -354,6 +354,10 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_free_reg;
 	}
 
+	ret = kdbus_ep_activate(b->ep);
+	if (ret < 0)
+		goto exit_free_ep;
+
 	mutex_lock(&domain->lock);
 	if (!kdbus_domain_is_active(domain)) {
 		ret = -ESHUTDOWN;
@@ -390,7 +394,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 exit_unref_user_unlock:
 	mutex_unlock(&domain->lock);
 	kdbus_domain_user_unref(b->user);
-	kdbus_ep_disconnect(b->ep);
+	kdbus_ep_deactivate(b->ep);
+exit_free_ep:
 	kdbus_ep_unref(b->ep);
 exit_free_reg:
 	kdbus_name_registry_free(b->name_registry);

@@ -60,7 +60,6 @@ struct kdbus_ep {
 	struct kdbus_domain_user *user;
 	struct kdbus_policy_db policy_db;
 
-	bool disconnected : 1;
 	bool has_policy : 1;
 };
 
@@ -69,7 +68,14 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 			      bool policy);
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep);
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep);
-void kdbus_ep_disconnect(struct kdbus_ep *ep);
+int kdbus_ep_activate(struct kdbus_ep *ep);
+void kdbus_ep_deactivate(struct kdbus_ep *ep);
+
+static inline bool kdbus_ep_is_active(struct kdbus_ep *ep)
+{
+	return kdbus_node_is_active(&ep->node);
+}
+
 int kdbus_ep_policy_set(struct kdbus_ep *ep,
 			const struct kdbus_item *items,
 			size_t items_size);

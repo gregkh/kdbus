@@ -57,17 +57,6 @@ static struct device_type kdbus_ep_dev_type = {
 	.release	= kdbus_ep_dev_release,
 };
 
-static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
-{
-	struct kdbus_ep *e;
-
-	list_for_each_entry(e, &bus->ep_list, bus_entry)
-		if (!strcmp(e->name, name))
-			return e;
-
-	return NULL;
-}
-
 /**
  * kdbus_ep_new() - create a new endpoint
  * @bus:		The bus this endpoint will be created for
@@ -93,7 +82,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (!e)
 		return ERR_PTR(-ENOMEM);
 
-	e->disconnected = true;
 	mutex_init(&e->lock);
 	INIT_LIST_HEAD(&e->conn_list);
 	kdbus_policy_db_init(&e->policy_db);
@@ -101,6 +89,8 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->gid = gid;
 	e->mode = mode;
 	e->has_policy = policy;
+	e->bus = kdbus_bus_ref(bus);
+	e->id = atomic64_inc_return(&bus->ep_seq_last);
 
 	ret = kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT);
 	if (ret < 0)
@@ -111,32 +101,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		ret = -ENOMEM;
 		goto exit_unref;
 	}
-
-	mutex_lock(&bus->lock);
-
-	if (bus->disconnected) {
-		mutex_unlock(&bus->lock);
-		ret = -ESHUTDOWN;
-		goto exit_unref;
-	}
-
-	if (kdbus_ep_find(bus, name)) {
-		mutex_unlock(&bus->lock);
-		ret = -EEXIST;
-		goto exit_unref;
-	}
-
-	e->bus = kdbus_bus_ref(bus);
-	list_add_tail(&e->bus_entry, &bus->ep_list);
-
-	e->id = ++bus->ep_seq_last;
-
-	/*
-	 * Same as with domains, we have to mark it enabled _before_ running
-	 * device_add() to avoid messing with state after UEVENT_ADD was sent.
-	 */
-
-	e->disconnected = false;
 
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);
@@ -154,23 +118,12 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (ret < 0)
 		goto exit_unref;
 
-	mutex_unlock(&bus->lock);
-
 	ret = kdbus_cdev_alloc(KDBUS_CDEV_ENDPOINT, NULL, &e->dev->devt);
 	if (ret < 0)
-		goto exit_ep_disconnect;
-
-	kdbus_node_activate(&e->node);
-	kdbus_cdev_set_ep(e->dev->devt, e);
-
-	ret = device_add(e->dev);
-	if (ret < 0)
-		goto exit_ep_disconnect;
+		goto exit_unref;
 
 	return e;
 
-exit_ep_disconnect:
-	kdbus_ep_disconnect(e);
 exit_unref:
 	kdbus_ep_unref(e);
 	return ERR_PTR(ret);
@@ -180,7 +133,7 @@ static void kdbus_ep_free(struct kdbus_node *node)
 {
 	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
 
-	BUG_ON(!ep->disconnected);
+	BUG_ON(kdbus_ep_is_active(ep));
 	BUG_ON(!list_empty(&ep->conn_list));
 
 	kdbus_policy_db_clear(&ep->policy_db);
@@ -206,17 +159,60 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 	return NULL;
 }
 
+static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
+{
+	struct kdbus_ep *e;
+
+	list_for_each_entry(e, &bus->ep_list, bus_entry)
+		if (!strcmp(e->name, name))
+			return e;
+
+	return NULL;
+}
+
+int kdbus_ep_activate(struct kdbus_ep *ep)
+{
+	int ret;
+
+	mutex_lock(&ep->bus->lock);
+
+	if (ep->bus->disconnected) {
+		mutex_unlock(&ep->bus->lock);
+		return -ESHUTDOWN;
+	}
+
+	if (kdbus_ep_find(ep->bus, ep->name)) {
+		mutex_unlock(&ep->bus->lock);
+		return -EEXIST;
+	}
+
+	list_add_tail(&ep->bus_entry, &ep->bus->ep_list);
+
+	/*
+	 * Same as with domains, we have to mark it enabled _before_ running
+	 * device_add() to avoid messing with state after UEVENT_ADD was sent.
+	 */
+
+	kdbus_node_activate(&ep->node);
+	kdbus_cdev_set_ep(ep->dev->devt, ep);
+
+	ret = device_add(ep->dev);
+
+	mutex_unlock(&ep->bus->lock);
+
+	if (ret < 0)
+		goto exit_deactivate;
+
+	return 0;
+
+exit_deactivate:
+	kdbus_ep_deactivate(ep);
+	return ret;
+}
+
 static void kdbus_ep_release(struct kdbus_node *node)
 {
 	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
-
-	mutex_lock(&ep->lock);
-	if (ep->disconnected) {
-		mutex_unlock(&ep->lock);
-		return;
-	}
-	ep->disconnected = true;
-	mutex_unlock(&ep->lock);
 
 	/* disconnect from bus */
 	mutex_lock(&ep->bus->lock);
@@ -251,10 +247,10 @@ static void kdbus_ep_release(struct kdbus_node *node)
 }
 
 /**
- * kdbus_ep_disconnect() - disconnect an endpoint
+ * kdbus_ep_deactivate() - invalidate an endpoint
  * @ep:			Endpoint
  */
-void kdbus_ep_disconnect(struct kdbus_ep *ep)
+void kdbus_ep_deactivate(struct kdbus_ep *ep)
 {
 	kdbus_node_deactivate(&ep->node, kdbus_ep_release);
 }

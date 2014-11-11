@@ -66,7 +66,7 @@ struct kdbus_bus {
 	u64 id;
 	struct mutex lock;
 	struct kdbus_ep *ep;
-	u64 ep_seq_last;
+	atomic64_t ep_seq_last;
 	atomic64_t conn_seq_last;
 	struct list_head ep_list;
 	u64 bus_flags;
