@@ -234,10 +234,9 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->dev->type = &kdbus_ep_dev_type;
 
 	dev_set_name(e->dev, "%s/%s/%s", bus->domain->devpath, bus->name, name);
-	if (ret < 0) {
-		put_device(e->dev);
+	if (ret < 0)
 		goto exit_unref;
-	}
+
 	mutex_unlock(&bus->lock);
 
 	ret = kdbus_cdev_alloc(KDBUS_CDEV_ENDPOINT, NULL, &e->dev->devt);
