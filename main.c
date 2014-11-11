@@ -50,9 +50,17 @@ static int __init kdbus_init(void)
 		goto exit_node;
 	}
 
+	ret = kdbus_domain_activate(kdbus_domain_init);
+	if (ret < 0) {
+		pr_err("failed to initialize, error=%i\n", ret);
+		goto exit_domain;
+	}
+
 	pr_info("initialized\n");
 	return 0;
 
+exit_domain:
+	kdbus_domain_unref(kdbus_domain_init);
 exit_node:
 	kdbus_exit_nodes();
 	kdbus_cdev_exit();
@@ -63,7 +71,7 @@ exit_subsys:
 
 static void __exit kdbus_exit(void)
 {
-	kdbus_domain_disconnect(kdbus_domain_init);
+	kdbus_domain_deactivate(kdbus_domain_init);
 	kdbus_domain_unref(kdbus_domain_init);
 	kdbus_exit_nodes();
 	kdbus_cdev_exit();

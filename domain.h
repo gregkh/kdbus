@@ -88,11 +88,12 @@ struct kdbus_domain_user {
 
 extern struct bus_type kdbus_subsys;
 
-struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
-struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
-void kdbus_domain_disconnect(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 				      const char *name, umode_t mode);
+struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
+struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
+int kdbus_domain_activate(struct kdbus_domain *domain);
+void kdbus_domain_deactivate(struct kdbus_domain *domain);
 
 static inline bool kdbus_domain_is_active(struct kdbus_domain *domain)
 {

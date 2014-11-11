@@ -396,7 +396,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 
 	switch (handle->type) {
 	case KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:
-		kdbus_domain_disconnect(handle->domain_owner);
+		kdbus_domain_deactivate(handle->domain_owner);
 		kdbus_domain_unref(handle->domain_owner);
 		break;
 
@@ -616,12 +616,18 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		ret = kdbus_domain_activate(domain);
+		if (ret < 0) {
+			kdbus_domain_unref(domain);
+			break;
+		}
+
 		/* turn the control fd into a new domain owner device */
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
 					     KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
 					     domain);
 		if (ret < 0) {
-			kdbus_domain_disconnect(domain);
+			kdbus_domain_deactivate(domain);
 			kdbus_domain_unref(domain);
 			break;
 		}
