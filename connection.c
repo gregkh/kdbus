@@ -1531,12 +1531,12 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	static struct lock_class_key __key;
 #endif
 	const struct kdbus_creds *creds = NULL;
+	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
 	const char *conn_name = NULL;
 	const char *seclabel = NULL;
 	const char *name = NULL;
 	struct kdbus_conn *conn;
-	struct kdbus_bus *bus = ep->bus;
 	size_t seclabel_len = 0;
 	u64 attach_flags_send;
 	u64 attach_flags_recv;

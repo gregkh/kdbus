@@ -89,6 +89,6 @@ int kdbus_check_and_write_flags(u64 flags, void __user *buf,
 
 #define kdbus_negotiate_flags(_s, _b, _t, _v)				\
 	kdbus_check_and_write_flags((_s)->flags, _b,			\
-				    offsetof(_t, kernel_flags), _v)	\
+				    offsetof(_t, kernel_flags), _v)
 
 #endif
