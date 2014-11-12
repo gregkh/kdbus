@@ -24,7 +24,6 @@
  * struct kdbus_domain - domain for buses
  * @node:		Underlying API node
  * @dev:		Sysfs device
- * @name:		Name of the domain
  * @devpath:		/dev base directory path
  * @parent:		Parent domain
  * @control:		Control device node
@@ -51,7 +50,6 @@
 struct kdbus_domain {
 	struct kdbus_node node;
 	struct device *dev;
-	const char *name;
 	const char *devpath;
 	struct kdbus_domain *parent;
 	struct kdbus_node *control;

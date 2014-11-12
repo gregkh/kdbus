@@ -159,12 +159,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (ret < 0)
 		goto exit_unref;
 
-	b->name = kstrdup(name, GFP_KERNEL);
-	if (!b->name) {
-		ret = -ENOMEM;
-		goto exit_unref;
-	}
-
 	b->name_registry = kdbus_name_registry_new();
 	if (IS_ERR(b->name_registry)) {
 		ret = PTR_ERR(b->name_registry);
@@ -215,7 +209,6 @@ static void kdbus_bus_free(struct kdbus_node *node)
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
 	kdbus_meta_free(bus->meta);
-	kfree(bus->name);
 	kfree(bus);
 }
 
@@ -253,18 +246,6 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 	return NULL;
 }
 
-static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
-					const char *name)
-{
-	struct kdbus_bus *b;
-
-	list_for_each_entry(b, &domain->bus_list, domain_entry)
-		if (!strcmp(b->name, name))
-			return b;
-
-	return NULL;
-}
-
 /**
  * kdbus_bus_activate() - activate a bus
  * @bus:		Bus
@@ -282,12 +263,6 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 	if (!kdbus_domain_is_active(bus->domain)) {
 		mutex_unlock(&bus->domain->lock);
 		return -ESHUTDOWN;
-	}
-
-	/* see if a bus of that name already exists */
-	if (kdbus_bus_find(bus->domain, bus->name)) {
-		mutex_unlock(&bus->domain->lock);
-		return -EEXIST;
 	}
 
 	list_add_tail(&bus->domain_entry, &bus->domain->bus_list);

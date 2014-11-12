@@ -102,12 +102,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 
 	e->node.mode = mode;
 
-	e->name = kstrdup(name, GFP_KERNEL);
-	if (!e->name) {
-		ret = -ENOMEM;
-		goto exit_unref;
-	}
-
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);
 	if (!e->dev) {
@@ -121,7 +115,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->dev->type = &kdbus_ep_dev_type;
 	e->dev->devt = MKDEV(kdbus_major, e->node.id);
 
-	dev_set_name(e->dev, "%s/%s/%s", bus->domain->devpath, bus->name, name);
+	dev_set_name(e->dev, "%s/%s/%s", bus->domain->devpath, bus->node.name, name);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -143,7 +137,6 @@ static void kdbus_ep_free(struct kdbus_node *node)
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);
 	put_device(ep->dev);
-	kfree(ep->name);
 	kfree(ep);
 }
 
@@ -179,17 +172,6 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 	return NULL;
 }
 
-static struct kdbus_ep *kdbus_ep_find(struct kdbus_bus *bus, const char *name)
-{
-	struct kdbus_ep *e;
-
-	list_for_each_entry(e, &bus->ep_list, bus_entry)
-		if (!strcmp(e->name, name))
-			return e;
-
-	return NULL;
-}
-
 int kdbus_ep_activate(struct kdbus_ep *ep)
 {
 	int ret;
@@ -199,11 +181,6 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
 	if (!kdbus_bus_is_active(ep->bus)) {
 		mutex_unlock(&ep->bus->lock);
 		return -ESHUTDOWN;
-	}
-
-	if (kdbus_ep_find(ep->bus, ep->name)) {
-		mutex_unlock(&ep->bus->lock);
-		return -EEXIST;
 	}
 
 	list_add_tail(&ep->bus_entry, &ep->bus->ep_list);

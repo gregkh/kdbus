@@ -28,7 +28,6 @@ struct kdbus_kmsg;
  * @node:		The kdbus node
  * @dev:		Device
  * @bus:		Bus behind this endpoint
- * @name:		Name of the endpoint
  * @id:			ID of this endpoint on the bus
  * @uid:		UID owning this endpoint
  * @gid:		GID owning this endpoint
@@ -48,7 +47,6 @@ struct kdbus_ep {
 	struct kdbus_node node;
 	struct device *dev;
 	struct kdbus_bus *bus;
-	const char *name;
 	u64 id;
 	kuid_t uid;
 	kgid_t gid;

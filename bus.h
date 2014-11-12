@@ -28,7 +28,6 @@
  * @disconnected:	Invalidated data
  * @uid_owner:		The uid of the owner of the bus
  * @domain:		Domain of this bus
- * @name:		The bus name
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
  * @ep:			Default "bus" endpoint
@@ -61,7 +60,6 @@ struct kdbus_bus {
 	struct kdbus_node node;
 	kuid_t uid_owner;
 	struct kdbus_domain *domain;
-	const char *name;
 	u64 id;
 	struct mutex lock;
 	struct kdbus_ep *ep;

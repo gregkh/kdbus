@@ -119,7 +119,8 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	ret = kdbus_node_init(&d->node, NULL,
+	ret = kdbus_node_init(&d->node,
+			      parent ? &parent->node : NULL,
 			      KDBUS_NODE_DOMAIN, name,
 			      kdbus_domain_free, kdbus_domain_release);
 	if (ret < 0)
@@ -132,12 +133,6 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 		d->devpath = kasprintf(GFP_KERNEL, "%s/domain/%s",
 				       parent->devpath, name);
 		if (!d->devpath) {
-			ret = -ENOMEM;
-			goto exit_unref;
-		}
-
-		d->name = kstrdup(name, GFP_KERNEL);
-		if (!d->name) {
 			ret = -ENOMEM;
 			goto exit_unref;
 		}
@@ -197,7 +192,6 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	kdbus_domain_unref(domain->parent);
 	idr_destroy(&domain->user_idr);
 	put_device(domain->dev);
-	kfree(domain->name);
 	kfree(domain->devpath);
 	kfree(domain);
 }
@@ -231,18 +225,6 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
 	return NULL;
 }
 
-static struct kdbus_domain *kdbus_domain_find(struct kdbus_domain *parent,
-					      const char *name)
-{
-	struct kdbus_domain *n;
-
-	list_for_each_entry(n, &parent->domain_list, domain_entry)
-		if (!strcmp(n->name, name))
-			return n;
-
-	return NULL;
-}
-
 /**
  * kdbus_domain_activate() - activate a domain
  * @domain:		Domain
@@ -263,11 +245,6 @@ int kdbus_domain_activate(struct kdbus_domain *domain)
 		if (!kdbus_domain_is_active(domain->parent)) {
 			mutex_unlock(&domain->parent->lock);
 			return -ESHUTDOWN;
-		}
-
-		if (kdbus_domain_find(domain->parent, domain->name)) {
-			mutex_unlock(&domain->parent->lock);
-			return -EEXIST;
 		}
 
 		list_add_tail(&domain->domain_entry,
