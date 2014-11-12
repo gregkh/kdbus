@@ -113,7 +113,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (!b)
 		return ERR_PTR(-ENOMEM);
 
-	b->uid_owner = uid;
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
 	b->attach_flags_req = attach_flags;
@@ -140,6 +139,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 
 	b->node.mode = 0755;
+	b->node.uid = uid;
+	b->node.gid = gid;
 
 	/* cache the metadata/credentials of the creator */
 	b->meta = kdbus_meta_new();

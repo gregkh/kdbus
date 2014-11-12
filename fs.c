@@ -276,6 +276,8 @@ static struct inode *fs_inode_get(struct super_block *sb,
 	inode->i_mapping->backing_dev_info = &noop_backing_dev_info;
 	inode->i_mode = node->mode & S_IALLUGO;
 	inode->i_atime = inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+	inode->i_uid = node->uid;
+	inode->i_gid = node->gid;
 
 	switch (node->type) {
 	case KDBUS_NODE_DOMAIN:

@@ -26,7 +26,6 @@
  * struct kdbus_bus - bus in a domain
  * @node:		kdbus_node
  * @disconnected:	Invalidated data
- * @uid_owner:		The uid of the owner of the bus
  * @domain:		Domain of this bus
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
@@ -58,7 +57,6 @@
  */
 struct kdbus_bus {
 	struct kdbus_node node;
-	kuid_t uid_owner;
 	struct kdbus_domain *domain;
 	u64 id;
 	struct mutex lock;

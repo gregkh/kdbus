@@ -131,7 +131,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
 
 		if (ns_capable(&init_user_ns, CAP_IPC_OWNER) ||
-		    uid_eq(handle->ep->bus->uid_owner, file->f_cred->fsuid))
+		    uid_eq(handle->ep->bus->node.uid, file->f_cred->fsuid))
 			handle->privileged = true;
 
 		/* cache the metadata/credentials of the creator */
@@ -450,7 +450,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_ENDPOINT_MAKE: {
 		struct kdbus_cmd_make *make;
-		umode_t mode = 0;
+		umode_t mode = 0600;
 		kgid_t gid = KGIDT_INIT(0);
 		const char *name;
 		struct kdbus_ep *ep;

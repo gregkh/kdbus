@@ -42,9 +42,9 @@ static char *kdbus_ep_dev_devnode(struct device *dev, umode_t *mode,
 	if (mode)
 		*mode = ep->node.mode;
 	if (uid)
-		*uid = ep->uid;
+		*uid = ep->node.uid;
 	if (gid)
-		*gid = ep->gid;
+		*gid = ep->node.gid;
 
 	return NULL;
 }
@@ -88,8 +88,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	mutex_init(&e->lock);
 	INIT_LIST_HEAD(&e->conn_list);
 	kdbus_policy_db_init(&e->policy_db);
-	e->uid = uid;
-	e->gid = gid;
 	e->has_policy = policy;
 	e->bus = kdbus_bus_ref(bus);
 	e->id = atomic64_inc_return(&bus->ep_seq_last);
@@ -101,6 +99,8 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 		goto exit_unref;
 
 	e->node.mode = mode;
+	e->node.uid = uid;
+	e->node.gid = gid;
 
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);

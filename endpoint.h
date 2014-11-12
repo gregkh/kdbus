@@ -29,8 +29,6 @@ struct kdbus_kmsg;
  * @dev:		Device
  * @bus:		Bus behind this endpoint
  * @id:			ID of this endpoint on the bus
- * @uid:		UID owning this endpoint
- * @gid:		GID owning this endpoint
  * @conn_list:		Connections of this endpoint
  * @bus_entry:		bus' endpoints
  * @lock:		Endpoint data lock
@@ -48,8 +46,6 @@ struct kdbus_ep {
 	struct device *dev;
 	struct kdbus_bus *bus;
 	u64 id;
-	kuid_t uid;
-	kgid_t gid;
 	struct list_head conn_list;
 	struct list_head bus_entry;
 	struct mutex lock;
