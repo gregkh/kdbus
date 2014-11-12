@@ -111,13 +111,13 @@ static void kdbus_bus_release(struct kdbus_node *node)
 }
 
 /**
- * kdbus_bus_disconnect() - disconnect a bus
+ * kdbus_bus_deactivate() - deactivate a bus
  * @bus:               The kdbus reference
  *
  * The passed bus will be disconnected and the associated endpoint will be
  * unref'ed.
  */
-void kdbus_bus_disconnect(struct kdbus_bus *bus)
+void kdbus_bus_deactivate(struct kdbus_bus *bus)
 {
 	kdbus_node_deactivate(&bus->node);
 	kdbus_node_drain(&bus->node);

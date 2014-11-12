@@ -313,7 +313,7 @@ static void kdbus_domain_release(struct kdbus_node *node)
 		kdbus_bus_ref(bus);
 		mutex_unlock(&domain->lock);
 
-		kdbus_bus_disconnect(bus);
+		kdbus_bus_deactivate(bus);
 		kdbus_bus_unref(bus);
 	}
 }

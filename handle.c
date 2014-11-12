@@ -183,7 +183,7 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		break;
 
 	case KDBUS_HANDLE_CONTROL_BUS_OWNER:
-		kdbus_bus_disconnect(handle->bus_owner);
+		kdbus_bus_deactivate(handle->bus_owner);
 		kdbus_bus_unref(handle->bus_owner);
 		break;
 
@@ -345,7 +345,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 					     KDBUS_HANDLE_CONTROL_BUS_OWNER,
 					     bus);
 		if (ret < 0) {
-			kdbus_bus_disconnect(bus);
+			kdbus_bus_deactivate(bus);
 			kdbus_bus_unref(bus);
 			break;
 		}
