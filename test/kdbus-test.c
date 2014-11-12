@@ -222,12 +222,6 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
 	{
-		.name	= "domain-make",
-		.desc	= "creating a domain",
-		.func	= kdbus_test_domain_make,
-		.flags	= 0,
-	},
-	{
 		.name	= "benchmark",
 		.desc	= "benchmark",
 		.func	= kdbus_test_benchmark,
