@@ -75,6 +75,7 @@ enum kdbus_handle_type {
  * @conn:		The connection this handle owns, in case @type
  *			is KDBUS_HANDLE_ENDPOINT, after HELLO it is
  *			KDBUS_HANDLE_ENDPOINT_CONNECTED
+ * @privileged:		Flag to mark a handle as privileged
  */
 struct kdbus_handle {
 	enum kdbus_handle_type type;
@@ -88,7 +89,7 @@ struct kdbus_handle {
 		struct kdbus_ep *ep_owner;
 		struct kdbus_conn *conn;
 	};
-	bool privileged : 1;
+	bool privileged:1;
 };
 
 static int kdbus_handle_open(struct inode *inode, struct file *file)

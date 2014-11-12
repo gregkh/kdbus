@@ -37,7 +37,8 @@
 /**
  * struct kdbus_meta - metadata buffer
  * @attached:		Flags for already attached data
- * @domain:		Domain the metadata belongs to
+ * @pid_namespace:	The PID namespace the object was created with
+ * @user_namespace:	The user namespace the object was created with
  * @data:		Allocated buffer
  * @size:		Number of bytes used
  * @allocated_size:	Size of buffer

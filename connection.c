@@ -360,10 +360,10 @@ exit:
 
 /**
  * kdbus_conn_reply_find() - Find the corresponding reply object
- * @conn_replying	The replying connection
- * @conn_reply_dst	The connection the reply will be sent to
+ * @conn_replying:	The replying connection
+ * @conn_reply_dst:	The connection the reply will be sent to
  *			(method origin)
- * @cookie		The cookie of the requesting message
+ * @cookie:		The cookie of the requesting message
  *
  * Lookup a reply object that should be sent as a reply by
  * @conn_replying to @conn_reply_dst with the given cookie.

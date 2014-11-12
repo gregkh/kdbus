@@ -304,7 +304,6 @@ prio_done:
  * @queue:		The queue
  * @priority:		The minimum priority of the entry to peek
  * @use_priority:	Boolean flag whether or not to peek by priority
- * @entry:		Pointer to return the peeked entry
  *
  * Look for a entry in a queue, either by priority, or the oldest one (FIFO).
  * The entry is not freed, put off the queue's lists or anything else.
