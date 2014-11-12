@@ -15,6 +15,7 @@
 #include <linux/fs.h>
 #include <linux/idr.h>
 #include <linux/kdev_t.h>
+#include <linux/rbtree.h>
 #include <linux/rwsem.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
@@ -25,6 +26,7 @@
 #include "endpoint.h"
 #include "handle.h"
 #include "node.h"
+#include "util.h"
 
 #define KDBUS_NODE_ACTIVE_BIAS		(INT_MIN + 3)
 #define KDBUS_NODE_ACTIVE_RELEASE	(KDBUS_NODE_ACTIVE_BIAS - 1)
@@ -68,6 +70,39 @@ void kdbus_exit_nodes(void)
 	idr_destroy(&kdbus_node_idr);
 }
 
+static unsigned int kdbus_node_name_hash(const char *name)
+{
+	unsigned int hash;
+
+	hash = kdbus_str_hash(name);
+
+	/* Reserve hash numbers 0, 1 and INT_MAX for magic directory entries */
+	if (hash >= INT_MAX)
+		hash = (hash & INT_MAX) - 1;
+
+	if (hash < 2)
+		hash += 2;
+
+	return hash;
+}
+
+#define rb_to_kdbus_node(X) rb_entry((X), struct kdbus_node, rb)
+
+static int kdbus_node_name_compare(unsigned int hash, const char *name,
+				   const struct kdbus_node *node)
+{
+	if (hash != node->hash)
+		return hash - node->hash;
+
+	return strcmp(name, node->name);
+}
+
+static int kdbus_node_compare(const struct kdbus_node *left,
+			      const struct kdbus_node *right)
+{
+	return kdbus_node_name_compare(left->hash, left->name, right);
+}
+
 int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 		    unsigned int type, const char *name,
 		    kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
@@ -78,10 +113,22 @@ int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 	mutex_init(&node->lock);
 	node->id = 0;
 	node->type = type;
+	RB_CLEAR_NODE(&node->rb);
+	node->children = RB_ROOT;
 	node->release_cb = release_cb;
 	node->free_cb = free_cb;
 	init_waitqueue_head(&node->waitq);
 	atomic_set(&node->active, KDBUS_NODE_ACTIVE_NEW);
+
+	BUG_ON(parent && !name);
+
+	if (name) {
+		node->name = kstrdup(name, GFP_KERNEL);
+		if (!node->name)
+			return -ENOMEM;
+
+		node->hash = kdbus_node_name_hash(name);
+	}
 
 	down_write(&kdbus_node_idr_lock);
 	ret = idr_alloc(&kdbus_node_idr, node, 1, KDBUS_NODE_IDR_MAX + 1,
@@ -89,6 +136,44 @@ int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 	if (ret >= 0)
 		node->id = ret;
 	up_write(&kdbus_node_idr_lock);
+
+	if (ret < 0)
+		return ret;
+
+	if (parent) {
+		struct rb_node **n, *prev;
+
+		mutex_lock(&parent->lock);
+
+		n = &parent->children.rb_node;
+		prev = NULL;
+
+		while (*n) {
+			struct kdbus_node *pos;
+			int result;
+
+			pos = rb_to_kdbus_node(*n);
+			prev = *n;
+			result = kdbus_node_compare(node, pos);
+			if (result < 0) {
+				n = &pos->rb.rb_left;
+			} else if (result > 0) {
+				n = &pos->rb.rb_right;
+			} else {
+				ret = -EEXIST;
+				break;
+			}
+		}
+
+		if (ret == 0) {
+			/* add new node and rebalance the tree */
+			rb_link_node(&node->rb, prev, n);
+			rb_insert_color(&node->rb, &parent->children);
+			node->parent = parent;
+		}
+
+		mutex_unlock(&parent->lock);
+	}
 
 	if (ret < 0)
 		return ret;
@@ -110,6 +195,15 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 		if (node->id > 0)
 			idr_remove(&kdbus_node_idr, node->id);
 		up_write(&kdbus_node_idr_lock);
+
+		if (node->parent && !RB_EMPTY_NODE(&node->rb)) {
+			mutex_lock(&node->parent->lock);
+			rb_erase(&node->rb, &node->parent->children);
+			mutex_unlock(&node->parent->lock);
+			RB_CLEAR_NODE(&node->rb);
+		}
+
+		kfree(node->name);
 
 		if (node->free_cb)
 			node->free_cb(node);

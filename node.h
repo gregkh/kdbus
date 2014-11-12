@@ -38,6 +38,11 @@ struct kdbus_node {
 	struct mutex lock;
 	unsigned int id;
 	unsigned int type;
+	char *name;
+	unsigned int hash;
+	struct kdbus_node *parent;
+	struct rb_node rb;
+	struct rb_root children;
 	kdbus_node_free_t free_cb;
 	kdbus_node_release_t release_cb;
 	umode_t mode;
