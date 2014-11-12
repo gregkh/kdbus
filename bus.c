@@ -32,134 +32,8 @@
 #include "names.h"
 #include "policy.h"
 
-/**
- * kdbus_bus_ref() - increase the reference counter of a kdbus_bus
- * @bus:		The bus to reference
- *
- * Every user of a bus, except for its creator, must add a reference to the
- * kdbus_bus using this function.
- *
- * Return: the bus itself
- */
-struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
-{
-	if (bus)
-		kdbus_node_ref(&bus->node);
-	return bus;
-}
-
-static void kdbus_bus_free(struct kdbus_node *node)
-{
-	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
-
-	BUG_ON(kdbus_bus_is_active(bus));
-	BUG_ON(!list_empty(&bus->ep_list));
-	BUG_ON(!list_empty(&bus->monitors_list));
-	BUG_ON(!hash_empty(bus->conn_hash));
-
-	kdbus_notify_free(bus);
-
-	if (bus->user) {
-		atomic_dec(&bus->user->buses);
-		kdbus_domain_user_unref(bus->user);
-	}
-
-	kdbus_name_registry_free(bus->name_registry);
-	kdbus_domain_unref(bus->domain);
-	kdbus_policy_db_clear(&bus->policy_db);
-	kdbus_meta_free(bus->meta);
-	kfree(bus->name);
-	kfree(bus);
-}
-
-static void kdbus_bus_release(struct kdbus_node *node)
-{
-	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
-
-	/* disconnect from domain */
-	mutex_lock(&bus->domain->lock);
-	list_del(&bus->domain_entry);
-	mutex_unlock(&bus->domain->lock);
-
-	/* disconnect all endpoints attached to this bus */
-	for (;;) {
-		struct kdbus_ep *ep;
-
-		mutex_lock(&bus->lock);
-		ep = list_first_entry_or_null(&bus->ep_list,
-					      struct kdbus_ep,
-					      bus_entry);
-		if (!ep) {
-			mutex_unlock(&bus->lock);
-			break;
-		}
-
-		/* take reference, release lock, disconnect without lock */
-		kdbus_ep_ref(ep);
-		mutex_unlock(&bus->lock);
-
-		kdbus_ep_deactivate(ep);
-		kdbus_ep_unref(ep);
-	}
-
-	/* drop reference for our "bus" endpoint after we disconnected */
-	bus->ep = kdbus_ep_unref(bus->ep);
-}
-
-/**
- * kdbus_bus_deactivate() - deactivate a bus
- * @bus:               The kdbus reference
- *
- * The passed bus will be disconnected and the associated endpoint will be
- * unref'ed.
- */
-void kdbus_bus_deactivate(struct kdbus_bus *bus)
-{
-	kdbus_node_deactivate(&bus->node);
-	kdbus_node_drain(&bus->node);
-}
-
-/**
- * kdbus_bus_unref() - decrease the reference counter of a kdbus_bus
- * @bus:		The bus to unref
- *
- * Release a reference. If the reference count drops to 0, the bus will be
- * freed.
- *
- * Return: NULL
- */
-struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
-{
-	if (!bus)
-		return NULL;
-
-	kdbus_node_unref(&bus->node);
-	return NULL;
-}
-
-/**
- * kdbus_bus_find_conn_by_id() - find a connection with a given id
- * @bus:		The bus to look for the connection
- * @id:			The 64-bit connection id
- *
- * Looks up a connection with a given id. The returned connection
- * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
- * the connection can't be found.
- */
-struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
-{
-	struct kdbus_conn *conn, *found = NULL;
-
-	down_read(&bus->conn_rwlock);
-	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
-		if (conn->id == id) {
-			found = kdbus_conn_ref(conn);
-			break;
-		}
-	up_read(&bus->conn_rwlock);
-
-	return found;
-}
+static void kdbus_bus_free(struct kdbus_node *node);
+static void kdbus_bus_release(struct kdbus_node *node);
 
 static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
 					const char *name)
@@ -171,56 +45,6 @@ static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
 			return b;
 
 	return NULL;
-}
-
-/**
- * kdbus_cmd_bus_creator_info() - get information on a bus creator
- * @conn:	The querying connection
- * @cmd_info:	The command buffer, as passed in from the ioctl
- *
- * Gather information on the creator of the bus @conn is connected to.
- *
- * Return: 0 on success, error otherwise.
- */
-int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
-			       struct kdbus_cmd_info *cmd_info)
-{
-	struct kdbus_bus *bus = conn->bus;
-	struct kdbus_pool_slice *slice;
-	struct kdbus_info info = {};
-	int ret;
-
-	if (!kdbus_meta_ns_eq(conn->meta, bus->meta))
-		return -EPERM;
-
-	info.id = bus->id;
-	info.flags = bus->bus_flags;
-	info.size = sizeof(info) +
-		    kdbus_meta_size(bus->meta, conn, cmd_info->flags);
-
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
-	if (IS_ERR(slice))
-		return PTR_ERR(slice);
-
-	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
-	if (ret < 0)
-		goto exit_free_slice;
-
-	ret = kdbus_meta_write(bus->meta, conn, cmd_info->flags,
-			       slice, sizeof(info));
-	if (ret < 0)
-		goto exit_free_slice;
-
-	/* write back the offset */
-	cmd_info->offset = kdbus_pool_slice_offset(slice);
-	kdbus_pool_slice_flush(slice);
-	kdbus_pool_slice_make_public(slice);
-
-	return 0;
-
-exit_free_slice:
-	kdbus_pool_slice_free(slice);
-	return ret;
 }
 
 /**
@@ -410,4 +234,183 @@ exit_unlock_unref:
 exit_unref:
 	kdbus_node_unref(&b->node);
 	return ERR_PTR(ret);
+}
+
+static void kdbus_bus_free(struct kdbus_node *node)
+{
+	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
+
+	BUG_ON(kdbus_bus_is_active(bus));
+	BUG_ON(!list_empty(&bus->ep_list));
+	BUG_ON(!list_empty(&bus->monitors_list));
+	BUG_ON(!hash_empty(bus->conn_hash));
+
+	kdbus_notify_free(bus);
+
+	if (bus->user) {
+		atomic_dec(&bus->user->buses);
+		kdbus_domain_user_unref(bus->user);
+	}
+
+	kdbus_name_registry_free(bus->name_registry);
+	kdbus_domain_unref(bus->domain);
+	kdbus_policy_db_clear(&bus->policy_db);
+	kdbus_meta_free(bus->meta);
+	kfree(bus->name);
+	kfree(bus);
+}
+
+/**
+ * kdbus_bus_ref() - increase the reference counter of a kdbus_bus
+ * @bus:		The bus to reference
+ *
+ * Every user of a bus, except for its creator, must add a reference to the
+ * kdbus_bus using this function.
+ *
+ * Return: the bus itself
+ */
+struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
+{
+	if (bus)
+		kdbus_node_ref(&bus->node);
+	return bus;
+}
+
+/**
+ * kdbus_bus_unref() - decrease the reference counter of a kdbus_bus
+ * @bus:		The bus to unref
+ *
+ * Release a reference. If the reference count drops to 0, the bus will be
+ * freed.
+ *
+ * Return: NULL
+ */
+struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
+{
+	if (!bus)
+		return NULL;
+
+	kdbus_node_unref(&bus->node);
+	return NULL;
+}
+
+static void kdbus_bus_release(struct kdbus_node *node)
+{
+	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
+
+	/* disconnect from domain */
+	mutex_lock(&bus->domain->lock);
+	list_del(&bus->domain_entry);
+	mutex_unlock(&bus->domain->lock);
+
+	/* disconnect all endpoints attached to this bus */
+	for (;;) {
+		struct kdbus_ep *ep;
+
+		mutex_lock(&bus->lock);
+		ep = list_first_entry_or_null(&bus->ep_list,
+					      struct kdbus_ep,
+					      bus_entry);
+		if (!ep) {
+			mutex_unlock(&bus->lock);
+			break;
+		}
+
+		/* take reference, release lock, disconnect without lock */
+		kdbus_ep_ref(ep);
+		mutex_unlock(&bus->lock);
+
+		kdbus_ep_deactivate(ep);
+		kdbus_ep_unref(ep);
+	}
+
+	/* drop reference for our "bus" endpoint after we disconnected */
+	bus->ep = kdbus_ep_unref(bus->ep);
+}
+
+/**
+ * kdbus_bus_deactivate() - deactivate a bus
+ * @bus:               The kdbus reference
+ *
+ * The passed bus will be disconnected and the associated endpoint will be
+ * unref'ed.
+ */
+void kdbus_bus_deactivate(struct kdbus_bus *bus)
+{
+	kdbus_node_deactivate(&bus->node);
+	kdbus_node_drain(&bus->node);
+}
+
+/**
+ * kdbus_bus_find_conn_by_id() - find a connection with a given id
+ * @bus:		The bus to look for the connection
+ * @id:			The 64-bit connection id
+ *
+ * Looks up a connection with a given id. The returned connection
+ * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
+ * the connection can't be found.
+ */
+struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
+{
+	struct kdbus_conn *conn, *found = NULL;
+
+	down_read(&bus->conn_rwlock);
+	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
+		if (conn->id == id) {
+			found = kdbus_conn_ref(conn);
+			break;
+		}
+	up_read(&bus->conn_rwlock);
+
+	return found;
+}
+
+/**
+ * kdbus_cmd_bus_creator_info() - get information on a bus creator
+ * @conn:	The querying connection
+ * @cmd_info:	The command buffer, as passed in from the ioctl
+ *
+ * Gather information on the creator of the bus @conn is connected to.
+ *
+ * Return: 0 on success, error otherwise.
+ */
+int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
+			       struct kdbus_cmd_info *cmd_info)
+{
+	struct kdbus_bus *bus = conn->bus;
+	struct kdbus_pool_slice *slice;
+	struct kdbus_info info = {};
+	int ret;
+
+	if (!kdbus_meta_ns_eq(conn->meta, bus->meta))
+		return -EPERM;
+
+	info.id = bus->id;
+	info.flags = bus->bus_flags;
+	info.size = sizeof(info) +
+		    kdbus_meta_size(bus->meta, conn, cmd_info->flags);
+
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
+	if (IS_ERR(slice))
+		return PTR_ERR(slice);
+
+	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
+	if (ret < 0)
+		goto exit_free_slice;
+
+	ret = kdbus_meta_write(bus->meta, conn, cmd_info->flags,
+			       slice, sizeof(info));
+	if (ret < 0)
+		goto exit_free_slice;
+
+	/* write back the offset */
+	cmd_info->offset = kdbus_pool_slice_offset(slice);
+	kdbus_pool_slice_flush(slice);
+	kdbus_pool_slice_make_public(slice);
+
+	return 0;
+
+exit_free_slice:
+	kdbus_pool_slice_free(slice);
+	return ret;
 }
