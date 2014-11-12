@@ -475,7 +475,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (!arg_root)
-		arg_root = "/dev/" KBUILD_MODNAME;
+		arg_root = "/sys/fs/kdbus";
 
 	if (arg_test) {
 		const struct kdbus_test *t;
