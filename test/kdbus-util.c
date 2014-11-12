@@ -58,8 +58,8 @@
 
 int kdbus_util_verbose = true;
 
-int kdbus_create_bus(int control_fd, const char *name, uint64_t req_meta,
-		     char **path)
+int kdbus_create_bus(int control_fd, const char *name,
+		     uint64_t req_meta, char **path)
 {
 	struct {
 		struct kdbus_cmd_make head;
@@ -116,8 +116,7 @@ int kdbus_create_bus(int control_fd, const char *name, uint64_t req_meta,
 	ret = ioctl(control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 
 	if (ret == 0 && path)
-		asprintf(path, "/dev/" KBUILD_MODNAME "/%s/bus",
-			 bus_make.name.str);
+		*path = strdup(bus_make.name.str);
 
 	return ret;
 }

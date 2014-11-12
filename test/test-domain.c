@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
+#include <limits.h>
 #include <sys/ioctl.h>
 #include <stdbool.h>
 
@@ -25,9 +26,11 @@ int kdbus_test_domain_make(struct kdbus_test_env *env)
 		uint64_t n_type;
 		char name[64];
 	} domain_make;
+	char s[PATH_MAX];
 	int ret;
 
-	fd = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
+	snprintf(s, sizeof(s), "%s/control", env->root);
+	fd = open(s, O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(fd >= 0);
 
 	memset(&domain_make, 0, sizeof(domain_make));
@@ -44,22 +47,23 @@ int kdbus_test_domain_make(struct kdbus_test_env *env)
 		return TEST_SKIP;
 	ASSERT_RETURN(ret == 0);
 
-	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/domain/blah/control",
-			     F_OK) == 0);
+	snprintf(s, sizeof(s), "%s/domain/blah/control", env->root);
+	ASSERT_RETURN(access(s, F_OK) == 0);
 
 	/* can't use the same fd for domain make twice */
 	ret = ioctl(fd, KDBUS_CMD_DOMAIN_MAKE, &domain_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
 	/* can't register the same name twice */
-	fd2 = open("/dev/" KBUILD_MODNAME "/control", O_RDWR|O_CLOEXEC);
+	snprintf(s, sizeof(s), "%s/control", env->root);
+	fd2 = open(s, O_RDWR|O_CLOEXEC);
 	ret = ioctl(fd2, KDBUS_CMD_DOMAIN_MAKE, &domain_make);
 	ASSERT_RETURN(ret == -1 && errno == EEXIST);
 	close(fd2);
 
 	close(fd);
-	ASSERT_RETURN(access("/dev/" KBUILD_MODNAME "/domain/blah/control",
-			     F_OK) < 0);
+	snprintf(s, sizeof(s), "%s/domain/blah/control", env->root);
+	ASSERT_RETURN(access(s, F_OK) < 0);
 
 	return TEST_OK;
 }

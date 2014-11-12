@@ -250,15 +250,19 @@ static const struct kdbus_test tests[] = {
 
 static int test_prepare_env(const struct kdbus_test *t,
 			    struct kdbus_test_env *env,
+			    const char *root,
 			    const char *busname)
 {
 	if (t->flags & TEST_CREATE_BUS) {
 		unsigned int i;
 		char n[16];
+		char *s;
 		int ret;
 
-		env->control_fd =
-			open("/dev/" KBUILD_MODNAME "/control", O_RDWR);
+		asprintf(&s, "%s/control", root);
+
+		env->control_fd = open(s, O_RDWR);
+		free(s);
 		ASSERT_RETURN(env->control_fd >= 0);
 
 		if (!busname) {
@@ -270,14 +274,19 @@ static int test_prepare_env(const struct kdbus_test *t,
 		}
 
 		ret = kdbus_create_bus(env->control_fd, busname ?: n,
-				       _KDBUS_ATTACH_ALL, &env->buspath);
+				       _KDBUS_ATTACH_ALL, &s);
 		ASSERT_RETURN(ret == 0);
+
+		asprintf(&env->buspath, "%s/%s/bus", root, s);
+		free(s);
 	}
 
 	if (t->flags & TEST_CREATE_CONN) {
 		env->conn = kdbus_hello(env->buspath, 0, NULL, 0);
 		ASSERT_RETURN(env->conn);
 	}
+
+	env->root = root;
 
 	return 0;
 }
@@ -300,7 +309,8 @@ void test_unprepare_env(const struct kdbus_test *t, struct kdbus_test_env *env)
 	}
 }
 
-static int test_run(const struct kdbus_test *t, const char *busname, int wait)
+static int test_run(const struct kdbus_test *t, const char *root,
+		    const char *busname, int wait)
 {
 	int ret;
 	struct kdbus_test_env env = {};
@@ -310,7 +320,7 @@ static int test_run(const struct kdbus_test *t, const char *busname, int wait)
 	if (pid < 0) {
 		return TEST_ERR;
 	} else if (pid == 0) {
-		ret = test_prepare_env(t, &env, busname);
+		ret = test_prepare_env(t, &env, root, busname);
 		if (ret != TEST_OK)
 			_exit(ret);
 
@@ -349,7 +359,7 @@ static void print_test_result(int ret)
 	}
 }
 
-static int run_all_tests(const char *busname)
+static int run_all_tests(const char *root, const char *busname)
 {
 	int ret;
 	unsigned int fail_cnt = 0;
@@ -366,7 +376,7 @@ static int run_all_tests(const char *busname)
 			printf(".");
 		printf(" ");
 
-		ret = test_run(t, busname, 0);
+		ret = test_run(t, root, busname, 0);
 		switch (ret) {
 		case TEST_OK:
 			ok_cnt++;
@@ -398,6 +408,7 @@ static void usage(const char *argv0)
 	       "Options:\n"
 	       "\t-x, --loop		Run in a loop\n"
 	       "\t-h, --help		Print this help\n"
+	       "\t-r, --root <root>	Toplevel of the kdbus hierarchy\n"
 	       "\t-t, --test <test-id>	Run one specific test only, in verbose mode\n"
 	       "\t-b, --bus <busname>	Instead of generating a random bus name, take <busname>.\n"
 	       "\t-w, --wait <secs>	Wait <secs> before actually starting test\n"
@@ -426,6 +437,7 @@ int main(int argc, char *argv[])
 {
 	int t, ret = 0;
 	int arg_loop = 0;
+	char *arg_root = NULL;
 	char *arg_test = NULL;
 	char *arg_busname = NULL;
 	int arg_wait = 0;
@@ -433,16 +445,21 @@ int main(int argc, char *argv[])
 	static const struct option options[] = {
 		{ "loop",	no_argument,		NULL, 'x' },
 		{ "help",	no_argument,		NULL, 'h' },
+		{ "root",	required_argument,	NULL, 'r' },
 		{ "test",	required_argument,	NULL, 't' },
 		{ "bus",	required_argument,	NULL, 'b' },
 		{ "wait",	required_argument,	NULL, 'w' },
 		{}
 	};
 
-	while ((t = getopt_long(argc, argv, "hxt:b:w:", options, NULL)) >= 0) {
+	while ((t = getopt_long(argc, argv, "hxr:t:b:w:", options, NULL)) >= 0) {
 		switch (t) {
 		case 'x':
 			arg_loop = 1;
+			break;
+
+		case 'r':
+			arg_root = optarg;
 			break;
 
 		case 't':
@@ -463,13 +480,17 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (!arg_root)
+		arg_root = "/dev/" KBUILD_MODNAME;
+
 	if (arg_test) {
 		const struct kdbus_test *t;
 
 		for (t = tests; t->name; t++) {
 			if (!strcmp(t->name, arg_test)) {
 				do {
-					ret = test_run(t, arg_busname, arg_wait);
+					ret = test_run(t, arg_root, arg_busname,
+							arg_wait);
 					printf("Testing %s: ", t->desc);
 					print_test_result(ret);
 					printf("\n");
@@ -487,7 +508,7 @@ int main(int argc, char *argv[])
 	}
 
 	do {
-		ret = run_all_tests(arg_busname);
+		ret = run_all_tests(arg_root, arg_busname);
 		if (ret != TEST_OK)
 			break;
 	} while (arg_loop);

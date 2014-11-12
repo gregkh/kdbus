@@ -57,8 +57,8 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	int ret;
 	uid_t uid;
 
-	env->control_fd = open("/dev/" KBUILD_MODNAME "/control",
-			       O_RDWR|O_CLOEXEC);
+	snprintf(s, sizeof(s), "%s/control", env->root);
+	env->control_fd = open(s, O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(env->control_fd >= 0);
 
 	memset(&bus_make, 0, sizeof(bus_make));
@@ -103,7 +103,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
-	snprintf(s, sizeof(s), "/dev/" KBUILD_MODNAME "/%u-blah-1/bus", uid);
+	snprintf(s, sizeof(s), "%s/%u-blah-1/bus", env->root, uid);
 	ASSERT_RETURN(access(s, F_OK) == 0);
 
 	ret = test_bus_creator_info(s);

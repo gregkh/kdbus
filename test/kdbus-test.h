@@ -3,6 +3,7 @@
 
 struct kdbus_test_env {
 	char *buspath;
+	const char *root;
 	int control_fd;
 	struct kdbus_conn *conn;
 };
