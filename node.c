@@ -70,7 +70,7 @@ void kdbus_exit_nodes(void)
 	idr_destroy(&kdbus_node_idr);
 }
 
-static unsigned int kdbus_node_name_hash(const char *name)
+unsigned int kdbus_node_name_hash(const char *name)
 {
 	unsigned int hash;
 
@@ -86,8 +86,8 @@ static unsigned int kdbus_node_name_hash(const char *name)
 	return hash;
 }
 
-static int kdbus_node_name_compare(unsigned int hash, const char *name,
-				   const struct kdbus_node *node)
+int kdbus_node_name_compare(unsigned int hash, const char *name,
+			    const struct kdbus_node *node)
 {
 	if (hash != node->hash)
 		return hash - node->hash;

@@ -263,7 +263,10 @@ int kdbus_domain_activate(struct kdbus_domain *domain)
 	kdbus_node_activate(&domain->node);
 	kdbus_node_activate(domain->control);
 
-	ret = device_add(domain->dev);
+	if (domain == kdbus_domain_init || domain->node.name)
+		ret = device_add(domain->dev);
+	else
+		ret = 0;
 
 	if (domain->parent)
 		mutex_unlock(&domain->parent->lock);

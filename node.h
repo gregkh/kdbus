@@ -59,6 +59,10 @@ extern unsigned int kdbus_major;
 int kdbus_init_nodes(void);
 void kdbus_exit_nodes(void);
 
+unsigned int kdbus_node_name_hash(const char *name);
+int kdbus_node_name_compare(unsigned int hash, const char *name,
+			    const struct kdbus_node *node);
+
 int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 		    unsigned int type, const char *name,
 		    kdbus_node_free_t free_cb, kdbus_node_release_t release_cb);

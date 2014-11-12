@@ -19,23 +19,35 @@
 
 #include "util.h"
 #include "domain.h"
+#include "fs.h"
 #include "handle.h"
 #include "node.h"
 
 /* kdbus initial domain */
-static struct kdbus_domain *kdbus_domain_init;
+struct kdbus_domain *kdbus_domain_init;
+
+/* kdbus mount-point /sys/fs/kdbus */
+static struct kobject *kdbus_dir;
 
 static int __init kdbus_init(void)
 {
 	int ret;
 
+	kdbus_dir = kobject_create_and_add("kdbus", fs_kobj);
+	if (!kdbus_dir)
+		return -ENOMEM;
+
 	ret = subsys_virtual_register(&kdbus_subsys, NULL);
 	if (ret < 0)
-		return ret;
+		goto exit_dir;
 
 	ret = kdbus_init_nodes();
 	if (ret < 0)
 		goto exit_subsys;
+
+	ret = kdbus_fs_init();
+	if (ret < 0)
+		goto exit_node;
 
 	/*
 	 * Create the initial domain; it is world-accessible and
@@ -45,7 +57,7 @@ static int __init kdbus_init(void)
 	if (IS_ERR(kdbus_domain_init)) {
 		ret = PTR_ERR(kdbus_domain_init);
 		pr_err("failed to initialize, error=%i\n", ret);
-		goto exit_node;
+		goto exit_fs;
 	}
 
 	ret = kdbus_domain_activate(kdbus_domain_init);
@@ -59,10 +71,14 @@ static int __init kdbus_init(void)
 
 exit_domain:
 	kdbus_domain_unref(kdbus_domain_init);
+exit_fs:
+	kdbus_fs_exit();
 exit_node:
 	kdbus_exit_nodes();
 exit_subsys:
 	bus_unregister(&kdbus_subsys);
+exit_dir:
+	kobject_put(kdbus_dir);
 	return ret;
 }
 
@@ -70,8 +86,10 @@ static void __exit kdbus_exit(void)
 {
 	kdbus_domain_deactivate(kdbus_domain_init);
 	kdbus_domain_unref(kdbus_domain_init);
+	kdbus_fs_exit();
 	kdbus_exit_nodes();
 	bus_unregister(&kdbus_subsys);
+	kobject_put(kdbus_dir);
 }
 
 module_init(kdbus_init);

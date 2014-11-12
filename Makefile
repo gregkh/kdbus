@@ -2,6 +2,7 @@ kdbus$(EXT)-y := \
 	bus.o \
 	connection.o \
 	endpoint.o \
+	fs.o \
 	handle.o \
 	item.o \
 	main.o \
