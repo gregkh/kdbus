@@ -118,6 +118,7 @@ int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 	init_waitqueue_head(&node->waitq);
 	atomic_set(&node->active, KDBUS_NODE_ACTIVE_NEW);
 
+	BUG_ON(type != KDBUS_NODE_DOMAIN && !parent);
 	BUG_ON(parent && !name);
 
 	if (name) {
@@ -163,11 +164,11 @@ int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 			}
 		}
 
-		if (ret == 0) {
+		if (ret >= 0) {
 			/* add new node and rebalance the tree */
 			rb_link_node(&node->rb, prev, n);
 			rb_insert_color(&node->rb, &parent->children);
-			node->parent = parent;
+			node->parent = kdbus_node_ref(parent);
 		}
 
 		mutex_unlock(&parent->lock);
@@ -201,10 +202,11 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 			RB_CLEAR_NODE(&node->rb);
 		}
 
-		kfree(node->name);
-
 		if (node->free_cb)
 			node->free_cb(node);
+
+		node->parent = kdbus_node_unref(node->parent);
+		kfree(node->name);
 	}
 
 	return NULL;
