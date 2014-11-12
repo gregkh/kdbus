@@ -16,15 +16,15 @@
 
 #include <linux/hashtable.h>
 #include <linux/spinlock.h>
-#include <linux/kref.h>
 #include <linux/rwsem.h>
 
+#include "node.h"
 #include "policy.h"
 #include "util.h"
 
 /**
  * struct kdbus_bus - bus in a domain
- * @kref:		Reference count
+ * @node:		kdbus_node
  * @disconnected:	Invalidated data
  * @uid_owner:		The uid of the owner of the bus
  * @domain:		Domain of this bus
@@ -58,7 +58,7 @@
  * the bus.
  */
 struct kdbus_bus {
-	struct kref kref;
+	struct kdbus_node node;
 	bool disconnected;
 	kuid_t uid_owner;
 	struct kdbus_domain *domain;

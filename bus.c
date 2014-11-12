@@ -43,13 +43,14 @@
  */
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
 {
-	kref_get(&bus->kref);
+	if (bus)
+		kdbus_node_ref(&bus->node);
 	return bus;
 }
 
-static void __kdbus_bus_free(struct kref *kref)
+static void kdbus_bus_free(struct kdbus_node *node)
 {
-	struct kdbus_bus *bus = container_of(kref, struct kdbus_bus, kref);
+	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
 	BUG_ON(!bus->disconnected);
 	BUG_ON(!list_empty(&bus->ep_list));
@@ -67,57 +68,10 @@ static void __kdbus_bus_free(struct kref *kref)
 	kfree(bus);
 }
 
-/**
- * kdbus_bus_unref() - decrease the reference counter of a kdbus_bus
- * @bus:		The bus to unref
- *
- * Release a reference. If the reference count drops to 0, the bus will be
- * freed.
- *
- * Return: NULL
- */
-struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
+static void kdbus_bus_release(struct kdbus_node *node)
 {
-	if (!bus)
-		return NULL;
+	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
-	kref_put(&bus->kref, __kdbus_bus_free);
-	return NULL;
-}
-
-/**
- * kdbus_bus_find_conn_by_id() - find a connection with a given id
- * @bus:		The bus to look for the connection
- * @id:			The 64-bit connection id
- *
- * Looks up a connection with a given id. The returned connection
- * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
- * the connection can't be found.
- */
-struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
-{
-	struct kdbus_conn *conn, *found = NULL;
-
-	down_read(&bus->conn_rwlock);
-	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
-		if (conn->id == id) {
-			found = kdbus_conn_ref(conn);
-			break;
-		}
-	up_read(&bus->conn_rwlock);
-
-	return found;
-}
-
-/**
- * kdbus_bus_disconnect() - disconnect a bus
- * @bus:		The kdbus reference
- *
- * The passed bus will be disconnected and the associated endpoint will be
- * unref'ed.
- */
-void kdbus_bus_disconnect(struct kdbus_bus *bus)
-{
 	mutex_lock(&bus->lock);
 	if (bus->disconnected) {
 		mutex_unlock(&bus->lock);
@@ -154,6 +108,61 @@ void kdbus_bus_disconnect(struct kdbus_bus *bus)
 
 	/* drop reference for our "bus" endpoint after we disconnected */
 	bus->ep = kdbus_ep_unref(bus->ep);
+}
+
+/**
+ * kdbus_bus_disconnect() - disconnect a bus
+ * @bus:               The kdbus reference
+ *
+ * The passed bus will be disconnected and the associated endpoint will be
+ * unref'ed.
+ */
+void kdbus_bus_disconnect(struct kdbus_bus *bus)
+{
+	kdbus_node_deactivate(&bus->node);
+	kdbus_node_drain(&bus->node);
+}
+
+/**
+ * kdbus_bus_unref() - decrease the reference counter of a kdbus_bus
+ * @bus:		The bus to unref
+ *
+ * Release a reference. If the reference count drops to 0, the bus will be
+ * freed.
+ *
+ * Return: NULL
+ */
+struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
+{
+	if (!bus)
+		return NULL;
+
+	kdbus_node_unref(&bus->node);
+	return NULL;
+}
+
+/**
+ * kdbus_bus_find_conn_by_id() - find a connection with a given id
+ * @bus:		The bus to look for the connection
+ * @id:			The 64-bit connection id
+ *
+ * Looks up a connection with a given id. The returned connection
+ * is ref'ed, and needs to be unref'ed by the user. Returns NULL if
+ * the connection can't be found.
+ */
+struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
+{
+	struct kdbus_conn *conn, *found = NULL;
+
+	down_read(&bus->conn_rwlock);
+	hash_for_each_possible(bus->conn_hash, conn, hentry, id)
+		if (conn->id == id) {
+			found = kdbus_conn_ref(conn);
+			break;
+		}
+	up_read(&bus->conn_rwlock);
+
+	return found;
 }
 
 static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
@@ -296,7 +305,11 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (!b)
 		return ERR_PTR(-ENOMEM);
 
-	kref_init(&b->kref);
+	ret = kdbus_node_init(&b->node, KDBUS_NODE_BUS,
+			      kdbus_bus_free, kdbus_bus_release);
+	if (ret < 0)
+		goto exit_free;
+
 	b->uid_owner = uid;
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
@@ -406,6 +419,7 @@ exit_free_meta:
 exit_free:
 	kdbus_policy_db_clear(&b->policy_db);
 	kdbus_domain_unref(b->domain);
+	kdbus_node_unref(&b->node);
 	kfree(b);
 
 	return ERR_PTR(ret);
