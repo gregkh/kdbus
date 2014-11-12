@@ -94,8 +94,9 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->bus = kdbus_bus_ref(bus);
 	e->id = atomic64_inc_return(&bus->ep_seq_last);
 
-	ret = kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT, kdbus_ep_free,
-			      kdbus_ep_release);
+	ret = kdbus_node_init(&e->node, &bus->node,
+			      KDBUS_NODE_ENDPOINT, name,
+			      kdbus_ep_free, kdbus_ep_release);
 	if (ret < 0)
 		goto exit_unref;
 

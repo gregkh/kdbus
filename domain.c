@@ -90,7 +90,8 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	ret = kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN,
+	ret = kdbus_node_init(&d->node, NULL,
+			      KDBUS_NODE_DOMAIN, name,
 			      kdbus_domain_free, kdbus_domain_release);
 	if (ret < 0)
 		goto exit_unref;

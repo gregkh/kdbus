@@ -68,7 +68,8 @@ void kdbus_exit_nodes(void)
 	idr_destroy(&kdbus_node_idr);
 }
 
-int kdbus_node_init(struct kdbus_node *node, unsigned int type,
+int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
+		    unsigned int type, const char *name,
 		    kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
 {
 	int ret;
