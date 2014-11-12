@@ -40,6 +40,7 @@ struct kdbus_node {
 	unsigned int type;
 	kdbus_node_free_t free_cb;
 	kdbus_node_release_t release_cb;
+	umode_t mode;
 
 	wait_queue_head_t waitq;
 	atomic_t active;

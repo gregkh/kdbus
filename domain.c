@@ -46,7 +46,7 @@ static char *kdbus_domain_dev_devnode(struct device *dev, umode_t *mode,
 	struct kdbus_domain *domain = dev_get_drvdata(dev);
 
 	if (mode)
-		*mode = domain->mode;
+		*mode = domain->node.mode;
 
 	return NULL;
 }
@@ -85,7 +85,6 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 
 	INIT_LIST_HEAD(&d->bus_list);
 	INIT_LIST_HEAD(&d->domain_list);
-	d->mode = mode;
 	d->parent = kdbus_domain_ref(parent);
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
@@ -95,6 +94,8 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 			      kdbus_domain_free, kdbus_domain_release);
 	if (ret < 0)
 		goto exit_unref;
+
+	d->node.mode = mode;
 
 	/* compose name and path of base directory in /dev */
 	if (parent) {

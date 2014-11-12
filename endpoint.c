@@ -40,7 +40,7 @@ static char *kdbus_ep_dev_devnode(struct device *dev, umode_t *mode,
 	struct kdbus_ep *ep = dev_get_drvdata(dev);
 
 	if (mode)
-		*mode = ep->mode;
+		*mode = ep->node.mode;
 	if (uid)
 		*uid = ep->uid;
 	if (gid)
@@ -90,7 +90,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	kdbus_policy_db_init(&e->policy_db);
 	e->uid = uid;
 	e->gid = gid;
-	e->mode = mode;
 	e->has_policy = policy;
 	e->bus = kdbus_bus_ref(bus);
 	e->id = atomic64_inc_return(&bus->ep_seq_last);
@@ -99,6 +98,8 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 			      kdbus_ep_release);
 	if (ret < 0)
 		goto exit_unref;
+
+	e->node.mode = mode;
 
 	e->name = kstrdup(name, GFP_KERNEL);
 	if (!e->name) {

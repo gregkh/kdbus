@@ -30,7 +30,6 @@ struct kdbus_kmsg;
  * @bus:		Bus behind this endpoint
  * @name:		Name of the endpoint
  * @id:			ID of this endpoint on the bus
- * @mode:		File mode of this endpoint device node
  * @uid:		UID owning this endpoint
  * @gid:		GID owning this endpoint
  * @conn_list:		Connections of this endpoint
@@ -51,7 +50,6 @@ struct kdbus_ep {
 	struct kdbus_bus *bus;
 	const char *name;
 	u64 id;
-	umode_t mode;
 	kuid_t uid;
 	kgid_t gid;
 	struct list_head conn_list;
