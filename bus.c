@@ -421,7 +421,6 @@ exit_free:
 	kdbus_policy_db_clear(&b->policy_db);
 	kdbus_domain_unref(b->domain);
 	kdbus_node_unref(&b->node);
-	kfree(b);
 
 	return ERR_PTR(ret);
 }
