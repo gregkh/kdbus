@@ -196,17 +196,17 @@ static int fs_dir_fop_release(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations fs_dir_fops = {
-	.read			= generic_read_dir,
-	.iterate		= fs_dir_fop_iterate,
-	.llseek			= fs_dir_fop_llseek,
-	.release		= fs_dir_fop_release,
+	.read		= generic_read_dir,
+	.iterate	= fs_dir_fop_iterate,
+	.llseek		= fs_dir_fop_llseek,
+	.release	= fs_dir_fop_release,
 };
 
 static struct dentry *fs_dir_iop_lookup(struct inode *dir,
 					struct dentry *dentry,
 					unsigned int flags)
 {
-	struct kdbus_node *parent = kdbus_node_from_dentry(dentry->d_parent);
+	struct kdbus_node *parent;
 	struct kdbus_node *node;
 	struct inode *inode;
 	struct rb_node *rb;
@@ -214,6 +214,7 @@ static struct dentry *fs_dir_iop_lookup(struct inode *dir,
 	const char *name;
 	int ret;
 
+	parent = kdbus_node_from_dentry(dentry->d_parent);
 	name = dentry->d_name.name;
 	hash = kdbus_node_name_hash(name);
 
@@ -247,8 +248,8 @@ static struct dentry *fs_dir_iop_lookup(struct inode *dir,
 }
 
 static const struct inode_operations fs_dir_iops = {
-	.permission		= generic_permission,
-	.lookup			= fs_dir_iop_lookup,
+	.permission	= generic_permission,
+	.lookup		= fs_dir_iop_lookup,
 };
 
 /*
@@ -328,8 +329,8 @@ static void fs_super_dop_release(struct dentry *dentry)
 }
 
 static const struct dentry_operations fs_super_dops = {
-	.d_revalidate		= fs_super_dop_revalidate,
-	.d_release		= fs_super_dop_release,
+	.d_revalidate	= fs_super_dop_revalidate,
+	.d_release	= fs_super_dop_release,
 };
 
 static void fs_super_sop_evict_inode(struct inode *inode)
@@ -342,9 +343,9 @@ static void fs_super_sop_evict_inode(struct inode *inode)
 }
 
 static const struct super_operations fs_super_sops = {
-	.statfs			= simple_statfs,
-	.drop_inode		= generic_delete_inode,
-	.evict_inode		= fs_super_sop_evict_inode,
+	.statfs		= simple_statfs,
+	.drop_inode	= generic_delete_inode,
+	.evict_inode	= fs_super_sop_evict_inode,
 };
 
 static struct kdbus_fs_super *fs_super_new(void)
