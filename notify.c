@@ -194,10 +194,10 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 	struct kdbus_ep *ep = NULL;
 
 	/* bus->ep is only valid as long as the bus is alive */
-	mutex_lock(&bus->lock);
-	if (!bus->disconnected)
+	if (kdbus_node_acquire(&bus->node)) {
 		ep = kdbus_ep_ref(bus->ep);
-	mutex_unlock(&bus->lock);
+		kdbus_node_release(&bus->node);
+	}
 
 	mutex_lock(&bus->notify_flush_lock);
 

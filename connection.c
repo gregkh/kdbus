@@ -1773,7 +1773,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	mutex_lock(&ep->lock);
 	down_write(&bus->conn_rwlock);
 
-	if (bus->disconnected || !kdbus_ep_is_active(ep)) {
+	if (!kdbus_bus_is_active(bus) || !kdbus_ep_is_active(ep)) {
 		ret = -ESHUTDOWN;
 		goto exit_unref_user_unlock;
 	}

@@ -178,7 +178,7 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
 
 	mutex_lock(&ep->bus->lock);
 
-	if (ep->bus->disconnected) {
+	if (!kdbus_bus_is_active(ep->bus)) {
 		mutex_unlock(&ep->bus->lock);
 		return -ESHUTDOWN;
 	}

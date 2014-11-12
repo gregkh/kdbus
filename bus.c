@@ -52,7 +52,7 @@ static void kdbus_bus_free(struct kdbus_node *node)
 {
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
-	BUG_ON(!bus->disconnected);
+	BUG_ON(kdbus_bus_is_active(bus));
 	BUG_ON(!list_empty(&bus->ep_list));
 	BUG_ON(!list_empty(&bus->monitors_list));
 	BUG_ON(!hash_empty(bus->conn_hash));
@@ -75,14 +75,6 @@ static void kdbus_bus_free(struct kdbus_node *node)
 static void kdbus_bus_release(struct kdbus_node *node)
 {
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
-
-	mutex_lock(&bus->lock);
-	if (bus->disconnected) {
-		mutex_unlock(&bus->lock);
-		return;
-	}
-	bus->disconnected = true;
-	mutex_unlock(&bus->lock);
 
 	/* disconnect from domain */
 	mutex_lock(&bus->domain->lock);
@@ -332,13 +324,13 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 			      KDBUS_NODE_BUS, name,
 			      kdbus_bus_free, kdbus_bus_release);
 	if (ret < 0)
-		goto exit_free;
+		goto exit_unref;
 
 	/* cache the metadata/credentials of the creator */
 	b->meta = kdbus_meta_new();
 	if (IS_ERR(b->meta)) {
 		ret = PTR_ERR(b->meta);
-		goto exit_free;
+		goto exit_unref;
 	}
 
 	ret = kdbus_meta_append(b->meta, NULL, 0,
@@ -352,54 +344,50 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				KDBUS_ATTACH_SECLABEL	|
 				KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
-		goto exit_free_meta;
+		goto exit_unref;
 
 	b->name = kstrdup(name, GFP_KERNEL);
 	if (!b->name) {
 		ret = -ENOMEM;
-		goto exit_free_meta;
+		goto exit_unref;
 	}
 
 	b->name_registry = kdbus_name_registry_new();
 	if (IS_ERR(b->name_registry)) {
 		ret = PTR_ERR(b->name_registry);
-		goto exit_free_name;
+		goto exit_unref;
 	}
 
 	b->ep = kdbus_ep_new(b, "bus", mode, uid, gid, false);
 	if (IS_ERR(b->ep)) {
 		ret = PTR_ERR(b->ep);
-		goto exit_free_reg;
+		goto exit_unref;
 	}
-
-	ret = kdbus_ep_activate(b->ep);
-	if (ret < 0)
-		goto exit_free_ep;
 
 	mutex_lock(&domain->lock);
 	if (!kdbus_domain_is_active(domain)) {
 		ret = -ESHUTDOWN;
-		goto exit_unref_user_unlock;
+		goto exit_unlock_unref;
 	}
 
 	/* see if a bus of that name already exists */
 	b_tmp = kdbus_bus_find(domain, name);
 	if (b_tmp) {
 		ret = -EEXIST;
-		goto exit_unref_user_unlock;
+		goto exit_unlock_unref;
 	}
 
 	/* account the bus against the user */
 	b->user = kdbus_domain_get_user_unlocked(domain, uid);
 	if (IS_ERR(b->user)) {
 		ret = PTR_ERR(b->user);
-		goto exit_unref_user_unlock;
+		goto exit_unlock_unref;
 	}
 
 	if (atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
 		atomic_dec(&b->user->buses);
 		ret = -EMFILE;
-		goto exit_unref_user_unlock;
+		goto exit_unlock_unref;
 	}
 
 	/* link into domain */
@@ -407,24 +395,19 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	list_add_tail(&b->domain_entry, &domain->bus_list);
 	mutex_unlock(&domain->lock);
 
+	kdbus_node_activate(&b->node);
+
+	ret = kdbus_ep_activate(b->ep);
+	if (ret < 0) {
+		kdbus_bus_deactivate(b);
+		goto exit_unref;
+	}
+
 	return b;
 
-exit_unref_user_unlock:
+exit_unlock_unref:
 	mutex_unlock(&domain->lock);
-	kdbus_domain_user_unref(b->user);
-	kdbus_ep_deactivate(b->ep);
-exit_free_ep:
-	kdbus_ep_unref(b->ep);
-exit_free_reg:
-	kdbus_name_registry_free(b->name_registry);
-exit_free_name:
-	kfree(b->name);
-exit_free_meta:
-	kdbus_meta_free(b->meta);
-exit_free:
-	kdbus_policy_db_clear(&b->policy_db);
-	kdbus_domain_unref(b->domain);
+exit_unref:
 	kdbus_node_unref(&b->node);
-
 	return ERR_PTR(ret);
 }
