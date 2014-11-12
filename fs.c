@@ -417,7 +417,6 @@ static void fs_super_kill(struct super_block *sb)
 {
 	struct kdbus_fs_super *super = sb->s_fs_info;
 
-	/* TODO: kill_litter_super() fails.. why? */
 	kill_anon_super(sb);
 	if (sb->s_root)
 		kdbus_node_unref(sb->s_root->d_fsdata);
