@@ -58,8 +58,12 @@ static void kdbus_bus_free(struct kdbus_node *node)
 	BUG_ON(!hash_empty(bus->conn_hash));
 
 	kdbus_notify_free(bus);
-	atomic_dec(&bus->user->buses);
-	kdbus_domain_user_unref(bus->user);
+
+	if (bus->user) {
+		atomic_dec(&bus->user->buses);
+		kdbus_domain_user_unref(bus->user);
+	}
+
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
