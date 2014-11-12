@@ -147,6 +147,15 @@ static void kdbus_ep_free(struct kdbus_node *node)
 	kfree(ep);
 }
 
+/**
+ * kdbus_ep_ref() - increase the reference counter of a kdbus_ep
+ * @ep:			The endpoint to reference
+ *
+ * Every user of an endpoint, except for its creator, must add a reference to
+ * the kdbus_ep instance using this function.
+ *
+ * Return: the ep itself
+ */
 struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 {
 	if (ep)
@@ -154,6 +163,15 @@ struct kdbus_ep *kdbus_ep_ref(struct kdbus_ep *ep)
 	return ep;
 }
 
+/**
+ * kdbus_ep_unref() - decrease the reference counter of a kdbus_ep
+ * @ep:		The ep to unref
+ *
+ * Release a reference. If the reference count drops to 0, the ep will be
+ * freed.
+ *
+ * Return: NULL
+ */
 struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 {
 	if (ep)
