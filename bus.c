@@ -305,12 +305,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (!b)
 		return ERR_PTR(-ENOMEM);
 
-	ret = kdbus_node_init(&b->node, &domain->node,
-			      KDBUS_NODE_BUS, name,
-			      kdbus_bus_free, kdbus_bus_release);
-	if (ret < 0)
-		goto exit_free;
-
 	b->uid_owner = uid;
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
@@ -329,6 +323,12 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);
+
+	ret = kdbus_node_init(&b->node, &domain->node,
+			      KDBUS_NODE_BUS, name,
+			      kdbus_bus_free, kdbus_bus_release);
+	if (ret < 0)
+		goto exit_free;
 
 	/* cache the metadata/credentials of the creator */
 	b->meta = kdbus_meta_new();
