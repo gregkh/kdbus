@@ -16,6 +16,7 @@
 #define __KDBUS_CONNECTION_H
 
 #include <linux/atomic.h>
+#include <linux/kref.h>
 #include <linux/lockdep.h>
 #include "limits.h"
 #include "metadata.h"
