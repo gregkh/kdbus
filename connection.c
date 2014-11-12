@@ -1363,7 +1363,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		ret = kdbus_ep_policy_check_src_names(conn->ep, owner_conn,
 						      conn);
 		if (ret < 0)
-			return ret;
+			goto exit;
 	}
 
 	info.size = sizeof(info);
