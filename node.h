@@ -51,6 +51,8 @@ struct kdbus_node {
 	atomic_t active;
 };
 
+#define kdbus_node_from_rb(_node) rb_entry((_node), struct kdbus_node, rb)
+
 extern unsigned int kdbus_major;
 
 int kdbus_init_nodes(void);

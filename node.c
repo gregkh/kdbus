@@ -86,8 +86,6 @@ static unsigned int kdbus_node_name_hash(const char *name)
 	return hash;
 }
 
-#define rb_to_kdbus_node(X) rb_entry((X), struct kdbus_node, rb)
-
 static int kdbus_node_name_compare(unsigned int hash, const char *name,
 				   const struct kdbus_node *node)
 {
@@ -152,7 +150,7 @@ int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 			struct kdbus_node *pos;
 			int result;
 
-			pos = rb_to_kdbus_node(*n);
+			pos = kdbus_node_from_rb(*n);
 			prev = *n;
 			result = kdbus_node_compare(node, pos);
 			if (result < 0) {
