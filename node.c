@@ -195,11 +195,13 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 			idr_remove(&kdbus_node_idr, node->id);
 		up_write(&kdbus_node_idr_lock);
 
-		if (node->parent && !RB_EMPTY_NODE(&node->rb)) {
+		if (node->parent) {
 			mutex_lock(&node->parent->lock);
-			rb_erase(&node->rb, &node->parent->children);
+			if (!RB_EMPTY_NODE(&node->rb)) {
+				rb_erase(&node->rb, &node->parent->children);
+				RB_CLEAR_NODE(&node->rb);
+			}
 			mutex_unlock(&node->parent->lock);
-			RB_CLEAR_NODE(&node->rb);
 		}
 
 		if (node->free_cb)
@@ -241,6 +243,15 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 
 	if (v == KDBUS_NODE_ACTIVE_BIAS)
 		wake_up(&node->waitq);
+
+	if (node->parent) {
+		mutex_lock(&node->parent->lock);
+		if (!RB_EMPTY_NODE(&node->rb)) {
+			rb_erase(&node->rb, &node->parent->children);
+			RB_CLEAR_NODE(&node->rb);
+		}
+		mutex_unlock(&node->parent->lock);
+	}
 }
 
 void kdbus_node_drain(struct kdbus_node *node)
