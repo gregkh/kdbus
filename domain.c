@@ -145,6 +145,12 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 		}
 	}
 
+	d->control = kdbus_domain_control_new(d);
+	if (IS_ERR(d->control)) {
+		ret = PTR_ERR(d->control);
+		goto exit_unref;
+	}
+
 	d->dev = kzalloc(sizeof(*d->dev), GFP_KERNEL);
 	if (!d->dev) {
 		ret = -ENOMEM;
@@ -155,17 +161,11 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	dev_set_drvdata(d->dev, d);
 	d->dev->bus = &kdbus_subsys;
 	d->dev->type = &kdbus_domain_dev_type;
-	d->dev->devt = MKDEV(kdbus_major, d->node.id);
+	d->dev->devt = MKDEV(kdbus_major, d->control->id);
 
 	ret = dev_set_name(d->dev, "%s/control", d->devpath);
 	if (ret < 0)
 		goto exit_unref;
-
-	d->control = kdbus_domain_control_new(d);
-	if (IS_ERR(d->control)) {
-		ret = PTR_ERR(d->control);
-		goto exit_unref;
-	}
 
 	d->control->mode = mode;
 

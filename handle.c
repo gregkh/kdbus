@@ -94,6 +94,7 @@ struct kdbus_handle {
 
 static int kdbus_handle_open(struct inode *inode, struct file *file)
 {
+	struct kdbus_domain *domain;
 	struct kdbus_handle *handle;
 	struct kdbus_node *node;
 	int ret;
@@ -111,9 +112,10 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	file->private_data = handle;
 
 	switch (node->type) {
-	case KDBUS_NODE_DOMAIN:
+	case KDBUS_NODE_CONTROL:
+		domain = kdbus_domain_from_node(node->parent);
 		handle->type = KDBUS_HANDLE_CONTROL;
-		handle->domain = kdbus_domain_ref(kdbus_domain_from_node(node));
+		handle->domain = kdbus_domain_ref(domain);
 
 		if (ns_capable(&init_user_ns, CAP_IPC_OWNER))
 			handle->privileged = true;
