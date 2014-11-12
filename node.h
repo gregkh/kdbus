@@ -26,6 +26,7 @@ struct kdbus_node;
 
 enum kdbus_node_type {
 	KDBUS_NODE_DOMAIN,
+	KDBUS_NODE_CONTROL,
 	KDBUS_NODE_BUS,
 	KDBUS_NODE_ENDPOINT,
 };

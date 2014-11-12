@@ -27,6 +27,7 @@
  * @name:		Name of the domain
  * @devpath:		/dev base directory path
  * @parent:		Parent domain
+ * @control:		Control device node
  * @id:			Global id of this domain
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
@@ -53,6 +54,7 @@ struct kdbus_domain {
 	const char *name;
 	const char *devpath;
 	struct kdbus_domain *parent;
+	struct kdbus_node *control;
 	u64 id;
 	struct mutex lock;
 	u64 bus_seq_last;

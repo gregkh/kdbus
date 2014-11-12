@@ -62,6 +62,35 @@ static struct device_type kdbus_domain_dev_type = {
 	.release	= kdbus_domain_dev_release,
 };
 
+static void kdbus_domain_control_free(struct kdbus_node *node)
+{
+	kfree(node);
+}
+
+static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain)
+{
+	struct kdbus_node *node;
+	int ret;
+
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return ERR_PTR(-ENOMEM);
+
+	ret = kdbus_node_init(node, NULL,
+			      KDBUS_NODE_CONTROL, "control",
+			      kdbus_domain_control_free, NULL);
+	if (ret < 0)
+		goto exit_free;
+
+	node->mode = domain->node.mode;
+
+	return node;
+
+exit_free:
+	kfree(node);
+	return ERR_PTR(ret);
+}
+
 /**
  * kdbus_domain_new() - create a new domain
  * @parent:		Parent domain, NULL for initial one
@@ -137,6 +166,12 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	if (ret < 0)
 		goto exit_unref;
 
+	d->control = kdbus_domain_control_new(d);
+	if (IS_ERR(d->control)) {
+		ret = PTR_ERR(d->control);
+		goto exit_unref;
+	}
+
 	d->id = atomic64_inc_return(&kdbus_domain_seq_last);
 
 	return d;
@@ -156,6 +191,7 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
+	kdbus_node_unref(domain->control);
 	kdbus_domain_unref(domain->parent);
 	idr_destroy(&domain->user_idr);
 	put_device(domain->dev);
@@ -246,6 +282,7 @@ int kdbus_domain_activate(struct kdbus_domain *domain)
 	 */
 
 	kdbus_node_activate(&domain->node);
+	kdbus_node_activate(domain->control);
 
 	ret = device_add(domain->dev);
 
@@ -326,7 +363,9 @@ static void kdbus_domain_release(struct kdbus_node *node)
  */
 void kdbus_domain_deactivate(struct kdbus_domain *domain)
 {
+	kdbus_node_deactivate(domain->control);
 	kdbus_node_deactivate(&domain->node);
+	kdbus_node_drain(domain->control);
 	kdbus_node_drain(&domain->node);
 }
 
