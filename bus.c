@@ -35,18 +35,6 @@
 static void kdbus_bus_free(struct kdbus_node *node);
 static void kdbus_bus_release(struct kdbus_node *node);
 
-static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
-					const char *name)
-{
-	struct kdbus_bus *b;
-
-	list_for_each_entry(b, &domain->bus_list, domain_entry)
-		if (!strcmp(b->name, name))
-			return b;
-
-	return NULL;
-}
-
 /**
  * kdbus_bus_new() - create a kdbus_cmd_make from user-supplied data
  * @domain:		The domain to work on
@@ -66,7 +54,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;
 	const struct kdbus_item *item;
-	struct kdbus_bus *b, *b_tmp;
+	struct kdbus_bus *b;
 	const char *name = NULL;
 	char prefix[16];
 	int ret;
@@ -140,6 +128,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	atomic64_set(&b->conn_seq_last, 0);
 	b->domain = kdbus_domain_ref(domain);
 	kdbus_policy_db_init(&b->policy_db);
+	b->id = atomic64_inc_return(&domain->bus_seq_last);
 
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);
@@ -182,55 +171,25 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
+	b->user = kdbus_domain_get_user(domain, uid);
+	if (IS_ERR(b->user)) {
+		ret = PTR_ERR(b->user);
+		goto exit_unref;
+	}
+
+	if (atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
+		ret = -EMFILE;
+		goto exit_unref;
+	}
+
 	b->ep = kdbus_ep_new(b, "bus", mode, uid, gid, false);
 	if (IS_ERR(b->ep)) {
 		ret = PTR_ERR(b->ep);
 		goto exit_unref;
 	}
 
-	mutex_lock(&domain->lock);
-	if (!kdbus_domain_is_active(domain)) {
-		ret = -ESHUTDOWN;
-		goto exit_unlock_unref;
-	}
-
-	/* see if a bus of that name already exists */
-	b_tmp = kdbus_bus_find(domain, name);
-	if (b_tmp) {
-		ret = -EEXIST;
-		goto exit_unlock_unref;
-	}
-
-	/* account the bus against the user */
-	b->user = kdbus_domain_get_user_unlocked(domain, uid);
-	if (IS_ERR(b->user)) {
-		ret = PTR_ERR(b->user);
-		goto exit_unlock_unref;
-	}
-
-	if (atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
-		atomic_dec(&b->user->buses);
-		ret = -EMFILE;
-		goto exit_unlock_unref;
-	}
-
-	/* link into domain */
-	b->id = ++domain->bus_seq_last;
-	list_add_tail(&b->domain_entry, &domain->bus_list);
-	mutex_unlock(&domain->lock);
-
-	kdbus_node_activate(&b->node);
-
-	ret = kdbus_ep_activate(b->ep);
-	if (ret < 0) {
-		kdbus_bus_deactivate(b);
-		goto exit_unref;
-	}
-
 	return b;
 
-exit_unlock_unref:
-	mutex_unlock(&domain->lock);
 exit_unref:
 	kdbus_node_unref(&b->node);
 	return ERR_PTR(ret);
@@ -292,6 +251,57 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 
 	kdbus_node_unref(&bus->node);
 	return NULL;
+}
+
+static struct kdbus_bus *kdbus_bus_find(struct kdbus_domain *domain,
+					const char *name)
+{
+	struct kdbus_bus *b;
+
+	list_for_each_entry(b, &domain->bus_list, domain_entry)
+		if (!strcmp(b->name, name))
+			return b;
+
+	return NULL;
+}
+
+/**
+ * kdbus_bus_activate() - activate a bus
+ * @bus:		Bus
+ *
+ * Activate a bus and make it available to user-space.
+ *
+ * Returns: 0 on success, negative error code on failure
+ */
+int kdbus_bus_activate(struct kdbus_bus *bus)
+{
+	int ret;
+
+	mutex_lock(&bus->domain->lock);
+
+	if (!kdbus_domain_is_active(bus->domain)) {
+		mutex_unlock(&bus->domain->lock);
+		return -ESHUTDOWN;
+	}
+
+	/* see if a bus of that name already exists */
+	if (kdbus_bus_find(bus->domain, bus->name)) {
+		mutex_unlock(&bus->domain->lock);
+		return -EEXIST;
+	}
+
+	list_add_tail(&bus->domain_entry, &bus->domain->bus_list);
+	kdbus_node_activate(&bus->node);
+
+	mutex_unlock(&bus->domain->lock);
+
+	ret = kdbus_ep_activate(bus->ep);
+	if (ret < 0) {
+		kdbus_bus_deactivate(bus);
+		return ret;
+	}
+
+	return 0;
 }
 
 static void kdbus_bus_release(struct kdbus_node *node)

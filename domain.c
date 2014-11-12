@@ -479,14 +479,13 @@ exit_free:
 struct kdbus_domain_user *
 kdbus_domain_get_user(struct kdbus_domain *domain, kuid_t uid)
 {
-	struct kdbus_domain_user *u = NULL;
+	struct kdbus_domain_user *u;
 
 	mutex_lock(&domain->lock);
-	if (kdbus_domain_is_active(domain))
-		u = kdbus_domain_get_user_unlocked(domain, uid);
+	u = kdbus_domain_get_user_unlocked(domain, uid);
 	mutex_unlock(&domain->lock);
 
-	return u ?: ERR_PTR(-ESHUTDOWN);
+	return u;
 }
 
 static void __kdbus_domain_user_free(struct kref *kref)

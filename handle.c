@@ -341,6 +341,12 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		ret = kdbus_bus_activate(bus);
+		if (ret < 0) {
+			kdbus_bus_unref(bus);
+			break;
+		}
+
 		/* turn the control fd into a new bus owner device */
 		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
 					     KDBUS_HANDLE_CONTROL_BUS_OWNER,

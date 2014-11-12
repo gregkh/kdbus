@@ -57,7 +57,7 @@ struct kdbus_domain {
 	struct kdbus_node *control;
 	u64 id;
 	struct mutex lock;
-	u64 bus_seq_last;
+	atomic64_t bus_seq_last;
 	atomic64_t msg_seq_last;
 	struct list_head domain_list;
 	struct list_head domain_entry;
