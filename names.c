@@ -58,7 +58,7 @@ static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 
 /**
  * kdbus_name_registry_free() - drop a name reg's reference
- * @reg:		The name registry
+ * @reg:		The name registry, may be %NULL
  *
  * Cleanup the name registry's internal structures.
  */
@@ -67,6 +67,9 @@ void kdbus_name_registry_free(struct kdbus_name_registry *reg)
 	struct kdbus_name_entry *e;
 	struct hlist_node *tmp;
 	unsigned int i;
+
+	if (!reg)
+		return;
 
 	hash_for_each_safe(reg->entries_hash, i, tmp, e, hentry)
 		kdbus_name_entry_free(e);
