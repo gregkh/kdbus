@@ -162,6 +162,7 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 		rb = rb_next(&next->rb);
 		if (rb) {
 			next = kdbus_node_from_rb(rb);
+			ctx->pos = next->hash;
 		} else {
 			next = NULL;
 		}
