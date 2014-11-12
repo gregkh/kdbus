@@ -139,6 +139,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (ret < 0)
 		goto exit_unref;
 
+	b->node.mode = 0755;
+
 	/* cache the metadata/credentials of the creator */
 	b->meta = kdbus_meta_new();
 	if (IS_ERR(b->meta)) {
