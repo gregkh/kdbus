@@ -69,4 +69,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 					    struct kdbus_msg __user *msg);
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg);
 
+int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
+			       struct kdbus_conn *conn_src,
+			       struct kdbus_conn *conn_dst);
 #endif

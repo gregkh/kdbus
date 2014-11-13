@@ -27,6 +27,8 @@
 #include "domain.h"
 #include "endpoint.h"
 #include "item.h"
+#include "match.h"
+#include "message.h"
 #include "metadata.h"
 #include "names.h"
 #include "policy.h"
@@ -359,6 +361,83 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
 
 	return found;
 }
+
+/**
+ * kdbus_bus_broadcast() - send a message to all subscribed connections
+ * @bus:	The bus the connections are connected to
+ * @conn_src:	The source connection, may be %NULL for kernel notifications
+ * @kmsg:	The message to send.
+ *
+ * Send @kmsg to all connections that are currently active on the bus.
+ * Connections must still have matches installed in order to subscribe to
+ * let the message pass.
+ */
+void kdbus_bus_broadcast(struct kdbus_bus *bus,
+			 struct kdbus_conn *conn_src,
+			 struct kdbus_kmsg *kmsg)
+{
+	const struct kdbus_msg *msg = &kmsg->msg;
+	struct kdbus_conn *conn_dst;
+	unsigned int i;
+	int ret = 0;
+
+	down_read(&bus->conn_rwlock);
+
+	hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
+		if (conn_dst->id == msg->src_id)
+			continue;
+
+		/*
+		 * Activator or policy holder connections will
+		 * not receive any broadcast messages, only
+		 * ordinary and monitor ones.
+		 */
+		if (!kdbus_conn_is_ordinary(conn_dst) &&
+		    !kdbus_conn_is_monitor(conn_dst))
+			continue;
+
+		if (!kdbus_match_db_match_kmsg(conn_dst->match_db, conn_src,
+					       kmsg))
+			continue;
+
+		ret = kdbus_ep_policy_check_notification(conn_dst->ep,
+							 conn_dst, kmsg);
+		if (ret < 0)
+			continue;
+
+		/*
+		 * The first receiver which requests additional metadata
+		 * causes the message to carry it; data that is in fact added
+		 * to the message is still subject to what the receiver
+		 * requested, and will be filtered by kdbus_meta_write().
+		 */
+		if (conn_src) {
+			/* Check if conn_src is allowed to signal */
+			ret = kdbus_ep_policy_check_broadcast(conn_dst->ep,
+							      conn_src,
+							      conn_dst);
+			if (ret < 0)
+				continue;
+
+			ret = kdbus_ep_policy_check_src_names(conn_dst->ep,
+							      conn_src,
+							      conn_dst);
+			if (ret < 0)
+				continue;
+
+			ret = kdbus_kmsg_attach_metadata(kmsg, conn_src,
+							 conn_dst);
+			if (ret < 0)
+				goto exit_unlock;
+		}
+
+		kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
+	}
+
+exit_unlock:
+	up_read(&bus->conn_rwlock);
+}
+
 
 /**
  * kdbus_cmd_bus_creator_info() - get information on a bus creator

@@ -83,6 +83,8 @@ struct kdbus_bus {
 	struct kdbus_meta *meta;
 };
 
+struct kdbus_kmsg;
+
 struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				const struct kdbus_cmd_make *make,
 				unsigned int access, kuid_t uid, kgid_t gid);
@@ -99,5 +101,7 @@ static inline bool kdbus_bus_is_active(struct kdbus_bus *bus)
 int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 			       struct kdbus_cmd_info *cmd_info);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
+void kdbus_bus_broadcast(struct kdbus_bus *bus, struct kdbus_conn *conn_src,
+			 struct kdbus_kmsg *kmsg);
 
 #endif

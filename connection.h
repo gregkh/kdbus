@@ -118,8 +118,17 @@ int kdbus_conn_acquire(struct kdbus_conn *conn);
 void kdbus_conn_release(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty);
 bool kdbus_conn_active(const struct kdbus_conn *conn);
+int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
+			    struct kdbus_conn *conn_dst,
+			    const struct kdbus_kmsg *kmsg,
+			    struct kdbus_conn_reply *reply);
 void kdbus_conn_purge_policy_cache(struct kdbus_conn *conn);
+int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
+			     struct kdbus_conn *conn_src,
+			     u64 name_id);
+bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 
+/* command dispatcher */
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv);
 int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
@@ -131,10 +140,6 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
-int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
-			     struct kdbus_conn *conn_src,
-			     u64 name_id);
-bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 
 /**
  * kdbus_conn_is_ordinary() - Check if connection is ordinary

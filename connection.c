@@ -519,11 +519,19 @@ out:
 	return ret;
 }
 
-/* enqueue a message into the receiver's pool */
-static int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
-				   struct kdbus_conn *conn_dst,
-				   const struct kdbus_kmsg *kmsg,
-				   struct kdbus_conn_reply *reply)
+/**
+ * kdbus_conn_entry_insert - enqueue a message into the receiver's pool
+ * @conn_src:		The sending connection
+ * @conn_dst:		The connection to queue into
+ * @kmsg:		The kmag to queue
+ * @reply:		The reply tracker to attach to the queue entry
+ *
+ * Return: 0 on success. negative error otherwise.
+ */
+int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
+			    struct kdbus_conn *conn_dst,
+			    const struct kdbus_kmsg *kmsg,
+			    struct kdbus_conn_reply *reply)
 {
 	struct kdbus_queue_entry *entry;
 	int ret;
@@ -584,94 +592,6 @@ exit_queue_free:
 exit_unlock:
 	mutex_unlock(&conn_dst->lock);
 	return ret;
-}
-
-static int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
-				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst)
-{
-	u64 attach_flags;
-
-	/*
-	 * Append metadata items according to the destination connection's
-	 * attach flags. If the source connection has faked credentials, the
-	 * metadata object associated with the kmsg has been pre-filled with
-	 * conn_src->owner_meta, and we only attach the connection's name and
-	 * currently owned names on top of that.
-	 */
-	attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
-
-	if (conn_src->owner_meta)
-		attach_flags &= KDBUS_ATTACH_NAMES |
-				KDBUS_ATTACH_CONN_DESCRIPTION;
-
-	return kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq, attach_flags);
-}
-
-static void kdbus_conn_broadcast(struct kdbus_bus *bus,
-				 struct kdbus_conn *conn_src,
-				 struct kdbus_kmsg *kmsg)
-{
-	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_conn *conn_dst;
-	unsigned int i;
-	int ret = 0;
-
-	down_read(&bus->conn_rwlock);
-
-	hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
-		if (conn_dst->id == msg->src_id)
-			continue;
-
-		/*
-		 * Activator or policy holder connections will
-		 * not receive any broadcast messages, only
-		 * ordinary and monitor ones.
-		 */
-		if (!kdbus_conn_is_ordinary(conn_dst) &&
-		    !kdbus_conn_is_monitor(conn_dst))
-			continue;
-
-		if (!kdbus_match_db_match_kmsg(conn_dst->match_db, conn_src,
-					       kmsg))
-			continue;
-
-		ret = kdbus_ep_policy_check_notification(conn_dst->ep,
-							 conn_dst, kmsg);
-		if (ret < 0)
-			continue;
-
-		/*
-		 * The first receiver which requests additional metadata
-		 * causes the message to carry it; data that is in fact added
-		 * to the message is still subject to what the receiver
-		 * requested, and will be filtered by kdbus_meta_write().
-		 */
-		if (conn_src) {
-			/* Check if conn_src is allowed to signal */
-			ret = kdbus_ep_policy_check_broadcast(conn_dst->ep,
-							      conn_src,
-							      conn_dst);
-			if (ret < 0)
-				continue;
-
-			ret = kdbus_ep_policy_check_src_names(conn_dst->ep,
-							      conn_src,
-							      conn_dst);
-			if (ret < 0)
-				continue;
-
-			ret = kdbus_kmsg_attach_metadata(kmsg, conn_src,
-							 conn_dst);
-			if (ret < 0)
-				goto exit_unlock;
-		}
-
-		kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
-	}
-
-exit_unlock:
-	up_read(&bus->conn_rwlock);
 }
 
 static void kdbus_conn_eavesdrop(struct kdbus_bus *bus,
@@ -815,7 +735,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		kdbus_conn_broadcast(bus, conn_src, kmsg);
+		kdbus_bus_broadcast(bus, conn_src, kmsg);
 		return 0;
 	}
 
