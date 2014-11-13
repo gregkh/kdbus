@@ -411,16 +411,15 @@ void kdbus_policy_purge_cache(struct kdbus_policy_db *db,
  * Convert user provided policy access to internal kdbus policy
  * access
  */
-static int
-kdbus_policy_make_access(const struct kdbus_policy_access *uaccess,
-			 struct kdbus_policy_db_entry_access **entry)
+static struct kdbus_policy_db_entry_access *
+kdbus_policy_make_access(const struct kdbus_policy_access *uaccess)
 {
 	int ret;
 	struct kdbus_policy_db_entry_access *a;
 
 	a = kzalloc(sizeof(*a), GFP_KERNEL);
 	if (!a)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	ret = -EINVAL;
 	switch (uaccess->access) {
@@ -455,13 +454,11 @@ kdbus_policy_make_access(const struct kdbus_policy_access *uaccess,
 
 	a->type = uaccess->type;
 
-	*entry = a;
-
-	return 0;
+	return a;
 
 err:
 	kfree(a);
-	return ret;
+	return ERR_PTR(ret);
 }
 
 /**
@@ -567,10 +564,11 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 				goto exit;
 			}
 
-			ret = kdbus_policy_make_access(&item->policy_access,
-						       &a);
-			if (ret < 0)
+			a = kdbus_policy_make_access(&item->policy_access);
+			if (IS_ERR(a)) {
+				ret = PTR_ERR(a);
 				goto exit;
+			}
 
 			list_add_tail(&a->list, &e->access_list);
 			break;
