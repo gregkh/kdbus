@@ -140,8 +140,6 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
 		return -ESHUTDOWN;
 	}
 
-	list_add_tail(&ep->bus_entry, &ep->bus->ep_list);
-
 	/*
 	 * Same as with domains, we have to mark it enabled _before_ running
 	 * device_add() to avoid messing with state after UEVENT_ADD was sent.
@@ -156,11 +154,6 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
 static void kdbus_ep_release(struct kdbus_node *node)
 {
 	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
-
-	/* disconnect from bus */
-	mutex_lock(&ep->bus->lock);
-	list_del(&ep->bus_entry);
-	mutex_unlock(&ep->bus->lock);
 
 	/* disconnect all connections to this endpoint */
 	for (;;) {

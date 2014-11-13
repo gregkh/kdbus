@@ -123,7 +123,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	mutex_init(&b->lock);
 	init_rwsem(&b->conn_rwlock);
 	hash_init(b->conn_hash);
-	INIT_LIST_HEAD(&b->ep_list);
 	INIT_LIST_HEAD(&b->monitors_list);
 	INIT_LIST_HEAD(&b->notify_list);
 	spin_lock_init(&b->notify_lock);
@@ -196,7 +195,6 @@ static void kdbus_bus_free(struct kdbus_node *node)
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
 	BUG_ON(kdbus_bus_is_active(bus));
-	BUG_ON(!list_empty(&bus->ep_list));
 	BUG_ON(!list_empty(&bus->monitors_list));
 	BUG_ON(!hash_empty(bus->conn_hash));
 
@@ -291,27 +289,6 @@ static void kdbus_bus_release(struct kdbus_node *node)
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
 	atomic_dec(&bus->user->buses);
-
-	/* disconnect all endpoints attached to this bus */
-	for (;;) {
-		struct kdbus_ep *ep;
-
-		mutex_lock(&bus->lock);
-		ep = list_first_entry_or_null(&bus->ep_list,
-					      struct kdbus_ep,
-					      bus_entry);
-		if (!ep) {
-			mutex_unlock(&bus->lock);
-			break;
-		}
-
-		/* take reference, release lock, disconnect without lock */
-		kdbus_ep_ref(ep);
-		mutex_unlock(&bus->lock);
-
-		kdbus_ep_deactivate(ep);
-		kdbus_ep_unref(ep);
-	}
 }
 
 /**

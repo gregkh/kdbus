@@ -32,7 +32,6 @@
  * @access:		The access flags for the bus directory
  * @ep_seq_last:	Last used endpoint id sequence number
  * @conn_seq_last:	Last used connection id sequence number
- * @ep_list:		Endpoints on this bus
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @attach_flags_req:	Attach flags required by connecting peers
  * @name_registry:	Name registry of this bus
@@ -63,7 +62,6 @@ struct kdbus_bus {
 	unsigned int access;
 	atomic64_t ep_seq_last;
 	atomic64_t conn_seq_last;
-	struct list_head ep_list;
 	u64 bus_flags;
 	u64 attach_flags_req;
 	struct kdbus_name_registry *name_registry;
