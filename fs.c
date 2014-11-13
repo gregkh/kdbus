@@ -11,8 +11,6 @@
  * your option) any later version.
  */
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
 #include <linux/backing-dev.h>
 #include <linux/fs.h>
 #include <linux/fsnotify.h>
@@ -476,15 +474,7 @@ static struct file_system_type fs_type = {
 
 int kdbus_fs_init(void)
 {
-	int ret;
-
-	ret = register_filesystem(&fs_type);
-	if (ret < 0) {
-		pr_err("cannot register filesystem: %d\n", ret);
-		return ret;
-	}
-
-	return 0;
+	return register_filesystem(&fs_type);
 }
 
 void kdbus_fs_exit(void)

@@ -46,8 +46,10 @@ static int __init kdbus_init(void)
 		goto exit_subsys;
 
 	ret = kdbus_fs_init();
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err("cannot register filesystem: %d\n", ret);
 		goto exit_node;
+	}
 
 	/*
 	 * Create the initial domain; it is world-accessible and
