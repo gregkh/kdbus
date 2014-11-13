@@ -49,7 +49,6 @@ static struct inode *fs_inode_get(struct super_block *sb,
 /*
  * linux/magic.h
  */
-
 #define KDBUS_SUPER_MAGIC 0x19910104
 
 /*
@@ -59,7 +58,6 @@ static struct inode *fs_inode_get(struct super_block *sb,
 static int fs_file_fop_open(struct inode *inode, struct file *filp)
 {
 	const struct file_operations *fops = &kdbus_handle_ops;
-	int ret;
 
 	fops = fops_get(fops);
 	if (!fops)
@@ -67,25 +65,22 @@ static int fs_file_fop_open(struct inode *inode, struct file *filp)
 
 	replace_fops(filp, fops);
 	filp->private_data = (void*)(long)inode->i_ino;
-	if (filp->f_op->open) {
-		ret = filp->f_op->open(inode, filp);
-		if (ret)
-			return ret;
-	}
+	if (!filp->f_op->open)
+		return 0;
 
-	return 0;
+	return filp->f_op->open(inode, filp);
 }
 
 static const struct file_operations fs_file_fops = {
-	.open = fs_file_fop_open,
-	.llseek = noop_llseek,
+	.open		= fs_file_fop_open,
+	.llseek		= noop_llseek,
 };
 
 /*
  * Directory Management
  */
 
-static inline unsigned char dt_type(struct kdbus_node *node)
+static inline unsigned char kdbus_dt_type(struct kdbus_node *node)
 {
 	switch (node->type) {
 	case KDBUS_NODE_DOMAIN:
@@ -154,7 +149,7 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 		old = file->private_data;
 
 		if (!dir_emit(ctx, next->name, strlen(next->name), next->id,
-			      dt_type(next)))
+			      kdbus_dt_type(next)))
 			return 0;
 
 		mutex_lock(&parent->lock);
@@ -257,7 +252,7 @@ static const struct inode_operations fs_dir_iops = {
  */
 
 static const struct inode_operations fs_inode_iops = {
-	.permission		= generic_permission,
+	.permission	= generic_permission,
 };
 
 static struct inode *fs_inode_get(struct super_block *sb,
