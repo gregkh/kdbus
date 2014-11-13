@@ -88,6 +88,7 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 	kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN,
 			kdbus_domain_free, kdbus_domain_release);
 
+	d->access = access;
 	INIT_LIST_HEAD(&d->bus_list);
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
@@ -102,13 +103,6 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 	ret = kdbus_node_link(&d->node, NULL, name);
 	if (ret < 0)
 		goto exit_unref;
-
-	d->control = kdbus_domain_control_new(d, access);
-	if (IS_ERR(d->control)) {
-		ret = PTR_ERR(d->control);
-		d->control = NULL;
-		goto exit_unref;
-	}
 
 	d->id = atomic64_inc_return(&kdbus_domain_seq_last);
 
@@ -128,7 +122,6 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
-	kdbus_node_unref(domain->control);
 	idr_destroy(&domain->user_idr);
 	kfree(domain);
 }
@@ -173,8 +166,16 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
  */
 int kdbus_domain_activate(struct kdbus_domain *domain)
 {
+	struct kdbus_node *control;
+
+	control = kdbus_domain_control_new(domain, domain->access);
+	if (IS_ERR(control))
+		return PTR_ERR(control);
+
 	kdbus_node_activate(&domain->node);
-	kdbus_node_activate(domain->control);
+	kdbus_node_activate(control);
+	kdbus_node_unref(control);
+
 	return 0;
 }
 
@@ -211,7 +212,6 @@ static void kdbus_domain_release(struct kdbus_node *node)
  */
 void kdbus_domain_deactivate(struct kdbus_domain *domain)
 {
-	kdbus_node_deactivate(domain->control);
 	kdbus_node_deactivate(&domain->node);
 }
 

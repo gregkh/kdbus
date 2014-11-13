@@ -23,7 +23,7 @@
 /**
  * struct kdbus_domain - domain for buses
  * @node:		Underlying API node
- * @control:		Control device node
+ * @access:		Access mode for this domain
  * @id:			Global id of this domain
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
@@ -34,7 +34,7 @@
  */
 struct kdbus_domain {
 	struct kdbus_node node;
-	struct kdbus_node *control;
+	unsigned int access;
 	u64 id;
 	struct mutex lock;
 	atomic64_t bus_seq_last;
