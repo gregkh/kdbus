@@ -64,7 +64,7 @@ static struct device_type kdbus_ep_dev_type = {
  * kdbus_ep_new() - create a new endpoint
  * @bus:		The bus this endpoint will be created for
  * @name:		The name of the endpoint
- * @mode:		The access mode for the device node
+ * @access:		The access flags for this node (KDBUS_MAKE_ACCESS_*)
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
  * @policy:		Whether or not the endpoint should have a policy db
@@ -75,7 +75,7 @@ static struct device_type kdbus_ep_dev_type = {
  * Return: a new kdbus_ep on success, ERR_PTR on failure.
  */
 struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
-			      umode_t mode, kuid_t uid, kgid_t gid,
+			      unsigned int access, kuid_t uid, kgid_t gid,
 			      bool policy)
 {
 	struct kdbus_ep *e;
@@ -98,9 +98,13 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (ret < 0)
 		goto exit_unref;
 
-	e->node.mode = mode;
 	e->node.uid = uid;
 	e->node.gid = gid;
+	e->node.mode = S_IRUSR | S_IWUSR;
+	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
+		e->node.mode |= S_IRGRP | S_IWGRP;
+	if (access & KDBUS_MAKE_ACCESS_WORLD)
+		e->node.mode |= S_IROTH | S_IWOTH;
 
 	/* register bus endpoint device */
 	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);

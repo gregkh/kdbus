@@ -92,7 +92,7 @@ extern struct kdbus_domain *kdbus_domain_init;
 						   node)
 
 struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
-				      const char *name, umode_t mode);
+				      const char *name, unsigned int access);
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 int kdbus_domain_activate(struct kdbus_domain *domain);

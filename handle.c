@@ -304,7 +304,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_cmd_make *make;
 	struct kdbus_domain *domain = NULL;
-	umode_t mode = 0600;
+	unsigned int access;
 	void *free_ptr = NULL;
 	int ret;
 
@@ -330,13 +330,11 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
-			mode = 0666;
-		else if (make->flags & KDBUS_MAKE_ACCESS_GROUP)
-			mode = 0660;
+		access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
+					KDBUS_MAKE_ACCESS_GROUP);
 
-		bus = kdbus_bus_new(handle->domain, make,
-				    mode, current_fsuid(), current_fsgid());
+		bus = kdbus_bus_new(handle->domain, make, access,
+				    current_fsuid(), current_fsgid());
 		if (IS_ERR(bus)) {
 			ret = PTR_ERR(bus);
 			break;
@@ -397,10 +395,10 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
-			mode = 0666;
+		access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
+					KDBUS_MAKE_ACCESS_GROUP);
 
-		domain = kdbus_domain_new(handle->domain, name, mode);
+		domain = kdbus_domain_new(handle->domain, name, access);
 		if (IS_ERR(domain)) {
 			ret = PTR_ERR(domain);
 			break;
@@ -446,7 +444,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_ENDPOINT_MAKE: {
 		struct kdbus_cmd_make *make;
-		umode_t mode = 0600;
+		unsigned int access;
 		const char *name;
 		struct kdbus_ep *ep;
 
@@ -484,13 +482,11 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
-			mode = 0666;
-		else if (make->flags & KDBUS_MAKE_ACCESS_GROUP)
-			mode = 0660;
+		access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
+					KDBUS_MAKE_ACCESS_GROUP);
 
 		/* custom endpoints always have a policy db */
-		ep = kdbus_ep_new(handle->ep->bus, name, mode,
+		ep = kdbus_ep_new(handle->ep->bus, name, access,
 				  current_fsuid(), current_fsgid(), true);
 		if (IS_ERR(ep)) {
 			ret = PTR_ERR(ep);

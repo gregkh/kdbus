@@ -39,7 +39,7 @@ static void kdbus_bus_release(struct kdbus_node *node);
  * kdbus_bus_new() - create a kdbus_cmd_make from user-supplied data
  * @domain:		The domain to work on
  * @make:		Information as passed in by userspace
- * @mode:		The access mode for the device node
+ * @access:		The access mode for this node (KDBUS_MAKE_ACCESS_*)
  * @uid:		The uid of the device node
  * @gid:		The gid of the device node
  *
@@ -50,7 +50,7 @@ static void kdbus_bus_release(struct kdbus_node *node);
  */
 struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				const struct kdbus_cmd_make *make,
-				umode_t mode, kuid_t uid, kgid_t gid)
+				unsigned int access, kuid_t uid, kgid_t gid)
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;
 	const struct kdbus_item *item;
@@ -138,9 +138,13 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (ret < 0)
 		goto exit_unref;
 
-	b->node.mode = 0755;
 	b->node.uid = uid;
 	b->node.gid = gid;
+	b->node.mode = S_IRUSR | S_IXUSR;
+	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
+		b->node.mode |= S_IRGRP | S_IXGRP;
+	if (access & KDBUS_MAKE_ACCESS_WORLD)
+		b->node.mode |= S_IROTH | S_IXOTH;
 
 	/* cache the metadata/credentials of the creator */
 	b->meta = kdbus_meta_new();
@@ -179,7 +183,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
-	b->ep = kdbus_ep_new(b, "bus", mode, uid, gid, false);
+	b->ep = kdbus_ep_new(b, "bus", access, uid, gid, false);
 	if (IS_ERR(b->ep)) {
 		ret = PTR_ERR(b->ep);
 		goto exit_unref;

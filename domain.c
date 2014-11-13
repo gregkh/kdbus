@@ -67,7 +67,8 @@ static void kdbus_domain_control_free(struct kdbus_node *node)
 	kfree(node);
 }
 
-static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain)
+static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain,
+						   unsigned int access)
 {
 	struct kdbus_node *node;
 	int ret;
@@ -83,6 +84,11 @@ static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain)
 		goto exit_free;
 
 	node->mode = domain->node.mode;
+	node->mode = S_IRUSR | S_IWUSR;
+	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
+		node->mode |= S_IRGRP | S_IWGRP;
+	if (access & KDBUS_MAKE_ACCESS_WORLD)
+		node->mode |= S_IROTH | S_IWOTH;
 
 	return node;
 
@@ -95,12 +101,12 @@ exit_free:
  * kdbus_domain_new() - create a new domain
  * @parent:		Parent domain, NULL for initial one
  * @name:		Name of the domain, NULL for the initial one
- * @mode:		The access mode for the "control" device node
+ * @access:		The access mode for this node (KDBUS_MAKE_ACCESS_*)
  *
  * Return: a new kdbus_domain on success, ERR_PTR on failure
  */
 struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
-				      const char *name, umode_t mode)
+				      const char *name, unsigned int access)
 {
 	struct kdbus_domain *d;
 	int ret;
@@ -126,7 +132,11 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	if (ret < 0)
 		goto exit_unref;
 
-	d->node.mode = 0755;
+	d->node.mode = S_IRUSR | S_IXUSR;
+	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
+		d->node.mode |= S_IRGRP | S_IXGRP;
+	if (access & KDBUS_MAKE_ACCESS_WORLD)
+		d->node.mode |= S_IROTH | S_IXOTH;
 
 	/* compose name and path of base directory in /dev */
 	if (parent) {
@@ -145,7 +155,7 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 		}
 	}
 
-	d->control = kdbus_domain_control_new(d);
+	d->control = kdbus_domain_control_new(d, access);
 	if (IS_ERR(d->control)) {
 		ret = PTR_ERR(d->control);
 		goto exit_unref;
@@ -166,8 +176,6 @@ struct kdbus_domain *kdbus_domain_new(struct kdbus_domain *parent,
 	ret = dev_set_name(d->dev, "%s/control", d->devpath);
 	if (ret < 0)
 		goto exit_unref;
-
-	d->control->mode = mode;
 
 	d->id = atomic64_inc_return(&kdbus_domain_seq_last);
 
