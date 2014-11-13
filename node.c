@@ -28,10 +28,10 @@
 #include "node.h"
 #include "util.h"
 
-#define KDBUS_NODE_ACTIVE_BIAS		(INT_MIN + 3)
-#define KDBUS_NODE_ACTIVE_RELEASE	(KDBUS_NODE_ACTIVE_BIAS - 1)
-#define KDBUS_NODE_ACTIVE_DRAINED	(KDBUS_NODE_ACTIVE_BIAS - 2)
-#define KDBUS_NODE_ACTIVE_NEW		(KDBUS_NODE_ACTIVE_BIAS - 3)
+#define KDBUS_NODE_BIAS		(INT_MIN + 3)
+#define KDBUS_NODE_RELEASE	(KDBUS_NODE_BIAS - 1)
+#define KDBUS_NODE_DRAINED	(KDBUS_NODE_BIAS - 2)
+#define KDBUS_NODE_NEW		(KDBUS_NODE_BIAS - 3)
 
 /* IDs may be used as minor-numbers, so limit it to the highest minor */
 #define KDBUS_NODE_IDR_MAX MINORMASK
@@ -95,7 +95,7 @@ void kdbus_node_init(struct kdbus_node *node, unsigned int type,
 	node->release_cb = release_cb;
 	node->free_cb = free_cb;
 	init_waitqueue_head(&node->waitq);
-	atomic_set(&node->active, KDBUS_NODE_ACTIVE_NEW);
+	atomic_set(&node->active, KDBUS_NODE_NEW);
 }
 
 int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
@@ -207,61 +207,112 @@ bool kdbus_node_is_active(struct kdbus_node *node)
 void kdbus_node_activate(struct kdbus_node *node)
 {
 	mutex_lock(&node->lock);
-	if (atomic_read(&node->active) == KDBUS_NODE_ACTIVE_NEW)
-		atomic_sub(KDBUS_NODE_ACTIVE_NEW, &node->active);
+	if (atomic_read(&node->active) == KDBUS_NODE_NEW)
+		atomic_sub(KDBUS_NODE_NEW, &node->active);
 	mutex_unlock(&node->lock);
 }
 
 void kdbus_node_deactivate(struct kdbus_node *node)
 {
+	struct kdbus_node *pos, *child;
+	struct rb_node *rb;
 	int v;
 
-	mutex_lock(&node->lock);
-	v = atomic_read(&node->active);
-	if (v >= 0)
-		v = atomic_add_return(KDBUS_NODE_ACTIVE_BIAS, &node->active);
-	else if (v == KDBUS_NODE_ACTIVE_NEW)
-		v = atomic_add_return(3, &node->active);
-	else
-		v = 0;
-	mutex_unlock(&node->lock);
+	/*
+	 * We want to recursively deactivate this node and its childs. To avoid
+	 * recursion, we perform back-tracking while deactivating nodes. For
+	 * each node we enter, we first mark the active-counter as deactivated
+	 * by adding BIAS. If the node as children, we set the first child as
+	 * current position and start over. If the node has no children, we
+	 * drain the node by waiting for all active refs to be dropped and then
+	 * releasing the node.
+	 * After the node is released, we set its parent as current position
+	 * and start over. If the current position was the initial node, we're
+	 * done.
+	 * Note that this function can be called in parallel by multiple
+	 * callers. We make sure that each node is only released once, and any
+	 * racing caller will wait until the other thread fully released that
+	 * node.
+	 */
 
-	if (v == KDBUS_NODE_ACTIVE_BIAS)
-		wake_up(&node->waitq);
-}
+	pos = node;
 
-void kdbus_node_drain(struct kdbus_node *node)
-{
-	int v;
+	for (;;) {
+		mutex_lock(&pos->lock);
 
-	wait_event(node->waitq,
-		   atomic_read(&node->active) <= KDBUS_NODE_ACTIVE_BIAS);
+		/* add BIAS to node->active to mark it as inactive */
+		v = atomic_read(&pos->active);
+		if (v >= 0)
+			v = atomic_add_return(KDBUS_NODE_BIAS, &pos->active);
+		else if (v == KDBUS_NODE_NEW)
+			v = atomic_add_return(3, &pos->active);
+		else
+			v = 0;
 
-	mutex_lock(&node->lock);
-	v = atomic_read(&node->active);
-	if (v == KDBUS_NODE_ACTIVE_BIAS)
-		atomic_dec(&node->active);
-	mutex_unlock(&node->lock);
-
-	if (v == KDBUS_NODE_ACTIVE_BIAS) {
-		if (node->parent) {
-			mutex_lock(&node->parent->lock);
-			if (!RB_EMPTY_NODE(&node->rb)) {
-				rb_erase(&node->rb, &node->parent->children);
-				RB_CLEAR_NODE(&node->rb);
-			}
-			mutex_unlock(&node->parent->lock);
+		/* recurse into first child if any */
+		rb = rb_first(&pos->children);
+		if (rb) {
+			child = kdbus_node_ref(kdbus_node_from_rb(rb));
+			mutex_unlock(&pos->lock);
+			pos = child;
+			continue;
 		}
 
-		if (node->release_cb)
-			node->release_cb(node);
+		mutex_unlock(&pos->lock);
 
-		atomic_dec(&node->active);
-		wake_up_all(&node->waitq);
+		/* wait until all active references were dropped */
+		wait_event(pos->waitq,
+			   atomic_read(&pos->active) <= KDBUS_NODE_BIAS);
+
+		/* mark object as RELEASE */
+		mutex_lock(&pos->lock);
+		v = atomic_read(&pos->active);
+		if (v == KDBUS_NODE_BIAS)
+			atomic_dec(&pos->active);
+		mutex_unlock(&pos->lock);
+
+		/*
+		 * If this is the thread that marked the object as RELEASE, we
+		 * perform the actual release. Otherwise, we wait until the
+		 * release is done and the node is marked as DRAINED.
+		 */
+		if (v == KDBUS_NODE_BIAS) {
+			if (pos->release_cb)
+				pos->release_cb(pos);
+
+			if (pos->parent) {
+				mutex_lock(&pos->parent->lock);
+				if (!RB_EMPTY_NODE(&pos->rb)) {
+					rb_erase(&pos->rb, &pos->parent->children);
+					RB_CLEAR_NODE(&pos->rb);
+				}
+				mutex_unlock(&pos->parent->lock);
+			}
+
+			/* mark as DRAINED */
+			atomic_dec(&pos->active);
+			wake_up_all(&pos->waitq);
+		} else {
+			/* wait until object is DRAINED */
+			wait_event(pos->waitq,
+				   atomic_read(&pos->active) == KDBUS_NODE_DRAINED);
+		}
+
+		/*
+		 * We're done with the current node. Continue on its parent
+		 * again, which will try deactivating its next child, or itself
+		 * if no child is left.
+		 * If we've reached our initial node again, we are done and
+		 * can safely return.
+		 */
+		if (pos != node) {
+			child = pos;
+			pos = pos->parent;
+			kdbus_node_unref(child);
+		} else {
+			break;
+		}
 	}
-
-	wait_event(node->waitq,
-		   atomic_read(&node->active) == KDBUS_NODE_ACTIVE_DRAINED);
 }
 
 bool kdbus_node_acquire(struct kdbus_node *node)
@@ -271,7 +322,7 @@ bool kdbus_node_acquire(struct kdbus_node *node)
 
 void kdbus_node_release(struct kdbus_node *node)
 {
-	if (node && atomic_dec_return(&node->active) == KDBUS_NODE_ACTIVE_BIAS)
+	if (node && atomic_dec_return(&node->active) == KDBUS_NODE_BIAS)
 		wake_up(&node->waitq);
 }
 

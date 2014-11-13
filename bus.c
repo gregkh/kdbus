@@ -334,7 +334,6 @@ static void kdbus_bus_release(struct kdbus_node *node)
 void kdbus_bus_deactivate(struct kdbus_bus *bus)
 {
 	kdbus_node_deactivate(&bus->node);
-	kdbus_node_drain(&bus->node);
 }
 
 /**

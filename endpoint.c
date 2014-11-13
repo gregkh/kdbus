@@ -191,7 +191,6 @@ static void kdbus_ep_release(struct kdbus_node *node)
 void kdbus_ep_deactivate(struct kdbus_ep *ep)
 {
 	kdbus_node_deactivate(&ep->node);
-	kdbus_node_drain(&ep->node);
 }
 
 /**
