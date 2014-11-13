@@ -35,7 +35,6 @@
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @attach_flags_req:	Attach flags required by connecting peers
  * @name_registry:	Name registry of this bus
- * @domain_entry:	Entry in domain
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
  * @user:		Owner of the bus
@@ -65,7 +64,6 @@ struct kdbus_bus {
 	u64 bus_flags;
 	u64 attach_flags_req;
 	struct kdbus_name_registry *name_registry;
-	struct list_head domain_entry;
 	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
 	struct kdbus_domain_user *user;
