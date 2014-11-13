@@ -83,12 +83,9 @@ static int kdbus_node_compare(const struct kdbus_node *left,
  * Return: 0 on success. negative error otherwise. type and the callbacks are
  * always initialized, even when the function fails.
  */
-int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
-		    unsigned int type, const char *name,
-		    kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
+void kdbus_node_init(struct kdbus_node *node, unsigned int type,
+		     kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
 {
-	int ret;
-
 	atomic_set(&node->refcnt, 1);
 	mutex_init(&node->lock);
 	node->id = 0;
@@ -99,8 +96,14 @@ int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 	node->free_cb = free_cb;
 	init_waitqueue_head(&node->waitq);
 	atomic_set(&node->active, KDBUS_NODE_ACTIVE_NEW);
+}
 
-	BUG_ON(type != KDBUS_NODE_DOMAIN && !parent);
+int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
+		    const char *name)
+{
+	int ret;
+
+	BUG_ON(node->type != KDBUS_NODE_DOMAIN && !parent);
 	BUG_ON(parent && !name);
 
 	if (name) {

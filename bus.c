@@ -112,6 +112,9 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (!b)
 		return ERR_PTR(-ENOMEM);
 
+	kdbus_node_init(&b->node, KDBUS_NODE_BUS,
+			kdbus_bus_free, kdbus_bus_release);
+
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
 	b->attach_flags_req = attach_flags;
@@ -131,12 +134,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);
 
-	ret = kdbus_node_init(&b->node, &domain->node,
-			      KDBUS_NODE_BUS, name,
-			      kdbus_bus_free, kdbus_bus_release);
-	if (ret < 0)
-		goto exit_unref;
-
 	b->node.uid = uid;
 	b->node.gid = gid;
 	b->node.mode = S_IRUSR | S_IXUSR;
@@ -144,6 +141,10 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		b->node.mode |= S_IRGRP | S_IXGRP;
 	if (access & KDBUS_MAKE_ACCESS_WORLD)
 		b->node.mode |= S_IROTH | S_IXOTH;
+
+	ret = kdbus_node_link(&b->node, &domain->node, name);
+	if (ret < 0)
+		goto exit_unref;
 
 	/* cache the metadata/credentials of the creator */
 	b->meta = kdbus_meta_new();

@@ -48,11 +48,8 @@ static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain,
 	if (!node)
 		return ERR_PTR(-ENOMEM);
 
-	ret = kdbus_node_init(node, &domain->node,
-			      KDBUS_NODE_CONTROL, "control",
-			      kdbus_domain_control_free, NULL);
-	if (ret < 0)
-		goto exit_free;
+	kdbus_node_init(node, KDBUS_NODE_CONTROL,
+			kdbus_domain_control_free, NULL);
 
 	node->mode = domain->node.mode;
 	node->mode = S_IRUSR | S_IWUSR;
@@ -60,6 +57,10 @@ static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain,
 		node->mode |= S_IRGRP | S_IWGRP;
 	if (access & KDBUS_MAKE_ACCESS_WORLD)
 		node->mode |= S_IROTH | S_IWOTH;
+
+	ret = kdbus_node_link(node, &domain->node, "control");
+	if (ret < 0)
+		goto exit_free;
 
 	return node;
 
@@ -84,22 +85,23 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 	if (!d)
 		return ERR_PTR(-ENOMEM);
 
+	kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN,
+			kdbus_domain_free, kdbus_domain_release);
+
 	INIT_LIST_HEAD(&d->bus_list);
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
-
-	ret = kdbus_node_init(&d->node, NULL,
-			      KDBUS_NODE_DOMAIN, name,
-			      kdbus_domain_free, kdbus_domain_release);
-	if (ret < 0)
-		goto exit_unref;
 
 	d->node.mode = S_IRUSR | S_IXUSR;
 	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
 		d->node.mode |= S_IRGRP | S_IXGRP;
 	if (access & KDBUS_MAKE_ACCESS_WORLD)
 		d->node.mode |= S_IROTH | S_IXOTH;
+
+	ret = kdbus_node_link(&d->node, NULL, name);
+	if (ret < 0)
+		goto exit_unref;
 
 	d->control = kdbus_domain_control_new(d, access);
 	if (IS_ERR(d->control)) {

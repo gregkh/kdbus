@@ -63,9 +63,13 @@ unsigned int kdbus_node_name_hash(const char *name);
 int kdbus_node_name_compare(unsigned int hash, const char *name,
 			    const struct kdbus_node *node);
 
-int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
-		    unsigned int type, const char *name,
-		    kdbus_node_free_t free_cb, kdbus_node_release_t release_cb);
+void kdbus_node_init(struct kdbus_node *node, unsigned int type,
+		     kdbus_node_free_t free_cb,
+		     kdbus_node_release_t release_cb);
+
+int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
+		    const char *name);
+
 struct kdbus_node *kdbus_node_ref(struct kdbus_node *node);
 struct kdbus_node *kdbus_node_unref(struct kdbus_node *node);
 

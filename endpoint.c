@@ -57,6 +57,9 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (!e)
 		return ERR_PTR(-ENOMEM);
 
+	kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT,
+			kdbus_ep_free, kdbus_ep_release);
+
 	mutex_init(&e->lock);
 	INIT_LIST_HEAD(&e->conn_list);
 	kdbus_policy_db_init(&e->policy_db);
@@ -64,9 +67,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	e->bus = kdbus_bus_ref(bus);
 	e->id = atomic64_inc_return(&bus->ep_seq_last);
 
-	ret = kdbus_node_init(&e->node, &bus->node,
-			      KDBUS_NODE_ENDPOINT, name,
-			      kdbus_ep_free, kdbus_ep_release);
+	ret = kdbus_node_link(&e->node, &bus->node, name);
 	if (ret < 0)
 		goto exit_unref;
 
