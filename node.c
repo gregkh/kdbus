@@ -241,17 +241,20 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 	pos = node;
 
 	for (;;) {
-		mutex_lock(&pos->lock);
-
 		/* add BIAS to node->active to mark it as inactive */
+		mutex_lock(&pos->lock);
 		v = atomic_read(&pos->active);
 		if (v >= 0)
-			v = atomic_add_return(KDBUS_NODE_BIAS, &pos->active);
+			atomic_add_return(KDBUS_NODE_BIAS, &pos->active);
 		else if (v == KDBUS_NODE_NEW)
-			v = atomic_add_return(3, &pos->active);
-		else
-			v = 0;
+			atomic_add_return(3, &pos->active);
+		mutex_unlock(&pos->lock);
 
+		/* wait until all active references were dropped */
+		wait_event(pos->waitq,
+			   atomic_read(&pos->active) <= KDBUS_NODE_BIAS);
+
+		mutex_lock(&pos->lock);
 		/* recurse into first child if any */
 		rb = rb_first(&pos->children);
 		if (rb) {
@@ -261,14 +264,7 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 			continue;
 		}
 
-		mutex_unlock(&pos->lock);
-
-		/* wait until all active references were dropped */
-		wait_event(pos->waitq,
-			   atomic_read(&pos->active) <= KDBUS_NODE_BIAS);
-
 		/* mark object as RELEASE */
-		mutex_lock(&pos->lock);
 		v = atomic_read(&pos->active);
 		if (v == KDBUS_NODE_BIAS)
 			atomic_dec(&pos->active);
