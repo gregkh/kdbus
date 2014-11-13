@@ -1167,10 +1167,8 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
  */
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
 {
-	if (!conn)
-		return NULL;
-
-	kref_put(&conn->kref, __kdbus_conn_free);
+	if (conn)
+		kref_put(&conn->kref, __kdbus_conn_free);
 	return NULL;
 }
 

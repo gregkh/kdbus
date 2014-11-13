@@ -242,10 +242,8 @@ struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus)
  */
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 {
-	if (!bus)
-		return NULL;
-
-	kdbus_node_unref(&bus->node);
+	if (bus)
+		kdbus_node_unref(&bus->node);
 	return NULL;
 }
 
