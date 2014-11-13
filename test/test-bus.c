@@ -54,12 +54,15 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 		char name[64];
 	} bus_make;
 	char s[PATH_MAX];
-	int ret;
+	int ret, control_fd2;
 	uid_t uid;
 
 	snprintf(s, sizeof(s), "%s/control", env->root);
 	env->control_fd = open(s, O_RDWR|O_CLOEXEC);
 	ASSERT_RETURN(env->control_fd >= 0);
+
+	control_fd2 = open(s, O_RDWR|O_CLOEXEC);
+	ASSERT_RETURN(control_fd2 >= 0);
 
 	memset(&bus_make, 0, sizeof(bus_make));
 
@@ -103,6 +106,10 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
+
+	ret = ioctl(control_fd2, KDBUS_CMD_BUS_MAKE, &bus_make);
+	ASSERT_RETURN(ret == -1 && errno == EEXIST);
+
 	snprintf(s, sizeof(s), "%s/%u-blah-1/bus", env->root, uid);
 	ASSERT_RETURN(access(s, F_OK) == 0);
 
@@ -112,6 +119,8 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	/* can't use the same fd for bus make twice */
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+
+	close(control_fd2);
 
 	return TEST_OK;
 }
