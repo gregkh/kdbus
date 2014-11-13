@@ -74,14 +74,9 @@ static int kdbus_node_compare(const struct kdbus_node *left,
 /**
  * kdbus_node_init() - initialize a kdbus_node
  * @node:	Pointer to the node to initialize
- * @parent:	Pointer to a parent node, may be %NULL
  * @type:	The type the node will have (KDBUS_NODE_*)
- * @name:	The name the node should represent
  * @free_cb:	A callback to call when the node is freed
  * @release_cb:	A callback to call when the node is released
- *
- * Return: 0 on success. negative error otherwise. type and the callbacks are
- * always initialized, even when the function fails.
  */
 void kdbus_node_init(struct kdbus_node *node, unsigned int type,
 		     kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
@@ -98,6 +93,14 @@ void kdbus_node_init(struct kdbus_node *node, unsigned int type,
 	atomic_set(&node->active, KDBUS_NODE_NEW);
 }
 
+/**
+ * kdbus_node_init() - link a node into the nodes system
+ * @node:	Pointer to the node to initialize
+ * @parent:	Pointer to a parent node, may be %NULL
+ * @name:	The name the node should represent
+ *
+ * Return: 0 on success. negative error otherwise.
+ */
 int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 		    const char *name)
 {
