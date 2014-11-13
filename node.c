@@ -207,8 +207,11 @@ bool kdbus_node_is_active(struct kdbus_node *node)
 void kdbus_node_activate(struct kdbus_node *node)
 {
 	mutex_lock(&node->lock);
-	if (atomic_read(&node->active) == KDBUS_NODE_NEW)
+	if (atomic_read(&node->active) == KDBUS_NODE_NEW) {
 		atomic_sub(KDBUS_NODE_NEW, &node->active);
+		/* activated nodes have ref +1 */
+		kdbus_node_ref(node);
+	}
 	mutex_unlock(&node->lock);
 }
 
@@ -288,6 +291,9 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 				}
 				mutex_unlock(&pos->parent->lock);
 			}
+
+			/* activated nodes have ref +1, drop it */
+			kdbus_node_unref(pos);
 
 			/* mark as DRAINED */
 			atomic_dec(&pos->active);
