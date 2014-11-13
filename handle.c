@@ -450,6 +450,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 						 INVALID_UID);
 		if (IS_ERR(ep->user)) {
 			ret = PTR_ERR(ep->user);
+			ep->user = NULL;
 			kdbus_ep_deactivate(ep);
 			kdbus_ep_unref(ep);
 			break;

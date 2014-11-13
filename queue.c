@@ -498,6 +498,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, want);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
+		entry->slice = NULL;
 		goto exit_free_fds;
 	}
 

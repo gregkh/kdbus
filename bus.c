@@ -150,6 +150,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->meta = kdbus_meta_new();
 	if (IS_ERR(b->meta)) {
 		ret = PTR_ERR(b->meta);
+		b->meta = NULL;
 		goto exit_unref;
 	}
 
@@ -169,12 +170,14 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->name_registry = kdbus_name_registry_new();
 	if (IS_ERR(b->name_registry)) {
 		ret = PTR_ERR(b->name_registry);
+		b->name_registry = NULL;
 		goto exit_unref;
 	}
 
 	b->user = kdbus_domain_get_user(domain, uid);
 	if (IS_ERR(b->user)) {
 		ret = PTR_ERR(b->user);
+		b->user = NULL;
 		goto exit_unref;
 	}
 
@@ -187,6 +190,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->ep = kdbus_ep_new(b, "bus", access, uid, gid, false);
 	if (IS_ERR(b->ep)) {
 		ret = PTR_ERR(b->ep);
+		b->ep = NULL;
 		goto exit_unref;
 	}
 

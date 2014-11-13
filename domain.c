@@ -106,6 +106,7 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 	d->control = kdbus_domain_control_new(d, access);
 	if (IS_ERR(d->control)) {
 		ret = PTR_ERR(d->control);
+		d->control = NULL;
 		goto exit_unref;
 	}
 
@@ -378,7 +379,7 @@ struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u)
  */
 struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u)
 {
-	if (!IS_ERR_OR_NULL(u))
+	if (u)
 		kref_put(&u->kref, __kdbus_domain_user_free);
 	return NULL;
 }

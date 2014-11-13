@@ -810,8 +810,10 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		else
 			kmsg->meta = kdbus_meta_new();
 
-		if (IS_ERR(kmsg->meta))
+		if (IS_ERR(kmsg->meta)) {
+			kmsg->meta = NULL;
 			return PTR_ERR(kmsg->meta);
+		}
 	}
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
@@ -1386,6 +1388,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		meta = kdbus_meta_new();
 		if (IS_ERR(meta)) {
 			ret = PTR_ERR(meta);
+			meta = NULL;
 			goto exit;
 		}
 
@@ -1399,6 +1402,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
+		slice = NULL;
 		goto exit;
 	}
 
@@ -1677,12 +1681,14 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	conn->pool = kdbus_pool_new(conn->name, hello->pool_size);
 	if (IS_ERR(conn->pool)) {
 		ret = PTR_ERR(conn->pool);
+		conn->pool = NULL;
 		goto exit_unref_cred;
 	}
 
 	conn->match_db = kdbus_match_db_new();
 	if (IS_ERR(conn->match_db)) {
 		ret = PTR_ERR(conn->match_db);
+		conn->match_db = NULL;
 		goto exit_free_pool;
 	}
 
@@ -1724,6 +1730,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		conn->owner_meta = kdbus_meta_new();
 		if (IS_ERR(conn->owner_meta)) {
 			ret = PTR_ERR(conn->owner_meta);
+			conn->owner_meta = NULL;
 			goto exit_release_names;
 		}
 
@@ -1761,6 +1768,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 						   current_fsuid());
 		if (IS_ERR(conn->user)) {
 			ret = PTR_ERR(conn->user);
+			conn->user = NULL;
 			goto exit_free_meta;
 		}
 	}
