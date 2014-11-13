@@ -28,7 +28,6 @@
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
- * @bus_list:		Buses in this domain
  * @user_hash:		Accounting of user resources
  * @user_idr:		Map of all users; smallest possible index
  */
@@ -39,7 +38,6 @@ struct kdbus_domain {
 	struct mutex lock;
 	atomic64_t bus_seq_last;
 	atomic64_t msg_seq_last;
-	struct list_head bus_list;
 	DECLARE_HASHTABLE(user_hash, 6);
 	struct idr user_idr;
 };

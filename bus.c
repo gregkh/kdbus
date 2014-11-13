@@ -271,7 +271,6 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 		goto exit_dec;
 	}
 
-	list_add_tail(&bus->domain_entry, &bus->domain->bus_list);
 	kdbus_node_activate(&bus->node);
 
 	mutex_unlock(&bus->domain->lock);
@@ -294,11 +293,6 @@ static void kdbus_bus_release(struct kdbus_node *node)
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
 	atomic_dec(&bus->user->buses);
-
-	/* disconnect from domain */
-	mutex_lock(&bus->domain->lock);
-	list_del(&bus->domain_entry);
-	mutex_unlock(&bus->domain->lock);
 
 	/* disconnect all endpoints attached to this bus */
 	for (;;) {

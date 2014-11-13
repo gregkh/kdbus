@@ -31,7 +31,6 @@
 static atomic64_t kdbus_domain_seq_last;
 
 static void kdbus_domain_free(struct kdbus_node *node);
-static void kdbus_domain_release(struct kdbus_node *node);
 
 static void kdbus_domain_control_free(struct kdbus_node *node)
 {
@@ -86,10 +85,9 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 		return ERR_PTR(-ENOMEM);
 
 	kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN,
-			kdbus_domain_free, kdbus_domain_release);
+			kdbus_domain_free, NULL);
 
 	d->access = access;
-	INIT_LIST_HEAD(&d->bus_list);
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
@@ -119,7 +117,6 @@ static void kdbus_domain_free(struct kdbus_node *node)
 						   node);
 
 	BUG_ON(kdbus_domain_is_active(domain));
-	BUG_ON(!list_empty(&domain->bus_list));
 	BUG_ON(!hash_empty(domain->user_hash));
 
 	idr_destroy(&domain->user_idr);
@@ -177,33 +174,6 @@ int kdbus_domain_activate(struct kdbus_domain *domain)
 	kdbus_node_unref(control);
 
 	return 0;
-}
-
-static void kdbus_domain_release(struct kdbus_node *node)
-{
-	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
-						   node);
-
-	/* disconnect all buses in this domain */
-	for (;;) {
-		struct kdbus_bus *bus;
-
-		mutex_lock(&domain->lock);
-		bus = list_first_entry_or_null(&domain->bus_list,
-					       struct kdbus_bus,
-					       domain_entry);
-		if (!bus) {
-			mutex_unlock(&domain->lock);
-			break;
-		}
-
-		/* take reference, release lock, disconnect without lock */
-		kdbus_bus_ref(bus);
-		mutex_unlock(&domain->lock);
-
-		kdbus_bus_deactivate(bus);
-		kdbus_bus_unref(bus);
-	}
 }
 
 /**
