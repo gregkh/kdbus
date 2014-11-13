@@ -190,13 +190,6 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 {
 	LIST_HEAD(notify_list);
 	struct kdbus_kmsg *kmsg, *tmp;
-	struct kdbus_ep *ep = NULL;
-
-	/* bus->ep is only valid as long as the bus is alive */
-	if (kdbus_node_acquire(&bus->node)) {
-		ep = kdbus_ep_ref(bus->ep);
-		kdbus_node_release(&bus->node);
-	}
 
 	mutex_lock(&bus->notify_flush_lock);
 
@@ -205,15 +198,23 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 	spin_unlock(&bus->notify_lock);
 
 	list_for_each_entry_safe(kmsg, tmp, &notify_list, queue_entry) {
-		if (ep)
-			kdbus_conn_kmsg_send(ep, NULL, kmsg);
+		if (kmsg->msg.dst_id != KDBUS_DST_ID_BROADCAST) {
+			struct kdbus_conn *conn;
+
+			conn = kdbus_bus_find_conn_by_id(bus, kmsg->msg.dst_id);
+			if (!IS_ERR(conn)) {
+				kdbus_conn_entry_insert(NULL, conn, kmsg, NULL);
+				kdbus_conn_unref(conn);
+			}
+		} else {
+			kdbus_bus_broadcast(bus, NULL, kmsg);
+		}
+
 		list_del(&kmsg->queue_entry);
 		kdbus_kmsg_free(kmsg);
 	}
 
 	mutex_unlock(&bus->notify_flush_lock);
-
-	kdbus_ep_unref(ep);
 }
 
 /**
