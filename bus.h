@@ -29,7 +29,7 @@
  * @domain:		Domain of this bus
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
- * @ep:			Default "bus" endpoint
+ * @access:		The access flags for the bus directory
  * @ep_seq_last:	Last used endpoint id sequence number
  * @conn_seq_last:	Last used connection id sequence number
  * @ep_list:		Endpoints on this bus
@@ -60,7 +60,7 @@ struct kdbus_bus {
 	struct kdbus_domain *domain;
 	u64 id;
 	struct mutex lock;
-	struct kdbus_ep *ep;
+	unsigned int access;
 	atomic64_t ep_seq_last;
 	atomic64_t conn_seq_last;
 	struct list_head ep_list;

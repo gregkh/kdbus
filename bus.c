@@ -132,6 +132,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->domain = kdbus_domain_ref(domain);
 	kdbus_policy_db_init(&b->policy_db);
 	b->id = atomic64_inc_return(&domain->bus_seq_last);
+	b->access = access;
 
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);
@@ -180,13 +181,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (IS_ERR(b->user)) {
 		ret = PTR_ERR(b->user);
 		b->user = NULL;
-		goto exit_unref;
-	}
-
-	b->ep = kdbus_ep_new(b, "bus", access, uid, gid, false);
-	if (IS_ERR(b->ep)) {
-		ret = PTR_ERR(b->ep);
-		b->ep = NULL;
 		goto exit_unref;
 	}
 
@@ -259,6 +253,12 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 int kdbus_bus_activate(struct kdbus_bus *bus)
 {
 	int ret;
+	struct kdbus_ep *ep;
+
+	ep = kdbus_ep_new(bus, "bus", bus->access,
+			  bus->node.uid, bus->node.gid, false);
+	if (IS_ERR(ep))
+		return PTR_ERR(ep);
 
 	if (atomic_inc_return(&bus->user->buses) > KDBUS_USER_MAX_BUSES)
 		return -EMFILE;
@@ -275,11 +275,9 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 
 	mutex_unlock(&bus->domain->lock);
 
-	ret = kdbus_ep_activate(bus->ep);
-	if (ret < 0) {
-		kdbus_bus_deactivate(bus);
-		return ret;
-	}
+	kdbus_node_activate(&bus->node);
+	kdbus_ep_activate(ep);
+	kdbus_ep_unref(ep);
 
 	return 0;
 
@@ -314,9 +312,6 @@ static void kdbus_bus_release(struct kdbus_node *node)
 		kdbus_ep_deactivate(ep);
 		kdbus_ep_unref(ep);
 	}
-
-	/* drop reference for our "bus" endpoint after we disconnected */
-	bus->ep = kdbus_ep_unref(bus->ep);
 }
 
 /**
