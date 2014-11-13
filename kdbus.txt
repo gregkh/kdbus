@@ -1705,6 +1705,7 @@ For KDBUS_CMD_MSG_SEND:
   -ENOBUFS	Too many pending messages on the receiver side
   -EREMCHG	Both a well-known name and a unique name (ID) was given, but
 		the name is not currently owned by that connection.
+  -EXFULL	The memory pool of the receiver is full
 
 For KDBUS_CMD_MSG_RECV:
 
