@@ -423,6 +423,16 @@ kdbus_policy_make_access(const struct kdbus_policy_access *uaccess,
 		return -ENOMEM;
 
 	ret = -EINVAL;
+	switch (uaccess->access) {
+	case KDBUS_POLICY_SEE:
+	case KDBUS_POLICY_TALK:
+	case KDBUS_POLICY_OWN:
+		a->access = uaccess->access;
+		break;
+	default:
+		goto err;
+	}
+
 	switch (uaccess->type) {
 	case KDBUS_POLICY_ACCESS_USER:
 		a->uid = make_kuid(current_user_ns(), uaccess->id);
@@ -436,10 +446,14 @@ kdbus_policy_make_access(const struct kdbus_policy_access *uaccess,
 			goto err;
 
 		break;
+	case KDBUS_POLICY_ACCESS_WORLD:
+		a->uid = current_uid();
+		break;
+	default:
+		goto err;
 	}
 
 	a->type = uaccess->type;
-	a->access = uaccess->access;
 
 	*entry = a;
 
