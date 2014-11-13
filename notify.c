@@ -50,7 +50,7 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 	kmsg->msg.items[0].type = msg_type;
 
 	spin_lock(&bus->notify_lock);
-	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
+	list_add_tail(&kmsg->notify_entry, &bus->notify_list);
 	spin_unlock(&bus->notify_lock);
 	return 0;
 }
@@ -129,7 +129,7 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 	kmsg->notify_name = kmsg->msg.items[0].name_change.name;
 
 	spin_lock(&bus->notify_lock);
-	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
+	list_add_tail(&kmsg->notify_entry, &bus->notify_list);
 	spin_unlock(&bus->notify_lock);
 	return 0;
 }
@@ -175,7 +175,7 @@ int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 	kmsg->msg.items[0].id_change.flags = flags;
 
 	spin_lock(&bus->notify_lock);
-	list_add_tail(&kmsg->queue_entry, &bus->notify_list);
+	list_add_tail(&kmsg->notify_entry, &bus->notify_list);
 	spin_unlock(&bus->notify_lock);
 	return 0;
 }
@@ -197,7 +197,7 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 	list_splice_init(&bus->notify_list, &notify_list);
 	spin_unlock(&bus->notify_lock);
 
-	list_for_each_entry_safe(kmsg, tmp, &notify_list, queue_entry) {
+	list_for_each_entry_safe(kmsg, tmp, &notify_list, notify_entry) {
 		if (kmsg->msg.dst_id != KDBUS_DST_ID_BROADCAST) {
 			struct kdbus_conn *conn;
 
@@ -210,7 +210,7 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 			kdbus_bus_broadcast(bus, NULL, kmsg);
 		}
 
-		list_del(&kmsg->queue_entry);
+		list_del(&kmsg->notify_entry);
 		kdbus_kmsg_free(kmsg);
 	}
 
@@ -225,8 +225,8 @@ void kdbus_notify_free(struct kdbus_bus *bus)
 {
 	struct kdbus_kmsg *kmsg, *tmp;
 
-	list_for_each_entry_safe(kmsg, tmp, &bus->notify_list, queue_entry) {
-		list_del(&kmsg->queue_entry);
+	list_for_each_entry_safe(kmsg, tmp, &bus->notify_list, notify_entry) {
+		list_del(&kmsg->notify_entry);
 		kdbus_kmsg_free(kmsg);
 	}
 }

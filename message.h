@@ -34,7 +34,7 @@
  * @vecs_size:		Size of PAYLOAD data
  * @vecs_count:		Number of PAYLOAD vectors
  * @memfds_count:	Number of memfds to pass
- * @queue_entry:	List of kernel-generated notifications
+ * @notify_entry:	List of kernel-generated notifications
  * @msg:		Message from or to userspace
  */
 struct kdbus_kmsg {
@@ -55,7 +55,7 @@ struct kdbus_kmsg {
 	unsigned int vecs_count;
 	struct file **memfds;
 	unsigned int memfds_count;
-	struct list_head queue_entry;
+	struct list_head notify_entry;
 
 	/* variable size, must be the last member */
 	struct kdbus_msg msg;
