@@ -310,8 +310,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE: {
-		kgid_t gid = KGIDT_INIT(0);
-
 		make = kdbus_memdup_user(buf, sizeof(*make),
 					 KDBUS_MAKE_MAX_SIZE);
 		if (IS_ERR(make)) {
@@ -332,15 +330,13 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		if (make->flags & KDBUS_MAKE_ACCESS_WORLD) {
+		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
-		} else if (make->flags & KDBUS_MAKE_ACCESS_GROUP) {
+		else if (make->flags & KDBUS_MAKE_ACCESS_GROUP)
 			mode = 0660;
-			gid = current_fsgid();
-		}
 
 		bus = kdbus_bus_new(handle->domain, make,
-				    mode, current_fsuid(), gid);
+				    mode, current_fsuid(), current_fsgid());
 		if (IS_ERR(bus)) {
 			ret = PTR_ERR(bus);
 			break;
