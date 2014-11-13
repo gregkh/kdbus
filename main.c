@@ -41,7 +41,7 @@ static int __init kdbus_init(void)
 	if (ret < 0)
 		goto exit_dir;
 
-	ret = kdbus_init_nodes();
+	ret = kdbus_nodes_init();
 	if (ret < 0)
 		goto exit_subsys;
 
@@ -76,7 +76,7 @@ exit_domain:
 exit_fs:
 	kdbus_fs_exit();
 exit_node:
-	kdbus_exit_nodes();
+	kdbus_nodes_exit();
 exit_subsys:
 	bus_unregister(&kdbus_subsys);
 exit_dir:
@@ -89,7 +89,7 @@ static void __exit kdbus_exit(void)
 	kdbus_domain_deactivate(kdbus_domain_init);
 	kdbus_domain_unref(kdbus_domain_init);
 	kdbus_fs_exit();
-	kdbus_exit_nodes();
+	kdbus_nodes_exit();
 	bus_unregister(&kdbus_subsys);
 	kobject_put(kdbus_dir);
 }

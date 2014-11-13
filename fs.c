@@ -472,11 +472,19 @@ static struct file_system_type fs_type = {
 	.kill_sb	= fs_super_kill,
 };
 
+/**
+ * kdbus_fs_exit() - unregister kdbus filesystem
+ *
+ * Return: 0 on success, negative error otherwise.
+ */
 int kdbus_fs_init(void)
 {
 	return register_filesystem(&fs_type);
 }
 
+/**
+ * kdbus_fs_exit() - unregister kdbus filesystem
+ */
 void kdbus_fs_exit(void)
 {
 	unregister_filesystem(&fs_type);

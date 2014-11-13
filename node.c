@@ -43,33 +43,6 @@ static DECLARE_RWSEM(kdbus_node_idr_lock);
 /* kdbus major */
 unsigned int kdbus_major;
 
-int kdbus_init_nodes(void)
-{
-	int ret;
-
-	idr_init(&kdbus_node_idr);
-
-	ret = __register_chrdev(0, 0, KDBUS_NODE_IDR_MAX + 1, KBUILD_MODNAME,
-				&kdbus_handle_ops);
-	if (ret < 0)
-		goto exit_idr;
-
-	kdbus_major = ret;
-
-	return 0;
-
-exit_idr:
-	idr_destroy(&kdbus_node_idr);
-	return ret;
-}
-
-void kdbus_exit_nodes(void)
-{
-	__unregister_chrdev(kdbus_major, 0, KDBUS_NODE_IDR_MAX + 1,
-			    KBUILD_MODNAME);
-	idr_destroy(&kdbus_node_idr);
-}
-
 unsigned int kdbus_node_name_hash(const char *name)
 {
 	unsigned int hash;
@@ -101,6 +74,18 @@ static int kdbus_node_compare(const struct kdbus_node *left,
 	return kdbus_node_name_compare(left->hash, left->name, right);
 }
 
+/**
+ * kdbus_node_init() - initialize a kdbus_node
+ * @node:	Pointer to the node to initialize
+ * @parent:	Pointer to a parent node, may be %NULL
+ * @type:	The type the node will have (KDBUS_NODE_*)
+ * @name:	The name the node should represent
+ * @free_cb:	A callback to call when the node is freed
+ * @release_cb:	A callback to call when the node is released
+ *
+ * Return: 0 on success. negative error otherwise. type and the callbacks are
+ * always initialized, even when the function fails.
+ */
 int kdbus_node_init(struct kdbus_node *node, struct kdbus_node *parent,
 		    unsigned int type, const char *name,
 		    kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
@@ -304,3 +289,37 @@ struct kdbus_node *kdbus_node_find_by_id(unsigned int id)
 
 	return node;
 }
+
+/**
+ * kdbus_nodes_init() - initialize the nodes infrastructure
+ */
+int kdbus_nodes_init(void)
+{
+	int ret;
+
+	idr_init(&kdbus_node_idr);
+
+	ret = __register_chrdev(0, 0, KDBUS_NODE_IDR_MAX + 1, KBUILD_MODNAME,
+				&kdbus_handle_ops);
+	if (ret < 0)
+		goto exit_idr;
+
+	kdbus_major = ret;
+
+	return 0;
+
+exit_idr:
+	idr_destroy(&kdbus_node_idr);
+	return ret;
+}
+
+/**
+ * kdbus_nodes_exit() - clean up and destroy the nodes infrastructure
+ */
+void kdbus_nodes_exit(void)
+{
+	__unregister_chrdev(kdbus_major, 0, KDBUS_NODE_IDR_MAX + 1,
+			    KBUILD_MODNAME);
+	idr_destroy(&kdbus_node_idr);
+}
+

@@ -58,8 +58,8 @@ struct kdbus_node {
 
 extern unsigned int kdbus_major;
 
-int kdbus_init_nodes(void);
-void kdbus_exit_nodes(void);
+int kdbus_nodes_init(void);
+void kdbus_nodes_exit(void);
 
 unsigned int kdbus_node_name_hash(const char *name);
 int kdbus_node_name_compare(unsigned int hash, const char *name,
