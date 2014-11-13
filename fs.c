@@ -411,10 +411,12 @@ static int fs_super_fill(struct super_block *sb)
 static void fs_super_kill(struct super_block *sb)
 {
 	struct kdbus_fs_super *super = sb->s_fs_info;
+	struct kdbus_node *node = NULL;
 
-	kill_anon_super(sb);
 	if (sb->s_root)
-		kdbus_node_unref(sb->s_root->d_fsdata);
+		node = sb->s_root->d_fsdata;
+	kill_anon_super(sb);
+	kdbus_node_unref(node);
 	fs_super_free(super);
 }
 
