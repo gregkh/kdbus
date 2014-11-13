@@ -447,7 +447,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_ENDPOINT_MAKE: {
 		struct kdbus_cmd_make *make;
 		umode_t mode = 0600;
-		kgid_t gid = KGIDT_INIT(0);
 		const char *name;
 		struct kdbus_ep *ep;
 
@@ -485,16 +484,14 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (make->flags & KDBUS_MAKE_ACCESS_WORLD) {
+		if (make->flags & KDBUS_MAKE_ACCESS_WORLD)
 			mode = 0666;
-		} else if (make->flags & KDBUS_MAKE_ACCESS_GROUP) {
+		else if (make->flags & KDBUS_MAKE_ACCESS_GROUP)
 			mode = 0660;
-			gid = current_fsgid();
-		}
 
 		/* custom endpoints always have a policy db */
 		ep = kdbus_ep_new(handle->ep->bus, name, mode,
-				  current_fsuid(), gid, true);
+				  current_fsuid(), current_fsgid(), true);
 		if (IS_ERR(ep)) {
 			ret = PTR_ERR(ep);
 			break;
