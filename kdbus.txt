@@ -4,9 +4,7 @@ The focus of this document is an overview of the low-level, native kernel D-Bus
 transport called kdbus. Kdbus exposes its functionality via files in a
 filesystem called 'kdbusfs'. All communication between processes takes place
 via ioctls on files exposed through the mount point of a kdbusfs. The default
-mount point of kdbusfs in a system is /sys/fs/kdbus, but any other works
-equally well. This document, however, assumes kdbus is mounted at its default
-location.
+mount point of kdbusfs is /sys/fs/kdbus.
 
 For the general D-Bus protocol specification, the payload format, the
 marshaling, and the communication semantics, please refer to:
@@ -23,12 +21,11 @@ Articles about D-Bus and kdbus:
 ===============================================================================
 
   Domain:
-    A domain is created each time a kdbusfs is mounted, and is unnamed. Each
-    process that is permitted to mount a new instance of a kdbusfs will
-    effectively have its own set of kdbus hierarchy. Each domain (ie, each
-    mount point) offers its own "control" file to create new buses. Domains
-    have no connection to each other and cannot see nor talk to each other.
-    See section 5 for more details.
+    A domain is created each time a kdbusfs is mounted. Each process that is
+    capable to mount a new instance of a kdbusfs will have its own kdbus
+    hierarchy. Each domain (ie, each mount point) offers its own "control"
+    file to create new buses. Domains have no connection to each other and
+    cannot see nor talk to each other. See section 5 for more details.
 
   Bus:
     A bus is a named object inside a domain. Clients exchange messages
@@ -41,14 +38,14 @@ Articles about D-Bus and kdbus:
     their own private named buses. See section 5 for more details.
 
   Endpoint:
-    An endpoint provides the file to talk to a bus, inside the directory of
-    the bus. Opening an endpoint creates a new connection to the bus to which
-    the endpoint belongs. Every bus has a default endpoint called "bus".
-    A bus can optionally offer additional endpoints with custom names to
-    provide a restricted access to the same bus. Custom endpoints carry
-    additional policy which can be used to give sandboxed processes only
-    a locked-down, limited, filtered access to the same bus.
-    See section 5 for more details.
+    An endpoint provides the file to talk to a bus. Opening an endpoint
+    creates a new connection to the bus to which the endpoint belongs.
+    Inside the directory of the bus, every bus has a default endpoint
+    called "bus". A bus can optionally offer additional endpoints with
+    custom names to provide restricted access to the bus. Custom endpoints
+    carry additional policy which can be used to create sandboxes with a
+    locked-down, limited, filtered access to a bus.  See section 5 for
+    more details.
 
   Connection:
     A connection to a bus is created by opening an endpoint file of inside a
