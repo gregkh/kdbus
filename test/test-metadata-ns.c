@@ -87,7 +87,6 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		struct kdbus_conn *conn_src;
 		eventfd_t event_status = 0;
 
-		setbuf(stdout, NULL);
 		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
 		if (ret < 0) {
 			ret = -errno;
@@ -156,7 +155,6 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 
 	kdbus_printf("STARTING TEST 'chat' in a new user namespace.\n");
 
-	setbuf(stdout, NULL);
 	pid = fork();
 	ASSERT_RETURN_VAL(pid >= 0, -errno);
 
