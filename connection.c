@@ -43,8 +43,6 @@
 #include "util.h"
 #include "queue.h"
 
-struct kdbus_conn_reply;
-
 #define KDBUS_CONN_ACTIVE_BIAS (INT_MIN + 1)
 
 /**
