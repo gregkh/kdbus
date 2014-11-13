@@ -1,13 +1,26 @@
 since RFC v1:
 
+  * Most notably, kdbus exposes its control files, buses and endpoints
+    via an own file system now, called kdbusfs.
+    
+     * Each time a file system of this type is mounted, a new kdbus
+       domain is created.
+       
+     * The layout inside each mount point is the same as before, except
+       that domains are not hierarchically nested anymore.
+
+     * Domains are therefore also unnamed now
+
+     * Unmounting a kdbusfs will automatically also detroy the
+       associated domain
+
+     * Hence, the action of creating a kdbus domain is now as
+       privileged as the mounting of a kdbusfs.
+
   * Make functions that create new objects return the newly allocated
     memory directly, rather than in a referenced function arguments.
     That implies using ERR_PTR() logic in many areas. Requested by
     Al Viro.
-
-  * Use #defines rather than an enum for the ioctl signatures, so when
-    new ones are added, usespace can use #ifdeffery to determine the
-    function set at compile time. Suggested by Arnd Bergmann.
 
   * Rework the metadata attachment logic to address concerns raised by
     Andy Lutomirsky and Alan Cox:
@@ -52,6 +65,10 @@ since RFC v1:
     which automatically degrades to _KDBUS_ATTACH_ALL in the kernel.
     That way, old clients can opt-in for whethever newer kernels might
     offer to send.
+
+  * Use #defines rather than an enum for the ioctl signatures, so when
+    new ones are added, usespace can use #ifdeffery to determine the
+    function set at compile time. Suggested by Arnd Bergmann.
 
   * Moved the driver to ipc/kdbus, as suggested by Arnd Bergmann
 
