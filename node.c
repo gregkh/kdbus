@@ -228,15 +228,6 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 
 	if (v == KDBUS_NODE_ACTIVE_BIAS)
 		wake_up(&node->waitq);
-
-	if (node->parent) {
-		mutex_lock(&node->parent->lock);
-		if (!RB_EMPTY_NODE(&node->rb)) {
-			rb_erase(&node->rb, &node->parent->children);
-			RB_CLEAR_NODE(&node->rb);
-		}
-		mutex_unlock(&node->parent->lock);
-	}
 }
 
 void kdbus_node_drain(struct kdbus_node *node)
@@ -253,6 +244,15 @@ void kdbus_node_drain(struct kdbus_node *node)
 	mutex_unlock(&node->lock);
 
 	if (v == KDBUS_NODE_ACTIVE_BIAS) {
+		if (node->parent) {
+			mutex_lock(&node->parent->lock);
+			if (!RB_EMPTY_NODE(&node->rb)) {
+				rb_erase(&node->rb, &node->parent->children);
+				RB_CLEAR_NODE(&node->rb);
+			}
+			mutex_unlock(&node->parent->lock);
+		}
+
 		if (node->release_cb)
 			node->release_cb(node);
 
