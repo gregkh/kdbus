@@ -455,6 +455,10 @@ enum kdbus_recv_flags {
  * @offset:		Returned offset in the pool where the message is
  *			stored. The user must use KDBUS_CMD_FREE to free
  *			the allocated memory.
+ * @dropped_msgs:	In case the KDBUS_CMD_MSG_RECV ioctl returns
+ *			-EOVERFLOW, this field will contain the number of
+ *			broadcast messages that have been lost since the
+ *			last call.
  *
  * This struct is used with the KDBUS_CMD_MSG_RECV ioctl.
  */
@@ -462,7 +466,10 @@ struct kdbus_cmd_recv {
 	__u64 flags;
 	__u64 kernel_flags;
 	__s64 priority;
-	__u64 offset;
+	union {
+		__u64 offset;
+		__u64 dropped_msgs;
+	};
 } __attribute__((aligned(8)));
 
 /**

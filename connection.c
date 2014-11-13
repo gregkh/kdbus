@@ -269,6 +269,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
 	struct kdbus_queue_entry *entry = NULL;
+	unsigned int lost_count;
 	int ret = 0;
 
 	if (recv->offset > 0)
@@ -323,6 +324,18 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 		kdbus_queue_entry_free(entry);
 
+		goto exit;
+	}
+
+	/*
+	 * If there have been lost broadcast messages, report the number
+	 * in the overloaded recv->dropped_msgs field and return -EOVERFLOW.
+	 */
+	lost_count = atomic_read(&conn->lost_count);
+	if (lost_count) {
+		recv->dropped_msgs = lost_count;
+		atomic_sub(lost_count, &conn->lost_count);
+		ret = -EOVERFLOW;
 		goto exit;
 	}
 
@@ -1587,6 +1600,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->reply_list);
 	atomic_set(&conn->name_count, 0);
 	atomic_set(&conn->reply_count, 0);
+	atomic_set(&conn->lost_count, 0);
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
 	conn->cred = get_current_cred();
 	init_waitqueue_head(&conn->wait);

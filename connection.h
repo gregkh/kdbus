@@ -64,6 +64,7 @@
  * @name_count:		Number of owned well-known names
  * @reply_count:	Number of requests this connection has issued, and
  *			waits for replies from other peers
+ * @lost_count:		Number of lost broadcast messages
  * @wait:		Wake up this endpoint
  * @queue:		The message queue associcated with this connection
  * @privileged:		Whether this connection is privileged on the bus
@@ -100,6 +101,7 @@ struct kdbus_conn {
 	const struct cred *cred;
 	atomic_t name_count;
 	atomic_t reply_count;
+	atomic_t lost_count;
 	wait_queue_head_t wait;
 	struct kdbus_queue queue;
 	bool privileged : 1;

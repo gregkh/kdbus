@@ -430,7 +430,9 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 				goto exit_unlock;
 		}
 
-		kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
+		ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
+		if (ret < 0)
+			atomic_inc(&conn_dst->lost_count);
 	}
 
 exit_unlock:

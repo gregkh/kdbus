@@ -1711,6 +1711,7 @@ For KDBUS_CMD_MSG_RECV:
   -EINVAL	Invalid flags or offset
   -EAGAIN	No message found in the queue
   -ENOMSG	No message of the requested priority found
+  -EOVERFLOW	Broadcast messages have been lost
 
 For KDBUS_CMD_MSG_CANCEL:
 
