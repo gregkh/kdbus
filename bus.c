@@ -183,11 +183,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
-	if (atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
-		ret = -EMFILE;
-		goto exit_unref;
-	}
-
 	b->ep = kdbus_ep_new(b, "bus", access, uid, gid, false);
 	if (IS_ERR(b->ep)) {
 		ret = PTR_ERR(b->ep);
@@ -213,11 +208,7 @@ static void kdbus_bus_free(struct kdbus_node *node)
 
 	kdbus_notify_free(bus);
 
-	if (bus->user) {
-		atomic_dec(&bus->user->buses);
-		kdbus_domain_user_unref(bus->user);
-	}
-
+	kdbus_domain_user_unref(bus->user);
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
@@ -269,11 +260,15 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 {
 	int ret;
 
+	if (atomic_inc_return(&bus->user->buses) > KDBUS_USER_MAX_BUSES)
+		return -EMFILE;
+
 	mutex_lock(&bus->domain->lock);
 
 	if (!kdbus_domain_is_active(bus->domain)) {
 		mutex_unlock(&bus->domain->lock);
-		return -ESHUTDOWN;
+		ret = -ESHUTDOWN;
+		goto exit_dec;
 	}
 
 	list_add_tail(&bus->domain_entry, &bus->domain->bus_list);
@@ -288,11 +283,17 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 	}
 
 	return 0;
+
+exit_dec:
+	atomic_dec(&bus->user->buses);
+	return ret;
 }
 
 static void kdbus_bus_release(struct kdbus_node *node)
 {
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
+
+	atomic_dec(&bus->user->buses);
 
 	/* disconnect from domain */
 	mutex_lock(&bus->domain->lock);
