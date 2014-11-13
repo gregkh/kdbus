@@ -168,7 +168,7 @@ static bool kdbus_match_bloom(const struct kdbus_bloom_filter *filter,
 			      const struct kdbus_bloom_mask *mask,
 			      const struct kdbus_conn *conn)
 {
-	size_t n = conn->bus->bloom.size / sizeof(u64);
+	size_t n = conn->ep->bus->bloom.size / sizeof(u64);
 	const u64 *m;
 	size_t i;
 
@@ -390,12 +390,12 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 		switch (item->type) {
 		case KDBUS_ITEM_BLOOM_MASK: {
+			u64 bsize = conn->ep->bus->bloom.size;
 			u64 generations;
 			u64 remainder;
 
-			generations = div64_u64_rem(size, conn->bus->bloom.size,
-						    &remainder);
-			if (size < conn->bus->bloom.size ||
+			generations = div64_u64_rem(size, bsize, &remainder);
+			if (size < bsize ||
 			    remainder > 0) {
 				ret = -EDOM;
 				break;

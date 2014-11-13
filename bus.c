@@ -418,7 +418,7 @@ exit_unlock:
 int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 			       struct kdbus_cmd_info *cmd_info)
 {
-	struct kdbus_bus *bus = conn->bus;
+	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice;
 	struct kdbus_info info = {};
 	int ret;

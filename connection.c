@@ -240,7 +240,7 @@ static void kdbus_conn_work(struct work_struct *work)
 		 * left in an interrupted syscall state.
 		 */
 		if (reply->deadline_ns != 0 && !reply->interrupted)
-			kdbus_notify_reply_timeout(conn->bus,
+			kdbus_notify_reply_timeout(conn->ep->bus,
 						   reply->reply_dst->id,
 						   reply->cookie);
 
@@ -255,7 +255,7 @@ static void kdbus_conn_work(struct work_struct *work)
 
 	mutex_unlock(&conn->lock);
 
-	kdbus_notify_flush(conn->bus);
+	kdbus_notify_flush(conn->ep->bus);
 }
 
 /**
@@ -312,7 +312,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 			} else {
 				list_del_init(&entry->reply->entry);
 				kdbus_conn_reply_unref(entry->reply);
-				kdbus_notify_reply_dead(conn->bus,
+				kdbus_notify_reply_dead(conn->ep->bus,
 							entry->src_id,
 							entry->cookie);
 			}
@@ -364,7 +364,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 exit_unlock:
 	mutex_unlock(&conn->lock);
 exit:
-	kdbus_notify_flush(conn->bus);
+	kdbus_notify_flush(conn->ep->bus);
 	return ret;
 }
 
@@ -424,8 +424,8 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		return -ENOENT;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	down_read(&conn->bus->conn_rwlock);
-	hash_for_each(conn->bus->conn_hash, i, c, hentry) {
+	down_read(&conn->ep->bus->conn_rwlock);
+	hash_for_each(conn->ep->bus->conn_hash, i, c, hentry) {
 		if (c == conn)
 			continue;
 
@@ -437,7 +437,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 		}
 		mutex_unlock(&c->lock);
 	}
-	up_read(&conn->bus->conn_rwlock);
+	up_read(&conn->ep->bus->conn_rwlock);
 
 	return ret;
 }
@@ -970,27 +970,27 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->ep->lock);
-	down_write(&conn->bus->conn_rwlock);
+	down_write(&conn->ep->bus->conn_rwlock);
 
 	/* remove from bus and endpoint */
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
 	list_del(&conn->ep_entry);
 
-	up_write(&conn->bus->conn_rwlock);
+	up_write(&conn->ep->bus->conn_rwlock);
 	mutex_unlock(&conn->ep->lock);
 
 	/*
 	 * Remove all names associated with this connection; this possibly
 	 * moves queued messages back to the activator connection.
 	 */
-	kdbus_name_remove_by_conn(conn->bus->name_registry, conn);
+	kdbus_name_remove_by_conn(conn->ep->bus->name_registry, conn);
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
 		if (entry->reply)
-			kdbus_notify_reply_dead(conn->bus, entry->src_id,
+			kdbus_notify_reply_dead(conn->ep->bus, entry->src_id,
 						entry->cookie);
 
 		kdbus_queue_entry_remove(conn, entry);
@@ -1007,17 +1007,17 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		}
 
 		/* send a 'connection dead' notification */
-		kdbus_notify_reply_dead(conn->bus, reply->reply_dst->id,
+		kdbus_notify_reply_dead(conn->ep->bus, reply->reply_dst->id,
 					reply->cookie);
 
 		list_del(&reply->entry);
 		kdbus_conn_reply_unref(reply);
 	}
 
-	kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_REMOVE,
+	kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_REMOVE,
 			       conn->id, conn->flags);
 
-	kdbus_notify_flush(conn->bus);
+	kdbus_notify_flush(conn->ep->bus);
 
 	return 0;
 }
@@ -1046,7 +1046,7 @@ bool kdbus_conn_active(const struct kdbus_conn *conn)
 void kdbus_conn_purge_policy_cache(struct kdbus_conn *conn)
 {
 	kdbus_policy_purge_cache(&conn->ep->policy_db, conn);
-	kdbus_policy_purge_cache(&conn->bus->policy_db, conn);
+	kdbus_policy_purge_cache(&conn->ep->bus->policy_db, conn);
 }
 
 static void __kdbus_conn_free(struct kref *kref)
@@ -1064,13 +1064,12 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_domain_user_unref(conn->user);
 
 	kdbus_conn_purge_policy_cache(conn);
-	kdbus_policy_remove_owner(&conn->bus->policy_db, conn);
+	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
 
 	kdbus_meta_free(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
-	kdbus_bus_unref(conn->bus);
 	put_cred(conn->cred);
 	kfree(conn->name);
 	kfree(conn);
@@ -1188,7 +1187,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	LIST_HEAD(msg_list);
 	int ret = 0;
 
-	BUG_ON(!mutex_is_locked(&conn_dst->bus->lock));
+	BUG_ON(!mutex_is_locked(&conn_dst->ep->bus->lock));
 	BUG_ON(conn_src == conn_dst);
 
 	/* remove all messages from the source */
@@ -1277,13 +1276,14 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		if (ret < 0)
 			return ret;
 
-		entry = kdbus_name_lock(conn->bus->name_registry, name);
+		entry = kdbus_name_lock(conn->ep->bus->name_registry, name);
 		if (!entry)
 			return -ESRCH;
 		else if (entry->conn)
 			owner_conn = kdbus_conn_ref(entry->conn);
 	} else {
-		owner_conn = kdbus_bus_find_conn_by_id(conn->bus, cmd_info->id);
+		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
+						       cmd_info->id);
 		if (!owner_conn) {
 			ret = -ENXIO;
 			goto exit;
@@ -1370,7 +1370,7 @@ exit_free:
 exit:
 	kdbus_meta_free(meta);
 	kdbus_conn_unref(owner_conn);
-	kdbus_name_unlock(conn->bus->name_registry, entry);
+	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
 
 	return ret;
 }
@@ -1429,7 +1429,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	}
 
 	if (policy_provided) {
-		ret = kdbus_policy_set(&conn->bus->policy_db, cmd->items,
+		ret = kdbus_policy_set(&conn->ep->bus->policy_db, cmd->items,
 				       KDBUS_ITEMS_SIZE(cmd, items),
 				       1, true, conn);
 		if (ret < 0)
@@ -1624,7 +1624,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_free_pool;
 	}
 
-	conn->bus = kdbus_bus_ref(ep->bus);
 	conn->ep = kdbus_ep_ref(ep);
 
 	/* get new id for this connection */
@@ -1730,14 +1729,14 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	mutex_unlock(&bus->lock);
 
 	/* notify subscribers about the new active connection */
-	ret = kdbus_notify_id_change(conn->bus, KDBUS_ITEM_ID_ADD,
+	ret = kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_ADD,
 				     conn->id, conn->flags);
 	if (ret < 0) {
 		atomic_dec(&conn->user->connections);
 		goto exit_domain_user_unref;
 	}
 
-	kdbus_notify_flush(conn->bus);
+	kdbus_notify_flush(conn->ep->bus);
 
 	return conn;
 
@@ -1753,7 +1752,6 @@ exit_release_names:
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
 exit_unref_ep:
 	kdbus_ep_unref(conn->ep);
-	kdbus_bus_unref(conn->bus);
 	kdbus_match_db_free(conn->match_db);
 exit_free_pool:
 	kdbus_pool_free(conn->pool);

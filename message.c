@@ -273,7 +273,7 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				return -EFAULT;
 
 			/* do not allow mismatching bloom filter sizes */
-			if (bloom_size != conn->bus->bloom.size)
+			if (bloom_size != conn->ep->bus->bloom.size)
 				return -EDOM;
 
 			kmsg->bloom_filter = &item->bloom_filter;

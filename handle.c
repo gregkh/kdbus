@@ -592,8 +592,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_name_acquire(conn->bus->name_registry, conn,
-					     cmd_name);
+		ret = kdbus_cmd_name_acquire(conn->ep->bus->name_registry,
+					     conn, cmd_name);
 		if (ret < 0)
 			break;
 
@@ -634,8 +634,8 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_name_release(conn->bus->name_registry, conn,
-					     cmd_name);
+		ret = kdbus_cmd_name_release(conn->ep->bus->name_registry,
+					     conn, cmd_name);
 		break;
 	}
 
@@ -656,7 +656,7 @@ static long kdbus_handle_ioctl_ep_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_name_list(conn->bus->name_registry,
+		ret = kdbus_cmd_name_list(conn->ep->bus->name_registry,
 					  conn, &cmd_list);
 		if (ret < 0)
 			break;

@@ -162,7 +162,7 @@ static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_notify_name_change(conn->bus, KDBUS_ITEM_NAME_CHANGE,
+	ret = kdbus_notify_name_change(conn->ep->bus, KDBUS_ITEM_NAME_CHANGE,
 				       e->conn->id, conn->id,
 				       e->flags, flags, e->name);
 	if (ret < 0)
@@ -224,7 +224,7 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e,
 
 exit_release:
 	/* release the name */
-	kdbus_notify_name_change(e->conn->bus, KDBUS_ITEM_NAME_REMOVE,
+	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_REMOVE,
 				 e->conn->id, 0,
 				 e->flags, 0, e->name);
 
@@ -252,7 +252,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	hash = kdbus_str_hash(name);
 
 	/* lock order: domain -> bus -> ep -> names -> connection */
-	mutex_lock(&conn->bus->lock);
+	mutex_lock(&conn->ep->bus->lock);
 	down_write(&reg->rwlock);
 
 	e = kdbus_name_lookup(reg, hash, name);
@@ -263,7 +263,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 
 	/* Is the connection already the real owner of the name? */
 	if (e->conn == conn) {
-		ret = kdbus_name_entry_release(e, conn->bus);
+		ret = kdbus_name_entry_release(e, conn->ep->bus);
 	} else {
 		/*
 		 * Otherwise, walk the list of queued entries and search
@@ -295,7 +295,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 
 exit_unlock:
 	up_write(&reg->rwlock);
-	mutex_unlock(&conn->bus->lock);
+	mutex_unlock(&conn->ep->bus->lock);
 
 	return ret;
 }
@@ -317,7 +317,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	LIST_HEAD(names_list);
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->bus->lock);
+	mutex_lock(&conn->ep->bus->lock);
 	down_write(&reg->rwlock);
 
 	mutex_lock(&conn->lock);
@@ -332,13 +332,13 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
-		kdbus_name_entry_release(e, conn->bus);
+		kdbus_name_entry_release(e, conn->ep->bus);
 
 	up_write(&reg->rwlock);
-	mutex_unlock(&conn->bus->lock);
+	mutex_unlock(&conn->ep->bus->lock);
 
 	kdbus_conn_unref(activator);
-	kdbus_notify_flush(conn->bus);
+	kdbus_notify_flush(conn->ep->bus);
 }
 
 /**
@@ -491,7 +491,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	int ret = 0;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->bus->lock);
+	mutex_lock(&conn->ep->bus->lock);
 	down_write(&reg->rwlock);
 
 	hash = kdbus_str_hash(name);
@@ -610,14 +610,14 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	kdbus_name_entry_set_owner(e, conn);
 	mutex_unlock(&conn->lock);
 
-	kdbus_notify_name_change(e->conn->bus, KDBUS_ITEM_NAME_ADD,
+	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
 				 0, e->conn->id,
 				 0, e->flags, e->name);
 
 exit_unlock:
 	up_write(&reg->rwlock);
-	mutex_unlock(&conn->bus->lock);
-	kdbus_notify_flush(conn->bus);
+	mutex_unlock(&conn->ep->bus->lock);
+	kdbus_notify_flush(conn->ep->bus);
 	return ret;
 }
 
@@ -658,7 +658,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto out_dec;
 
 	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags);
-	kdbus_notify_flush(conn->bus);
+	kdbus_notify_flush(conn->ep->bus);
 
 out_dec:
 	/* Decrement the previous allocated slot */
@@ -695,7 +695,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 	ret = kdbus_name_release(reg, conn, name);
 
-	kdbus_notify_flush(conn->bus);
+	kdbus_notify_flush(conn->ep->bus);
 	return ret;
 }
 
@@ -778,7 +778,7 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 	size_t p = *pos;
 	int ret, i;
 
-	hash_for_each(conn->bus->conn_hash, i, c, hentry) {
+	hash_for_each(conn->ep->bus->conn_hash, i, c, hentry) {
 		bool added = false;
 
 		/* skip activators */
@@ -876,7 +876,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_read(&reg->rwlock);
-	down_read(&conn->bus->conn_rwlock);
+	down_read(&conn->ep->bus->conn_rwlock);
 	down_read(&policy_db->entries_rwlock);
 
 	/* size of header + records */
@@ -912,7 +912,7 @@ exit_pool_free:
 		kdbus_pool_slice_free(slice);
 exit_unlock:
 	up_read(&policy_db->entries_rwlock);
-	up_read(&conn->bus->conn_rwlock);
+	up_read(&conn->ep->bus->conn_rwlock);
 	up_read(&reg->rwlock);
 	return ret;
 }
