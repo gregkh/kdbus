@@ -2,7 +2,7 @@ since RFC v1:
 
   * Most notably, kdbus exposes its control files, buses and endpoints
     via an own file system now, called kdbusfs.
-    
+
      * Each time a file system of this type is mounted, a new kdbus
        domain is created.
        
@@ -15,7 +15,11 @@ since RFC v1:
        associated domain
 
      * Hence, the action of creating a kdbus domain is now as
-       privileged as the mounting of a kdbusfs.
+       privileged as mounting of a file system.
+
+     * This way, we can get around creating dev nodes for everything,
+       which is last but not least something that is not limited by
+       20-bit minor numbers.
 
   * Make functions that create new objects return the newly allocated
     memory directly, rather than in a referenced function arguments.
