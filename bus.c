@@ -11,7 +11,6 @@
  * your option) any later version.
  */
 
-#include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/hashtable.h>
 #include <linux/init.h>

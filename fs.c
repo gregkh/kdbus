@@ -352,7 +352,7 @@ static struct kdbus_fs_super *fs_super_new(void)
 	if (!super)
 		return ERR_PTR(-ENOMEM);
 
-	super->domain = kdbus_domain_new(NULL, NULL, KDBUS_MAKE_ACCESS_WORLD);
+	super->domain = kdbus_domain_new(NULL, KDBUS_MAKE_ACCESS_WORLD);
 	if (IS_ERR(super->domain)) {
 		ret = PTR_ERR(super->domain);
 		goto exit_free;

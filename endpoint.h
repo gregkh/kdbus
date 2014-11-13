@@ -14,7 +14,6 @@
 #ifndef __KDBUS_ENDPOINT_H
 #define __KDBUS_ENDPOINT_H
 
-#include <linux/device.h>
 #include "limits.h"
 #include "names.h"
 #include "node.h"
@@ -26,7 +25,6 @@ struct kdbus_kmsg;
 /*
  * struct kdbus_endpoint - enpoint to access a bus
  * @node:		The kdbus node
- * @dev:		Device
  * @bus:		Bus behind this endpoint
  * @id:			ID of this endpoint on the bus
  * @conn_list:		Connections of this endpoint
@@ -43,7 +41,6 @@ struct kdbus_kmsg;
  */
 struct kdbus_ep {
 	struct kdbus_node node;
-	struct device *dev;
 	struct kdbus_bus *bus;
 	u64 id;
 	struct list_head conn_list;

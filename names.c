@@ -13,7 +13,6 @@
  */
 
 #include <linux/ctype.h>
-#include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/hash.h>
 #include <linux/idr.h>

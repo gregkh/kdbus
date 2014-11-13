@@ -11,7 +11,6 @@
  * your option) any later version.
  */
 
-#include <linux/device.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/idr.h>
@@ -303,7 +302,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_cmd_make *make;
-	struct kdbus_domain *domain = NULL;
 	unsigned int access;
 	void *free_ptr = NULL;
 	int ret;
@@ -353,70 +351,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0) {
 			kdbus_bus_deactivate(bus);
 			kdbus_bus_unref(bus);
-			break;
-		}
-
-		break;
-	}
-
-	case KDBUS_CMD_DOMAIN_MAKE: {
-		const char *name;
-
-		if (!handle->privileged) {
-			ret = -EPERM;
-			break;
-		}
-
-		make = kdbus_memdup_user(buf, sizeof(*make),
-					 KDBUS_MAKE_MAX_SIZE);
-		if (IS_ERR(make)) {
-			ret = PTR_ERR(make);
-			break;
-		}
-
-		free_ptr = make;
-
-		ret = kdbus_negotiate_flags(make, buf, typeof(*make),
-					    KDBUS_MAKE_ACCESS_GROUP |
-					    KDBUS_MAKE_ACCESS_WORLD);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(make->items,
-					   KDBUS_ITEMS_SIZE(make, items));
-		if (ret < 0)
-			break;
-
-		name = kdbus_items_get_str(make->items,
-					   KDBUS_ITEMS_SIZE(make, items),
-					   KDBUS_ITEM_MAKE_NAME);
-		if (IS_ERR(name)) {
-			ret = PTR_ERR(name);
-			break;
-		}
-
-		access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
-					KDBUS_MAKE_ACCESS_GROUP);
-
-		domain = kdbus_domain_new(handle->domain, name, access);
-		if (IS_ERR(domain)) {
-			ret = PTR_ERR(domain);
-			break;
-		}
-
-		ret = kdbus_domain_activate(domain);
-		if (ret < 0) {
-			kdbus_domain_unref(domain);
-			break;
-		}
-
-		/* turn the control fd into a new domain owner device */
-		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
-					     KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
-					     domain);
-		if (ret < 0) {
-			kdbus_domain_deactivate(domain);
-			kdbus_domain_unref(domain);
 			break;
 		}
 

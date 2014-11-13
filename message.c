@@ -14,7 +14,6 @@
 #include <linux/capability.h>
 #include <linux/cgroup.h>
 #include <linux/cred.h>
-#include <linux/device.h>
 #include <linux/file.h>
 #include <linux/init.h>
 #include <linux/module.h>

@@ -12,7 +12,6 @@
  */
 
 #include <linux/audit.h>
-#include <linux/device.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/hashtable.h>

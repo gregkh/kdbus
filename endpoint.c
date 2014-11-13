@@ -11,7 +11,6 @@
  * your option) any later version.
  */
 
-#include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/idr.h>
 #include <linux/init.h>
@@ -32,33 +31,6 @@
 
 static void kdbus_ep_free(struct kdbus_node *node);
 static void kdbus_ep_release(struct kdbus_node *node);
-
-/* endpoints are by default owned by the bus owner */
-static char *kdbus_ep_dev_devnode(struct device *dev, umode_t *mode,
-				  kuid_t *uid, kgid_t *gid)
-{
-	struct kdbus_ep *ep = dev_get_drvdata(dev);
-
-	if (mode)
-		*mode = ep->node.mode;
-	if (uid)
-		*uid = ep->node.uid;
-	if (gid)
-		*gid = ep->node.gid;
-
-	return NULL;
-}
-
-static void kdbus_ep_dev_release(struct device *dev)
-{
-	kfree(dev);
-}
-
-static struct device_type kdbus_ep_dev_type = {
-	.name		= "endpoint",
-	.devnode	= kdbus_ep_dev_devnode,
-	.release	= kdbus_ep_dev_release,
-};
 
 /**
  * kdbus_ep_new() - create a new endpoint
@@ -106,23 +78,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (access & KDBUS_MAKE_ACCESS_WORLD)
 		e->node.mode |= S_IROTH | S_IWOTH;
 
-	/* register bus endpoint device */
-	e->dev = kzalloc(sizeof(*e->dev), GFP_KERNEL);
-	if (!e->dev) {
-		ret = -ENOMEM;
-		goto exit_unref;
-	}
-
-	device_initialize(e->dev);
-	dev_set_drvdata(e->dev, e);
-	e->dev->bus = &kdbus_subsys;
-	e->dev->type = &kdbus_ep_dev_type;
-	e->dev->devt = MKDEV(kdbus_major, e->node.id);
-
-	dev_set_name(e->dev, "%s/%s/%s", bus->domain->devpath, bus->node.name, name);
-	if (ret < 0)
-		goto exit_unref;
-
 	return e;
 
 exit_unref:
@@ -140,7 +95,6 @@ static void kdbus_ep_free(struct kdbus_node *node)
 	kdbus_policy_db_clear(&ep->policy_db);
 	kdbus_bus_unref(ep->bus);
 	kdbus_domain_user_unref(ep->user);
-	put_device(ep->dev);
 	kfree(ep);
 }
 
@@ -178,8 +132,6 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 
 int kdbus_ep_activate(struct kdbus_ep *ep)
 {
-	int ret;
-
 	mutex_lock(&ep->bus->lock);
 
 	if (!kdbus_bus_is_active(ep->bus)) {
@@ -193,21 +145,11 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
 	 * Same as with domains, we have to mark it enabled _before_ running
 	 * device_add() to avoid messing with state after UEVENT_ADD was sent.
 	 */
-
 	kdbus_node_activate(&ep->node);
-
-	ret = device_add(ep->dev);
 
 	mutex_unlock(&ep->bus->lock);
 
-	if (ret < 0)
-		goto exit_deactivate;
-
 	return 0;
-
-exit_deactivate:
-	kdbus_ep_deactivate(ep);
-	return ret;
 }
 
 static void kdbus_ep_release(struct kdbus_node *node)
@@ -218,9 +160,6 @@ static void kdbus_ep_release(struct kdbus_node *node)
 	mutex_lock(&ep->bus->lock);
 	list_del(&ep->bus_entry);
 	mutex_unlock(&ep->bus->lock);
-
-	if (ep->dev)
-		device_del(ep->dev);
 
 	/* disconnect all connections to this endpoint */
 	for (;;) {

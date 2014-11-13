@@ -40,9 +40,6 @@
 static DEFINE_IDR(kdbus_node_idr);
 static DECLARE_RWSEM(kdbus_node_idr_lock);
 
-/* kdbus major */
-unsigned int kdbus_major;
-
 unsigned int kdbus_node_name_hash(const char *name)
 {
 	unsigned int hash;
@@ -293,24 +290,9 @@ struct kdbus_node *kdbus_node_find_by_id(unsigned int id)
 /**
  * kdbus_nodes_init() - initialize the nodes infrastructure
  */
-int kdbus_nodes_init(void)
+void kdbus_nodes_init(void)
 {
-	int ret;
-
 	idr_init(&kdbus_node_idr);
-
-	ret = __register_chrdev(0, 0, KDBUS_NODE_IDR_MAX + 1, KBUILD_MODNAME,
-				&kdbus_handle_ops);
-	if (ret < 0)
-		goto exit_idr;
-
-	kdbus_major = ret;
-
-	return 0;
-
-exit_idr:
-	idr_destroy(&kdbus_node_idr);
-	return ret;
 }
 
 /**
@@ -318,8 +300,6 @@ exit_idr:
  */
 void kdbus_nodes_exit(void)
 {
-	__unregister_chrdev(kdbus_major, 0, KDBUS_NODE_IDR_MAX + 1,
-			    KBUILD_MODNAME);
 	idr_destroy(&kdbus_node_idr);
 }
 
