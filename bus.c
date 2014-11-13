@@ -184,7 +184,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	}
 
 	if (atomic_inc_return(&b->user->buses) > KDBUS_USER_MAX_BUSES) {
-		atomic_dec(&b->user->buses);
 		ret = -EMFILE;
 		goto exit_unref;
 	}
