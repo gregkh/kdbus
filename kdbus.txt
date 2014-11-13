@@ -503,15 +503,8 @@ struct kdbus_cmd_info {
     terminator.
 
   __u64 flags;
-    Specify which items should be attached to the answer.
-    The following flags can be used:
-
-    KDBUS_ATTACH_NAMES
-      Add an item to the answer containing all the names the connection
-      currently owns.
-
-    KDBUS_ATTACH_CONN_NAME
-      Add an item to the answer containing the connection's name.
+    Specify which metadata items should be attached to the answer.
+    See section 13 for more details.
 
     After the ioctl returns, this field will contain the current metadata
     attach flags of the connection.
