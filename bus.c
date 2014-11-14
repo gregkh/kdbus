@@ -33,8 +33,30 @@
 #include "names.h"
 #include "policy.h"
 
-static void kdbus_bus_free(struct kdbus_node *node);
-static void kdbus_bus_release(struct kdbus_node *node);
+static void kdbus_bus_free(struct kdbus_node *node)
+{
+	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
+
+	BUG_ON(kdbus_bus_is_active(bus));
+	BUG_ON(!list_empty(&bus->monitors_list));
+	BUG_ON(!hash_empty(bus->conn_hash));
+
+	kdbus_notify_free(bus);
+
+	kdbus_domain_user_unref(bus->user);
+	kdbus_name_registry_free(bus->name_registry);
+	kdbus_domain_unref(bus->domain);
+	kdbus_policy_db_clear(&bus->policy_db);
+	kdbus_meta_free(bus->meta);
+	kfree(bus);
+}
+
+static void kdbus_bus_release(struct kdbus_node *node)
+{
+	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
+
+	atomic_dec(&bus->user->buses);
+}
 
 /**
  * kdbus_bus_new() - create a kdbus_cmd_make from user-supplied data
@@ -190,24 +212,6 @@ exit_unref:
 	return ERR_PTR(ret);
 }
 
-static void kdbus_bus_free(struct kdbus_node *node)
-{
-	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
-
-	BUG_ON(kdbus_bus_is_active(bus));
-	BUG_ON(!list_empty(&bus->monitors_list));
-	BUG_ON(!hash_empty(bus->conn_hash));
-
-	kdbus_notify_free(bus);
-
-	kdbus_domain_user_unref(bus->user);
-	kdbus_name_registry_free(bus->name_registry);
-	kdbus_domain_unref(bus->domain);
-	kdbus_policy_db_clear(&bus->policy_db);
-	kdbus_meta_free(bus->meta);
-	kfree(bus);
-}
-
 /**
  * kdbus_bus_ref() - increase the reference counter of a kdbus_bus
  * @bus:		The bus to reference
@@ -282,13 +286,6 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 exit_dec:
 	atomic_dec(&bus->user->buses);
 	return ret;
-}
-
-static void kdbus_bus_release(struct kdbus_node *node)
-{
-	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
-
-	atomic_dec(&bus->user->buses);
 }
 
 /**

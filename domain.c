@@ -30,8 +30,6 @@
 /* previous domain id sequence number */
 static atomic64_t kdbus_domain_seq_last;
 
-static void kdbus_domain_free(struct kdbus_node *node);
-
 static void kdbus_domain_control_free(struct kdbus_node *node)
 {
 	kfree(node);
@@ -66,6 +64,18 @@ static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain,
 exit_free:
 	kfree(node);
 	return ERR_PTR(ret);
+}
+
+static void kdbus_domain_free(struct kdbus_node *node)
+{
+	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
+						   node);
+
+	BUG_ON(kdbus_domain_is_active(domain));
+	BUG_ON(!hash_empty(domain->user_hash));
+
+	idr_destroy(&domain->user_idr);
+	kfree(domain);
 }
 
 /**
@@ -109,18 +119,6 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 exit_unref:
 	kdbus_domain_unref(d);
 	return ERR_PTR(ret);
-}
-
-static void kdbus_domain_free(struct kdbus_node *node)
-{
-	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
-						   node);
-
-	BUG_ON(kdbus_domain_is_active(domain));
-	BUG_ON(!hash_empty(domain->user_hash));
-
-	idr_destroy(&domain->user_idr);
-	kfree(domain);
 }
 
 /**

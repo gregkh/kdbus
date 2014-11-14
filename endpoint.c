@@ -29,8 +29,44 @@
 #include "message.h"
 #include "policy.h"
 
-static void kdbus_ep_free(struct kdbus_node *node);
-static void kdbus_ep_release(struct kdbus_node *node);
+static void kdbus_ep_free(struct kdbus_node *node)
+{
+	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
+
+	BUG_ON(kdbus_ep_is_active(ep));
+	BUG_ON(!list_empty(&ep->conn_list));
+
+	kdbus_policy_db_clear(&ep->policy_db);
+	kdbus_bus_unref(ep->bus);
+	kdbus_domain_user_unref(ep->user);
+	kfree(ep);
+}
+
+static void kdbus_ep_release(struct kdbus_node *node)
+{
+	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
+
+	/* disconnect all connections to this endpoint */
+	for (;;) {
+		struct kdbus_conn *conn;
+
+		mutex_lock(&ep->lock);
+		conn = list_first_entry_or_null(&ep->conn_list,
+						struct kdbus_conn,
+						ep_entry);
+		if (!conn) {
+			mutex_unlock(&ep->lock);
+			break;
+		}
+
+		/* take reference, release lock, disconnect without lock */
+		kdbus_conn_ref(conn);
+		mutex_unlock(&ep->lock);
+
+		kdbus_conn_disconnect(conn, false);
+		kdbus_conn_unref(conn);
+	}
+}
 
 /**
  * kdbus_ep_new() - create a new endpoint
@@ -86,19 +122,6 @@ exit_unref:
 	return ERR_PTR(ret);
 }
 
-static void kdbus_ep_free(struct kdbus_node *node)
-{
-	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
-
-	BUG_ON(kdbus_ep_is_active(ep));
-	BUG_ON(!list_empty(&ep->conn_list));
-
-	kdbus_policy_db_clear(&ep->policy_db);
-	kdbus_bus_unref(ep->bus);
-	kdbus_domain_user_unref(ep->user);
-	kfree(ep);
-}
-
 /**
  * kdbus_ep_ref() - increase the reference counter of a kdbus_ep
  * @ep:			The endpoint to reference
@@ -131,6 +154,12 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 	return NULL;
 }
 
+/**
+ * kdbus_ep_activate() - Activatean endpoint
+ * @ep:			Endpoint
+ *
+ * Return: 0 on success, negative error otherwise.
+ */
 int kdbus_ep_activate(struct kdbus_ep *ep)
 {
 	mutex_lock(&ep->bus->lock);
@@ -149,32 +178,6 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
 	mutex_unlock(&ep->bus->lock);
 
 	return 0;
-}
-
-static void kdbus_ep_release(struct kdbus_node *node)
-{
-	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
-
-	/* disconnect all connections to this endpoint */
-	for (;;) {
-		struct kdbus_conn *conn;
-
-		mutex_lock(&ep->lock);
-		conn = list_first_entry_or_null(&ep->conn_list,
-						struct kdbus_conn,
-						ep_entry);
-		if (!conn) {
-			mutex_unlock(&ep->lock);
-			break;
-		}
-
-		/* take reference, release lock, disconnect without lock */
-		kdbus_conn_ref(conn);
-		mutex_unlock(&ep->lock);
-
-		kdbus_conn_disconnect(conn, false);
-		kdbus_conn_unref(conn);
-	}
 }
 
 /**
