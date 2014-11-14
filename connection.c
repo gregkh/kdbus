@@ -1776,6 +1776,10 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 	struct kdbus_name_entry *e;
 	bool match = false;
 
+	/* No need to go further if we do not own names */
+	if (atomic_read(&conn->name_count) == 0)
+		return false;
+
 	mutex_lock(&conn->lock);
 	list_for_each_entry(e, &conn->names_list, conn_entry) {
 		if (strcmp(e->name, name) == 0) {

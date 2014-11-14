@@ -115,6 +115,9 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
 }
 
 /*
+ * The caller must hold the lock so we decrement the counter and
+ * delete the entry.
+ *
  * The caller needs to hold its own reference, so the connection does not go
  * away while the entry's reference is dropped under lock.
  */
@@ -135,8 +138,8 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 	BUG_ON(!mutex_is_locked(&conn->lock));
 
 	e->conn = kdbus_conn_ref(conn);
-	list_add_tail(&e->conn_entry, &e->conn->names_list);
 	atomic_inc(&conn->name_count);
+	list_add_tail(&e->conn_entry, &e->conn->names_list);
 }
 
 static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
