@@ -56,6 +56,7 @@ static struct inode *fs_inode_get(struct super_block *sb,
 static int fs_file_fop_open(struct inode *inode, struct file *filp)
 {
 	const struct file_operations *fops = &kdbus_handle_ops;
+	struct kdbus_node *node;
 
 	fops = fops_get(fops);
 	if (!fops)
@@ -65,7 +66,11 @@ static int fs_file_fop_open(struct inode *inode, struct file *filp)
 	if (!filp->f_op->open)
 		return 0;
 
-	filp->private_data = kdbus_node_find_by_id(inode->i_ino);
+	node = kdbus_node_from_inode(inode);
+	if (!kdbus_node_acquire(node))
+		return -ESHUTDOWN;
+
+	filp->private_data = kdbus_node_ref(node);
 
 	return filp->f_op->open(inode, filp);
 }
