@@ -145,6 +145,8 @@ int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 	if (ret < 0)
 		return ret;
 
+	ret = 0;
+
 	if (parent) {
 		struct rb_node **n, *prev;
 
@@ -160,30 +162,27 @@ int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 			pos = kdbus_node_from_rb(*n);
 			prev = *n;
 			result = kdbus_node_compare(node, pos);
-			if (result < 0) {
-				n = &pos->rb.rb_left;
-			} else if (result > 0) {
-				n = &pos->rb.rb_right;
-			} else {
+			if (result == 0) {
 				ret = -EEXIST;
-				break;
+				goto exit_unlock;
 			}
+
+			if (result < 0)
+				n = &pos->rb.rb_left;
+			else
+				n = &pos->rb.rb_right;
 		}
 
-		if (ret >= 0) {
-			/* add new node and rebalance the tree */
-			rb_link_node(&node->rb, prev, n);
-			rb_insert_color(&node->rb, &parent->children);
-			node->parent = kdbus_node_ref(parent);
-		}
+		/* add new node and rebalance the tree */
+		rb_link_node(&node->rb, prev, n);
+		rb_insert_color(&node->rb, &parent->children);
+		node->parent = kdbus_node_ref(parent);
 
+exit_unlock:
 		mutex_unlock(&parent->lock);
 	}
 
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return ret;
 }
 
 struct kdbus_node *kdbus_node_ref(struct kdbus_node *node)
