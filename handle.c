@@ -98,7 +98,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	struct kdbus_node *node;
 	int ret;
 
-	node = kdbus_node_find_by_id((long) file->private_data);
+	node = (struct kdbus_node *) file->private_data;
 	if (!node)
 		return -ESHUTDOWN;
 

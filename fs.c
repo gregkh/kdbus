@@ -62,9 +62,10 @@ static int fs_file_fop_open(struct inode *inode, struct file *filp)
 		return -ENXIO;
 
 	replace_fops(filp, fops);
-	filp->private_data = (void*)(long)inode->i_ino;
 	if (!filp->f_op->open)
 		return 0;
+
+	filp->private_data = kdbus_node_find_by_id(inode->i_ino);
 
 	return filp->f_op->open(inode, filp);
 }
