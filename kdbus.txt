@@ -1726,6 +1726,8 @@ For KDBUS_CMD_NAME_ACQUIRE:
   -EPERM	Policy prohibited name ownership
   -EALREADY	Connection already owns that name
   -EEXIST	The name already exists and can not be taken over
+  -E2BIG	The maximum number of well-known names per connection
+		is exhausted
   -ECONNRESET	The connection was reset during the call
 
 For KDBUS_CMD_NAME_RELEASE:
