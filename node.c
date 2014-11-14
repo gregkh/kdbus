@@ -195,6 +195,8 @@ struct kdbus_node *kdbus_node_ref(struct kdbus_node *node)
 struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 {
 	if (node && atomic_dec_and_test(&node->refcnt)) {
+		struct kdbus_node *parent;
+
 		down_write(&kdbus_node_idr_lock);
 		if (node->id > 0)
 			idr_remove(&kdbus_node_idr, node->id);
@@ -209,11 +211,13 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 			mutex_unlock(&node->parent->lock);
 		}
 
+		parent = node->parent;
+		kfree(node->name);
+
 		if (node->free_cb)
 			node->free_cb(node);
 
-		node->parent = kdbus_node_unref(node->parent);
-		kfree(node->name);
+		kdbus_node_unref(parent);
 	}
 
 	return NULL;
