@@ -273,8 +273,6 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 		goto exit_dec;
 	}
 
-	kdbus_node_activate(&bus->node);
-
 	mutex_unlock(&bus->domain->lock);
 
 	kdbus_node_activate(&bus->node);
