@@ -102,55 +102,53 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 {
 	struct dentry *dentry = file->f_path.dentry;
 	struct kdbus_node *parent = kdbus_node_from_dentry(dentry);
-	struct kdbus_node *old = file->private_data;
-	struct kdbus_node *pos, *next;
+	struct kdbus_node *next = NULL;
+	struct kdbus_node *prev = file->private_data;
 	struct rb_node *rb;
 
 	if (!dir_emit_dots(file, ctx))
 		return 0;
 
-	next = old;
+	next = prev;
 
 	mutex_lock(&parent->lock);
-	do {
-		if (!next || ctx->pos != next->hash) {
-			/* find first node with: hash >= ctx->pos */
-			next = NULL;
-			rb = parent->children.rb_node;
-			while (rb) {
-				pos = kdbus_node_from_rb(rb);
 
-				if (ctx->pos < pos->hash) {
-					rb = rb->rb_left;
-					next = pos;
-				} else if (ctx->pos > pos->hash) {
-					rb = rb->rb_right;
-				} else {
-					next = pos;
-					break;
-				}
+	if (!prev || ctx->pos != prev->hash) {
+		/* find first node with: hash >= ctx->pos */
+		rb = parent->children.rb_node;
+		while (rb) {
+			struct kdbus_node *pos = kdbus_node_from_rb(rb);
+
+			if (ctx->pos < pos->hash) {
+				rb = rb->rb_left;
+				next = pos;
+			} else if (ctx->pos > pos->hash) {
+				rb = rb->rb_right;
+			} else {
+				next = pos;
+				break;
 			}
 		}
+	}
 
-		while (next && !kdbus_node_is_active(next)) {
+	while (next) {
+		/* skip inactive nodes, and walk down to the next active one */
+		while (!kdbus_node_is_active(next)) {
 			rb = rb_next(&next->rb);
-			if (rb)
-				next = kdbus_node_from_rb(rb);
-			else
-				next = NULL;
-		}
+			if (!rb)
+				goto exit_unlock;
 
-		if (!next)
-			break;
+			next = kdbus_node_from_rb(rb);
+		}
 
 		file->private_data = kdbus_node_ref(next);
 		ctx->pos = next->hash;
 
 		mutex_unlock(&parent->lock);
 
-		/* unref old entry only if parent mutex is released */
-		kdbus_node_unref(old);
-		old = file->private_data;
+		/* unref prev entry only if parent mutex is released */
+		kdbus_node_unref(prev);
+		prev = next;
 
 		if (!dir_emit(ctx, next->name, strlen(next->name), next->id,
 			      kdbus_dt_type(next)))
@@ -159,16 +157,16 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 		mutex_lock(&parent->lock);
 
 		rb = rb_next(&next->rb);
-		if (rb) {
-			next = kdbus_node_from_rb(rb);
-			ctx->pos = next->hash;
-		} else {
-			next = NULL;
-		}
-	} while (next);
+		if (!rb)
+			break;
+
+		next = kdbus_node_from_rb(rb);
+	}
+
+exit_unlock:
 	mutex_unlock(&parent->lock);
 
-	kdbus_node_unref(old);
+	kdbus_node_unref(prev);
 	file->private_data = NULL;
 	ctx->pos = INT_MAX;
 
