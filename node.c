@@ -40,6 +40,14 @@
 static DEFINE_IDR(kdbus_node_idr);
 static DECLARE_RWSEM(kdbus_node_idr_lock);
 
+/**
+ * kdbus_node_name_hash() - hash a name
+ * @name:	The string to hash
+ *
+ * Return: the hash of @name, guaranteed to be in the range [2..INT_MAX+2].
+ * The values 1 and 2 are unused as they are reserved for the filesystem code,
+ * so it can accommodate the '.' and '..' directory entries.
+ */
 unsigned int kdbus_node_name_hash(const char *name)
 {
 	unsigned int hash;
@@ -56,6 +64,16 @@ unsigned int kdbus_node_name_hash(const char *name)
 	return hash;
 }
 
+/**
+ * kdbus_node_name_compare() - compare a name with a node's name
+ * @hash:	The hash of the string to compare the node with
+ * @name:	The name to compare the node with
+ * @node:	The node to compare the name with
+ *
+ * Return: 0 if @name and @hash exactly match the information in @node, or
+ * an integer less than or greater than zero if @name is found, respectively,
+ * to be less than or be greater than the string stored in @node.
+ */
 int kdbus_node_name_compare(unsigned int hash, const char *name,
 			    const struct kdbus_node *node)
 {
@@ -218,30 +236,37 @@ void kdbus_node_activate(struct kdbus_node *node)
 	mutex_unlock(&node->lock);
 }
 
+/**
+ * kdbus_node_deactivate() - deactivate a node
+ * @node:	The node to deactivate.
+ *
+ * This function recursively deactivates the node and all its children.
+ */
 void kdbus_node_deactivate(struct kdbus_node *node)
 {
 	struct kdbus_node *pos, *child;
 	struct rb_node *rb;
 	int v;
 
+	pos = node;
+
 	/*
-	 * We want to recursively deactivate this node and its childs. To avoid
-	 * recursion, we perform back-tracking while deactivating nodes. For
-	 * each node we enter, we first mark the active-counter as deactivated
-	 * by adding BIAS. If the node as children, we set the first child as
-	 * current position and start over. If the node has no children, we
-	 * drain the node by waiting for all active refs to be dropped and then
-	 * releasing the node.
+	 * To avoid recursion, we perform back-tracking while deactivating
+	 * nodes. For each node we enter, we first mark the active-counter as
+	 * deactivated by adding BIAS. If the node as children, we set the first
+	 * child as current position and start over. If the node has no
+	 * children, we drain the node by waiting for all active refs to be
+	 * dropped and then releasing the node.
+	 *
 	 * After the node is released, we set its parent as current position
 	 * and start over. If the current position was the initial node, we're
 	 * done.
+	 *
 	 * Note that this function can be called in parallel by multiple
 	 * callers. We make sure that each node is only released once, and any
 	 * racing caller will wait until the other thread fully released that
 	 * node.
 	 */
-
-	pos = node;
 
 	for (;;) {
 		/* add BIAS to node->active to mark it as inactive */
@@ -310,21 +335,33 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 		 * If we've reached our initial node again, we are done and
 		 * can safely return.
 		 */
-		if (pos != node) {
-			child = pos;
-			pos = pos->parent;
-			kdbus_node_unref(child);
-		} else {
+		if (pos == node)
 			break;
-		}
+
+		child = pos;
+		pos = pos->parent;
+		kdbus_node_unref(child);
 	}
 }
 
+/**
+ * kdbus_node_acquire() - Acquire an active ref on a node
+ * @node:	The node
+ *
+ * Return: %true if @node was non-NULL and not deactivated.
+ */
 bool kdbus_node_acquire(struct kdbus_node *node)
 {
 	return node && atomic_inc_unless_negative(&node->active);
 }
 
+/**
+ * kdbus_node_release() - Release an active ref on a node
+ * @node:	The node
+ *
+ * If the call this function releases is the last active counter on the node,
+ * the parallel draining thread will return.
+ */
 void kdbus_node_release(struct kdbus_node *node)
 {
 	if (node && atomic_dec_return(&node->active) == KDBUS_NODE_BIAS)
