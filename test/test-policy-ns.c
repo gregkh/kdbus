@@ -33,7 +33,11 @@
 #define MAX_CONN	64
 #define POLICY_NAME	"foo.test.policy-test"
 
+#define KDBUS_CONN_MAX_MSGS_PER_USER            16
+
 /**
+ * Note: this test can be used to inspect policy_db->talk_access_hash
+ *
  * The purpose of these tests:
  * 1) Check KDBUS_POLICY_TALK
  * 2) Check the cache state: kdbus_policy_db->talk_access_hash
@@ -53,7 +57,7 @@ static void *kdbus_recv_echo(void *ptr)
 	int ret;
 	struct kdbus_conn *conn = ptr;
 
-	ret = kdbus_msg_recv_poll(conn, 100, NULL, NULL);
+	ret = kdbus_msg_recv_poll(conn, 200, NULL, NULL);
 
 	return (void *)(long)ret;
 }
@@ -134,6 +138,9 @@ static int kdbus_recv_in_threads(const char *bus, const char *name,
 				 struct kdbus_conn **conn_db)
 {
 	int ret;
+	bool pool_full = false;
+	unsigned int sent_packets = 0;
+	unsigned int lost_packets = 0;
 	unsigned int i, tid;
 	unsigned long dst_id;
 	unsigned long cookie = 1;
@@ -147,8 +154,8 @@ static int kdbus_recv_in_threads(const char *bus, const char *name,
 				     kdbus_recv_echo, (void *)conn_db[0]);
 		if (ret < 0) {
 			ret = -errno;
-			kdbus_printf("error pthread_create: %d err %d (%m)\n",
-				      ret, errno);
+			kdbus_printf("error pthread_create: %d (%m)\n",
+				      ret);
 			break;
 		}
 
@@ -169,8 +176,21 @@ static int kdbus_recv_in_threads(const char *bus, const char *name,
 
 		ret = kdbus_msg_send(conn_db[i], name, cookie++,
 				     0, 0, 0, dst_id);
-		if (ret < 0)
+		if (ret < 0) {
+			/*
+			 * Receivers are not reading their messages,
+			 * not scheduled ?!
+			 *
+			 * So set the pool full here, perhaps the
+			 * connection pool or queue was full, later
+			 * recheck receivers errors
+			 */
+			if (ret == -ENOBUFS || ret == -EXFULL)
+				pool_full = true;
 			break;
+		}
+
+		sent_packets++;
 	}
 
 	for (tid = 0; tid < thread_nr; tid++) {
@@ -178,9 +198,38 @@ static int kdbus_recv_in_threads(const char *bus, const char *name,
 
 		if (thread_id[tid]) {
 			pthread_join(thread_id[tid], (void *)&thread_ret);
-			if (thread_ret < 0 && ret == 0)
-				ret = thread_ret;
+			if (thread_ret < 0) {
+				/* Update only if send did not fail */
+				if (ret == 0)
+					ret = thread_ret;
+
+				lost_packets++;
+			}
 		}
+	}
+
+	/*
+	 * When sending if we did fail with -ENOBUFS or -EXFULL
+	 * then we should have set lost_packet and we should at
+	 * least have sent_packets set to KDBUS_CONN_MAX_MSGS_PER_USER
+	 */
+	if (pool_full) {
+		ASSERT_RETURN(lost_packets > 0);
+
+		/*
+		 * We should at least send KDBUS_CONN_MAX_MSGS_PER_USER
+		 *
+		 * For every send operation we create a thread to
+		 * recv the packet, so we keep the queue clean
+		 */
+		ASSERT_RETURN(sent_packets >= KDBUS_CONN_MAX_MSGS_PER_USER);
+
+		/*
+		 * Set ret to zero since we only failed due to
+		 * the receiving threads that have not been
+		 * scheduled
+		 */
+		ret = 0;
 	}
 
 	return ret;
