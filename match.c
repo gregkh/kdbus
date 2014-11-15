@@ -307,7 +307,7 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 	return matched;
 }
 
-static int __kdbus_match_db_remove_unlocked(struct kdbus_match_db *db,
+static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *db,
 					    uint64_t cookie)
 {
 	struct kdbus_match_entry *entry, *tmp;
@@ -473,7 +473,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 	/* Remove any entry that has the same cookie as the current one. */
 	if (cmd->flags & KDBUS_MATCH_REPLACE)
-		__kdbus_match_db_remove_unlocked(db, entry->cookie);
+		kdbus_match_db_remove_unlocked(db, entry->cookie);
 
 	/*
 	 * If the above removal caught any entry, there will be room for the
@@ -512,7 +512,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 	lockdep_assert_held(conn);
 
 	down_write(&db->entries_rwlock);
-	ret = __kdbus_match_db_remove_unlocked(db, cmd->cookie);
+	ret = kdbus_match_db_remove_unlocked(db, cmd->cookie);
 	up_write(&db->entries_rwlock);
 
 	return ret;
