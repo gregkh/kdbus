@@ -4,6 +4,7 @@
  * Copyright (C) 2013-2014 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013-2014 David Herrmann <dh.herrmann@gmail.com>
  * Copyright (C) 2013-2014 Linux Foundation
+ * Copyright (C) 2014 Djalal Harouni <tixxdz@opendz.org>
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -35,7 +36,7 @@
  */
 struct kdbus_match_db {
 	struct list_head entries_list;
-	struct mutex entries_lock;
+	struct rw_semaphore entries_rwlock;
 	unsigned int entries;
 };
 
@@ -137,10 +138,10 @@ void kdbus_match_db_free(struct kdbus_match_db *db)
 {
 	struct kdbus_match_entry *entry, *tmp;
 
-	mutex_lock(&db->entries_lock);
+	down_write(&db->entries_rwlock);
 	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
 		kdbus_match_entry_free(entry);
-	mutex_unlock(&db->entries_lock);
+	up_write(&db->entries_rwlock);
 
 	kfree(db);
 }
@@ -158,7 +159,7 @@ struct kdbus_match_db *kdbus_match_db_new(void)
 	if (!d)
 		return ERR_PTR(-ENOMEM);
 
-	mutex_init(&d->entries_lock);
+	init_rwsem(&d->entries_rwlock);
 	INIT_LIST_HEAD(&d->entries_list);
 
 	return d;
@@ -295,13 +296,13 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 	struct kdbus_match_entry *entry;
 	bool matched = false;
 
-	mutex_lock(&db->entries_lock);
+	down_read(&db->entries_rwlock);
 	list_for_each_entry(entry, &db->entries_list, list_entry) {
 		matched = kdbus_match_rules(entry, conn_src, kmsg);
 		if (matched)
 			break;
 	}
-	mutex_unlock(&db->entries_lock);
+	up_read(&db->entries_rwlock);
 
 	return matched;
 }
@@ -468,7 +469,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
 
-	mutex_lock(&db->entries_lock);
+	down_write(&db->entries_rwlock);
 
 	/* Remove any entry that has the same cookie as the current one. */
 	if (cmd->flags & KDBUS_MATCH_REPLACE)
@@ -486,7 +487,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		list_add_tail(&entry->list_entry, &db->entries_list);
 	else
 		kdbus_match_entry_free(entry);
-	mutex_unlock(&db->entries_lock);
+	up_write(&db->entries_rwlock);
 
 exit_free:
 	return ret;
@@ -510,9 +511,9 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 
 	lockdep_assert_held(conn);
 
-	mutex_lock(&db->entries_lock);
+	down_write(&db->entries_rwlock);
 	ret = __kdbus_match_db_remove_unlocked(db, cmd->cookie);
-	mutex_unlock(&db->entries_lock);
+	up_write(&db->entries_rwlock);
 
 	return ret;
 }
