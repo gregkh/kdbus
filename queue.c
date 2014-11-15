@@ -594,6 +594,7 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 	kdbus_fput_files(entry->fds_fp, entry->fds_count);
 	kfree(entry->memfds_fp);
 	kfree(entry->fds_fp);
+	kfree(entry->memfds);
 	kfree(entry);
 }
 
