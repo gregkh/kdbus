@@ -44,6 +44,10 @@ since RFC v1:
        bus owners can denote their minimal requirements of metadata to
        be attached by connections of the bus.
 
+  * Capabilities are now only checked at open() time, and the
+    information is cached for the lifetime of a file descriptor.
+    Reported by Eric W. Biederman, Andy Lutomirski and Thomas Gleixner.
+
   * Rename two details in kdbus.h to not overload the term 'name' too
     much:
 
