@@ -370,10 +370,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	lockdep_assert_held(conn);
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
-	if (!entry) {
-		ret = -ENOMEM;
-		goto exit_free;
-	}
+	if (!entry)
+		return -ENOMEM;
 
 	entry->cookie = cmd->cookie;
 	INIT_LIST_HEAD(&entry->list_entry);
@@ -390,14 +388,14 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		}
 
 		switch (item->type) {
+		/* First matches for userspace messages */
 		case KDBUS_ITEM_BLOOM_MASK: {
 			u64 bsize = conn->ep->bus->bloom.size;
 			u64 generations;
 			u64 remainder;
 
 			generations = div64_u64_rem(size, bsize, &remainder);
-			if (size < bsize ||
-			    remainder > 0) {
+			if (size < bsize || remainder > 0) {
 				ret = -EDOM;
 				break;
 			}
@@ -414,10 +412,16 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 
 			break;
 		}
+
 		case KDBUS_ITEM_NAME:
-			ret = kdbus_item_validate_name(item);
-			if (ret < 0)
+			/*
+			 * Do not allow wildcard for now, since we
+			 * must validate the wildcard first
+			 */
+			if (!kdbus_name_is_valid(item->str, false)) {
+				ret = -EINVAL;
 				break;
+			}
 
 			rule->name = kstrdup(item->str, GFP_KERNEL);
 			if (!rule->name)
@@ -429,6 +433,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			rule->src_id = item->id;
 			break;
 
+		/* Now matches for kernel messages */
 		case KDBUS_ITEM_NAME_ADD:
 		case KDBUS_ITEM_NAME_REMOVE:
 		case KDBUS_ITEM_NAME_CHANGE: {
@@ -455,8 +460,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			break;
 
 		default:
-			kfree(rule);
-			continue;
+			ret = -EINVAL;
+			break;
 		}
 
 		if (ret < 0) {
@@ -489,7 +494,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		kdbus_match_entry_free(entry);
 	up_write(&db->entries_rwlock);
 
-exit_free:
 	return ret;
 }
 
