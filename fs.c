@@ -41,6 +41,9 @@ struct kdbus_fs_super {
 #define kdbus_node_from_inode(_inode) \
 	((struct kdbus_node*)(_inode)->i_private)
 
+static struct inode *fs_inode_get(struct super_block *sb,
+				  struct kdbus_node *node);
+
 /*
  * linux/magic.h
  */
@@ -198,46 +201,6 @@ static const struct file_operations fs_dir_fops = {
 	.release	= fs_dir_fop_release,
 };
 
-static struct inode *fs_inode_get(struct super_block *sb,
-				  struct kdbus_node *node)
-{
-	struct inode *inode;
-
-	inode = iget_locked(sb, node->id);
-	if (!inode)
-		return ERR_PTR(-ENOMEM);
-	if (!(inode->i_state & I_NEW))
-		return inode;
-
-	inode->i_private = kdbus_node_ref(node);
-	inode->i_mapping->a_ops = &empty_aops;
-	inode->i_mapping->backing_dev_info = &noop_backing_dev_info;
-	inode->i_mode = node->mode & S_IALLUGO;
-	inode->i_atime = inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-	inode->i_uid = node->uid;
-	inode->i_gid = node->gid;
-
-	switch (node->type) {
-	case KDBUS_NODE_DOMAIN:
-	case KDBUS_NODE_BUS:
-		inode->i_mode |= S_IFDIR;
-		inode->i_op = &fs_dir_iops;
-		inode->i_fop = &fs_dir_fops;
-		set_nlink(inode, 2);
-		break;
-	case KDBUS_NODE_CONTROL:
-	case KDBUS_NODE_ENDPOINT:
-		inode->i_mode |= S_IFREG;
-		inode->i_op = &fs_inode_iops;
-		inode->i_fop = &fs_file_fops;
-		break;
-	}
-
-	unlock_new_inode(inode);
-
-	return inode;
-}
-
 static struct dentry *fs_dir_iop_lookup(struct inode *dir,
 					struct dentry *dentry,
 					unsigned int flags)
@@ -295,6 +258,46 @@ static const struct inode_operations fs_dir_iops = {
 static const struct inode_operations fs_inode_iops = {
 	.permission	= generic_permission,
 };
+
+static struct inode *fs_inode_get(struct super_block *sb,
+				  struct kdbus_node *node)
+{
+	struct inode *inode;
+
+	inode = iget_locked(sb, node->id);
+	if (!inode)
+		return ERR_PTR(-ENOMEM);
+	if (!(inode->i_state & I_NEW))
+		return inode;
+
+	inode->i_private = kdbus_node_ref(node);
+	inode->i_mapping->a_ops = &empty_aops;
+	inode->i_mapping->backing_dev_info = &noop_backing_dev_info;
+	inode->i_mode = node->mode & S_IALLUGO;
+	inode->i_atime = inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+	inode->i_uid = node->uid;
+	inode->i_gid = node->gid;
+
+	switch (node->type) {
+	case KDBUS_NODE_DOMAIN:
+	case KDBUS_NODE_BUS:
+		inode->i_mode |= S_IFDIR;
+		inode->i_op = &fs_dir_iops;
+		inode->i_fop = &fs_dir_fops;
+		set_nlink(inode, 2);
+		break;
+	case KDBUS_NODE_CONTROL:
+	case KDBUS_NODE_ENDPOINT:
+		inode->i_mode |= S_IFREG;
+		inode->i_op = &fs_inode_iops;
+		inode->i_fop = &fs_file_fops;
+		break;
+	}
+
+	unlock_new_inode(inode);
+
+	return inode;
+}
 
 /*
  * Superblock Management
