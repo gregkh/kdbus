@@ -50,37 +50,6 @@ static struct inode *fs_inode_get(struct super_block *sb,
 #define KDBUS_SUPER_MAGIC 0x19910104
 
 /*
- * File Management
- */
-
-static int fs_file_fop_open(struct inode *inode, struct file *filp)
-{
-	const struct file_operations *fops = &kdbus_handle_ops;
-	struct kdbus_node *node;
-
-	fops = fops_get(fops);
-	if (!fops)
-		return -ENXIO;
-
-	replace_fops(filp, fops);
-	if (!filp->f_op->open)
-		return 0;
-
-	node = kdbus_node_from_inode(inode);
-	if (!kdbus_node_acquire(node))
-		return -ESHUTDOWN;
-
-	filp->private_data = kdbus_node_ref(node);
-
-	return filp->f_op->open(inode, filp);
-}
-
-static const struct file_operations fs_file_fops = {
-	.open		= fs_file_fop_open,
-	.llseek		= noop_llseek,
-};
-
-/*
  * Directory Management
  */
 
@@ -290,7 +259,7 @@ static struct inode *fs_inode_get(struct super_block *sb,
 	case KDBUS_NODE_ENDPOINT:
 		inode->i_mode |= S_IFREG;
 		inode->i_op = &fs_inode_iops;
-		inode->i_fop = &fs_file_fops;
+		inode->i_fop = &kdbus_handle_ops;
 		break;
 	}
 

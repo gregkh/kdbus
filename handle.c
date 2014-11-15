@@ -98,8 +98,9 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	struct kdbus_node *node;
 	int ret;
 
-	node = (struct kdbus_node *) file->private_data;
-	if (!node)
+	/* kdbusfs stores the kdbus_node in i_private */
+	node = inode->i_private;
+	if (!kdbus_node_acquire(node))
 		return -ESHUTDOWN;
 
 	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
@@ -159,7 +160,6 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 	}
 
 	kdbus_node_release(node);
-	kdbus_node_unref(node);
 
 	return 0;
 
@@ -170,7 +170,6 @@ exit_free:
 	kfree(handle);
 exit_node:
 	kdbus_node_release(node);
-	kdbus_node_unref(node);
 	return ret;
 }
 
