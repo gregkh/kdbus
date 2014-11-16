@@ -369,21 +369,6 @@ void kdbus_node_release(struct kdbus_node *node)
 		wake_up(&node->waitq);
 }
 
-struct kdbus_node *kdbus_node_find_by_id(unsigned int id)
-{
-	struct kdbus_node *node;
-
-	down_read(&kdbus_node_idr_lock);
-	node = idr_find(&kdbus_node_idr, id);
-	if (node && kdbus_node_acquire(node))
-		kdbus_node_ref(node);
-	else
-		node = NULL;
-	up_read(&kdbus_node_idr_lock);
-
-	return node;
-}
-
 /**
  * kdbus_nodes_init() - initialize the nodes infrastructure
  */
