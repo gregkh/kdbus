@@ -308,24 +308,33 @@ static int test_run(const struct kdbus_test *t, const char *root,
 {
 	int ret;
 	struct kdbus_test_env env = {};
+
+	ret = test_prepare_env(t, &env, root, busname);
+	if (ret != TEST_OK)
+		return ret;
+
+	if (wait > 0) {
+		printf("Sleeping %d seconds before running test ...\n", wait);
+		sleep(wait);
+	}
+
+	ret = t->func(&env);
+	test_unprepare_env(t, &env);
+	return ret;
+}
+
+static int test_run_forked(const struct kdbus_test *t, const char *root,
+			   const char *busname, int wait)
+{
+	int ret;
+	struct kdbus_test_env env = {};
 	pid_t pid;
 
 	pid = fork();
 	if (pid < 0) {
 		return TEST_ERR;
 	} else if (pid == 0) {
-		ret = test_prepare_env(t, &env, root, busname);
-		if (ret != TEST_OK)
-			_exit(ret);
-
-		if (wait > 0) {
-			printf("Sleeping %d seconds before running test ...\n", wait);
-			sleep(wait);
-		}
-
-		ret = t->func(&env);
-		test_unprepare_env(t, &env);
-
+		ret = test_run(t, root, busname, wait);
 		_exit(ret);
 	}
 
@@ -370,7 +379,7 @@ static int run_all_tests(const char *root, const char *busname)
 			printf(".");
 		printf(" ");
 
-		ret = test_run(t, root, busname, 0);
+		ret = test_run_forked(t, root, busname, 0);
 		switch (ret) {
 		case TEST_OK:
 			ok_cnt++;
