@@ -322,9 +322,10 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		kdbus_pool_slice_free(entry->slice);
 		mutex_unlock(&conn->lock);
 
+		/* Free the resources of this entry */
 		kdbus_queue_entry_free(entry);
 
-		goto exit;
+		goto exit_unlock;
 	}
 
 	/*
@@ -336,7 +337,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		recv->dropped_msgs = lost_count;
 		atomic_sub(lost_count, &conn->lost_count);
 		ret = -EOVERFLOW;
-		goto exit;
+		goto exit_unlock;
 	}
 
 	/* Give the offset back to the caller. */
@@ -363,7 +364,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
-exit:
 	kdbus_notify_flush(conn->ep->bus);
 	return ret;
 }
