@@ -28,8 +28,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	memset(&hello, 0, sizeof(hello));
 
 	fd = open(env->buspath, O_RDWR|O_CLOEXEC);
-	if (fd < 0)
-		return TEST_ERR;
+	ASSERT_RETURN(fd >= 0);
 
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
