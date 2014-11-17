@@ -435,6 +435,7 @@ int main(int argc, char *argv[])
 	char *arg_test = NULL;
 	char *arg_busname = NULL;
 	int arg_wait = 0;
+	char *control;
 
 	static const struct option options[] = {
 		{ "loop",	no_argument,		NULL, 'x' },
@@ -476,6 +477,15 @@ int main(int argc, char *argv[])
 
 	if (!arg_root)
 		arg_root = "/sys/fs/kdbus";
+
+	asprintf(&control, "%s/control", arg_root);
+
+	if (access(control, W_OK) < 0) {
+		printf("Unable to locate control node at '%s'.\n", control);
+		return EXIT_FAILURE;
+	}
+
+	free(control);
 
 	if (arg_test) {
 		const struct kdbus_test *t;
