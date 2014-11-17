@@ -327,7 +327,6 @@ static int test_run_forked(const struct kdbus_test *t, const char *root,
 			   const char *busname, int wait)
 {
 	int ret;
-	struct kdbus_test_env env = {};
 	pid_t pid;
 
 	pid = fork();
