@@ -1044,6 +1044,8 @@ struct kdbus_name_info {
     item, the flags field of the name may carry the following bits:
 
     KDBUS_NAME_ALLOW_REPLACEMENT
+      Other connections are allowed to take over this name from the
+      connection that owns it.
 
     KDBUS_NAME_IN_QUEUE (list)
       When retrieving a list of currently acquired name in the registry, this
