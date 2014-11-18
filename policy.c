@@ -223,13 +223,13 @@ static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
  * kdbus_policy_check_own_access() - check whether a connection is allowed
  *				     to own a name
  * @db:		The policy database
- * @conn:	The connection to check
+ * @cred:	The creds to check against
  * @name:	The name to check
  *
  * Return: 0 if the connection is allowed to own the name, -EPERM otherwise
  */
 int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
-				  const struct kdbus_conn *conn,
+				  const struct cred *cred,
 				  const char *name)
 {
 	const struct kdbus_policy_db_entry *e;
@@ -237,7 +237,7 @@ int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
 
 	down_read(&db->entries_rwlock);
 	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
-	ret = kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_OWN);
+	ret = kdbus_policy_check_access(e, cred, KDBUS_POLICY_OWN);
 	up_read(&db->entries_rwlock);
 
 	return ret;

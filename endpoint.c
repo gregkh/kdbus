@@ -498,7 +498,8 @@ int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
 	int ret;
 
 	if (ep->has_policy) {
-		ret = kdbus_policy_check_own_access(&ep->policy_db, conn, name);
+		ret = kdbus_policy_check_own_access(&ep->policy_db,
+						    conn->cred, name);
 		if (ret < 0)
 			return ret;
 	}
@@ -506,7 +507,8 @@ int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
 	if (conn->privileged)
 		return 0;
 
-	ret = kdbus_policy_check_own_access(&ep->bus->policy_db, conn, name);
+	ret = kdbus_policy_check_own_access(&ep->bus->policy_db,
+					    conn->cred, name);
 	if (ret < 0)
 		return ret;
 

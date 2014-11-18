@@ -45,7 +45,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst);
 int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
-				  const struct kdbus_conn *conn,
+				  const struct cred *cred,
 				  const char *name);
 void kdbus_policy_purge_cache(struct kdbus_policy_db *db,
 			      const struct kdbus_conn *conn);
