@@ -27,9 +27,6 @@
 #include "limits.h"
 #include "util.h"
 
-/* previous domain id sequence number */
-static atomic64_t kdbus_domain_seq_last;
-
 static void kdbus_domain_control_free(struct kdbus_node *node)
 {
 	kfree(node);
@@ -110,8 +107,6 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 	ret = kdbus_node_link(&d->node, NULL, NULL);
 	if (ret < 0)
 		goto exit_unref;
-
-	d->id = atomic64_inc_return(&kdbus_domain_seq_last);
 
 	return d;
 

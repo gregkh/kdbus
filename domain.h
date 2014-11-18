@@ -34,7 +34,6 @@
 struct kdbus_domain {
 	struct kdbus_node node;
 	unsigned int access;
-	u64 id;
 	struct mutex lock;
 	atomic64_t bus_seq_last;
 	atomic64_t msg_seq_last;
