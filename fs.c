@@ -30,7 +30,6 @@
 #include "endpoint.h"
 #include "fs.h"
 #include "handle.h"
-#include "ioctl.h"
 #include "node.h"
 
 #define kdbus_node_from_dentry(_dentry) \

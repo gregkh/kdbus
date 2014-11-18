@@ -29,7 +29,6 @@
 #include "connection.h"
 #include "endpoint.h"
 #include "handle.h"
-#include "ioctl.h"
 #include "item.h"
 #include "match.h"
 #include "message.h"
@@ -163,68 +162,174 @@ static int handle_ep_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
+					 void __user *buf)
+{
+	struct kdbus_domain_user *user;
+	struct kdbus_cmd_make *make;
+	struct kdbus_ep *ep;
+	unsigned int access;
+	const char *name;
+	int ret;
+
+	/* creating custom endpoints is a privileged operation */
+	if (!handle->privileged)
+		return -EPERM;
+
+	make = kdbus_memdup_user(buf, sizeof(*make), KDBUS_MAKE_MAX_SIZE);
+	if (IS_ERR(make))
+		return PTR_ERR(make);
+
+	ret = kdbus_negotiate_flags(make, buf, struct kdbus_cmd_make,
+				    KDBUS_MAKE_ACCESS_GROUP |
+				    KDBUS_MAKE_ACCESS_WORLD);
+	if (ret < 0)
+		goto exit;
+
+	ret = kdbus_items_validate(make->items, KDBUS_ITEMS_SIZE(make, items));
+	if (ret < 0)
+		goto exit;
+
+	name = kdbus_items_get_str(make->items, KDBUS_ITEMS_SIZE(make, items),
+				   KDBUS_ITEM_MAKE_NAME);
+	if (IS_ERR(name)) {
+		ret = PTR_ERR(name);
+		goto exit;
+	}
+
+	access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
+				KDBUS_MAKE_ACCESS_GROUP);
+
+	ep = kdbus_ep_new(handle->ep->bus, name, access, current_fsuid(),
+			  current_fsgid(), true);
+	if (IS_ERR(ep)) {
+		ret = PTR_ERR(ep);
+		goto exit;
+	}
+
+	/*
+	 * Get an anonymous user to account messages against; custom
+	 * endpoint users do not share the budget with the ordinary
+	 * users created for a UID.
+	 */
+	user = kdbus_domain_get_user(handle->ep->bus->domain, INVALID_UID);
+	if (IS_ERR(user)) {
+		ret = PTR_ERR(user);
+		goto exit_ep_unref;
+	}
+	ep->user = user;
+
+	ret = kdbus_ep_activate(ep);
+	if (ret < 0)
+		goto exit_ep_unref;
+
+	ret = kdbus_ep_policy_set(ep, make->items,
+				  KDBUS_ITEMS_SIZE(make, items));
+	if (ret < 0)
+		goto exit_ep_live;
+
+	/* protect against parallel ioctls */
+	mutex_lock(&handle->lock);
+	if (handle->type != KDBUS_HANDLE_EP_NONE) {
+		ret = -EBADFD;
+	} else {
+		handle->type = KDBUS_HANDLE_EP_OWNER;
+		handle->ep_owner = ep;
+	}
+	mutex_unlock(&handle->lock);
+
+	if (ret < 0)
+		goto exit_ep_live;
+
+	goto exit;
+
+exit_ep_live:
+	kdbus_ep_deactivate(ep);
+exit_ep_unref:
+	kdbus_ep_unref(ep);
+exit:
+	kfree(make);
+	return ret;
+}
+
+static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
+				 void __user *buf)
+{
+	struct kdbus_conn *conn;
+	struct kdbus_cmd_hello *hello;
+	int ret;
+
+	hello = kdbus_memdup_user(buf, sizeof(*hello), KDBUS_HELLO_MAX_SIZE);
+	if (IS_ERR(hello))
+		return PTR_ERR(hello);
+
+	ret = kdbus_negotiate_flags(hello, buf, typeof(*hello),
+				    KDBUS_HELLO_ACCEPT_FD |
+				    KDBUS_HELLO_ACTIVATOR |
+				    KDBUS_HELLO_POLICY_HOLDER |
+				    KDBUS_HELLO_MONITOR);
+	if (ret < 0)
+		goto exit;
+
+	ret = kdbus_items_validate(hello->items,
+				   KDBUS_ITEMS_SIZE(hello, items));
+	if (ret < 0)
+		goto exit;
+
+	if (!hello->pool_size || !IS_ALIGNED(hello->pool_size, PAGE_SIZE)) {
+		ret = -EFAULT;
+		goto exit;
+	}
+
+	conn = kdbus_conn_new(handle->ep, hello, handle->meta,
+			      handle->privileged);
+	if (IS_ERR(conn)) {
+		ret = PTR_ERR(conn);
+		goto exit;
+	}
+
+	if (copy_to_user(buf, hello, sizeof(*hello))) {
+		ret = -EFAULT;
+		goto exit_conn_live;
+	}
+
+	/* protect against parallel ioctls */
+	mutex_lock(&handle->lock);
+	if (handle->type != KDBUS_HANDLE_EP_NONE) {
+		ret = -EBADFD;
+	} else {
+		handle->type = KDBUS_HANDLE_EP_CONNECTED;
+		handle->conn = conn;
+	}
+	mutex_unlock(&handle->lock);
+
+	if (ret < 0)
+		goto exit_conn_live;
+
+	goto exit;
+
+exit_conn_live:
+	kdbus_conn_disconnect(conn, false);
+	kdbus_conn_unref(conn);
+exit:
+	kfree(hello);
+	return ret;
+}
+
 /* kdbus endpoint make commands */
 static long handle_ep_ioctl_none(struct file *file, unsigned int cmd,
 				 void __user *buf)
 {
 	struct kdbus_handle_ep *handle = file->private_data;
-	long ret = 0;
+	long ret;
 
 	switch (cmd) {
-	case KDBUS_CMD_ENDPOINT_MAKE: {
-		struct kdbus_ep *ep;
-
-		/* creating custom endpoints is a privileged operation */
-		if (!handle->privileged) {
-			ret = -EPERM;
-			break;
-		}
-
-		ep = kdbus_ioctl_endpoint_make(handle->ep->bus, buf);
-		if (IS_ERR(ep)) {
-			ret = PTR_ERR(ep);
-			break;
-		}
-
-		/* protect against parallel ioctls */
-		mutex_lock(&handle->lock);
-		if (handle->type != KDBUS_HANDLE_EP_NONE) {
-			mutex_unlock(&handle->lock);
-			kdbus_ep_deactivate(ep);
-			kdbus_ep_unref(ep);
-			ret = -EBADFD;
-		} else {
-			handle->type = KDBUS_HANDLE_EP_OWNER;
-			handle->ep_owner = ep;
-		}
-		mutex_unlock(&handle->lock);
-
+	case KDBUS_CMD_ENDPOINT_MAKE:
+		ret = handle_ep_ioctl_endpoint_make(handle, buf);
 		break;
-	}
 
 	case KDBUS_CMD_HELLO: {
-		struct kdbus_conn *conn;
-
-		conn = kdbus_ioctl_hello(handle->ep, handle->meta,
-					 handle->privileged, buf);
-		if (IS_ERR(conn)) {
-			ret = PTR_ERR(conn);
-			break;
-		}
-
-		/* protect against parallel ioctls */
-		mutex_lock(&handle->lock);
-		if (handle->type != KDBUS_HANDLE_EP_NONE) {
-			mutex_unlock(&handle->lock);
-			kdbus_conn_disconnect(conn, false);
-			kdbus_conn_unref(conn);
-			ret = -EBADFD;
-		} else {
-			handle->type = KDBUS_HANDLE_EP_CONNECTED;
-			handle->conn = conn;
-		}
-		mutex_unlock(&handle->lock);
-
+		ret = handle_ep_ioctl_hello(handle, buf);
 		break;
 	}
 
@@ -785,6 +890,64 @@ static int handle_control_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static int handle_control_ioctl_bus_make(struct file *file,
+					 struct kdbus_domain *domain,
+					 void __user *buf)
+{
+	struct kdbus_cmd_make *make;
+	struct kdbus_bus *bus;
+	int ret;
+
+	/* catch double BUS_MAKE early, locked test is below */
+	if (file->private_data)
+		return -EBADFD;
+
+	make = kdbus_memdup_user(buf, sizeof(*make), KDBUS_MAKE_MAX_SIZE);
+	if (IS_ERR(make))
+		return PTR_ERR(make);
+
+	ret = kdbus_negotiate_flags(make, buf, struct kdbus_cmd_make,
+				    KDBUS_MAKE_ACCESS_GROUP |
+				    KDBUS_MAKE_ACCESS_WORLD);
+	if (ret < 0)
+		goto exit;
+
+	ret = kdbus_items_validate(make->items, KDBUS_ITEMS_SIZE(make, items));
+	if (ret < 0)
+		goto exit;
+
+	bus = kdbus_bus_new(domain, make, current_fsuid(), current_fsgid());
+	if (IS_ERR(bus)) {
+		ret = PTR_ERR(bus);
+		goto exit;
+	}
+
+	ret = kdbus_bus_activate(bus);
+	if (ret < 0)
+		goto exit_bus_unref;
+
+	/* protect against parallel ioctls */
+	mutex_lock(&domain->lock);
+	if (file->private_data)
+		ret = -EBADFD;
+	else
+		file->private_data = bus;
+	mutex_unlock(&domain->lock);
+
+	if (ret < 0)
+		goto exit_bus_live;
+
+	goto exit;
+
+exit_bus_live:
+	kdbus_bus_deactivate(bus);
+exit_bus_unref:
+	kdbus_bus_unref(bus);
+exit:
+	kfree(make);
+	return ret;
+}
+
 static long handle_control_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg)
 {
@@ -799,35 +962,10 @@ static long handle_control_ioctl(struct file *file, unsigned int cmd,
 		return -ESHUTDOWN;
 
 	switch (cmd) {
-	case KDBUS_CMD_BUS_MAKE: {
-		struct kdbus_bus *bus;
-
-		/* catch double BUS_MAKE early, locked test is below */
-		if (file->private_data) {
-			ret = -EBADFD;
-			break;
-		}
-
-		bus = kdbus_ioctl_bus_make(domain, (void __user*)arg);
-		if (IS_ERR(bus)) {
-			ret = PTR_ERR(bus);
-			break;
-		}
-
-		/* protect against parallel BUS_MAKE calls */
-		mutex_lock(&domain->lock);
-		if (file->private_data) {
-			mutex_unlock(&domain->lock);
-			kdbus_bus_deactivate(bus);
-			kdbus_bus_unref(bus);
-			ret = -EBADFD;
-			break;
-		}
-		file->private_data = bus;
-		mutex_unlock(&domain->lock);
-
+	case KDBUS_CMD_BUS_MAKE:
+		ret = handle_control_ioctl_bus_make(file, domain,
+						    (void __user*)arg);
 		break;
-	}
 
 	default:
 		ret = -ENOTTY;
