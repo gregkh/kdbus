@@ -211,25 +211,25 @@ static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
 }
 
 /**
- * kdbus_domain_get_user_unlocked() - get a kdbus_domain_user object
+ * kdbus_domain_get_user() - get a kdbus_domain_user object
  * @domain:		The domain of the user
  * @uid:		The uid of the user; INVALID_UID for an
  *			anonymous user like a custom endpoint
  *
- * Return: accounted domain user on success, ERR_PTR on failure.
- *
  * If there is a uid matching, then use the already accounted
  * kdbus_domain_user, increment its reference counter and return it.
- * Otherwise allocate a new one, * link it into the domain and return it.
+ * Otherwise allocate a new one, link it into the domain and return it.
+ *
+ * Return: the accounted domain user on success, ERR_PTR on failure.
  */
-struct kdbus_domain_user *
-kdbus_domain_get_user_unlocked(struct kdbus_domain *domain, kuid_t uid)
+struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
+						kuid_t uid)
 {
 	int ret;
 	struct kdbus_domain_user *tmp_user;
 	struct kdbus_domain_user *u = NULL;
 
-	BUG_ON(!mutex_is_locked(&domain->lock));
+	mutex_lock(&domain->lock);
 
 	/* find uid and reference it */
 	if (uid_valid(uid)) {
@@ -243,14 +243,18 @@ kdbus_domain_get_user_unlocked(struct kdbus_domain *domain, kuid_t uid)
 			 * about to unlink and destroy the object. Continue
 			 * looking for a next one or create one, if none found.
 			 */
-			if (kref_get_unless_zero(&tmp_user->kref))
+			if (kref_get_unless_zero(&tmp_user->kref)) {
+				mutex_unlock(&domain->lock);
 				return tmp_user;
+			}
 		}
 	}
 
 	u = kzalloc(sizeof(*u), GFP_KERNEL);
-	if (!u)
-		return ERR_PTR(-ENOMEM);
+	if (!u) {
+		ret = -ENOMEM;
+		goto exit_unlock;
+	}
 
 	kref_init(&u->kref);
 	u->domain = kdbus_domain_ref(domain);
@@ -266,32 +270,15 @@ kdbus_domain_get_user_unlocked(struct kdbus_domain *domain, kuid_t uid)
 	/* UID hash map */
 	hash_add(domain->user_hash, &u->hentry, __kuid_val(u->uid));
 
+	mutex_unlock(&domain->lock);
 	return u;
 
 exit_free:
 	kdbus_domain_unref(u->domain);
 	kfree(u);
-	return ERR_PTR(ret);
-}
-
-/**
- * kdbus_domain_get_user() - get a kdbus_domain_user object
- * @domain:		The domain of the user
- * @uid:		The uid of the user; INVALID_UID for an
- *			anonymous user like a custom endpoint
- *
- * Return: the accounted domain user on success, ERR_PTR on failure.
- */
-struct kdbus_domain_user *
-kdbus_domain_get_user(struct kdbus_domain *domain, kuid_t uid)
-{
-	struct kdbus_domain_user *u;
-
-	mutex_lock(&domain->lock);
-	u = kdbus_domain_get_user_unlocked(domain, uid);
+exit_unlock:
 	mutex_unlock(&domain->lock);
-
-	return u;
+	return ERR_PTR(ret);
 }
 
 static void __kdbus_domain_user_free(struct kref *kref)

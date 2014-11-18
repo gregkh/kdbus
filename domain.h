@@ -76,11 +76,8 @@ static inline bool kdbus_domain_is_active(struct kdbus_domain *domain)
 	return kdbus_node_is_active(&domain->node);
 }
 
-struct kdbus_domain_user *
-kdbus_domain_get_user_unlocked(struct kdbus_domain *domain, kuid_t uid);
-struct kdbus_domain_user *
-kdbus_domain_get_user(struct kdbus_domain *domain, kuid_t uid);
-
+struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
+						kuid_t uid);
 struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
 struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u);
 
