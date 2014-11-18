@@ -73,8 +73,8 @@ int kdbus_test_match_id_remove(struct kdbus_test_env *env)
 
 	/* create 2nd connection */
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);
-	id = conn->id;
 	ASSERT_RETURN(conn != NULL);
+	id = conn->id;
 
 	memset(&buf, 0, sizeof(buf));
 	buf.cmd.size = sizeof(buf);
