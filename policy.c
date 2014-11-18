@@ -282,10 +282,10 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	 * send access is granted.
 	 */
 
+	mutex_lock(&conn_dst->lock);
 	down_read(&db->entries_rwlock);
 
 	ret = -EPERM;
-	mutex_lock(&conn_dst->lock);
 	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
 		u32 hash = kdbus_str_hash(name_entry->name);
 		const struct kdbus_policy_db_entry *e;
@@ -298,7 +298,6 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 			break;
 		}
 	}
-	mutex_unlock(&conn_dst->lock);
 
 	if (ret >= 0) {
 		ret = -ENOMEM;
@@ -318,6 +317,7 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	}
 
 	up_read(&db->entries_rwlock);
+	mutex_unlock(&conn_dst->lock);
 
 	return ret;
 }
