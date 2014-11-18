@@ -446,7 +446,21 @@ static struct file_system_type fs_type = {
 };
 
 /**
- * kdbus_fs_exit() - unregister kdbus filesystem
+ * kdbus_fs_init() - register kdbus filesystem
+ *
+ * This registers a filesystem with the VFS layer. The filesystem is called
+ * `KBUILD_MODNAME "fs"', which usually resolves to `kdbusfs'. The nameing
+ * scheme allows to set KBUILD_MODNAME to "kdbus2" and you will get an
+ * independent filesystem for developers.
+ *
+ * Each mount of the kdbusfs filesystem has an kdbus_domain attached.
+ * Operations on this mount will only affect the attached domain. On each mount
+ * a new domain is automatically created and used for this mount exclusively.
+ * If you want to share a domain across multiple mounts, you need to bind-mount
+ * it.
+ *
+ * Mounts of kdbusfs (with a different domain each) are unrelated to each other
+ * and will never have any effect on any domain but their own.
  *
  * Return: 0 on success, negative error otherwise.
  */
@@ -457,6 +471,9 @@ int kdbus_fs_init(void)
 
 /**
  * kdbus_fs_exit() - unregister kdbus filesystem
+ *
+ * This does the reverse to kdbus_fs_init(). It unregisters the kdbusfs
+ * filesystem from VFS and cleans up any allocated resources.
  */
 void kdbus_fs_exit(void)
 {
