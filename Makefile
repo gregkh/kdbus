@@ -61,10 +61,10 @@ coccicheck:
 
 tt-pre:
 	sudo sh -c 'dmesg -c > /dev/null'
-	-sudo umount /sys/fs/kdbus
+	-sudo umount /sys/fs/kdbus$(EXT)
 	-sudo sh -c 'rmmod kdbus$(EXT)'
 	sudo sh -c 'insmod kdbus$(EXT).ko'
-	sudo mount -t kdbusfs kdbusfs /sys/fs/kdbus
+	sudo mount -t kdbus$(EXT)fs kdbus$(EXT)fs /sys/fs/kdbus$(EXT)
 	-sudo sh -c 'sync; umount / 2> /dev/null'
 
 tt-unpriv:

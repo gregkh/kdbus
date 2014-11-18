@@ -439,7 +439,7 @@ exit_sput:
 }
 
 static struct file_system_type fs_type = {
-	.name		= "kdbusfs",
+	.name		= KBUILD_MODNAME "fs",
 	.owner		= THIS_MODULE,
 	.mount		= fs_super_mount,
 	.kill_sb	= fs_super_kill,
