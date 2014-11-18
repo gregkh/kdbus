@@ -320,7 +320,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_free(entry->slice);
-		mutex_unlock(&conn->lock);
 
 		/* Free the resources of this entry */
 		kdbus_queue_entry_free(entry);
