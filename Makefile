@@ -59,23 +59,18 @@ uninstall:
 coccicheck:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) coccicheck
 
-tt-pre:
-	sudo sh -c 'dmesg -c > /dev/null'
+tt-prepare: module test
+	-sudo sh -c 'dmesg -c > /dev/null'
 	-sudo umount /sys/fs/kdbus$(EXT)
 	-sudo sh -c 'rmmod kdbus$(EXT)'
 	sudo sh -c 'insmod kdbus$(EXT).ko'
 	sudo mount -t kdbus$(EXT)fs kdbus$(EXT)fs /sys/fs/kdbus$(EXT)
 	-sudo sh -c 'sync; umount / 2> /dev/null'
 
-tt-unpriv:
-	test/kdbus-test
-
-tt-priv:
-	sudo test/kdbus-test
-
-tt-post:
+tt: tt-prepare
+	test/kdbus-test -r /sys/fs/kdbus$(EXT)
 	dmesg
 
-tt: all tt-pre tt-unpriv tt-post
-
-stt: all tt-pre tt-priv tt-post
+stt: tt-prepare
+	sudo test/kdbus-test -r /sys/fs/kdbus$(EXT)
+	dmesg
