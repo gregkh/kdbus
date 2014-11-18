@@ -265,7 +265,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_cmd_make *make;
-	unsigned int access;
 	void *free_ptr = NULL;
 	int ret;
 
@@ -291,10 +290,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
-					KDBUS_MAKE_ACCESS_GROUP);
-
-		bus = kdbus_bus_new(handle->domain, make, access,
+		bus = kdbus_bus_new(handle->domain, make,
 				    current_fsuid(), current_fsgid());
 		if (IS_ERR(bus)) {
 			ret = PTR_ERR(bus);

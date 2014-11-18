@@ -83,7 +83,7 @@ struct kdbus_kmsg;
 
 struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				const struct kdbus_cmd_make *make,
-				unsigned int access, kuid_t uid, kgid_t gid);
+				kuid_t uid, kgid_t gid);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 int kdbus_bus_activate(struct kdbus_bus *bus);
