@@ -364,3 +364,53 @@ void kdbus_node_release(struct kdbus_node *node)
 	if (node && atomic_dec_return(&node->active) == KDBUS_NODE_BIAS)
 		wake_up(&node->waitq);
 }
+
+/**
+ * kdbus_node_find_child() - Find child by name
+ * @node:	parent node to search through
+ * @name:	name of child node
+ *
+ * This searches through all childs of @node for a child-node with name @name.
+ * If not found, or if the child is deactivated, NULL is returned. Otherwise,
+ * the child is acquired and a new reference is returned.
+ *
+ * If you're done with the child, you need to release it and drop your
+ * reference.
+ *
+ * This function does not acquire the parent node. However, if the parent was
+ * already deactivated, then kdbus_node_deactivate() will, at some point, also
+ * deactivate the child. Therefore, we can rely on the explicit ordering during
+ * deactivation.
+ *
+ * Return: Reference to acquired child node, or NULL if not found / not active.
+ */
+struct kdbus_node *kdbus_node_find_child(struct kdbus_node *node,
+					 const char *name)
+{
+	struct kdbus_node *child;
+	struct rb_node *rb;
+	unsigned int hash;
+	int ret;
+
+	hash = kdbus_node_name_hash(name);
+
+	mutex_lock(&node->lock);
+	rb = node->children.rb_node;
+	while (rb) {
+		child = kdbus_node_from_rb(rb);
+		ret = kdbus_node_name_compare(hash, name, child);
+		if (ret < 0)
+			rb = rb->rb_left;
+		else if (ret > 0)
+			rb = rb->rb_right;
+		else
+			break;
+	}
+	if (rb && kdbus_node_acquire(child))
+		kdbus_node_ref(child);
+	else
+		child = NULL;
+	mutex_unlock(&node->lock);
+
+	return child;
+}

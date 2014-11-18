@@ -75,4 +75,7 @@ void kdbus_node_deactivate(struct kdbus_node *node);
 bool kdbus_node_acquire(struct kdbus_node *node);
 void kdbus_node_release(struct kdbus_node *node);
 
+struct kdbus_node *kdbus_node_find_child(struct kdbus_node *node,
+					 const char *name);
+
 #endif

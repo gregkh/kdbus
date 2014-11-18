@@ -170,45 +170,30 @@ static struct dentry *fs_dir_iop_lookup(struct inode *dir,
 					struct dentry *dentry,
 					unsigned int flags)
 {
+	struct dentry *dnew = NULL;
 	struct kdbus_node *parent;
 	struct kdbus_node *node;
 	struct inode *inode;
-	struct rb_node *rb;
-	unsigned int hash;
-	const char *name;
-	int ret;
 
 	parent = kdbus_node_from_dentry(dentry->d_parent);
-	name = dentry->d_name.name;
-	hash = kdbus_node_name_hash(name);
-
-	mutex_lock(&parent->lock);
-	rb = parent->children.rb_node;
-	while (rb) {
-		node = kdbus_node_from_rb(rb);
-		ret = kdbus_node_name_compare(hash, name, node);
-		if (ret < 0)
-			rb = rb->rb_left;
-		else if (ret > 0)
-			rb = rb->rb_right;
-		else
-			break;
-	}
-	if (rb && kdbus_node_is_active(node))
-		kdbus_node_ref(node);
-	else
-		node = NULL;
-	mutex_unlock(&parent->lock);
-
-	if (!node)
+	if (!kdbus_node_acquire(parent))
 		return NULL;
 
-	dentry->d_fsdata = node;
-	inode = fs_inode_get(dir->i_sb, node);
-	if (IS_ERR(inode))
-		return ERR_CAST(inode);
+	/* returns reference to _acquired_ child node */
+	node = kdbus_node_find_child(parent, dentry->d_name.name);
+	if (node) {
+		dentry->d_fsdata = node;
+		inode = fs_inode_get(dir->i_sb, node);
+		if (IS_ERR(inode))
+			dnew = ERR_CAST(inode);
+		else
+			dnew = d_materialise_unique(dentry, inode);
 
-	return d_materialise_unique(dentry, inode);
+		kdbus_node_release(node);
+	}
+
+	kdbus_node_release(parent);
+	return dnew;
 }
 
 static const struct inode_operations fs_dir_iops = {
