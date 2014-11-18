@@ -39,17 +39,11 @@
 
 /**
  * enum kdbus_handle_type - type a handle can be of
- * @KDBUS_HANDLE_CONTROL:		New file descriptor of a control node
- * @KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:	File descriptor to hold a domain
- * @KDBUS_HANDLE_CONTROL_BUS_OWNER:	File descriptor to hold a bus
  * @KDBUS_HANDLE_ENDPOINT:		New file descriptor of a bus node
  * @KDBUS_HANDLE_ENDPOINT_CONNECTED:	A bus connection after HELLO
  * @KDBUS_HANDLE_ENDPOINT_OWNER:	File descriptor to hold an endpoint
  */
 enum kdbus_handle_type {
-	KDBUS_HANDLE_CONTROL,
-	KDBUS_HANDLE_CONTROL_DOMAIN_OWNER,
-	KDBUS_HANDLE_CONTROL_BUS_OWNER,
 	KDBUS_HANDLE_ENDPOINT,
 	KDBUS_HANDLE_ENDPOINT_CONNECTED,
 	KDBUS_HANDLE_ENDPOINT_OWNER,
@@ -65,10 +59,6 @@ enum kdbus_handle_type {
  *			KDBUS_HANDLE_ENDPOINT_CONNECTED
  * @ptr:		Generic pointer used as alias for other members
  *			in the same union by kdbus_handle_transform()
- * @domain_owner:	The domain this handle owns, in case @type
- *			is KDBUS_HANDLE_CONTROL_DOMAIN_OWNER
- * @bus_owner:		The bus this handle owns, in case @type
- *			is KDBUS_HANDLE_CONTROL_BUS_OWNER
  * @ep_owner:		The endpoint this handle owns, in case @type
  *			is KDBUS_HANDLE_ENDPOINT_OWNER
  * @conn:		The connection this handle owns, in case @type
@@ -83,8 +73,6 @@ struct kdbus_handle {
 	struct kdbus_ep *ep;
 	union {
 		void *ptr;
-		struct kdbus_domain *domain_owner;
-		struct kdbus_bus *bus_owner;
 		struct kdbus_ep *ep_owner;
 		struct kdbus_conn *conn;
 	};
@@ -93,7 +81,6 @@ struct kdbus_handle {
 
 static int kdbus_handle_open(struct inode *inode, struct file *file)
 {
-	struct kdbus_domain *domain;
 	struct kdbus_handle *handle;
 	struct kdbus_node *node;
 	int ret;
@@ -109,56 +96,36 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		goto exit_node;
 	}
 
-	file->private_data = handle;
+	handle->type = KDBUS_HANDLE_ENDPOINT;
+	handle->ep = kdbus_ep_ref(kdbus_ep_from_node(node));
+	handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
 
-	switch (node->type) {
-	case KDBUS_NODE_CONTROL:
-		domain = kdbus_domain_from_node(node->parent);
-		handle->type = KDBUS_HANDLE_CONTROL;
-		handle->domain = kdbus_domain_ref(domain);
+	if (ns_capable(&init_user_ns, CAP_IPC_OWNER) ||
+	    uid_eq(handle->ep->bus->node.uid, file->f_cred->fsuid))
+		handle->privileged = true;
 
-		if (ns_capable(&init_user_ns, CAP_IPC_OWNER))
-			handle->privileged = true;
-
-		break;
-
-	case KDBUS_NODE_ENDPOINT:
-		handle->type = KDBUS_HANDLE_ENDPOINT;
-		handle->ep = kdbus_ep_ref(kdbus_ep_from_node(node));
-		handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
-
-		if (ns_capable(&init_user_ns, CAP_IPC_OWNER) ||
-		    uid_eq(handle->ep->bus->node.uid, file->f_cred->fsuid))
-			handle->privileged = true;
-
-		/* cache the metadata/credentials of the creator */
-		handle->meta = kdbus_meta_new();
-		if (IS_ERR(handle->meta)) {
-			ret = PTR_ERR(handle->meta);
-			goto exit_free;
-		}
-
-		ret = kdbus_meta_append(handle->meta, NULL, 0,
-					KDBUS_ATTACH_CREDS	|
-					KDBUS_ATTACH_AUXGROUPS	|
-					KDBUS_ATTACH_TID_COMM	|
-					KDBUS_ATTACH_PID_COMM	|
-					KDBUS_ATTACH_EXE	|
-					KDBUS_ATTACH_CMDLINE	|
-					KDBUS_ATTACH_CGROUP	|
-					KDBUS_ATTACH_CAPS	|
-					KDBUS_ATTACH_SECLABEL	|
-					KDBUS_ATTACH_AUDIT);
-		if (ret < 0)
-			goto exit_free;
-
-		break;
-
-	default:
-		ret = -EINVAL;
+	/* cache the metadata/credentials of the creator */
+	handle->meta = kdbus_meta_new();
+	if (IS_ERR(handle->meta)) {
+		ret = PTR_ERR(handle->meta);
 		goto exit_free;
 	}
 
+	ret = kdbus_meta_append(handle->meta, NULL, 0,
+				KDBUS_ATTACH_CREDS	|
+				KDBUS_ATTACH_AUXGROUPS	|
+				KDBUS_ATTACH_TID_COMM	|
+				KDBUS_ATTACH_PID_COMM	|
+				KDBUS_ATTACH_EXE	|
+				KDBUS_ATTACH_CMDLINE	|
+				KDBUS_ATTACH_CGROUP	|
+				KDBUS_ATTACH_CAPS	|
+				KDBUS_ATTACH_SECLABEL	|
+				KDBUS_ATTACH_AUDIT);
+	if (ret < 0)
+		goto exit_free;
+
+	file->private_data = handle;
 	kdbus_node_release(node);
 
 	return 0;
@@ -178,16 +145,6 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 	struct kdbus_handle *handle = file->private_data;
 
 	switch (handle->type) {
-	case KDBUS_HANDLE_CONTROL_DOMAIN_OWNER:
-		kdbus_domain_deactivate(handle->domain_owner);
-		kdbus_domain_unref(handle->domain_owner);
-		break;
-
-	case KDBUS_HANDLE_CONTROL_BUS_OWNER:
-		kdbus_bus_deactivate(handle->bus_owner);
-		kdbus_bus_unref(handle->bus_owner);
-		break;
-
 	case KDBUS_HANDLE_ENDPOINT_OWNER:
 		kdbus_ep_deactivate(handle->ep_owner);
 		kdbus_ep_unref(handle->ep_owner);
@@ -198,7 +155,6 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		kdbus_conn_unref(handle->conn);
 		break;
 
-	case KDBUS_HANDLE_CONTROL:
 	case KDBUS_HANDLE_ENDPOINT:
 		/* nothing to clean up */
 		break;
@@ -222,8 +178,6 @@ static int kdbus_handle_transform(struct kdbus_handle *handle,
 	/*
 	 * This transforms a handle from one state into another. Only a single
 	 * transformation is allowed per handle, and it must be one of:
-	 *   CONTROL -> CONTROL_DOMAIN_OWNER
-	 *           -> CONTROL_BUS_OWNER
 	 *        EP -> EP_CONNECTED
 	 *           -> EP_OWNER
 	 *
@@ -236,12 +190,7 @@ static int kdbus_handle_transform(struct kdbus_handle *handle,
 	 * is accessible, too (given appropriate read-barriers).
 	 */
 
-	WARN_ON(old_type != KDBUS_HANDLE_CONTROL &&
-		old_type != KDBUS_HANDLE_ENDPOINT);
-	WARN_ON(old_type == KDBUS_HANDLE_CONTROL &&
-		(new_type != KDBUS_HANDLE_CONTROL_DOMAIN_OWNER &&
-		 new_type != KDBUS_HANDLE_CONTROL_BUS_OWNER));
-	WARN_ON(old_type == KDBUS_HANDLE_ENDPOINT &&
+	WARN_ON(old_type != KDBUS_HANDLE_ENDPOINT ||
 		(new_type != KDBUS_HANDLE_ENDPOINT_CONNECTED &&
 		 new_type != KDBUS_HANDLE_ENDPOINT_OWNER));
 
@@ -254,74 +203,6 @@ static int kdbus_handle_transform(struct kdbus_handle *handle,
 		ret = 0;
 	}
 	mutex_unlock(&handle->domain->lock);
-
-	return ret;
-}
-
-/* kdbus control device commands */
-static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
-				       void __user *buf)
-{
-	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_bus *bus = NULL;
-	struct kdbus_cmd_make *make;
-	void *free_ptr = NULL;
-	int ret;
-
-	switch (cmd) {
-	case KDBUS_CMD_BUS_MAKE: {
-		make = kdbus_memdup_user(buf, sizeof(*make),
-					 KDBUS_MAKE_MAX_SIZE);
-		if (IS_ERR(make)) {
-			ret = PTR_ERR(make);
-			break;
-		}
-
-		free_ptr = make;
-
-		ret = kdbus_negotiate_flags(make, buf, typeof(*make),
-					    KDBUS_MAKE_ACCESS_GROUP |
-					    KDBUS_MAKE_ACCESS_WORLD);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(make->items,
-					   KDBUS_ITEMS_SIZE(make, items));
-		if (ret < 0)
-			break;
-
-		bus = kdbus_bus_new(handle->domain, make,
-				    current_fsuid(), current_fsgid());
-		if (IS_ERR(bus)) {
-			ret = PTR_ERR(bus);
-			break;
-		}
-
-		ret = kdbus_bus_activate(bus);
-		if (ret < 0) {
-			kdbus_bus_unref(bus);
-			break;
-		}
-
-		/* turn the control fd into a new bus owner device */
-		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_CONTROL,
-					     KDBUS_HANDLE_CONTROL_BUS_OWNER,
-					     bus);
-		if (ret < 0) {
-			kdbus_bus_deactivate(bus);
-			kdbus_bus_unref(bus);
-			break;
-		}
-
-		break;
-	}
-
-	default:
-		ret = -ENOTTY;
-		break;
-	}
-
-	kfree(free_ptr);
 
 	return ret;
 }
@@ -946,9 +827,6 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 	smp_rmb();
 
 	switch (type) {
-	case KDBUS_HANDLE_CONTROL:
-		return kdbus_handle_ioctl_control(file, cmd, argp);
-
 	case KDBUS_HANDLE_ENDPOINT:
 		return kdbus_handle_ioctl_ep(file, cmd, argp);
 

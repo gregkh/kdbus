@@ -4,6 +4,7 @@ kdbus$(EXT)-y := \
 	endpoint.o \
 	fs.o \
 	handle.o \
+	ioctl.o \
 	item.o \
 	main.o \
 	match.o \
