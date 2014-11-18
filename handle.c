@@ -761,3 +761,89 @@ const struct file_operations kdbus_handle_ep_ops = {
 	.compat_ioctl =		handle_ep_ioctl,
 #endif
 };
+
+static int handle_control_open(struct inode *inode, struct file *file)
+{
+	if (!kdbus_node_is_active(inode->i_private))
+		return -ESHUTDOWN;
+
+	/* private_data is used by BUS_MAKE to store the new bus */
+	file->private_data = NULL;
+
+	return 0;
+}
+
+static int handle_control_release(struct inode *inode, struct file *file)
+{
+	struct kdbus_bus *bus = file->private_data;
+
+	if (bus) {
+		kdbus_bus_deactivate(bus);
+		kdbus_bus_unref(bus);
+	}
+
+	return 0;
+}
+
+static long handle_control_ioctl(struct file *file, unsigned int cmd,
+				 unsigned long arg)
+{
+	struct kdbus_node *node = file_inode(file)->i_private;
+	struct kdbus_domain *domain;
+	int ret = 0;
+
+	/* the parent of control-nodes is always a domain */
+	domain = kdbus_domain_from_node(node->parent);
+
+	if (!kdbus_node_acquire(&domain->node))
+		return -ESHUTDOWN;
+
+	switch (cmd) {
+	case KDBUS_CMD_BUS_MAKE: {
+		struct kdbus_bus *bus;
+
+		/* catch double BUS_MAKE early, locked test is below */
+		if (file->private_data) {
+			ret = -EBADFD;
+			break;
+		}
+
+		bus = kdbus_ioctl_bus_make(domain, (void __user*)arg);
+		if (IS_ERR(bus)) {
+			ret = PTR_ERR(bus);
+			break;
+		}
+
+		/* protect against parallel BUS_MAKE calls */
+		mutex_lock(&domain->lock);
+		if (file->private_data) {
+			mutex_unlock(&domain->lock);
+			kdbus_bus_deactivate(bus);
+			kdbus_bus_unref(bus);
+			ret = -EBADFD;
+			break;
+		}
+		file->private_data = bus;
+		mutex_unlock(&domain->lock);
+
+		break;
+	}
+
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	kdbus_node_release(&domain->node);
+	return ret;
+}
+
+const struct file_operations kdbus_handle_control_ops = {
+	.open =			handle_control_open,
+	.release =		handle_control_release,
+	.llseek =		noop_llseek,
+	.unlocked_ioctl =	handle_control_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl =		handle_control_ioctl,
+#endif
+};
