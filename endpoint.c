@@ -93,8 +93,17 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	if (!e)
 		return ERR_PTR(-ENOMEM);
 
-	kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT,
-			kdbus_ep_free, kdbus_ep_release);
+	kdbus_node_init(&e->node, KDBUS_NODE_ENDPOINT);
+
+	e->node.free_cb = kdbus_ep_free;
+	e->node.release_cb = kdbus_ep_release;
+	e->node.uid = uid;
+	e->node.gid = gid;
+	e->node.mode = S_IRUSR | S_IWUSR;
+	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
+		e->node.mode |= S_IRGRP | S_IWGRP;
+	if (access & KDBUS_MAKE_ACCESS_WORLD)
+		e->node.mode |= S_IROTH | S_IWOTH;
 
 	mutex_init(&e->lock);
 	INIT_LIST_HEAD(&e->conn_list);
@@ -106,14 +115,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	ret = kdbus_node_link(&e->node, &bus->node, name);
 	if (ret < 0)
 		goto exit_unref;
-
-	e->node.uid = uid;
-	e->node.gid = gid;
-	e->node.mode = S_IRUSR | S_IWUSR;
-	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
-		e->node.mode |= S_IRGRP | S_IWGRP;
-	if (access & KDBUS_MAKE_ACCESS_WORLD)
-		e->node.mode |= S_IROTH | S_IWOTH;
 
 	return e;
 

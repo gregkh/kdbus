@@ -45,9 +45,9 @@ static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain,
 	if (!node)
 		return ERR_PTR(-ENOMEM);
 
-	kdbus_node_init(node, KDBUS_NODE_CONTROL,
-			kdbus_domain_control_free, NULL);
+	kdbus_node_init(node, KDBUS_NODE_CONTROL);
 
+	node->free_cb = kdbus_domain_control_free;
 	node->mode = domain->node.mode;
 	node->mode = S_IRUSR | S_IWUSR;
 	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
@@ -94,19 +94,19 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 	if (!d)
 		return ERR_PTR(-ENOMEM);
 
-	kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN,
-			kdbus_domain_free, NULL);
+	kdbus_node_init(&d->node, KDBUS_NODE_DOMAIN);
 
-	d->access = access;
-	mutex_init(&d->lock);
-	atomic64_set(&d->msg_seq_last, 0);
-	idr_init(&d->user_idr);
-
+	d->node.free_cb = kdbus_domain_free;
 	d->node.mode = S_IRUSR | S_IXUSR;
 	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
 		d->node.mode |= S_IRGRP | S_IXGRP;
 	if (access & KDBUS_MAKE_ACCESS_WORLD)
 		d->node.mode |= S_IROTH | S_IXOTH;
+
+	d->access = access;
+	mutex_init(&d->lock);
+	atomic64_set(&d->msg_seq_last, 0);
+	idr_init(&d->user_idr);
 
 	ret = kdbus_node_link(&d->node, NULL, name);
 	if (ret < 0)

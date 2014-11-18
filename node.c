@@ -90,11 +90,8 @@ static int kdbus_node_compare(const struct kdbus_node *left,
  * kdbus_node_init() - initialize a kdbus_node
  * @node:	Pointer to the node to initialize
  * @type:	The type the node will have (KDBUS_NODE_*)
- * @free_cb:	A callback to call when the node is freed
- * @release_cb:	A callback to call when the node is released
  */
-void kdbus_node_init(struct kdbus_node *node, unsigned int type,
-		     kdbus_node_free_t free_cb, kdbus_node_release_t release_cb)
+void kdbus_node_init(struct kdbus_node *node, unsigned int type)
 {
 	atomic_set(&node->refcnt, 1);
 	mutex_init(&node->lock);
@@ -102,8 +99,6 @@ void kdbus_node_init(struct kdbus_node *node, unsigned int type,
 	node->type = type;
 	RB_CLEAR_NODE(&node->rb);
 	node->children = RB_ROOT;
-	node->release_cb = release_cb;
-	node->free_cb = free_cb;
 	init_waitqueue_head(&node->waitq);
 	atomic_set(&node->active, KDBUS_NODE_NEW);
 }

@@ -60,9 +60,7 @@ unsigned int kdbus_node_name_hash(const char *name);
 int kdbus_node_name_compare(unsigned int hash, const char *name,
 			    const struct kdbus_node *node);
 
-void kdbus_node_init(struct kdbus_node *node, unsigned int type,
-		     kdbus_node_free_t free_cb,
-		     kdbus_node_release_t release_cb);
+void kdbus_node_init(struct kdbus_node *node, unsigned int type);
 
 int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 		    const char *name);
