@@ -212,39 +212,6 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int kdbus_copy_from_user(void *dest,
-				void __user *user_ptr,
-				size_t size)
-{
-	if (!KDBUS_IS_ALIGNED8((uintptr_t)user_ptr))
-		return -EFAULT;
-
-	if (copy_from_user(dest, user_ptr, size))
-		return -EFAULT;
-
-	return 0;
-}
-
-static void *kdbus_memdup_user(void __user *user_ptr,
-			       size_t size_min,
-			       size_t size_max)
-{
-	u64 size;
-	int ret;
-
-	ret = kdbus_copy_from_user(&size, user_ptr, sizeof(size));
-	if (ret < 0)
-		return ERR_PTR(ret);
-
-	if (size < size_min)
-		return ERR_PTR(-EINVAL);
-
-	if (size > size_max)
-		return ERR_PTR(-EMSGSIZE);
-
-	return memdup_user(user_ptr, size);
-}
-
 static int kdbus_handle_transform(struct kdbus_handle *handle,
 				  enum kdbus_handle_type old_type,
 				  enum kdbus_handle_type new_type,

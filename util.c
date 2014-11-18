@@ -106,3 +106,61 @@ void kdbus_fput_files(struct file **files, unsigned int count)
 			files[i] = NULL;
 		}
 }
+
+/**
+ * kdbus_copy_from_user() - copy aligned data from user-space
+ * @dest:	target buffer in kernel memory
+ * @user_ptr:	user-provided source buffer
+ * @size:	memory size to copy from user
+ *
+ * This copies @size bytes from @user_ptr into the kernel, just like
+ * copy_from_user() does. But we enforce an 8-byte alignment and reject any
+ * unaligned user-space pointers.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_copy_from_user(void *dest, void __user *user_ptr, size_t size)
+{
+	if (!KDBUS_IS_ALIGNED8((uintptr_t)user_ptr))
+		return -EFAULT;
+
+	if (copy_from_user(dest, user_ptr, size))
+		return -EFAULT;
+
+	return 0;
+}
+
+/**
+ * kdbus_memdup_user() - copy dynamically sized object from user-space
+ * @user_ptr:	user-provided source buffer
+ * @sz_min:	minimum object size
+ * @sz_max:	maximum object size
+ *
+ * This copies a dynamically sized object from user-space into kernel-space. We
+ * require the object to have a 64bit size field at offset 0. We read it out
+ * first, allocate a suitably sized buffer and then copy all data.
+ *
+ * The @sz_min and @sz_max parameters define possible min and max object sizes
+ * so user-space cannot trigger un-bound kernel-space allocations.
+ *
+ * The same alignment-restrictions as described in kdbus_copy_from_user() apply.
+ *
+ * Return: pointer to dynamically allocated copy, or ERR_PTR() on failure.
+ */
+void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max)
+{
+	u64 size;
+	int ret;
+
+	ret = kdbus_copy_from_user(&size, user_ptr, sizeof(size));
+	if (ret < 0)
+		return ERR_PTR(ret);
+
+	if (size < sz_min)
+		return ERR_PTR(-EINVAL);
+
+	if (size > sz_max)
+		return ERR_PTR(-EMSGSIZE);
+
+	return memdup_user(user_ptr, size);
+}

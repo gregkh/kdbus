@@ -87,6 +87,10 @@ static inline bool kdbus_str_valid(const char *str, size_t size)
 
 int kdbus_sysname_is_valid(const char *name);
 void kdbus_fput_files(struct file **files, unsigned int count);
+
+int kdbus_copy_from_user(void *dest, void __user *user_ptr, size_t size);
+void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max);
+
 int kdbus_check_and_write_flags(u64 flags, void __user *buf,
 				off_t offset_out, u64 valid);
 
