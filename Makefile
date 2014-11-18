@@ -65,7 +65,6 @@ tt-prepare: module test
 	-sudo sh -c 'rmmod kdbus$(EXT)'
 	sudo sh -c 'insmod kdbus$(EXT).ko'
 	sudo mount -t kdbus$(EXT)fs kdbus$(EXT)fs /sys/fs/kdbus$(EXT)
-	-sudo sh -c 'sync; umount / 2> /dev/null'
 
 tt: tt-prepare
 	test/kdbus-test -r /sys/fs/kdbus$(EXT)
