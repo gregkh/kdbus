@@ -391,11 +391,6 @@ static void fs_super_kill(struct super_block *sb)
 	fs_super_free(super);
 }
 
-static int fs_super_compare(struct super_block *sb, void *data)
-{
-	return 0;
-}
-
 static int fs_super_set(struct super_block *sb, void *data)
 {
 	int ret;
@@ -419,23 +414,22 @@ static struct dentry *fs_super_mount(struct file_system_type *fs_type,
 	if (IS_ERR(super))
 		return ERR_CAST(super);
 
-	sb = sget(fs_type, fs_super_compare, fs_super_set, flags, super);
-	if (IS_ERR(sb) || sb->s_fs_info != super)
+	sb = sget(fs_type, NULL, fs_super_set, flags, super);
+	if (IS_ERR(sb)) {
 		fs_super_free(super);
-	if (IS_ERR(sb))
 		return ERR_CAST(sb);
+	}
 
-	if (!sb->s_root) {
-		ret = fs_super_fill(sb);
-		if (ret < 0)
-			goto exit_sput;
+	WARN_ON(sb->s_fs_info != super);
+	WARN_ON(sb->s_root);
+
+	ret = fs_super_fill(sb);
+	if (ret < 0) {
+		deactivate_locked_super(sb);
+		return ERR_PTR(ret);
 	}
 
 	return dget(sb->s_root);
-
-exit_sput:
-	deactivate_locked_super(sb);
-	return ERR_PTR(ret);
 }
 
 static struct file_system_type fs_type = {
