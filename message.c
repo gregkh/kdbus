@@ -85,7 +85,7 @@ static int kdbus_handle_check_file(struct file *file)
 	 * unix domain sockets and kdbus share a generic garbage collector.
 	 */
 
-	if (file->f_op == &kdbus_handle_ops)
+	if (file->f_op == &kdbus_handle_ep_ops)
 		return -EOPNOTSUPP;
 
 	if (!S_ISSOCK(inode->i_mode))

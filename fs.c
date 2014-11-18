@@ -322,7 +322,7 @@ static struct inode *fs_inode_get(struct super_block *sb,
 	case KDBUS_NODE_ENDPOINT:
 		inode->i_mode |= S_IFREG;
 		inode->i_op = &fs_inode_iops;
-		inode->i_fop = &kdbus_handle_ops;
+		inode->i_fop = &kdbus_handle_ep_ops;
 		break;
 	}
 

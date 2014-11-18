@@ -14,6 +14,6 @@
 #ifndef __KDBUS_HANDLE_H
 #define __KDBUS_HANDLE_H
 
-extern const struct file_operations kdbus_handle_ops;
+extern const struct file_operations kdbus_handle_ep_ops;
 
 #endif
