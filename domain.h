@@ -24,7 +24,6 @@
  * struct kdbus_domain - domain for buses
  * @node:		Underlying API node
  * @access:		Access mode for this domain
- * @id:			Global id of this domain
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
