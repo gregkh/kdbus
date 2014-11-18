@@ -369,10 +369,13 @@ static int fs_super_fill(struct super_block *sb)
 		return PTR_ERR(inode);
 
 	sb->s_root = d_make_root(inode);
-	if (!sb->s_root)
+	if (!sb->s_root) {
+		/* d_make_root iput()s the inode on failure */
 		return -ENOMEM;
+	}
 
-	sb->s_root->d_fsdata = kdbus_node_ref(&super->domain->node);
+	/* sb holds domain reference */
+	sb->s_root->d_fsdata = &super->domain->node;
 	sb->s_d_op = &fs_super_dops;
 	sb->s_flags |= MS_ACTIVE;
 
@@ -382,12 +385,8 @@ static int fs_super_fill(struct super_block *sb)
 static void fs_super_kill(struct super_block *sb)
 {
 	struct kdbus_fs_super *super = sb->s_fs_info;
-	struct kdbus_node *node = NULL;
 
-	if (sb->s_root)
-		node = sb->s_root->d_fsdata;
 	kill_anon_super(sb);
-	kdbus_node_unref(node);
 	fs_super_free(super);
 }
 
