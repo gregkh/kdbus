@@ -156,8 +156,8 @@ static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
  * should prevent a single user from being able to fill the receiver's
  * queue.
  */
-static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
-				       const struct kdbus_conn *conn_src,
+static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
+				       struct kdbus_conn *conn_dst,
 				       struct kdbus_queue_entry *entry)
 {
 	struct kdbus_domain_user *user;
@@ -170,30 +170,30 @@ static int kdbus_conn_queue_user_quota(struct kdbus_conn *conn,
 	 * users on the bus. Allow one set of messages to pass through
 	 * un-accounted. Only once we hit that limit, we start accounting.
 	 */
-	if (conn->queue.msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
+	if (conn_dst->queue.msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
 		return 0;
 
 	user = conn_src->user;
 
 	/* extend array to store the user message counters */
-	if (user->idr >= conn->msg_users_max) {
+	if (user->idr >= conn_dst->msg_users_max) {
 		unsigned int *users;
 		unsigned int i;
 
 		i = 8 + KDBUS_ALIGN8(user->idr);
-		users = krealloc(conn->msg_users, i * sizeof(unsigned int),
+		users = krealloc(conn_dst->msg_users, i * sizeof(unsigned int),
 				 GFP_KERNEL | __GFP_ZERO);
 		if (!users)
 			return -ENOMEM;
 
-		conn->msg_users = users;
-		conn->msg_users_max = i;
+		conn_dst->msg_users = users;
+		conn_dst->msg_users_max = i;
 	}
 
-	if (conn->msg_users[user->idr] >= KDBUS_CONN_MAX_MSGS_PER_USER)
+	if (conn_dst->msg_users[user->idr] >= KDBUS_CONN_MAX_MSGS_PER_USER)
 		return -ENOBUFS;
 
-	conn->msg_users[user->idr]++;
+	conn_dst->msg_users[user->idr]++;
 	entry->user = kdbus_domain_user_ref(user);
 	return 0;
 }
@@ -574,7 +574,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	}
 
 	/* limit the number of queued messages from the same individual user */
-	ret = kdbus_conn_queue_user_quota(conn_dst, conn_src, entry);
+	ret = kdbus_conn_queue_user_quota(conn_src, conn_dst, entry);
 	if (ret < 0)
 		goto exit_queue_free;
 
