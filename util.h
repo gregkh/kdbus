@@ -64,7 +64,10 @@
  */
 static inline unsigned int kdbus_str_hash(const char *str)
 {
-	return full_name_hash(str, strlen(str));
+	unsigned long hash = init_name_hash();
+	while (*str)
+		hash = partial_name_hash(*str++, hash);
+	return end_name_hash(hash);
 }
 
 /**
