@@ -414,3 +414,137 @@ struct kdbus_node *kdbus_node_find_child(struct kdbus_node *node,
 
 	return child;
 }
+
+static struct kdbus_node *node_find_closest_unlocked(struct kdbus_node *node,
+						     unsigned int hash)
+{
+	struct kdbus_node *n, *pos = NULL;
+	struct rb_node *rb;
+
+	/* find the closest child with ``node->hash >= hash'' */
+	rb = node->children.rb_node;
+	while (rb) {
+		n = kdbus_node_from_rb(rb);
+		if (hash <= n->hash) {
+			rb = rb->rb_left;
+			pos = n;
+		} else  { /* ``hash > n->hash'' */
+			rb = rb->rb_right;
+		}
+	}
+
+	return pos;
+}
+
+/**
+ * kdbus_node_find_closest() - Find closest child-match
+ * @node:	parent node to search through
+ * @hash:	hash value to find closest match for
+ *
+ * Find the closest child of @node with a hash greater than or equal to @hash.
+ * The closest match is the left-most child of @node with this property. Which
+ * means, it is the first child with that hash returned by
+ * kdbus_node_next_child(), if you'd iterate the whole parent node.
+ *
+ * Return: Reference to acquired child, or NULL if none found.
+ */
+struct kdbus_node *kdbus_node_find_closest(struct kdbus_node *node,
+					   unsigned int hash)
+{
+	struct kdbus_node *child;
+	struct rb_node *rb;
+
+	mutex_lock(&node->lock);
+
+	child = node_find_closest_unlocked(node, hash);
+	while (child && !kdbus_node_acquire(child)) {
+		rb = rb_next(&child->rb);
+		if (rb)
+			child = kdbus_node_from_rb(rb);
+		else
+			child = NULL;
+	}
+	kdbus_node_ref(child);
+
+	mutex_unlock(&node->lock);
+
+	return child;
+}
+
+/**
+ * kdbus_node_next_child() - Acquire next child
+ * @node:	parent node
+ * @prev:	previous child-node position or NULL
+ *
+ * This function returns a reference to the next active child of @node, after
+ * the passed position @prev. If @prev is NULL, a reference to the first active
+ * child is returned. If no more active children are found, NULL is returned.
+ *
+ * This function acquires the next child it returns. If you're done with the
+ * returned pointer, you need to release _and_ unref it.
+ *
+ * The passed in pointer @prev is not modified by this function, and it does
+ * *not* have to be active. If @prev was acquired via different means, or if it
+ * was unlinked from its parent before you pass it in, then this iterator will
+ * still return the next active child (it will have to search through the
+ * rb-tree based on the node-name, though).
+ * However, @prev must not be linked to a different parent than @node!
+ *
+ * Return: Reference to next acquired child, or NULL if at the end.
+ */
+struct kdbus_node *kdbus_node_next_child(struct kdbus_node *node,
+					 struct kdbus_node *prev)
+{
+	struct kdbus_node *pos = NULL;
+	struct rb_node *rb;
+
+	mutex_lock(&node->lock);
+
+	if (!prev) {
+		/*
+		 * New iteration; find first node in rb-tree and try to acquire
+		 * it. If we got it, directly return it as first element.
+		 * Otherwise, the loop below will find the next active node.
+		 */
+		rb = rb_first(&node->children);
+		if (!rb)
+			goto exit;
+		pos = kdbus_node_from_rb(rb);
+		if (kdbus_node_acquire(pos))
+			goto exit;
+	} else if (RB_EMPTY_NODE(&prev->rb)) {
+		/*
+		 * The current iterator is no longer linked to the rb-tree. Use
+		 * its hash value to find the next _higher_ node and acquire it.
+		 * If we got it, return it as next element. Otherwise, the loop
+		 * below will find the next active node.
+		 */
+		pos = node_find_closest_unlocked(node, prev->hash);
+		if (!pos)
+			goto exit;
+		if (kdbus_node_acquire(pos))
+			goto exit;
+	} else {
+		/*
+		 * The current iterator is still linked to the parent. Set it
+		 * as current position and use the loop below to find the next
+		 * active element.
+		 */
+		pos = prev;
+	}
+
+	/* @pos was already returned or is inactive; find next active node */
+	do {
+		rb = rb_next(&pos->rb);
+		if (rb)
+			pos = kdbus_node_from_rb(rb);
+		else
+			pos = NULL;
+	} while (pos && !kdbus_node_acquire(pos));
+
+exit:
+	/* @pos is NULL or acquired. Take ref if non-NULL and return it */
+	kdbus_node_ref(pos);
+	mutex_unlock(&node->lock);
+	return pos;
+}

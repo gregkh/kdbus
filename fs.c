@@ -67,73 +67,37 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 {
 	struct dentry *dentry = file->f_path.dentry;
 	struct kdbus_node *parent = kdbus_node_from_dentry(dentry);
-	struct kdbus_node *old = file->private_data;
-	struct kdbus_node *pos, *next;
-	struct rb_node *rb;
+	struct kdbus_node *old, *next = file->private_data;
 
 	if (!dir_emit_dots(file, ctx))
 		return 0;
 
-	next = old;
+	old = next;
+	if (next && ctx->pos == next->hash) {
+		if (kdbus_node_acquire(next))
+			kdbus_node_ref(next);
+		else
+			next = kdbus_node_next_child(parent, next);
+	} else {
+		next = kdbus_node_find_closest(parent, ctx->pos);
+	}
+	kdbus_node_unref(old);
 
-	mutex_lock(&parent->lock);
-	do {
-		if (!next || ctx->pos != next->hash) {
-			/* find first node with: hash >= ctx->pos */
-			next = NULL;
-			rb = parent->children.rb_node;
-			while (rb) {
-				pos = kdbus_node_from_rb(rb);
-
-				if (ctx->pos < pos->hash) {
-					rb = rb->rb_left;
-					next = pos;
-				} else if (ctx->pos > pos->hash) {
-					rb = rb->rb_right;
-				} else {
-					next = pos;
-					break;
-				}
-			}
-		}
-
-		while (next && !kdbus_node_is_active(next)) {
-			rb = rb_next(&next->rb);
-			if (rb)
-				next = kdbus_node_from_rb(rb);
-			else
-				next = NULL;
-		}
-
-		if (!next)
-			break;
-
-		file->private_data = kdbus_node_ref(next);
+	while (next) {
+		file->private_data = next;
 		ctx->pos = next->hash;
 
-		mutex_unlock(&parent->lock);
-
-		/* unref old entry only if parent mutex is released */
-		kdbus_node_unref(old);
-		old = file->private_data;
+		kdbus_node_release(next);
 
 		if (!dir_emit(ctx, next->name, strlen(next->name), next->id,
 			      kdbus_dt_type(next)))
 			return 0;
 
-		mutex_lock(&parent->lock);
+		old = next;
+		next = kdbus_node_next_child(parent, next);
+		kdbus_node_unref(old);
+	}
 
-		rb = rb_next(&next->rb);
-		if (rb) {
-			next = kdbus_node_from_rb(rb);
-			ctx->pos = next->hash;
-		} else {
-			next = NULL;
-		}
-	} while (next);
-	mutex_unlock(&parent->lock);
-
-	kdbus_node_unref(old);
 	file->private_data = NULL;
 	ctx->pos = INT_MAX;
 

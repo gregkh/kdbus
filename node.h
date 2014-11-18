@@ -77,5 +77,9 @@ void kdbus_node_release(struct kdbus_node *node);
 
 struct kdbus_node *kdbus_node_find_child(struct kdbus_node *node,
 					 const char *name);
+struct kdbus_node *kdbus_node_find_closest(struct kdbus_node *node,
+					   unsigned int hash);
+struct kdbus_node *kdbus_node_next_child(struct kdbus_node *node,
+					 struct kdbus_node *prev);
 
 #endif
