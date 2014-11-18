@@ -28,7 +28,7 @@ static int __init kdbus_init(void)
 {
 	int ret;
 
-	kdbus_dir = kobject_create_and_add("kdbus", fs_kobj);
+	kdbus_dir = kobject_create_and_add(KBUILD_MODNAME, fs_kobj);
 	if (!kdbus_dir)
 		return -ENOMEM;
 
