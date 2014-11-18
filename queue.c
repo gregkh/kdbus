@@ -491,7 +491,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	have = kdbus_pool_remain(conn_dst->pool);
 	if (want < have && want > have / 2) {
 		ret = -EXFULL;
-		goto exit_free_fds;
+		goto exit_free_entry;
 	}
 
 	/* allocate the needed space in the pool of the receiver */
@@ -499,7 +499,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;
-		goto exit_free_fds;
+		goto exit_free_entry;
 	}
 
 	/* copy the message header */
@@ -574,8 +574,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 
 exit_free_slice:
 	kdbus_pool_slice_free(entry->slice);
-exit_free_fds:
-	kfree(entry->fds_fp);
 exit_free_entry:
 	kdbus_queue_entry_free(entry);
 	return ERR_PTR(ret);
