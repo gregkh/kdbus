@@ -326,19 +326,19 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
  * kdbus_policy_check_see_access_unlocked() - Check whether a connection is
  *					      allowed to see a given name
  * @db:		The policy database
- * @conn:	The connection performing the lookup
+ * @cred:	The cred to check against
  * @name:	The name
  *
  * Return: 0 if permission to see the name is granted, -EPERM otherwise
  */
 int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
-					   struct kdbus_conn *conn,
+					   const struct cred *cred,
 					   const char *name)
 {
 	const struct kdbus_policy_db_entry *e;
 
 	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
-	return kdbus_policy_check_access(e, conn->cred, KDBUS_POLICY_SEE);
+	return kdbus_policy_check_access(e, cred, KDBUS_POLICY_SEE);
 }
 
 static void __kdbus_policy_remove_owner_cache(struct kdbus_policy_db *db,

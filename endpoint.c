@@ -239,7 +239,7 @@ int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
 		return 0;
 
 	ret = kdbus_policy_check_see_access_unlocked(&ep->policy_db,
-						     conn, name);
+						     conn->cred, name);
 
 	/* don't leak hints whether a name exists on a custom endpoint. */
 	if (ret == -EPERM)
