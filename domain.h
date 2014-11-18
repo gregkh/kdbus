@@ -66,7 +66,7 @@ struct kdbus_domain_user {
 						   struct kdbus_domain, \
 						   node)
 
-struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access);
+struct kdbus_domain *kdbus_domain_new(unsigned int access);
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 int kdbus_domain_activate(struct kdbus_domain *domain);

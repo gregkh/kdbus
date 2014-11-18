@@ -80,12 +80,11 @@ static void kdbus_domain_free(struct kdbus_node *node)
 
 /**
  * kdbus_domain_new() - create a new domain
- * @name:		Name of the domain, NULL for the initial one
  * @access:		The access mode for this node (KDBUS_MAKE_ACCESS_*)
  *
  * Return: a new kdbus_domain on success, ERR_PTR on failure
  */
-struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
+struct kdbus_domain *kdbus_domain_new(unsigned int access)
 {
 	struct kdbus_domain *d;
 	int ret;
@@ -108,7 +107,7 @@ struct kdbus_domain *kdbus_domain_new(const char *name, unsigned int access)
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	ret = kdbus_node_link(&d->node, NULL, name);
+	ret = kdbus_node_link(&d->node, NULL, NULL);
 	if (ret < 0)
 		goto exit_unref;
 

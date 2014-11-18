@@ -371,7 +371,7 @@ static struct dentry *fs_super_mount(struct file_system_type *fs_type,
 	struct super_block *sb;
 	int ret;
 
-	domain = kdbus_domain_new(NULL, KDBUS_MAKE_ACCESS_WORLD);
+	domain = kdbus_domain_new(KDBUS_MAKE_ACCESS_WORLD);
 	if (IS_ERR(domain))
 		return ERR_CAST(domain);
 
