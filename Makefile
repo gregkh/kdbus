@@ -48,11 +48,12 @@ doc:
 	$(KERNELDIR)/scripts/kernel-doc *.c kdbus.h >/dev/null | grep "^Warning"
 
 install: module
-	mkdir -p /lib/modules/$(KERNELVER)/kernel/drivers/misc/kdbus$(EXT)/
-	cp -f kdbus$(EXT).ko /lib/modules/$(KERNELVER)/kernel/drivers/misc/kdbus$(EXT)/
+	mkdir -p /lib/modules/$(KERNELVER)/kernel/ipc/kdbus$(EXT)/
+	cp -f kdbus$(EXT).ko /lib/modules/$(KERNELVER)/kernel/ipc/kdbus$(EXT)/
 	depmod $(KERNELVER)
 
 uninstall:
+	rm -f /lib/modules/$(KERNELVER)/kernel/ipc/kdbus/kdbus$(EXT).ko
 	rm -f /lib/modules/$(KERNELVER)/kernel/drivers/kdbus/kdbus$(EXT).ko
 	rm -f /lib/modules/$(KERNELVER)/kernel/drivers/misc/kdbus/kdbus$(EXT).ko
 
