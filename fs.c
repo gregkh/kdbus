@@ -69,9 +69,30 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 	struct kdbus_node *parent = kdbus_node_from_dentry(dentry);
 	struct kdbus_node *old, *next = file->private_data;
 
+	/*
+	 * kdbusfs directory iterator (modeled after sysfs/kernfs)
+	 * When iterating kdbusfs directories, we iterate all childs of the
+	 * parent kdbus_node object. We use ctx->pos to store the hash of the
+	 * child and file->private_data to store a reference to the next node
+	 * object. If ctx->pos is not modified via llseek while you iterate a
+	 * directory, then we use the file->private_data node pointer to
+	 * directly access the next node in the tree.
+	 * However, if you directly seek on the directory, we have to find the
+	 * closest node to that position and cannot use our node pointer. This
+	 * means iterating the rb-tree to find the closest match and start over
+	 * from there.
+	 * Note that hash values are not neccessarily unique. Therefore, llseek
+	 * is not guaranteed to seek to the same node that you got when you
+	 * retrieved the position. Seeking to 0, 1, 2 and >=INT_MAX is safe,
+	 * though. We could use the inode-number as position, but this would
+	 * require another rb-tree for fast access. Kernfs and others already
+	 * ignore those conflicts, so we should be fine, too.
+	 */
+
 	if (!dir_emit_dots(file, ctx))
 		return 0;
 
+	/* acquire @next; if deactivated, or seek detected, find next node */
 	old = next;
 	if (next && ctx->pos == next->hash) {
 		if (kdbus_node_acquire(next))
@@ -84,6 +105,7 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 	kdbus_node_unref(old);
 
 	while (next) {
+		/* emit @next */
 		file->private_data = next;
 		ctx->pos = next->hash;
 
@@ -93,6 +115,7 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 			      kdbus_dt_type(next)))
 			return 0;
 
+		/* find next node after @next */
 		old = next;
 		next = kdbus_node_next_child(parent, next);
 		kdbus_node_unref(old);
