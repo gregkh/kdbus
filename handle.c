@@ -29,6 +29,7 @@
 #include "connection.h"
 #include "endpoint.h"
 #include "handle.h"
+#include "ioctl.h"
 #include "item.h"
 #include "match.h"
 #include "message.h"
@@ -217,9 +218,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case KDBUS_CMD_ENDPOINT_MAKE: {
-		struct kdbus_cmd_make *make;
-		unsigned int access;
-		const char *name;
 		struct kdbus_ep *ep;
 
 		/* creating custom endpoints is a privileged operation */
@@ -228,71 +226,9 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		make = kdbus_memdup_user(buf, sizeof(*make),
-					 KDBUS_MAKE_MAX_SIZE);
-		if (IS_ERR(make)) {
-			ret = PTR_ERR(make);
-			break;
-		}
-
-		free_ptr = make;
-
-		ret = kdbus_negotiate_flags(make, buf, typeof(*make),
-					    KDBUS_MAKE_ACCESS_GROUP |
-					    KDBUS_MAKE_ACCESS_WORLD);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(make->items,
-					   KDBUS_ITEMS_SIZE(make, items));
-		if (ret < 0)
-			break;
-
-		name = kdbus_items_get_str(make->items,
-					   KDBUS_ITEMS_SIZE(make, items),
-					   KDBUS_ITEM_MAKE_NAME);
-		if (IS_ERR(name)) {
-			ret = PTR_ERR(name);
-			break;
-		}
-
-		access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
-					KDBUS_MAKE_ACCESS_GROUP);
-
-		/* custom endpoints always have a policy db */
-		ep = kdbus_ep_new(handle->ep->bus, name, access,
-				  current_fsuid(), current_fsgid(), true);
+		ep = kdbus_ioctl_endpoint_make(handle->ep->bus, buf);
 		if (IS_ERR(ep)) {
 			ret = PTR_ERR(ep);
-			break;
-		}
-
-		ret = kdbus_ep_activate(ep);
-		if (ret < 0) {
-			kdbus_ep_unref(ep);
-			break;
-		}
-
-		ret = kdbus_ep_policy_set(ep, make->items,
-					  KDBUS_ITEMS_SIZE(make, items));
-		if (ret < 0) {
-			kdbus_ep_deactivate(ep);
-			kdbus_ep_unref(ep);
-			break;
-		}
-
-		/*
-		 * Get an anonymous user to account messages against; custom
-		 * endpoint users do not share the budget with the ordinary
-		 * users created for a UID.
-		 */
-		ep->user = kdbus_domain_get_user(handle->ep->bus->domain,
-						 INVALID_UID);
-		if (IS_ERR(ep->user)) {
-			ret = PTR_ERR(ep->user);
-			ep->user = NULL;
-			kdbus_ep_deactivate(ep);
-			kdbus_ep_unref(ep);
 			break;
 		}
 
