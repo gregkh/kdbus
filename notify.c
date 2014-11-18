@@ -205,7 +205,7 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 			struct kdbus_conn *conn;
 
 			conn = kdbus_bus_find_conn_by_id(bus, kmsg->msg.dst_id);
-			if (!IS_ERR(conn)) {
+			if (conn) {
 				kdbus_conn_entry_insert(NULL, conn, kmsg, NULL);
 				kdbus_conn_unref(conn);
 			}
