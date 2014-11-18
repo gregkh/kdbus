@@ -32,10 +32,6 @@
 #include "handle.h"
 #include "node.h"
 
-struct kdbus_fs_super {
-	struct kdbus_domain *domain;
-};
-
 #define kdbus_node_from_dentry(_dentry) \
 	((struct kdbus_node*)(_dentry)->d_fsdata)
 #define kdbus_node_from_inode(_inode) \
@@ -314,47 +310,9 @@ static const struct super_operations fs_super_sops = {
 	.evict_inode	= fs_super_sop_evict_inode,
 };
 
-static struct kdbus_fs_super *fs_super_new(void)
-{
-	struct kdbus_fs_super *super;
-	int ret;
-
-	super = kzalloc(sizeof(*super), GFP_KERNEL);
-	if (!super)
-		return ERR_PTR(-ENOMEM);
-
-	super->domain = kdbus_domain_new(NULL, KDBUS_MAKE_ACCESS_WORLD);
-	if (IS_ERR(super->domain)) {
-		ret = PTR_ERR(super->domain);
-		goto exit_free;
-	}
-
-	ret = kdbus_domain_activate(super->domain);
-	if (ret < 0)
-		goto exit_domain;
-
-	return super;
-
-exit_domain:
-	kdbus_domain_unref(super->domain);
-exit_free:
-	kfree(super);
-	return ERR_PTR(ret);
-}
-
-static void fs_super_free(struct kdbus_fs_super *super)
-{
-	if (!super)
-		return;
-
-	kdbus_domain_deactivate(super->domain);
-	kdbus_domain_unref(super->domain);
-	kfree(super);
-}
-
 static int fs_super_fill(struct super_block *sb)
 {
-	struct kdbus_fs_super *super = sb->s_fs_info;
+	struct kdbus_domain *domain = sb->s_fs_info;
 	struct inode *inode;
 
 	sb->s_blocksize = PAGE_CACHE_SIZE;
@@ -364,7 +322,7 @@ static int fs_super_fill(struct super_block *sb)
 	sb->s_op = &fs_super_sops;
 	sb->s_time_gran = 1;
 
-	inode = fs_inode_get(sb, &super->domain->node);
+	inode = fs_inode_get(sb, &domain->node);
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 
@@ -375,7 +333,7 @@ static int fs_super_fill(struct super_block *sb)
 	}
 
 	/* sb holds domain reference */
-	sb->s_root->d_fsdata = &super->domain->node;
+	sb->s_root->d_fsdata = &domain->node;
 	sb->s_d_op = &fs_super_dops;
 	sb->s_flags |= MS_ACTIVE;
 
@@ -384,10 +342,14 @@ static int fs_super_fill(struct super_block *sb)
 
 static void fs_super_kill(struct super_block *sb)
 {
-	struct kdbus_fs_super *super = sb->s_fs_info;
+	struct kdbus_domain *domain = sb->s_fs_info;
 
 	kill_anon_super(sb);
-	fs_super_free(super);
+
+	if (domain) {
+		kdbus_domain_deactivate(domain);
+		kdbus_domain_unref(domain);
+	}
 }
 
 static int fs_super_set(struct super_block *sb, void *data)
@@ -405,30 +367,41 @@ static struct dentry *fs_super_mount(struct file_system_type *fs_type,
 				     int flags, const char *dev_name,
 				     void *data)
 {
-	struct kdbus_fs_super *super;
+	struct kdbus_domain *domain;
 	struct super_block *sb;
 	int ret;
 
-	super = fs_super_new();
-	if (IS_ERR(super))
-		return ERR_CAST(super);
+	domain = kdbus_domain_new(NULL, KDBUS_MAKE_ACCESS_WORLD);
+	if (IS_ERR(domain))
+		return ERR_CAST(domain);
 
-	sb = sget(fs_type, NULL, fs_super_set, flags, super);
+	ret = kdbus_domain_activate(domain);
+	if (ret < 0)
+		goto exit_domain;
+
+	sb = sget(fs_type, NULL, fs_super_set, flags, domain);
 	if (IS_ERR(sb)) {
-		fs_super_free(super);
-		return ERR_CAST(sb);
+		ret = PTR_ERR(sb);
+		goto exit_live_domain;
 	}
 
-	WARN_ON(sb->s_fs_info != super);
+	WARN_ON(sb->s_fs_info != domain);
 	WARN_ON(sb->s_root);
 
 	ret = fs_super_fill(sb);
 	if (ret < 0) {
+		/* calls into ->kill_sb() when done */
 		deactivate_locked_super(sb);
 		return ERR_PTR(ret);
 	}
 
 	return dget(sb->s_root);
+
+exit_live_domain:
+	kdbus_domain_deactivate(domain);
+exit_domain:
+	kdbus_domain_unref(domain);
+	return ERR_PTR(ret);
 }
 
 static struct file_system_type fs_type = {
