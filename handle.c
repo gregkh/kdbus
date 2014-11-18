@@ -40,43 +40,39 @@
 
 /**
  * enum kdbus_handle_type - type a handle can be of
- * @KDBUS_HANDLE_ENDPOINT:		New file descriptor of a bus node
- * @KDBUS_HANDLE_ENDPOINT_CONNECTED:	A bus connection after HELLO
- * @KDBUS_HANDLE_ENDPOINT_OWNER:	File descriptor to hold an endpoint
+ * @KDBUS_HANDLE_NONE:		New file descriptor on an endpoint
+ * @KDBUS_HANDLE_CONNECTED:	A bus connection after HELLO
+ * @KDBUS_HANDLE_OWNER:		File descriptor to hold an endpoint
  */
 enum kdbus_handle_type {
-	KDBUS_HANDLE_ENDPOINT,
-	KDBUS_HANDLE_ENDPOINT_CONNECTED,
-	KDBUS_HANDLE_ENDPOINT_OWNER,
+	KDBUS_HANDLE_NONE,
+	KDBUS_HANDLE_CONNECTED,
+	KDBUS_HANDLE_OWNER,
 };
 
 /**
  * struct kdbus_handle - a handle to the kdbus system
- * @type:		Type of this handle (KDBUS_HANDLE_*)
- * @domain:		Domain for this handle
+ * @lock:		Handle lock
  * @meta:		Cached connection creator's metadata/credentials
- * @ep:			The endpoint for this handle, in case @type is
- *			KDBUS_HANDLE_ENDPOINT, KDBUS_HANDLE_ENDPOINT_OWNER or
- *			KDBUS_HANDLE_ENDPOINT_CONNECTED
- * @ptr:		Generic pointer used as alias for other members
- *			in the same union by kdbus_handle_transform()
- * @ep_owner:		The endpoint this handle owns, in case @type
- *			is KDBUS_HANDLE_ENDPOINT_OWNER
+ * @ep:			The endpoint for this handle
+ * @type:		Type of this handle (KDBUS_HANDLE_*)
  * @conn:		The connection this handle owns, in case @type
- *			is KDBUS_HANDLE_ENDPOINT, after HELLO it is
- *			KDBUS_HANDLE_ENDPOINT_CONNECTED
+ *			is KDBUS_HANDLE_CONNECTED
+ * @ep_owner:		The endpoint this handle owns, in case @type
+ *			is KDBUS_HANDLE_OWNER
  * @privileged:		Flag to mark a handle as privileged
  */
 struct kdbus_handle {
-	enum kdbus_handle_type type;
-	struct kdbus_domain *domain;
+	struct mutex lock;
 	struct kdbus_meta *meta;
 	struct kdbus_ep *ep;
+
+	enum kdbus_handle_type type;
 	union {
-		void *ptr;
-		struct kdbus_ep *ep_owner;
 		struct kdbus_conn *conn;
+		struct kdbus_ep *ep_owner;
 	};
+
 	bool privileged:1;
 };
 
@@ -97,9 +93,9 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		goto exit_node;
 	}
 
-	handle->type = KDBUS_HANDLE_ENDPOINT;
+	mutex_init(&handle->lock);
 	handle->ep = kdbus_ep_ref(kdbus_ep_from_node(node));
-	handle->domain = kdbus_domain_ref(handle->ep->bus->domain);
+	handle->type = KDBUS_HANDLE_NONE;
 
 	if (ns_capable(&init_user_ns, CAP_IPC_OWNER) ||
 	    uid_eq(handle->ep->bus->node.uid, file->f_cred->fsuid))
@@ -133,7 +129,6 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 
 exit_free:
 	kdbus_meta_free(handle->meta);
-	kdbus_domain_unref(handle->domain);
 	kdbus_ep_unref(handle->ep);
 	kfree(handle);
 exit_node:
@@ -146,66 +141,26 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 	struct kdbus_handle *handle = file->private_data;
 
 	switch (handle->type) {
-	case KDBUS_HANDLE_ENDPOINT_OWNER:
+	case KDBUS_HANDLE_OWNER:
 		kdbus_ep_deactivate(handle->ep_owner);
 		kdbus_ep_unref(handle->ep_owner);
 		break;
 
-	case KDBUS_HANDLE_ENDPOINT_CONNECTED:
+	case KDBUS_HANDLE_CONNECTED:
 		kdbus_conn_disconnect(handle->conn, false);
 		kdbus_conn_unref(handle->conn);
 		break;
 
-	case KDBUS_HANDLE_ENDPOINT:
+	case KDBUS_HANDLE_NONE:
 		/* nothing to clean up */
 		break;
 	}
 
 	kdbus_meta_free(handle->meta);
-	kdbus_domain_unref(handle->domain);
 	kdbus_ep_unref(handle->ep);
 	kfree(handle);
 
 	return 0;
-}
-
-static int kdbus_handle_transform(struct kdbus_handle *handle,
-				  enum kdbus_handle_type old_type,
-				  enum kdbus_handle_type new_type,
-				  void *ctx_ptr)
-{
-	int ret = -EBADFD;
-
-	/*
-	 * This transforms a handle from one state into another. Only a single
-	 * transformation is allowed per handle, and it must be one of:
-	 *        EP -> EP_CONNECTED
-	 *           -> EP_OWNER
-	 *
-	 * State transformations are protected by the domain-lock. If another
-	 * transformation runs in parallel, we will fail and the caller has to
-	 * revert any previous steps.
-	 *
-	 * We also update any context before we write the new type. Reads can
-	 * now be sure that iff a specific non-entry type is set, the context
-	 * is accessible, too (given appropriate read-barriers).
-	 */
-
-	WARN_ON(old_type != KDBUS_HANDLE_ENDPOINT ||
-		(new_type != KDBUS_HANDLE_ENDPOINT_CONNECTED &&
-		 new_type != KDBUS_HANDLE_ENDPOINT_OWNER));
-
-	mutex_lock(&handle->domain->lock);
-	if (handle->type == old_type) {
-		handle->ptr = ctx_ptr;
-		/* make sure handle->XYZ is accessible before the type is set */
-		smp_wmb();
-		handle->type = new_type;
-		ret = 0;
-	}
-	mutex_unlock(&handle->domain->lock);
-
-	return ret;
 }
 
 /* kdbus endpoint make commands */
@@ -231,14 +186,18 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		/* turn the ep fd into a new endpoint owner device */
-		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_ENDPOINT,
-					     KDBUS_HANDLE_ENDPOINT_OWNER, ep);
-		if (ret < 0) {
+		/* protect against parallel ioctls */
+		mutex_lock(&handle->lock);
+		if (handle->type != KDBUS_HANDLE_NONE) {
+			mutex_unlock(&handle->lock);
 			kdbus_ep_deactivate(ep);
 			kdbus_ep_unref(ep);
-			break;
+			ret = -EBADFD;
+		} else {
+			handle->type = KDBUS_HANDLE_OWNER;
+			handle->ep_owner = ep;
 		}
+		mutex_unlock(&handle->lock);
 
 		break;
 	}
@@ -253,15 +212,18 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		/* turn the ep fd into a new connection */
-		ret = kdbus_handle_transform(handle, KDBUS_HANDLE_ENDPOINT,
-					     KDBUS_HANDLE_ENDPOINT_CONNECTED,
-					     conn);
-		if (ret < 0) {
+		/* protect against parallel ioctls */
+		mutex_lock(&handle->lock);
+		if (handle->type != KDBUS_HANDLE_NONE) {
+			mutex_unlock(&handle->lock);
 			kdbus_conn_disconnect(conn, false);
 			kdbus_conn_unref(conn);
-			break;
+			ret = -EBADFD;
+		} else {
+			handle->type = KDBUS_HANDLE_CONNECTED;
+			handle->conn = conn;
 		}
+		mutex_unlock(&handle->lock);
 
 		break;
 	}
@@ -722,19 +684,21 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 {
 	struct kdbus_handle *handle = file->private_data;
 	void __user *argp = (void __user *)arg;
-	enum kdbus_handle_type type = handle->type;
+	enum kdbus_handle_type type;
 
-	/* make sure all handle fields are set if handle->type is */
-	smp_rmb();
+	/* lock while accessing handle->type to enforce barriers */
+	mutex_lock(&handle->lock);
+	type = handle->type;
+	mutex_unlock(&handle->lock);
 
 	switch (type) {
-	case KDBUS_HANDLE_ENDPOINT:
+	case KDBUS_HANDLE_NONE:
 		return kdbus_handle_ioctl_ep(file, cmd, argp);
 
-	case KDBUS_HANDLE_ENDPOINT_CONNECTED:
+	case KDBUS_HANDLE_CONNECTED:
 		return kdbus_handle_ioctl_ep_connected(file, cmd, argp);
 
-	case KDBUS_HANDLE_ENDPOINT_OWNER:
+	case KDBUS_HANDLE_OWNER:
 		return kdbus_handle_ioctl_ep_owner(file, cmd, argp);
 
 	default:
@@ -746,25 +710,27 @@ static unsigned int kdbus_handle_poll(struct file *file,
 				      struct poll_table_struct *wait)
 {
 	struct kdbus_handle *handle = file->private_data;
-	struct kdbus_conn *conn;
 	unsigned int mask = POLLOUT | POLLWRNORM;
+	int ret;
 
 	/* Only a connected endpoint can read/write data */
-	if (handle->type != KDBUS_HANDLE_ENDPOINT_CONNECTED)
+	mutex_lock(&handle->lock);
+	if (handle->type != KDBUS_HANDLE_CONNECTED) {
+		mutex_unlock(&handle->lock);
+		return POLLERR | POLLHUP;
+	}
+	mutex_unlock(&handle->lock);
+
+	ret = kdbus_conn_acquire(handle->conn);
+	if (ret < 0)
 		return POLLERR | POLLHUP;
 
-	/* make sure handle->conn is set if handle->type is */
-	smp_rmb();
-	conn = handle->conn;
+	poll_wait(file, &handle->conn->wait, wait);
 
-	poll_wait(file, &conn->wait, wait);
-
-	mutex_lock(&conn->lock);
-	if (!kdbus_conn_active(conn))
-		mask = POLLERR | POLLHUP;
-	else if (!list_empty(&conn->queue.msg_list))
+	if (!list_empty(&handle->conn->queue.msg_list))
 		mask |= POLLIN | POLLRDNORM;
-	mutex_unlock(&conn->lock);
+
+	kdbus_conn_release(handle->conn);
 
 	return mask;
 }
@@ -773,11 +739,12 @@ static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct kdbus_handle *handle = file->private_data;
 
-	if (handle->type != KDBUS_HANDLE_ENDPOINT_CONNECTED)
+	mutex_lock(&handle->lock);
+	if (handle->type != KDBUS_HANDLE_CONNECTED) {
+		mutex_unlock(&handle->lock);
 		return -EPERM;
-
-	/* make sure handle->conn is set if handle->type is */
-	smp_rmb();
+	}
+	mutex_unlock(&handle->lock);
 
 	return kdbus_pool_mmap(handle->conn->pool, vma);
 }
