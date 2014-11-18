@@ -212,6 +212,11 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 		down_write(&kdbus_node_idr_lock);
 		if (safe.id > 0)
 			idr_remove(&kdbus_node_idr, safe.id);
+		/* drop caches after last node to not leak memory on unload */
+		if (idr_is_empty(&kdbus_node_idr)) {
+			idr_destroy(&kdbus_node_idr);
+			idr_init(&kdbus_node_idr);
+		}
 		up_write(&kdbus_node_idr_lock);
 
 		kfree(safe.name);
@@ -368,20 +373,3 @@ void kdbus_node_release(struct kdbus_node *node)
 	if (node && atomic_dec_return(&node->active) == KDBUS_NODE_BIAS)
 		wake_up(&node->waitq);
 }
-
-/**
- * kdbus_nodes_init() - initialize the nodes infrastructure
- */
-void kdbus_nodes_init(void)
-{
-	idr_init(&kdbus_node_idr);
-}
-
-/**
- * kdbus_nodes_exit() - clean up and destroy the nodes infrastructure
- */
-void kdbus_nodes_exit(void)
-{
-	idr_destroy(&kdbus_node_idr);
-}
-

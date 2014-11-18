@@ -32,19 +32,16 @@ static int __init kdbus_init(void)
 	if (!kdbus_dir)
 		return -ENOMEM;
 
-	kdbus_nodes_init();
-
 	ret = kdbus_fs_init();
 	if (ret < 0) {
 		pr_err("cannot register filesystem: %d\n", ret);
-		goto exit_node;
+		goto exit_dir;
 	}
 
 	pr_info("initialized\n");
 	return 0;
 
-exit_node:
-	kdbus_nodes_exit();
+exit_dir:
 	kobject_put(kdbus_dir);
 	return ret;
 }
@@ -52,7 +49,6 @@ exit_node:
 static void __exit kdbus_exit(void)
 {
 	kdbus_fs_exit();
-	kdbus_nodes_exit();
 	kobject_put(kdbus_dir);
 }
 
