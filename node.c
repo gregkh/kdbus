@@ -33,9 +33,6 @@
 #define KDBUS_NODE_DRAINED	(KDBUS_NODE_BIAS - 2)
 #define KDBUS_NODE_NEW		(KDBUS_NODE_BIAS - 3)
 
-/* IDs may be used as minor-numbers, so limit it to the highest minor */
-#define KDBUS_NODE_IDR_MAX MINORMASK
-
 /* global unique ID mapping for kdbus nodes */
 static DEFINE_IDR(kdbus_node_idr);
 static DECLARE_RWSEM(kdbus_node_idr_lock);
@@ -136,8 +133,7 @@ int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 	}
 
 	down_write(&kdbus_node_idr_lock);
-	ret = idr_alloc(&kdbus_node_idr, node, 1, KDBUS_NODE_IDR_MAX + 1,
-			GFP_KERNEL);
+	ret = idr_alloc(&kdbus_node_idr, node, 1, 0, GFP_KERNEL);
 	if (ret >= 0)
 		node->id = ret;
 	up_write(&kdbus_node_idr_lock);
