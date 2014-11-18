@@ -15,8 +15,10 @@
 #include <linux/sched.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 
 #include "bus.h"
+#include "connection.h"
 #include "domain.h"
 #include "endpoint.h"
 #include "ioctl.h"
@@ -145,5 +147,62 @@ exit_ep_unref:
 	kdbus_ep_unref(ep);
 exit:
 	kfree(make);
+	return res;
+}
+
+struct kdbus_conn *kdbus_ioctl_hello(struct kdbus_ep *ep,
+				     struct kdbus_meta *meta,
+				     bool privileged,
+				     void __user *buf)
+{
+	struct kdbus_conn *res, *conn = NULL;
+	struct kdbus_cmd_hello *hello;
+	int ret;
+
+	hello = kdbus_memdup_user(buf, sizeof(*hello), KDBUS_HELLO_MAX_SIZE);
+	if (IS_ERR(hello))
+		return ERR_CAST(hello);
+
+	ret = kdbus_negotiate_flags(hello, buf, typeof(*hello),
+				    KDBUS_HELLO_ACCEPT_FD |
+				    KDBUS_HELLO_ACTIVATOR |
+				    KDBUS_HELLO_POLICY_HOLDER |
+				    KDBUS_HELLO_MONITOR);
+	if (ret < 0) {
+		res = ERR_PTR(ret);
+		goto exit;
+	}
+
+	ret = kdbus_items_validate(hello->items,
+				   KDBUS_ITEMS_SIZE(hello, items));
+	if (ret < 0) {
+		res = ERR_PTR(ret);
+		goto exit;
+	}
+
+	if (!hello->pool_size || !IS_ALIGNED(hello->pool_size, PAGE_SIZE)) {
+		res = ERR_PTR(-EFAULT);
+		goto exit;
+	}
+
+	conn = kdbus_conn_new(ep, hello, meta, privileged);
+	if (IS_ERR(conn)) {
+		res = conn;
+		goto exit;
+	}
+
+	if (copy_to_user(buf, hello, sizeof(*hello))) {
+		res = ERR_PTR(-EFAULT);
+		goto exit_conn_live;
+	}
+
+	res = conn;
+	goto exit;
+
+exit_conn_live:
+	kdbus_conn_disconnect(conn, false);
+	kdbus_conn_unref(conn);
+exit:
+	kfree(hello);
 	return res;
 }

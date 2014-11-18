@@ -213,7 +213,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 				  void __user *buf)
 {
 	struct kdbus_handle *handle = file->private_data;
-	void *free_ptr = NULL;
 	long ret = 0;
 
 	switch (cmd) {
@@ -245,39 +244,10 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_HELLO: {
-		struct kdbus_cmd_hello *hello;
-		struct kdbus_conn *conn = NULL;
+		struct kdbus_conn *conn;
 
-		hello = kdbus_memdup_user(buf, sizeof(*hello),
-					  KDBUS_HELLO_MAX_SIZE);
-		if (IS_ERR(hello)) {
-			ret = PTR_ERR(hello);
-			break;
-		}
-
-		free_ptr = hello;
-
-		ret = kdbus_negotiate_flags(hello, buf, typeof(*hello),
-					    KDBUS_HELLO_ACCEPT_FD |
-					    KDBUS_HELLO_ACTIVATOR |
-					    KDBUS_HELLO_POLICY_HOLDER |
-					    KDBUS_HELLO_MONITOR);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(hello->items,
-					   KDBUS_ITEMS_SIZE(hello, items));
-		if (ret < 0)
-			break;
-
-		if (hello->pool_size == 0 ||
-		    !IS_ALIGNED(hello->pool_size, PAGE_SIZE)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		conn = kdbus_conn_new(handle->ep, hello, handle->meta,
-				      handle->privileged);
+		conn = kdbus_ioctl_hello(handle->ep, handle->meta,
+					 handle->privileged, buf);
 		if (IS_ERR(conn)) {
 			ret = PTR_ERR(conn);
 			break;
@@ -293,9 +263,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		if (copy_to_user(buf, hello, sizeof(*hello)))
-			ret = -EFAULT;
-
 		break;
 	}
 
@@ -303,8 +270,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		ret = -ENOTTY;
 		break;
 	}
-
-	kfree(free_ptr);
 
 	return ret;
 }

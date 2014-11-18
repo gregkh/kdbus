@@ -14,13 +14,20 @@
 #ifndef __KDBUS_IOCTL_H
 #define __KDBUS_IOCTL_H
 
+#include <linux/kernel.h>
+
 struct kdbus_bus;
 struct kdbus_domain;
 struct kdbus_ep;
+struct kdbus_meta;
 
 struct kdbus_bus *kdbus_ioctl_bus_make(struct kdbus_domain *domain,
 				       void __user *buf);
 struct kdbus_ep *kdbus_ioctl_endpoint_make(struct kdbus_bus *bus,
 					   void __user *buf);
+struct kdbus_conn *kdbus_ioctl_hello(struct kdbus_ep *ep,
+				     struct kdbus_meta *meta,
+				     bool privileged,
+				     void __user *buf);
 
 #endif
