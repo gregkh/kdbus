@@ -21,6 +21,7 @@
 
 #include "bus.h"
 #include "connection.h"
+#include "domain.h"
 #include "endpoint.h"
 #include "item.h"
 #include "message.h"
@@ -198,6 +199,8 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 	spin_unlock(&bus->notify_lock);
 
 	list_for_each_entry_safe(kmsg, tmp, &notify_list, notify_entry) {
+		kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
+
 		if (kmsg->msg.dst_id != KDBUS_DST_ID_BROADCAST) {
 			struct kdbus_conn *conn;
 
