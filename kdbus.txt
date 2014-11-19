@@ -1784,12 +1784,12 @@ For KDBUS_CMD_MATCH_REMOVE:
 This is a simplified outline of the internal kdbus object relations, for
 those interested in the inner life of the driver implementation.
 
-From the a mount point's (domain's ) perspective:
+From the a mount point's (domain's) perspective:
 
 struct kdbus_domain
   |» struct kdbus_domain_user *user (many, owned)
   '» struct kdbus_node node (embedded)
-      |» struct kdbus_node children (many, pinned)
+      |» struct kdbus_node children (many, referenced)
       |» struct kdbus_node *parent (pinned)
       '» struct kdbus_bus (many, pinned)
           |» struct kdbus_node node (embedded)
