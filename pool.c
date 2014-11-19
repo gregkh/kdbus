@@ -621,9 +621,9 @@ ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
 }
 
 /**
- * kdbus_pool_move_slice() - move memory from one pool into another one
- * @dst_pool:		The receiver's pool to copy to
+ * kdbus_pool_slice_move() - move memory from one pool into another one
  * @src_pool:		The receiver's pool to copy from
+ * @dst_pool:		The receiver's pool to copy to
  * @slice:		Reference to the slice to copy from the source;
  *			updated with the newly allocated slice in the
  *			destination
@@ -634,8 +634,8 @@ ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_pool_move_slice(struct kdbus_pool *dst_pool,
-			  struct kdbus_pool *src_pool,
+int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
+			  struct kdbus_pool *dst_pool,
 			  struct kdbus_pool_slice **slice)
 {
 	mm_segment_t old_fs;

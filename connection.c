@@ -1252,7 +1252,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	}
 
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
-		ret = kdbus_pool_move_slice(conn_dst->pool, conn_src->pool,
+		ret = kdbus_pool_slice_move(conn_src->pool, conn_dst->pool,
 					    &q->slice);
 		if (ret < 0)
 			kdbus_queue_entry_free(q);
