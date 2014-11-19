@@ -11,7 +11,9 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 
 #include "kdbus-test.h"
 #include "kdbus-util.h"
@@ -210,6 +212,225 @@ static unsigned int kdbus_item_get_nfds(struct kdbus_msg *msg)
 	return fds;
 }
 
+static struct kdbus_msg *
+get_kdbus_msg_with_fd(struct kdbus_conn *conn_src,
+		      uint64_t dst_id, uint64_t cookie, int fd)
+{
+	int ret;
+	uint64_t size;
+	struct kdbus_item *item;
+	struct kdbus_msg *msg;
+
+	size = sizeof(struct kdbus_msg);
+	if (fd >= 0)
+		size += KDBUS_ITEM_SIZE(sizeof(int));
+
+	ret = make_msg_payload_dbus(conn_src->id, dst_id, size, &msg);
+	ASSERT_RETURN_VAL(ret == 0, NULL);
+
+	msg->cookie = cookie;
+
+	if (fd >= 0) {
+		item = msg->items;
+
+		make_item_fds(item, (int *)&fd, 1);
+	}
+
+	return msg;
+}
+
+static int kdbus_test_no_fds(struct kdbus_test_env *env,
+			     int *fds, int *memfd)
+{
+	pid_t pid;
+	int ret, status;
+	uint64_t cookie;
+	int connfd1, connfd2;
+	struct kdbus_msg *msg, *msg_sync_reply;
+	struct kdbus_cmd_hello hello;
+	struct kdbus_conn *conn_src, *conn_dst, *conn_dummy;
+
+	conn_src = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn_src);
+
+	connfd1 = open(env->buspath, O_RDWR|O_CLOEXEC);
+	ASSERT_RETURN(connfd1 >= 0);
+
+	connfd2 = open(env->buspath, O_RDWR|O_CLOEXEC);
+	ASSERT_RETURN(connfd2 >= 0);
+
+	/*
+	 * Create connections without KDBUS_HELLO_ACCEPT_FD
+	 * to test if send fd operations are blocked
+	 */
+	conn_dst = malloc(sizeof(*conn_dst));
+	ASSERT_RETURN(conn_dst);
+
+	conn_dummy = malloc(sizeof(*conn_dummy));
+	ASSERT_RETURN(conn_dummy);
+
+	memset(&hello, 0, sizeof(hello));
+	hello.size = sizeof(struct kdbus_cmd_hello);
+	hello.pool_size = POOL_SIZE;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+
+	ret = ioctl(connfd1, KDBUS_CMD_HELLO, &hello);
+	ASSERT_RETURN(ret == 0);
+
+	conn_dst->fd = connfd1;
+	conn_dst->id = hello.id;
+
+	memset(&hello, 0, sizeof(hello));
+	hello.size = sizeof(struct kdbus_cmd_hello);
+	hello.pool_size = POOL_SIZE;
+	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+
+	ret = ioctl(connfd2, KDBUS_CMD_HELLO, &hello);
+	ASSERT_RETURN(ret == 0);
+
+	conn_dummy->fd = connfd2;
+	conn_dummy->id = hello.id;
+
+	conn_dst->buf = mmap(NULL, POOL_SIZE, PROT_READ,
+			     MAP_PRIVATE, connfd1, 0);
+	ASSERT_RETURN(conn_dst->buf != MAP_FAILED);
+
+	conn_dummy->buf = mmap(NULL, POOL_SIZE, PROT_READ,
+			       MAP_PRIVATE, connfd2, 0);
+	ASSERT_RETURN(conn_dummy->buf != MAP_FAILED);
+
+	/*
+	 * Send fds to connection that do not accept fd passing
+	 */
+	ret = send_fds(conn_src, conn_dst->id, fds, 1);
+	ASSERT_RETURN(ret == -ECOMM);
+
+	/*
+	 * memfd are kdbus payload
+	 */
+	ret = send_memfds(conn_src, conn_dst->id, memfd, 1);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv_poll(conn_dst, 100, NULL, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	cookie = time(NULL);
+
+	pid = fork();
+	ASSERT_RETURN_VAL(pid >= 0, pid);
+
+	if (pid == 0) {
+		struct timespec now;
+
+		/*
+		 * A sync send/reply to a connection that do not
+		 * accept fds should fail if it contains an fd
+		 */
+		msg_sync_reply = get_kdbus_msg_with_fd(conn_dst,
+						       conn_dummy->id,
+						       cookie, fds[0]);
+		ASSERT_EXIT(msg_sync_reply);
+
+		ret = clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+		ASSERT_EXIT(ret == 0);
+
+		msg_sync_reply->timeout_ns = now.tv_sec * 1000000000ULL +
+					     now.tv_nsec + 100000000ULL;
+		msg_sync_reply->flags = KDBUS_MSG_FLAGS_EXPECT_REPLY |
+					KDBUS_MSG_FLAGS_SYNC_REPLY;
+
+
+		ret = ioctl(conn_dst->fd, KDBUS_CMD_MSG_SEND,
+			    msg_sync_reply);
+		ASSERT_EXIT(ret < 0 && -errno == -ECOMM);
+
+		/*
+		 * Now send a normal message, but the sync reply
+		 * will fail since it contains an fd that the
+		 * original sender do not want.
+		 *
+		 * The original sender will fail with -ETIMEDOUT
+		 */
+		cookie++;
+		ret = kdbus_msg_send(conn_dst, NULL, cookie,
+				     KDBUS_MSG_FLAGS_EXPECT_REPLY |
+				     KDBUS_MSG_FLAGS_SYNC_REPLY,
+				     5000000000ULL, 0, conn_src->id);
+		ASSERT_EXIT(ret == -EREMOTEIO);
+
+		cookie++;
+		ret = kdbus_msg_recv_poll(conn_dst, 100, &msg, NULL);
+		ASSERT_EXIT(ret == 0);
+		ASSERT_EXIT(msg->cookie == cookie);
+
+		free(msg_sync_reply);
+		kdbus_msg_free(msg);
+
+		_exit(EXIT_SUCCESS);
+	}
+
+	ret = kdbus_msg_recv_poll(conn_dummy, 100, NULL, NULL);
+	ASSERT_RETURN(ret == -ETIMEDOUT);
+
+	cookie++;
+	ret = kdbus_msg_recv_poll(conn_src, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
+
+	kdbus_msg_free(msg);
+
+	/*
+	 * Try to reply with a kdbus connection handle, this should
+	 * fail with -EOPNOTSUPP
+	 */
+	msg_sync_reply = get_kdbus_msg_with_fd(conn_src,
+					       conn_dst->id,
+					       cookie, conn_dst->fd);
+	ASSERT_RETURN(msg_sync_reply);
+
+	msg_sync_reply->cookie_reply = cookie;
+
+	ret = ioctl(conn_src->fd, KDBUS_CMD_MSG_SEND, msg_sync_reply);
+	ASSERT_RETURN(ret < 0 && -errno == -EOPNOTSUPP);
+
+	free(msg_sync_reply);
+
+	/*
+	 * Try to reply with a normal fd, this should fail even
+	 * if the response is a sync reply
+	 *
+	 * From the sender view we fail with -ECOMM
+	 */
+	msg_sync_reply = get_kdbus_msg_with_fd(conn_src,
+					       conn_dst->id,
+					       cookie, fds[0]);
+	ASSERT_RETURN(msg_sync_reply);
+
+	msg_sync_reply->cookie_reply = cookie;
+
+	ret = ioctl(conn_src->fd, KDBUS_CMD_MSG_SEND, msg_sync_reply);
+	ASSERT_RETURN(ret < 0 && -errno == -ECOMM);
+
+	free(msg_sync_reply);
+
+	/*
+	 * Resend another normal message and check if the queue
+	 * is clear
+	 */
+	cookie++;
+	ret = kdbus_msg_send(conn_src, NULL, cookie, 0, 0, 0,
+			     conn_dst->id);
+	ASSERT_RETURN(ret == 0);
+
+	ret = waitpid(pid, &status, 0);
+	ASSERT_RETURN_VAL(ret >= 0, ret);
+
+	kdbus_conn_free(conn_dummy);
+	kdbus_conn_free(conn_dst);
+	kdbus_conn_free(conn_src);
+
+	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
+}
+
 static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst)
 {
@@ -307,10 +528,9 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 
 int kdbus_test_fd_passing(struct kdbus_test_env *env)
 {
-	struct kdbus_conn *conn_src, *conn_dst, *conn_dummy;
+	struct kdbus_conn *conn_src, *conn_dst;
 	const char *str = "stackenblocken";
 	const struct kdbus_item *item;
-	struct kdbus_cmd_hello hello;
 	struct kdbus_msg *msg;
 	unsigned int i;
 	time_t now;
@@ -318,33 +538,9 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	int sock_pair[2];
 	int fds[2];
 	int memfd;
-	int ret, connfd;
+	int ret;
 
 	now = time(NULL);
-
-	connfd = open(env->buspath, O_RDWR|O_CLOEXEC);
-	ASSERT_RETURN(connfd >= 0);
-
-	conn_dummy = malloc(sizeof(*conn_dummy));
-	ASSERT_RETURN(conn_dummy);
-
-	/*
-	 * Create dummy connection without KDBUS_HELLO_ACCEPT_FD
-	 * to test if send fd operations are blocked
-	 */
-	memset(&hello, 0, sizeof(hello));
-	hello.size = sizeof(struct kdbus_cmd_hello);
-	hello.pool_size = POOL_SIZE;
-	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
-
-	ret = ioctl(connfd, KDBUS_CMD_HELLO, &hello);
-	if (ret < 0) {
-		kdbus_printf("--- error when saying hello: %d (%m)\n", ret);
-		return TEST_ERR;
-	}
-
-	conn_dummy->fd = connfd;
-	conn_dummy->id = hello.id;
 
 	/* create two connections */
 	conn_src = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -382,12 +578,9 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -ENOTSUP);
 
 	/*
-	 * Send fds to connection that do not accept fd passing
+	 * Send fds and memfds to connection that do not accept fds
 	 */
-	ret = send_fds(conn_src, conn_dummy->id, fds, 1);
-	ASSERT_RETURN(ret == -ECOMM);
-
-	ret = send_memfds(conn_src, conn_dummy->id, (int *)&memfd, 1);
+	ret = kdbus_test_no_fds(env, fds, (int *)&memfd);
 	ASSERT_RETURN(ret == 0);
 
 	/* Try to broadcast file descriptors. This must fail. */
@@ -463,9 +656,6 @@ loop_send_fds:
 	close(sock_pair[0]);
 	close(sock_pair[1]);
 	close(memfd);
-
-	close(conn_dummy->fd);
-	free(conn_dummy);
 
 	kdbus_conn_free(conn_src);
 	kdbus_conn_free(conn_dst);
