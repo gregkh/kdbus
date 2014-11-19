@@ -358,7 +358,7 @@ static struct dentry *fs_super_mount(struct file_system_type *fs_type,
 	sb = sget(fs_type, NULL, fs_super_set, flags, domain);
 	if (IS_ERR(sb)) {
 		ret = PTR_ERR(sb);
-		goto exit_live_domain;
+		goto exit_domain;
 	}
 
 	WARN_ON(sb->s_fs_info != domain);
@@ -373,9 +373,8 @@ static struct dentry *fs_super_mount(struct file_system_type *fs_type,
 
 	return dget(sb->s_root);
 
-exit_live_domain:
-	kdbus_domain_deactivate(domain);
 exit_domain:
+	kdbus_domain_deactivate(domain);
 	kdbus_domain_unref(domain);
 	return ERR_PTR(ret);
 }

@@ -42,7 +42,7 @@ static void kdbus_ep_free(struct kdbus_node *node)
 	kfree(ep);
 }
 
-static void kdbus_ep_release(struct kdbus_node *node)
+static void kdbus_ep_release(struct kdbus_node *node, bool was_active)
 {
 	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
 
@@ -119,7 +119,8 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	return e;
 
 exit_unref:
-	kdbus_ep_unref(e);
+	kdbus_node_deactivate(&e->node);
+	kdbus_node_unref(&e->node);
 	return ERR_PTR(ret);
 }
 
@@ -163,20 +164,13 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
  */
 int kdbus_ep_activate(struct kdbus_ep *ep)
 {
-	mutex_lock(&ep->bus->lock);
-
-	if (!kdbus_bus_is_active(ep->bus)) {
-		mutex_unlock(&ep->bus->lock);
-		return -ESHUTDOWN;
-	}
-
 	/*
-	 * Same as with domains, we have to mark it enabled _before_ running
-	 * device_add() to avoid messing with state after UEVENT_ADD was sent.
+	 * kdbus_ep_activate() must not be called multiple times, so if
+	 * kdbus_node_activate() didn't activate the node, it must already be
+	 * dead.
 	 */
-	kdbus_node_activate(&ep->node);
-
-	mutex_unlock(&ep->bus->lock);
+	if (!kdbus_node_activate(&ep->node))
+		return -ESHUTDOWN;
 
 	return 0;
 }

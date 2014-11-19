@@ -60,7 +60,8 @@ static struct kdbus_node *kdbus_domain_control_new(struct kdbus_domain *domain,
 	return node;
 
 exit_free:
-	kfree(node);
+	kdbus_node_deactivate(node);
+	kdbus_node_unref(node);
 	return ERR_PTR(ret);
 }
 
@@ -114,7 +115,8 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 	return d;
 
 exit_unref:
-	kdbus_domain_unref(d);
+	kdbus_node_deactivate(&d->node);
+	kdbus_node_unref(&d->node);
 	return ERR_PTR(ret);
 }
 
@@ -160,11 +162,23 @@ int kdbus_domain_activate(struct kdbus_domain *domain)
 {
 	struct kdbus_node *control;
 
+	/*
+	 * kdbus_domain_activate() must not be called multiple times, so if
+	 * kdbus_node_activate() didn't activate the node, it must already be
+	 * dead.
+	 */
+	if (!kdbus_node_activate(&domain->node))
+		return -ESHUTDOWN;
+
+	/*
+	 * Create a control-node for this domain. We drop our own reference
+	 * immediately, effectively causing the node to be deactivated and
+	 * released when the parent domain is.
+	 */
 	control = kdbus_domain_control_new(domain, domain->access);
 	if (IS_ERR(control))
 		return PTR_ERR(control);
 
-	kdbus_node_activate(&domain->node);
 	kdbus_node_activate(control);
 	kdbus_node_unref(control);
 

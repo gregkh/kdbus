@@ -51,11 +51,12 @@ static void kdbus_bus_free(struct kdbus_node *node)
 	kfree(bus);
 }
 
-static void kdbus_bus_release(struct kdbus_node *node)
+static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
 {
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
-	atomic_dec(&bus->user->buses);
+	if (was_active)
+		atomic_dec(&bus->user->buses);
 }
 
 /**
@@ -210,6 +211,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	return b;
 
 exit_unref:
+	kdbus_node_deactivate(&b->node);
 	kdbus_node_unref(&b->node);
 	return ERR_PTR(ret);
 }
@@ -256,36 +258,40 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
  */
 int kdbus_bus_activate(struct kdbus_bus *bus)
 {
-	int ret;
 	struct kdbus_ep *ep;
+	int ret;
 
+	if (atomic_inc_return(&bus->user->buses) > KDBUS_USER_MAX_BUSES) {
+		atomic_dec(&bus->user->buses);
+		return -EMFILE;
+	}
+
+	/*
+	 * kdbus_bus_activate() must not be called multiple times, so if
+	 * kdbus_node_activate() didn't activate the node, it must already be
+	 * dead.
+	 */
+	if (!kdbus_node_activate(&bus->node)) {
+		atomic_dec(&bus->user->buses);
+		return -ESHUTDOWN;
+	}
+
+	/*
+	 * Create a new default endpoint for this bus. If activation succeeds,
+	 * we drop our own reference, effectively causing the endpoint to be
+	 * deactivated and released when the parent domain is.
+	 */
 	ep = kdbus_ep_new(bus, "bus", bus->access,
 			  bus->node.uid, bus->node.gid, false);
 	if (IS_ERR(ep))
 		return PTR_ERR(ep);
 
-	if (atomic_inc_return(&bus->user->buses) > KDBUS_USER_MAX_BUSES)
-		return -EMFILE;
-
-	mutex_lock(&bus->domain->lock);
-
-	if (!kdbus_domain_is_active(bus->domain)) {
-		mutex_unlock(&bus->domain->lock);
-		ret = -ESHUTDOWN;
-		goto exit_dec;
-	}
-
-	mutex_unlock(&bus->domain->lock);
-
-	kdbus_node_activate(&bus->node);
-	kdbus_ep_activate(ep);
+	ret = kdbus_ep_activate(ep);
+	if (ret < 0)
+		kdbus_ep_deactivate(ep);
 	kdbus_ep_unref(ep);
 
 	return 0;
-
-exit_dec:
-	atomic_dec(&bus->user->buses);
-	return ret;
 }
 
 /**

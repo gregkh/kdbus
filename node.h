@@ -32,7 +32,7 @@ enum kdbus_node_type {
 };
 
 typedef void (*kdbus_node_free_t) (struct kdbus_node *node);
-typedef void (*kdbus_node_release_t) (struct kdbus_node *node);
+typedef void (*kdbus_node_release_t) (struct kdbus_node *node, bool was_active);
 
 struct kdbus_node {
 	atomic_t refcnt;

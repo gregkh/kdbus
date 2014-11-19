@@ -226,7 +226,7 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	ret = kdbus_ep_policy_set(ep, make->items,
 				  KDBUS_ITEMS_SIZE(make, items));
 	if (ret < 0)
-		goto exit_ep_live;
+		goto exit_ep_unref;
 
 	/* protect against parallel ioctls */
 	mutex_lock(&handle->lock);
@@ -239,13 +239,12 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	mutex_unlock(&handle->lock);
 
 	if (ret < 0)
-		goto exit_ep_live;
+		goto exit_ep_unref;
 
 	goto exit;
 
-exit_ep_live:
-	kdbus_ep_deactivate(ep);
 exit_ep_unref:
+	kdbus_ep_deactivate(ep);
 	kdbus_ep_unref(ep);
 exit:
 	kfree(make);
@@ -935,13 +934,12 @@ static int handle_control_ioctl_bus_make(struct file *file,
 	mutex_unlock(&domain->lock);
 
 	if (ret < 0)
-		goto exit_bus_live;
+		goto exit_bus_unref;
 
 	goto exit;
 
-exit_bus_live:
-	kdbus_bus_deactivate(bus);
 exit_bus_unref:
+	kdbus_bus_deactivate(bus);
 	kdbus_bus_unref(bus);
 exit:
 	kfree(make);

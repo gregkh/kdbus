@@ -427,14 +427,8 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 	if (node && atomic_dec_and_test(&node->refcnt)) {
 		struct kdbus_node safe = *node;
 
-		if (node->parent) {
-			mutex_lock(&node->parent->lock);
-			if (!RB_EMPTY_NODE(&node->rb)) {
-				rb_erase(&node->rb, &node->parent->children);
-				RB_CLEAR_NODE(&node->rb);
-			}
-			mutex_unlock(&node->parent->lock);
-		}
+		WARN_ON(atomic_read(&node->active) != KDBUS_NODE_DRAINED);
+		WARN_ON(!RB_EMPTY_NODE(&node->rb));
 
 		if (node->free_cb)
 			node->free_cb(node);
@@ -601,7 +595,7 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 		if (v_post == KDBUS_NODE_BIAS ||
 		    v_post == KDBUS_NODE_RELEASE_DIRECT) {
 			if (pos->release_cb)
-				pos->release_cb(pos);
+				pos->release_cb(pos, v_post == KDBUS_NODE_BIAS);
 
 			if (pos->parent) {
 				mutex_lock(&pos->parent->lock);
