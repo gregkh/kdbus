@@ -266,13 +266,13 @@ int kdbus_ep_policy_check_see_access(struct kdbus_ep *ep,
 {
 	int ret;
 
-	mutex_lock(&conn->lock);
 	down_read(&ep->policy_db.entries_rwlock);
+	mutex_lock(&conn->lock);
 
 	ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn, name);
 
-	up_read(&ep->policy_db.entries_rwlock);
 	mutex_unlock(&conn->lock);
+	up_read(&ep->policy_db.entries_rwlock);
 
 	return ret;
 }
@@ -337,8 +337,8 @@ int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 	if (!ep->has_policy)
 		return 0;
 
-	mutex_lock(&conn_src->lock);
 	down_read(&ep->policy_db.entries_rwlock);
+	mutex_lock(&conn_src->lock);
 
 	list_for_each_entry(e, &conn_src->names_list, conn_entry) {
 		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn_dst,
@@ -347,8 +347,8 @@ int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 			break;
 	}
 
-	up_read(&ep->policy_db.entries_rwlock);
 	mutex_unlock(&conn_src->lock);
+	up_read(&ep->policy_db.entries_rwlock);
 
 	return ret;
 }
