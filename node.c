@@ -41,22 +41,22 @@ static DECLARE_RWSEM(kdbus_node_idr_lock);
  * kdbus_node_name_hash() - hash a name
  * @name:	The string to hash
  *
- * Return: the hash of @name, guaranteed to be in the range [2..INT_MAX+2].
- * The values 1 and 2 are unused as they are reserved for the filesystem code,
- * so it can accommodate the '.' and '..' directory entries.
+ * This computes the hash of @name. It is guaranteed to be in the range
+ * [2..INT_MAX-1]. The values 1, 2 and INT_MAX are unused as they are reserved
+ * for the filesystem code.
+ *
+ * Return: hash value of the passed string
  */
 unsigned int kdbus_node_name_hash(const char *name)
 {
 	unsigned int hash;
 
-	hash = kdbus_str_hash(name);
-
-	/* Reserve hash numbers 0, 1 and INT_MAX for magic directory entries */
-	if (hash >= INT_MAX)
-		hash = (hash & INT_MAX) - 1;
-
+	/* reserve hash numbers 0, 1 and >=INT_MAX for magic directories */
+	hash = kdbus_str_hash(name) & INT_MAX;
 	if (hash < 2)
 		hash += 2;
+	if (hash >= INT_MAX)
+		hash = INT_MAX - 1;
 
 	return hash;
 }
