@@ -338,6 +338,9 @@ int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 	if (parent) {
 		struct rb_node **n, *prev;
 
+		if (!kdbus_node_acquire(parent))
+			return -ESHUTDOWN;
+
 		mutex_lock(&parent->lock);
 
 		n = &parent->children.rb_node;
@@ -370,6 +373,7 @@ int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 
 exit_unlock:
 		mutex_unlock(&parent->lock);
+		kdbus_node_release(parent);
 	}
 
 	return ret;
