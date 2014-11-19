@@ -364,7 +364,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	struct kdbus_match_entry *entry = NULL;
 	struct kdbus_match_db *mdb = conn->match_db;
 	struct kdbus_item *item;
-	LIST_HEAD(list);
 	int ret = 0;
 
 	lockdep_assert_held(conn);
@@ -488,10 +487,12 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		--mdb->entries_count;
 		ret = -EMFILE;
 	}
+
 	if (ret == 0)
 		list_add_tail(&entry->list_entry, &mdb->entries_list);
 	else
 		kdbus_match_entry_free(entry);
+
 	up_write(&mdb->mdb_rwlock);
 
 	return ret;
