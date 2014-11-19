@@ -33,9 +33,9 @@
 #include "node.h"
 
 #define kdbus_node_from_dentry(_dentry) \
-	((struct kdbus_node*)(_dentry)->d_fsdata)
+	((struct kdbus_node *)(_dentry)->d_fsdata)
 #define kdbus_node_from_inode(_inode) \
-	((struct kdbus_node*)(_inode)->i_private)
+	((struct kdbus_node *)(_inode)->i_private)
 
 static struct inode *fs_inode_get(struct super_block *sb,
 				  struct kdbus_node *node);
@@ -70,8 +70,8 @@ static int fs_dir_fop_iterate(struct file *file, struct dir_context *ctx)
 	struct kdbus_node *old, *next = file->private_data;
 
 	/*
-	 * kdbusfs directory iterator (modeled after sysfs/kernfs)
-	 * When iterating kdbusfs directories, we iterate all childs of the
+	 * kdbusfs directory iterator (modelled after sysfs/kernfs)
+	 * When iterating kdbusfs directories, we iterate all children of the
 	 * parent kdbus_node object. We use ctx->pos to store the hash of the
 	 * child and file->private_data to store a reference to the next node
 	 * object. If ctx->pos is not modified via llseek while you iterate a

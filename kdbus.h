@@ -720,7 +720,7 @@ enum kdbus_name_list_flags {
 /**
  * struct kdbus_cmd_name_list - request a list of name entries
  * @flags:		Flags for the query (KDBUS_NAME_LIST_*),
- * 			userspace → kernel
+ *			userspace → kernel
  * @kernel_flags:	Supported flags for queries, kernel → userspace
  * @offset:		The returned offset in the caller's pool buffer.
  *			The user must use KDBUS_CMD_FREE to free the

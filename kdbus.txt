@@ -31,7 +31,7 @@ Articles about D-Bus and kdbus:
     A bus is a named object inside a domain. Clients exchange messages
     over a bus. Multiple buses themselves have no connection to each other;
     messages can only be exchanged on the same bus. The default entry point to
-    a bus, where clients establish the connection to, is the "bus" file 
+    a bus, where clients establish the connection to, is the "bus" file
     /sys/fs/kdbus/<bus name>/bus.
     Common operating system setups create one "system bus" per system, and one
     "user bus" for every logged-in user. Applications or services may create
@@ -238,7 +238,7 @@ version 4 (random).
 
 Optionally, an item of type KDBUS_ITEM_ATTACH_FLAGS_RECV can be attached to
 KDBUS_CMD_BUS_MAKE. In that, a set of required attach flags can be passed,
-which is used as negotation measure during connection creation.
+which is used as negotiation measure during connection creation.
 
 
 5.2 Endpoints

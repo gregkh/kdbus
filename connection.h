@@ -65,7 +65,7 @@
  *			waits for replies from other peers
  * @lost_count:		Number of lost broadcast messages
  * @wait:		Wake up this endpoint
- * @queue:		The message queue associcated with this connection
+ * @queue:		The message queue associated with this connection
  * @privileged:		Whether this connection is privileged on the bus
  */
 struct kdbus_conn {

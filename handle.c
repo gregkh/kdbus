@@ -964,7 +964,7 @@ static long handle_control_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE:
 		ret = handle_control_ioctl_bus_make(file, domain,
-						    (void __user*)arg);
+						    (void __user *)arg);
 		break;
 
 	default:

@@ -307,7 +307,8 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 			if (pos->parent) {
 				mutex_lock(&pos->parent->lock);
 				if (!RB_EMPTY_NODE(&pos->rb)) {
-					rb_erase(&pos->rb, &pos->parent->children);
+					rb_erase(&pos->rb,
+						 &pos->parent->children);
 					RB_CLEAR_NODE(&pos->rb);
 				}
 				mutex_unlock(&pos->parent->lock);
