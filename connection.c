@@ -458,7 +458,6 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 				   struct kdbus_conn_reply **reply_wake)
 {
 	bool allowed = false;
-	int ret;
 
 	/*
 	 * Walk the conn_src's list of expected replies. If there's any
@@ -491,11 +490,7 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 		return 0;
 
 	/* ... otherwise, ask the policy DBs for permission */
-	ret = kdbus_ep_policy_check_talk_access(ep, conn_src, conn_dst);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return kdbus_ep_policy_check_talk_access(ep, conn_src, conn_dst);
 }
 
 /* Callers should take the conn_dst lock */

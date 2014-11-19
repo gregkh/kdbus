@@ -418,12 +418,8 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 		return 0;
 
 	/* Fallback to the default endpoint policy */
-	ret = kdbus_policy_check_talk_access(&ep->bus->policy_db,
-					     conn_src, conn_dst);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return kdbus_policy_check_talk_access(&ep->bus->policy_db,
+					      conn_src, conn_dst);
 }
 
 /**
@@ -471,12 +467,8 @@ int kdbus_ep_policy_check_broadcast(struct kdbus_ep *ep,
 		return 0;
 
 	/* Fallback to the default endpoint policy */
-	ret = kdbus_policy_check_talk_access(&ep->bus->policy_db,
-					     conn_src, conn_dst);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return kdbus_policy_check_talk_access(&ep->bus->policy_db,
+					      conn_src, conn_dst);
 }
 
 /**
@@ -507,10 +499,6 @@ int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
 	if (conn->privileged)
 		return 0;
 
-	ret = kdbus_policy_check_own_access(&ep->bus->policy_db,
-					    conn->cred, name);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return kdbus_policy_check_own_access(&ep->bus->policy_db,
+					     conn->cred, name);
 }
