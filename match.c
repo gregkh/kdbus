@@ -31,7 +31,7 @@
 /**
  * struct kdbus_match_db - message filters
  * @entries_list:	List of matches
- * @mdb_lock:		Match data lock
+ * @mdb_rwlock:		Match data lock
  * @entries:		Number of entries in database
  */
 struct kdbus_match_db {
