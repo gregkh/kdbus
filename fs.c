@@ -43,7 +43,7 @@ static struct inode *fs_inode_get(struct super_block *sb,
 /*
  * linux/magic.h
  */
-#define KDBUS_SUPER_MAGIC 0x19910104
+#define KDBUS_SUPER_MAGIC 0x44427573
 
 /*
  * Directory Management
