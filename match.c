@@ -32,7 +32,7 @@
  * struct kdbus_match_db - message filters
  * @entries_list:	List of matches
  * @mdb_rwlock:		Match data lock
- * @entries:		Number of entries in database
+ * @entries_count:	Number of entries in database
  */
 struct kdbus_match_db {
 	struct list_head entries_list;
