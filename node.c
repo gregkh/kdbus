@@ -596,7 +596,7 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 		} else {
 			/* wait until object is DRAINED */
 			wait_event(pos->waitq,
-				   atomic_read(&pos->active) == KDBUS_NODE_DRAINED);
+			    atomic_read(&pos->active) == KDBUS_NODE_DRAINED);
 		}
 
 		/*
