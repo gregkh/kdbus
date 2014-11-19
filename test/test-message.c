@@ -242,7 +242,7 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 	}));
 	ASSERT_RETURN(ret == 0);
 
-	/* Delay reading, so if childs die we are not blocked */
+	/* Delay reading, so if children die we are not blocked */
 	ret = eventfd_read(efd1, &child1_count);
 	ASSERT_RETURN(ret >= 0);
 

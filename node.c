@@ -371,7 +371,7 @@ void kdbus_node_release(struct kdbus_node *node)
  * @node:	parent node to search through
  * @name:	name of child node
  *
- * This searches through all childs of @node for a child-node with name @name.
+ * This searches through all children of @node for a child-node with name @name.
  * If not found, or if the child is deactivated, NULL is returned. Otherwise,
  * the child is acquired and a new reference is returned.
  *

@@ -345,7 +345,7 @@ out:
 
 /*
  * Return: TEST_OK, TEST_ERR or TEST_SKIP
- * we return TEST_OK only if the childs return with the expected
+ * we return TEST_OK only if the children return with the expected
  * 'expected_status' that is specified as an argument.
  */
 static int kdbus_fork_test(const char *bus, const char *name,
@@ -563,7 +563,7 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/*
-	 * childs connections are able to talk to conn_db[0] since
+	 * children connections are able to talk to conn_db[0] since
 	 * current POLICY_NAME TALK type is KDBUS_POLICY_ACCESS_WORLD,
 	 * so expect EXIT_SUCCESS when sending from child. However,
 	 * since the child's connection does not own any well-known
@@ -589,7 +589,7 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	/*
 	 * Testing connections (FORK+DROP) again:
 	 * After setting the policy re-check connections
-	 * we expect the childs to fail with -EPERM
+	 * we expect the children to fail with -EPERM
 	 */
 	ret = kdbus_fork_test(bus, POLICY_NAME, conn_db, -EPERM);
 	ASSERT_RETURN(ret == 0);
