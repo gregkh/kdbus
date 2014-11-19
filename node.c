@@ -215,12 +215,17 @@
  * thread will change it to NODE_RELEASE now, perform cleanup and then put it
  * into NODE_DRAINED. Once drained, all other threads that tried deactivating
  * the node will now be woken up (thus, they wait until the node is fully done).
- * The initial state during node-setup is NODE_NEW.
+ * The initial state during node-setup is NODE_NEW. If a node is directly
+ * deactivated without having ever been active, it is put into
+ * NODE_RELEASE_DIRECT instead of NODE_BIAS. This tracks this one-bit state
+ * across node-deactivation. The task putting it into NODE_RELEASE now knows
+ * whether the node was active before or not.
  */
-#define KDBUS_NODE_BIAS		(INT_MIN + 3)
-#define KDBUS_NODE_RELEASE	(KDBUS_NODE_BIAS - 1)
-#define KDBUS_NODE_DRAINED	(KDBUS_NODE_BIAS - 2)
-#define KDBUS_NODE_NEW		(KDBUS_NODE_BIAS - 3)
+#define KDBUS_NODE_BIAS			(INT_MIN + 4)
+#define KDBUS_NODE_RELEASE_DIRECT	(KDBUS_NODE_BIAS - 1)
+#define KDBUS_NODE_RELEASE		(KDBUS_NODE_BIAS - 2)
+#define KDBUS_NODE_DRAINED		(KDBUS_NODE_BIAS - 3)
+#define KDBUS_NODE_NEW			(KDBUS_NODE_BIAS - 4)
 
 /* global unique ID mapping for kdbus nodes */
 static DEFINE_IDR(kdbus_node_idr);
@@ -543,13 +548,19 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 	 */
 
 	for (;;) {
-		/* add BIAS to node->active to mark it as inactive */
+		/*
+		 * Add BIAS to node->active to mark it as inactive. If it was
+		 * never active before, immediately mark it as RELEASE_INACTIVE
+		 * so we remember this state.
+		 * We cannot remember v_pre as we might iterate into the
+		 * children, overwriting v_pre, before we can release our node.
+		 */
 		mutex_lock(&pos->lock);
 		v_pre = atomic_read(&pos->active);
 		if (v_pre >= 0)
 			atomic_add_return(KDBUS_NODE_BIAS, &pos->active);
 		else if (v_pre == KDBUS_NODE_NEW)
-			atomic_add_return(3, &pos->active);
+			atomic_set(&pos->active, KDBUS_NODE_RELEASE_DIRECT);
 		mutex_unlock(&pos->lock);
 
 		/* wait until all active references were dropped */
@@ -568,8 +579,9 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 
 		/* mark object as RELEASE */
 		v_post = atomic_read(&pos->active);
-		if (v_post == KDBUS_NODE_BIAS)
-			atomic_dec(&pos->active);
+		if (v_post == KDBUS_NODE_BIAS ||
+		    v_post == KDBUS_NODE_RELEASE_DIRECT)
+			atomic_set(&pos->active, KDBUS_NODE_RELEASE);
 		mutex_unlock(&pos->lock);
 
 		/*
@@ -577,7 +589,8 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 		 * perform the actual release. Otherwise, we wait until the
 		 * release is done and the node is marked as DRAINED.
 		 */
-		if (v_post == KDBUS_NODE_BIAS) {
+		if (v_post == KDBUS_NODE_BIAS ||
+		    v_post == KDBUS_NODE_RELEASE_DIRECT) {
 			if (pos->release_cb)
 				pos->release_cb(pos);
 
@@ -592,22 +605,26 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 			}
 
 			/* mark as DRAINED */
-			atomic_dec(&pos->active);
+			atomic_set(&pos->active, KDBUS_NODE_DRAINED);
 			wake_up_all(&pos->waitq);
+
+			/*
+			 * If the node was activated and somone subtracted BIAS
+			 * from it to deactivate it, we, and only us, are
+			 * responsible to release the extra ref-count that was
+			 * taken once in kdbus_node_activate().
+			 * If the node was never activated, no-one ever
+			 * subtracted BIAS, but instead skipped that state and
+			 * immediately went to NODE_RELEASE_DIRECT. In that case
+			 * we must not drop the reference.
+			 */
+			if (v_post == KDBUS_NODE_BIAS)
+				kdbus_node_unref(pos);
 		} else {
 			/* wait until object is DRAINED */
 			wait_event(pos->waitq,
 			    atomic_read(&pos->active) == KDBUS_NODE_DRAINED);
 		}
-
-		/*
-		 * If the node was activated and _we_ subtracted BIAS from it
-		 * to deactivate it, we, and only us, are responsible to
-		 * release the extra ref-count that was taken once in
-		 * kdbus_node_activate().
-		 */
-		if (v_pre >= 0)
-			kdbus_node_unref(pos);
 
 		/*
 		 * We're done with the current node. Continue on its parent
