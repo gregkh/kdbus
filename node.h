@@ -70,7 +70,7 @@ struct kdbus_node *kdbus_node_ref(struct kdbus_node *node);
 struct kdbus_node *kdbus_node_unref(struct kdbus_node *node);
 
 bool kdbus_node_is_active(struct kdbus_node *node);
-void kdbus_node_activate(struct kdbus_node *node);
+bool kdbus_node_activate(struct kdbus_node *node);
 void kdbus_node_deactivate(struct kdbus_node *node);
 
 bool kdbus_node_acquire(struct kdbus_node *node);

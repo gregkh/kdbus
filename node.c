@@ -496,16 +496,25 @@ bool kdbus_node_is_active(struct kdbus_node *node)
  * its parent node will get deactivated at some point. Once the parent node is
  * deactivated, it will deactivate all its child and thus drop this reference
  * again.
+ *
+ * Return: True if this call successfully activated the node, otherwise false.
+ *         Note that this might return false, even if the node is still active
+ *         (eg., if you called this a second time).
  */
-void kdbus_node_activate(struct kdbus_node *node)
+bool kdbus_node_activate(struct kdbus_node *node)
 {
+	bool res = false;
+
 	mutex_lock(&node->lock);
 	if (atomic_read(&node->active) == KDBUS_NODE_NEW) {
 		atomic_sub(KDBUS_NODE_NEW, &node->active);
 		/* activated nodes have ref +1 */
 		kdbus_node_ref(node);
+		res = true;
 	}
 	mutex_unlock(&node->lock);
+
+	return res;
 }
 
 /**
