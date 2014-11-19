@@ -37,7 +37,7 @@
 struct kdbus_match_db {
 	struct list_head entries_list;
 	struct rw_semaphore mdb_rwlock;
-	unsigned int entries;
+	unsigned int entries_count;
 };
 
 /**
@@ -316,7 +316,7 @@ static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
 	list_for_each_entry_safe(entry, tmp, &mdb->entries_list, list_entry)
 		if (entry->cookie == cookie) {
 			kdbus_match_entry_free(entry);
-			--mdb->entries;
+			--mdb->entries_count;
 			found = true;
 		}
 
@@ -484,8 +484,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	 * If the above removal caught any entry, there will be room for the
 	 * new one.
 	 */
-	if (++mdb->entries > KDBUS_MATCH_MAX) {
-		--mdb->entries;
+	if (++mdb->entries_count > KDBUS_MATCH_MAX) {
+		--mdb->entries_count;
 		ret = -EMFILE;
 	}
 	if (ret == 0)
