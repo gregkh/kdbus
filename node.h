@@ -56,10 +56,6 @@ struct kdbus_node {
 
 #define kdbus_node_from_rb(_node) rb_entry((_node), struct kdbus_node, rb)
 
-unsigned int kdbus_node_name_hash(const char *name);
-int kdbus_node_name_compare(unsigned int hash, const char *name,
-			    const struct kdbus_node *node);
-
 void kdbus_node_init(struct kdbus_node *node, unsigned int type);
 
 int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,

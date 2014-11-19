@@ -47,7 +47,7 @@ static DECLARE_RWSEM(kdbus_node_idr_lock);
  *
  * Return: hash value of the passed string
  */
-unsigned int kdbus_node_name_hash(const char *name)
+static unsigned int kdbus_node_name_hash(const char *name)
 {
 	unsigned int hash;
 
@@ -63,16 +63,16 @@ unsigned int kdbus_node_name_hash(const char *name)
 
 /**
  * kdbus_node_name_compare() - compare a name with a node's name
- * @hash:	The hash of the string to compare the node with
- * @name:	The name to compare the node with
- * @node:	The node to compare the name with
+ * @hash:	hash of the string to compare the node with
+ * @name:	name to compare the node with
+ * @node:	node to compare the name with
  *
  * Return: 0 if @name and @hash exactly match the information in @node, or
  * an integer less than or greater than zero if @name is found, respectively,
  * to be less than or be greater than the string stored in @node.
  */
-int kdbus_node_name_compare(unsigned int hash, const char *name,
-			    const struct kdbus_node *node)
+static int kdbus_node_name_compare(unsigned int hash, const char *name,
+				   const struct kdbus_node *node)
 {
 	if (hash != node->hash)
 		return hash - node->hash;
