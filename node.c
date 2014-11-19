@@ -516,7 +516,7 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 {
 	struct kdbus_node *pos, *child;
 	struct rb_node *rb;
-	int v;
+	int v_pre, v_post;
 
 	pos = node;
 
@@ -541,10 +541,10 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 	for (;;) {
 		/* add BIAS to node->active to mark it as inactive */
 		mutex_lock(&pos->lock);
-		v = atomic_read(&pos->active);
-		if (v >= 0)
+		v_pre = atomic_read(&pos->active);
+		if (v_pre >= 0)
 			atomic_add_return(KDBUS_NODE_BIAS, &pos->active);
-		else if (v == KDBUS_NODE_NEW)
+		else if (v_pre == KDBUS_NODE_NEW)
 			atomic_add_return(3, &pos->active);
 		mutex_unlock(&pos->lock);
 
@@ -563,8 +563,8 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 		}
 
 		/* mark object as RELEASE */
-		v = atomic_read(&pos->active);
-		if (v == KDBUS_NODE_BIAS)
+		v_post = atomic_read(&pos->active);
+		if (v_post == KDBUS_NODE_BIAS)
 			atomic_dec(&pos->active);
 		mutex_unlock(&pos->lock);
 
@@ -573,7 +573,7 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 		 * perform the actual release. Otherwise, we wait until the
 		 * release is done and the node is marked as DRAINED.
 		 */
-		if (v == KDBUS_NODE_BIAS) {
+		if (v_post == KDBUS_NODE_BIAS) {
 			if (pos->release_cb)
 				pos->release_cb(pos);
 
@@ -587,9 +587,6 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 				mutex_unlock(&pos->parent->lock);
 			}
 
-			/* activated nodes have ref +1, drop it */
-			kdbus_node_unref(pos);
-
 			/* mark as DRAINED */
 			atomic_dec(&pos->active);
 			wake_up_all(&pos->waitq);
@@ -598,6 +595,15 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 			wait_event(pos->waitq,
 			    atomic_read(&pos->active) == KDBUS_NODE_DRAINED);
 		}
+
+		/*
+		 * If the node was activated and _we_ subtracted BIAS from it
+		 * to deactivate it, we, and only us, are responsible to
+		 * release the extra ref-count that was taken once in
+		 * kdbus_node_activate().
+		 */
+		if (v_pre >= 0)
+			kdbus_node_unref(pos);
 
 		/*
 		 * We're done with the current node. Continue on its parent
