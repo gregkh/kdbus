@@ -31,12 +31,12 @@
 /**
  * struct kdbus_match_db - message filters
  * @entries_list:	List of matches
- * @entries_rwlock:	Match data lock
+ * @mdb_lock:		Match data lock
  * @entries:		Number of entries in database
  */
 struct kdbus_match_db {
 	struct list_head entries_list;
-	struct rw_semaphore entries_rwlock;
+	struct rw_semaphore mdb_rwlock;
 	unsigned int entries;
 };
 
@@ -132,18 +132,18 @@ static void kdbus_match_entry_free(struct kdbus_match_entry *entry)
 
 /**
  * kdbus_match_db_free() - free match db resources
- * @db:			The match database
+ * @mdb:		The match database
  */
-void kdbus_match_db_free(struct kdbus_match_db *db)
+void kdbus_match_db_free(struct kdbus_match_db *mdb)
 {
 	struct kdbus_match_entry *entry, *tmp;
 
-	down_write(&db->entries_rwlock);
-	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
+	down_write(&mdb->mdb_rwlock);
+	list_for_each_entry_safe(entry, tmp, &mdb->entries_list, list_entry)
 		kdbus_match_entry_free(entry);
-	up_write(&db->entries_rwlock);
+	up_write(&mdb->mdb_rwlock);
 
-	kfree(db);
+	kfree(mdb);
 }
 
 /**
@@ -159,7 +159,7 @@ struct kdbus_match_db *kdbus_match_db_new(void)
 	if (!d)
 		return ERR_PTR(-ENOMEM);
 
-	init_rwsem(&d->entries_rwlock);
+	init_rwsem(&d->mdb_rwlock);
 	INIT_LIST_HEAD(&d->entries_list);
 
 	return d;
@@ -279,7 +279,7 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 
 /**
  * kdbus_match_db_match_kmsg() - match a kmsg object agains the database entries
- * @db:			The match database
+ * @mdb:		The match database
  * @conn_src:		The connection object originating the message
  * @kmsg:		The kmsg to perform the match on
  *
@@ -289,34 +289,34 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
  *
  * Return: true if there was a matching database entry, false otherwise.
  */
-bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
+bool kdbus_match_db_match_kmsg(struct kdbus_match_db *mdb,
 			       struct kdbus_conn *conn_src,
 			       struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_match_entry *entry;
 	bool matched = false;
 
-	down_read(&db->entries_rwlock);
-	list_for_each_entry(entry, &db->entries_list, list_entry) {
+	down_read(&mdb->mdb_rwlock);
+	list_for_each_entry(entry, &mdb->entries_list, list_entry) {
 		matched = kdbus_match_rules(entry, conn_src, kmsg);
 		if (matched)
 			break;
 	}
-	up_read(&db->entries_rwlock);
+	up_read(&mdb->mdb_rwlock);
 
 	return matched;
 }
 
-static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *db,
-					    uint64_t cookie)
+static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
+					  uint64_t cookie)
 {
 	struct kdbus_match_entry *entry, *tmp;
 	bool found = false;
 
-	list_for_each_entry_safe(entry, tmp, &db->entries_list, list_entry)
+	list_for_each_entry_safe(entry, tmp, &mdb->entries_list, list_entry)
 		if (entry->cookie == cookie) {
 			kdbus_match_entry_free(entry);
-			--db->entries;
+			--mdb->entries;
 			found = true;
 		}
 
@@ -362,7 +362,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		       struct kdbus_cmd_match *cmd)
 {
 	struct kdbus_match_entry *entry = NULL;
-	struct kdbus_match_db *db = conn->match_db;
+	struct kdbus_match_db *mdb = conn->match_db;
 	struct kdbus_item *item;
 	LIST_HEAD(list);
 	int ret = 0;
@@ -474,25 +474,25 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
 
-	down_write(&db->entries_rwlock);
+	down_write(&mdb->mdb_rwlock);
 
 	/* Remove any entry that has the same cookie as the current one. */
 	if (cmd->flags & KDBUS_MATCH_REPLACE)
-		kdbus_match_db_remove_unlocked(db, entry->cookie);
+		kdbus_match_db_remove_unlocked(mdb, entry->cookie);
 
 	/*
 	 * If the above removal caught any entry, there will be room for the
 	 * new one.
 	 */
-	if (++db->entries > KDBUS_MATCH_MAX) {
-		--db->entries;
+	if (++mdb->entries > KDBUS_MATCH_MAX) {
+		--mdb->entries;
 		ret = -EMFILE;
 	}
 	if (ret == 0)
-		list_add_tail(&entry->list_entry, &db->entries_list);
+		list_add_tail(&entry->list_entry, &mdb->entries_list);
 	else
 		kdbus_match_entry_free(entry);
-	up_write(&db->entries_rwlock);
+	up_write(&mdb->mdb_rwlock);
 
 	return ret;
 }
@@ -510,14 +510,14 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 int kdbus_match_db_remove(struct kdbus_conn *conn,
 			  struct kdbus_cmd_match *cmd)
 {
-	struct kdbus_match_db *db = conn->match_db;
+	struct kdbus_match_db *mdb = conn->match_db;
 	int ret;
 
 	lockdep_assert_held(conn);
 
-	down_write(&db->entries_rwlock);
-	ret = kdbus_match_db_remove_unlocked(db, cmd->cookie);
-	up_write(&db->entries_rwlock);
+	down_write(&mdb->mdb_rwlock);
+	ret = kdbus_match_db_remove_unlocked(mdb, cmd->cookie);
+	up_write(&mdb->mdb_rwlock);
 
 	return ret;
 }
