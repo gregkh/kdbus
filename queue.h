@@ -16,6 +16,14 @@
 
 struct kdbus_domain_user;
 
+/**
+ * struct kdbus_queue - a connection's message queue
+ * @msg_count		Number of messages in the queue
+ * @msg_list:		List head for kdbus_queue_entry objects
+ * @msg_prio_queue:	RB tree root for messages, sorted by priority
+ * @msg_prio_highest:	Link to the RB node referencing the message with the
+ *			highest priority in the tree.
+ */
 struct kdbus_queue {
 	size_t msg_count;
 	struct list_head msg_list;
