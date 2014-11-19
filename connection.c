@@ -780,8 +780,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			kmsg->meta = kdbus_meta_new();
 
 		if (IS_ERR(kmsg->meta)) {
+			ret = PTR_ERR(kmsg->meta);
 			kmsg->meta = NULL;
-			return PTR_ERR(kmsg->meta);
+			return ret;
 		}
 	}
 
