@@ -127,7 +127,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 
 	/* enforce "$UID-" prefix */
 	snprintf(prefix, sizeof(prefix), "%u-",
-		 from_kuid(current_user_ns(), uid));
+		 from_kuid(domain->user_namespace, uid));
 	if (strncmp(name, prefix, strlen(prefix) != 0))
 		return ERR_PTR(-EINVAL);
 
