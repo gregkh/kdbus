@@ -413,19 +413,31 @@ struct kdbus_node *kdbus_node_find_child(struct kdbus_node *node,
 }
 
 static struct kdbus_node *node_find_closest_unlocked(struct kdbus_node *node,
-						     unsigned int hash)
+						     unsigned int hash,
+						     const char *name)
 {
 	struct kdbus_node *n, *pos = NULL;
 	struct rb_node *rb;
+	int res;
 
-	/* find the closest child with ``node->hash >= hash'' */
+	/*
+	 * Find the closest child with ``node->hash >= hash'', or, if @name is
+	 * valid, ``node->name >= name'' (where '>=' is the lex. order).
+	 */
+
 	rb = node->children.rb_node;
 	while (rb) {
 		n = kdbus_node_from_rb(rb);
-		if (hash <= n->hash) {
+
+		if (name)
+			res = kdbus_node_name_compare(hash, name, n);
+		else
+			res = hash - n->hash;
+
+		if (res <= 0) {
 			rb = rb->rb_left;
 			pos = n;
-		} else  { /* ``hash > n->hash'' */
+		} else { /* ``hash > n->hash'', ``name > n->name'' */
 			rb = rb->rb_right;
 		}
 	}
@@ -453,7 +465,7 @@ struct kdbus_node *kdbus_node_find_closest(struct kdbus_node *node,
 
 	mutex_lock(&node->lock);
 
-	child = node_find_closest_unlocked(node, hash);
+	child = node_find_closest_unlocked(node, hash, NULL);
 	while (child && !kdbus_node_acquire(child)) {
 		rb = rb_next(&child->rb);
 		if (rb)
@@ -512,11 +524,11 @@ struct kdbus_node *kdbus_node_next_child(struct kdbus_node *node,
 	} else if (RB_EMPTY_NODE(&prev->rb)) {
 		/*
 		 * The current iterator is no longer linked to the rb-tree. Use
-		 * its hash value to find the next _higher_ node and acquire it.
-		 * If we got it, return it as next element. Otherwise, the loop
-		 * below will find the next active node.
+		 * its hash value and name to find the next _higher_ node and
+		 * acquire it. If we got it, return it as next element.
+		 * Otherwise, the loop below will find the next active node.
 		 */
-		pos = node_find_closest_unlocked(node, prev->hash);
+		pos = node_find_closest_unlocked(node, prev->hash, prev->name);
 		if (!pos)
 			goto exit;
 		if (kdbus_node_acquire(pos))
