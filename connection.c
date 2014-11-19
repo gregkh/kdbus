@@ -1750,14 +1750,16 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	mutex_lock(&ep->lock);
 	down_write(&bus->conn_rwlock);
 
-	if (!kdbus_bus_is_active(bus) || !kdbus_ep_is_active(ep)) {
-		ret = -ESHUTDOWN;
-		goto exit_unref_user_unlock;
-	}
-
 	if (atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
 		atomic_dec(&conn->user->connections);
 		ret = -EMFILE;
+		goto exit_unref_user_unlock;
+	}
+
+	/* make sure the ep-node is active while we add our connection */
+	if (!kdbus_node_acquire(&ep->node)) {
+		atomic_dec(&conn->user->connections);
+		ret = -ESHUTDOWN;
 		goto exit_unref_user_unlock;
 	}
 
@@ -1765,6 +1767,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	list_add_tail(&conn->ep_entry, &ep->conn_list);
 	hash_add(bus->conn_hash, &conn->hentry, conn->id);
 
+	kdbus_node_release(&ep->node);
 	up_write(&bus->conn_rwlock);
 	mutex_unlock(&ep->lock);
 	mutex_unlock(&bus->lock);
