@@ -283,6 +283,16 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
+	/*
+	 * Make sure to never install fds into a connection that has
+	 * refused to receive any.
+	 */
+	if (WARN_ON(!(conn->flags & KDBUS_HELLO_ACCEPT_FD) &&
+		    entry->fds_count > 0)) {
+		ret = -EINVAL;
+		goto exit_unlock;
+	}
+
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
 		bool reply_found = false;
