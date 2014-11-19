@@ -955,11 +955,18 @@ static long handle_control_ioctl(struct file *file, unsigned int cmd,
 	struct kdbus_domain *domain;
 	int ret = 0;
 
-	/* the parent of control-nodes is always a domain */
-	domain = kdbus_domain_from_node(node->parent);
-
-	if (!kdbus_node_acquire(&domain->node))
+	/*
+	 * The parent of control-nodes is always a domain, make sure to pin it
+	 * so the parent is actually valid.
+	 */
+	if (!kdbus_node_acquire(node))
 		return -ESHUTDOWN;
+
+	domain = kdbus_domain_from_node(node->parent);
+	if (!kdbus_node_acquire(&domain->node)) {
+		kdbus_node_release(node);
+		return -ESHUTDOWN;
+	}
 
 	switch (cmd) {
 	case KDBUS_CMD_BUS_MAKE:
@@ -973,6 +980,7 @@ static long handle_control_ioctl(struct file *file, unsigned int cmd,
 	}
 
 	kdbus_node_release(&domain->node);
+	kdbus_node_release(node);
 	return ret;
 }
 
