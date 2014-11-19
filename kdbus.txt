@@ -1701,6 +1701,8 @@ For KDBUS_CMD_MSG_SEND:
   -EREMCHG	Both a well-known name and a unique name (ID) was given, but
 		the name is not currently owned by that connection.
   -EXFULL	The memory pool of the receiver is full
+  -EREMOTEIO	While synchronously waiting for a reply, the remote peer
+		failed with an I/O error.
 
 For KDBUS_CMD_MSG_RECV:
 
