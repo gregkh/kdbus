@@ -80,12 +80,6 @@ static int kdbus_node_name_compare(unsigned int hash, const char *name,
 	return strcmp(name, node->name);
 }
 
-static int kdbus_node_compare(const struct kdbus_node *left,
-			      const struct kdbus_node *right)
-{
-	return kdbus_node_name_compare(left->hash, left->name, right);
-}
-
 /**
  * kdbus_node_init() - initialize a kdbus_node
  * @node:	Pointer to the node to initialize
@@ -152,7 +146,9 @@ int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 
 			pos = kdbus_node_from_rb(*n);
 			prev = *n;
-			result = kdbus_node_compare(node, pos);
+			result = kdbus_node_name_compare(node->hash,
+							 node->name,
+							 pos);
 			if (result == 0) {
 				ret = -EEXIST;
 				goto exit_unlock;
