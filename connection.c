@@ -488,6 +488,29 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	return 0;
 }
 
+/* Callers should take the conn_dst lock */
+static struct kdbus_queue_entry *
+kdbus_conn_entry_make(struct kdbus_conn *conn_src,
+		      struct kdbus_conn *conn_dst,
+		      const struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_queue_entry *entry;
+
+	/* The remote connection was disconnected */
+	if (!kdbus_conn_active(conn_dst))
+		return ERR_PTR(-ECONNRESET);
+
+	/* The connection does not accept file descriptors */
+	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) && kmsg->fds_count > 0)
+		return ERR_PTR(-ECOMM);
+
+	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
+	if (IS_ERR(entry))
+		return entry;
+
+	return entry;
+}
+
 /*
  * Synchronously responding to a message, allocate a queue entry
  * and attach it to the reply tracking object.
@@ -496,35 +519,45 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
 					struct kdbus_conn *conn_dst,
 					const struct kdbus_kmsg *kmsg,
-					struct kdbus_conn_reply *reply)
+					struct kdbus_conn_reply *reply_wake)
 {
 	struct kdbus_queue_entry *entry;
+	int remote_ret;
 	int ret = 0;
 
 	mutex_lock(&conn_dst->lock);
-
-	if (!reply->waiting || !kdbus_conn_active(conn_dst)) {
-		ret = -ECONNRESET;
-		goto out;
-	}
 
 	/*
 	 * If we are still waiting then proceed, allocate a queue
 	 * entry and attach it to the reply object
 	 */
-	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
-	if (IS_ERR(entry))
-		ret = PTR_ERR(entry);
-	else
-		/* Attach the entry to the reply object */
-		reply->queue_entry = entry;
+	if (reply_wake->waiting) {
+		entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg);
+		if (IS_ERR(entry))
+			ret = PTR_ERR(entry);
+		else
+			/* Attach the entry to the reply object */
+			reply_wake->queue_entry = entry;
+	} else {
+		ret = -ECONNRESET;
+	}
 
-out:
 	/*
-	 * Update the reply object and wake up remote peer
+	 * Update the reply object and wake up remote peer only
+	 * on appropriate return codes
+	 *
+	 * * -ECOMM: if the replying connection failed with -ECOMM
+	 *           then wakeup remote peer with -EREMOTEIO
+	 *
+	 * * Wake up on all other return codes.
 	 */
-	kdbus_conn_reply_sync(reply, ret);
-	kdbus_conn_reply_unref(reply);
+	remote_ret = ret;
+
+	if (ret == -ECOMM)
+		remote_ret = -EREMOTEIO;
+
+	kdbus_conn_reply_sync(reply_wake, remote_ret);
+	kdbus_conn_reply_unref(reply_wake);
 
 	mutex_unlock(&conn_dst->lock);
 
@@ -556,18 +589,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 		goto exit_unlock;
 	}
 
-	if (!kdbus_conn_active(conn_dst)) {
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
-
-	/* The connection does not accept file descriptors */
-	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) && kmsg->fds_count > 0) {
-		ret = -ECOMM;
-		goto exit_unlock;
-	}
-
-	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
+	entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg);
 	if (IS_ERR(entry)) {
 		ret = PTR_ERR(entry);
 		goto exit_unlock;
