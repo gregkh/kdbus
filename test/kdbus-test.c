@@ -192,6 +192,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
 	{
+		.name	= "match-replace",
+		.desc	= "replace of matches with the same cookie",
+		.func	= kdbus_test_match_replace,
+		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
+	},
+	{
 		.name	= "match-name-add",
 		.desc	= "adding of matches by name",
 		.func	= kdbus_test_match_name_add,

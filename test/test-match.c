@@ -100,6 +100,58 @@ int kdbus_test_match_id_remove(struct kdbus_test_env *env)
 	return TEST_OK;
 }
 
+int kdbus_test_match_replace(struct kdbus_test_env *env)
+{
+	struct {
+		struct kdbus_cmd_match cmd;
+		struct {
+			uint64_t size;
+			uint64_t type;
+			struct kdbus_notify_id_change chg;
+		} item;
+	} buf;
+	struct kdbus_conn *conn;
+	struct kdbus_msg *msg;
+	size_t id;
+	int ret;
+
+	/* add a match to id_add */
+	ASSERT_RETURN(kdbus_test_match_id_add(env) == TEST_OK);
+
+	/* do a replace of the match from id_add to id_remove */
+	memset(&buf, 0, sizeof(buf));
+
+	buf.cmd.size = sizeof(buf);
+	buf.cmd.cookie = 0xdeafbeefdeaddead;
+	buf.cmd.flags = KDBUS_MATCH_REPLACE;
+	buf.item.size = sizeof(buf.item);
+	buf.item.type = KDBUS_ITEM_ID_REMOVE;
+	buf.item.chg.id = KDBUS_MATCH_ID_ANY;
+
+	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+
+	/* create 2nd connection */
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn != NULL);
+	id = conn->id;
+
+	/* 1st connection should _not_ have received a notification */
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ASSERT_RETURN(ret != 0);
+
+	/* remove 2nd connection */
+	kdbus_conn_free(conn);
+
+	/* 1st connection should _now_ have received a notification */
+	ret = kdbus_msg_recv(env->conn, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	ASSERT_RETURN(msg->items[0].type == KDBUS_ITEM_ID_REMOVE);
+	ASSERT_RETURN(msg->items[0].id_change.id == id);
+
+	return TEST_OK;
+}
+
 int kdbus_test_match_name_add(struct kdbus_test_env *env)
 {
 	struct {
