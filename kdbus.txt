@@ -1774,3 +1774,59 @@ For KDBUS_CMD_MATCH_REMOVE:
 
   -EINVAL	Illegal flags
   -ENOENT	A match entry with the given cookie could not be found.
+
+
+15. Internal object relations
+===============================================================================
+
+This is a simplified outline of the internal kdbus object relations, for
+those interested in the inner life of the driver implementation.
+
+From the a mount point's (domain's ) perspective:
+
+struct kdbus_domain
+  |» struct kdbus_domain_user *user (many, owned)
+  '» struct kdbus_node node (embedded)
+      |» struct kdbus_node children (many, pinned)
+      |» struct kdbus_node *parent (pinned)
+      '» struct kdbus_bus (many, pinned)
+          |» struct kdbus_node node (embedded)
+          '» struct kdbus_ep (many, pinned)
+              |» struct kdbus_node node (embedded)
+              |» struct kdbus_bus *bus (pinned)
+              |» struct kdbus_conn conn_list (many, pinned)
+              |   |» struct kdbus_ep *ep (pinned)
+              |   |» struct kdbus_name_entry *activator_of (owned)
+              |   |» struct kdbus_match_db *match_db (owned)
+              |   |» struct kdbus_meta *meta (owned)
+              |   |» struct kdbus_match_db *match_db (owned)
+              |   |    '» struct kdbus_match_entry (many, owned)
+              |   |
+              |   |» struct kdbus_pool *pool (owned)
+              |   |    '» struct kdbus_pool_slice *slices (many, owned)
+              |   |       '» struct kdbus_pool *pool (pinned)
+              |   |
+              |   |» struct kdbus_domain_user *user (pinned)
+              |   `» struct kdbus_queue_entry entries (many, embedded)
+              |        |» struct kdbus_pool_slice *slice (pinned)
+              |        |» struct kdbus_conn_reply *reply (owned)
+              |        '» struct kdbus_domain_user *user (pinned)
+              |
+              '» struct kdbus_domain_user *user (pinned)
+                  '» struct kdbus_policy_db policy_db (embedded)
+                       |» struct kdbus_policy_db_entry (many, owned)
+                       |   |» struct kdbus_conn (pinned)
+                       |   '» struct kdbus_ep (pinned)
+                       |
+                       '» struct kdbus_policy_db_cache_entry (many, owned)
+                           '» struct kdbus_conn (pinned)
+
+
+For the life-time of a file descriptor derived from calling open() on a file
+inside the mount point:
+
+struct kdbus_handle
+  |» struct kdbus_meta *meta (owned)
+  |» struct kdbus_ep *ep (pinned)
+  |» struct kdbus_conn *conn (owned)
+  '» struct kdbus_ep *ep (owned)
