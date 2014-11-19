@@ -1243,6 +1243,13 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			continue;
 
 		kdbus_queue_entry_remove(conn_src, q);
+
+		if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
+		    q->fds_count > 0) {
+			atomic_inc(&conn_dst->lost_count);
+			continue;
+		}
+
 		list_add_tail(&q->entry, &msg_list);
 	}
 	mutex_unlock(&conn_src->lock);
