@@ -549,6 +549,12 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
 	 * * -ECOMM: if the replying connection failed with -ECOMM
 	 *           then wakeup remote peer with -EREMOTEIO
 	 *
+	 *           We do this to differenciate between -ECOMM errors
+	 *           from the original sender perspective:
+	 *           -ECOMM error during the sync send and
+	 *           -ECOMM error during the sync reply, this last
+	 *           one is rewritten to -EREMOTEIO
+	 *
 	 * * Wake up on all other return codes.
 	 */
 	remote_ret = ret;
@@ -589,6 +595,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 		goto exit_unlock;
 	}
 
+	/* Get a queue entry for src and dst pairs */
 	entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg);
 	if (IS_ERR(entry)) {
 		ret = PTR_ERR(entry);
