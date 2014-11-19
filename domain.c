@@ -70,7 +70,6 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
 						   node);
 
-	BUG_ON(kdbus_domain_is_active(domain));
 	BUG_ON(!hash_empty(domain->user_hash));
 
 	put_user_ns(domain->user_namespace);

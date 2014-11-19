@@ -37,7 +37,6 @@ static void kdbus_bus_free(struct kdbus_node *node)
 {
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
-	BUG_ON(kdbus_bus_is_active(bus));
 	BUG_ON(!list_empty(&bus->monitors_list));
 	BUG_ON(!hash_empty(bus->conn_hash));
 

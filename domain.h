@@ -72,11 +72,6 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 int kdbus_domain_activate(struct kdbus_domain *domain);
 void kdbus_domain_deactivate(struct kdbus_domain *domain);
 
-static inline bool kdbus_domain_is_active(struct kdbus_domain *domain)
-{
-	return kdbus_node_is_active(&domain->node);
-}
-
 struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 						kuid_t uid);
 struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
