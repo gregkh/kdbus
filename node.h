@@ -36,22 +36,27 @@ typedef void (*kdbus_node_release_t) (struct kdbus_node *node);
 
 struct kdbus_node {
 	atomic_t refcnt;
-	struct mutex lock;
-	unsigned int id;
+	atomic_t active;
+	wait_queue_head_t waitq;
+
+	/* static members */
 	unsigned int type;
-	char *name;
-	unsigned int hash;
-	struct kdbus_node *parent;
-	struct rb_node rb;
-	struct rb_root children;
 	kdbus_node_free_t free_cb;
 	kdbus_node_release_t release_cb;
 	umode_t mode;
 	kuid_t uid;
 	kgid_t gid;
 
-	wait_queue_head_t waitq;
-	atomic_t active;
+	/* valid once linked */
+	char *name;
+	unsigned int hash;
+	unsigned int id;
+
+	/* valid iff active */
+	struct mutex lock;
+	struct rb_node rb;
+	struct rb_root children;
+	struct kdbus_node *parent;
 };
 
 #define kdbus_node_from_rb(_node) rb_entry((_node), struct kdbus_node, rb)

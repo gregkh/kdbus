@@ -28,6 +28,195 @@
 #include "node.h"
 #include "util.h"
 
+/**
+ * DOC: kdbus nodes
+ *
+ * Nodes unify lifetime management across exposed kdbus objects and provide a
+ * hierarchy. Each kdbus object, that might be exposed to user-space, has a
+ * kdbus_node object embedded and is linked into the hierarchy. Each node can
+ * have any number (0-n) of child nodes linked. Each child retains a reference
+ * to its parent node. For root-nodes, the parent is NULL.
+ *
+ * Each node object goes through a bunch of states during it's lifetime:
+ *     * NEW
+ *       * LINKED    (can be skipped by NEW->FREED transition)
+ *         * ACTIVE  (can be skipped by LINKED->INACTIVE transition)
+ *       * INACTIVE
+ *       * DRAINED
+ *     * FREED
+ *
+ * Each node is allocated by the caller and initialized via kdbus_node_init().
+ * This never fails and sets the object into state NEW. From now on, ref-counts
+ * on the node manage its lifetime. During init, the ref-count is set to 1. Once
+ * it drops to 0, the node goes to state FREED and the node->free_cb() callback
+ * is called to deallocate any memory.
+ *
+ * After initializing a node, you usually link it into the hierarchy. You need
+ * to provide a parent node and a name. The node will be linked as child to the
+ * parent and a globally unique ID is assigned to the child. The name of the
+ * child must be unique for all children of this parent. Otherwise, linking the
+ * child will fail with -EEXIST.
+ * Note that the child is not marked active, yet. Admittedly, it prevents any
+ * other node from being linked with the same name (thus, it reserves that
+ * name), but any child-lookup (via name or unique ID) will never return this
+ * child unless it has been marked active.
+ *
+ * Once successfully linked, you can use kdbus_node_activate() to activate a
+ * child. This will mark the child active. This state can be skipped by directly
+ * deactivating the child via kdbus_node_deactivate() (see below).
+ * By activating a child, you enable any lookups on this child to succeed from
+ * now on. Furthermore, any code that got its hands on a reference to the node,
+ * can from now on "acquire" the node.
+ *
+ *     Active References (or: 'acquiring' and 'releasing' a node)
+ *     Additionally to normal object references, nodes support something we call
+ *     "active references". An active reference can be acquired via
+ *     kdbus_node_acquire() and released via kdbus_node_release(). A caller
+ *     _must_ own a normal object reference whenever calling those functions.
+ *     Unlike object references, acquiring an active reference can fail (by
+ *     returning 'false' from kdbus_node_acquire()). An active reference can
+ *     only be acquired if the node is marked active. If it is not marked
+ *     active, yet, or if it was already deactivated, no more active references
+ *     can be acquired, ever!
+ *     Active references are used to track tasks working on a node. Whenever a
+ *     task enters kernel-space to perform an action on a node, it acquires an
+ *     active reference, performs the action and releases the reference again.
+ *     While holding an active reference, the node is guaranteed to stay active.
+ *     If the node is deactivated in parallel, the node is marked as
+ *     deactivated, then we wait for all active references to be dropped, before
+ *     we finally proceed with any cleanups. That is, if you hold an active
+ *     reference to a node, any resources that are bound to the "active" state
+ *     are guaranteed to stay accessible until you release your reference.
+ *
+ *     Active-references are very similar to rw-locks, where acquiring a node is
+ *     equal to try-read-lock and releasing to read-unlock. Deactivating a node
+ *     means write-lock and never releasing it again.
+ *     Unlike rw-locks, the 'active reference' concept is more versatile and
+ *     avoids unusual rw-lock usage (never releasing a write-lock..).
+ *
+ *     It is safe to acquire multiple active-references recursively. But you
+ *     need to check the return value of kdbus_node_acquire() on _each_ call. It
+ *     may stop granting references at _any_ time.
+ *
+ *     You're free to perform any operations you want while holding an active
+ *     reference, except sleeping for an indefinite period. Sleeping for a fixed
+ *     amount of time is fine, but you usually should not wait on wait-queues
+ *     without a timeout.
+ *     For example, if you wait for I/O to happen, you should gather all data
+ *     and schedule the I/O operation, then release your active reference and
+ *     wait for it to complete. Then try to acquire a new reference. If it
+ *     fails, perform any cleanup (the node is now dead). Otherwise, you can
+ *     finish your operation.
+ *
+ * All nodes can be deactivated via kdbus_node_deactivate() at any time. You can
+ * call this multiple times, even in parallel or on nodes that were never
+ * linked, and it will just work. The only restriction is, you must not hold an
+ * active reference when calling kdbus_node_deactivate().
+ * By deactivating a node, it is immediately marked inactive. Then, we wait for
+ * all active references to be released (called 'draining' the node). This
+ * shouldn't take very long as we don't perform long-lasting operations while
+ * holding an active reference. Note that once the node is marked inactive, no
+ * new active references can be acquired.
+ * Once all active references are dropped, the node is considered 'drained'. Now
+ * kdbus_node_deactivate() is called on each child of the node before we
+ * continue deactvating our node. That is, once all children are entirely
+ * deactivated, we call ->release_cb() of our node. ->release_cb() can release
+ * any resources on that node which are bound to the "active" state of a node.
+ * When done, we unlink the node from its parent rb-tree, mark it as
+ * 'released' and return.
+ * If kdbus_node_deactivate() is called multiple times (even in parallel), all
+ * but one caller will just wait until the node is fully deactivated. That is,
+ * one random caller of kdbus_node_deactivate() is selected to call
+ * ->release_cb() and cleanup the node. Only once all this is done, all other
+ * callers will return from kdbus_node_deactivate(). That is, it doesn't matter
+ * whether you're the selected caller or not, it will only return after
+ * everything is fully done.
+ *
+ * When a node is activated, we acquire a normal object reference to the node.
+ * This reference is dropped after deactivation is fully done (and only iff the
+ * node really was activated). This allows callers to link+activate a child node
+ * and then drop all refs. The node will be deactivated together with the
+ * parent, and then be freed when this reference is dropped.
+ *
+ * Currently, nodes provide a bunch of resources that external code can use
+ * directly. This includes:
+ *
+ *     * node->waitq: Each node has its own wait-queue that is used to manage
+ *                    the 'active' state. When a node is deactivated, we wait on
+ *                    this queue until all active refs are dropped. Analogously,
+ *                    when you release an active reference on a deactivated
+ *                    node, and the active ref-count drops to 0, we wake up a
+ *                    single thread on this queue. Furthermore, once the
+ *                    ->release_cb() callback finished, we wake up all waiters.
+ *                    The node-owner is free to re-use this wait-queue for other
+ *                    purposes. As node-management uses this queue only during
+ *                    deactivation, it is usually totally fine to re-use the
+ *                    queue for other, preferably low-overhead, use-cases.
+ *
+ *     * node->type: This field defines the type of the owner of this node. It
+ *                   must be set during node initialization and must remain
+ *                   constant. The node management never looks at this value,
+ *                   but external users might use to gain access to the owner
+ *                   object of a node.
+ *                   It is totally up to the owner of the node to define what
+ *                   their type means. Usually it means you can access the
+ *                   parent structure via container_of(), as long as you hold an
+ *                   active reference to the node.
+ *
+ *     * node->free_cb:    callback after all references are dropped
+ *       node->release_cb: callback during node deactivation
+ *                         These fields must be set by the node owner during
+ *                         node initialization. They must remain constant. If
+ *                         NULL, they're skipped.
+ *
+ *     * node->mode: filesystem access modes
+ *       node->uid:  filesystem owner uid
+ *       node->gid:  filesystem owner gid
+ *                   These fields must be set by the node owner during node
+ *                   initialization. They must remain constant and may be
+ *                   accessed by other callers to properly initialize
+ *                   filesystem nodes.
+ *
+ *     * node->id: This is an unsigned 32bit integer allocated by an IDR. It is
+ *                 always kept as small as possible during allocation and is
+ *                 globally unique across all nodes allocated by this module. 0
+ *                 is reserved as "not assigned" and is the default.
+ *                 The ID is assigned during kdbus_node_link() and is kept until
+ *                 the object is freed. Thus, the ID surpasses the active
+ *                 lifetime of a node. As long as you hold an object reference
+ *                 to a node (and the node was linked once), the ID is valid and
+ *                 unique.
+ *
+ *     * node->name: name of this node
+ *       node->hash: 31bit hash-value of @name (range [2..INT_MAX-1])
+ *                   These values follow the same lifetime rules as node->id.
+ *                   They're initialized when the node is linked and then remain
+ *                   constant until the last object reference is dropped.
+ *                   Unlike the id, the name is only unique across all siblings
+ *                   and only until the node is deactivated. Currently, the name
+ *                   is even unique if linked but not activated, yet. This might
+ *                   change in the future, though. Code should not rely on this.
+ *
+ *     * node->lock:     lock to protect node->children, node->rb, node->parent
+ *     * node->parent: Reference to parent node. This is set during LINK time
+ *                     and is dropped during deactivation. You must not access
+ *                     it unless you hold an active reference to the node.
+ *     * node->children: rb-tree of all linked children of this node. You must
+ *                       not access this directly, but use one of the iterator
+ *                       or lookup helpers.
+ */
+
+/*
+ * Bias values track states of "active references". They're all negative. If a
+ * node is active, its active-ref-counter is >=0 and tracks all active
+ * references. Once a node is deactivaed, we subtract NODE_BIAS. This means, the
+ * counter is now negative but still counts the active references. Once it drops
+ * to exactly NODE_BIAS, we know all active references were dropped. Exactly one
+ * thread will change it to NODE_RELEASE now, perform cleanup and then put it
+ * into NODE_DRAINED. Once drained, all other threads that tried deactivating
+ * the node will now be woken up (thus, they wait until the node is fully done).
+ * The initial state during node-setup is NODE_NEW.
+ */
 #define KDBUS_NODE_BIAS		(INT_MIN + 3)
 #define KDBUS_NODE_RELEASE	(KDBUS_NODE_BIAS - 1)
 #define KDBUS_NODE_DRAINED	(KDBUS_NODE_BIAS - 2)
@@ -84,6 +273,10 @@ static int kdbus_node_name_compare(unsigned int hash, const char *name,
  * kdbus_node_init() - initialize a kdbus_node
  * @node:	Pointer to the node to initialize
  * @type:	The type the node will have (KDBUS_NODE_*)
+ *
+ * The caller is responsible of allocating @node and initializating it to zero.
+ * Once this call returns, you must use the node_ref() and node_unref()
+ * functions to manage this node.
  */
 void kdbus_node_init(struct kdbus_node *node, unsigned int type)
 {
@@ -98,10 +291,20 @@ void kdbus_node_init(struct kdbus_node *node, unsigned int type)
 }
 
 /**
- * kdbus_node_init() - link a node into the nodes system
+ * kdbus_node_link() - link a node into the nodes system
  * @node:	Pointer to the node to initialize
  * @parent:	Pointer to a parent node, may be %NULL
- * @name:	The name the node should represent
+ * @name:	The name of the node (or NULL if root node)
+ *
+ * This links a node into the hierarchy. This must not be called multiple times.
+ * If @parent is NULL, the node becomes a new root node.
+ *
+ * This call will fail if @name is not unique across all its siblings or if no
+ * ID could be allocated. You must not activate a node if linking failed! It is
+ * safe to deactivate it, though.
+ *
+ * Once you linked a node, you must call kdbus_node_deactivate() before you drop
+ * the last reference (even if you never activate the node).
  *
  * Return: 0 on success. negative error otherwise.
  */
@@ -172,6 +375,16 @@ exit_unlock:
 	return ret;
 }
 
+/**
+ * kdbus_node_ref() - Acquire object reference
+ * @node:	node to acquire reference to (or NULL)
+ *
+ * This acquires a new reference to @node. You must already own a reference when
+ * calling this!
+ * If @node is NULL, this is a no-op.
+ *
+ * Return: @node is returned
+ */
 struct kdbus_node *kdbus_node_ref(struct kdbus_node *node)
 {
 	if (node)
@@ -179,6 +392,27 @@ struct kdbus_node *kdbus_node_ref(struct kdbus_node *node)
 	return node;
 }
 
+/**
+ * kdbus_node_unref() - Drop object reference
+ * @node:	node to drop reference to (or NULL)
+ *
+ * This drops an object reference to @node. You must not access the node if you
+ * no longer own a reference.
+ * If the ref-count drops to 0, the object will be destroyed (->free_cb will be
+ * called).
+ *
+ * If you linked or activated the node, you must deactivate the node before you
+ * drop your last reference! If you didn't link or activate the node, you can
+ * drop any reference you want.
+ *
+ * Note that this calls into ->free_cb() and thus _might_ sleep. The ->free_cb()
+ * callbacks must not acquire any outer locks, though. So you can safely drop
+ * references while holding locks.
+ *
+ * If @node is NULL, this is a no-op.
+ *
+ * Return: This always returns NULL
+ */
 struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 {
 	if (node && atomic_dec_and_test(&node->refcnt)) {
@@ -213,11 +447,47 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 	return NULL;
 }
 
+/**
+ * kdbus_node_is_active() - test whether a node is active
+ * @node:	node to test
+ *
+ * This checks whether @node is active. That means, @node was linked and
+ * activated by the node owner and hasn't been deactivated, yet. If, and only
+ * if, a node is active, kdbus_node_acquire() will be able to acquire active
+ * references.
+ *
+ * Note that this function does not give any lifetime guarantees. After this
+ * call returns, the node might be deactivated immediately. Normally, what you
+ * want is to acquire a real active reference via kdbus_node_acquire().
+ *
+ * Return: true if @node is active, false otherwise
+ */
 bool kdbus_node_is_active(struct kdbus_node *node)
 {
 	return atomic_read(&node->active) >= 0;
 }
 
+/**
+ * kdbus_node_activate() - activate a node
+ * @node:	node to activate
+ *
+ * This marks @node as active if, and only if, the node wasn't activated nor
+ * deactivated, yet, and the parent is still active. Any but the first call to
+ * kdbus_node_activate() is a no-op.
+ * If you called kdbus_node_deactivate() before, then even the first call to
+ * kdbus_node_activate() will be a no-op.
+ *
+ * This call doesn't give any lifetime guarantees. The node might get
+ * deactivated immediately after this call returns. Or the parent might already
+ * be deactivated, which will make this call a no-op.
+ *
+ * If this call successfully activated a node, it will take an object reference
+ * to it. This reference is dropped after the node is deactivated. Therefore,
+ * the object owner can safely drop their reference to @node iff they know that
+ * its parent node will get deactivated at some point. Once the parent node is
+ * deactivated, it will deactivate all its child and thus drop this reference
+ * again.
+ */
 void kdbus_node_activate(struct kdbus_node *node)
 {
 	mutex_lock(&node->lock);
@@ -233,7 +503,14 @@ void kdbus_node_activate(struct kdbus_node *node)
  * kdbus_node_deactivate() - deactivate a node
  * @node:	The node to deactivate.
  *
- * This function recursively deactivates the node and all its children.
+ * This function recursively deactivates this node and all its children. It
+ * returns only once all children and the node itself were recursively disabled
+ * (even if you call this function multiple times in parallel).
+ *
+ * It is safe to call this function on _any_ node that was initialized _any_
+ * number of times.
+ *
+ * This call may sleep, as it waits for all active references to be dropped.
  */
 void kdbus_node_deactivate(struct kdbus_node *node)
 {
@@ -342,7 +619,13 @@ void kdbus_node_deactivate(struct kdbus_node *node)
  * kdbus_node_acquire() - Acquire an active ref on a node
  * @node:	The node
  *
- * Return: %true if @node was non-NULL and not deactivated.
+ * This acquires an active-reference to @node. This will only succeed if the
+ * node is active. You must release this active reference via
+ * kdbus_node_release() again.
+ *
+ * See the introduction to "active references" for more details.
+ *
+ * Return: %true if @node was non-NULL and active
  */
 bool kdbus_node_acquire(struct kdbus_node *node)
 {
@@ -353,8 +636,8 @@ bool kdbus_node_acquire(struct kdbus_node *node)
  * kdbus_node_release() - Release an active ref on a node
  * @node:	The node
  *
- * If the call this function releases is the last active counter on the node,
- * the parallel draining thread will return.
+ * This releases an active reference that was previously acquired via
+ * kdbus_node_acquire(). See kdbus_node_acquire() for details.
  */
 void kdbus_node_release(struct kdbus_node *node)
 {
