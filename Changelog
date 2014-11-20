@@ -41,6 +41,11 @@ since RFC v1:
        bus owners can denote their minimal requirements of metadata to
        be attached by connections of the bus.
 
+  * Namespaces are now pinned by a domain at its creation time, and
+    metadata items are automatically translated into these namespaces.
+    Unless that cannot be done (currently only capabilities), in which
+    case the items are dropped.
+
   * Capabilities are now only checked at open() time, and the
     information is cached for the lifetime of a file descriptor.
     Reported by Eric W. Biederman, Andy Lutomirski and Thomas Gleixner.
@@ -57,6 +62,9 @@ since RFC v1:
      KDBUS_ATTACH_CONN_NAME	→ KDBUS_ATTACH_CONN_DESCRIPTION
 
   * Documentation fixes, by Peter Meerwald and others.
+
+  * Some memory leaks plugged, and another match test added, by
+    Rui Miguel Silva
 
   * Per-user message count quota logic fixed, and new test added.
     By John de la Garza.
