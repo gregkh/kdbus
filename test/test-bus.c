@@ -53,9 +53,12 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 		uint64_t n_type;
 		char name[64];
 	} bus_make;
-	char s[PATH_MAX];
+	char s[PATH_MAX], *name;
 	int ret, control_fd2;
 	uid_t uid;
+
+	name = unique_name("");
+	ASSERT_RETURN(name);
 
 	snprintf(s, sizeof(s), "%s/control", env->root);
 	env->control_fd = open(s, O_RDWR|O_CLOEXEC);
@@ -100,7 +103,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
 	/* create a new bus */
-	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah-1", uid);
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-1", uid, name);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
 	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
@@ -110,7 +113,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	ret = ioctl(control_fd2, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EEXIST);
 
-	snprintf(s, sizeof(s), "%s/%u-blah-1/bus", env->root, uid);
+	snprintf(s, sizeof(s), "%s/%u-%s-1/bus", env->root, uid, name);
 	ASSERT_RETURN(access(s, F_OK) == 0);
 
 	ret = test_bus_creator_info(s);
@@ -121,6 +124,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
 	close(control_fd2);
+	free(name);
 
 	return TEST_OK;
 }
