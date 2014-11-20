@@ -266,8 +266,6 @@ static int test_prepare_env(const struct kdbus_test *t,
 		ASSERT_RETURN(env->control_fd >= 0);
 
 		if (!busname) {
-			srand(time(NULL));
-
 			for (i = 0; i < sizeof(n) - 1; i++)
 				n[i] = 'a' + (rand() % ('z' - 'a'));
 			n[sizeof(n) - 1] = 0;
@@ -460,6 +458,8 @@ int main(int argc, char *argv[])
 		{ "wait",	required_argument,	NULL, 'w' },
 		{}
 	};
+
+	srand(time(NULL));
 
 	while ((t = getopt_long(argc, argv, "hxr:t:b:w:", options, NULL)) >= 0) {
 		switch (t) {
