@@ -429,12 +429,13 @@ static int kdbus_meta_append_cgroup(struct kdbus_meta *meta)
 #endif
 
 #ifdef CONFIG_AUDITSYSCALL
-static int kdbus_meta_append_audit(struct kdbus_meta *meta)
+static int kdbus_meta_append_audit(struct kdbus_meta *meta,
+				   const struct kdbus_domain *domain)
 {
 	struct kdbus_audit audit;
 
-	audit.loginuid = from_kuid(current_user_ns(),
-				   audit_get_loginuid(current));
+	audit.loginuid = from_kuid_munged(domain->user_namespace,
+					  audit_get_loginuid(current));
 	audit.sessionid = audit_get_sessionid(current);
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_AUDIT,
@@ -583,7 +584,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 
 #ifdef CONFIG_AUDITSYSCALL
 	if (mask & KDBUS_ATTACH_AUDIT) {
-		ret = kdbus_meta_append_audit(meta);
+		ret = kdbus_meta_append_audit(meta, domain);
 		if (ret < 0)
 			return ret;
 
