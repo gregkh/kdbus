@@ -410,6 +410,7 @@ static void usage(const char *argv0)
 	printf("Usage: %s [options]\n"
 	       "Options:\n"
 	       "\t-x, --loop		Run in a loop\n"
+	       "\t-f, --fork		Fork before running a test\n"
 	       "\t-h, --help		Print this help\n"
 	       "\t-r, --root <root>	Toplevel of the kdbus hierarchy\n"
 	       "\t-t, --test <test-id>	Run one specific test only, in verbose mode\n"
@@ -444,6 +445,7 @@ int main(int argc, char *argv[])
 	char *arg_test = NULL;
 	char *arg_busname = NULL;
 	int arg_wait = 0;
+	int arg_fork = 0;
 	char *control;
 
 	static const struct option options[] = {
@@ -453,12 +455,13 @@ int main(int argc, char *argv[])
 		{ "test",	required_argument,	NULL, 't' },
 		{ "bus",	required_argument,	NULL, 'b' },
 		{ "wait",	required_argument,	NULL, 'w' },
+		{ "fork",	no_argument,		NULL, 'f' },
 		{}
 	};
 
 	srand(time(NULL));
 
-	while ((t = getopt_long(argc, argv, "hxr:t:b:w:", options, NULL)) >= 0) {
+	while ((t = getopt_long(argc, argv, "hxfr:t:b:w:", options, NULL)) >= 0) {
 		switch (t) {
 		case 'x':
 			arg_loop = 1;
@@ -478,6 +481,10 @@ int main(int argc, char *argv[])
 
 		case 'w':
 			arg_wait = strtol(optarg, NULL, 10);
+			break;
+
+		case 'f':
+			arg_fork = 1;
 			break;
 
 		default:
@@ -504,8 +511,15 @@ int main(int argc, char *argv[])
 		for (t = tests; t->name; t++) {
 			if (!strcmp(t->name, arg_test)) {
 				do {
-					ret = test_run(t, arg_root, arg_busname,
-							arg_wait);
+					if (arg_fork)
+						ret = test_run_forked(t,
+								arg_root,
+								arg_busname,
+								arg_wait);
+					else
+						ret = test_run(t, arg_root,
+							       arg_busname,
+							       arg_wait);
 					printf("Testing %s: ", t->desc);
 					print_test_result(ret);
 					printf("\n");
