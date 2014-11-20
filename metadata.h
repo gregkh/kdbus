@@ -16,6 +16,7 @@
 
 struct kdbus_meta;
 struct kdbus_conn;
+struct kdbus_domain;
 struct kdbus_pool_slice;
 
 struct kdbus_meta *kdbus_meta_new(void);
@@ -23,6 +24,7 @@ struct kdbus_meta *kdbus_meta_dup(const struct kdbus_meta *orig);
 int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
 			   const void *buf, size_t len);
 int kdbus_meta_append(struct kdbus_meta *meta,
+		      struct kdbus_domain *domain,
 		      struct kdbus_conn *conn,
 		      u64 seq, u64 which);
 void kdbus_meta_free(struct kdbus_meta *meta);

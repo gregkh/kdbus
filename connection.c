@@ -1364,7 +1364,8 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 			goto exit;
 		}
 
-		ret = kdbus_meta_append(meta, owner_conn, 0, extra_flags);
+		ret = kdbus_meta_append(meta, conn->ep->bus->domain,
+					owner_conn, 0, extra_flags);
 		if (ret < 0)
 			goto exit;
 

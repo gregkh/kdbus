@@ -439,5 +439,6 @@ int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
 		attach_flags &= KDBUS_ATTACH_NAMES |
 				KDBUS_ATTACH_CONN_DESCRIPTION;
 
-	return kdbus_meta_append(kmsg->meta, conn_src, kmsg->seq, attach_flags);
+	return kdbus_meta_append(kmsg->meta, conn_dst->ep->bus->domain,
+				 conn_src, kmsg->seq, attach_flags);
 }

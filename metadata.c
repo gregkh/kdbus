@@ -28,6 +28,7 @@
 #include <linux/version.h>
 
 #include "connection.h"
+#include "domain.h"
 #include "item.h"
 #include "message.h"
 #include "metadata.h"
@@ -247,13 +248,14 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta,
 	return 0;
 }
 
-static int kdbus_meta_append_cred(struct kdbus_meta *meta)
+static int kdbus_meta_append_cred(struct kdbus_meta *meta,
+				  const struct kdbus_domain *domain)
 {
 	struct kdbus_creds creds = {
-		.uid = from_kuid_munged(current_user_ns(), current_uid()),
-		.gid = from_kgid_munged(current_user_ns(), current_gid()),
-		.pid = task_pid_vnr(current),
-		.tid = task_tgid_vnr(current),
+		.uid = from_kuid_munged(domain->user_namespace, current_uid()),
+		.gid = from_kgid_munged(domain->user_namespace, current_gid()),
+		.pid = task_pid_nr_ns(current, domain->pid_namespace),
+		.tid = task_tgid_nr_ns(current, domain->pid_namespace),
 		.starttime = current->start_time,
 	};
 
@@ -261,7 +263,8 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta)
 				      &creds, sizeof(creds));
 }
 
-static int kdbus_meta_append_auxgroups(struct kdbus_meta *meta)
+static int kdbus_meta_append_auxgroups(struct kdbus_meta *meta,
+				       const struct kdbus_domain *domain)
 {
 	struct group_info *info;
 	struct kdbus_item *item;
@@ -279,7 +282,8 @@ static int kdbus_meta_append_auxgroups(struct kdbus_meta *meta)
 	gid = (u64 *) item->data;
 
 	for (i = 0; i < info->ngroups; i++)
-		gid[i] = from_kgid_munged(current_user_ns(), GROUP_AT(info, i));
+		gid[i] = from_kgid_munged(domain->user_namespace,
+					  GROUP_AT(info, i));
 
 exit_put_groups:
 	put_group_info(info);
@@ -497,6 +501,7 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
 /**
  * kdbus_meta_append() - collect metadata from current process
  * @meta:		Metadata object
+ * @domain:		The domain to use for namespace translations
  * @conn:		Current connection to read names from
  * @seq:		Message sequence number
  * @which:		KDBUS_ATTACH_* flags which typ of data to attach
@@ -507,6 +512,7 @@ static int kdbus_meta_append_seclabel(struct kdbus_meta *meta)
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_append(struct kdbus_meta *meta,
+		      struct kdbus_domain *domain,
 		      struct kdbus_conn *conn,
 		      u64 seq, u64 which)
 {
@@ -527,7 +533,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_CREDS) {
-		ret = kdbus_meta_append_cred(meta);
+		ret = kdbus_meta_append_cred(meta, domain);
 		if (ret < 0)
 			return ret;
 
@@ -535,7 +541,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_AUXGROUPS) {
-		ret = kdbus_meta_append_auxgroups(meta);
+		ret = kdbus_meta_append_auxgroups(meta, domain);
 		if (ret < 0)
 			return ret;
 
