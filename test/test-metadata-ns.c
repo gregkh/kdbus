@@ -202,14 +202,6 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	ASSERT_RETURN(item->creds.uid == unpriv_cached_creds.uid &&
 		      item->creds.gid == unpriv_cached_creds.gid);
 
-	KDBUS_ITEM_FOREACH(item, msg, items)
-		if (item->type >= _KDBUS_ITEM_ATTACH_BASE &&
-		    item->type <  _KDBUS_ITEM_POLICY_BASE) {
-			kdbus_printf("Unexpected item of type %llx\n",
-				     item->type);
-			ASSERT_RETURN_VAL(0, -EINVAL);
-		}
-
 	kdbus_msg_free(msg);
 	ret = waitpid(pid, &status, 0);
 	ASSERT_RETURN(ret >= 0);
