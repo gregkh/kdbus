@@ -18,17 +18,17 @@
 #include <linux/file.h>
 #include <linux/init.h>
 #include <linux/mutex.h>
-#include <linux/pid_namespace.h>
 #include <linux/sched.h>
 #include <linux/security.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
-#include <linux/user_namespace.h>
 #include <linux/version.h>
 
+#include "bus.h"
 #include "connection.h"
 #include "domain.h"
+#include "endpoint.h"
 #include "item.h"
 #include "message.h"
 #include "metadata.h"
@@ -38,8 +38,6 @@
 /**
  * struct kdbus_meta - metadata buffer
  * @attached:		Flags for already attached data
- * @pid_namespace:	The PID namespace the object was created with
- * @user_namespace:	The user namespace the object was created with
  * @data:		Allocated buffer
  * @size:		Number of bytes used
  * @allocated_size:	Size of buffer
@@ -49,8 +47,6 @@
  */
 struct kdbus_meta {
 	u64 attached;
-	struct pid_namespace *pid_namespace;
-	struct user_namespace *user_namespace;
 	struct kdbus_item *data;
 	size_t size;
 	size_t allocated_size;
@@ -68,14 +64,6 @@ struct kdbus_meta *kdbus_meta_new(void)
 	m = kzalloc(sizeof(*m), GFP_KERNEL);
 	if (!m)
 		return ERR_PTR(-ENOMEM);
-
-	/*
-	 * Remember the PID and user namespaces our credentials belong to;
-	 * we need to prevent leaking authorization and security-relevant
-	 * data across different namespaces.
-	 */
-	m->pid_namespace = get_pid_ns(task_active_pid_ns(current));
-	m->user_namespace = get_user_ns(current_user_ns());
 
 	return m;
 }
@@ -103,29 +91,11 @@ struct kdbus_meta *kdbus_meta_dup(const struct kdbus_meta *orig)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	m->pid_namespace = get_pid_ns(orig->pid_namespace);
-	m->user_namespace = get_user_ns(orig->user_namespace);
-
 	m->attached = orig->attached;
 	m->allocated_size = orig->allocated_size;
 	m->size = orig->size;
 
 	return m;
-}
-
-/**
- * kdbus_meta_ns_eq() - check whether the namespaces of two metadata objects
- *			are equal.
- * @meta_a:	Metadata A
- * @meta_b:	Metadata B
- *
- * Return: true if the two objects have the same namespaces, false otherwise.
- */
-bool kdbus_meta_ns_eq(const struct kdbus_meta *meta_a,
-		      const struct kdbus_meta *meta_b)
-{
-	return (meta_a->pid_namespace == meta_b->pid_namespace &&
-		meta_a->user_namespace == meta_b->user_namespace);
 }
 
 /**
@@ -136,9 +106,6 @@ void kdbus_meta_free(struct kdbus_meta *meta)
 {
 	if (!meta)
 		return;
-
-	put_pid_ns(meta->pid_namespace);
-	put_user_ns(meta->user_namespace);
 
 	kfree(meta->data);
 	kfree(meta);
@@ -653,6 +620,16 @@ static inline u64 kdbus_item_attach_flag(u64 type)
 	return 1ULL << (type - _KDBUS_ITEM_ATTACH_BASE);
 }
 
+static void kdbus_meta_filter(const struct kdbus_domain *domain, u64 *mask)
+{
+	/*
+	 * We currently don't have a way to translate capability flags between
+	 * user namespaces, so let's drop these items in such cases.
+	 */
+	if (domain->user_namespace != current_user_ns())
+		*mask &= ~KDBUS_ATTACH_CAPS;
+}
+
 /**
  * kdbus_meta_size() - calculate the size of an excerpt of a metadata db
  * @meta:	The database object containing the metadata
@@ -669,8 +646,7 @@ size_t kdbus_meta_size(const struct kdbus_meta *meta,
 	const struct kdbus_item *item;
 	size_t size = 0;
 
-	if (!kdbus_meta_ns_eq(meta, conn_dst->meta))
-		return 0;
+	kdbus_meta_filter(conn_dst->ep->bus->domain, &mask);
 
 	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
 		if (mask & kdbus_item_attach_flag(item->type))
@@ -701,8 +677,7 @@ int kdbus_meta_write(const struct kdbus_meta *meta,
 	const struct kdbus_item *item;
 	int ret;
 
-	if (!kdbus_meta_ns_eq(meta, conn_dst->meta))
-		return 0;
+	kdbus_meta_filter(conn_dst->ep->bus->domain, &mask);
 
 	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
 		if (mask & kdbus_item_attach_flag(item->type)) {

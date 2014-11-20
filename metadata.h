@@ -28,8 +28,6 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 		      struct kdbus_conn *conn,
 		      u64 seq, u64 which);
 void kdbus_meta_free(struct kdbus_meta *meta);
-bool kdbus_meta_ns_eq(const struct kdbus_meta *meta_a,
-		      const struct kdbus_meta *meta_b);
 size_t kdbus_meta_size(const struct kdbus_meta *meta,
 		       const struct kdbus_conn *conn_dst,
 		       u64 mask);
