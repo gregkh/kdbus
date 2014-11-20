@@ -33,7 +33,7 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	unsigned int uid = 65534;
 	int test_status = TEST_ERR;
 
-	ret = drop_privileges(uid, uid);
+	ret = drop_privileges(UNPRIV_UID, UNPRIV_GID);
 	if (ret < 0)
 		goto out;
 
@@ -145,6 +145,19 @@ out:
 	return test_status;
 }
 
+/* Get only the first item */
+static struct kdbus_item *kdbus_get_item(struct kdbus_msg *msg,
+					 uint64_t type)
+{
+	struct kdbus_item *item;
+
+	KDBUS_ITEM_FOREACH(item, msg, items)
+		if (item->type == type)
+			return item;
+
+	return NULL;
+}
+
 static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 {
 	int ret;
@@ -152,8 +165,13 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	int status;
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;
+	/* unpriv user will create its user_ns and change its uid/gid */
+	const struct kdbus_creds unpriv_cached_creds = {
+		.uid	= UNPRIV_UID,
+		.gid	= UNPRIV_GID,
+	};
 
-	kdbus_printf("STARTING TEST 'chat' in a new user namespace.\n");
+	kdbus_printf("STARTING TEST 'metadata-ns' in a new user namespace.\n");
 
 	pid = fork();
 	ASSERT_RETURN_VAL(pid >= 0, -errno);
@@ -169,6 +187,20 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	/* Receive in the original (root privileged) user namespace */
 	ret = kdbus_msg_recv_poll(conn, 100, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
+
+	/* We do not get KDBUS_ITEM_CAPS */
+	item = kdbus_get_item(msg, KDBUS_ITEM_CAPS);
+	ASSERT_RETURN(item == NULL);
+
+	item = kdbus_get_item(msg, KDBUS_ITEM_CREDS);
+	ASSERT_RETURN(item);
+
+	/*
+	 * Compare received items, creds must be translated into
+	 * the domain user namespace, so that used is unprivileged
+	 */
+	ASSERT_RETURN(item->creds.uid == unpriv_cached_creds.uid &&
+		      item->creds.gid == unpriv_cached_creds.gid);
 
 	KDBUS_ITEM_FOREACH(item, msg, items)
 		if (item->type >= _KDBUS_ITEM_ATTACH_BASE &&
