@@ -17,6 +17,8 @@
 #include <linux/hashtable.h>
 #include <linux/idr.h>
 #include <linux/kref.h>
+#include <linux/user_namespace.h>
+#include <linux/pid_namespace.h>
 
 #include "node.h"
 
@@ -29,6 +31,7 @@
  * @msg_seq_last:	Last used message id sequence number
  * @user_hash:		Accounting of user resources
  * @user_idr:		Map of all users; smallest possible index
+ * @pid_namespace:	PID namespace, pinned at creation time
  * @user_namespace:	User namespace, pinned at creation time
  */
 struct kdbus_domain {
@@ -39,6 +42,7 @@ struct kdbus_domain {
 	atomic64_t msg_seq_last;
 	DECLARE_HASHTABLE(user_hash, 6);
 	struct idr user_idr;
+	struct pid_namespace *pid_namespace;
 	struct user_namespace *user_namespace;
 };
 
