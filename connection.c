@@ -1345,7 +1345,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	attach_flags = cmd_info->flags &
 		       atomic64_read(&owner_conn->attach_flags_send);
 
-	meta_size = kdbus_meta_size(owner_conn->meta, conn, attach_flags);
+	meta_size = kdbus_meta_size(owner_conn->meta, conn, &attach_flags);
 	info.size += meta_size;
 
 	/*
@@ -1369,7 +1369,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		if (ret < 0)
 			goto exit;
 
-		info.size += kdbus_meta_size(meta, conn, extra_flags);
+		info.size += kdbus_meta_size(meta, conn, &extra_flags);
 	}
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);

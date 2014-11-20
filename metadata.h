@@ -30,7 +30,7 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 void kdbus_meta_free(struct kdbus_meta *meta);
 size_t kdbus_meta_size(const struct kdbus_meta *meta,
 		       const struct kdbus_conn *conn_dst,
-		       u64 mask);
+		       u64 *mask);
 int kdbus_meta_write(const struct kdbus_meta *meta,
 		     const struct kdbus_conn *conn_dst, u64 mask,
 		     const struct kdbus_pool_slice *slice, size_t off);

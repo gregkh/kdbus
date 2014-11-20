@@ -423,12 +423,13 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice;
 	struct kdbus_info info = {};
+	u64 flags = cmd_info->flags;
 	int ret;
 
 	info.id = bus->id;
 	info.flags = bus->bus_flags;
 	info.size = sizeof(info) +
-		    kdbus_meta_size(bus->meta, conn, cmd_info->flags);
+		    kdbus_meta_size(bus->meta, conn, &flags);
 
 	if (info.size == 0)
 		return -EPERM;
@@ -441,8 +442,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	if (ret < 0)
 		goto exit_free_slice;
 
-	ret = kdbus_meta_write(bus->meta, conn, cmd_info->flags,
-			       slice, sizeof(info));
+	ret = kdbus_meta_write(bus->meta, conn, flags, slice, sizeof(info));
 	if (ret < 0)
 		goto exit_free_slice;
 

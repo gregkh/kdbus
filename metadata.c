@@ -620,36 +620,34 @@ static inline u64 kdbus_item_attach_flag(u64 type)
 	return 1ULL << (type - _KDBUS_ITEM_ATTACH_BASE);
 }
 
-static void kdbus_meta_filter(const struct kdbus_domain *domain, u64 *mask)
-{
-	/*
-	 * We currently don't have a way to translate capability flags between
-	 * user namespaces, so let's drop these items in such cases.
-	 */
-	if (domain->user_namespace != current_user_ns())
-		*mask &= ~KDBUS_ATTACH_CAPS;
-}
-
 /**
  * kdbus_meta_size() - calculate the size of an excerpt of a metadata db
  * @meta:	The database object containing the metadata
  * @conn_dst:	The connection that is about to receive the data
- * @mask:	KDBUS_ATTACH_* bitmask to calculate the size for
+ * @mask:	Pointer to KDBUS_ATTACH_* bitmask to calculate the size for.
+ *		Callers *must* use the same mask for calls to
+ *		kdbus_meta_write().
  *
  * Return: the size in bytes the masked data will consume. Data that should
  * not received by @conn_dst will be filtered out.
  */
 size_t kdbus_meta_size(const struct kdbus_meta *meta,
 		       const struct kdbus_conn *conn_dst,
-		       u64 mask)
+		       u64 *mask)
 {
+	struct kdbus_domain *domain = conn_dst->ep->bus->domain;
 	const struct kdbus_item *item;
 	size_t size = 0;
 
-	kdbus_meta_filter(conn_dst->ep->bus->domain, &mask);
+	/*
+	 * We currently don't have a way to translate capability flags between
+	 * user namespaces, so let's drop these items in such cases.
+	 */
+	if (domain->user_namespace != current_user_ns())
+		*mask &= ~KDBUS_ATTACH_CAPS;
 
 	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
-		if (mask & kdbus_item_attach_flag(item->type))
+		if (*mask & kdbus_item_attach_flag(item->type))
 			size += KDBUS_ALIGN8(item->size);
 
 	return size;
@@ -676,8 +674,6 @@ int kdbus_meta_write(const struct kdbus_meta *meta,
 {
 	const struct kdbus_item *item;
 	int ret;
-
-	kdbus_meta_filter(conn_dst->ep->bus->domain, &mask);
 
 	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
 		if (mask & kdbus_item_attach_flag(item->type)) {

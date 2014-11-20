@@ -476,7 +476,8 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	if (kmsg->meta && attach_flags) {
 		size_t meta_size;
 
-		meta_size = kdbus_meta_size(kmsg->meta, conn_dst, attach_flags);
+		meta_size = kdbus_meta_size(kmsg->meta, conn_dst,
+					    &attach_flags);
 		if (meta_size > 0) {
 			meta_off = msg_size;
 			msg_size += meta_size;
