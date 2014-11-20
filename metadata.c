@@ -647,6 +647,14 @@ size_t kdbus_meta_size(const struct kdbus_meta *meta,
 	if (domain->user_namespace != current_user_ns())
 		*mask &= ~KDBUS_ATTACH_CAPS;
 
+	/*
+	 * If the domain was created with hide_pid enabled, drop all items
+	 * except for such not revealing anything about the task.
+	 */
+	if (domain->pid_namespace->hide_pid)
+		*mask &= KDBUS_ATTACH_TIMESTAMP | KDBUS_ATTACH_NAMES |
+			 KDBUS_ATTACH_CONN_DESCRIPTION;
+
 	KDBUS_ITEMS_FOREACH(item, meta->data, meta->size)
 		if (*mask & kdbus_item_attach_flag(item->type))
 			size += KDBUS_ALIGN8(item->size);

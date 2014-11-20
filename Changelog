@@ -44,7 +44,8 @@ since RFC v1:
   * Namespaces are now pinned by a domain at its creation time, and
     metadata items are automatically translated into these namespaces.
     Unless that cannot be done (currently only capabilities), in which
-    case the items are dropped.
+    case the items are dropped. For hide_pid enabled domains, drop all
+    items except for such not revealing anything about the task.
 
   * Capabilities are now only checked at open() time, and the
     information is cached for the lifetime of a file descriptor.
