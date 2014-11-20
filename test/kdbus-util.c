@@ -13,6 +13,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -1098,6 +1099,41 @@ uint64_t now(clockid_t clock)
 
 	clock_gettime(clock, &spec);
 	return spec.tv_sec * 1000ULL * 1000ULL * 1000ULL + spec.tv_nsec;
+}
+
+char *unique_name(const char *prefix)
+{
+	unsigned int i;
+	uint64_t u_now;
+	char n[17];
+	char *str;
+	int r;
+
+	/*
+	 * This returns a random string which is guaranteed to be
+	 * globally unique across all calls to unique_name(). We
+	 * compose the string as:
+	 *   <prefix>-<random>-<time>
+	 * With:
+	 *   <prefix>: string provided by the caller
+	 *   <random>: a random alpha string of 16 characters
+	 *   <time>: the current time in micro-seconds since last boot
+	 *
+	 * The <random> part makes the string always look vastly different,
+	 * the <time> part makes sure no two calls return the same string.
+	 */
+
+	u_now = now(CLOCK_MONOTONIC);
+
+	for (i = 0; i < sizeof(n) - 1; ++i)
+		n[i] = 'a' + (rand() % ('z' - 'a'));
+	n[sizeof(n) - 1] = 0;
+
+	r = asprintf(&str, "%s-%s-%" PRIu64, prefix, n, u_now);
+	if (r < 0)
+		return NULL;
+
+	return str;
 }
 
 static int do_userns_map_id(pid_t pid,

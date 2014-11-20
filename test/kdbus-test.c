@@ -254,9 +254,7 @@ static int test_prepare_env(const struct kdbus_test *t,
 			    const char *busname)
 {
 	if (t->flags & TEST_CREATE_BUS) {
-		unsigned int i;
-		char n[16];
-		char *s;
+		char *s, *n;
 		int ret;
 
 		asprintf(&s, "%s/control", root);
@@ -266,9 +264,8 @@ static int test_prepare_env(const struct kdbus_test *t,
 		ASSERT_RETURN(env->control_fd >= 0);
 
 		if (!busname) {
-			for (i = 0; i < sizeof(n) - 1; i++)
-				n[i] = 'a' + (rand() % ('z' - 'a'));
-			n[sizeof(n) - 1] = 0;
+			n = unique_name("test-bus");
+			ASSERT_RETURN(n);
 		}
 
 		ret = kdbus_create_bus(env->control_fd, busname ?: n,
