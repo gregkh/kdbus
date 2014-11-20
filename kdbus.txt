@@ -1589,10 +1589,13 @@ The following attach flags are currently supported.
 
 13.1 Metadata and namespaces
 ----------------------------
-Note that if the user or PID namespaces of a connection at the time of sending
-differ from those that were active then the connection was created
-(KDBUS_CMD_HELLO), data structures such as messages will not have any metadata
-attached to prevent leaking security-relevant information.
+
+Metadata such as PIDs, UIDs or GIDs are automatically translated to the
+namespaces of the domain that is used to send a message over. The namespaces
+of a domain are pinned at creation time, which is when the filesystem has been
+mounted.
+
+Metadata items that cannot be translated are dropped.
 
 
 14. Error codes
