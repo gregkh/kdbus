@@ -43,14 +43,6 @@ struct stats {
 
 static struct stats stats;
 
-static uint64_t now(void)
-{
-	struct timespec spec;
-
-	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &spec);
-	return spec.tv_sec * 1000ULL * 1000ULL * 1000ULL + spec.tv_nsec;
-}
-
 static void reset_stats(void)
 {
 	stats.count = 0;
@@ -77,7 +69,7 @@ static void add_stats(uint64_t prev)
 {
 	uint64_t diff;
 
-	diff = now() - prev;
+	diff = now(CLOCK_THREAD_CPUTIME_ID) - prev;
 
 	stats.count++;
 	stats.latency_acc += diff;
@@ -169,7 +161,7 @@ send_echo_request(struct kdbus_conn *conn, uint64_t dst_id,
 	int ret;
 
 	if (use_memfd) {
-		uint64_t now_ns = now();
+		uint64_t now_ns = now(CLOCK_THREAD_CPUTIME_ID);
 		struct kdbus_item *item = memfd_item_offset + kdbus_msg;
 		memfd = sys_memfd_create("memfd-name", 0);
 		ASSERT_RETURN_VAL(memfd >= 0, memfd);
@@ -310,10 +302,10 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 		/* cancel any pending message */
 		handle_echo_reply(conn_a, 0);
 
-		start = now();
+		start = now(CLOCK_THREAD_CPUTIME_ID);
 		reset_stats();
 
-		send_ns = now();
+		send_ns = now(CLOCK_THREAD_CPUTIME_ID);
 		ret = send_echo_request(conn_b, conn_a->id,
 					kdbus_msg, memfd_cached_offset);
 		ASSERT_RETURN(ret == 0);
@@ -335,14 +327,14 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 				ret = handle_echo_reply(conn_a, send_ns);
 				ASSERT_RETURN(ret == 0);
 
-				send_ns = now();
+				send_ns = now(CLOCK_THREAD_CPUTIME_ID);
 				ret = send_echo_request(conn_b, conn_a->id,
 							kdbus_msg,
 							memfd_cached_offset);
 				ASSERT_RETURN(ret == 0);
 			}
 
-			now_ns = now();
+			now_ns = now(CLOCK_THREAD_CPUTIME_ID);
 			diff = now_ns - start;
 			if (diff > 1000000000ULL) {
 				start = now_ns;
@@ -363,10 +355,10 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 		/* cancel any pendign message */
 		read(uds[1], buf, sizeof(buf));
 
-		start = now();
+		start = now(CLOCK_THREAD_CPUTIME_ID);
 		reset_stats();
 
-		send_ns = now();
+		send_ns = now(CLOCK_THREAD_CPUTIME_ID);
 		ret = write(uds[0], stress_payload, sizeof(stress_payload));
 		ASSERT_RETURN(ret == sizeof(stress_payload));
 
@@ -389,12 +381,12 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 
 				add_stats(send_ns);
 
-				send_ns = now();
+				send_ns = now(CLOCK_THREAD_CPUTIME_ID);
 				ret = write(uds[0], buf, sizeof(buf));
 				ASSERT_RETURN(ret == sizeof(buf));
 			}
 
-			now_ns = now();
+			now_ns = now(CLOCK_THREAD_CPUTIME_ID);
 			diff = now_ns - start;
 			if (diff > 1000000000ULL) {
 				start = now_ns;

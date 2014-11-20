@@ -1092,6 +1092,14 @@ int drop_privileges(uid_t uid, gid_t gid)
 	return ret;
 }
 
+uint64_t now(clockid_t clock)
+{
+	struct timespec spec;
+
+	clock_gettime(clock, &spec);
+	return spec.tv_sec * 1000ULL * 1000ULL * 1000ULL + spec.tv_nsec;
+}
+
 static int do_userns_map_id(pid_t pid,
 			    const char *map_file,
 			    const char *map_id)
