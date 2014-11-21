@@ -384,6 +384,7 @@ static struct file_system_type fs_type = {
 	.owner		= THIS_MODULE,
 	.mount		= fs_super_mount,
 	.kill_sb	= fs_super_kill,
+	.fs_flags	= FS_USERNS_MOUNT,
 };
 
 /**
