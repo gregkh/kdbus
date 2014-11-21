@@ -47,7 +47,7 @@
  * @monitors_list:	Connections that monitor this bus
  * @meta:		Meta information about the bus creator
  *
- * A bus provides a "bus" endpoint / device node.
+ * A bus provides a "bus" endpoint node.
  *
  * A bus is created by opening the control node and issuing the
  * KDBUS_CMD_BUS_MAKE iotcl. Closing this file immediately destroys

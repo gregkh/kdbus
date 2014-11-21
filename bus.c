@@ -62,8 +62,8 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
  * kdbus_bus_new() - create a kdbus_cmd_make from user-supplied data
  * @domain:		The domain to work on
  * @make:		Information as passed in by userspace
- * @uid:		The uid of the device node
- * @gid:		The gid of the device node
+ * @uid:		The uid of the bus node
+ * @gid:		The gid of the bus node
  *
  * This function is part of the connection ioctl() interface and will parse
  * the user-supplied data in order to create a new kdbus_bus.

@@ -626,8 +626,8 @@ struct kdbus_cmd_hello {
 
 /**
  * enum kdbus_make_flags - Flags for KDBUS_CMD_{BUS,EP,NS}_MAKE
- * @KDBUS_MAKE_ACCESS_GROUP:	Make the device node group-accessible
- * @KDBUS_MAKE_ACCESS_WORLD:	Make the device node world-accessible
+ * @KDBUS_MAKE_ACCESS_GROUP:	Make the bus or endpoint node group-accessible
+ * @KDBUS_MAKE_ACCESS_WORLD:	Make the bus or endpoint node world-accessible
  */
 enum kdbus_make_flags {
 	KDBUS_MAKE_ACCESS_GROUP		= 1ULL <<  0,
@@ -841,16 +841,16 @@ struct kdbus_cmd_match {
 
 /**
  * Ioctl API
- * KDBUS_CMD_BUS_MAKE:		After opening the "control" device node, this
- *				command creates a new bus with the specified
+ * KDBUS_CMD_BUS_MAKE:		After opening the "control" node, this command
+ *				creates a new bus with the specified
  *				name. The bus is immediately shut down and
- *				cleaned up when the opened "control" device node
- *				is closed.
+ *				cleaned up when the opened file descriptor is
+ *				closed.
  * KDBUS_CMD_ENDPOINT_MAKE:	Creates a new named special endpoint to talk to
  *				the bus. Such endpoints usually carry a more
  *				restrictive policy and grant restricted access
  *				to specific applications.
- * KDBUS_CMD_HELLO:		By opening the bus device node a connection is
+ * KDBUS_CMD_HELLO:		By opening the bus node, a connection is
  *				created. After a HELLO the opened connection
  *				becomes an active peer on the bus.
  * KDBUS_CMD_BYEBYE:		Disconnect a connection. If there are no

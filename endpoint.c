@@ -72,8 +72,8 @@ static void kdbus_ep_release(struct kdbus_node *node, bool was_active)
  * @bus:		The bus this endpoint will be created for
  * @name:		The name of the endpoint
  * @access:		The access flags for this node (KDBUS_MAKE_ACCESS_*)
- * @uid:		The uid of the device node
- * @gid:		The gid of the device node
+ * @uid:		The uid of the node
+ * @gid:		The gid of the node
  * @policy:		Whether or not the endpoint should have a policy db
  *
  * This function will create a new enpoint with the given

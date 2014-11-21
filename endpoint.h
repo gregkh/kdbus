@@ -34,7 +34,7 @@ struct kdbus_kmsg;
  * @disconnected:	Invalidated data
  * @has_policy:		The policy-db is valid and should be used
  *
- * An enpoint offers access to a bus; the default device node name is "bus".
+ * An enpoint offers access to a bus; the default endpoint node name is "bus".
  * Additional custom endpoints to the same bus can be created and they can
  * carry their own policies/filters.
  */
