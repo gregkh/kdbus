@@ -1,3 +1,25 @@
+since v2:
+
+  * Add FS_USERNS_MOUNT to the file system flags, so users can mount
+    their own kdbusfs instances without being root in the parent
+    user-ns. Spotted by Andy Lutomirski.
+
+  * Some fixes in kdbus.txt, spotted by Harald Hoyer and Andy
+    Lutomirski.
+
+  * Test case memory leak plugged by Rui Miguel Silva.
+
+  * Build fix for s390
+
+  * Test case fix for 32bit archs.
+
+  * Avoid signed int overflow on archs without atomic_sub
+
+  * Avoid variable size stack items. Fixes a sparse warning in queue.c.
+
+  * New test case for kernel notification quota
+
+
 since RFC v1:
 
   * Most notably, kdbus exposes its control files, buses and endpoints
