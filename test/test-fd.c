@@ -533,14 +533,14 @@ int kdbus_test_fd_passing(struct kdbus_test_env *env)
 	const struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	unsigned int i;
-	time_t now;
+	uint64_t now;
 	int fds_conn[2];
 	int sock_pair[2];
 	int fds[2];
 	int memfd;
 	int ret;
 
-	now = time(NULL);
+	now = (uint64_t) time(NULL);
 
 	/* create two connections */
 	conn_src = kdbus_hello(env->buspath, 0, NULL, 0);
