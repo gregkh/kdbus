@@ -464,9 +464,10 @@ struct kdbus_cmd_hello {
         Privileged bus users may submit these types in order to create
         connections with faked credentials. The only real use case for this
         is a proxy service which acts on behalf of some other tasks. For a
-        connection that runs in that mode, the message's metadata items will
-        be limited to what's specified here. See section 13 for more
-        information.
+        connection that runs in that mode, task-specific metadata items that
+        are attached to messages and that are revealed through
+        KDBUS_CMD_CONN_INFO will be limited to what's specified here.
+        See section 13 for more information.
 
       Items of other types are silently ignored.
 };
@@ -1581,8 +1582,8 @@ The following attach flags are currently supported.
     security label of the sending task. Access via kdbus_item->str.
 
   KDBUS_ATTACH_AUDIT
-    Attaches an item of type KDBUS_ITEM_AUDIT, which contains the audio label
-    of the sending taskj. Access via kdbus_item->str.
+    Attaches an item of type KDBUS_ITEM_AUDIT, which contains the audit label
+    of the sending task. Access via kdbus_item->str.
 
   KDBUS_ATTACH_CONN_DESCRIPTION
     Attaches an item of type KDBUS_ITEM_CONN_DESCRIPTION that contains a
