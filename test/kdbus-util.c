@@ -747,6 +747,10 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
 	if (ret < 0) {
 		ret = -errno;
+		/* store how many lost packets */
+		if (ret == -EOVERFLOW && offset)
+			*offset = recv.dropped_msgs;
+
 		return ret;
 	}
 
@@ -1038,6 +1042,36 @@ int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
 	}
 
 	free(update);
+
+	return ret;
+}
+
+int kdbus_add_match_id(struct kdbus_conn *conn, uint64_t cookie,
+		       uint64_t type, uint64_t id)
+{
+	struct {
+		struct kdbus_cmd_match cmd;
+		struct {
+			uint64_t size;
+			uint64_t type;
+			struct kdbus_notify_id_change chg;
+		} item;
+	} buf;
+	int ret;
+
+	memset(&buf, 0, sizeof(buf));
+
+	buf.cmd.size = sizeof(buf);
+	buf.cmd.cookie = cookie;
+	buf.item.size = sizeof(buf.item);
+	buf.item.type = type;
+	buf.item.chg.id = id;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("--- error adding conn match: %d (%m)\n", ret);
+	}
 
 	return ret;
 }

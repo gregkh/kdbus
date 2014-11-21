@@ -134,6 +134,82 @@ int kdbus_test_message_prio(struct kdbus_test_env *env)
 	return TEST_OK;
 }
 
+static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
+{
+	int ret;
+	unsigned int i;
+	uint64_t offset;
+	struct kdbus_conn *conn;
+	struct kdbus_conn *reader;
+	struct kdbus_msg *msg = NULL;
+
+	reader = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(reader);
+
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn);
+
+	/* Register for ID signals */
+	ret = kdbus_add_match_id(reader, 0x1, KDBUS_ITEM_ID_ADD,
+				 KDBUS_MATCH_ID_ANY);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_add_match_id(reader, 0x2, KDBUS_ITEM_ID_REMOVE,
+				 KDBUS_MATCH_ID_ANY);
+	ASSERT_RETURN(ret == 0);
+
+	/* Each iteration two notifications: add and remove ID */
+	for (i = 0; i < KDBUS_CONN_MAX_MSGS / 2; i++) {
+		struct kdbus_conn *notifier;
+
+		notifier = kdbus_hello(env->buspath, 0, NULL, 0);
+		ASSERT_RETURN(notifier);
+
+		kdbus_conn_free(notifier);
+
+	}
+
+	/*
+	 * Now the reader queue is full, message will be lost
+	 * but it will not be accounted in dropped msgs
+	 */
+	ret = kdbus_msg_send(conn, NULL, 0xdeadbeef, 0, 0, 0, reader->id);
+	ASSERT_RETURN(ret == -ENOBUFS);
+
+	/* More ID kernel notifications that will be lost */
+	kdbus_conn_free(conn);
+
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn);
+
+	kdbus_conn_free(conn);
+
+	ret = kdbus_msg_recv(reader, &msg, &offset);
+	ASSERT_RETURN(ret == -EOVERFLOW);
+
+	/*
+	 * We lost only 3 packet since only broadcast mesg
+	 * are accounted. The connection ID add/remove notification
+	 */
+	ASSERT_RETURN(offset == 3);
+
+	kdbus_msg_free(msg);
+
+	for (i = 0; i < KDBUS_CONN_MAX_MSGS; i++) {
+		ret = kdbus_msg_recv_poll(reader, 100, &msg, NULL);
+		ASSERT_RETURN(ret == 0);
+
+		kdbus_msg_free(msg);
+	}
+
+	ret = kdbus_msg_recv(reader, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
+	kdbus_conn_free(reader);
+
+	return 0;
+}
+
 /* Return the number of message successfully sent */
 static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
@@ -332,6 +408,9 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	uint64_t cookie = 0;
 	int ret;
 	int i;
+
+	ret = kdbus_test_notify_kernel_quota(env);
+	ASSERT_RETURN(ret == 0);
 
 	if (geteuid() == 0) {
 		ret = kdbus_test_multi_users_quota(env);
