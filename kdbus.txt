@@ -1582,8 +1582,8 @@ The following attach flags are currently supported.
     security label of the sending task. Access via kdbus_item->str.
 
   KDBUS_ATTACH_AUDIT
-    Attaches an item of type KDBUS_ITEM_AUDIT, which contains the audit label
-    of the sending task. Access via kdbus_item->str.
+    Attaches an item of type KDBUS_ITEM_AUDIT, which contains the audit
+    sessionid and loginuid of the sending task. Access via kdbus_item->audit.
 
   KDBUS_ATTACH_CONN_DESCRIPTION
     Attaches an item of type KDBUS_ITEM_CONN_DESCRIPTION that contains a
