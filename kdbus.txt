@@ -828,9 +828,10 @@ KDBUS_MSG_PAYLOAD_MEMFD:
   Messages can reference memfd files which contain the data.
   memfd files are tmpfs-backed files that allow sealing of the content of the
   file, which prevents all writable access to the file content.
-  Only sealed memfd files are accepted as payload data, which enforces
-  reliable passing of data; the receiver can assume that neither the sender nor
-  anyone else can alter the content after the message is sent.
+  Only memfds that have (F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_WRITE|F_SEAL_SEAL) set
+  are accepted as payload data, which enforces reliable passing of data.
+  The receiver can assume that neither the sender nor anyone else can alter the
+  content after the message is sent.
 
 Apart from the sender filling-in the content into memfd files, the data will
 be passed as zero-copy from one process to another, read-only, shared between
@@ -894,10 +895,11 @@ the memory is no longer needed.
 
 When a connection sends a message with KDBUS_MSG_FLAGS_SYNC_REPLY and
 blocks while waiting for the reply, the KDBUS_CMD_MSG_CANCEL ioctl can be
-used on the same file descriptor to cancel the message, based on its cookie.
+used on the same file descriptor to cancel blocking wait, based on its cookie.
 If there are multiple messages with the same cookie that are all synchronously
 waiting for a reply, all of them will be canceled. Obviously, this is only
-possible in multi-threaded applications.
+possible in multi-threaded applications. Note that the original message itself
+still ends up in the receiver's pool if the reply wait is cancelled.
 
 
 8. Name registry
@@ -1439,7 +1441,8 @@ satisfy the policy rules.
 ----------------------
 
 Depending on the type of the endpoint, a set of implicit rules might be
-enforced. On default endpoints, the following set is enforced:
+enforced. On default endpoints, the following set is enforced and checked
+before any user-supplied policy is checked.
 
   * Privileged connections always override any installed policy. Those
     connections could easily install their own policies, so there is no
@@ -1471,10 +1474,9 @@ when one of the following ioctls is issued:
   * KDBUS_CMD_NAME_LIST, to dump the name registry
   * KDBUS_CMD_CONN_INFO, to retrieve information on a connection
 
-Internally, the pool is organized in slices, stored in an rb-tree. The offsets
-returned by either one of the aforementioned ioctls describe offsets inside the
-pool. In order to make the slice available for subsequent calls, KDBUS_CMD_FREE
-has to be called on the offset.
+The offsets returned by either one of the aforementioned ioctls describe offsets
+inside the pool. In order to make the slice available for subsequent calls,
+KDBUS_CMD_FREE has to be called on the offset.
 
 To access the memory, the caller is expected to mmap() it to its task, like
 this:
@@ -1583,8 +1585,9 @@ The following attach flags are currently supported.
     of the sending taskj. Access via kdbus_item->str.
 
   KDBUS_ATTACH_CONN_DESCRIPTION
-    Attaches an item of type KDBUS_ITEM_CONN_DESCRIPTION that contains the
-    sender connection's current name in kdbus_item.str.
+    Attaches an item of type KDBUS_ITEM_CONN_DESCRIPTION that contains a
+    descriptive string of the sending peer. That string can be supplied
+    during HELLO by attaching an item of type KDBUS_ITEM_CONN_DESCRIPTION.
 
 
 13.1 Metadata and namespaces
