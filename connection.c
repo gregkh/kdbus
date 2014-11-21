@@ -595,7 +595,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	mutex_lock(&conn_dst->lock);
 
 	/* limit the maximum number of queued messages */
-	if (conn_dst->queue.msg_count > KDBUS_CONN_MAX_MSGS) {
+	if (conn_dst->queue.msg_count >= KDBUS_CONN_MAX_MSGS) {
 		ret = -ENOBUFS;
 		goto exit_unlock;
 	}
