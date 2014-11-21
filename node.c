@@ -220,8 +220,11 @@
  * NODE_RELEASE_DIRECT instead of NODE_BIAS. This tracks this one-bit state
  * across node-deactivation. The task putting it into NODE_RELEASE now knows
  * whether the node was active before or not.
+ *
+ * Some archs implement atomic_sub(v) with atomic_add(-v), so reserve INT_MIN
+ * to avoid overflows if multiplied by -1.
  */
-#define KDBUS_NODE_BIAS			(INT_MIN + 4)
+#define KDBUS_NODE_BIAS			(INT_MIN + 5)
 #define KDBUS_NODE_RELEASE_DIRECT	(KDBUS_NODE_BIAS - 1)
 #define KDBUS_NODE_RELEASE		(KDBUS_NODE_BIAS - 2)
 #define KDBUS_NODE_DRAINED		(KDBUS_NODE_BIAS - 3)
