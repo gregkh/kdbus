@@ -1458,9 +1458,9 @@ before any user-supplied policy is checked.
   * Connections that own names might send broadcast messages to other
     connections that belong to a different user, but only if that
     destination connection does not own any well-known name. In case
-    the destination connection owns well-known names, the implicit
-    rules do not apply anymore. The policy database is consulted for
-    a TALK access as it is done for unicast messages.
+    the destination connection owns well-known names, the policy database
+    is consulted for a TALK access on names as it is done for unicast
+    messages.
 
 Custom endpoints have stricter policies. The following rules apply:
 
