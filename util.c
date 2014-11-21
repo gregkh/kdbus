@@ -12,6 +12,7 @@
  */
 
 #include <linux/ctype.h>
+#include <linux/err.h>
 #include <linux/file.h>
 #include <linux/io.h>
 #include <linux/string.h>
