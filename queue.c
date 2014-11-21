@@ -515,14 +515,21 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 		goto exit_free_slice;
 
 	if (dst_name_len  > 0) {
-		char tmp[KDBUS_ITEM_HEADER_SIZE + dst_name_len];
+		struct {
+			uint64_t size;
+			uint64_t type;
+		} header;
 
-		it = (struct kdbus_item *)tmp;
-		it->size = KDBUS_ITEM_HEADER_SIZE + dst_name_len;
-		it->type = KDBUS_ITEM_DST_NAME;
-		memcpy(it->str, kmsg->dst_name, dst_name_len);
+		header.size = KDBUS_ITEM_HEADER_SIZE + dst_name_len;
+		header.type = KDBUS_ITEM_DST_NAME;
 
-		ret = kdbus_pool_slice_copy(entry->slice, size, it, it->size);
+		ret = kdbus_pool_slice_copy(entry->slice, size,
+					    &header, sizeof(header));
+		if (ret < 0)
+			goto exit_free_slice;
+
+		ret = kdbus_pool_slice_copy(entry->slice, size + sizeof(header),
+					    kmsg->dst_name, dst_name_len);
 		if (ret < 0)
 			goto exit_free_slice;
 	}
