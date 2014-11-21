@@ -254,7 +254,8 @@ static int test_prepare_env(const struct kdbus_test *t,
 			    const char *busname)
 {
 	if (t->flags & TEST_CREATE_BUS) {
-		char *s, *n;
+		char *s;
+		char *n = NULL;
 		int ret;
 
 		asprintf(&s, "%s/control", root);
@@ -270,6 +271,7 @@ static int test_prepare_env(const struct kdbus_test *t,
 
 		ret = kdbus_create_bus(env->control_fd, busname ?: n,
 				       _KDBUS_ATTACH_ALL, &s);
+		free(n);
 		ASSERT_RETURN(ret == 0);
 
 		asprintf(&env->buspath, "%s/%s/bus", root, s);
