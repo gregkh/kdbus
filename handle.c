@@ -671,7 +671,12 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 
 		ret = kdbus_cmd_msg_recv(conn, &cmd_recv);
-		if (ret < 0)
+		/*
+		 * In case of -EOVERFLOW, we still have to write back the
+		 * number of lost messages, which shares the same buffer
+		 * location as the offset.
+		 */
+		if (ret < 0 && ret != -EOVERFLOW)
 			break;
 
 		/* return the address of the next message in the pool */
