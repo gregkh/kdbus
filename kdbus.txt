@@ -1430,7 +1430,7 @@ the connection owns.
 For broadcast messages, if the destination connection owns well-known
 names then the policy database might be consulted for a TALK access on
 these names. This means a well-known name with a restricted TALK policy
-won't receive unwanted messages.
+will receive broadcast messages only from authorized connections.
 
 If a policy database exists for a bus (because a policy holder created one on
 demand) or for a custom endpoint (which always has one), each one is consulted
@@ -1446,21 +1446,23 @@ satisfy the policy rules.
 11.5 Implicit policies
 ----------------------
 
-Depending on the type of the endpoint, a set of implicit rules might be
-enforced. On default endpoints, the following set is enforced and checked
-before any user-supplied policy is checked.
+Depending on the type of the endpoint, a set of implicit rules that
+override installed policies might be enforced.
+
+On default endpoints, the following set is enforced and checked before
+any user-supplied policy is checked.
 
   * Privileged connections always override any installed policy. Those
     connections could easily install their own policies, so there is no
     reason to enforce installed policies.
   * Connections can always talk to connections of the same user. This
     includes broadcast messages.
-  * Connections that own names might send broadcast messages to other
-    connections that belong to a different user, but only if that
-    destination connection does not own any well-known name. In case
-    the destination connection owns well-known names, the policy database
-    is consulted for a TALK access on names as it is done for unicast
-    messages.
+  * Connections might send broadcast messages to other connections that
+    belong to a different user, but only if:
+    The sending connection owns a well-known name and the destination
+    connection does not own any well-known name. In case the destination
+    connection owns well-known names, the policy database is consulted
+    for a TALK access on these names as it is done for unicast messages.
 
 Custom endpoints have stricter policies. The following rules apply:
 
