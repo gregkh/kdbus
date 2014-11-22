@@ -321,9 +321,11 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
  * @conn_dst:		Destination connection to check credentials against
  *
  * This function checks whether @ep is allowed to see any of the names
- * currently owned by @conn_src.
+ * currently owned by @conn_src. This is used for custom endpoints
+ * which have a stricter policy.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: 0 if allowed, negative error code if not or if @conn_src
+ * does not own any name. This intended behaviour.
  */
 int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 				    struct kdbus_conn *conn_src,
