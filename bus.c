@@ -395,6 +395,11 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			if (ret < 0)
 				continue;
 
+			/*
+			 * check whether conn_dst is allowed to see
+			 * messages comming from one of the names
+			 * owned by conn_src
+			 */
 			ret = kdbus_ep_policy_check_src_names(conn_dst->ep,
 							      conn_src,
 							      conn_dst);
