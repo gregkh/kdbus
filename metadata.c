@@ -629,12 +629,12 @@ static inline u64 kdbus_item_attach_flag(u64 type)
  *		Callers *must* use the same mask for calls to
  *		kdbus_meta_write().
  *
- * Return: the size in bytes the masked data will consume. Data that should
- * not received by @conn_dst will be filtered out.
- *
  * This function takes the currently active task into account for namespace
  * comparison. Hence, the behaviour depends on the context the function is
  * called from.
+ *
+ * Return: the size in bytes the masked data will consume. Bits for items that
+ * should not received by @conn_dst will be removed from @mask.
  */
 size_t kdbus_meta_size(const struct kdbus_meta *meta,
 		       const struct kdbus_conn *conn_dst,
