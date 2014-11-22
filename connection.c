@@ -162,6 +162,12 @@ static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
 {
 	struct kdbus_domain_user *user;
 
+	/*
+	 * When the kernel is the sender we do not do per user
+	 * accouting, instead we just count how many messages have
+	 * been queued and we check the quota limit when inserting
+	 * message into the receiver queue.
+	 */
 	if (!conn_src)
 		return 0;
 
@@ -594,7 +600,16 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 
 	mutex_lock(&conn_dst->lock);
 
-	/* limit the maximum number of queued messages */
+	/*
+	 * Limit the maximum number of queued messages. This applies
+	 * to all messages, user messages and kernel notifications
+	 *
+	 * The kernel sends notifications to subscribed connections
+	 * only. If the connection do not clean its queue, no further
+	 * message delivery.
+	 * Kernel is able to queue KDBUS_CONN_MAX_MSGS messages, this
+	 * includes all type of notifications.
+	 */
 	if (conn_dst->queue.msg_count >= KDBUS_CONN_MAX_MSGS) {
 		ret = -ENOBUFS;
 		goto exit_unlock;
