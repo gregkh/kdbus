@@ -105,7 +105,15 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
+
+	/*
+	 * Pin user and PID namespaces so we can translate metadata items
+	 * into the context of the domain. The mount namespace is only
+	 * recorded for comparison, so we can drop items that should not be
+	 * sent across mount namespaces.
+	 */
 	d->pid_namespace = get_pid_ns(task_active_pid_ns(current));
+	d->mnt_namespace = current->nsproxy->mnt_ns;
 	d->user_namespace = get_user_ns(current_user_ns());
 
 	ret = kdbus_node_link(&d->node, NULL, NULL);

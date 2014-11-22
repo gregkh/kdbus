@@ -647,6 +647,11 @@ size_t kdbus_meta_size(const struct kdbus_meta *meta,
 	if (domain->user_namespace != current_user_ns())
 		*mask &= ~KDBUS_ATTACH_CAPS;
 
+	/* Don't transport the _EXE item when crossing pid or mount ns. */
+	if (domain->mnt_namespace != current->nsproxy->mnt_ns ||
+	    domain->pid_namespace != task_active_pid_ns(current))
+		*mask &= ~KDBUS_ATTACH_EXE;
+
 	/*
 	 * If the domain was created with hide_pid enabled, drop all items
 	 * except for such not revealing anything about the task.
