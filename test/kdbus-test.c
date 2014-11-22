@@ -28,6 +28,15 @@ struct kdbus_test {
 	unsigned int flags;
 };
 
+struct kdbus_test_args {
+	int loop;
+	int wait;
+	int fork;
+	char *root;
+	char *test;
+	char *busname;
+};
+
 static const struct kdbus_test tests[] = {
 	{
 		.name	= "bus-make",
@@ -401,7 +410,47 @@ static int run_all_tests(const char *root, const char *busname)
 	printf("\nSUMMARY: %d tests passed, %d skipped, %d failed\n",
 	       ok_cnt, skip_cnt, fail_cnt);
 
-	return fail_cnt > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+	return fail_cnt > 0 ? TEST_ERR : TEST_OK;
+}
+
+static int run_test(struct kdbus_test_args *kdbus_args)
+{
+	int ret;
+	bool test_found = false;
+	const struct kdbus_test *t;
+
+	for (t = tests; t->name; t++) {
+		if (strcmp(t->name, kdbus_args->test))
+			continue;
+
+		do {
+			test_found = true;
+			if (kdbus_args->fork)
+				ret = test_run_forked(t, kdbus_args->root,
+						      kdbus_args->busname,
+						      kdbus_args->wait);
+			else
+				ret = test_run(t, kdbus_args->root,
+					       kdbus_args->busname,
+					       kdbus_args->wait);
+
+			printf("Testing %s: ", t->desc);
+			print_test_result(ret);
+			printf("\n");
+
+			if (ret != TEST_OK)
+				break;
+		} while (kdbus_args->loop);
+
+		return ret;
+	}
+
+	if (!test_found) {
+		printf("Unknown test-id '%s'\n", kdbus_args->test);
+		return TEST_ERR;
+	}
+
+	return TEST_OK;
 }
 
 static void usage(const char *argv0)
@@ -439,16 +488,50 @@ static void usage(const char *argv0)
 	exit(EXIT_FAILURE);
 }
 
+int start_tests(struct kdbus_test_args *kdbus_args)
+{
+	int ret;
+	char *control;
+
+	if (!kdbus_args->root)
+		kdbus_args->root = "/sys/fs/kdbus";
+
+	asprintf(&control, "%s/control", kdbus_args->root);
+
+	if (access(control, W_OK) < 0) {
+		printf("Unable to locate control node at '%s'.\n",
+			control);
+		return TEST_ERR;
+	}
+
+	free(control);
+
+	if (kdbus_args->test) {
+		ret = run_test(kdbus_args);
+	} else {
+		do {
+			ret = run_all_tests(kdbus_args->root,
+					    kdbus_args->busname);
+			if (ret != TEST_OK)
+				break;
+		} while (kdbus_args->loop);
+	}
+
+	return ret;
+}
+
 int main(int argc, char *argv[])
 {
 	int t, ret = 0;
-	int arg_loop = 0;
-	char *arg_root = NULL;
-	char *arg_test = NULL;
-	char *arg_busname = NULL;
-	int arg_wait = 0;
-	int arg_fork = 0;
-	char *control;
+	struct kdbus_test_args *kdbus_args;
+
+	kdbus_args = malloc(sizeof(*kdbus_args));
+	if (!kdbus_args) {
+		printf("unable to malloc() kdbus_args\n");
+		return EXIT_FAILURE;
+	}
+
+	memset(kdbus_args, 0, sizeof(*kdbus_args));
 
 	static const struct option options[] = {
 		{ "loop",	no_argument,		NULL, 'x' },
@@ -466,27 +549,27 @@ int main(int argc, char *argv[])
 	while ((t = getopt_long(argc, argv, "hxfr:t:b:w:", options, NULL)) >= 0) {
 		switch (t) {
 		case 'x':
-			arg_loop = 1;
+			kdbus_args->loop = 1;
 			break;
 
 		case 'r':
-			arg_root = optarg;
+			kdbus_args->root = optarg;
 			break;
 
 		case 't':
-			arg_test = optarg;
+			kdbus_args->test = optarg;
 			break;
 
 		case 'b':
-			arg_busname = optarg;
+			kdbus_args->busname = optarg;
 			break;
 
 		case 'w':
-			arg_wait = strtol(optarg, NULL, 10);
+			kdbus_args->wait = strtol(optarg, NULL, 10);
 			break;
 
 		case 'f':
-			arg_fork = 1;
+			kdbus_args->fork = 1;
 			break;
 
 		default:
@@ -495,54 +578,11 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (!arg_root)
-		arg_root = "/sys/fs/kdbus";
-
-	asprintf(&control, "%s/control", arg_root);
-
-	if (access(control, W_OK) < 0) {
-		printf("Unable to locate control node at '%s'.\n", control);
+	ret = start_tests(kdbus_args);
+	if (ret == TEST_ERR)
 		return EXIT_FAILURE;
-	}
 
-	free(control);
-
-	if (arg_test) {
-		const struct kdbus_test *t;
-
-		for (t = tests; t->name; t++) {
-			if (!strcmp(t->name, arg_test)) {
-				do {
-					if (arg_fork)
-						ret = test_run_forked(t,
-								arg_root,
-								arg_busname,
-								arg_wait);
-					else
-						ret = test_run(t, arg_root,
-							       arg_busname,
-							       arg_wait);
-					printf("Testing %s: ", t->desc);
-					print_test_result(ret);
-					printf("\n");
-
-					if (ret != TEST_OK)
-						break;
-				} while (arg_loop);
-
-				return ret == TEST_OK ? 0 : EXIT_FAILURE;
-			}
-		}
-
-		printf("Unknown test-id '%s'\n", arg_test);
-		return EXIT_FAILURE;
-	}
-
-	do {
-		ret = run_all_tests(arg_root, arg_busname);
-		if (ret != TEST_OK)
-			break;
-	} while (arg_loop);
+	free(kdbus_args);
 
 	return 0;
 }
