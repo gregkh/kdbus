@@ -322,10 +322,12 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
  *
  * This function checks whether @ep is allowed to see any of the names
  * currently owned by @conn_src. This is used for custom endpoints
- * which have a stricter policy.
+ * which have a stricter policy. If the @ep is not a custom endpoint
+ * then this function does nothing but return 0.
  *
  * Return: 0 if allowed, negative error code if not or if @conn_src
- * does not own any name. This intended behaviour.
+ * does not own any name. This intended behaviour to prevent all
+ * messages originated from @conn_src.
  */
 int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 				    struct kdbus_conn *conn_src,
@@ -334,12 +336,19 @@ int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 	struct kdbus_name_entry *e;
 	int ret = -ENOENT;
 
+	/* This is not a custom endpoint, nothing to do */
 	if (!ep->has_policy)
 		return 0;
 
 	down_read(&ep->policy_db.entries_rwlock);
 	mutex_lock(&conn_src->lock);
 
+	/*
+	 * If conn_dst is allowed to see one name of conn_src then
+	 * return success, otherwise fail even if conn_src does not
+	 * own any name, this will block any leak from conn_src to
+	 * conn_dst
+	 */
 	list_for_each_entry(e, &conn_src->names_list, conn_entry) {
 		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn_dst,
 								e->name);
