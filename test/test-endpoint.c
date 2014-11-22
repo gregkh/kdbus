@@ -8,7 +8,9 @@
 #include <errno.h>
 #include <assert.h>
 #include <libgen.h>
+#include <sys/capability.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <stdbool.h>
 
 #include "kdbus-util.h"
@@ -46,7 +48,8 @@ static int install_name_add_match(struct kdbus_conn *conn, const char *name)
 	return 0;
 }
 
-static int create_endpoint(const char *buspath, const char *name)
+static int create_endpoint(const char *buspath, const char *name,
+			   uint64_t flags)
 {
 	struct {
 		struct kdbus_cmd_make head;
@@ -77,6 +80,7 @@ static int create_endpoint(const char *buspath, const char *name)
 	ep_make.name.size = KDBUS_ITEM_HEADER_SIZE +
 			    strlen(ep_make.name.str) + 1;
 
+	ep_make.head.flags = flags;
 	ep_make.head.size = sizeof(ep_make.head) +
 			    ep_make.name.size;
 
@@ -88,6 +92,70 @@ static int create_endpoint(const char *buspath, const char *name)
 	}
 
 	return fd;
+}
+
+static int unpriv_test_custom_ep(const char *buspath)
+{
+	int ret, ep_fd1, ep_fd2;
+	char *ep1, *ep2, *tmp1, *tmp2;
+
+	tmp1 = strdup(buspath);
+	tmp2 = strdup(buspath);
+	ASSERT_RETURN(tmp1 && tmp2);
+
+	ret = asprintf(&ep1, "%s/%u-%s", dirname(tmp1), getuid(), "apps1");
+	ASSERT_RETURN(ret >= 0);
+
+	ret = asprintf(&ep2, "%s/%u-%s", dirname(tmp2), getuid(), "apps2");
+	ASSERT_RETURN(ret >= 0);
+
+	free(tmp1);
+	free(tmp2);
+
+	/* endpoint only accessible to current uid */
+	ep_fd1 = create_endpoint(buspath, "apps1", 0);
+	ASSERT_RETURN(ep_fd1 >= 0);
+
+	/* endpoint world accessible */
+	ep_fd2 = create_endpoint(buspath, "apps2",
+				  KDBUS_MAKE_ACCESS_WORLD);
+	ASSERT_RETURN(ep_fd2 >= 0);
+
+	ret = RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_UID, ({
+		int ep_fd;
+		struct kdbus_conn *ep_conn;
+
+		/*
+		 * Make sure that we are not able to create custom
+		 * endpoints
+		 */
+		ep_fd = create_endpoint(buspath, "unpriv_costum_ep", 0);
+		ASSERT_EXIT(ep_fd == -EPERM);
+
+		/*
+		 * Endpoint "apps1" only accessible to users,
+		 * access denied by VFS
+		 */
+		ep_conn = kdbus_hello(ep1, 0, NULL, 0);
+		ASSERT_EXIT(!ep_conn && errno == EACCES);
+
+		/* Endpoint "apps2" world accessible */
+		ep_conn = kdbus_hello(ep2, 0, NULL, 0);
+		ASSERT_EXIT(ep_conn);
+
+		kdbus_conn_free(ep_conn);
+
+		_exit(EXIT_SUCCESS);
+	}),
+	({ 0; }));
+	ASSERT_RETURN(ret == 0);
+
+	close(ep_fd1);
+	close(ep_fd2);
+	free(ep1);
+	free(ep2);
+
+	return 0;
 }
 
 static int update_endpoint(int fd, const char *name)
@@ -147,11 +215,11 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	memset(fake_ep, 'X', sizeof(fake_ep) - 1);
 
 	/* Try to create a custom endpoint with a long name */
-	ret = create_endpoint(env->buspath, fake_ep);
+	ret = create_endpoint(env->buspath, fake_ep, 0);
 	ASSERT_RETURN(ret == -ENAMETOOLONG);
 
 	/* create a custom endpoint, and open a connection on it */
-	ep_fd = create_endpoint(env->buspath, "foo");
+	ep_fd = create_endpoint(env->buspath, "foo", 0);
 	ASSERT_RETURN(ep_fd >= 0);
 
 	tmp = strdup(env->buspath);
@@ -213,6 +281,16 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 
 	ret = kdbus_info(ep_conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == 0);
+
+	/* If we have privileges test custom endpoints */
+	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
+	ASSERT_RETURN(ret >= 0);
+
+	/* we can drop privileges */
+	if (ret) {
+		ret = unpriv_test_custom_ep(env->buspath);
+		ASSERT_RETURN(ret == 0);
+	}
 
 	kdbus_conn_free(ep_conn);
 	close(ep_fd);
