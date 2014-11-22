@@ -631,6 +631,10 @@ static inline u64 kdbus_item_attach_flag(u64 type)
  *
  * Return: the size in bytes the masked data will consume. Data that should
  * not received by @conn_dst will be filtered out.
+ *
+ * This function takes the currently active task into account for namespace
+ * comparison. Hence, the behaviour depends on the context the function is
+ * called from.
  */
 size_t kdbus_meta_size(const struct kdbus_meta *meta,
 		       const struct kdbus_conn *conn_dst,
@@ -675,10 +679,8 @@ size_t kdbus_meta_size(const struct kdbus_meta *meta,
  * @slice:	The slice to copy the data to
  * @off:	The initial offset in the slice to write to
  *
- * Copies some of the metadata's items to @slice, if that the item is
- * suitable for @conn_dst to be received. Otherwise, the item is omitted.
- * Privided the same input parameters, this function will write exactly as
- * many bytes as reported by kdbus_meta_size().
+ * Copies some of the metadata's items to @slice, depending on the value of
+ * @mask. @slice must be able to accommodate the items.
  *
  * Return: 0 on success, negative error number otherwise.
  */
