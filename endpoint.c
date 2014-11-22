@@ -4,6 +4,7 @@
  * Copyright (C) 2013-2014 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013-2014 David Herrmann <dh.herrmann@gmail.com>
  * Copyright (C) 2013-2014 Linux Foundation
+ * Copyright (C) 2014 Djalal Harouni <tixxdz@opendz.org>
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -279,25 +280,36 @@ int kdbus_ep_policy_check_see_access(struct kdbus_ep *ep,
  *
  * This function verifies that @conn is allowed to see the well-known name
  * inside a name-change notification contained in @msg via the endpoint @ep.
- * If @msg is not a notification for name changes, this function does nothing
- * but return 0.
+ * If @ep is not a custom endpoint or if @msg is not a kernel
+ * notification then this function does nothing but return 0.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: 0 if allowed, negative error code if not or if @msg is not
+ * a notification for name changes. This is intended behaviour to
+ * prevent all other kernel notification types.
  */
 int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 				       struct kdbus_conn *conn,
 				       const struct kdbus_kmsg *kmsg)
 {
-	int ret = 0;
+	int ret = -ENOENT;
 
-	/*
-	 * If the msg is not a notification or if the endpoint do not
-	 * have a policy then this is not a custom endpoint and the
-	 * connection may receive this message
-	 */
-	if (kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL || !ep->has_policy)
+	/* This is not a custom endpoint, nothing to do */
+	if (!ep->has_policy)
 		return 0;
 
+	/*
+	 * If the msg is not a notification from the kernel then
+	 * nothing to do
+	 */
+	if (kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL)
+		return 0;
+
+	/*
+	 * On custom endpoints we allow only name changes notification,
+	 * all other notifications are disabled. This prevents other
+	 * notifications to leak to monitor or connections with a
+	 * corresponding match
+	 */
 	switch (kmsg->notify_type) {
 	case KDBUS_ITEM_NAME_ADD:
 	case KDBUS_ITEM_NAME_REMOVE:
@@ -326,7 +338,7 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
  * then this function does nothing but return 0.
  *
  * Return: 0 if allowed, negative error code if not or if @conn_src
- * does not own any name. This intended behaviour to prevent all
+ * does not own any name. This is intended behaviour to prevent all
  * messages originated from @conn_src.
  */
 int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
