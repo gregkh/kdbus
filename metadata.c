@@ -623,7 +623,7 @@ static inline u64 kdbus_item_attach_flag(u64 type)
 
 /**
  * kdbus_meta_size() - calculate the size of an excerpt of a metadata db
- * @meta:	The database object containing the metadata
+ * @meta:	The metadata object
  * @conn_dst:	The connection that is about to receive the data
  * @mask:	Pointer to KDBUS_ATTACH_* bitmask to calculate the size for.
  *		Callers *must* use the same mask for calls to
@@ -664,7 +664,7 @@ size_t kdbus_meta_size(const struct kdbus_meta *meta,
 
 /**
  * kdbus_meta_write() - Write an excerpt of a metadata db to a slice
- * @meta:	The database object containing the metadata
+ * @meta:	The metadata object
  * @conn_dst:	The connection that is about to receive the data
  * @mask:	KDBUS_ATTACH_* bitmask to calculate the size for
  * @slice:	The slice to copy the data to
