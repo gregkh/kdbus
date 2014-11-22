@@ -373,7 +373,7 @@ static void print_test_result(int ret)
 	}
 }
 
-static int run_all_tests(const char *root, const char *busname)
+static int start_all_tests(const char *root, const char *busname)
 {
 	int ret;
 	unsigned int fail_cnt = 0;
@@ -413,7 +413,7 @@ static int run_all_tests(const char *root, const char *busname)
 	return fail_cnt > 0 ? TEST_ERR : TEST_OK;
 }
 
-static int run_test(struct kdbus_test_args *kdbus_args)
+static int start_one_test(struct kdbus_test_args *kdbus_args)
 {
 	int ret;
 	bool test_found = false;
@@ -507,11 +507,11 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 	free(control);
 
 	if (kdbus_args->test) {
-		ret = run_test(kdbus_args);
+		ret = start_one_test(kdbus_args);
 	} else {
 		do {
-			ret = run_all_tests(kdbus_args->root,
-					    kdbus_args->busname);
+			ret = start_all_tests(kdbus_args->root,
+					      kdbus_args->busname);
 			if (ret != TEST_OK)
 				break;
 		} while (kdbus_args->loop);
