@@ -115,6 +115,11 @@ int kdbus_create_bus(int control_fd, const char *name,
 		     name, control_fd);
 
 	ret = ioctl(control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("--- error when making bus: %d (%m)\n", ret);
+		return ret;
+	}
 
 	if (ret == 0 && path)
 		*path = strdup(bus_make.name.str);
@@ -164,6 +169,7 @@ kdbus_hello(const char *path, uint64_t flags,
 
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
 	if (ret < 0) {
+		ret = -errno;
 		kdbus_printf("--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
