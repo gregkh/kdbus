@@ -363,10 +363,19 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 		    !kdbus_conn_is_monitor(conn_dst))
 			continue;
 
+		/*
+		 * Check if there is a match for the kmsg object in
+		 * the destination connection match db
+		 */
 		if (!kdbus_match_db_match_kmsg(conn_dst->match_db, conn_src,
 					       kmsg))
 			continue;
 
+		/*
+		 * Check if there is a policy db that prevents the
+		 * destination connection from receiving this kernel
+		 * notification
+		 */
 		ret = kdbus_ep_policy_check_notification(conn_dst->ep,
 							 conn_dst, kmsg);
 		if (ret < 0)
