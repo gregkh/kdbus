@@ -290,6 +290,11 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 {
 	int ret = 0;
 
+	/*
+	 * If the msg is not a notification or if the endpoint do not
+	 * have a policy then this is not a custom endpoint and the
+	 * connection may receive this message
+	 */
 	if (kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL || !ep->has_policy)
 		return 0;
 
