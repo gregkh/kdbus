@@ -229,6 +229,10 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	free(tmp);
 	ASSERT_RETURN(ret >= 0);
 
+	/* Monitor connections are not supported on custom endpoints */
+	ep_conn = kdbus_hello(ep, KDBUS_HELLO_MONITOR, NULL, 0);
+	ASSERT_RETURN(!ep_conn && errno == EOPNOTSUPP);
+
 	ep_conn = kdbus_hello(ep, 0, NULL, 0);
 	ASSERT_RETURN(ep_conn);
 
