@@ -1538,9 +1538,19 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	is_activator = hello->flags & KDBUS_HELLO_ACTIVATOR;
 	is_policy_holder = hello->flags & KDBUS_HELLO_POLICY_HOLDER;
 
-	/* can't be activator or policy holder and monitor at the same time */
-	if (is_monitor && (is_activator || is_policy_holder))
-		return ERR_PTR(-EINVAL);
+	/* Validate monitors */
+	if (is_monitor) {
+		/* Monitors are disallowed on custom endpoints */
+		if (ep->has_policy)
+			return ERR_PTR(-EOPNOTSUPP);
+
+		/*
+		 * Can't be activator or policy holder and monitor
+		 * at the same time
+		 */
+		if (is_activator || is_policy_holder)
+			return ERR_PTR(-EINVAL);
+	}
 
 	/* can't be policy holder and activator at the same time */
 	if (is_activator && is_policy_holder)

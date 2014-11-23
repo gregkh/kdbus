@@ -307,8 +307,8 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 	/*
 	 * On custom endpoints we allow only name changes notification,
 	 * all other notifications are disabled. This prevents other
-	 * notifications to leak to monitor or connections with a
-	 * corresponding match
+	 * notifications to leak to connections with a corresponding
+	 * match
 	 */
 	switch (kmsg->notify_type) {
 	case KDBUS_ITEM_NAME_ADD:
