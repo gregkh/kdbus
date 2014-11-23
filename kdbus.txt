@@ -1661,7 +1661,7 @@ For KDBUS_CMD_HELLO:
   -ESHUTDOWN	The bus has already been shut down
   -EMFILE	The maximum number of connection on the bus has been reached
   -EOPNOTSUPP	The endpoint does not support the connection flags
-		supplied in the kdbus_cmd_make struct
+		supplied in the kdbus_cmd_hello struct
 
 For KDBUS_CMD_BYEBYE:
 
