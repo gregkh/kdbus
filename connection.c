@@ -1520,6 +1520,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	static struct lock_class_key __key;
 #endif
 	const struct kdbus_creds *creds = NULL;
+	const struct kdbus_pids *pids = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
 	const char *conn_name = NULL;
@@ -1585,6 +1586,17 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 				return ERR_PTR(-EINVAL);
 
 			creds = &item->creds;
+			break;
+
+		case KDBUS_ITEM_PIDS:
+			/* privileged processes can impersonate somebody else */
+			if (!privileged)
+				return ERR_PTR(-EPERM);
+
+			if (item->size != KDBUS_ITEM_SIZE(sizeof(*pids)))
+				return ERR_PTR(-EINVAL);
+
+			pids = &item->pids;
 			break;
 
 		case KDBUS_ITEM_SECLABEL:
@@ -1724,7 +1736,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	/* privileged processes can impersonate somebody else */
-	if (creds || seclabel) {
+	if (creds || pids || seclabel) {
 		conn->owner_meta = kdbus_meta_new();
 		if (IS_ERR(conn->owner_meta)) {
 			ret = PTR_ERR(conn->owner_meta);
@@ -1736,6 +1748,14 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 			ret = kdbus_meta_append_data(conn->owner_meta,
 						     KDBUS_ITEM_CREDS,
 						     creds, sizeof(*creds));
+			if (ret < 0)
+				goto exit_free_meta;
+		}
+
+		if (pids) {
+			ret = kdbus_meta_append_data(conn->owner_meta,
+						     KDBUS_ITEM_PIDS,
+						     pids, sizeof(*pids));
 			if (ret < 0)
 				goto exit_free_meta;
 		}

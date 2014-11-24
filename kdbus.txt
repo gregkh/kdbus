@@ -460,6 +460,7 @@ struct kdbus_cmd_hello {
         items describe policy access entries (see section about policy).
 
       KDBUS_ITEM_CREDS
+      KDBUS_ITEM_PIDS
       KDBUS_ITEM_SECLABEL
         Privileged bus users may submit these types in order to create
         connections with faked credentials. The only real use case for this
