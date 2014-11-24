@@ -221,13 +221,23 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta,
 	struct kdbus_creds creds = {
 		.uid = from_kuid_munged(domain->user_namespace, current_uid()),
 		.gid = from_kgid_munged(domain->user_namespace, current_gid()),
+	};
+
+	return kdbus_meta_append_data(meta, KDBUS_ITEM_CREDS,
+				      &creds, sizeof(creds));
+}
+
+static int kdbus_meta_append_pids(struct kdbus_meta *meta,
+				  const struct kdbus_domain *domain)
+{
+	struct kdbus_pids pids = {
 		.pid = task_tgid_nr_ns(current, domain->pid_namespace),
 		.tid = task_pid_nr_ns(current, domain->pid_namespace),
 		.starttime = current->start_time,
 	};
 
-	return kdbus_meta_append_data(meta, KDBUS_ITEM_CREDS,
-				      &creds, sizeof(creds));
+	return kdbus_meta_append_data(meta, KDBUS_ITEM_PIDS,
+				      &pids, sizeof(pids));
 }
 
 static int kdbus_meta_append_auxgroups(struct kdbus_meta *meta,
@@ -507,6 +517,14 @@ int kdbus_meta_append(struct kdbus_meta *meta,
 			return ret;
 
 		meta->attached |= KDBUS_ATTACH_CREDS;
+	}
+
+	if (mask & KDBUS_ATTACH_PIDS) {
+		ret = kdbus_meta_append_pids(meta, domain);
+		if (ret < 0)
+			return ret;
+
+		meta->attached |= KDBUS_ATTACH_PIDS;
 	}
 
 	if (mask & KDBUS_ATTACH_AUXGROUPS) {

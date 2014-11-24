@@ -562,11 +562,16 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 		}
 
 		case KDBUS_ITEM_CREDS:
-			kdbus_printf("  +%s (%llu bytes) uid=%lld, gid=%lld, pid=%lld, tid=%lld, starttime=%lld\n",
+			kdbus_printf("  +%s (%llu bytes) uid=%lld, gid=%lld\n",
 				enum_MSG(item->type), item->size,
-				item->creds.uid, item->creds.gid,
-				item->creds.pid, item->creds.tid,
-				item->creds.starttime);
+				item->creds.uid, item->creds.gid);
+			break;
+
+		case KDBUS_ITEM_PIDS:
+			kdbus_printf("  +%s (%llu bytes) pid=%lld, tid=%lld, starttime=%lld\n",
+				enum_MSG(item->type), item->size,
+				item->pids.pid, item->pids.tid,
+				item->pids.starttime);
 			break;
 
 		case KDBUS_ITEM_AUXGROUPS: {

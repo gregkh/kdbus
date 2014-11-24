@@ -198,6 +198,9 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	struct kdbus_creds cached_creds = {
 		.uid	= getuid(),
 		.gid	= getgid(),
+	};
+
+	struct kdbus_pids cached_pids = {
 		.pid	= getpid(),
 		.tid	= syscall(SYS_gettid),
 	};
@@ -242,9 +245,14 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 
 	/* Compare item->creds with cached creds */
 	ASSERT_RETURN(item->creds.uid == cached_creds.uid &&
-		      item->creds.gid == cached_creds.gid &&
-		      item->creds.pid == cached_creds.pid &&
-		      item->creds.tid == cached_creds.tid);
+		      item->creds.gid == cached_creds.gid);
+
+	item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
+	ASSERT_RETURN(item);
+
+	/* Compare item->pids with cached PIDs */
+	ASSERT_RETURN(item->pids.pid == cached_pids.pid &&
+		      item->pids.tid == cached_pids.tid);
 
 	/* We did not request KDBUS_ITEM_CAPS */
 	item = kdbus_get_item(info, KDBUS_ITEM_CAPS);
@@ -296,10 +304,19 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 		 * cmd_info will always return cached creds.
 		 */
 		ASSERT_EXIT(item->creds.uid == cached_creds.uid &&
-			    item->creds.gid == cached_creds.gid &&
-			    item->creds.pid == cached_creds.pid &&
-			    item->creds.tid == cached_creds.tid);
+			    item->creds.gid == cached_creds.gid);
 
+		item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
+		ASSERT_EXIT(item);
+
+		/*
+		 * Compare item->pids with cached pids of
+		 * privileged one.
+		 *
+		 * cmd_info will always return cached pids.
+		 */
+		ASSERT_EXIT(item->pids.pid == cached_pids.pid &&
+			    item->pids.tid == cached_pids.tid);
 		kdbus_free(conn, offset);
 
 		/*
@@ -322,9 +339,17 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 
 		/* Compare item->creds with cached creds */
 		ASSERT_EXIT(item->creds.uid == cached_creds.uid &&
-			    item->creds.gid == cached_creds.gid &&
-			    item->creds.pid == cached_creds.pid &&
-			    item->creds.tid == cached_creds.tid);
+			    item->creds.gid == cached_creds.gid);
+
+		cnt = kdbus_count_item(info, KDBUS_ITEM_PIDS);
+		ASSERT_EXIT(cnt == 1);
+
+		item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
+		ASSERT_EXIT(item);
+
+		/* Compare item->pids with cached pids */
+		ASSERT_EXIT(item->pids.pid == cached_pids.pid &&
+			    item->pids.tid == cached_pids.tid);
 
 		cnt = kdbus_count_item(info, KDBUS_ITEM_CGROUP);
 		ASSERT_EXIT(cnt == 1);
