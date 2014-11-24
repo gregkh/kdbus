@@ -58,14 +58,26 @@ struct kdbus_notify_name_change {
 /**
  * struct kdbus_creds - process credentials
  * @uid:		User ID
+ * @euid:		Effective UID
+ * @suid:		Saved UID
+ * @fsuid:		Filesystem UID
  * @gid:		Group ID
+ * @egid:		Effective GID
+ * @sgid:		Saved GID
+ * @fsgid:		Filesystem GID
  *
  * Attached to:
  *   KDBUS_ITEM_CREDS
  */
 struct kdbus_creds {
 	__u64 uid;
+	__u64 euid;
+	__u64 suid;
+	__u64 fsuid;
 	__u64 gid;
+	__u64 egid;
+	__u64 sgid;
+	__u64 fsgid;
 };
 
 /**

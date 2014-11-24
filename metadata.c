@@ -218,9 +218,17 @@ static int kdbus_meta_append_timestamp(struct kdbus_meta *meta,
 static int kdbus_meta_append_cred(struct kdbus_meta *meta,
 				  const struct kdbus_domain *domain)
 {
+	struct user_namespace *ns = domain->user_namespace;
+
 	struct kdbus_creds creds = {
-		.uid = from_kuid_munged(domain->user_namespace, current_uid()),
-		.gid = from_kgid_munged(domain->user_namespace, current_gid()),
+		.uid	= from_kuid_munged(ns, current_uid()),
+		.euid	= from_kuid_munged(ns, current_euid()),
+		.suid	= from_kuid_munged(ns, current_suid()),
+		.fsuid	= from_kuid_munged(ns, current_fsuid()),
+		.gid	= from_kgid_munged(ns, current_gid()),
+		.egid	= from_kgid_munged(ns, current_egid()),
+		.sgid	= from_kgid_munged(ns, current_sgid()),
+		.fsgid	= from_kgid_munged(ns, current_fsgid()),
 	};
 
 	return kdbus_meta_append_data(meta, KDBUS_ITEM_CREDS,
