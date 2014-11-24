@@ -1549,7 +1549,13 @@ The following attach flags are currently supported.
 
   KDBUS_ATTACH_CREDS
     Attaches an item of type KDBUS_ITEM_CREDS, containing credentials as
-    described in kdbus_creds: the uid, gid, pid, tid and starttime of the task.
+    described in struct kdbus_creds: the user and group IDs in the usual four
+    flavors: real, effective, saved and file-system related.
+
+  KDBUS_ATTACH_PIDS
+    Attaches an item of type KDBUS_ITEM_PIDS, containing information on the
+    process. In particular, the PID (process ID) and TID (thread ID), along
+    with the start time of the process to detect re-used PIDs.
 
   KDBUS_ATTACH_AUXGROUPS
     Attaches an item of type KDBUS_ITEM_AUXGROUPS, containing a dynamic

@@ -4,6 +4,14 @@ since v2:
     their own kdbusfs instances without being root in the parent
     user-ns. Spotted by Andy Lutomirski.
 
+  * Split PID and TID from KDBUS_ITEM_CREDS into KDBUS_ITEM_PIDS.
+    The starttime is there to detect re-used PIDs, so move it to that
+    new item type as well. Consequently, introduce struct kdbus_pids
+    to accommodate the information. Requested by Andy Lutomirski.
+
+  * Add {e,s,fs}{u,g}id to KDBUS_ITEM_CREDS, so users have a way to
+    get more fine-grained credential information.
+
   * Some fixes in kdbus.txt, spotted by Harald Hoyer and Andy
     Lutomirski.
 
