@@ -221,8 +221,8 @@ static int kdbus_meta_append_cred(struct kdbus_meta *meta,
 	struct kdbus_creds creds = {
 		.uid = from_kuid_munged(domain->user_namespace, current_uid()),
 		.gid = from_kgid_munged(domain->user_namespace, current_gid()),
-		.pid = task_pid_nr_ns(current, domain->pid_namespace),
-		.tid = task_tgid_nr_ns(current, domain->pid_namespace),
+		.pid = task_tgid_nr_ns(current, domain->pid_namespace),
+		.tid = task_pid_nr_ns(current, domain->pid_namespace),
 		.starttime = current->start_time,
 	};
 
