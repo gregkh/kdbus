@@ -11,7 +11,10 @@ since v2:
 
   * Build fix for s390
 
-  * Test case fix for 32bit archs.
+  * Test case fix for 32bit archs
+
+  * copy_from_user() return code issue fixed, reported by
+    Dan Carpenter.
 
   * Avoid signed int overflow on archs without atomic_sub
 
