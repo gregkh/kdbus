@@ -718,7 +718,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		}
 
 		/* free the memory used in the receiver's pool */
-		ret = copy_from_user(&cmd_free, buf, sizeof(cmd_free));
+		ret = kdbus_copy_from_user(&cmd_free, buf,
+					   sizeof(cmd_free));
 		if (ret < 0)
 			break;
 

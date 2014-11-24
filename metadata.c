@@ -361,9 +361,10 @@ static int kdbus_meta_append_cmdline(struct kdbus_meta *meta)
 	if (len > PAGE_SIZE)
 		len = PAGE_SIZE;
 
-	ret = copy_from_user(tmp, (const char __user *)mm->arg_start, len);
-	if (ret < 0)
+	if (copy_from_user(tmp, (const char __user *)mm->arg_start, len)) {
+		ret = -EFAULT;
 		goto exit_mmput;
+	}
 
 	ret = kdbus_meta_append_data(meta, KDBUS_ITEM_CMDLINE, tmp, len);
 
