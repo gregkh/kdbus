@@ -256,9 +256,13 @@ struct kdbus_policy_access {
  * @KDBUS_ITEM_OWNED_NAME:		A name owned by the associated
  *					connection
  * @KDBUS_ITEM_TID_COMM:		Thread ID "comm" identifier
+ *					(Don't trust this, see below.)
  * @KDBUS_ITEM_PID_COMM:		Process ID "comm" identifier
+ *					(Don't trust this, see below.)
  * @KDBUS_ITEM_EXE:			The path of the executable
+ *					(Don't trust this, see below.)
  * @KDBUS_ITEM_CMDLINE:			The process command line
+ *					(Don't trust this, see below.)
  * @KDBUS_ITEM_CGROUP:			The croup membership
  * @KDBUS_ITEM_CAPS:			The process capabilities
  * @KDBUS_ITEM_SECLABEL:		The security label
@@ -275,6 +279,12 @@ struct kdbus_policy_access {
  * @KDBUS_ITEM_ID_REMOVE:		Notification in kdbus_notify_id_change
  * @KDBUS_ITEM_REPLY_TIMEOUT:		Timeout has been reached
  * @KDBUS_ITEM_REPLY_DEAD:		Destination died
+ *
+ * N.B: The process and thread COMM fields, as well as the CMDLINE and
+ * EXE fields may be altered by unprivileged processes und should
+ * hence *not* used for security decisions. Peers should make use of
+ * these items only for informational purposes, such as generating log
+ * records.
  */
 enum kdbus_item_type {
 	_KDBUS_ITEM_NULL,
