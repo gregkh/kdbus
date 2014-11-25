@@ -109,6 +109,7 @@ static int handle_ep_open(struct inode *inode, struct file *file)
 
 	ret = kdbus_meta_append(handle->meta, handle->ep->bus->domain, NULL, 0,
 				KDBUS_ATTACH_CREDS	|
+				KDBUS_ATTACH_PIDS	|
 				KDBUS_ATTACH_AUXGROUPS	|
 				KDBUS_ATTACH_TID_COMM	|
 				KDBUS_ATTACH_PID_COMM	|

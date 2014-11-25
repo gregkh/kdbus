@@ -182,6 +182,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 
 	ret = kdbus_meta_append(b->meta, domain, NULL, 0,
 				KDBUS_ATTACH_CREDS	|
+				KDBUS_ATTACH_PIDS	|
+				KDBUS_ATTACH_AUXGROUPS	|
 				KDBUS_ATTACH_TID_COMM	|
 				KDBUS_ATTACH_PID_COMM	|
 				KDBUS_ATTACH_EXE	|
