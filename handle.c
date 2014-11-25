@@ -699,6 +699,11 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 					  struct kdbus_cmd_recv))
 			ret = -EFAULT;
 
+		/* return the size of the next message in the pool */
+		if (kdbus_member_set_user(&cmd_recv.msg_size, buf,
+					  struct kdbus_cmd_recv, msg_size))
+			ret = -EFAULT;
+
 		break;
 	}
 

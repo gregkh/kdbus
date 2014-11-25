@@ -46,6 +46,22 @@
 })
 
 /**
+ * kdbus_member_set_user - write a structure member to user memory
+ * @_s:			Variable to copy from
+ * @_b:			Buffer to write to
+ * @_t:			Structure type
+ * @_m:			Member name in the passed structure
+ *
+ * Return: the result of copy_to_user()
+ */
+#define kdbus_member_set_user(_s, _b, _t, _m)				\
+({									\
+	u64 __user *_sz =						\
+		(void __user *)((u8 __user *)(_b) + offsetof(_t, _m));	\
+	copy_to_user(_sz, _s, sizeof(((_t*)0)->_m));			\
+})
+
+/**
  * kdbus_offset_set_user - write the offset variable to user memory
  * @_s:			Offset variable
  * @_b:			Buffer to write to
@@ -53,12 +69,8 @@
  *
  * Return: the result of copy_to_user()
  */
-#define kdbus_offset_set_user(_s, _b, _t)				\
-({									\
-	u64 __user *_sz =						\
-		(void __user *)((u8 __user *)(_b) + offsetof(_t, offset)); \
-	copy_to_user(_sz, _s, sizeof(__u64));				\
-})
+#define kdbus_offset_set_user(_s, _b, _t) \
+	kdbus_member_set_user((_s), (_b), _t, offset)
 
 /**
  * kdbus_str_hash - calculate a hash

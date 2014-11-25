@@ -926,9 +926,10 @@ struct kdbus_cmd_recv {
 
   __u64 msg_size;
       Upon successful return of the ioctl, this field contains the size of the
-      kdbus_msg object stored at offset @offset. This field is equivalent to the
-      first 8-byte 'size' member of the message. It's a convenience value to
-      allow connections to map only the message-part of the pool.
+      allocated slice at offset @offset. It is the combination of the size of
+      the stored kdbus_msg object plus all appended VECs. You can use it in
+      combination with @offset to map a single message, instead of mapping the
+      whole pool.
 };
 
 Unless KDBUS_RECV_DROP was passed, and given that the ioctl succeeded, the
