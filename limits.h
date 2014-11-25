@@ -63,13 +63,13 @@
 #define KDBUS_CONN_MAX_MSGS_PER_USER		16
 
 /* maximum number of well-known names per connection */
-#define KDBUS_CONN_MAX_NAMES			64
+#define KDBUS_CONN_MAX_NAMES			256
 
 /* maximum number of queued requests waiting for a reply */
 #define KDBUS_CONN_MAX_REQUESTS_PENDING		128
 
 /* maximum number of connections per user in one domain */
-#define KDBUS_USER_MAX_CONN			256
+#define KDBUS_USER_MAX_CONN			1024
 
 /* maximum number of buses per user in one domain */
 #define KDBUS_USER_MAX_BUSES			16
