@@ -373,38 +373,15 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 					       kmsg))
 			continue;
 
-		/*
-		 * Check if there is a policy db that prevents the
-		 * destination connection from receiving this kernel
-		 * notification
-		 */
-		ret = kdbus_ep_policy_check_notification(conn_dst->ep,
-							 conn_dst, kmsg);
-		if (ret < 0)
-			continue;
-
-		/*
-		 * The first receiver which requests additional metadata
-		 * causes the message to carry it; data that is in fact added
-		 * to the message is still subject to what the receiver
-		 * requested, and will be filtered by kdbus_meta_write().
-		 */
 		if (conn_src) {
-			/* Check if conn_src is allowed to signal */
-			ret = kdbus_ep_policy_check_broadcast(conn_dst->ep,
-							      conn_src,
-							      conn_dst);
-			if (ret < 0)
-				continue;
-
 			/*
-			 * check whether conn_dst is allowed to see
-			 * messages comming from one of the names
-			 * owned by conn_src
+			 * Anyone can send broadcasts, as they have no
+			 * destination. But a receiver needs TALK access to
+			 * the sender in order to receive broadcasts.
 			 */
-			ret = kdbus_ep_policy_check_src_names(conn_dst->ep,
-							      conn_src,
-							      conn_dst);
+			ret = kdbus_ep_policy_check_talk_access(conn_dst->ep,
+								conn_dst,
+								conn_src);
 			if (ret < 0)
 				continue;
 
@@ -412,6 +389,17 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 							 conn_dst);
 			if (ret < 0)
 				goto exit_unlock;
+		} else {
+			/*
+			 * Check if there is a policy db that prevents the
+			 * destination connection from receiving this kernel
+			 * notification
+			 */
+			ret = kdbus_ep_policy_check_notification(conn_dst->ep,
+								 conn_dst,
+								 kmsg);
+			if (ret < 0)
+				continue;
 		}
 
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);

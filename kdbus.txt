@@ -1428,10 +1428,8 @@ name, and policy is applied to the connection, not the name. In other words,
 the effective TALK policy for a connection is the most permissive of all names
 the connection owns.
 
-For broadcast messages, if the destination connection owns well-known
-names then the policy database might be consulted for a TALK access on
-these names. This means a well-known name with a restricted TALK policy
-will receive broadcast messages only from authorized connections.
+For broadcast messages, the receiver needs TALK permissions to the sender to
+receive the broadcast.
 
 If a policy database exists for a bus (because a policy holder created one on
 demand) or for a custom endpoint (which always has one), each one is consulted
@@ -1458,12 +1456,6 @@ any user-supplied policy is checked.
     reason to enforce installed policies.
   * Connections can always talk to connections of the same user. This
     includes broadcast messages.
-  * Connections might send broadcast messages to other connections that
-    belong to a different user, but only if:
-    The sending connection owns a well-known name and the destination
-    connection does not own any well-known name. In case the destination
-    connection owns well-known names, the policy database is consulted
-    for a TALK access on these names as it is done for unicast messages.
 
 Custom endpoints have stricter policies. The following rules apply:
 

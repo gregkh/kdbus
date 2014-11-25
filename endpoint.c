@@ -444,55 +444,6 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 }
 
 /**
- * kdbus_ep_policy_check_broadcast() - verify a connection can send
- *				       broadcast messages to the
- *				       passed connection
- * @ep:			Endpoint to operate on
- * @conn_src:		Connection that tries to talk
- * @conn_dst:		Connection that is talked to
- *
- * This verifies that @conn_src is allowed to send broadcast messages
- * to @conn_dst via the endpoint @ep.
- *
- * Return: 0 if allowed, negative error code if not.
- */
-int kdbus_ep_policy_check_broadcast(struct kdbus_ep *ep,
-				    struct kdbus_conn *conn_src,
-				    struct kdbus_conn *conn_dst)
-{
-	int ret;
-
-	/* First check the custom endpoint with its policies */
-	ret = kdbus_custom_ep_check_talk_access(ep, conn_src, conn_dst);
-	if (ret < 0)
-		return ret;
-
-	/* Then check if it satisfies the implicit policies */
-	if (kdbus_ep_has_default_talk_access(conn_src, conn_dst))
-		return 0;
-
-	/*
-	 * If conn_src owns names on the bus, and the conn_dst does
-	 * not own any name, then allow conn_src to signal to
-	 * conn_dst. Otherwise fallback and perform the bus policy
-	 * check on conn_dst.
-	 *
-	 * This way we allow services to signal on the bus, and we
-	 * block broadcasts directed to services that own names and
-	 * do not want to receive these messages unless there is a
-	 * policy entry to permit it. By this we try to follow the
-	 * same logic used for unicat messages.
-	 */
-	if (atomic_read(&conn_src->name_count) > 0 &&
-	    atomic_read(&conn_dst->name_count) == 0)
-		return 0;
-
-	/* Fallback to the default endpoint policy */
-	return kdbus_policy_check_talk_access(&ep->bus->policy_db,
-					      conn_src, conn_dst);
-}
-
-/**
  * kdbus_ep_policy_check_own_access() - verify a connection can own the passed
  *					name
  * @ep:			Endpoint to operate on
