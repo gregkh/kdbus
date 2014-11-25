@@ -120,18 +120,18 @@ static int handle_ep_open(struct inode *inode, struct file *file)
 		goto exit_free;
 	}
 
-	ret = kdbus_meta_append(handle->meta, domain, NULL, 0,
-				KDBUS_ATTACH_CREDS	|
-				KDBUS_ATTACH_PIDS	|
-				KDBUS_ATTACH_AUXGROUPS	|
-				KDBUS_ATTACH_TID_COMM	|
-				KDBUS_ATTACH_PID_COMM	|
-				KDBUS_ATTACH_EXE	|
-				KDBUS_ATTACH_CMDLINE	|
-				KDBUS_ATTACH_CGROUP	|
-				KDBUS_ATTACH_CAPS	|
-				KDBUS_ATTACH_SECLABEL	|
-				KDBUS_ATTACH_AUDIT);
+	ret = kdbus_meta_collect(handle->meta, 0,
+				 KDBUS_ATTACH_CREDS	|
+				 KDBUS_ATTACH_PIDS	|
+				 KDBUS_ATTACH_AUXGROUPS	|
+				 KDBUS_ATTACH_TID_COMM	|
+				 KDBUS_ATTACH_PID_COMM	|
+				 KDBUS_ATTACH_EXE	|
+				 KDBUS_ATTACH_CMDLINE	|
+				 KDBUS_ATTACH_CGROUP	|
+				 KDBUS_ATTACH_CAPS	|
+				 KDBUS_ATTACH_SECLABEL	|
+				 KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
 		goto exit_free;
 
@@ -141,7 +141,7 @@ static int handle_ep_open(struct inode *inode, struct file *file)
 	return 0;
 
 exit_free:
-	kdbus_meta_free(handle->meta);
+	kdbus_meta_unref(handle->meta);
 	kdbus_ep_unref(handle->ep);
 	kfree(handle);
 exit_node:
@@ -169,7 +169,7 @@ static int handle_ep_release(struct inode *inode, struct file *file)
 		break;
 	}
 
-	kdbus_meta_free(handle->meta);
+	kdbus_meta_unref(handle->meta);
 	kdbus_ep_unref(handle->ep);
 	kfree(handle);
 

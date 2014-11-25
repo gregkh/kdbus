@@ -46,7 +46,7 @@ static void kdbus_bus_free(struct kdbus_node *node)
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
-	kdbus_meta_free(bus->meta);
+	kdbus_meta_unref(bus->meta);
 	kfree(bus);
 }
 
@@ -180,18 +180,18 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
-	ret = kdbus_meta_append(b->meta, domain, NULL, 0,
-				KDBUS_ATTACH_CREDS	|
-				KDBUS_ATTACH_PIDS	|
-				KDBUS_ATTACH_AUXGROUPS	|
-				KDBUS_ATTACH_TID_COMM	|
-				KDBUS_ATTACH_PID_COMM	|
-				KDBUS_ATTACH_EXE	|
-				KDBUS_ATTACH_CMDLINE	|
-				KDBUS_ATTACH_CGROUP	|
-				KDBUS_ATTACH_CAPS	|
-				KDBUS_ATTACH_SECLABEL	|
-				KDBUS_ATTACH_AUDIT);
+	ret = kdbus_meta_collect(b->meta, 0,
+				 KDBUS_ATTACH_CREDS	|
+				 KDBUS_ATTACH_PIDS	|
+				 KDBUS_ATTACH_AUXGROUPS	|
+				 KDBUS_ATTACH_TID_COMM	|
+				 KDBUS_ATTACH_PID_COMM	|
+				 KDBUS_ATTACH_EXE	|
+				 KDBUS_ATTACH_CMDLINE	|
+				 KDBUS_ATTACH_CGROUP	|
+				 KDBUS_ATTACH_CAPS	|
+				 KDBUS_ATTACH_SECLABEL	|
+				 KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -428,12 +428,17 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_pool_slice *slice;
 	struct kdbus_info info = {};
 	u64 flags = cmd_info->flags;
+	u8 *buf = NULL;
+	size_t size;
 	int ret;
+
+	ret = kdbus_meta_export(bus->meta, NULL, conn, flags, &buf, &size);
+	if (ret < 0)
+		return ret;
 
 	info.id = bus->id;
 	info.flags = bus->bus_flags;
-	info.size = sizeof(info) +
-		    kdbus_meta_size(bus->meta, conn, &flags);
+	info.size = sizeof(info) + size;
 
 	if (info.size == 0)
 		return -EPERM;
@@ -446,7 +451,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	if (ret < 0)
 		goto exit_free_slice;
 
-	ret = kdbus_meta_write(bus->meta, conn, flags, slice, sizeof(info));
+	ret = kdbus_pool_slice_copy(slice, sizeof(info), buf, size);
 	if (ret < 0)
 		goto exit_free_slice;
 
@@ -454,10 +459,12 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	cmd_info->offset = kdbus_pool_slice_offset(slice);
 	kdbus_pool_slice_flush(slice);
 	kdbus_pool_slice_make_public(slice);
+	kfree(buf);
 
 	return 0;
 
 exit_free_slice:
 	kdbus_pool_slice_free(slice);
+	kfree(buf);
 	return ret;
 }

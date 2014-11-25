@@ -782,11 +782,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * of messages, and nothing that is gathered at retrieved from
 		 * 'current' at the time of sending.
 		 *
-		 * Hence, in such cases, duplicate the connection's owner_meta,
-		 * and take care not to augment it by attaching any new items.
+		 * Hence, in such cases, take a reference of the connection's
+		 * owner_meta, and take care not to augment it by attaching any
+		 * new items.
 		 */
 		if (conn_src->owner_meta)
-			kmsg->meta = kdbus_meta_dup(conn_src->owner_meta);
+			kmsg->meta = kdbus_meta_ref(conn_src->owner_meta);
 		else
 			kmsg->meta = kdbus_meta_new();
 
@@ -1116,7 +1117,10 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_conn_purge_policy_cache(conn);
 	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
 
-	kdbus_meta_free(conn->owner_meta);
+	put_user_ns(conn->user_namespace);
+	put_pid_ns(conn->pid_namespace);
+
+	kdbus_meta_unref(conn->owner_meta);
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
@@ -1312,8 +1316,9 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	struct kdbus_info info = {};
 	struct kdbus_meta *meta = NULL;
 	struct kdbus_pool_slice *slice;
-	u64 extra_flags, attach_flags;
-	size_t pos, meta_size;
+	u8 *meta_buf = NULL;
+	size_t meta_size;
+	u64 attach_flags;
 	int ret = 0;
 
 	if (cmd_info->id == 0) {
@@ -1361,32 +1366,12 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	attach_flags = cmd_info->flags &
 		       atomic64_read(&owner_conn->attach_flags_send);
 
-	meta_size = kdbus_meta_size(owner_conn->meta, conn, &attach_flags);
+	ret = kdbus_meta_export(owner_conn->meta, owner_conn, conn,
+				attach_flags, &meta_buf, &meta_size);
+	if (ret < 0)
+		goto exit;
+
 	info.size += meta_size;
-
-	/*
-	 * Unlike the rest of the values which are cached at connection
-	 * creation time, some values need to be appended here because
-	 * at creation time a connection does not have names and other
-	 * properties.
-	 */
-	extra_flags = attach_flags & (KDBUS_ATTACH_NAMES |
-				      KDBUS_ATTACH_CONN_DESCRIPTION);
-	if (extra_flags) {
-		meta = kdbus_meta_new();
-		if (IS_ERR(meta)) {
-			ret = PTR_ERR(meta);
-			meta = NULL;
-			goto exit;
-		}
-
-		ret = kdbus_meta_append(meta, conn->ep->bus->domain,
-					owner_conn, 0, extra_flags);
-		if (ret < 0)
-			goto exit;
-
-		info.size += kdbus_meta_size(meta, conn, &extra_flags);
-	}
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
@@ -1399,22 +1384,9 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	if (ret < 0)
 		goto exit_free;
 
-	pos = sizeof(info);
-
-	if (meta_size) {
-		ret = kdbus_meta_write(owner_conn->meta, conn,
-				       attach_flags, slice, pos);
-		if (ret < 0)
-			goto exit_free;
-
-		pos += meta_size;
-	}
-
-	if (extra_flags) {
-		ret = kdbus_meta_write(meta, conn, extra_flags, slice, pos);
-		if (ret < 0)
-			goto exit_free;
-	}
+	ret = kdbus_pool_slice_copy(slice, sizeof(info), meta_buf, meta_size);
+	if (ret < 0)
+		goto exit_free;
 
 	/* write back the offset */
 	cmd_info->offset = kdbus_pool_slice_offset(slice);
@@ -1426,7 +1398,8 @@ exit_free:
 		kdbus_pool_slice_free(slice);
 
 exit:
-	kdbus_meta_free(meta);
+	kfree(meta_buf);
+	kdbus_meta_unref(meta);
 	kdbus_conn_unref(owner_conn);
 	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
 
@@ -1690,6 +1663,16 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);
 
+	/*
+	 * Pin user and PID namespaces so we can translate metadata items
+	 * into the context of the domain. The mount namespace is only
+	 * recorded for comparison, so we can drop items that should not be
+	 * sent across mount namespaces.
+	 */
+	conn->pid_namespace = get_pid_ns(task_active_pid_ns(current));
+	conn->mnt_namespace = current->nsproxy->mnt_ns;
+	conn->user_namespace = get_user_ns(current_user_ns());
+
 	conn->pool = kdbus_pool_new(conn->name, hello->pool_size);
 	if (IS_ERR(conn->pool)) {
 		ret = PTR_ERR(conn->pool);
@@ -1745,34 +1728,14 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_release_names;
 		}
 
-		if (creds) {
-			ret = kdbus_meta_append_data(conn->owner_meta,
-						     KDBUS_ITEM_CREDS,
-						     creds, sizeof(*creds));
-			if (ret < 0)
-				goto exit_free_meta;
-		}
-
-		if (pids) {
-			ret = kdbus_meta_append_data(conn->owner_meta,
-						     KDBUS_ITEM_PIDS,
-						     pids, sizeof(*pids));
-			if (ret < 0)
-				goto exit_free_meta;
-		}
-
-		if (seclabel) {
-			ret = kdbus_meta_append_data(conn->owner_meta,
-						     KDBUS_ITEM_SECLABEL,
-						     seclabel, seclabel_len);
-			if (ret < 0)
-				goto exit_free_meta;
-		}
+		ret = kdbus_meta_fake(meta, creds, pids, seclabel);
+		if (ret < 0)
+			goto exit_free_meta;
 
 		/* use the information provided with the HELLO call */
 		conn->meta = conn->owner_meta;
 	} else {
-		/* use the connection's metadata gathered at open() */
+		/* use the connection's metadata collected at open() */
 		conn->meta = meta;
 	}
 
@@ -1838,7 +1801,7 @@ exit_unref_user_unlock:
 exit_domain_user_unref:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
-	kdbus_meta_free(conn->owner_meta);
+	kdbus_meta_unref(conn->owner_meta);
 exit_release_names:
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
 exit_unref_ep:

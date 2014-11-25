@@ -46,7 +46,7 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
 	kdbus_fput_files(kmsg->memfds, kmsg->memfds_count);
 	kdbus_fput_files(kmsg->fds, kmsg->fds_count);
-	kdbus_meta_free(kmsg->meta);
+	kdbus_meta_unref(kmsg->meta);
 	kfree(kmsg->memfds);
 	kfree(kmsg->fds);
 	kfree(kmsg);
@@ -431,14 +431,6 @@ int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
 			       struct kdbus_conn *conn_src,
 			       struct kdbus_conn *conn_dst)
 {
-	u64 attach_flags;
-
-	attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
-
-	if (conn_src->owner_meta)
-		attach_flags &= KDBUS_ATTACH_NAMES |
-				KDBUS_ATTACH_CONN_DESCRIPTION;
-
-	return kdbus_meta_append(kmsg->meta, conn_dst->ep->bus->domain,
-				 conn_src, kmsg->seq, attach_flags);
+	u64 attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
+	return kdbus_meta_collect(kmsg->meta, kmsg->seq, attach_flags);
 }

@@ -71,7 +71,6 @@ static void kdbus_domain_free(struct kdbus_node *node)
 
 	BUG_ON(!hash_empty(domain->user_hash));
 
-	put_pid_ns(domain->pid_namespace);
 	put_user_ns(domain->user_namespace);
 	idr_destroy(&domain->user_idr);
 	kfree(domain);
@@ -106,14 +105,7 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 
-	/*
-	 * Pin user and PID namespaces so we can translate metadata items
-	 * into the context of the domain. The mount namespace is only
-	 * recorded for comparison, so we can drop items that should not be
-	 * sent across mount namespaces.
-	 */
-	d->pid_namespace = get_pid_ns(task_active_pid_ns(current));
-	d->mnt_namespace = current->nsproxy->mnt_ns;
+	/* Pin user namespace so we can guarantee domain-unique bus * names. */
 	d->user_namespace = get_user_ns(current_user_ns());
 
 	ret = kdbus_node_link(&d->node, NULL, NULL);

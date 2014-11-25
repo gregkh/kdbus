@@ -27,12 +27,12 @@
 #include <linux/slab.h>
 #include <linux/syscalls.h>
 
+#include "util.h"
 #include "domain.h"
 #include "connection.h"
 #include "item.h"
 #include "message.h"
 #include "metadata.h"
-#include "util.h"
 #include "queue.h"
 
 static int kdbus_queue_entry_fds_install(struct kdbus_queue_entry *entry)
@@ -423,6 +423,8 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	size_t vec_data;
 	size_t want, have;
 	int ret = 0;
+	u8 *meta_buf = NULL;
+	size_t meta_size;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
@@ -474,14 +476,14 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 
 	/* space for metadata/credential items */
 	if (kmsg->meta && attach_flags) {
-		size_t meta_size;
+		ret = kdbus_meta_export(kmsg->meta, conn_src,
+					conn_dst, attach_flags,
+					&meta_buf, &meta_size);
+		if (ret < 0)
+			goto exit_free_entry;
 
-		meta_size = kdbus_meta_size(kmsg->meta, conn_dst,
-					    &attach_flags);
-		if (meta_size > 0) {
-			meta_off = msg_size;
-			msg_size += meta_size;
-		}
+		meta_off = msg_size;
+		msg_size += meta_size;
 	}
 
 	/* data starts after the message */
@@ -570,11 +572,13 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	}
 
 	/* append message metadata/credential items */
-	if (meta_off > 0) {
-		ret = kdbus_meta_write(kmsg->meta, conn_dst, attach_flags,
-				       entry->slice, meta_off);
+	if (meta_buf) {
+		ret = kdbus_pool_slice_copy(entry->slice, meta_off,
+					    meta_buf, meta_size);
 		if (ret < 0)
 			goto exit_free_slice;
+
+		kfree(meta_buf);
 	}
 
 	entry->priority = kmsg->msg.priority;
@@ -584,6 +588,7 @@ exit_free_slice:
 	kdbus_pool_slice_free(entry->slice);
 exit_free_entry:
 	kdbus_queue_entry_free(entry);
+	kfree(meta_buf);
 	return ERR_PTR(ret);
 }
 

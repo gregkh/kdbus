@@ -20,19 +20,16 @@ struct kdbus_domain;
 struct kdbus_pool_slice;
 
 struct kdbus_meta *kdbus_meta_new(void);
-struct kdbus_meta *kdbus_meta_dup(const struct kdbus_meta *orig);
-int kdbus_meta_append_data(struct kdbus_meta *meta, u64 type,
-			   const void *buf, size_t len);
-int kdbus_meta_append(struct kdbus_meta *meta,
-		      struct kdbus_domain *domain,
-		      struct kdbus_conn *conn,
-		      u64 seq, u64 which);
-void kdbus_meta_free(struct kdbus_meta *meta);
-size_t kdbus_meta_size(const struct kdbus_meta *meta,
-		       const struct kdbus_conn *conn_dst,
-		       u64 *mask);
-int kdbus_meta_write(const struct kdbus_meta *meta,
-		     const struct kdbus_conn *conn_dst, u64 mask,
-		     const struct kdbus_pool_slice *slice, size_t off);
+struct kdbus_meta *kdbus_meta_ref(struct kdbus_meta *meta);
+struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta);
 
+int kdbus_meta_collect(struct kdbus_meta *meta, u64 seq, u64 which);
+int kdbus_meta_fake(struct kdbus_meta *meta,
+		    const struct kdbus_creds *creds,
+		    const struct kdbus_pids *pids,
+		    const char *seclabel);
+int kdbus_meta_export(const struct kdbus_meta *meta,
+		      struct kdbus_conn *conn_src,
+		      struct kdbus_conn *conn_dst,
+		      u64 mask, u8 **buf, size_t *size);
 #endif
