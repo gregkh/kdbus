@@ -62,17 +62,6 @@
 })
 
 /**
- * kdbus_offset_set_user - write the offset variable to user memory
- * @_s:			Offset variable
- * @_b:			Buffer to write to
- * @_t:			Structure, "offset" is a member of
- *
- * Return: the result of copy_to_user()
- */
-#define kdbus_offset_set_user(_s, _b, _t) \
-	kdbus_member_set_user((_s), (_b), _t, offset)
-
-/**
  * kdbus_str_hash - calculate a hash
  * @str:		String
  *
