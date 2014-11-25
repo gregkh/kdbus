@@ -187,10 +187,12 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	const struct kdbus_item *item;
 	uint64_t valid_flags = KDBUS_ATTACH_NAMES |
 			       KDBUS_ATTACH_CREDS |
+			       KDBUS_ATTACH_PIDS |
 			       KDBUS_ATTACH_CONN_DESCRIPTION;
 
 	uint64_t invalid_flags = KDBUS_ATTACH_NAMES	|
 				 KDBUS_ATTACH_CREDS	|
+				 KDBUS_ATTACH_PIDS	|
 				 KDBUS_ATTACH_CAPS	|
 				 KDBUS_ATTACH_CGROUP	|
 				 KDBUS_ATTACH_CONN_DESCRIPTION;
