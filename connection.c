@@ -355,8 +355,9 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	/* Give the offset back to the caller. */
+	/* Give the offset+size back to the caller. */
 	recv->offset = kdbus_pool_slice_offset(entry->slice);
+	recv->msg_size = kdbus_pool_slice_size(entry->slice);
 
 	/*
 	 * Just return the location of the next message. Do not install

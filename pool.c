@@ -359,6 +359,17 @@ size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 }
 
 /**
+ * kdbus_pool_slice_size() - return the size of the slice
+ * @slice:		The slice
+ *
+ * Return: the size in bytes.
+ */
+size_t kdbus_pool_slice_size(const struct kdbus_pool_slice *slice)
+{
+	return slice->size;
+}
+
+/**
  * kdbus_pool_slice_make_public() - set a slice's public flag to true
  * @slice:		The slice
  */

@@ -493,6 +493,11 @@ enum kdbus_recv_flags {
  *			-EOVERFLOW, this field will contain the number of
  *			broadcast messages that have been lost since the
  *			last call.
+ * @msg_size:		Filled by the kernel with the actual message size. This
+ *			mirrors the 'size' member of the message stored at
+ *			@offset, but allows callers to access it without mapping
+ *			their pool. By using @msg_size and @offset, you can map
+ *			only the message itself, not the whole pool.
  *
  * This struct is used with the KDBUS_CMD_MSG_RECV ioctl.
  */
@@ -504,6 +509,7 @@ struct kdbus_cmd_recv {
 		__u64 offset;
 		__u64 dropped_msgs;
 	};
+	__u64 msg_size;
 } __attribute__((aligned(8)));
 
 /**

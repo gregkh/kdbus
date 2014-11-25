@@ -32,6 +32,7 @@ int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
 			  struct kdbus_pool *dst_pool,
 			  struct kdbus_pool_slice **slice);
 size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice);
+size_t kdbus_pool_slice_size(const struct kdbus_pool_slice *slice);
 ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
 			      const void *data, size_t len);
 ssize_t kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice,
