@@ -429,15 +429,22 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 
 		security_task_getsecid(current, &sid);
 		ret = security_secid_to_secctx(sid, &ctx, &len);
-		if (ret < 0)
+		if (ret == -EOPNOTSUPP) {
+			/*
+			 * EOPNOTSUPP means no security module is active,
+			 * lets skip adding the seclabel then. This effectively
+			 * drops the SECLABEL item.
+			 */
+		} else if (ret < 0) {
 			return ret;
+		} else {
+			meta->seclabel = kstrdup(ctx, GFP_KERNEL);
+			if (!meta->seclabel)
+				return -ENOMEM;
 
-		meta->seclabel = kstrdup(ctx, GFP_KERNEL);
-		if (!meta->seclabel)
-			return -ENOMEM;
-
-		security_release_secctx(ctx, len);
-		meta->collected |= KDBUS_ATTACH_SECLABEL;
+			security_release_secctx(ctx, len);
+			meta->collected |= KDBUS_ATTACH_SECLABEL;
+		}
 	}
 #endif
 
