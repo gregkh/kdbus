@@ -4,6 +4,10 @@ since v2:
     their own kdbusfs instances without being root in the parent
     user-ns. Spotted by Andy Lutomirski.
 
+  * Rewrite major parts of the metadata implementation to allow for
+    per-recipient namespace translations. For this, namespaces are
+    now pinned to connections rather than to domains.
+
   * Split PID and TID from KDBUS_ITEM_CREDS into KDBUS_ITEM_PIDS.
     The starttime is there to detect re-used PIDs, so move it to that
     new item type as well. Consequently, introduce struct kdbus_pids
