@@ -6,6 +6,10 @@ filesystem called 'kdbusfs'. All communication between processes takes place
 via ioctls on files exposed through the mount point of a kdbusfs. The default
 mount point of kdbusfs is /sys/fs/kdbus.
 
+Please note that kdbus was designed as transport layer for D-Bus, but is in no
+way limited, nor controlled by the D-Bus protocol specification. The D-Bus
+protocol is one possible application layer on top of kdbus.
+
 For the general D-Bus protocol specification, the payload format, the
 marshaling, and the communication semantics, please refer to:
   http://dbus.freedesktop.org/doc/dbus-specification.html
@@ -30,36 +34,36 @@ Articles about D-Bus and kdbus:
   Bus:
     A bus is a named object inside a domain. Clients exchange messages
     over a bus. Multiple buses themselves have no connection to each other;
-    messages can only be exchanged on the same bus. The default entry point to
+    messages can only be exchanged on the same bus. The default endpoint of
     a bus, where clients establish the connection to, is the "bus" file
     /sys/fs/kdbus/<bus name>/bus.
     Common operating system setups create one "system bus" per system, and one
     "user bus" for every logged-in user. Applications or services may create
-    their own private named buses. See section 5 for more details.
+    their own private buses.  See section 5 for more details.
 
   Endpoint:
-    An endpoint provides the file to talk to a bus. Opening an endpoint
-    creates a new connection to the bus to which the endpoint belongs.
-    Inside the directory of the bus, every bus has a default endpoint
-    called "bus". A bus can optionally offer additional endpoints with
-    custom names to provide restricted access to the bus. Custom endpoints
-    carry additional policy which can be used to create sandboxes with a
-    locked-down, limited, filtered access to a bus.  See section 5 for
-    more details.
+    An endpoint provides a file to talk to a bus. Opening an endpoint
+    creates a new connection to the bus to which the endpoint belongs. All
+    endpoints have unique names and are accessible as files underneath the
+    directory of a bus, e.g., /sys/fs/kdbus/<bus>/<endpoint>
+    Every bus has a default endpoint called "bus". A bus can optionally offer
+    additional endpoints with custom names to provide restricted access to the
+    bus. Custom endpoints carry additional policy which can be used to create
+    sandboxes with locked-down, limited, filtered access to a bus.  See
+    section 5 for more details.
 
   Connection:
-    A connection to a bus is created by opening an endpoint file of inside a
-    bus' folder and becoming an active client with the HELLO exchange. Every
-    connected client connection has a unique identifier on the bus and can
-    address messages to every other connection on the same bus by using
-    the peer's connection id as the destination.
-    See section 6 for more details.
+    A connection to a bus is created by opening an endpoint file of a bus and
+    becoming an active client with the HELLO exchange. Every ordinary client
+    connection has a unique identifier on the bus and can address messages to
+    every other connection on the same bus by using the peer's connection id
+    as the destination.  See section 6 for more details.
 
   Pool:
     Each connection allocates a piece of shmem-backed memory that is used
-    to receive messages and answers to ioctl command from the kernel. It is
+    to receive messages and answers to ioctl commands from the kernel. It is
     never used to send anything to the kernel. In order to access that memory,
-    userspace must mmap() it into its task.
+    userspace must mmap() it into its address space.
     See section 12 for more details.
 
   Well-known Name:
@@ -99,14 +103,9 @@ Articles about D-Bus and kdbus:
   Policy:
     A policy is a set of rules that define which connections can see, talk to,
     or register a well-know name on the bus. A policy is attached to buses and
-    custom endpoints, and modified by policy holder connection or owners of
+    custom endpoints, and modified by policy holder connections or owners of
     custom endpoints. See section 11 for more details.
-
-    Access rules to allow who can see a name on the bus are only checked on
-    custom endpoints. Policies may be defined with names that end with '.*'.
-    When matching a well-known name against such a wildcard entry, the last
-    part of the name is ignored and checked against the wildcard name without
-    the trailing '.*'. See section 11 for more details.
+    See section 11 for more details.
 
   Privileged bus users:
     A user connecting to the bus is considered privileged if it is either the
@@ -119,16 +118,16 @@ Articles about D-Bus and kdbus:
 The kdbus interface is exposed through files in its kdbusfs mount point
 (defaults to /sys/fs/kdbus):
 
-  /sys/fs/kdbus
-  |-- control
-  |-- 0-system
-  |   |-- bus
-  |   `-- ep.apache
-  |-- 1000-user
-  |   `-- bus
-  `-- 2702-user
-      |-- bus
-      `-- ep.app
+  /sys/fs/kdbus                 (mount point of kdbusfs)
+  |-- control                   (domain control-file)
+  |-- 0-system                  (bus of user uid=0)
+  |   |-- bus                   (default endpoint of bus '0-system')
+  |   `-- ep.apache             (custom endpoint of bus '0-system')
+  |-- 1000-user                 (bus of user uid=1000)
+  |   `-- bus                   (default endpoint of bus '1000-user')
+  `-- 2702-user                 (bus of user uid=2702)
+      |-- bus                   (default endpoint of bus '2702-user')
+      `-- ep.app                (custom endpoint of bus '2702-user')
 
 
 3. Data Structures and flags
@@ -202,9 +201,10 @@ requested connection information.
 
 In all such occasions where items are used as part of the kdbus kernel API,
 they are embedded in structs that have an overall size of their own, so there
-can be many of them.
+can be multiple items per ioctl.
 
-The kernel expects all items to be aligned to 8-byte boundaries.
+The kernel expects all items to be aligned to 8-byte boundaries. Unaligned
+items are rejected.
 
 A simple iterator in userspace would iterate over the items until the items
 have reached the embedding structure's overall size. An example implementation
@@ -214,26 +214,61 @@ of such an iterator can be found in tools/testing/selftests/kdbus/kdbus-util.h.
 5. Creation of new domains, buses and endpoints
 ===============================================================================
 
-The initial kdbus domain is unconditionally created by the kernel module. A
-domain contains a "control" file which allows to create a new bus. New domains
-(mount points) do not have any buses created by default.
+
+5.1 Domains
+-----------
+
+A domain is a container of buses. Domains themselves do not provide any IPC
+functionality. Their sole purpose is to manage buses allocated in their
+domain. Each time kdbusfs is mounted, a new kdbus domain is created, with its
+own 'control' file. The lifetime of the domain ends once the user has unmounted
+the kdbusfs. If you mount kdbusfs multiple times, each will have its own kdbus
+domain internally. Operations performed on one domain do not affect any
+other domain.
+
+The full kdbusfs hierarchy, any subdirectory, or file can be bind-mounted to an
+external mount point and will remain fully functional. The kdbus domain and any
+linked resources stay available until the original mount and all subsequent
+bind-mounts have been unmounted.
+
+During creation, domains pin the user-namespace of the creator and use
+it as controlling user-namespace for this domain. Any user accounting is done
+relative to that user-namespace.
+
+Newly created kdbus domains do not have any bus pre-created. The only resource
+available is a 'control' file, which is used to manage kdbus domains.
+Currently, 'control' files are exclusively used to create buses via
+KDBUS_CMD_BUS_MAKE, but further ioctls might be added in the future.
 
 
-5.1 Buses
+5.2 Buses
 ---------
 
-Opening the control file returns a file descriptor which accepts the
-KDBUS_CMD_BUS_MAKE ioctl to create a new bus. The control file descriptor needs
-to be kept open for the entire life-time of the created bus, closing it will
-immediately cleanup the entire bus and all its associated resources and
-endpoints. Every control file descriptor can only be used once
-to create a new bus; from that point, it is not used for any further
-communication until the final close().
+A bus is a shared resource between connections to transmit messages. Each bus
+is independent and operations on the bus will not have any effect on other
+buses. A bus is a management entity, that controls the addresses of its
+connections, their policies and message transactions performed via this bus.
+
+Each bus is bound to the domain it was created on. It has a custom name that is
+unique across all buses of a domain. In kdbusfs, a bus is presented as a
+directory. No operations can be performed on the bus itself, instead you need
+to perform those on an endpoint associated with the bus. Endpoints are
+accessible as files underneath the bus directory. A default endpoint called
+"bus" is provided on each bus.
+
+To create a new bus, you need to open the control file of a domain and run the
+KDBUS_CMD_BUS_MAKE ioctl. The control file descriptor that was used to issue
+KDBUS_CMD_BUS_MAKE must not have been used for any other control-ioctl before
+and needs to be kept open for the entire life-time of the created bus. Closing
+it will immediately cleanup the entire bus and all its associated resources and
+endpoints. Every control file descriptor can only be used to create a single
+new bus; from that point on, it is not used for any further communication until
+the final close().
 
 Each bus will generate a random, 128-bit UUID upon creation. It will be
-returned to the creators of connections through kdbus_cmd_hello.id128 and can
+returned to creators of connections through kdbus_cmd_hello.id128 and can
 be used by userspace to uniquely identify buses, even across different machines
-or containers. The UUID will have its its variant bits set to 'DCE', and denote
+or containers. The UUID will have its variant bits set to 'DCE', and denote
 version 4 (random).
 
 Optionally, an item of type KDBUS_ITEM_ATTACH_FLAGS_RECV can be attached to
@@ -241,26 +276,25 @@ KDBUS_CMD_BUS_MAKE. In that, a set of required attach flags can be passed,
 which is used as negotiation measure during connection creation.
 
 
-5.2 Endpoints
+5.3 Endpoints
 -------------
 
 Endpoints are entry points to a bus. By default, each bus has a default
 endpoint called 'bus'. The bus owner has the ability to create custom
 endpoints with specific names, permissions, and policy databases (see below).
+An endpoint is presented as file underneath the directory of the parent bus.
 
-To create a custom endpoint, use the KDBUS_CMD_ENDPOINT_MAKE ioctl with struct
-kdbus_cmd_make. Custom endpoints always have a policy database that, by
-default, does not allow anything. Everything that users of this new endpoint
-should be able to do has to be explicitly specified through KDBUS_ITEM_NAME and
-KDBUS_ITEM_POLICY_ACCESS items.
+To create a custom endpoint, open the default endpoint ('bus') and use the
+KDBUS_CMD_ENDPOINT_MAKE ioctl with "struct kdbus_cmd_make". Custom endpoints
+always have a policy database that, by default, forbids any operation. You have
+to explicitly install policy entries to allow any operation on this endpoint.
+Once KDBUS_CMD_ENDPOINT_MAKE succeeded, this file descriptor will manage the
+newly created endpoint resource. It cannot be used to manage further resources.
 
-
-5.3 Domains
------------
-
-Each time a kdbusfs is mounted, a new kdbus domain is created, with its own
-'control' file only. The lifetime of the domain ends once the user has
-unmounted the kdbusfs.
+To create connections to a bus, you use KDBUS_CMD_HELLO. See section 6 for
+details. Note that once KDBUS_CMD_HELLO succeeded, this file descriptor manages
+the newly created connection resource. It cannot be used to manage further
+resources.
 
 
 5.4 Creating buses and endpoints
@@ -780,23 +814,23 @@ The layout of a message is shown below.
   | Message                                                                 |
   | +---------------------------------------------------------------------+ |
   | | Header                                                              | |
-  | | size: overall message size, including the data records              | |
-  | | destination: connection id of the receiver                          | |
-  | | source: connection id of the sender (set by kernel)                 | |
-  | | payload_type: "DBusDBus" textual identifier stored as uint64_t      | |
+  | | size:          overall message size, including the data records     | |
+  | | destination:   connection id of the receiver                        | |
+  | | source:        connection id of the sender (set by kernel)          | |
+  | | payload_type:  "DBusDBus" textual identifier stored as uint64_t     | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | Data Record                                                         | |
-  | | size: overall record size (without padding)                         | |
-  | | type: type of data                                                  | |
-  | | data: reference to data (address or file descriptor)                | |
+  | | size:  overall record size (without padding)                        | |
+  | | type:  type of data                                                 | |
+  | | data:  reference to data (address or file descriptor)               | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | padding bytes to the next 8 byte alignment                          | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | Data Record                                                         | |
-  | | size: overall record size (without padding)                         | |
+  | | size:  overall record size (without padding)                        | |
   | | ...                                                                 | |
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
@@ -804,12 +838,10 @@ The layout of a message is shown below.
   | +---------------------------------------------------------------------+ |
   | +---------------------------------------------------------------------+ |
   | | Data Record                                                         | |
-  | | size: overall record size                                           | |
+  | | size:  overall record size                                          | |
   | | ...                                                                 | |
   | +---------------------------------------------------------------------+ |
-  | +---------------------------------------------------------------------+ |
-  | | padding bytes to the next 8 byte alignment                          | |
-  | +---------------------------------------------------------------------+ |
+  |   ... further data records ...                                          |
   +-------------------------------------------------------------------------+
 
 
@@ -834,10 +866,20 @@ KDBUS_MSG_PAYLOAD_MEMFD:
   are accepted as payload data, which enforces reliable passing of data.
   The receiver can assume that neither the sender nor anyone else can alter the
   content after the message is sent.
+  Apart from the sender filling-in the content into memfd files, the data will
+  be passed as zero-copy from one process to another, read-only, shared between
+  the peers.
 
-Apart from the sender filling-in the content into memfd files, the data will
-be passed as zero-copy from one process to another, read-only, shared between
-the peers.
+The sender must not make any assumptions on the type how data is received by the
+remote peer. The kernel is free to re-pack multiple VEC and MEMFD payloads. For
+instance, the kernel may decide to merge multiple VECs into a single VEC, inline
+MEMFD payloads into memory or merge all passed VECs into a single MEMFD.
+However, the kernel preserves the order of passed data. This means, the order of
+all VEC and MEMFD items is not changed in respect to each other.
+
+In other words: All passed VEC and MEMFD data payloads are treated as a single
+stream of data that may be received by the remote peer in a different set of
+hunks than it was sent as.
 
 
 7.4 Receiving messages
@@ -876,6 +918,17 @@ struct kdbus_cmd_recv {
   __u64 offset;
       Upon return of the ioctl, this field contains the offset in the
       receiver's memory pool.
+
+  __u64 dropped_msgs;
+      If the CMD_MSG_RECV ioctl fails with EOVERFLOW, this field is filled by
+      the kernel with the number of messages that couldn't be transmitted to
+      this connection. In that case, the @offset member must not be accessed.
+
+  __u64 msg_size;
+      Upon successful return of the ioctl, this field contains the size of the
+      kdbus_msg object stored at offset @offset. This field is equivalent to the
+      first 8-byte 'size' member of the message. It's a convenience value to
+      allow connections to map only the message-part of the pool.
 };
 
 Unless KDBUS_RECV_DROP was passed, and given that the ioctl succeeded, the
@@ -887,6 +940,9 @@ Also, if the connection allowed for file descriptor to be passed
 (KDBUS_HELLO_ACCEPT_FD), and if the message contained any, they will be
 installed into the receiving process after the KDBUS_CMD_MSG_RECV ioctl
 returns. The receiving task is obliged to close all of them appropriately.
+If KDBUS_RECV_PEEK is used, no file descriptors are installed. This allows for
+peeking at a message and dropping it via KDBUS_RECV_DROP, without ever
+installing the passed file descriptors into the receiving process.
 
 The caller is obliged to call KDBUS_CMD_FREE with the returned offset when
 the memory is no longer needed.
