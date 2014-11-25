@@ -78,7 +78,9 @@ struct kdbus_handle_ep {
 static int handle_ep_open(struct inode *inode, struct file *file)
 {
 	struct kdbus_handle_ep *handle;
+	struct kdbus_domain *domain;
 	struct kdbus_node *node;
+	struct kdbus_bus *bus;
 	int ret;
 
 	/* kdbusfs stores the kdbus_node in i_private */
@@ -96,8 +98,19 @@ static int handle_ep_open(struct inode *inode, struct file *file)
 	handle->ep = kdbus_ep_ref(kdbus_ep_from_node(node));
 	handle->type = KDBUS_HANDLE_EP_NONE;
 
-	if (ns_capable(&init_user_ns, CAP_IPC_OWNER) ||
-	    uid_eq(handle->ep->bus->node.uid, file->f_cred->fsuid))
+	domain = handle->ep->bus->domain;
+	bus = handle->ep->bus;
+
+	/*
+	 * A connection is privileged if it is opened on an endpoint without
+	 * custom policy and either:
+	 *   * the user has CAP_IPC_OWNER in the domain user namespace
+	 * or
+	 *   * the callers fsuid matches the uid of the bus creator
+	 */
+	if (!handle->ep->has_policy &&
+	    (ns_capable(domain->user_namespace, CAP_IPC_OWNER) ||
+	     uid_eq(file->f_cred->fsuid, bus->node.uid)))
 		handle->privileged = true;
 
 	/* cache the metadata/credentials of the creator */
@@ -107,7 +120,7 @@ static int handle_ep_open(struct inode *inode, struct file *file)
 		goto exit_free;
 	}
 
-	ret = kdbus_meta_append(handle->meta, handle->ep->bus->domain, NULL, 0,
+	ret = kdbus_meta_append(handle->meta, domain, NULL, 0,
 				KDBUS_ATTACH_CREDS	|
 				KDBUS_ATTACH_PIDS	|
 				KDBUS_ATTACH_AUXGROUPS	|
