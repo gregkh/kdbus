@@ -1440,17 +1440,23 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 		case KDBUS_ITEM_ATTACH_FLAGS_SEND:
 		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
 			/*
-			 * Only ordinary or monitor connections
-			 * may update their attach-flags.
+			 * Only ordinary or monitor connections may update
+			 * their attach-flags-send. attach-flags-recv can
+			 * additionally be updated by activators.
 			 */
-			if (!kdbus_conn_is_ordinary(conn) &&
-			    !kdbus_conn_is_monitor(conn))
-				return -EOPNOTSUPP;
-
 			if (item->type == KDBUS_ITEM_ATTACH_FLAGS_SEND) {
+				if (!kdbus_conn_is_ordinary(conn) &&
+				    !kdbus_conn_is_monitor(conn))
+					return -EOPNOTSUPP;
+
 				send_flags_provided = true;
 				attach_flags_send = item->data64[0];
 			} else {
+				if (!kdbus_conn_is_ordinary(conn) &&
+				    !kdbus_conn_is_monitor(conn) &&
+				    !kdbus_conn_is_activator(conn))
+					return -EOPNOTSUPP;
+
 				recv_flags_provided = true;
 				attach_flags_recv = item->data64[0];
 			}
