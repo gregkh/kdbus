@@ -440,11 +440,6 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	info.flags = bus->bus_flags;
 	info.size = sizeof(info) + size;
 
-	if (info.size == 0) {
-		ret = -EPERM;
-		goto exit_free_buf;
-	}
-
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
@@ -455,9 +450,11 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	if (ret < 0)
 		goto exit_free_slice;
 
-	ret = kdbus_pool_slice_copy(slice, sizeof(info), buf, size);
-	if (ret < 0)
-		goto exit_free_slice;
+	if (buf && size) {
+		ret = kdbus_pool_slice_copy(slice, sizeof(info), buf, size);
+		if (ret < 0)
+			goto exit_free_slice;
+	}
 
 	/* write back the offset */
 	cmd_info->offset = kdbus_pool_slice_offset(slice);
