@@ -29,13 +29,9 @@
 
 #include "bus.h"
 #include "connection.h"
-#include "domain.h"
-#include "endpoint.h"
 #include "item.h"
-#include "message.h"
 #include "metadata.h"
 #include "names.h"
-#include "pool.h"
 
 /**
  * struct kdbus_meta - metadata buffer
