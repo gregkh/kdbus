@@ -76,7 +76,7 @@
  *	kdbus_meta_fake()
  *
  * All data is stored is the kernel-view of resources and translated into
- * namespaces when kdbus_meta_export().
+ * namespaces when kdbus_meta_export() is called.
  */
 struct kdbus_meta {
 	struct kref kref;
@@ -508,7 +508,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	bool src_lock;
 	int ret = 0;
 	u64 conn_items = 0;
-	char *p, *tmp;
+	u8 *p, *tmp;
 
 	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 	if (!tmp)
