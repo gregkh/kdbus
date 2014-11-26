@@ -1548,7 +1548,7 @@ this:
    * kdbus_cmd_hello.
    */
 
-  buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_PRIVATE, conn_fd, 0);
+  buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
 
 
 13. Metadata

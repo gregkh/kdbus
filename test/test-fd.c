@@ -292,11 +292,11 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	conn_dummy->id = hello.id;
 
 	conn_dst->buf = mmap(NULL, POOL_SIZE, PROT_READ,
-			     MAP_PRIVATE, connfd1, 0);
+			     MAP_SHARED, connfd1, 0);
 	ASSERT_RETURN(conn_dst->buf != MAP_FAILED);
 
 	conn_dummy->buf = mmap(NULL, POOL_SIZE, PROT_READ,
-			       MAP_PRIVATE, connfd2, 0);
+			       MAP_SHARED, connfd2, 0);
 	ASSERT_RETURN(conn_dummy->buf != MAP_FAILED);
 
 	/*
