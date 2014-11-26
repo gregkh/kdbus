@@ -1161,6 +1161,22 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
 }
 
 /**
+ * kdbus_conn_namespace_eq() - check if namespaces of two connections are equal
+ * @conn_a:	Connection A to check
+ * @conn_b:	Connection B to check
+ *
+ * Return: %true if all pinned namespaces of the given connections are
+ * identical, false otherwise.
+ */
+bool kdbus_conn_namespace_eq(const struct kdbus_conn *conn_a,
+			     const struct kdbus_conn *conn_b)
+{
+	return (conn_a->pid_namespace == conn_b->pid_namespace &&
+		conn_a->user_namespace == conn_b->user_namespace &&
+		path_equal(&conn_a->root_path, &conn_b->root_path));
+}
+
+/**
  * kdbus_conn_acquire() - acquire an active connection reference
  * @conn:		Connection
  *
