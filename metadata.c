@@ -16,6 +16,7 @@
 #include <linux/cgroup.h>
 #include <linux/cred.h>
 #include <linux/file.h>
+#include <linux/fs_struct.h>
 #include <linux/init.h>
 #include <linux/kref.h>
 #include <linux/mutex.h>
@@ -555,15 +556,28 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		size += KDBUS_ITEM_SIZE(strlen(meta->tid_comm) + 1);
 
 	if (mask & KDBUS_ATTACH_EXE) {
-		/* FIXME: translate to conn_dst's mount ns! */
-		exe_pathname = d_path(&meta->exe->f_path, tmp, PAGE_SIZE);
+		struct path p;
 
-		if (IS_ERR(exe_pathname)) {
-			ret = PTR_ERR(exe_pathname);
-			goto exit_free;
+		/*
+		 * FIXME: We need access to __d_path() so we can write the path
+		 * relative to conn->root_path. Once upstream, we need
+		 * EXPORT_SYMBOL(__d_path) or an equivalent of d_path() that
+		 * takes the root path directly. Until then, we drop this item
+		 * if the root-paths differ.
+		 */
+
+		get_fs_root(current->fs, &p);
+		if (path_equal(&p, &conn_dst->root_path)) {
+			exe_pathname = d_path(&meta->exe->f_path, tmp,
+					      PAGE_SIZE);
+			if (IS_ERR(exe_pathname)) {
+				ret = PTR_ERR(exe_pathname);
+				goto exit_free;
+			}
+
+			size += KDBUS_ITEM_SIZE(strlen(exe_pathname) + 1);
 		}
-
-		size += KDBUS_ITEM_SIZE(strlen(exe_pathname) + 1);
+		path_put(&p);
 	}
 
 	if (mask & KDBUS_ATTACH_CMDLINE)
@@ -697,7 +711,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
-	if (mask & KDBUS_ATTACH_EXE) {
+	if ((mask & KDBUS_ATTACH_EXE) && exe_pathname) {
 		kdbus_meta_write_item(item, KDBUS_ITEM_EXE,
 				      exe_pathname, strlen(exe_pathname) + 1);
 		item = KDBUS_ITEM_NEXT(item);

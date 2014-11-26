@@ -15,6 +15,7 @@
 #include <linux/audit.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/fs_struct.h>
 #include <linux/hashtable.h>
 #include <linux/idr.h>
 #include <linux/init.h>
@@ -22,6 +23,7 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/path.h>
 #include <linux/poll.h>
 #include <linux/sched.h>
 #include <linux/shmem_fs.h>
@@ -1117,6 +1119,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_conn_purge_policy_cache(conn);
 	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
 
+	path_put(&conn->root_path);
 	put_user_ns(conn->user_namespace);
 	put_pid_ns(conn->pid_namespace);
 
@@ -1665,13 +1668,11 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 	/*
 	 * Pin user and PID namespaces so we can translate metadata items
-	 * into the context of the domain. The mount namespace is only
-	 * recorded for comparison, so we can drop items that should not be
-	 * sent across mount namespaces.
+	 * into the context of the connection.
 	 */
 	conn->pid_namespace = get_pid_ns(task_active_pid_ns(current));
-	conn->mnt_namespace = current->nsproxy->mnt_ns;
 	conn->user_namespace = get_user_ns(current_user_ns());
+	get_fs_root(current->fs, &conn->root_path);
 
 	conn->pool = kdbus_pool_new(conn->name, hello->pool_size);
 	if (IS_ERR(conn->pool)) {

@@ -18,9 +18,9 @@
 #include <linux/atomic.h>
 #include <linux/kref.h>
 #include <linux/lockdep.h>
-#include <linux/user_namespace.h>
+#include <linux/path.h>
 #include <linux/pid_namespace.h>
-#include <linux/mnt_namespace.h>
+#include <linux/user_namespace.h>
 
 #include "limits.h"
 #include "metadata.h"
@@ -72,8 +72,8 @@
  * @queue:		The message queue associated with this connection
  * @privileged:		Whether this connection is privileged on the bus
  * @pid_namespace:	PID namespace, pinned at creation time
- * @mnt_namespace:	Mount namespace at creation time
  * @user_namespace:	User namespace, pinned at creation time
+ * @root_path:		Root path, pinned at creation time
  */
 struct kdbus_conn {
 	struct kref kref;
@@ -111,8 +111,8 @@ struct kdbus_conn {
 	struct kdbus_queue queue;
 	bool privileged : 1;
 	struct pid_namespace *pid_namespace;
-	struct mnt_namespace *mnt_namespace;
 	struct user_namespace *user_namespace;
+	struct path root_path;
 };
 
 struct kdbus_kmsg;
