@@ -676,7 +676,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME,
+		kdbus_meta_write_item(item, KDBUS_ITEM_CONN_DESCRIPTION,
 				      conn_src->name,
 				      strlen(conn_src->name) + 1);
 		item = KDBUS_ITEM_NEXT(item);
