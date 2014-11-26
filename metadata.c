@@ -255,7 +255,7 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
  * kdbus_meta_collect() - collect metadata from current process
  * @meta:		Metadata object
  * @seq:		Message sequence number
- * @which:		KDBUS_ATTACH_* flags which typ of data to attach
+ * @which:		KDBUS_ATTACH_* mask
  *
  * Collect the data specified in @which from the 'current', and store the
  * kernel-view of resources in @meta. Information that has already been
