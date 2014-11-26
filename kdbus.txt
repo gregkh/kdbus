@@ -256,6 +256,14 @@ to perform those on an endpoint associated with the bus. Endpoints are
 accessible as files underneath the bus directory. A default endpoint called
 "bus" is provided on each bus.
 
+Bus names may be chosen freely except for one restriction: the name
+must be prefixed with the numeric UID of the creator and a dash. This
+is required to avoid namespace clashes between different users. When
+creating a bus the name must be passed in properly formatted, or the
+kernel will refuse creation of the bus. Example: "1047-foobar" is an
+OK name for a bus registered by a user with UID 1047. However,
+"1024-foobar" is not, and neither is "foobar".
+
 To create a new bus, you need to open the control file of a domain and run the
 KDBUS_CMD_BUS_MAKE ioctl. The control file descriptor that was used to issue
 KDBUS_CMD_BUS_MAKE must not have been used for any other control-ioctl before
