@@ -517,7 +517,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		conn_items |= KDBUS_ATTACH_NAMES;
 	}
 
-	mask &= meta->collected | conn_items;
+	mask &= (meta->collected | conn_items) & kdbus_meta_attach_mask;
 	src_lock = !!(mask & conn_items);
 
 	user_ns = conn_dst->user_namespace;

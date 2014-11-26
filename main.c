@@ -15,6 +15,7 @@
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 
 #include "util.h"
 #include "fs.h"
@@ -23,6 +24,15 @@
 
 /* kdbus mount-point /sys/fs/kdbus */
 static struct kobject *kdbus_dir;
+
+/* global module option to apply a mask to exported metadata */
+unsigned int kdbus_meta_attach_mask = KDBUS_ATTACH_TIMESTAMP |
+				      KDBUS_ATTACH_CREDS |
+				      KDBUS_ATTACH_PIDS |
+				      KDBUS_ATTACH_NAMES |
+				      KDBUS_ATTACH_CONN_DESCRIPTION;
+MODULE_PARM_DESC(attach_flags_mask, "Attach-flags mask for exported metadata");
+module_param_named(attach_flags_mask, kdbus_meta_attach_mask, uint, 0644);
 
 static int __init kdbus_init(void)
 {

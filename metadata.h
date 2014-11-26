@@ -19,6 +19,8 @@ struct kdbus_conn;
 struct kdbus_domain;
 struct kdbus_pool_slice;
 
+extern unsigned int kdbus_meta_attach_mask;
+
 struct kdbus_meta *kdbus_meta_new(void);
 struct kdbus_meta *kdbus_meta_ref(struct kdbus_meta *meta);
 struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta);
@@ -32,4 +34,5 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		      struct kdbus_conn *conn_src,
 		      struct kdbus_conn *conn_dst,
 		      u64 mask, u8 **buf, size_t *size);
+
 #endif
