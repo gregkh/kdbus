@@ -1616,19 +1616,19 @@ The following attach flags are currently supported.
     connection currently owns. The name and flags are stored in kdbus_item.name
     for each of them.
 
-  KDBUS_ATTACH_TID_COMM
+  KDBUS_ATTACH_TID_COMM [*]
     Attaches an items of type KDBUS_ITEM_TID_COMM, transporting the sending
     task's 'comm', for the tid.  The string is stored in kdbus_item.str.
 
-  KDBUS_ATTACH_PID_COMM
+  KDBUS_ATTACH_PID_COMM [*]
     Attaches an items of type KDBUS_ITEM_PID_COMM, transporting the sending
     task's 'comm', for the pid.  The string is stored in kdbus_item.str.
 
-  KDBUS_ATTACH_EXE
+  KDBUS_ATTACH_EXE [*]
     Attaches an item of type KDBUS_ITEM_EXE, containing the path to the
     executable of the sending task, stored in kdbus_item.str.
 
-  KDBUS_ATTACH_CMDLINE
+  KDBUS_ATTACH_CMDLINE [*]
     Attaches an item of type KDBUS_ITEM_CMDLINE, containing the command line
     arguments of the sending task, as an array of strings, stored in
     kdbus_item.str.
@@ -1655,6 +1655,14 @@ The following attach flags are currently supported.
     Attaches an item of type KDBUS_ITEM_CONN_DESCRIPTION that contains a
     descriptive string of the sending peer. That string can be supplied
     during HELLO by attaching an item of type KDBUS_ITEM_CONN_DESCRIPTION.
+
+
+[*] Note that the content stored in these items can easily be tampered by
+    the sending tasks. Therefore, they should NOT be used for any sort of
+    security relevant assumptions. The only reason why they are transmitted is
+    to let receivers know about details that were set when metadata was
+    collected, even though the task they were collected from is not active any
+    longer when the items are received.
 
 
 13.1 Metadata and namespaces
