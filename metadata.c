@@ -403,7 +403,7 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 
 		meta->caps.last_cap = CAP_LAST_CAP;
 
-		for (i = 0; i < _KERNEL_CAPABILITY_U32S; i++) {
+		CAP_FOR_EACH_U32(i) {
 			meta->caps.set[0].caps[i] = c->cap_inheritable.cap[i];
 			meta->caps.set[1].caps[i] = c->cap_permitted.cap[i];
 			meta->caps.set[2].caps[i] = c->cap_effective.cap[i];
@@ -413,7 +413,7 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		/* clear unused bits */
 		for (i = 0; i < 4; i++)
 			meta->caps.set[i].caps[CAP_TO_INDEX(CAP_LAST_CAP)] &=
-				CAP_TO_MASK(CAP_LAST_CAP + 1) - 1;
+						CAP_LAST_U32_VALID_MASK;
 
 		meta->collected |= KDBUS_ATTACH_CAPS;
 	}
