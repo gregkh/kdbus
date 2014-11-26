@@ -128,7 +128,6 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry)
 	if (ret < 0)
 		return ret;
 
-	kdbus_pool_slice_flush(entry->slice);
 	return 0;
 }
 

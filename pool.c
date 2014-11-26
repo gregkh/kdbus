@@ -368,25 +368,34 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
 }
 
 /**
- * kdbus_pool_slice_offset() - return the slice's offset inside the pool
- * @slice:		The slice
+ * kdbus_pool_slice_flush() - flush dcache memory area of a slice
+ * @slice:		The allocated slice to flush
  *
- * Return: the offset in bytes.
+ * Dcache flushes are delayed to happen only right before the receiver
+ * gets the new buffer area announced. The mapped buffer is always
+ * read-only for the receiver, and only the area of the announced message
+ * needs to be flushed.
  */
-size_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
+static void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice)
 {
-	return slice->off;
-}
+#if ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE == 1
+	struct address_space *mapping = slice->pool->f->f_mapping;
+	pgoff_t first = slice->off >> PAGE_CACHE_SHIFT;
+	pgoff_t last = (slice->off + slice->size +
+			PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
+	pgoff_t i;
 
-/**
- * kdbus_pool_slice_size() - return the size of the slice
- * @slice:		The slice
- *
- * Return: the size in bytes.
- */
-size_t kdbus_pool_slice_size(const struct kdbus_pool_slice *slice)
-{
-	return slice->size;
+	for (i = first; i < last; i++) {
+		struct page *page;
+
+		page = find_get_page(mapping, i);
+		if (!page)
+			continue;
+
+		flush_dcache_page(page);
+		put_page(page);
+	}
+#endif
 }
 
 /**
@@ -716,37 +725,6 @@ int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
 exit_free:
 	kdbus_pool_slice_release(slice_new);
 	return ret;
-}
-
-/**
- * kdbus_pool_slice_flush() - flush dcache memory area of a slice
- * @slice:		The allocated slice to flush
- *
- * Dcache flushes are delayed to happen only right before the receiver
- * gets the new buffer area announced. The mapped buffer is always
- * read-only for the receiver, and only the area of the announced message
- * needs to be flushed.
- */
-void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice)
-{
-#if ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE == 1
-	struct address_space *mapping = slice->pool->f->f_mapping;
-	pgoff_t first = slice->off >> PAGE_CACHE_SHIFT;
-	pgoff_t last = (slice->off + slice->size +
-			PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
-	pgoff_t i;
-
-	for (i = first; i < last; i++) {
-		struct page *page;
-
-		page = find_get_page(mapping, i);
-		if (!page)
-			continue;
-
-		flush_dcache_page(page);
-		put_page(page);
-	}
-#endif
 }
 
 /**
