@@ -35,7 +35,7 @@ static int test_policy_priv_by_id(const char *bus,
 	}));
 	ASSERT_RETURN(ret >= 0);
 
-	ret = kdbus_msg_recv_poll(conn_dst, 100, NULL, NULL);
+	ret = kdbus_msg_recv_poll(conn_dst, 300, NULL, NULL);
 	ASSERT_RETURN(ret == parent_status);
 
 	return 0;
@@ -79,7 +79,8 @@ static int test_policy_priv_by_broadcast(const char *bus,
 		ret = eventfd_write(efd, 1);
 		ASSERT_EXIT(ret == 0);
 
-		ret = kdbus_msg_recv_poll(child, 300, &msg, NULL);
+		/* Use a little bit high time */
+		ret = kdbus_msg_recv_poll(child, 500, &msg, NULL);
 		ASSERT_EXIT(ret == child_status);
 
 		/*
@@ -110,7 +111,8 @@ static int test_policy_priv_by_broadcast(const char *bus,
 					     KDBUS_DST_ID_BROADCAST);
 			ASSERT_RETURN(ret == 0);
 
-			ret = kdbus_msg_recv_poll(child_2, 300,
+			/* Use a little bit high time */
+			ret = kdbus_msg_recv_poll(child_2, 1000,
 						  &msg, NULL);
 			ASSERT_RETURN(ret == parent_status);
 
@@ -137,14 +139,15 @@ static int test_policy_priv_by_broadcast(const char *bus,
 				ASSERT_EXIT(ret == 0);
 
 				ret = eventfd_read(efd, &event_status);
-				ASSERT_RETURN(ret >= 0 && event_status == 1);
+				ASSERT_EXIT(ret >= 0 && event_status == 1);
 
 				ret = kdbus_msg_send(child_2, NULL,
 						expected_cookie, 0, 0, 0,
 						KDBUS_DST_ID_BROADCAST);
 				ASSERT_EXIT(ret == 0);
 
-				ret = kdbus_msg_recv_poll(child_2, 100,
+				/* Use a little bit high time */
+				ret = kdbus_msg_recv_poll(child_2, 1000,
 							  &msg, NULL);
 				ASSERT_EXIT(ret == parent_status);
 
@@ -161,8 +164,10 @@ static int test_policy_priv_by_broadcast(const char *bus,
 				kdbus_conn_free(child_2);
 			}),
 			({ 0; }));
+			ASSERT_RETURN(ret == 0);
 		}
 	}));
+	ASSERT_RETURN(ret == 0);
 
 	close(efd);
 
@@ -222,18 +227,22 @@ static int test_priv_before_policy_upload(struct kdbus_test_env *env)
 	/*
 	 * Test broadcast with a privileged connection.
 	 *
-	 * The first receiver should get the broadcast message since
-	 * the sender is a privileged connection.
+	 * The first unprivileged receiver should not get the
+	 * broadcast message sent by the privileged connection,
+	 * since there is no a TALK policy that allows the
+	 * unprivileged to TALK to the privileged connection. It
+	 * will fail with -ETIMEDOUT
 	 *
-	 * The privileged connection should not get the broadcast
-	 * message since the sender is an unprivileged connection.
-	 * It will fail with -ETIMEDOUT.
-	 *
+	 * Then second case:
+	 * The privileged connection should get the broadcast
+	 * message from the unprivileged one. Since the receiver is
+	 * a privileged bus user and it has default TALK access to
+	 * all connections it will receive those.
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, conn,
 					    DO_NOT_DROP,
-					    -ETIMEDOUT, EXIT_SUCCESS);
+					    0, -ETIMEDOUT);
 	ASSERT_RETURN(ret == 0);
 
 
@@ -245,8 +254,7 @@ static int test_priv_before_policy_upload(struct kdbus_test_env *env)
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, NULL,
-					    DROP_SAME_UNPRIV,
-					    EXIT_SUCCESS, EXIT_SUCCESS);
+					    DROP_SAME_UNPRIV, 0, 0);
 	ASSERT_RETURN(ret == 0);
 
 	/*
@@ -289,21 +297,26 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	 * this was uploaded.
 	 */
 
+	++expected_cookie;
 	ret = test_policy_priv_by_id(env->buspath, owner_a, false,
 				     -ETIMEDOUT, -EPERM);
 	ASSERT_RETURN(ret == 0);
 
 	/*
-	 * Make sure that conn wont receive broadcasts unless it
-	 * installs a match.
+	 * Make sure that privileged won't receive broadcasts unless
+	 * it installs a match. It will fail with -ETIMEDOUT
 	 *
 	 * At same time check that the unprivileged connection will
-	 * receive the broadcast message from the privileged one.
+	 * not receive the broadcast message from the privileged one
+	 * since the privileged one owns a name with a restricted
+	 * policy TALK (actually the TALK policy is still not
+	 * registered so we fail by default), thus the unprivileged
+	 * receiver is not able to TALK to that name.
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, owner_a,
 					    DO_NOT_DROP,
-					    -ETIMEDOUT, EXIT_SUCCESS);
+					    -ETIMEDOUT, -ETIMEDOUT);
 	ASSERT_RETURN(ret == 0);
 
 	/* Activate matching for a privileged connection */
@@ -311,13 +324,14 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/*
-	 * Redo the previous test. The privileged conn won't receive
-	 * broadcast messages from the unprivileged one.
+	 * Redo the previous test. The privileged conn owner_a is
+	 * able to TALK to any connection so it will receive the
+	 * broadcast message now.
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, owner_a,
 					    DO_NOT_DROP,
-					    -ETIMEDOUT, EXIT_SUCCESS);
+					    0, -ETIMEDOUT);
 	ASSERT_RETURN(ret == 0);
 
 	/*
@@ -326,8 +340,19 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	 */
 
 	ret = test_policy_priv_by_broadcast(env->buspath, NULL,
-					    DROP_SAME_UNPRIV,
-					    EXIT_SUCCESS, EXIT_SUCCESS);
+					    DROP_SAME_UNPRIV, 0, 0);
+	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * Test broadcast with two unprivileged connections running
+	 * under different users.
+	 *
+	 * Both connections will fail with -ETIMEDOUT.
+	 */
+
+	ret = test_policy_priv_by_broadcast(env->buspath, NULL,
+					    DROP_OTHER_UNPRIV,
+					    -ETIMEDOUT, -ETIMEDOUT);
 	ASSERT_RETURN(ret == 0);
 
 	access = (struct kdbus_policy_access){
@@ -348,6 +373,19 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 					 KDBUS_HELLO_POLICY_HOLDER);
 	ASSERT_RETURN(holder_b);
 
+	/* Free connections and their received messages and restart */
+	kdbus_conn_free(owner_a);
+
+	owner_a = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(owner_a);
+
+	/* Activate matching for a privileged connection */
+	ret = kdbus_add_match_empty(owner_a);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_name_acquire(owner_a, "com.example.broadcastA", NULL);
+	ASSERT_EXIT(ret >= 0);
+
 	owner_b = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(owner_b);
 
@@ -360,17 +398,20 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 
 	/*
 	 * Test that even if "com.example.broadcastA" and
-	 * "com.example.broadcastB" do restrict TALK access by default
+	 * "com.example.broadcastB" do have a TALK access by default
 	 * they are able to signal each other using broadcast due to
-	 * the fact they are privileged connections.
+	 * the fact they are privileged connections, they receive
+	 * all broadcasts if the match allows it.
 	 */
 
-	ret = kdbus_msg_send(owner_a, NULL, 0xdeadbeef, 0, 0, 0,
-			     KDBUS_DST_ID_BROADCAST);
+	++expected_cookie;
+	ret = kdbus_msg_send(owner_a, NULL, expected_cookie, 0,
+			     0, 0, KDBUS_DST_ID_BROADCAST);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_msg_recv_poll(owner_b, 100, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->cookie == expected_cookie);
 
 	/* Check src ID */
 	ASSERT_RETURN(msg->src_id == owner_a->id);
@@ -399,20 +440,21 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/*
-	 * Test broadcasts from an unprivileged connection that
-	 * owns a name.
+	 * Send broadcasts from an unprivileged connection that
+	 * owns a name "com.example.broadcastB".
 	 *
 	 * We'll have four destinations here:
 	 *
-	 * owner_a: privileged connection that owns
-	 * "com.example.broadcastA". TALK access are subject to policy
-	 * rules and they are stricted so it should not receive
-	 * the signal. Should fail with -ETIMEDOUT
+	 * 1) destination owner_a: privileged connection that owns
+	 * "com.example.broadcastA". It will receive the broadcast
+	 * since it is a privileged has default TALK access to all
+	 * connections, and it is subscribed to the match.
+	 * Will succeed.
 	 *
 	 * owner_b: privileged connection (running under a different
 	 * uid) that do not own names, but with an empty broadcast
-	 * match, so it will receive broadcasts. Should get the
-	 * message.
+	 * match, so it will receive broadcasts since it has default
+	 * TALK access to all connection.
 	 *
 	 * unpriv_a: unpriv connection that do not own any name.
 	 * It will receive the broadcast since it is running under
@@ -467,11 +509,14 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 		 * Unprivileged connection running under the same
 		 * user. It should succeed.
 		 */
-		ret = kdbus_msg_recv_poll(unpriv_a, 100, &msg, NULL);
+		ret = kdbus_msg_recv_poll(unpriv_a, 300, &msg, NULL);
 		ASSERT_EXIT(ret == 0 && msg->cookie == expected_cookie);
 
-		/* Not interested in broadcast */
-		ret = kdbus_msg_recv_poll(unpriv_b, 100, NULL, NULL);
+		/*
+		 * Did not install matches, not interested in
+		 * broadcasts
+		 */
+		ret = kdbus_msg_recv_poll(unpriv_b, 300, NULL, NULL);
 		ASSERT_EXIT(ret == -ETIMEDOUT);
 	}),
 	({
@@ -483,14 +528,19 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 		 * name "com.example.broadcastA" and its TALK
 		 * access is restriced.
 		 */
-		ret = kdbus_msg_recv_poll(owner_a, 100, NULL, NULL);
-		ASSERT_RETURN(ret == -ETIMEDOUT);
+		ret = kdbus_msg_recv_poll(owner_a, 300, &msg, NULL);
+		ASSERT_RETURN(ret == 0);
+
+		/* confirm the received cookie */
+		ASSERT_RETURN(msg->cookie == expected_cookie);
+
+		kdbus_msg_free(msg);
 
 		/*
 		 * owner_b got the broadcast from an unprivileged
 		 * connection.
 		 */
-		ret = kdbus_msg_recv_poll(owner_b, 100, &msg, NULL);
+		ret = kdbus_msg_recv_poll(owner_b, 300, &msg, NULL);
 		ASSERT_RETURN(ret == 0);
 
 		/* confirm the received cookie */
@@ -517,10 +567,25 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 					    -ETIMEDOUT, -ETIMEDOUT);
 	ASSERT_RETURN(ret == 0);
 
+	/* Drop received broadcasts by privileged */
+	ret = kdbus_msg_recv_poll(owner_a, 100, NULL, NULL);
+	ret = kdbus_msg_recv_poll(owner_a, 100, NULL, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(owner_a, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
+	ret = kdbus_msg_recv_poll(owner_b, 100, NULL, NULL);
+	ret = kdbus_msg_recv_poll(owner_b, 100, NULL, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_msg_recv(owner_b, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
 	/*
 	 * Perform last tests, allow others to talk to name
-	 * "com.example.broadcastA". So now broadcasting to that
-	 * connection should succeed since the policy allow it.
+	 * "com.example.broadcastA". So now receiving broadcasts
+	 * from it should succeed since the TALK policy allow it.
 	 */
 
 	/* KDBUS_POLICY_OWN for unprivileged connections */
@@ -535,6 +600,14 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 				       &access, 1);
 	ASSERT_RETURN(ret == 0);
 
+	/*
+	 * Unprivileged is able to TALK to "com.example.broadcastA"
+	 * now so it will receive its broadcasts
+	 */
+	ret = test_policy_priv_by_broadcast(env->buspath, owner_a,
+					    DO_NOT_DROP, 0, 0);
+	ASSERT_RETURN(ret == 0);
+
 	++expected_cookie;
 	ret = RUN_UNPRIVILEGED_CONN(unpriv, env->buspath, ({
 		ret = kdbus_name_acquire(unpriv, "com.example.broadcastB",
@@ -546,8 +619,8 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	}));
 	ASSERT_RETURN(ret == 0);
 
-	/* owner_a will get the broadcast now. */
-	ret = kdbus_msg_recv_poll(owner_a, 100, &msg, NULL);
+	/* owner_a is privileged it will get the broadcast now. */
+	ret = kdbus_msg_recv_poll(owner_a, 300, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* confirm the received cookie */
@@ -558,10 +631,11 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 
 	/*
 	 * owner_a released name "com.example.broadcastA". It should
-	 * receive broadcasts, no more policies and it has a match.
+	 * receive broadcasts since it is still privileged and has
+	 * the right match.
 	 *
 	 * Unprivileged connection will own a name and will try to
-	 * signal to the privileged connection. It should succeeded.
+	 * signal to the privileged connection.
 	 */
 
 	ret = kdbus_name_release(owner_a, "com.example.broadcastA");
@@ -579,7 +653,7 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* owner_a will get the broadcast now. */
-	ret = kdbus_msg_recv_poll(owner_a, 100, &msg, NULL);
+	ret = kdbus_msg_recv_poll(owner_a, 300, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* confirm the received cookie */
@@ -855,7 +929,8 @@ static int test_policy_priv(struct kdbus_test_env *env)
 
 	ret = kdbus_msg_send(conn, "com.example.b", 0xdeadbeef, 0, 0, 0, 0);
 	ASSERT_EXIT(ret >= 0);
-	ret = kdbus_msg_recv_poll(conn_b, 100, NULL, NULL);
+
+	ret = kdbus_msg_recv_poll(conn_b, 300, NULL, NULL);
 	ASSERT_EXIT(ret >= 0);
 
 	kdbus_conn_free(conn);
