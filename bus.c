@@ -440,12 +440,16 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	info.flags = bus->bus_flags;
 	info.size = sizeof(info) + size;
 
-	if (info.size == 0)
-		return -EPERM;
+	if (info.size == 0) {
+		ret = -EPERM;
+		goto exit_free_buf;
+	}
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
-	if (IS_ERR(slice))
-		return PTR_ERR(slice);
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
+		goto exit_free_buf;
+	}
 
 	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
 	if (ret < 0)
@@ -465,6 +469,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 
 exit_free_slice:
 	kdbus_pool_slice_free(slice);
+exit_free_buf:
 	kfree(buf);
 	return ret;
 }
