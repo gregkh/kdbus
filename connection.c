@@ -178,7 +178,7 @@ static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
 	 * users on the bus. Allow one set of messages to pass through
 	 * un-accounted. Only once we hit that limit, we start accounting.
 	 */
-	if (conn_dst->queue.msg_count < KDBUS_CONN_MAX_MSGS_PER_USER)
+	if (conn_dst->queue.msg_count < KDBUS_CONN_MAX_MSGS_UNACCOUNTED)
 		return 0;
 
 	user = conn_src->user;

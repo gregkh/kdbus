@@ -17,9 +17,20 @@
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
 
-/* maximum number of queued messages from the same indvidual user */
-#define KDBUS_CONN_MAX_MSGS_PER_USER            16
+/*
+ * maximum number of queued messages wich will not be user accounted.
+ * after this value is reached each user will have an individual limit.
+ */
+#define KDBUS_CONN_MAX_MSGS_UNACCOUNTED		16
 
+/*
+ * maximum number of queued messages from the same indvidual user after the
+ * the un-accounted value has been hit
+ */
+#define KDBUS_CONN_MAX_MSGS_PER_USER		16
+
+#define MAX_USER_TOTAL_MSGS  (KDBUS_CONN_MAX_MSGS_UNACCOUNTED + \
+				KDBUS_CONN_MAX_MSGS_PER_USER)
 /* maximum number of queued messages in a connection */
 #define KDBUS_CONN_MAX_MSGS			256
 
@@ -234,7 +245,6 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 {
 	int ret, efd1, efd2;
 	unsigned int cnt, recved_count;
-	unsigned int max_user_msgs = KDBUS_CONN_MAX_MSGS_PER_USER;
 	struct kdbus_conn *conn;
 	struct kdbus_conn *privileged;
 	struct kdbus_conn *holder;
@@ -272,11 +282,12 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 	 * same time.
 	 *
 	 * When the receiver queue count is below
-	 * KDBUS_CONN_MAX_MSGS_PER_USER messages are not accounted.
+	 * KDBUS_CONN_MAX_MSGS_UNACCOUNTED messages are not accounted.
 	 *
 	 * So we start two threads running under different uid, they
 	 * race and each one will try to send:
-	 * (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1  msg
+	 * (KDBUS_CONN_MAX_MSGS_UNACCOUNTED + KDBUS_CONN_MAX_MSGS_PER_USER) + 1
+	 * msg
 	 *
 	 * Both threads will return how many message was successfull
 	 * queued, later we compute and try to validate the user quota
@@ -288,8 +299,7 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 		unpriv = kdbus_hello(env->buspath, 0, NULL, 0);
 		ASSERT_EXIT(unpriv);
 
-		cnt = kdbus_fill_conn_queue(unpriv, conn,
-					    (max_user_msgs * 2) + 1);
+		cnt = kdbus_fill_conn_queue(unpriv, conn, MAX_USER_TOTAL_MSGS + 1);
 		/* Explicitly check for 0 we can't send it to eventfd */
 		ASSERT_EXIT(cnt > 0);
 
@@ -305,7 +315,7 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 			ASSERT_EXIT(unpriv);
 
 			cnt = kdbus_fill_conn_queue(unpriv, conn,
-						    (max_user_msgs * 2) + 1);
+						    MAX_USER_TOTAL_MSGS + 1);
 			/* Explicitly check for 0 */
 			ASSERT_EXIT(cnt > 0);
 
@@ -331,55 +341,54 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 	ASSERT_RETURN(recved_count > 0);
 
 	/*
-	 * We start accounting after KDBUS_CONN_MAX_MSGS_PER_USER
-	 * so now we have a KDBUS_CONN_MAX_MSGS_PER_USER not
-	 * accounted, and given we have at least sent
-	 * (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1 for the two threads:
-	 * recved_count for both treads will for sure exceed that
-	 * value.
+	 * We start accounting after KDBUS_CONN_MAX_MSGS_UNACCOUNTED so now we
+	 * have a KDBUS_CONN_MAX_MSGS_UNACCOUNTED not accounted, and given we
+	 * have at least sent (KDBUS_CONN_MAX_MSGS_UNACCOUNTED +
+	 * KDBUS_CONN_MAX_MSGS_PER_USER) + 1 for the two threads: recved_count
+	 * for both treads will for sure exceed that value.
 	 *
 	 * 1) Both thread1 msgs + threads2 msgs exceed
-	 *    KDBUS_CONN_MAX_MSGS_PER_USER. Accounting is started.
+	 *    KDBUS_CONN_MAX_MSGS_UNACCOUNTED. Accounting is started.
 	 * 2) Now both of them will be able to send only his quota
 	 *    which is KDBUS_CONN_MAX_MSGS_PER_USER
 	 *    (previous sent messages of 1) were not accounted)
 	 */
-	ASSERT_RETURN(recved_count > (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1)
+	ASSERT_RETURN(recved_count > MAX_USER_TOTAL_MSGS + 1)
 
 	/*
-	 * A process should never send more than
-	 * (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1)
+	 * A process should never receive more than
+	 * (KDBUS_CONN_MAX_MSGS_UNACCOUNTED + KDBUS_CONN_MAX_MSGS_PER_USER) + 1)
 	 */
-	ASSERT_RETURN(child1_count < (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1);
+	ASSERT_RETURN(child1_count < MAX_USER_TOTAL_MSGS + 1)
 
 	/*
 	 * Now both no accounted messages should give us
-	 * KDBUS_CONN_MAX_MSGS_PER_USER when the accounting
+	 * KDBUS_CONN_MAX_MSGS_UNACCOUNTED when the accounting
 	 * started.
 	 *
 	 * child1 non accounted + child2 non accounted =
-	 * KDBUS_CONN_MAX_MSGS_PER_USER
+	 * KDBUS_CONN_MAX_MSGS_UNACCOUNTED
 	 */
-	ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_PER_USER ==
+	ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_UNACCOUNTED ==
 		((child1_count - KDBUS_CONN_MAX_MSGS_PER_USER) +
 		 ((recved_count - child1_count) -
 		  KDBUS_CONN_MAX_MSGS_PER_USER)));
 
 	/*
-	 * A process should never send more than
-	 * (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1)
+	 * A process should never receive more than
+	 * (KDBUS_CONN_MAX_MSGS_UNACCOUNTED + KDBUS_CONN_MAX_MSGS_PER_USER) + 1)
 	 */
-	ASSERT_RETURN(child2_count < (KDBUS_CONN_MAX_MSGS_PER_USER * 2) + 1);
+	ASSERT_RETURN(child2_count < MAX_USER_TOTAL_MSGS + 1)
 
 	/*
 	 * Now both no accounted messages should give us
-	 * KDBUS_CONN_MAX_MSGS_PER_USER when the accounting
+	 * KDBUS_CONN_MAX_MSGS_UNACCOUNTED when the accounting
 	 * started.
 	 *
 	 * child1 non accounted + child2 non accounted =
-	 * KDBUS_CONN_MAX_MSGS_PER_USER
+	 * KDBUS_CONN_MAX_MSGS_UNACCOUNTED
 	 */
-	ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_PER_USER ==
+	ASSERT_RETURN(KDBUS_CONN_MAX_MSGS_UNACCOUNTED ==
 		((child2_count - KDBUS_CONN_MAX_MSGS_PER_USER) +
 		 ((recved_count - child2_count) -
 		  KDBUS_CONN_MAX_MSGS_PER_USER)));
@@ -424,21 +433,19 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	a = kdbus_hello(env->buspath, 0, NULL, 0);
 	b = kdbus_hello(env->buspath, 0, NULL, 0);
 
-	ret = kdbus_fill_conn_queue(b, a,
-				    KDBUS_CONN_MAX_MSGS_PER_USER * 2);
-	ASSERT_RETURN(ret == (KDBUS_CONN_MAX_MSGS_PER_USER * 2));
+	ret = kdbus_fill_conn_queue(b, a, MAX_USER_TOTAL_MSGS);
+	ASSERT_RETURN(ret == MAX_USER_TOTAL_MSGS);
 
 	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
 	ASSERT_RETURN(ret == -ENOBUFS);
 
-	for (i = 0; i < KDBUS_CONN_MAX_MSGS_PER_USER * 2; ++i) {
+	for (i = 0; i < MAX_USER_TOTAL_MSGS; ++i) {
 		ret = kdbus_msg_recv(a, NULL, NULL);
 		ASSERT_RETURN(ret == 0);
 	}
 
-	ret = kdbus_fill_conn_queue(b, a,
-				    KDBUS_CONN_MAX_MSGS_PER_USER * 2);
-	ASSERT_RETURN(ret == (KDBUS_CONN_MAX_MSGS_PER_USER * 2));
+	ret = kdbus_fill_conn_queue(b, a, MAX_USER_TOTAL_MSGS);
+	ASSERT_RETURN(ret == MAX_USER_TOTAL_MSGS);
 
 	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
 	ASSERT_RETURN(ret == -ENOBUFS);
