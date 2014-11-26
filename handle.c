@@ -732,7 +732,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_free cmd_free;
 
 		if (!kdbus_conn_is_ordinary(conn) &&
-		    !kdbus_conn_is_monitor(conn)) {
+		    !kdbus_conn_is_monitor(conn) &&
+		    !kdbus_conn_is_activator(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
