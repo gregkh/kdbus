@@ -543,7 +543,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_pids));
 
 	if (mask & KDBUS_ATTACH_AUXGROUPS)
-		size += KDBUS_ITEM_SIZE(meta->n_auxgrps * sizeof(u64));
+		size += KDBUS_ITEM_SIZE(meta->n_auxgrps * sizeof(u32));
 
 	if (mask & KDBUS_ATTACH_PID_COMM)
 		size += KDBUS_ITEM_SIZE(strlen(meta->pid_comm) + 1);
@@ -662,10 +662,10 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		int i;
 
 		kdbus_meta_write_item(item, KDBUS_ITEM_AUXGROUPS,
-				      NULL, meta->n_auxgrps * sizeof(u64));
+				      NULL, meta->n_auxgrps * sizeof(u32));
 
 		for (i = 0; i < meta->n_auxgrps; i++)
-			item->data64[i] =
+			item->data32[i] =
 				from_kgid_munged(user_ns, meta->auxgrps[i]);
 
 		item = KDBUS_ITEM_NEXT(item);
