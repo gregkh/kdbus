@@ -661,7 +661,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	if (mask & KDBUS_ATTACH_AUXGROUPS) {
 		int i;
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_PIDS,
+		kdbus_meta_write_item(item, KDBUS_ITEM_AUXGROUPS,
 				      NULL, meta->n_auxgrps * sizeof(u64));
 
 		for (i = 0; i < meta->n_auxgrps; i++)
