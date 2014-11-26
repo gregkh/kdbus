@@ -31,11 +31,29 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	int ret;
 	int status;
 	unsigned int uid = 65534;
+	struct kdbus_msg *msg = NULL;
+	uint64_t cookie = time(NULL) ^ 0xdeadbeef;
+	struct kdbus_conn *unpriv_conn = NULL;
 	int test_status = TEST_ERR;
 
 	ret = drop_privileges(UNPRIV_UID, UNPRIV_GID);
 	if (ret < 0)
 		goto out;
+
+	unpriv_conn = kdbus_hello(bus, 0, NULL, 0);
+	ASSERT_EXIT(unpriv_conn);
+
+	ret = kdbus_add_match_empty(unpriv_conn);
+	ASSERT_EXIT(ret == 0);
+
+	/*
+	 * ping privileged connection from this new unprivileged
+	 * one
+	 */
+
+	ret = kdbus_msg_send(unpriv_conn, NULL, cookie, 0, 0,
+			     0, conn->id);
+	ASSERT_EXIT(ret == 0);
 
 	/**
 	 * Since we just dropped privileges, the dumpable flag was just
@@ -84,7 +102,7 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	}
 
 	if (pid == 0) {
-		struct kdbus_conn *conn_src;
+		struct kdbus_conn *userns_conn;
 		eventfd_t event_status = 0;
 
 		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
@@ -99,17 +117,18 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 			_exit(TEST_ERR);
 
 		/* ping connection from the new user namespace */
-		conn_src = kdbus_hello(bus, 0, NULL, 0);
-		ASSERT_EXIT(conn_src);
+		userns_conn = kdbus_hello(bus, 0, NULL, 0);
+		ASSERT_EXIT(userns_conn);
 
-		ret = kdbus_add_match_empty(conn_src);
+		ret = kdbus_add_match_empty(userns_conn);
 		ASSERT_EXIT(ret == 0);
 
-		ret = kdbus_msg_send(conn_src, NULL, 0xabcd1234,
+		cookie++;
+		ret = kdbus_msg_send(userns_conn, NULL, cookie,
 				     0, 0, 0, conn->id);
 		ASSERT_EXIT(ret == 0);
 
-		kdbus_conn_free(conn_src);
+		kdbus_conn_free(userns_conn);
 		_exit(TEST_OK);
 	}
 
@@ -135,14 +154,28 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		goto out;
 	}
 
-	if (WIFEXITED(status))
-		test_status = WEXITSTATUS(status);
+	ASSERT_EXIT(WIFEXITED(status));
+
+	/*
+	 * Receive from privileged connection
+	 */
+	ret = kdbus_msg_recv_poll(unpriv_conn, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	kdbus_msg_free(msg);
+
+	ret = kdbus_msg_recv_poll(unpriv_conn, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	kdbus_msg_free(msg);
 
 out:
 	if (efd != -1)
 		close(efd);
 
-	return test_status;
+	kdbus_conn_free(unpriv_conn);
+
+	return 0;
 }
 
 /* Get only the first item */
@@ -163,6 +196,7 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	int ret;
 	pid_t pid;
 	int status;
+	uint64_t unpriv_id = 0;
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;
 	/* unpriv user will create its user_ns and change its uid/gid */
@@ -184,7 +218,23 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		_exit(ret);
 	}
 
-	/* Receive in the original (root privileged) user namespace */
+	/*
+	 * Receive from the unprileged child
+	 */
+	kdbus_printf("Receiving from unpriv connection:\n");
+	ret = kdbus_msg_recv_poll(conn, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	unpriv_id = msg->src_id;
+
+	kdbus_msg_free(msg);
+
+	/*
+	 * Receive from the unprivileged that is in his own
+	 * user namespace
+	 */
+
+	kdbus_printf("Receiving from unpriv connection in its own userns:\n");
 	ret = kdbus_msg_recv_poll(conn, 100, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
@@ -203,6 +253,21 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		      item->creds.gid == unpriv_cached_creds.gid);
 
 	kdbus_msg_free(msg);
+
+	/*
+	 * Sending to unprivileged connections a unicast
+	 */
+	ret = kdbus_msg_send(conn, NULL, 0xdeadbeef, 0, 0,
+			     0, unpriv_id);
+	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * Sending to unprivileged connections a broadcast
+	 */
+	ret = kdbus_msg_send(conn, NULL, 0xdeadbeef, 0, 0,
+			     0, KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
 	ret = waitpid(pid, &status, 0);
 	ASSERT_RETURN(ret >= 0);
 
