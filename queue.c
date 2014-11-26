@@ -591,6 +591,30 @@ exit_free_entry:
 }
 
 /**
+ * kdbus_queue_entry_move() - move an entry from one queue to another
+ * @conn_src:	Connection holding the queue to copy from
+ * @conn_dst:	Connection holding the queue to copy to
+ * @entry:	The queue entry to move
+ *
+ * Return: 0 on success, nagative error otherwise
+ */
+int kdbus_queue_entry_move(struct kdbus_conn *conn_src,
+			   struct kdbus_conn *conn_dst,
+			   struct kdbus_queue_entry *entry)
+{
+	int ret;
+
+	ret = kdbus_pool_slice_move(conn_src->pool, conn_dst->pool,
+				    &entry->slice);
+	if (ret < 0)
+		kdbus_queue_entry_free(entry);
+	else
+		kdbus_queue_entry_add(&conn_dst->queue, entry);
+
+	return 0;
+}
+
+/**
  * kdbus_queue_entry_free() - free resources of an entry
  * @entry:	The entry to free
  *

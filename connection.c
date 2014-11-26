@@ -1303,14 +1303,9 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		return -ECONNRESET;
 	}
 
-	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
-		ret = kdbus_pool_slice_move(conn_src->pool, conn_dst->pool,
-					    &q->slice);
-		if (ret < 0)
-			kdbus_queue_entry_free(q);
-		else
-			kdbus_queue_entry_add(&conn_dst->queue, q);
-	}
+	list_for_each_entry_safe(q, q_tmp, &msg_list, entry)
+		kdbus_queue_entry_move(conn_src, conn_dst, q);
+
 	list_splice(&reply_list, &conn_dst->reply_list);
 	mutex_unlock(&conn_dst->lock);
 
