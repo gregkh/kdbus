@@ -508,13 +508,13 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	/* copy the message header */
 	ret = kdbus_pool_slice_copy(entry->slice, 0, &kmsg->msg, size);
 	if (ret < 0)
-		goto exit_free_slice;
+		goto exit_free_entry;
 
 	/* update the size */
 	ret = kdbus_pool_slice_copy(entry->slice, 0, &msg_size,
 				    sizeof(kmsg->msg.size));
 	if (ret < 0)
-		goto exit_free_slice;
+		goto exit_free_entry;
 
 	if (dst_name_len  > 0) {
 		struct {
@@ -528,12 +528,12 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 		ret = kdbus_pool_slice_copy(entry->slice, size,
 					    &header, sizeof(header));
 		if (ret < 0)
-			goto exit_free_slice;
+			goto exit_free_entry;
 
 		ret = kdbus_pool_slice_copy(entry->slice, size + sizeof(header),
 					    kmsg->dst_name, dst_name_len);
 		if (ret < 0)
-			goto exit_free_slice;
+			goto exit_free_entry;
 	}
 
 	/* add PAYLOAD items */
@@ -541,7 +541,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 		ret = kdbus_queue_entry_payload_add(entry, kmsg,
 						    payloads, vec_data);
 		if (ret < 0)
-			goto exit_free_slice;
+			goto exit_free_entry;
 	}
 
 	/* add a FDS item; the array content will be updated at RECV time */
@@ -556,13 +556,13 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 		ret = kdbus_pool_slice_copy(entry->slice, fds,
 					    it, KDBUS_ITEM_HEADER_SIZE);
 		if (ret < 0)
-			goto exit_free_slice;
+			goto exit_free_entry;
 
 		for (i = 0; i < kmsg->fds_count; i++) {
 			entry->fds_fp[i] = get_file(kmsg->fds[i]);
 			if (!entry->fds_fp[i]) {
 				ret = -EBADF;
-				goto exit_free_slice;
+				goto exit_free_entry;
 			}
 		}
 
@@ -576,7 +576,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 		ret = kdbus_pool_slice_copy(entry->slice, meta_off,
 					    meta_buf, meta_size);
 		if (ret < 0)
-			goto exit_free_slice;
+			goto exit_free_entry;
 
 		kfree(meta_buf);
 	}
@@ -584,9 +584,8 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	entry->priority = kmsg->msg.priority;
 	return entry;
 
-exit_free_slice:
-	kdbus_pool_slice_free(entry->slice);
 exit_free_entry:
+	kdbus_pool_slice_release(entry->slice);
 	kdbus_queue_entry_free(entry);
 	kfree(meta_buf);
 	return ERR_PTR(ret);

@@ -337,7 +337,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		}
 
 		kdbus_queue_entry_remove(conn, entry);
-		kdbus_pool_slice_free(entry->slice);
+		kdbus_pool_slice_release(entry->slice);
 
 		/* Free the resources of this entry */
 		kdbus_queue_entry_free(entry);
@@ -358,27 +358,26 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	}
 
 	/* Give the offset+size back to the caller. */
-	recv->offset = kdbus_pool_slice_offset(entry->slice);
-	recv->msg_size = kdbus_pool_slice_size(entry->slice);
+	kdbus_pool_slice_publish(entry->slice, &recv->offset, &recv->msg_size);
 
 	/*
-	 * Just return the location of the next message. Do not install
+	 * PEEK just returns the location of the next message. Do not install
 	 * file descriptors or anything else. This is usually used to
 	 * determine the sender of the next queued message.
 	 *
 	 * File descriptor numbers referenced in the message items
 	 * are undefined, they are only valid with the full receive
 	 * not with peek.
+	 *
+	 * Only if no PEEK is specified, the FDs are installed and the message
+	 * is dropped from internal queues.
 	 */
-	if (recv->flags & KDBUS_RECV_PEEK) {
-		kdbus_pool_slice_flush(entry->slice);
-		goto exit_unlock;
+	if (!(recv->flags & KDBUS_RECV_PEEK)) {
+		ret = kdbus_queue_entry_install(entry);
+		kdbus_queue_entry_remove(conn, entry);
+		kdbus_pool_slice_release(entry->slice);
+		kdbus_queue_entry_free(entry);
 	}
-
-	ret = kdbus_queue_entry_install(entry);
-	kdbus_pool_slice_make_public(entry->slice);
-	kdbus_queue_entry_remove(conn, entry);
-	kdbus_queue_entry_free(entry);
 
 exit_unlock:
 	mutex_unlock(&conn->lock);
@@ -740,8 +739,9 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		if (ret == 0)
 			ret = kdbus_queue_entry_install(entry);
 
-		msg->offset_reply = kdbus_pool_slice_offset(entry->slice);
-		kdbus_pool_slice_make_public(entry->slice);
+		kdbus_pool_slice_publish(entry->slice, &msg->offset_reply,
+					 NULL);
+		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
 	}
 	mutex_unlock(&conn_src->lock);
@@ -1047,7 +1047,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 						entry->cookie);
 
 		kdbus_queue_entry_remove(conn, entry);
-		kdbus_pool_slice_free(entry->slice);
+		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
 	}
 	list_splice_init(&conn->reply_list, &reply_list);
@@ -1314,11 +1314,11 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 int kdbus_cmd_info(struct kdbus_conn *conn,
 		   struct kdbus_cmd_info *cmd_info)
 {
+	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_info info = {};
 	struct kdbus_meta *meta = NULL;
-	struct kdbus_pool_slice *slice;
 	u8 *meta_buf = NULL;
 	size_t meta_size;
 	u64 attach_flags;
@@ -1385,22 +1385,18 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 
 	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
 	if (ret < 0)
-		goto exit_free;
+		goto exit;
 
 	ret = kdbus_pool_slice_copy(slice, sizeof(info), meta_buf, meta_size);
 	if (ret < 0)
-		goto exit_free;
+		goto exit;
 
 	/* write back the offset */
-	cmd_info->offset = kdbus_pool_slice_offset(slice);
-	kdbus_pool_slice_flush(slice);
-	kdbus_pool_slice_make_public(slice);
-
-exit_free:
-	if (ret < 0)
-		kdbus_pool_slice_free(slice);
+	kdbus_pool_slice_publish(slice, &cmd_info->offset, NULL);
+	ret = 0;
 
 exit:
+	kdbus_pool_slice_release(slice);
 	kfree(meta_buf);
 	kdbus_meta_unref(meta);
 	kdbus_conn_unref(owner_conn);

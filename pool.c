@@ -90,8 +90,10 @@ struct kdbus_pool_slice {
 
 	struct list_head entry;
 	struct rb_node rb_node;
-	bool free;
-	bool public;
+
+	bool free : 1;
+	bool ref_kernel : 1;
+	bool ref_user : 1;
 };
 
 static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,
@@ -107,7 +109,6 @@ static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,
 	slice->off = off;
 	slice->size = size;
 	slice->free = true;
-	slice->public = false;
 	return slice;
 }
 
@@ -183,7 +184,7 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * @pool:		The receiver's pool
  * @size:		The number of bytes to allocate
  *
- * The returned slice is used for kdbus_pool_slice_free() to
+ * The returned slice is used for kdbus_pool_slice_release() to
  * free the allocated memory.
  *
  * Return: the allocated slice on success, ERR_PTR on failure.
@@ -245,8 +246,11 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 		s->size = slice_size;
 	}
 
+	WARN_ON(s->ref_kernel || s->ref_user);
+
+	s->ref_kernel = true;
+	s->ref_user = false;
 	s->free = false;
-	s->public = false;
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
 
@@ -257,9 +261,13 @@ exit_unlock:
 	return ERR_PTR(ret);
 }
 
-static void __kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
+static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 {
 	struct kdbus_pool *pool = slice->pool;
+
+	/* don't free the slice if either has a reference */
+	if (slice->ref_kernel || slice->ref_user)
+		return;
 
 	BUG_ON(slice->free);
 
@@ -300,18 +308,32 @@ static void __kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
 }
 
 /**
- * kdbus_pool_slice_free() - give allocated memory back to the pool
+ * kdbus_pool_slice_release() - drop kernel-reference on allocated slice
  * @slice:		Slice allocated from the the pool
  *
- * The slice was returned by the call to kdbus_pool_alloc_slice(), the
- * memory is returned to the pool.
+ * This releases the kernel-reference on the given slice. If the
+ * kernel-reference and the user-reference on a slice are dropped, the slice is
+ * returned to the pool.
+ *
+ * So far, we do not implement full ref-counting on slices. Each, kernel and
+ * user-space can have exactly one reference to a slice. If both are dropped at
+ * the same time, the slice is released.
  */
-void kdbus_pool_slice_free(struct kdbus_pool_slice *slice)
+void kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 {
-	struct kdbus_pool *pool = slice->pool;
+	struct kdbus_pool *pool;
+
+	if (!slice)
+		return;
+
+	/* @slice may be freed, so keep local ptr to @pool */
+	pool = slice->pool;
 
 	mutex_lock(&pool->lock);
-	__kdbus_pool_slice_free(slice);
+	/* kernel must own a ref to @slice to drop it */
+	WARN_ON(!slice->ref_kernel);
+	slice->ref_kernel = false;
+	__kdbus_pool_slice_release(slice);
 	mutex_unlock(&pool->lock);
 }
 
@@ -334,11 +356,9 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
 
 	mutex_lock(&pool->lock);
 	slice = kdbus_pool_find_slice(pool, off);
-	if (slice) {
-		if (slice->public)
-			__kdbus_pool_slice_free(slice);
-		else
-			ret = -EINVAL;
+	if (slice && slice->ref_user) {
+		slice->ref_user = false;
+		__kdbus_pool_slice_release(slice);
 	} else {
 		ret = -ENXIO;
 	}
@@ -370,12 +390,35 @@ size_t kdbus_pool_slice_size(const struct kdbus_pool_slice *slice)
 }
 
 /**
- * kdbus_pool_slice_make_public() - set a slice's public flag to true
+ * kdbus_pool_slice_publish() - publish slice to user-space
  * @slice:		The slice
+ * @out_offset:		Output storage for offset, or NULL
+ * @out_size:		Output stoarge for size, or NULL
+ *
+ * This prepares a slice to be published to user-space.
+ *
+ * This call combines the following operations:
+ *   * the memory region is flushed so the user's memory view is consistent
+ *   * the slice is marked as referenced by user-space, so user-space has to
+ *     call KDBUS_CMD_FREE to release it
+ *   * the offset and size of the slice are written to the given output
+ *     arguments, if non-NULL
  */
-void kdbus_pool_slice_make_public(struct kdbus_pool_slice *slice)
+void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
+			      u64 *out_offset, u64 *out_size)
 {
-	slice->public = true;
+	kdbus_pool_slice_flush(slice);
+
+	mutex_lock(&slice->pool->lock);
+	/* kernel must own a ref to @slice to gain a user-space ref */
+	WARN_ON(!slice->ref_kernel);
+	slice->ref_user = true;
+	mutex_unlock(&slice->pool->lock);
+
+	if (out_offset)
+		*out_offset = slice->off;
+	if (out_size)
+		*out_size = slice->size;
 }
 
 /**
@@ -665,13 +708,13 @@ int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
 	if (ret < 0)
 		goto exit_free;
 
-	kdbus_pool_slice_free(*slice);
+	kdbus_pool_slice_release(*slice);
 
 	*slice = slice_new;
 	return 0;
 
 exit_free:
-	kdbus_pool_slice_free(slice_new);
+	kdbus_pool_slice_release(slice_new);
 	return ret;
 }
 

@@ -425,7 +425,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 			       struct kdbus_cmd_info *cmd_info)
 {
 	struct kdbus_bus *bus = conn->ep->bus;
-	struct kdbus_pool_slice *slice;
+	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_info info = {};
 	u64 flags = cmd_info->flags;
 	u8 *buf = NULL;
@@ -443,30 +443,26 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
-		goto exit_free_buf;
+		slice = NULL;
+		goto exit;
 	}
 
 	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
 	if (ret < 0)
-		goto exit_free_slice;
+		goto exit;
 
 	if (buf && size) {
 		ret = kdbus_pool_slice_copy(slice, sizeof(info), buf, size);
 		if (ret < 0)
-			goto exit_free_slice;
+			goto exit;
 	}
 
 	/* write back the offset */
-	cmd_info->offset = kdbus_pool_slice_offset(slice);
-	kdbus_pool_slice_flush(slice);
-	kdbus_pool_slice_make_public(slice);
-	kfree(buf);
+	kdbus_pool_slice_publish(slice, &cmd_info->offset, NULL);
+	ret = 0;
 
-	return 0;
-
-exit_free_slice:
-	kdbus_pool_slice_free(slice);
-exit_free_buf:
+exit:
+	kdbus_pool_slice_release(slice);
 	kfree(buf);
 	return ret;
 }

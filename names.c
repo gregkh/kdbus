@@ -869,9 +869,9 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_conn *conn,
 			struct kdbus_cmd_name_list *cmd)
 {
+	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_policy_db *policy_db;
 	struct kdbus_name_list list = {};
-	struct kdbus_pool_slice *slice;
 	size_t pos;
 	int ret;
 
@@ -891,6 +891,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	slice = kdbus_pool_slice_alloc(conn->pool, pos);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
+		slice = NULL;
 		goto exit_unlock;
 	}
 
@@ -898,22 +899,19 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	list.size = pos;
 	ret = kdbus_pool_slice_copy(slice, 0, &list, sizeof(list));
 	if (ret < 0)
-		goto exit_pool_free;
+		goto exit_unlock;
 
 	/* copy the records */
 	pos = sizeof(struct kdbus_name_list);
 	ret = kdbus_name_list_all(conn, cmd->flags, slice, &pos, true);
 	if (ret < 0)
-		goto exit_pool_free;
+		goto exit_unlock;
 
-	cmd->offset = kdbus_pool_slice_offset(slice);
-	kdbus_pool_slice_flush(slice);
-	kdbus_pool_slice_make_public(slice);
+	kdbus_pool_slice_publish(slice, &cmd->offset, NULL);
+	ret = 0;
 
-exit_pool_free:
-	if (ret < 0)
-		kdbus_pool_slice_free(slice);
 exit_unlock:
+	kdbus_pool_slice_release(slice);
 	up_read(&policy_db->entries_rwlock);
 	up_read(&conn->ep->bus->conn_rwlock);
 	up_read(&reg->rwlock);
