@@ -157,16 +157,21 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 			char tmp[KDBUS_ITEM_HEADER_SIZE +
 				 sizeof(struct kdbus_vec)];
 			struct kdbus_item *it = (struct kdbus_item *)tmp;
+			void *addr = KDBUS_PTR(item->vec.address);
+			const char *zeros = "\0\0\0\0\0\0\0";
+			const void *copy_src;
+			size_t copy_len;
 
 			/* add item */
 			it->type = KDBUS_ITEM_PAYLOAD_OFF;
 			it->size = sizeof(tmp);
 
 			/* a NULL address specifies a \0-bytes record */
-			if (KDBUS_PTR(item->vec.address))
+			if (addr)
 				it->vec.offset = vec_data;
 			else
 				it->vec.offset = ~0ULL;
+
 			it->vec.size = item->vec.size;
 			ret = kdbus_pool_slice_copy(entry->slice, items,
 						    it, it->size);
@@ -174,36 +179,33 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 				return ret;
 			items += KDBUS_ALIGN8(it->size);
 
-			/* \0-bytes record */
-			if (!KDBUS_PTR(item->vec.address)) {
-				size_t l = item->vec.size % 8;
-				const char *n = "\0\0\0\0\0\0\0";
-
-				if (l == 0)
-					break;
-
+			if (addr) {
+				/* copy kdbus_vec data to receiver */
+				copy_src = addr;
+				copy_len = item->vec.size;
+			} else {
 				/*
+				 *  \0-bytes record.
+				 *
 				 * Preserve the alignment for the next payload
 				 * record in the output buffer; write as many
 				 * null-bytes to the buffer which the \0-bytes
 				 * record would have shifted the alignment.
 				 */
-				ret = kdbus_pool_slice_copy(entry->slice,
-							    vec_data, n, l);
-				if (ret < 0)
-					return ret;
+				copy_src = zeros;
+				copy_len = item->vec.size % 8;
 
-				vec_data += l;
-				break;
+				if (!copy_len)
+					break;
 			}
 
-			/* copy kdbus_vec data from sender to receiver */
-			ret = kdbus_pool_slice_copy_user(entry->slice, vec_data,
-				KDBUS_PTR(item->vec.address), item->vec.size);
+			ret = kdbus_pool_slice_copy(entry->slice, vec_data,
+						    copy_src, copy_len);
 			if (ret < 0)
 				return ret;
 
-			vec_data += item->vec.size;
+			vec_data += copy_len;
+
 			break;
 		}
 
