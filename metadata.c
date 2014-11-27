@@ -322,7 +322,7 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		if (info->ngroups > 0) {
 			int i;
 
-			meta->auxgrps = kzalloc(info->ngroups * sizeof(kgid_t),
+			meta->auxgrps = kmalloc(info->ngroups * sizeof(kgid_t),
 						GFP_KERNEL);
 			if (!meta->auxgrps)
 				return -ENOMEM;
