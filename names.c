@@ -661,7 +661,6 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto out_dec;
 
 	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags);
-	kdbus_notify_flush(conn->ep->bus);
 
 out_dec:
 	/* Decrement the previous allocated slot */
