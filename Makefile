@@ -64,7 +64,7 @@ tt-prepare: module test
 	-sudo sh -c 'dmesg -c > /dev/null'
 	-sudo umount /sys/fs/kdbus$(EXT)
 	-sudo sh -c 'rmmod kdbus$(EXT)'
-	sudo sh -c 'insmod kdbus$(EXT).ko attach_flags_mask=0xffffffff'
+	sudo sh -c 'insmod kdbus$(EXT).ko attach_flags_mask=0xffffffffffffffff'
 	sudo mount -t kdbus$(EXT)fs kdbus$(EXT)fs /sys/fs/kdbus$(EXT)
 
 tt: tt-prepare

@@ -19,7 +19,7 @@ struct kdbus_conn;
 struct kdbus_domain;
 struct kdbus_pool_slice;
 
-extern unsigned int kdbus_meta_attach_mask;
+extern unsigned long long kdbus_meta_attach_mask;
 
 struct kdbus_meta *kdbus_meta_new(void);
 struct kdbus_meta *kdbus_meta_ref(struct kdbus_meta *meta);
