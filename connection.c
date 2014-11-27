@@ -1124,6 +1124,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	put_pid_ns(conn->pid_namespace);
 
 	kdbus_meta_unref(conn->owner_meta);
+	kdbus_meta_unref(conn->meta);
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
@@ -1747,10 +1748,10 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_free_meta;
 
 		/* use the information provided with the HELLO call */
-		conn->meta = conn->owner_meta;
+		conn->meta = kdbus_meta_ref(conn->owner_meta);
 	} else {
 		/* use the connection's metadata collected at open() */
-		conn->meta = meta;
+		conn->meta = kdbus_meta_ref(meta);
 	}
 
 	/*
@@ -1816,6 +1817,7 @@ exit_domain_user_unref:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
 	kdbus_meta_unref(conn->owner_meta);
+	kdbus_meta_unref(conn->meta);
 exit_release_names:
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
 exit_unref_ep:
