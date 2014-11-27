@@ -634,7 +634,9 @@ struct kdbus_info {
     Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
-    Metadata information is stored in items here.
+    Metadata information is stored in items here. The item list contains
+    a KDBUS_ITEM_MAKE_NAME item that indicates the bus name of the
+    calling connection.
 };
 
 Once the caller is finished with parsing the return buffer, it needs to call
