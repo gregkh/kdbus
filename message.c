@@ -121,30 +121,12 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	size_t vecs_size = 0;
 	bool has_bloom = false;
 	bool has_name = false;
-	bool has_fds = false;
-	struct file *f;
-
-	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items))
-		if (item->type == KDBUS_ITEM_PAYLOAD_MEMFD)
-			kmsg->memfds_count++;
-
-	if (kmsg->memfds_count > 0) {
-		kmsg->memfds = kcalloc(kmsg->memfds_count,
-				       sizeof(struct file *), GFP_KERNEL);
-		if (!kmsg->memfds)
-			return -ENOMEM;
-
-		/* reset counter so we can reuse it */
-		kmsg->memfds_count = 0;
-	}
 
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
-		size_t payload_size;
+		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
 
 		if (++items_count > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
-
-		payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
 
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC:
@@ -163,6 +145,98 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 			kmsg->vecs_count++;
 			break;
 
+		case KDBUS_ITEM_PAYLOAD_MEMFD:
+			kmsg->memfds_count++;
+			break;
+
+		case KDBUS_ITEM_BLOOM_FILTER: {
+			u64 bloom_size;
+
+			/* do not allow multiple bloom filters */
+			if (has_bloom)
+				return -EEXIST;
+			has_bloom = true;
+
+			/* bloom filters are only for broadcast messages */
+			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
+				return -EBADMSG;
+
+			bloom_size = payload_size -
+				     offsetof(struct kdbus_bloom_filter, data);
+
+			/*
+			* Allow only bloom filter sizes of a multiple of 64bit.
+			*/
+			if (!KDBUS_IS_ALIGNED8(bloom_size))
+				return -EFAULT;
+
+			/* do not allow mismatching bloom filter sizes */
+			if (bloom_size != conn->ep->bus->bloom.size)
+				return -EDOM;
+
+			kmsg->bloom_filter = &item->bloom_filter;
+			break;
+		}
+
+		case KDBUS_ITEM_DST_NAME:
+			/* do not allow multiple names */
+			if (has_name)
+				return -EEXIST;
+			has_name = true;
+
+			if (!kdbus_name_is_valid(item->str, false))
+				return -EINVAL;
+
+			kmsg->dst_name = item->str;
+			break;
+		}
+	}
+
+	/* name is needed if no ID is given */
+	if (msg->dst_id == KDBUS_DST_ID_NAME && !has_name)
+		return -EDESTADDRREQ;
+
+	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
+		/* broadcasts can't take names */
+		if (has_name)
+			return -EBADMSG;
+
+		/* broadcast messages require a bloom filter */
+		if (!has_bloom)
+			return -EBADMSG;
+
+		/* timeouts are not allowed for broadcasts */
+		if (msg->timeout_ns > 0)
+			return -ENOTUNIQ;
+	}
+
+	/* bloom filters are for undirected messages only */
+	if (has_name && has_bloom)
+		return -EBADMSG;
+
+	return 0;
+}
+
+static int kdbus_msg_pin_files(struct kdbus_conn *conn,
+			       struct kdbus_kmsg *kmsg)
+{
+	const struct kdbus_msg *msg = &kmsg->msg;
+	const struct kdbus_item *item;
+	bool has_fds = false;
+	struct file *f;
+
+	if (kmsg->memfds_count > 0) {
+		kmsg->memfds = kcalloc(kmsg->memfds_count,
+				       sizeof(struct file *), GFP_KERNEL);
+		if (!kmsg->memfds)
+			return -ENOMEM;
+
+		/* reset counter so we can reuse it */
+		kmsg->memfds_count = 0;
+	}
+
+	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
+		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			int seals, mask;
 			int fd = item->memfd.fd;
@@ -250,71 +324,10 @@ static int kdbus_msg_scan_items(struct kdbus_conn *conn,
 
 			break;
 		}
-
-		case KDBUS_ITEM_BLOOM_FILTER: {
-			u64 bloom_size;
-
-			/* do not allow multiple bloom filters */
-			if (has_bloom)
-				return -EEXIST;
-			has_bloom = true;
-
-			/* bloom filters are only for broadcast messages */
-			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
-				return -EBADMSG;
-
-			bloom_size = payload_size -
-				     offsetof(struct kdbus_bloom_filter, data);
-
-			/*
-			* Allow only bloom filter sizes of a multiple of 64bit.
-			*/
-			if (!KDBUS_IS_ALIGNED8(bloom_size))
-				return -EFAULT;
-
-			/* do not allow mismatching bloom filter sizes */
-			if (bloom_size != conn->ep->bus->bloom.size)
-				return -EDOM;
-
-			kmsg->bloom_filter = &item->bloom_filter;
-			break;
-		}
-
-		case KDBUS_ITEM_DST_NAME:
-			/* do not allow multiple names */
-			if (has_name)
-				return -EEXIST;
-			has_name = true;
-
-			if (!kdbus_name_is_valid(item->str, false))
-				return -EINVAL;
-
-			kmsg->dst_name = item->str;
+		default:
 			break;
 		}
 	}
-
-	/* name is needed if no ID is given */
-	if (msg->dst_id == KDBUS_DST_ID_NAME && !has_name)
-		return -EDESTADDRREQ;
-
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		/* broadcasts can't take names */
-		if (has_name)
-			return -EBADMSG;
-
-		/* broadcast messages require a bloom filter */
-		if (!has_bloom)
-			return -EBADMSG;
-
-		/* timeouts are not allowed for broadcasts */
-		if (msg->timeout_ns > 0)
-			return -ENOTUNIQ;
-	}
-
-	/* bloom filters are for undirected messages only */
-	if (has_name && has_bloom)
-		return -EBADMSG;
 
 	return 0;
 }
@@ -396,6 +409,10 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_msg_scan_items(conn, m);
+	if (ret < 0)
+		goto exit_free;
+
+	ret = kdbus_msg_pin_files(conn, m);
 	if (ret < 0)
 		goto exit_free;
 
