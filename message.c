@@ -112,8 +112,8 @@ static int kdbus_handle_check_file(struct file *file)
  * On errors, the caller should drop any taken reference with
  * kdbus_kmsg_free()
  */
-static int kdbus_msg_scan_items(struct kdbus_conn *conn,
-				struct kdbus_kmsg *kmsg)
+int kdbus_msg_scan_items(struct kdbus_conn *conn,
+			 struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;

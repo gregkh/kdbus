@@ -67,6 +67,8 @@ struct kdbus_conn;
 struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size);
 struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 					    struct kdbus_msg __user *msg);
+int kdbus_msg_scan_items(struct kdbus_conn *conn,
+			 struct kdbus_kmsg *kmsg);
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg);
 
 int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
