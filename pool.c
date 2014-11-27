@@ -584,6 +584,7 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
 			      size_t off_src, size_t len)
 {
 	struct file *f_dst = slice->pool->f;
+	struct inode *i_dst = file_inode(f_dst);
 	struct address_space *mapping = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping->a_ops;
 	unsigned long fpos = slice->off + off;
@@ -593,6 +594,8 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
 
 	BUG_ON(off + len > slice->size);
 	BUG_ON(slice->free);
+
+	mutex_lock(&i_dst->i_mutex);
 
 	while (rem > 0) {
 		struct page *p;
@@ -631,6 +634,8 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
 		fpos += n;
 		rem -= n;
 	}
+
+	mutex_unlock(&i_dst->i_mutex);
 
 	return ret;
 }
