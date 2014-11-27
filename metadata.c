@@ -264,7 +264,7 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		       u64 seq, u64 which)
 {
 	u64 mask;
-	int ret, i;
+	int i;
 
 	/*
 	 * If our database is pre-filled with faked information, do
@@ -424,6 +424,7 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		u32 sid;
 		char *ctx = NULL;
 		u32 len;
+		int ret;
 
 		security_task_getsecid(current, &sid);
 		ret = security_secid_to_secctx(sid, &ctx, &len);
