@@ -560,6 +560,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* add it to the queue waiting for the name */
 		if (*flags & KDBUS_NAME_QUEUE) {
 			ret = kdbus_name_queue_conn(conn, *flags, e);
+			if (ret < 0)
+				goto exit_unlock;
 
 			/* tell the caller that we queued it */
 			*flags |= KDBUS_NAME_IN_QUEUE;
