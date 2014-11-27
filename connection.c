@@ -42,6 +42,7 @@
 #include "item.h"
 #include "notify.h"
 #include "policy.h"
+#include "pool.h"
 #include "util.h"
 #include "queue.h"
 
@@ -671,14 +672,9 @@ static void kdbus_conn_eavesdrop(struct kdbus_bus *bus,
 
 	down_read(&bus->conn_rwlock);
 	list_for_each_entry(c, &bus->monitors_list, monitor_entry) {
-		/*
-		 * The first monitor which requests additional
-		 * metadata causes the message to carry it; all
-		 * monitors after that will see all of the added
-		 * data, even when they did not ask for it.
-		 */
 		if (conn) {
-			ret = kdbus_kmsg_attach_metadata(kmsg, conn, c);
+			ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
+						     conn);
 			if (ret < 0)
 				break;
 		}
@@ -890,7 +886,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto wait_sync;
 		}
 
-		ret = kdbus_kmsg_attach_metadata(kmsg, conn_src, conn_dst);
+		ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
 		if (ret < 0)
 			goto exit_unref;
 

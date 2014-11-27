@@ -430,25 +430,3 @@ exit_free:
 	kdbus_kmsg_free(m);
 	return ERR_PTR(ret);
 }
-
-/**
- * kdbus_kmsg_attach_metadata() - Attach metadata to a kmsg object
- * @kmsg:	The message to attach the metadata to
- * @conn_src:	The source connection that sends the message
- * @conn_dst:	The destination connection that is about to receive the message
- *
- * Append metadata items according to the destination connection's
- * attach flags. If the source connection has faked credentials, the
- * metadata object associated with the kmsg has been pre-filled with
- * conn_src->meta, and we only attach the connection's name and
- * currently owned names on top of that.
- *
- * Return: 0 on success, negative error otherwise.
- */
-int kdbus_kmsg_attach_metadata(struct kdbus_kmsg *kmsg,
-			       struct kdbus_conn *conn_src,
-			       struct kdbus_conn *conn_dst)
-{
-	u64 attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
-	return kdbus_meta_collect(kmsg->meta, kmsg->seq, attach_flags);
-}

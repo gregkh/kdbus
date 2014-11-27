@@ -457,6 +457,25 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 	return 0;
 }
 
+/**
+ * kdbus_meta_collect_dst() - collect metadata according to receive flags of
+ *			      a destination connection
+ * @meta:	metadata object to collect data on
+ * @seq:	message sequence number to set on TIMESTAMP items
+ * @conn:	destination connection for this metadata
+ *
+ * This is a convenience helper for kdbus_meta_collect() which takes the mask
+ * of attach-flags from the recv-flags of the destination connection.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_meta_collect_dst(struct kdbus_meta *meta, u64 seq,
+			   const struct kdbus_conn *conn)
+{
+	return kdbus_meta_collect(meta, seq,
+				  atomic64_read(&conn->attach_flags_recv));
+}
+
 static inline void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
 					 const void *data, size_t len)
 {

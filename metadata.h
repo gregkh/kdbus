@@ -26,6 +26,8 @@ struct kdbus_meta *kdbus_meta_ref(struct kdbus_meta *meta);
 struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta);
 
 int kdbus_meta_collect(struct kdbus_meta *meta, u64 seq, u64 which);
+int kdbus_meta_collect_dst(struct kdbus_meta *meta, u64 seq,
+			   const struct kdbus_conn *conn);
 int kdbus_meta_fake(struct kdbus_meta *meta,
 		    const struct kdbus_creds *creds,
 		    const struct kdbus_pids *pids,

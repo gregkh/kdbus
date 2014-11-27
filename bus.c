@@ -382,8 +382,8 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			if (ret < 0)
 				continue;
 
-			ret = kdbus_kmsg_attach_metadata(kmsg, conn_src,
-							 conn_dst);
+			ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
+						     conn_dst);
 			if (ret < 0)
 				goto exit_unlock;
 		} else {
