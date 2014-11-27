@@ -181,7 +181,6 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 {
 	struct kdbus_cmd_make *make;
 	struct kdbus_ep *ep;
-	unsigned int access;
 	const char *name;
 	int ret;
 
@@ -210,11 +209,10 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 		goto exit;
 	}
 
-	access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
-				KDBUS_MAKE_ACCESS_GROUP);
-
-	ep = kdbus_ep_new(handle->ep->bus, name, access, current_fsuid(),
-			  current_fsgid(), true);
+	ep = kdbus_ep_new(handle->ep->bus, name,
+			  make->flags & (KDBUS_MAKE_ACCESS_WORLD |
+			                 KDBUS_MAKE_ACCESS_GROUP),
+			  current_fsuid(), current_fsgid(), true);
 	if (IS_ERR(ep)) {
 		ret = PTR_ERR(ep);
 		goto exit;
