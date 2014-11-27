@@ -408,6 +408,42 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 	up_read(&bus->conn_rwlock);
 }
 
+/**
+ * kdbus_bus_eavesdrop() - send a message to all subscribed monitors
+ * @bus:	The bus the monitors are connected to
+ * @conn_src:	The source connection, may be %NULL for kernel notifications
+ * @kmsg:	The message to send.
+ *
+ * Send @kmsg to all monitors that are currently active on the bus. Monitors
+ * must still have matches installed in order to let the message pass.
+ */
+void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
+			 struct kdbus_conn *conn_src,
+			 struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_conn *conn_dst;
+
+	/*
+	 * Monitor connections get all messages; ignore possible errors
+	 * when sending messages to monitor connections.
+	 */
+
+	down_read(&bus->conn_rwlock);
+	list_for_each_entry(conn_dst, &bus->monitors_list, monitor_entry) {
+		/*
+		 * Collect metadata requested by the destination connection.
+		 * Ignore errors, as receivers need to check metadata
+		 * availability, anyway. So it's still better to send messages
+		 * that lack data, than to skip it entirely.
+		 */
+		if (conn_src)
+			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
+
+		kdbus_conn_entry_insert(NULL, conn_dst, kmsg, NULL);
+	}
+	up_read(&bus->conn_rwlock);
+}
+
 
 /**
  * kdbus_cmd_bus_creator_info() - get information on a bus creator

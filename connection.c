@@ -658,34 +658,6 @@ exit_unlock:
 	return ret;
 }
 
-static void kdbus_conn_eavesdrop(struct kdbus_bus *bus,
-				 struct kdbus_conn *conn,
-				 struct kdbus_kmsg *kmsg)
-{
-	struct kdbus_conn *c;
-	int ret;
-
-	/*
-	 * Monitor connections get all messages; ignore possible errors
-	 * when sending messages to monitor connections.
-	 */
-
-	down_read(&bus->conn_rwlock);
-	list_for_each_entry(c, &bus->monitors_list, monitor_entry) {
-		/*
-		 * Collect metadata requested by the destination connection.
-		 * Ignore errors, as receivers need to check metadata
-		 * availability, anyway. So it's still better to send messages
-		 * that lack data, than to skip it entirely.
-		 */
-		if (conn)
-			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn);
-
-		kdbus_conn_entry_insert(NULL, c, kmsg, NULL);
-	}
-	up_read(&bus->conn_rwlock);
-}
-
 static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
 				 struct kdbus_msg *msg,
@@ -937,7 +909,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	/* forward to monitors */
-	kdbus_conn_eavesdrop(bus, conn_src, kmsg);
+	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
 
 wait_sync:
 	/* no reason to keep names locked for replies */
