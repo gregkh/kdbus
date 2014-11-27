@@ -439,7 +439,7 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 		if (conn_src)
 			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
 
-		kdbus_conn_entry_insert(NULL, conn_dst, kmsg, NULL);
+		kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
 	}
 	up_read(&bus->conn_rwlock);
 }
