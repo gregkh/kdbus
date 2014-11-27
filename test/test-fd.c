@@ -135,10 +135,19 @@ static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 	size = sizeof(struct kdbus_msg);
 	size += KDBUS_ITEM_SIZE(sizeof(int) * fd_count);
 
+	if (dst_id == KDBUS_DST_ID_BROADCAST)
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
+
 	ret = make_msg_payload_dbus(conn->id, dst_id, size, &msg);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
 	item = msg->items;
+
+	if (dst_id == KDBUS_DST_ID_BROADCAST) {
+		item->type = KDBUS_ITEM_BLOOM_FILTER;
+		item->size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
+		item = KDBUS_ITEM_NEXT(item);
+	}
 
 	make_item_fds(item, fd_array, fd_count);
 
