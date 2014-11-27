@@ -322,7 +322,7 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		if (info->ngroups > 0) {
 			int i;
 
-			meta->auxgrps = kmalloc(info->ngroups * sizeof(kgid_t),
+			meta->auxgrps = kzalloc(info->ngroups * sizeof(kgid_t),
 						GFP_KERNEL);
 			if (!meta->auxgrps)
 				return -ENOMEM;
@@ -607,7 +607,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	 * Allocate memory and fill in the items.
 	 */
 
-	p = kmalloc(size, GFP_KERNEL);
+	p = kzalloc(size, GFP_KERNEL);
 	if (!p) {
 		if (src_lock)
 			mutex_unlock(&conn_src->lock);
