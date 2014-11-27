@@ -679,6 +679,9 @@ ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
 	mm_segment_t old_fs;
 	ssize_t ret;
 
+	if (!len)
+		return 0;
+
 	old_fs = get_fs();
 	set_fs(get_ds());
 	ret = kdbus_pool_copy(slice, off,
