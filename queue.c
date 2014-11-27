@@ -131,121 +131,6 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry)
 	return 0;
 }
 
-static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
-					 const struct kdbus_kmsg *kmsg,
-					 size_t items, size_t vec_data)
-{
-	const struct kdbus_item *item;
-	int ret;
-
-	if (kmsg->memfds_count > 0) {
-		entry->memfds = kcalloc(kmsg->memfds_count,
-					sizeof(off_t), GFP_KERNEL);
-		if (!entry->memfds)
-			return -ENOMEM;
-
-		entry->memfds_fp = kcalloc(kmsg->memfds_count,
-					   sizeof(struct file *), GFP_KERNEL);
-		if (!entry->memfds_fp)
-			return -ENOMEM;
-	}
-
-	KDBUS_ITEMS_FOREACH(item, kmsg->msg.items,
-			    KDBUS_ITEMS_SIZE(&kmsg->msg, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_PAYLOAD_VEC: {
-			char tmp[KDBUS_ITEM_HEADER_SIZE +
-				 sizeof(struct kdbus_vec)];
-			struct kdbus_item *it = (struct kdbus_item *)tmp;
-			void *addr = KDBUS_PTR(item->vec.address);
-			const char *zeros = "\0\0\0\0\0\0\0";
-			const void *copy_src;
-			size_t copy_len;
-
-			/* add item */
-			it->type = KDBUS_ITEM_PAYLOAD_OFF;
-			it->size = sizeof(tmp);
-
-			/* a NULL address specifies a \0-bytes record */
-			if (addr)
-				it->vec.offset = vec_data;
-			else
-				it->vec.offset = ~0ULL;
-
-			it->vec.size = item->vec.size;
-			ret = kdbus_pool_slice_copy(entry->slice, items,
-						    it, it->size);
-			if (ret < 0)
-				return ret;
-			items += KDBUS_ALIGN8(it->size);
-
-			if (addr) {
-				/* copy kdbus_vec data to receiver */
-				copy_src = addr;
-				copy_len = item->vec.size;
-			} else {
-				/*
-				 *  \0-bytes record.
-				 *
-				 * Preserve the alignment for the next payload
-				 * record in the output buffer; write as many
-				 * null-bytes to the buffer which the \0-bytes
-				 * record would have shifted the alignment.
-				 */
-				copy_src = zeros;
-				copy_len = item->vec.size % 8;
-
-				if (!copy_len)
-					break;
-			}
-
-			ret = kdbus_pool_slice_copy(entry->slice, vec_data,
-						    copy_src, copy_len);
-			if (ret < 0)
-				return ret;
-
-			vec_data += copy_len;
-
-			break;
-		}
-
-		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			char tmp[KDBUS_ITEM_HEADER_SIZE +
-				 sizeof(struct kdbus_memfd)];
-			struct kdbus_item *it = (struct kdbus_item *)tmp;
-
-			/* add item */
-			it->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-			it->size = sizeof(tmp);
-			it->memfd.size = item->memfd.size;
-			it->memfd.fd = -1;
-			ret = kdbus_pool_slice_copy(entry->slice, items,
-						    it, it->size);
-			if (ret < 0)
-				return ret;
-
-			/*
-			 * Remember the file and the location of the fd number
-			 * which will be updated at RECV time.
-			 */
-			entry->memfds[entry->memfds_count] =
-				items + offsetof(struct kdbus_item, memfd.fd);
-			entry->memfds_fp[entry->memfds_count] =
-				get_file(kmsg->memfds[entry->memfds_count]);
-			entry->memfds_count++;
-
-			items += KDBUS_ALIGN8(it->size);
-			break;
-		}
-
-		default:
-			break;
-		}
-	}
-
-	return 0;
-}
-
 /**
  * kdbus_queue_entry_add() - Add an queue entry to a queue
  * @queue:	The queue to attach the item to
@@ -394,6 +279,121 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 		rb_replace_node(&entry->prio_node, &q->prio_node,
 				&queue->msg_prio_queue);
 	}
+}
+
+static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
+					 const struct kdbus_kmsg *kmsg,
+					 size_t items, size_t vec_data)
+{
+	const struct kdbus_item *item;
+	int ret;
+
+	if (kmsg->memfds_count > 0) {
+		entry->memfds = kcalloc(kmsg->memfds_count,
+					sizeof(off_t), GFP_KERNEL);
+		if (!entry->memfds)
+			return -ENOMEM;
+
+		entry->memfds_fp = kcalloc(kmsg->memfds_count,
+					   sizeof(struct file *), GFP_KERNEL);
+		if (!entry->memfds_fp)
+			return -ENOMEM;
+	}
+
+	KDBUS_ITEMS_FOREACH(item, kmsg->msg.items,
+			    KDBUS_ITEMS_SIZE(&kmsg->msg, items)) {
+		switch (item->type) {
+		case KDBUS_ITEM_PAYLOAD_VEC: {
+			char tmp[KDBUS_ITEM_HEADER_SIZE +
+				 sizeof(struct kdbus_vec)];
+			struct kdbus_item *it = (struct kdbus_item *)tmp;
+			void *addr = KDBUS_PTR(item->vec.address);
+			const char *zeros = "\0\0\0\0\0\0\0";
+			const void *copy_src;
+			size_t copy_len;
+
+			/* add item */
+			it->type = KDBUS_ITEM_PAYLOAD_OFF;
+			it->size = sizeof(tmp);
+
+			/* a NULL address specifies a \0-bytes record */
+			if (addr)
+				it->vec.offset = vec_data;
+			else
+				it->vec.offset = ~0ULL;
+
+			it->vec.size = item->vec.size;
+			ret = kdbus_pool_slice_copy(entry->slice, items,
+						    it, it->size);
+			if (ret < 0)
+				return ret;
+			items += KDBUS_ALIGN8(it->size);
+
+			if (addr) {
+				/* copy kdbus_vec data to receiver */
+				copy_src = addr;
+				copy_len = item->vec.size;
+			} else {
+				/*
+				 *  \0-bytes record.
+				 *
+				 * Preserve the alignment for the next payload
+				 * record in the output buffer; write as many
+				 * null-bytes to the buffer which the \0-bytes
+				 * record would have shifted the alignment.
+				 */
+				copy_src = zeros;
+				copy_len = item->vec.size % 8;
+
+				if (!copy_len)
+					break;
+			}
+
+			ret = kdbus_pool_slice_copy(entry->slice, vec_data,
+						    copy_src, copy_len);
+			if (ret < 0)
+				return ret;
+
+			vec_data += copy_len;
+
+			break;
+		}
+
+		case KDBUS_ITEM_PAYLOAD_MEMFD: {
+			char tmp[KDBUS_ITEM_HEADER_SIZE +
+				 sizeof(struct kdbus_memfd)];
+			struct kdbus_item *it = (struct kdbus_item *)tmp;
+
+			/* add item */
+			it->type = KDBUS_ITEM_PAYLOAD_MEMFD;
+			it->size = sizeof(tmp);
+			it->memfd.size = item->memfd.size;
+			it->memfd.fd = -1;
+			ret = kdbus_pool_slice_copy(entry->slice, items,
+						    it, it->size);
+			if (ret < 0)
+				return ret;
+
+			/*
+			 * Remember the file and the location of the fd number
+			 * which will be updated at RECV time.
+			 */
+			entry->memfds[entry->memfds_count] =
+				items + offsetof(struct kdbus_item, memfd.fd);
+			entry->memfds_fp[entry->memfds_count] =
+				get_file(kmsg->memfds[entry->memfds_count]);
+			entry->memfds_count++;
+
+			items += KDBUS_ALIGN8(it->size);
+			break;
+		}
+
+		default:
+			break;
+		}
+	}
+
+	return 0;
 }
 
 /**
