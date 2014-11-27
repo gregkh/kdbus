@@ -335,22 +335,21 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
  * @kmsg:	The message to send.
  *
  * Send @kmsg to all connections that are currently active on the bus.
- * Connections must still have matches installed in order to subscribe to
- * let the message pass.
+ * Connections must still have matches installed in order to let the message
+ * pass.
  */
 void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg)
 {
-	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst;
 	unsigned int i;
-	int ret = 0;
+	int ret;
 
 	down_read(&bus->conn_rwlock);
 
 	hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
-		if (conn_dst->id == msg->src_id)
+		if (conn_dst->id == kmsg->msg.src_id)
 			continue;
 
 		/*
