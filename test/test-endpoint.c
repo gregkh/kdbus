@@ -48,7 +48,7 @@ static int install_name_add_match(struct kdbus_conn *conn, const char *name)
 	return 0;
 }
 
-static int create_endpoint(const char *buspath, const char *name,
+static int create_endpoint(const char *buspath, uid_t uid, const char *name,
 			   uint64_t flags)
 {
 	struct {
@@ -74,7 +74,7 @@ static int create_endpoint(const char *buspath, const char *name,
 		 /* Use the KDBUS_SYSNAME_MAX_LEN or sizeof(str) */
 		 KDBUS_SYSNAME_MAX_LEN > strlen(name) ?
 		 KDBUS_SYSNAME_MAX_LEN : sizeof(ep_make.name.str),
-		 "%u-%s", getuid(), name);
+		 "%u-%s", uid, name);
 
 	ep_make.name.type = KDBUS_ITEM_MAKE_NAME;
 	ep_make.name.size = KDBUS_ITEM_HEADER_SIZE +
@@ -113,11 +113,11 @@ static int unpriv_test_custom_ep(const char *buspath)
 	free(tmp2);
 
 	/* endpoint only accessible to current uid */
-	ep_fd1 = create_endpoint(buspath, "apps1", 0);
+	ep_fd1 = create_endpoint(buspath, getuid(), "apps1", 0);
 	ASSERT_RETURN(ep_fd1 >= 0);
 
 	/* endpoint world accessible */
-	ep_fd2 = create_endpoint(buspath, "apps2",
+	ep_fd2 = create_endpoint(buspath, getuid(), "apps2",
 				  KDBUS_MAKE_ACCESS_WORLD);
 	ASSERT_RETURN(ep_fd2 >= 0);
 
@@ -129,7 +129,8 @@ static int unpriv_test_custom_ep(const char *buspath)
 		 * Make sure that we are not able to create custom
 		 * endpoints
 		 */
-		ep_fd = create_endpoint(buspath, "unpriv_costum_ep", 0);
+		ep_fd = create_endpoint(buspath, getuid(),
+					"unpriv_costum_ep", 0);
 		ASSERT_EXIT(ep_fd == -EPERM);
 
 		/*
@@ -215,11 +216,15 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	memset(fake_ep, 'X', sizeof(fake_ep) - 1);
 
 	/* Try to create a custom endpoint with a long name */
-	ret = create_endpoint(env->buspath, fake_ep, 0);
+	ret = create_endpoint(env->buspath, getuid(), fake_ep, 0);
 	ASSERT_RETURN(ret == -ENAMETOOLONG);
 
+	/* Try to create a custom endpoint with a different uid */
+	ret = create_endpoint(env->buspath, getuid() + 1, "foobar", 0);
+	ASSERT_RETURN(ret == -EINVAL);
+
 	/* create a custom endpoint, and open a connection on it */
-	ep_fd = create_endpoint(env->buspath, "foo", 0);
+	ep_fd = create_endpoint(env->buspath, getuid(), "foo", 0);
 	ASSERT_RETURN(ep_fd >= 0);
 
 	tmp = strdup(env->buspath);
