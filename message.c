@@ -121,6 +121,7 @@ int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	size_t vecs_size = 0;
 	bool has_bloom = false;
 	bool has_name = false;
+	bool has_fds = false;
 
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
@@ -147,6 +148,21 @@ int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD:
 			kmsg->memfds_count++;
+			break;
+
+		case KDBUS_ITEM_FDS:
+			/* do not allow multiple fd arrays */
+			if (has_fds)
+				return -EEXIST;
+			has_fds = true;
+
+			/* do not allow to broadcast file descriptors */
+			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
+				return -ENOTUNIQ;
+
+			kmsg->fds_count = payload_size / sizeof(int);
+			if (kmsg->fds_count > KDBUS_MSG_MAX_FDS)
+				return -EMFILE;
 			break;
 
 		case KDBUS_ITEM_BLOOM_FILTER: {
@@ -221,7 +237,6 @@ static int kdbus_msg_pin_files(struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
-	bool has_fds = false;
 	struct file *f;
 
 	if (kmsg->memfds_count > 0) {
@@ -279,26 +294,14 @@ static int kdbus_msg_pin_files(struct kdbus_kmsg *kmsg)
 		}
 
 		case KDBUS_ITEM_FDS: {
-			unsigned int n, i;
+			unsigned int i;
 
-			/* do not allow multiple fd arrays */
-			if (has_fds)
-				return -EEXIST;
-			has_fds = true;
-
-			/* do not allow to broadcast file descriptors */
-			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
-				return -ENOTUNIQ;
-
-			n = KDBUS_ITEM_PAYLOAD_SIZE(item) / sizeof(int);
-			if (n > KDBUS_MSG_MAX_FDS)
-				return -EMFILE;
-
-			kmsg->fds = kcalloc(n, sizeof(*kmsg->fds), GFP_KERNEL);
+			kmsg->fds = kcalloc(kmsg->fds_count,
+					    sizeof(*kmsg->fds), GFP_KERNEL);
 			if (!kmsg->fds)
 				return -ENOMEM;
 
-			for (i = 0; i < n; i++) {
+			for (i = 0; i < kmsg->fds_count; i++) {
 				int ret;
 				int fd = item->fds[i];
 
@@ -314,7 +317,6 @@ static int kdbus_msg_pin_files(struct kdbus_kmsg *kmsg)
 					return -EBADF;
 
 				kmsg->fds[i] = f;
-				kmsg->fds_count++;
 
 				ret = kdbus_handle_check_file(f);
 				if (ret < 0)
