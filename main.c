@@ -29,7 +29,9 @@ static struct kobject *kdbus_dir;
 unsigned int kdbus_meta_attach_mask = KDBUS_ATTACH_TIMESTAMP |
 				      KDBUS_ATTACH_CREDS |
 				      KDBUS_ATTACH_PIDS |
+				      KDBUS_ATTACH_AUXGROUPS |
 				      KDBUS_ATTACH_NAMES |
+				      KDBUS_ATTACH_SECLABEL |
 				      KDBUS_ATTACH_CONN_DESCRIPTION;
 MODULE_PARM_DESC(attach_flags_mask, "Attach-flags mask for exported metadata");
 module_param_named(attach_flags_mask, kdbus_meta_attach_mask, uint, 0644);
