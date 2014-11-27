@@ -16,11 +16,36 @@
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
 
+static struct kdbus_item *kdbus_get_item(struct kdbus_info *info,
+					 uint64_t type)
+{
+	struct kdbus_item *item;
+
+	KDBUS_ITEM_FOREACH(item, info, items)
+		if (item->type == type)
+			return item;
+
+	return NULL;
+}
+
 static int test_bus_creator_info(const char *bus_path)
 {
 	int ret;
 	struct kdbus_conn *conn;
 	struct kdbus_cmd_info cmd = {};
+	struct kdbus_info *info;
+	struct kdbus_item *item;
+	char *tmp, *busname;
+
+	/* extract the bus-name from @bus_path */
+	tmp = strdup(bus_path);
+	ASSERT_RETURN(tmp);
+	busname = strrchr(tmp, '/');
+	ASSERT_RETURN(busname);
+	*busname = 0;
+	busname = strrchr(tmp, '/');
+	ASSERT_RETURN(busname);
+	++busname;
 
 	cmd.size = sizeof(cmd);
 
@@ -30,9 +55,16 @@ static int test_bus_creator_info(const char *bus_path)
 	ret = ioctl(conn->fd, KDBUS_CMD_BUS_CREATOR_INFO, &cmd);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
+	info = (struct kdbus_info *)(conn->buf + cmd.offset);
+
+	item = kdbus_get_item(info, KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(item);
+	ASSERT_RETURN(!strcmp(item->str, busname));
+
 	ret = kdbus_free(conn, cmd.offset);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
+	free(tmp);
 	return 0;
 }
 

@@ -423,19 +423,23 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 {
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
+	size_t meta_size, name_size, name_len;
 	struct kdbus_info info = {};
+	struct kdbus_item item = {};
 	u64 flags = cmd_info->flags;
 	u8 *buf = NULL;
-	size_t size;
 	int ret;
 
-	ret = kdbus_meta_export(bus->meta, NULL, conn, flags, &buf, &size);
+	name_len = strlen(bus->node.name);
+	name_size = KDBUS_ITEM_SIZE(name_len + 1);
+
+	ret = kdbus_meta_export(bus->meta, NULL, conn, flags, &buf, &meta_size);
 	if (ret < 0)
 		return ret;
 
 	info.id = bus->id;
 	info.flags = bus->bus_flags;
-	info.size = sizeof(info) + size;
+	info.size = sizeof(info) + name_size + meta_size;
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
@@ -448,8 +452,23 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	if (ret < 0)
 		goto exit;
 
-	if (buf && size) {
-		ret = kdbus_pool_slice_copy(slice, sizeof(info), buf, size);
+	item.type = KDBUS_ITEM_MAKE_NAME;
+	item.size = KDBUS_ITEM_HEADER_SIZE + name_len + 1;
+
+	ret = kdbus_pool_slice_copy(slice, sizeof(info), &item,
+				    KDBUS_ITEM_HEADER_SIZE);
+	if (ret < 0)
+		goto exit;
+
+	ret = kdbus_pool_slice_copy(slice,
+				    sizeof(info) + KDBUS_ITEM_HEADER_SIZE,
+				    bus->node.name, name_len + 1);
+	if (ret < 0)
+		goto exit;
+
+	if (buf && meta_size) {
+		ret = kdbus_pool_slice_copy(slice, sizeof(info) + name_size,
+					    buf, meta_size);
 		if (ret < 0)
 			goto exit;
 	}
