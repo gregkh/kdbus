@@ -672,12 +672,14 @@ static void kdbus_conn_eavesdrop(struct kdbus_bus *bus,
 
 	down_read(&bus->conn_rwlock);
 	list_for_each_entry(c, &bus->monitors_list, monitor_entry) {
-		if (conn) {
-			ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
-						     conn);
-			if (ret < 0)
-				break;
-		}
+		/*
+		 * Collect metadata requested by the destination connection.
+		 * Ignore errors, as receivers need to check metadata
+		 * availability, anyway. So it's still better to send messages
+		 * that lack data, than to skip it entirely.
+		 */
+		if (conn)
+			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn);
 
 		kdbus_conn_entry_insert(NULL, c, kmsg, NULL);
 	}

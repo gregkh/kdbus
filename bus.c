@@ -382,10 +382,12 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			if (ret < 0)
 				continue;
 
-			ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
-						     conn_dst);
-			if (ret < 0)
-				goto exit_unlock;
+			/*
+			 * Keep sending messages even if we cannot acquire the
+			 * requested metadata. It's up to the receiver to drop
+			 * messages that lack expected metadata.
+			 */
+			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
 		} else {
 			/*
 			 * Check if there is a policy db that prevents the
@@ -404,7 +406,6 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			atomic_inc(&conn_dst->lost_count);
 	}
 
-exit_unlock:
 	up_read(&bus->conn_rwlock);
 }
 
