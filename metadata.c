@@ -437,10 +437,10 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 			return ret;
 		} else {
 			meta->seclabel = kstrdup(ctx, GFP_KERNEL);
+			security_release_secctx(ctx, len);
 			if (!meta->seclabel)
 				return -ENOMEM;
 
-			security_release_secctx(ctx, len);
 			meta->collected |= KDBUS_ATTACH_SECLABEL;
 		}
 	}
