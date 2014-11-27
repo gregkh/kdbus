@@ -16,6 +16,12 @@ since v2:
   * Add {e,s,fs}{u,g}id to KDBUS_ITEM_CREDS, so users have a way to
     get more fine-grained credential information.
 
+  * Restrict names of custom endpoints to names with a "<uid>-" prefix,
+    just like we do for buses.
+
+  * Provide module-parameter "kdbus.attach_flags_mask" to specify the
+    a mask of metadata items that is applied on all exported items.
+
   * Some fixes in kdbus.txt, spotted by Harald Hoyer and Andy
     Lutomirski.
 

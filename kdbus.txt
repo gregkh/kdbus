@@ -263,6 +263,7 @@ creating a bus the name must be passed in properly formatted, or the
 kernel will refuse creation of the bus. Example: "1047-foobar" is an
 OK name for a bus registered by a user with UID 1047. However,
 "1024-foobar" is not, and neither is "foobar".
+The UID must be provided in the user-namespace of the parent domain.
 
 To create a new bus, you need to open the control file of a domain and run the
 KDBUS_CMD_BUS_MAKE ioctl. The control file descriptor that was used to issue
@@ -298,6 +299,15 @@ always have a policy database that, by default, forbids any operation. You have
 to explicitly install policy entries to allow any operation on this endpoint.
 Once KDBUS_CMD_ENDPOINT_MAKE succeeded, this file descriptor will manage the
 newly created endpoint resource. It cannot be used to manage further resources.
+
+Endpoint names may be chosen freely except for one restriction: the name
+must be prefixed with the numeric UID of the creator and a dash. This
+is required to avoid namespace clashes between different users. When
+creating an endpoint the name must be passed in properly formatted, or the
+kernel will refuse creation of the endpoint. Example: "1047-foobar" is an
+OK name for an endpoint registered by a user with UID 1047. However,
+"1024-foobar" is not, and neither is "foobar".
+The UID must be provided in the user-namespace of the parent domain.
 
 To create connections to a bus, you use KDBUS_CMD_HELLO. See section 6 for
 details. Note that once KDBUS_CMD_HELLO succeeded, this file descriptor manages
