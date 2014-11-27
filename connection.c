@@ -506,7 +506,9 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 static struct kdbus_queue_entry *
 kdbus_conn_entry_make(struct kdbus_conn *conn_src,
 		      struct kdbus_conn *conn_dst,
-		      const struct kdbus_kmsg *kmsg)
+		      const struct kdbus_kmsg *kmsg,
+		      const u8 *meta_buf,
+		      size_t meta_size)
 {
 	struct kdbus_queue_entry *entry;
 
@@ -518,11 +520,38 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_src,
 	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) && kmsg->fds_count > 0)
 		return ERR_PTR(-ECOMM);
 
-	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg);
+	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg,
+					meta_buf, meta_size);
 	if (IS_ERR(entry))
 		return entry;
 
 	return entry;
+}
+
+/* you must *NOT* hold any connection lock when exporting metadata */
+static int kdbus_conn_export_meta(struct kdbus_conn *conn_src,
+				  struct kdbus_conn *conn_dst,
+				  const struct kdbus_kmsg *kmsg,
+				  u8 **out_buf,
+				  size_t *out_size)
+{
+	u64 attach_flags = 0;
+
+	if (conn_src)
+		attach_flags = atomic64_read(&conn_src->attach_flags_send) &
+			       atomic64_read(&conn_dst->attach_flags_recv);
+
+	if (!attach_flags) {
+		*out_buf = NULL;
+		*out_size = 0;
+		return 0;
+	}
+
+	/* any message with source must have metadata allocated */
+	BUG_ON(!kmsg->meta);
+
+	return kdbus_meta_export(kmsg->meta, conn_src, conn_dst, attach_flags,
+				 out_buf, out_size);
 }
 
 /*
@@ -536,8 +565,14 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
 					struct kdbus_conn_reply *reply_wake)
 {
 	struct kdbus_queue_entry *entry;
+	size_t meta_size;
+	u8 *meta_buf;
 	int remote_ret;
-	int ret = 0;
+	int ret;
+
+	/* export metadata _before_ locking the destination */
+	ret = kdbus_conn_export_meta(conn_src, conn_dst, kmsg,
+				     &meta_buf, &meta_size);
 
 	mutex_lock(&conn_dst->lock);
 
@@ -545,16 +580,21 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
 	 * If we are still waiting then proceed, allocate a queue
 	 * entry and attach it to the reply object
 	 */
-	if (reply_wake->waiting) {
-		entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg);
-		if (IS_ERR(entry))
-			ret = PTR_ERR(entry);
-		else
-			/* Attach the entry to the reply object */
-			reply_wake->queue_entry = entry;
-	} else {
-		ret = -ECONNRESET;
+	if (ret >= 0) {
+		if (reply_wake->waiting) {
+			entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg,
+						      meta_buf, meta_size);
+			if (IS_ERR(entry))
+				ret = PTR_ERR(entry);
+			else
+				/* Attach the entry to the reply object */
+				reply_wake->queue_entry = entry;
+		} else {
+			ret = -ECONNRESET;
+		}
 	}
+
+	kfree(meta_buf);
 
 	/*
 	 * Update the reply object and wake up remote peer only
@@ -599,7 +639,15 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 			    struct kdbus_conn_reply *reply)
 {
 	struct kdbus_queue_entry *entry;
+	size_t meta_size;
+	u8 *meta_buf;
 	int ret;
+
+	/* export metadata _before_ locking the destination */
+	ret = kdbus_conn_export_meta(conn_src, conn_dst, kmsg,
+				     &meta_buf, &meta_size);
+	if (ret < 0)
+		return ret;
 
 	mutex_lock(&conn_dst->lock);
 
@@ -619,7 +667,8 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	}
 
 	/* Get a queue entry for src and dst pairs */
-	entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg);
+	entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg,
+				      meta_buf, meta_size);
 	if (IS_ERR(entry)) {
 		ret = PTR_ERR(entry);
 		goto exit_unlock;
@@ -645,16 +694,18 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 
 	/* link the message into the receiver's entry */
 	kdbus_queue_entry_add(&conn_dst->queue, entry);
-	mutex_unlock(&conn_dst->lock);
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn_dst->wait);
-	return 0;
+
+	ret = 0;
+	goto exit_unlock;
 
 exit_queue_free:
 	kdbus_queue_entry_free(entry);
 exit_unlock:
 	mutex_unlock(&conn_dst->lock);
+	kfree(meta_buf);
 	return ret;
 }
 

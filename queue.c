@@ -398,6 +398,8 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
  * @conn_src:	The connection used to create the message
  * @conn_dst:	The connection that holds the queue
  * @kmsg:	The kmsg object the queue entry should track
+ * @meta_buf:	Exported metadata to attach or NULL
+ * @meta_size:	Size of exported metadata or 0 if @meta_buf is NULL
  *
  * Allocates a queue entry based on a given kmsg and allocate space for
  * the message payload and the requested metadata in the connection's pool.
@@ -407,11 +409,12 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
  */
 struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 						  struct kdbus_conn *conn_dst,
-						  const struct kdbus_kmsg *kmsg)
+						  const struct kdbus_kmsg *kmsg,
+						  const u8 *meta_buf,
+						  size_t meta_size)
 {
 	struct kdbus_queue_entry *entry;
 	struct kdbus_item *it;
-	u64 attach_flags = 0;
 	size_t msg_size;
 	size_t size;
 	size_t dst_name_len = 0;
@@ -421,8 +424,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	size_t vec_data;
 	size_t want, have;
 	int ret = 0;
-	u8 *meta_buf = NULL;
-	size_t meta_size;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
@@ -468,21 +469,9 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 		msg_size += KDBUS_ITEM_SIZE(kmsg->fds_count * sizeof(int));
 	}
 
-	if (conn_src)
-		attach_flags = atomic64_read(&conn_src->attach_flags_send) &
-			       atomic64_read(&conn_dst->attach_flags_recv);
-
 	/* space for metadata/credential items */
-	if (kmsg->meta && attach_flags) {
-		ret = kdbus_meta_export(kmsg->meta, conn_src,
-					conn_dst, attach_flags,
-					&meta_buf, &meta_size);
-		if (ret < 0)
-			goto exit_free_entry;
-
-		meta_off = msg_size;
-		msg_size += meta_size;
-	}
+	meta_off = msg_size;
+	msg_size += meta_size;
 
 	/* data starts after the message */
 	vec_data = KDBUS_ALIGN8(msg_size);
@@ -570,13 +559,11 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 	}
 
 	/* append message metadata/credential items */
-	if (meta_buf) {
+	if (meta_size > 0) {
 		ret = kdbus_pool_slice_copy(entry->slice, meta_off,
 					    meta_buf, meta_size);
 		if (ret < 0)
 			goto exit_free_entry;
-
-		kfree(meta_buf);
 	}
 
 	entry->priority = kmsg->msg.priority;
@@ -585,7 +572,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
 exit_free_entry:
 	kdbus_pool_slice_release(entry->slice);
 	kdbus_queue_entry_free(entry);
-	kfree(meta_buf);
 	return ERR_PTR(ret);
 }
 
