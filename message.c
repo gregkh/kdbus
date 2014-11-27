@@ -104,16 +104,16 @@ static int kdbus_handle_check_file(struct file *file)
 
 /*
  * kdbus_msg_scan_items() - validate incoming data and prepare parsing
- * @conn:		Connection
  * @kmsg:		Message
+ * @bus:		Bus the message is sent over
  *
  * Return: 0 on success, negative errno on failure.
  *
  * On errors, the caller should drop any taken reference with
  * kdbus_kmsg_free()
  */
-int kdbus_msg_scan_items(struct kdbus_conn *conn,
-			 struct kdbus_kmsg *kmsg)
+int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
+			 struct kdbus_bus *bus)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
@@ -171,7 +171,7 @@ int kdbus_msg_scan_items(struct kdbus_conn *conn,
 				return -EFAULT;
 
 			/* do not allow mismatching bloom filter sizes */
-			if (bloom_size != conn->ep->bus->bloom.size)
+			if (bloom_size != bus->bloom.size)
 				return -EDOM;
 
 			kmsg->bloom_filter = &item->bloom_filter;
@@ -217,8 +217,7 @@ int kdbus_msg_scan_items(struct kdbus_conn *conn,
 	return 0;
 }
 
-static int kdbus_msg_pin_files(struct kdbus_conn *conn,
-			       struct kdbus_kmsg *kmsg)
+static int kdbus_msg_pin_files(struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
@@ -408,11 +407,11 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		}
 	}
 
-	ret = kdbus_msg_scan_items(conn, m);
+	ret = kdbus_msg_scan_items(m, conn->ep->bus);
 	if (ret < 0)
 		goto exit_free;
 
-	ret = kdbus_msg_pin_files(conn, m);
+	ret = kdbus_msg_pin_files(m);
 	if (ret < 0)
 		goto exit_free;
 
