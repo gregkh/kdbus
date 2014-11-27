@@ -179,7 +179,6 @@ static int handle_ep_release(struct inode *inode, struct file *file)
 static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 					 void __user *buf)
 {
-	struct kdbus_domain_user *user;
 	struct kdbus_cmd_make *make;
 	struct kdbus_ep *ep;
 	unsigned int access;
@@ -220,18 +219,6 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 		ret = PTR_ERR(ep);
 		goto exit;
 	}
-
-	/*
-	 * Get an anonymous user to account messages against; custom
-	 * endpoint users do not share the budget with the ordinary
-	 * users created for a UID.
-	 */
-	user = kdbus_domain_get_user(handle->ep->bus->domain, INVALID_UID);
-	if (IS_ERR(user)) {
-		ret = PTR_ERR(user);
-		goto exit_ep_unref;
-	}
-	ep->user = user;
 
 	ret = kdbus_ep_activate(ep);
 	if (ret < 0)

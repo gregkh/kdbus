@@ -75,7 +75,7 @@ static void kdbus_ep_release(struct kdbus_node *node, bool was_active)
  * @access:		The access flags for this node (KDBUS_MAKE_ACCESS_*)
  * @uid:		The uid of the node
  * @gid:		The gid of the node
- * @policy:		Whether or not the endpoint should have a policy db
+ * @is_custom:		Whether this is a custom endpoint
  *
  * This function will create a new enpoint with the given
  * name and properties for a given bus.
@@ -84,7 +84,7 @@ static void kdbus_ep_release(struct kdbus_node *node, bool was_active)
  */
 struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 			      unsigned int access, kuid_t uid, kgid_t gid,
-			      bool policy)
+			      bool is_custom)
 {
 	struct kdbus_ep *e;
 	int ret;
@@ -108,13 +108,30 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	mutex_init(&e->lock);
 	INIT_LIST_HEAD(&e->conn_list);
 	kdbus_policy_db_init(&e->policy_db);
-	e->has_policy = policy;
+	e->has_policy = is_custom;
 	e->bus = kdbus_bus_ref(bus);
 	e->id = atomic64_inc_return(&bus->ep_seq_last);
 
 	ret = kdbus_node_link(&e->node, &bus->node, name);
 	if (ret < 0)
 		goto exit_unref;
+
+	/*
+	 * Transactions on custom endpoints are never accounted on the global
+	 * user limits. Instead, for each custom endpoint, we create a custom,
+	 * unique user, which all transactions are accounted on. Regardless of
+	 * the user using that endpoint, it is always accounted on the same
+	 * user-object. This budget is not shared with ordniary users on
+	 * non-custom endpoints.
+	 */
+	if (is_custom) {
+		e->user = kdbus_domain_get_user(bus->domain, INVALID_UID);
+		if (IS_ERR(e->user)) {
+			ret = PTR_ERR(e->user);
+			e->user = NULL;
+			goto exit_unref;
+		}
+	}
 
 	return e;
 
