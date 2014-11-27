@@ -283,7 +283,7 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 
 static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 					 const struct kdbus_kmsg *kmsg,
-					 size_t items, size_t vec_data)
+					 size_t off, size_t vec_data)
 {
 	const struct kdbus_item *item;
 	int ret;
@@ -323,11 +323,11 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 				it->vec.offset = ~0ULL;
 
 			it->vec.size = item->vec.size;
-			ret = kdbus_pool_slice_copy(entry->slice, items,
+			ret = kdbus_pool_slice_copy(entry->slice, off,
 						    it, it->size);
 			if (ret < 0)
 				return ret;
-			items += KDBUS_ALIGN8(it->size);
+			off += KDBUS_ALIGN8(it->size);
 
 			if (addr) {
 				/* copy kdbus_vec data to receiver */
@@ -344,9 +344,6 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 				 */
 				copy_src = zeros;
 				copy_len = item->vec.size % 8;
-
-				if (!copy_len)
-					break;
 			}
 
 			ret = kdbus_pool_slice_copy(entry->slice, vec_data,
@@ -369,7 +366,7 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 			it->size = sizeof(tmp);
 			it->memfd.size = item->memfd.size;
 			it->memfd.fd = -1;
-			ret = kdbus_pool_slice_copy(entry->slice, items,
+			ret = kdbus_pool_slice_copy(entry->slice, off,
 						    it, it->size);
 			if (ret < 0)
 				return ret;
@@ -379,12 +376,12 @@ static int kdbus_queue_entry_payload_add(struct kdbus_queue_entry *entry,
 			 * which will be updated at RECV time.
 			 */
 			entry->memfds[entry->memfds_count] =
-				items + offsetof(struct kdbus_item, memfd.fd);
+				off + offsetof(struct kdbus_item, memfd.fd);
 			entry->memfds_fp[entry->memfds_count] =
 				get_file(kmsg->memfds[entry->memfds_count]);
 			entry->memfds_count++;
 
-			items += KDBUS_ALIGN8(it->size);
+			off += KDBUS_ALIGN8(it->size);
 			break;
 		}
 
