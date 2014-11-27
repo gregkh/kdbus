@@ -78,7 +78,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	const struct kdbus_item *item;
 	struct kdbus_bus *b;
 	const char *name = NULL;
-	char prefix[16];
 	int ret;
 
 	u64 attach_flags = 0;
@@ -125,11 +124,9 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (bloom->n_hash < 1)
 		return ERR_PTR(-EINVAL);
 
-	/* enforce "$UID-" prefix */
-	snprintf(prefix, sizeof(prefix), "%u-",
-		 from_kuid(domain->user_namespace, uid));
-	if (strncmp(name, prefix, strlen(prefix) != 0))
-		return ERR_PTR(-EINVAL);
+	ret = kdbus_verify_uid_prefix(name, domain->user_namespace, uid);
+	if (ret < 0)
+		return ERR_PTR(ret);
 
 	b = kzalloc(sizeof(*b), GFP_KERNEL);
 	if (!b)

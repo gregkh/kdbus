@@ -165,3 +165,31 @@ void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max)
 
 	return memdup_user(user_ptr, size);
 }
+
+/**
+ * kdbus_verify_uid_prefix() - verify UID prefix of a user-supplied name
+ * @name:	user-supplied name to verify
+ * @user_ns:	user-namespace to act in
+ * @uid:	UID of user
+ *
+ * This verifies that the user-supplied name @name has their UID as prefix. This
+ * is the default name-spacing policy we enforce on user-supplied names for
+ * public kdbus entities like buses and endpoints.
+ *
+ * The user must supply names prefixed with "<UID>-", whereas the UID is
+ * interpreted in the user-namespace of the domain. If the user fails to supply
+ * such a prefixed name, we reject it.
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
+			    kuid_t uid)
+{
+	char prefix[16];
+
+	snprintf(prefix, sizeof(prefix), "%u-", from_kuid(user_ns, uid));
+	if (strncmp(name, prefix, strlen(prefix) != 0))
+		return -EINVAL;
+
+	return 0;
+}
