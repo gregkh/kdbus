@@ -785,11 +785,11 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * 'current' at the time of sending.
 		 *
 		 * Hence, in such cases, take a reference of the connection's
-		 * owner_meta, and take care not to augment it by attaching any
+		 * meta, and take care not to augment it by attaching any
 		 * new items.
 		 */
-		if (conn_src->owner_meta)
-			kmsg->meta = kdbus_meta_ref(conn_src->owner_meta);
+		if (conn_src->faked_meta)
+			kmsg->meta = kdbus_meta_ref(conn_src->meta);
 		else
 			kmsg->meta = kdbus_meta_new();
 
@@ -1123,7 +1123,6 @@ static void __kdbus_conn_free(struct kref *kref)
 	put_user_ns(conn->user_namespace);
 	put_pid_ns(conn->pid_namespace);
 
-	kdbus_meta_unref(conn->owner_meta);
 	kdbus_meta_unref(conn->meta);
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
@@ -1736,19 +1735,18 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* privileged processes can impersonate somebody else */
 	if (creds || pids || seclabel) {
-		conn->owner_meta = kdbus_meta_new();
-		if (IS_ERR(conn->owner_meta)) {
-			ret = PTR_ERR(conn->owner_meta);
-			conn->owner_meta = NULL;
+		conn->meta = kdbus_meta_new();
+		if (IS_ERR(conn->meta)) {
+			ret = PTR_ERR(conn->meta);
+			conn->meta = NULL;
 			goto exit_release_names;
 		}
 
-		ret = kdbus_meta_fake(meta, creds, pids, seclabel);
+		ret = kdbus_meta_fake(conn->meta, creds, pids, seclabel);
 		if (ret < 0)
 			goto exit_free_meta;
 
-		/* use the information provided with the HELLO call */
-		conn->meta = kdbus_meta_ref(conn->owner_meta);
+		conn->faked_meta = true;
 	} else {
 		/* use the connection's metadata collected at open() */
 		conn->meta = kdbus_meta_ref(meta);
@@ -1816,7 +1814,6 @@ exit_unref_user_unlock:
 exit_domain_user_unref:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
-	kdbus_meta_unref(conn->owner_meta);
 	kdbus_meta_unref(conn->meta);
 exit_release_names:
 	kdbus_name_remove_by_conn(bus->name_registry, conn);

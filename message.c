@@ -440,7 +440,7 @@ exit_free:
  * Append metadata items according to the destination connection's
  * attach flags. If the source connection has faked credentials, the
  * metadata object associated with the kmsg has been pre-filled with
- * conn_src->owner_meta, and we only attach the connection's name and
+ * conn_src->meta, and we only attach the connection's name and
  * currently owned names on top of that.
  *
  * Return: 0 on success, negative error otherwise.

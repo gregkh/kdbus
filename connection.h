@@ -59,8 +59,6 @@
  * @match_db:		Subscription filter to broadcast messages
  * @meta:		Active connection creator's metadata/credentials,
  *			either from the handle or from HELLO
- * @owner_meta:		The connection's metadata/credentials supplied by
- *			HELLO
  * @pool:		The user's buffer to receive messages
  * @user:		Owner of the connection
  * @cred:		The credentials of the connection at creation time
@@ -70,10 +68,11 @@
  * @lost_count:		Number of lost broadcast messages
  * @wait:		Wake up this endpoint
  * @queue:		The message queue associated with this connection
- * @privileged:		Whether this connection is privileged on the bus
  * @pid_namespace:	PID namespace, pinned at creation time
  * @user_namespace:	User namespace, pinned at creation time
  * @root_path:		Root path, pinned at creation time
+ * @privileged:		Whether this connection is privileged on the bus
+ * @faked_meta:		Whether the metadata was faked on HELLO
  */
 struct kdbus_conn {
 	struct kref kref;
@@ -100,7 +99,6 @@ struct kdbus_conn {
 	struct kdbus_name_entry *activator_of;
 	struct kdbus_match_db *match_db;
 	struct kdbus_meta *meta;
-	struct kdbus_meta *owner_meta;
 	struct kdbus_pool *pool;
 	struct kdbus_domain_user *user;
 	const struct cred *cred;
@@ -109,10 +107,12 @@ struct kdbus_conn {
 	atomic_t lost_count;
 	wait_queue_head_t wait;
 	struct kdbus_queue queue;
-	bool privileged : 1;
 	struct pid_namespace *pid_namespace;
 	struct user_namespace *user_namespace;
 	struct path root_path;
+
+	bool privileged : 1;
+	bool faked_meta : 1;
 };
 
 struct kdbus_kmsg;
