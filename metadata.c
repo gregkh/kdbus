@@ -170,7 +170,8 @@ static void __kdbus_meta_free(struct kref *kref)
  */
 struct kdbus_meta *kdbus_meta_ref(struct kdbus_meta *meta)
 {
-	kref_get(&meta->kref);
+	if (meta)
+		kref_get(&meta->kref);
 	return meta;
 }
 
