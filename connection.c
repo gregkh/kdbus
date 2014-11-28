@@ -911,8 +911,11 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto wait_sync;
 		}
 
-		ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
-					     conn_src, conn_dst);
+		ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
+		if (ret < 0)
+			goto exit_unref;
+
+		ret = kdbus_meta_collect_src(kmsg->meta, conn_src, conn_dst);
 		if (ret < 0)
 			goto exit_unref;
 
@@ -1397,6 +1400,10 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	info.size = sizeof(info);
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
+
+	ret = kdbus_meta_collect_src(owner_conn->meta, owner_conn, conn);
+	if (ret < 0)
+		goto exit;
 
 	/* mask out what information the connection wants to pass us */
 	attach_flags = cmd_info->flags &

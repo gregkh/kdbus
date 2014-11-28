@@ -120,7 +120,7 @@ static int handle_ep_open(struct inode *inode, struct file *file)
 		goto exit_free;
 	}
 
-	ret = kdbus_meta_collect(handle->meta, NULL, 0,
+	ret = kdbus_meta_collect(handle->meta, 0,
 				 KDBUS_ATTACH_CREDS	|
 				 KDBUS_ATTACH_PIDS	|
 				 KDBUS_ATTACH_AUXGROUPS	|

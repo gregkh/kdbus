@@ -270,8 +270,6 @@ static inline void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
 /**
  * kdbus_meta_collect() - collect metadata from current process
  * @meta:		Metadata object
- * @conn_src:		Connection to get owned names and description from,
- *			may be %NULL
  * @seq:		Message sequence number
  * @which:		KDBUS_ATTACH_* mask
  *
@@ -282,7 +280,6 @@ static inline void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_collect(struct kdbus_meta *meta,
-		       struct kdbus_conn *conn_src,
 		       u64 seq, u64 which)
 {
 	u64 mask;
@@ -369,42 +366,6 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 	if (mask & KDBUS_ATTACH_TID_COMM) {
 		get_task_comm(meta->tid_comm, current);
 		meta->collected |= KDBUS_ATTACH_TID_COMM;
-	}
-
-	if (mask & KDBUS_ATTACH_NAMES && conn_src) {
-		const struct kdbus_name_entry *e;
-		struct kdbus_item *item;
-
-		meta->owned_names_size = 0;
-
-		list_for_each_entry(e, &conn_src->names_list, conn_entry)
-			meta->owned_names_size +=
-				KDBUS_ITEM_SIZE(strlen(e->name) + 1);
-
-		meta->owned_names_items =
-			kmalloc(meta->owned_names_size, GFP_KERNEL);
-		if (!meta->owned_names_items)
-			return -ENOMEM;
-
-		item = meta->owned_names_items;
-
-		list_for_each_entry(e, &conn_src->names_list, conn_entry) {
-			kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME,
-					      e->name, strlen(e->name) + 1);
-			item = KDBUS_ITEM_NEXT(item);
-		}
-
-		meta->collected |= KDBUS_ATTACH_NAMES;
-	}
-
-	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION &&
-	    conn_src && conn_src->description) {
-		meta->conn_description =
-			kstrdup(conn_src->description, GFP_KERNEL);
-		if (!meta->conn_description)
-			return -ENOMEM;
-
-		meta->collected |= KDBUS_ATTACH_CONN_DESCRIPTION;
 	}
 
 	if (mask & KDBUS_ATTACH_EXE) {
@@ -529,11 +490,67 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
  * Return: 0 on success, negative error code on failure.
  */
 int kdbus_meta_collect_dst(struct kdbus_meta *meta, u64 seq,
+			   const struct kdbus_conn *conn_dst)
+{
+	return kdbus_meta_collect(meta, seq,
+				  atomic64_read(&conn_dst->attach_flags_recv));
+}
+
+/*
+ * kdbus_meta_collect_from_src() - collect metadata from source connection
+ * @meta:		Metadata object
+ * @conn_src:		Connection to get owned names and description from
+ * @conn_dst:		Connection to get attach flags from
+ *
+ * Collect the data specified in @which from @src_conn.
+ *
+ * Return: 0 on success, negative errno on failure.
+ */
+int kdbus_meta_collect_src(struct kdbus_meta *meta,
 			   struct kdbus_conn *conn_src,
 			   const struct kdbus_conn *conn_dst)
 {
-	return kdbus_meta_collect(meta, conn_src, seq,
-				  atomic64_read(&conn_dst->attach_flags_recv));
+	u64 mask = atomic64_read(&conn_dst->attach_flags_recv);
+
+	if (mask & KDBUS_ATTACH_NAMES && conn_src) {
+		const struct kdbus_name_entry *e;
+		struct kdbus_item *item;
+
+		meta->owned_names_size = 0;
+
+		list_for_each_entry(e, &conn_src->names_list, conn_entry)
+			meta->owned_names_size +=
+				KDBUS_ITEM_SIZE(strlen(e->name) + 1);
+
+		kfree(meta->owned_names_items);
+		meta->owned_names_items =
+			kmalloc(meta->owned_names_size, GFP_KERNEL);
+		if (!meta->owned_names_items)
+			return -ENOMEM;
+
+		item = meta->owned_names_items;
+
+		list_for_each_entry(e, &conn_src->names_list, conn_entry) {
+			kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME,
+					      e->name, strlen(e->name) + 1);
+			item = KDBUS_ITEM_NEXT(item);
+		}
+
+		meta->collected |= KDBUS_ATTACH_NAMES;
+	}
+
+	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION &&
+	    conn_src && conn_src->description) {
+		kfree(meta->conn_description);
+		meta->conn_description =
+			kstrdup(conn_src->description, GFP_KERNEL);
+		if (!meta->conn_description)
+			return -ENOMEM;
+
+		meta->collected |= KDBUS_ATTACH_CONN_DESCRIPTION;
+	}
+
+	return 0;
 }
 
 static void kdbus_meta_export_creds(const struct kdbus_meta *meta,
