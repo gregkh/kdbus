@@ -397,7 +397,6 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		meta->collected |= KDBUS_ATTACH_NAMES;
 	}
 
-#if 0
 	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION &&
 	    conn_src && conn_src->name) {
 		meta->conn_description = kstrdup(conn_src->name, GFP_KERNEL);
@@ -406,7 +405,6 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 
 		meta->collected |= KDBUS_ATTACH_CONN_DESCRIPTION;
 	}
-#endif
 
 	if (mask & KDBUS_ATTACH_EXE) {
 		struct mm_struct *mm = get_task_mm(current);
