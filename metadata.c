@@ -398,8 +398,9 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION &&
-	    conn_src && conn_src->name) {
-		meta->conn_description = kstrdup(conn_src->name, GFP_KERNEL);
+	    conn_src && conn_src->description) {
+		meta->conn_description =
+			kstrdup(conn_src->description, GFP_KERNEL);
 		if (!meta->conn_description)
 			return -ENOMEM;
 

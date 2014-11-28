@@ -1150,7 +1150,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
 	put_cred(conn->cred);
-	kfree(conn->name);
+	kfree(conn->description);
 	kfree(conn);
 }
 
@@ -1535,7 +1535,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	const struct kdbus_pids *pids = NULL;
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
-	const char *conn_name = NULL;
+	const char *conn_description = NULL;
 	const char *seclabel = NULL;
 	const char *name = NULL;
 	struct kdbus_conn *conn;
@@ -1622,10 +1622,10 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 		case KDBUS_ITEM_CONN_DESCRIPTION:
 			/* human-readable connection name (debugging) */
-			if (conn_name)
+			if (conn_description)
 				return ERR_PTR(-EINVAL);
 
-			conn_name = item->str;
+			conn_description = item->str;
 			break;
 		}
 	}
@@ -1672,9 +1672,9 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_free_conn;
 	}
 
-	if (conn_name) {
-		conn->name = kstrdup(conn_name, GFP_KERNEL);
-		if (!conn->name) {
+	if (conn_description) {
+		conn->description = kstrdup(conn_description, GFP_KERNEL);
+		if (!conn->description) {
 			ret = -ENOMEM;
 			goto exit_free_conn;
 		}
@@ -1709,7 +1709,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	conn->user_namespace = get_user_ns(current_user_ns());
 	get_fs_root(current->fs, &conn->root_path);
 
-	conn->pool = kdbus_pool_new(conn->name, hello->pool_size);
+	conn->pool = kdbus_pool_new(conn->description, hello->pool_size);
 	if (IS_ERR(conn->pool)) {
 		ret = PTR_ERR(conn->pool);
 		conn->pool = NULL;
@@ -1847,7 +1847,7 @@ exit_free_pool:
 exit_unref_cred:
 	put_cred(conn->cred);
 exit_free_conn:
-	kfree(conn->name);
+	kfree(conn->description);
 	kfree(conn);
 
 	return ERR_PTR(ret);

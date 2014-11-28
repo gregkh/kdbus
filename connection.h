@@ -40,7 +40,8 @@
  * @flags:		KDBUS_HELLO_* flags
  * @attach_flags_send:	KDBUS_ATTACH_* flags for sending
  * @attach_flags_recv:	KDBUS_ATTACH_* flags for receiving
- * @name:		Human-readable connection name, used for debugging
+ * @description:	Human-readable connection description,
+ * 			used for debugging
  * @ep:			The endpoint this connection belongs to
  * @lock:		Connection data lock
  * @msg_users:		Array to account the number of queued messages per
@@ -84,7 +85,7 @@ struct kdbus_conn {
 	u64 flags;
 	atomic64_t attach_flags_send;
 	atomic64_t attach_flags_recv;
-	const char *name;
+	const char *description;
 	struct kdbus_ep *ep;
 	struct mutex lock;
 	unsigned int *msg_users;
