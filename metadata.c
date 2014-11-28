@@ -46,6 +46,9 @@
  * @egid:		Task egid
  * @sgid:		Task sgid
  * @fsgid:		Task fsgid
+ * @conn_description:	Source connection's description
+ * @owned_names_items:	Array of items with names owned by the source
+ * @owned_names_size:	Number of bytes in @owned_names_items
  * @audit_loginuid:	Audit loginuid
  * @audit_sessionid:	Audio session ID
  * @seclabel:		LSM security label
@@ -89,6 +92,10 @@ struct kdbus_meta {
 	kgid_t egid;
 	kgid_t sgid;
 	kgid_t fsgid;
+
+	char *conn_description;
+	struct kdbus_item *owned_names_items;
+	size_t owned_names_size;
 
 	kuid_t audit_loginuid;
 	unsigned int audit_sessionid;
@@ -144,7 +151,7 @@ struct kdbus_meta *kdbus_meta_new(void)
 
 static void __kdbus_meta_free(struct kref *kref)
 {
-        struct kdbus_meta *meta = container_of(kref, struct kdbus_meta, kref);
+	struct kdbus_meta *meta = container_of(kref, struct kdbus_meta, kref);
 
 	if (meta->exe)
 		fput(meta->exe);
@@ -153,6 +160,8 @@ static void __kdbus_meta_free(struct kref *kref)
 	put_pid(meta->tgid);
 	put_pid(meta->pid);
 
+	kfree(meta->owned_names_items);
+	kfree(meta->conn_description);
 	kfree(meta->seclabel);
 	kfree(meta->auxgrps);
 	kfree(meta->cmdline);
@@ -248,9 +257,21 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 	return 0;
 }
 
+static inline void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
+					 const void *data, size_t len)
+{
+	item->type = type;
+	item->size = KDBUS_ITEM_HEADER_SIZE + len;
+
+	if (data)
+		memcpy(item->data, data, len);
+}
+
 /**
  * kdbus_meta_collect() - collect metadata from current process
  * @meta:		Metadata object
+ * @conn_src:		Connection to get owned names and description from,
+ *			may be %NULL
  * @seq:		Message sequence number
  * @which:		KDBUS_ATTACH_* mask
  *
@@ -261,6 +282,7 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_collect(struct kdbus_meta *meta,
+		       struct kdbus_conn *conn_src,
 		       u64 seq, u64 which)
 {
 	u64 mask;
@@ -348,6 +370,43 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		get_task_comm(meta->tid_comm, current);
 		meta->collected |= KDBUS_ATTACH_TID_COMM;
 	}
+
+	if (mask & KDBUS_ATTACH_NAMES && conn_src) {
+		const struct kdbus_name_entry *e;
+		struct kdbus_item *item;
+
+		meta->owned_names_size = 0;
+
+		list_for_each_entry(e, &conn_src->names_list, conn_entry)
+			meta->owned_names_size +=
+				KDBUS_ITEM_SIZE(strlen(e->name) + 1);
+
+		meta->owned_names_items =
+			kmalloc(meta->owned_names_size, GFP_KERNEL);
+		if (!meta->owned_names_items)
+			return -ENOMEM;
+
+		item = meta->owned_names_items;
+
+		list_for_each_entry(e, &conn_src->names_list, conn_entry) {
+			kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME,
+					      e->name, strlen(e->name) + 1);
+			item = KDBUS_ITEM_NEXT(item);
+		}
+
+		meta->collected |= KDBUS_ATTACH_NAMES;
+	}
+
+#if 0
+	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION &&
+	    conn_src && conn_src->name) {
+		meta->conn_description = kstrdup(conn_src->name, GFP_KERNEL);
+		if (!meta->conn_description)
+			return -ENOMEM;
+
+		meta->collected |= KDBUS_ATTACH_CONN_DESCRIPTION;
+	}
+#endif
 
 	if (mask & KDBUS_ATTACH_EXE) {
 		struct mm_struct *mm = get_task_mm(current);
@@ -471,20 +530,11 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
  * Return: 0 on success, negative error code on failure.
  */
 int kdbus_meta_collect_dst(struct kdbus_meta *meta, u64 seq,
-			   const struct kdbus_conn *conn)
+			   struct kdbus_conn *conn_src,
+			   const struct kdbus_conn *conn_dst)
 {
-	return kdbus_meta_collect(meta, seq,
-				  atomic64_read(&conn->attach_flags_recv));
-}
-
-static inline void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
-					 const void *data, size_t len)
-{
-	item->type = type;
-	item->size = KDBUS_ITEM_HEADER_SIZE + len;
-
-	if (data)
-		memcpy(item->data, data, len);
+	return kdbus_meta_collect(meta, conn_src, seq,
+				  atomic64_read(&conn_dst->attach_flags_recv));
 }
 
 static void kdbus_meta_export_creds(const struct kdbus_meta *meta,
@@ -521,7 +571,6 @@ static void kdbus_meta_export_creds(const struct kdbus_meta *meta,
 /**
  * kdbus_meta_export() - export information from metadata into buffer
  * @meta:	The metadata object
- * @conn_src:	Connection to get description and owned names from, may be %NULL
  * @conn_dst:	Connection to translate items for
  * @mask:	Mask of KDBUS_ATTACH_* flags to export
  * @buf:	Pointer to return the allocated buffer
@@ -530,9 +579,6 @@ static void kdbus_meta_export_creds(const struct kdbus_meta *meta,
  * This function exports information from metadata to allocated buffer.
  * Only information that is requested in @mask and that has been collected
  * before is exported.
- *
- * If @conn_src is %NULL, the attach flags KDBUS_ATTACH_NAMES and
- * KDBUS_ATTACH_CONN_DESCRIPTION will be ignored.
  *
  * All information will be translated using the namespaces pinned by @conn_dst.
  *
@@ -543,34 +589,22 @@ static void kdbus_meta_export_creds(const struct kdbus_meta *meta,
  * Return: 0 on success, nagative error number otherwise.
  */
 int kdbus_meta_export(const struct kdbus_meta *meta,
-		      struct kdbus_conn *conn_src,
 		      struct kdbus_conn *conn_dst,
 		      u64 mask, u8 **buf, size_t *sz)
 {
 	struct user_namespace *user_ns;
 	struct pid_namespace *pid_ns;
-	struct kdbus_name_entry *e;
 	struct kdbus_item *item;
 	char *exe_pathname = NULL;
 	size_t size = 0;
-	bool src_lock;
 	int ret = 0;
-	u64 conn_items = 0;
 	u8 *p, *tmp;
 
 	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 	if (!tmp)
 		return -ENOMEM;
 
-	if (conn_src) {
-		if (conn_src->name)
-			conn_items |= KDBUS_ATTACH_CONN_DESCRIPTION;
-
-		conn_items |= KDBUS_ATTACH_NAMES;
-	}
-
-	mask &= (meta->collected | conn_items) & kdbus_meta_attach_mask;
-	src_lock = !!(mask & conn_items);
+	mask &= meta->collected & kdbus_meta_attach_mask;
 
 	user_ns = conn_dst->user_namespace;
 	pid_ns = conn_dst->pid_namespace;
@@ -643,16 +677,11 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	if (mask & KDBUS_ATTACH_AUDIT)
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_audit));
 
-	if (src_lock)
-		mutex_lock(&conn_src->lock);
+	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION)
+		size += KDBUS_ITEM_SIZE(strlen(meta->conn_description) + 1);
 
 	if (mask & KDBUS_ATTACH_NAMES)
-		list_for_each_entry(e, &conn_src->names_list, conn_entry)
-			size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
-						strlen(e->name) + 1);
-
-	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION)
-		size += KDBUS_ITEM_SIZE(strlen(conn_src->name) + 1);
+		size += meta->owned_names_size;
 
 	/*
 	 * Now we know how big our final blog of metadata will be.
@@ -661,9 +690,6 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 
 	p = kzalloc(size, GFP_KERNEL);
 	if (!p) {
-		if (src_lock)
-			mutex_unlock(&conn_src->lock);
-
 		ret = -ENOMEM;
 		goto exit_free;
 	}
@@ -714,28 +740,6 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 
 		item = KDBUS_ITEM_NEXT(item);
 	}
-
-	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_CONN_DESCRIPTION,
-				      conn_src->name,
-				      strlen(conn_src->name) + 1);
-		item = KDBUS_ITEM_NEXT(item);
-	}
-
-	if (mask & KDBUS_ATTACH_NAMES)
-		list_for_each_entry(e, &conn_src->names_list, conn_entry) {
-			size_t len = strlen(e->name) + 1;
-
-			kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME,
-					      NULL,
-					      sizeof(struct kdbus_name) + len);
-			item->name.flags = e->flags;
-			memcpy(item->name.name, e->name, len);
-			item = KDBUS_ITEM_NEXT(item);
-		}
-
-	if (src_lock)
-		mutex_unlock(&conn_src->lock);
 
 	if (mask & KDBUS_ATTACH_PID_COMM) {
 		kdbus_meta_write_item(item, KDBUS_ITEM_PID_COMM,
@@ -790,6 +794,19 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 
 		kdbus_meta_write_item(item, KDBUS_ITEM_AUDIT, &a, sizeof(a));
 		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION) {
+		kdbus_meta_write_item(item, KDBUS_ITEM_CONN_DESCRIPTION,
+				      meta->conn_description,
+				      strlen(meta->conn_description) + 1);
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	if (mask & KDBUS_ATTACH_NAMES) {
+		memcpy(item, meta->owned_names_items, meta->owned_names_size);
+		item = (struct kdbus_item *)
+			((u8 *) item + meta->owned_names_size);
 	}
 
 	/* sanity check: the buffer should be completely written now */

@@ -177,7 +177,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
-	ret = kdbus_meta_collect(b->meta, 0,
+	ret = kdbus_meta_collect(b->meta, NULL, 0,
 				 KDBUS_ATTACH_CREDS	|
 				 KDBUS_ATTACH_PIDS	|
 				 KDBUS_ATTACH_AUXGROUPS	|
@@ -386,7 +386,8 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * requested metadata. It's up to the receiver to drop
 			 * messages that lack expected metadata.
 			 */
-			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
+			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
+					       NULL, conn_dst);
 		} else {
 			/*
 			 * Check if there is a policy db that prevents the
@@ -437,7 +438,8 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 		 * that lack data, than to skip it entirely.
 		 */
 		if (conn_src)
-			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
+			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
+					       conn_src, conn_dst);
 
 		kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
 	}
@@ -469,7 +471,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	name_len = strlen(bus->node.name);
 	name_size = KDBUS_ITEM_SIZE(name_len + 1);
 
-	ret = kdbus_meta_export(bus->meta, NULL, conn, flags, &buf, &meta_size);
+	ret = kdbus_meta_export(bus->meta, conn, flags, &buf, &meta_size);
 	if (ret < 0)
 		return ret;
 

@@ -550,7 +550,7 @@ static int kdbus_conn_export_meta(struct kdbus_conn *conn_src,
 	/* any message with source must have metadata allocated */
 	BUG_ON(!kmsg->meta);
 
-	return kdbus_meta_export(kmsg->meta, conn_src, conn_dst, attach_flags,
+	return kdbus_meta_export(kmsg->meta, conn_dst, attach_flags,
 				 out_buf, out_size);
 }
 
@@ -911,7 +911,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto wait_sync;
 		}
 
-		ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
+		ret = kdbus_meta_collect_dst(kmsg->meta, kmsg->seq,
+					     conn_src, conn_dst);
 		if (ret < 0)
 			goto exit_unref;
 
@@ -1401,7 +1402,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	attach_flags = cmd_info->flags &
 		       atomic64_read(&owner_conn->attach_flags_send);
 
-	ret = kdbus_meta_export(owner_conn->meta, owner_conn, conn,
+	ret = kdbus_meta_export(owner_conn->meta, conn,
 				attach_flags, &meta_buf, &meta_size);
 	if (ret < 0)
 		goto exit;
