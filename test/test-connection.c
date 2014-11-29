@@ -197,10 +197,13 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 				 KDBUS_ATTACH_CGROUP	|
 				 KDBUS_ATTACH_CONN_DESCRIPTION;
 
-	struct kdbus_creds cached_creds = {
-		.uid	= getuid(),
-		.gid	= getgid(),
-	};
+	struct kdbus_creds cached_creds;
+
+	getresuid(&cached_creds.uid, &cached_creds.euid, &cached_creds.suid);
+	getresgid(&cached_creds.gid, &cached_creds.egid, &cached_creds.sgid);
+
+	cached_creds.fsuid = cached_creds.uid;
+	cached_creds.fsgid = cached_creds.gid;
 
 	struct kdbus_pids cached_pids = {
 		.pid	= getpid(),
@@ -245,9 +248,9 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
 	ASSERT_RETURN(item);
 
-	/* Compare item->creds with cached creds */
-	ASSERT_RETURN(item->creds.uid == cached_creds.uid &&
-		      item->creds.gid == cached_creds.gid);
+	/* Compare received items with cached creds */
+	ASSERT_RETURN(memcmp(&item->creds, &cached_creds,
+			      sizeof(struct kdbus_creds)) == 0);
 
 	item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
 	ASSERT_RETURN(item);
@@ -299,14 +302,9 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 		item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
 		ASSERT_EXIT(item);
 
-		/*
-		 * Compare item->creds with cached creds of
-		 * privileged one.
-		 *
-		 * cmd_info will always return cached creds.
-		 */
-		ASSERT_EXIT(item->creds.uid == cached_creds.uid &&
-			    item->creds.gid == cached_creds.gid);
+		/* Compare received items with cached creds */
+		ASSERT_EXIT(memcmp(&item->creds, &cached_creds,
+			    sizeof(struct kdbus_creds)) == 0);
 
 		item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
 		ASSERT_EXIT(item);
@@ -339,9 +337,9 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 		item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
 		ASSERT_EXIT(item);
 
-		/* Compare item->creds with cached creds */
-		ASSERT_EXIT(item->creds.uid == cached_creds.uid &&
-			    item->creds.gid == cached_creds.gid);
+		/* Compare received items with cached creds */
+		ASSERT_EXIT(memcmp(&item->creds, &cached_creds,
+			    sizeof(struct kdbus_creds)) == 0);
 
 		cnt = kdbus_count_item(info, KDBUS_ITEM_PIDS);
 		ASSERT_EXIT(cnt == 1);
