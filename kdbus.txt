@@ -1665,7 +1665,11 @@ The following attach flags are currently supported.
 
   KDBUS_ATTACH_SECLABEL
     Attaches an item of type KDBUS_ITEM_SECLABEL, which contains the SELinux
-    security label of the sending task. Access via kdbus_item->str.
+    security label of the sending task. SELinux and other MACs might want to
+    do additional per-service security checks. For example, a service manager
+    might want to check the security label of a service file against the
+    security label of the client process checking the SELinux database before
+    allowing access.  The label can be accessed via kdbus_item->str.
 
   KDBUS_ATTACH_AUDIT
     Attaches an item of type KDBUS_ITEM_AUDIT, which contains the audit
