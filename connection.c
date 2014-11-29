@@ -1456,6 +1456,7 @@ exit:
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			  const struct kdbus_cmd_update *cmd)
 {
+	struct kdbus_bus *bus = conn->ep->bus;
 	const struct kdbus_item *item;
 	bool policy_provided = false;
 	bool send_flags_provided = false;
@@ -1520,8 +1521,16 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			return ret;
 	}
 
-	if (send_flags_provided)
+	if (send_flags_provided) {
+		/*
+		 * The attach flags send must always satisfy the
+		 * bus requirements.
+		 */
+		if (bus->attach_flags_req & ~attach_send)
+			return -EINVAL;
+
 		atomic64_set(&conn->attach_flags_send, attach_send);
+	}
 
 	if (recv_flags_provided)
 		atomic64_set(&conn->attach_flags_recv, attach_recv);
@@ -1661,6 +1670,10 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	/* Let userspace know which flags are enforced by the bus */
 	hello->attach_flags_send = bus->attach_flags_req | KDBUS_FLAG_KERNEL;
 
+	/*
+	 * The attach flags must always satisfy the bus
+	 * requirements.
+	 */
 	if (bus->attach_flags_req & ~attach_flags_send)
 		return ERR_PTR(-ECONNREFUSED);
 
