@@ -480,6 +480,10 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 
 	ASSERT_RETURN(found == 0);
 
+	/* Provide a bogus attach_flags value */
+	ret = kdbus_conn_update_attach_flags(conn, _KDBUS_ATTACH_ALL + 1);
+	ASSERT_RETURN(ret == -EINVAL);
+
 	kdbus_msg_free(msg);
 
 	kdbus_conn_free(conn);
