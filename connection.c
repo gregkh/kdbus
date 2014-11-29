@@ -1460,8 +1460,8 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	bool policy_provided = false;
 	bool send_flags_provided = false;
 	bool recv_flags_provided = false;
-	u64 attach_flags_send;
-	u64 attach_flags_recv;
+	u64 attach_send;
+	u64 attach_recv;
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
@@ -1478,16 +1478,24 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 				    !kdbus_conn_is_monitor(conn))
 					return -EOPNOTSUPP;
 
+				ret = kdbus_meta_set_attach_flags(item->data64[0],
+								  &attach_send);
+				if (ret < 0)
+					return ret;
+
 				send_flags_provided = true;
-				attach_flags_send = item->data64[0];
 			} else {
 				if (!kdbus_conn_is_ordinary(conn) &&
 				    !kdbus_conn_is_monitor(conn) &&
 				    !kdbus_conn_is_activator(conn))
 					return -EOPNOTSUPP;
 
+				ret = kdbus_meta_set_attach_flags(item->data64[0],
+								  &attach_recv);
+				if (ret < 0)
+					return ret;
+
 				recv_flags_provided = true;
-				attach_flags_recv = item->data64[0];
 			}
 			break;
 
@@ -1513,10 +1521,10 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	}
 
 	if (send_flags_provided)
-		atomic64_set(&conn->attach_flags_send, attach_flags_send);
+		atomic64_set(&conn->attach_flags_send, attach_send);
 
 	if (recv_flags_provided)
-		atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
+		atomic64_set(&conn->attach_flags_recv, attach_recv);
 
 	return 0;
 }
