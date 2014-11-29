@@ -4,6 +4,7 @@
  * Copyright (C) 2013-2014 Daniel Mack <daniel@zonque.org>
  * Copyright (C) 2013-2014 David Herrmann <dh.herrmann@gmail.com>
  * Copyright (C) 2013-2014 Linux Foundation
+ * Copyright (C) 2014 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
@@ -102,7 +103,11 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 			if (attach_flags)
 				return ERR_PTR(-EEXIST);
 
-			attach_flags = item->data64[0];
+			ret = kdbus_meta_set_attach_flags(item->data64[0],
+							  &attach_flags);
+			if (ret < 0)
+				return ERR_PTR(ret);
+
 			break;
 		}
 	}
@@ -110,13 +115,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (!name || !bloom)
 		return ERR_PTR(-EBADMSG);
 
-	/* 'any' degrades to 'all' for compatibility */
-	if (attach_flags == _KDBUS_ATTACH_ANY)
-		attach_flags = _KDBUS_ATTACH_ALL;
-
-	/* reject unknown attach flags */
-	if (attach_flags & ~_KDBUS_ATTACH_ALL)
-		return ERR_PTR(-EINVAL);
 	if (bloom->size < 8 || bloom->size > KDBUS_BUS_BLOOM_MAX_SIZE)
 		return ERR_PTR(-EINVAL);
 	if (!KDBUS_IS_ALIGNED8(bloom->size))

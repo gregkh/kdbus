@@ -1640,22 +1640,15 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	if ((is_activator || is_policy_holder) && !name)
 		return ERR_PTR(-EINVAL);
 
-	attach_flags_send = hello->attach_flags_send;
-	attach_flags_recv = hello->attach_flags_recv;
+	ret = kdbus_meta_set_attach_flags(hello->attach_flags_send,
+					  &attach_flags_send);
+	if (ret < 0)
+		return ERR_PTR(ret);
 
-	/* 'any' degrades to 'all' for compatibility */
-	if (attach_flags_send == _KDBUS_ATTACH_ANY)
-		attach_flags_send = _KDBUS_ATTACH_ALL;
-
-	if (attach_flags_recv == _KDBUS_ATTACH_ANY)
-		attach_flags_recv = _KDBUS_ATTACH_ALL;
-
-	/* reject unknown attach flags */
-	if (attach_flags_send & ~_KDBUS_ATTACH_ALL)
-		return ERR_PTR(-EINVAL);
-
-	if (attach_flags_recv & ~_KDBUS_ATTACH_ALL)
-		return ERR_PTR(-EINVAL);
+	ret = kdbus_meta_set_attach_flags(hello->attach_flags_recv,
+					  &attach_flags_recv);
+	if (ret < 0)
+		return ERR_PTR(ret);
 
 	/* Let userspace know which flags are enforced by the bus */
 	hello->attach_flags_send = bus->attach_flags_req | KDBUS_FLAG_KERNEL;
