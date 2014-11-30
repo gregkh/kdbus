@@ -421,6 +421,7 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 			 struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn *conn_dst;
+	int ret;
 
 	/*
 	 * Monitor connections get all messages; ignore possible errors
@@ -440,7 +441,9 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 			kdbus_meta_collect_src(kmsg->meta, conn_src, conn_dst);
 		}
 
-		kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
+		ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
+		if (ret < 0)
+			atomic_inc(&conn_dst->lost_count);
 	}
 	up_read(&bus->conn_rwlock);
 }
