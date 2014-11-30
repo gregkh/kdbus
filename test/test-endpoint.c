@@ -134,8 +134,8 @@ static int unpriv_test_custom_ep(const char *buspath)
 		ASSERT_EXIT(ep_fd == -EPERM);
 
 		/*
-		 * Endpoint "apps1" only accessible to users,
-		 * access denied by VFS
+		 * Endpoint "apps1" only accessible to same users,
+		 * that own the endpoint. Access denied by VFS
 		 */
 		ep_conn = kdbus_hello(ep1, 0, NULL, 0);
 		ASSERT_EXIT(!ep_conn && errno == EACCES);
@@ -209,6 +209,7 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	int ret, ep_fd;
 	struct kdbus_msg *msg;
 	struct kdbus_conn *ep_conn;
+	struct kdbus_conn *reader;
 	const char *name = "foo.bar.baz";
 	const char *epname = "foo";
 	char fake_ep[KDBUS_SYSNAME_MAX_LEN + 1] = {'\0'};
@@ -233,6 +234,22 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ret = asprintf(&ep, "%s/%u-%s", dirname(tmp), getuid(), epname);
 	free(tmp);
 	ASSERT_RETURN(ret >= 0);
+
+	/* Register a connection that listen to broadcasts */
+	reader = kdbus_hello(ep, 0, NULL, 0);
+	ASSERT_RETURN(reader);
+
+	/* Register to kernel signals */
+	ret = kdbus_add_match_id(reader, 0x1, KDBUS_ITEM_ID_ADD,
+				 KDBUS_MATCH_ID_ANY);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_add_match_id(reader, 0x2, KDBUS_ITEM_ID_REMOVE,
+				 KDBUS_MATCH_ID_ANY);
+	ASSERT_RETURN(ret == 0);
+
+	ret = install_name_add_match(reader, name);
+	ASSERT_RETURN(ret == 0);
 
 	/* Monitor connections are not supported on custom endpoints */
 	ep_conn = kdbus_hello(ep, KDBUS_HELLO_MONITOR, NULL, 0);
@@ -263,6 +280,10 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ret = kdbus_info(ep_conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == -ENOENT);
 
+	/* Check that the reader did not receive anything */
+	ret = kdbus_msg_recv(reader, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
 	/*
 	 * Release the name again, update the custom endpoint policy,
 	 * and try again. This time, the connection on the custom endpoint
@@ -285,6 +306,12 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ASSERT_RETURN(strcmp(msg->items[0].name_change.name, name) == 0);
 	kdbus_msg_free(msg);
 
+	ret = kdbus_msg_recv(reader, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(strcmp(msg->items[0].name_change.name, name) == 0);
+
+	kdbus_msg_free(msg);
+
 	ret = kdbus_info(ep_conn, 0, name, 0, NULL);
 	ASSERT_RETURN(ret == 0);
 
@@ -301,6 +328,7 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 		ASSERT_RETURN(ret == 0);
 	}
 
+	kdbus_conn_free(reader);
 	kdbus_conn_free(ep_conn);
 	close(ep_fd);
 
