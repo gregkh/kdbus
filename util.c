@@ -193,3 +193,31 @@ int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
 
 	return 0;
 }
+
+/**
+ * kdbus_from_kuid_keep() - Create a uid from kuid/user-ns pair
+ * @user_ns:		user-namespace to create UID in
+ * @uid:		Kernel uid to map into @user_ns
+ *
+ * This is equivalent to from_kuid_munged(), but maps INVALID_UID to itself.
+ *
+ * Return: UID @uid mapped into @user_ns, or INVALID_UID if @uid==INVALID_UID.
+ */
+u32 kdbus_from_kuid_keep(struct user_namespace *user_ns, kuid_t uid)
+{
+	return uid_valid(uid) ? from_kuid_munged(user_ns, uid) : ((uid_t)-1);
+}
+
+/**
+ * kdbus_from_kgid_keep() - Create a gid from kgid/user-ns pair
+ * @user_ns:		user-namespace to create GID in
+ * @gid:		Kernel gid to map into @user_ns
+ *
+ * This is equivalent to from_kgid_munged(), but maps INVALID_GID to itself.
+ *
+ * Return: GID @gid mapped into @user_ns, or INVALID_GID if @gid==INVALID_GID.
+ */
+u32 kdbus_from_kgid_keep(struct user_namespace *user_ns, kgid_t gid)
+{
+	return gid_valid(gid) ? from_kgid_munged(user_ns, gid) : ((gid_t)-1);
+}

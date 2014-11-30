@@ -93,6 +93,8 @@ int kdbus_sysname_is_valid(const char *name);
 void kdbus_fput_files(struct file **files, unsigned int count);
 int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
 			    kuid_t uid);
+u32 kdbus_from_kuid_keep(struct user_namespace *user_ns, kuid_t uid);
+u32 kdbus_from_kgid_keep(struct user_namespace *user_ns, kgid_t gid);
 
 int kdbus_copy_from_user(void *dest, void __user *user_ptr, size_t size);
 void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max);

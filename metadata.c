@@ -236,6 +236,16 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 		meta->sgid	= make_kgid(ns, creds->sgid);
 		meta->fsgid	= make_kgid(ns, creds->fsgid);
 
+		if ((creds->uid   != (uid_t)-1 && !uid_valid(meta->uid))   ||
+		    (creds->euid  != (uid_t)-1 && !uid_valid(meta->euid))  ||
+		    (creds->suid  != (uid_t)-1 && !uid_valid(meta->suid))  ||
+		    (creds->fsuid != (uid_t)-1 && !uid_valid(meta->fsuid)) ||
+		    (creds->gid   != (gid_t)-1 && !gid_valid(meta->gid))   ||
+		    (creds->egid  != (gid_t)-1 && !gid_valid(meta->egid))  ||
+		    (creds->sgid  != (gid_t)-1 && !gid_valid(meta->sgid))  ||
+		    (creds->fsgid != (gid_t)-1 && !gid_valid(meta->fsgid)))
+			return -EINVAL;
+
 		meta->collected |= KDBUS_ATTACH_CREDS;
 	}
 
@@ -553,37 +563,6 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 	return 0;
 }
 
-static void kdbus_meta_export_creds(const struct kdbus_meta *meta,
-				    struct user_namespace *user_ns,
-				    struct kdbus_creds *creds)
-{
-	/*
-	 * The metadata was pre-filled with faked information, if
-	 * we did get the INVALID_UID preserve it in this case.
-	 *
-	 * Only privileged bus user is able to fake this data
-	 */
-	if (meta->locked) {
-		creds->uid	= from_kuid(user_ns, meta->uid);
-		creds->euid	= from_kuid(user_ns, meta->euid);
-		creds->suid	= from_kuid(user_ns, meta->suid);
-		creds->fsuid	= from_kuid(user_ns, meta->fsuid);
-		creds->gid	= from_kgid(user_ns, meta->gid);
-		creds->egid	= from_kgid(user_ns, meta->egid);
-		creds->sgid	= from_kgid(user_ns, meta->sgid);
-		creds->fsgid	= from_kgid(user_ns, meta->fsgid);
-	} else {
-		creds->uid	= from_kuid_munged(user_ns, meta->uid);
-		creds->euid	= from_kuid_munged(user_ns, meta->euid);
-		creds->suid	= from_kuid_munged(user_ns, meta->suid);
-		creds->fsuid	= from_kuid_munged(user_ns, meta->fsuid);
-		creds->gid	= from_kgid_munged(user_ns, meta->gid);
-		creds->egid	= from_kgid_munged(user_ns, meta->egid);
-		creds->sgid	= from_kgid_munged(user_ns, meta->sgid);
-		creds->fsgid	= from_kgid_munged(user_ns, meta->fsgid);
-	}
-}
-
 /**
  * kdbus_meta_export() - export information from metadata into buffer
  * @meta:	The metadata object
@@ -725,9 +704,17 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_CREDS) {
-		struct kdbus_creds creds;
+		struct kdbus_creds creds = {
+			.uid	= kdbus_from_kuid_keep(user_ns, meta->uid),
+			.euid	= kdbus_from_kuid_keep(user_ns, meta->euid),
+			.suid	= kdbus_from_kuid_keep(user_ns, meta->suid),
+			.fsuid	= kdbus_from_kuid_keep(user_ns, meta->fsuid),
+			.gid	= kdbus_from_kgid_keep(user_ns, meta->gid),
+			.egid	= kdbus_from_kgid_keep(user_ns, meta->egid),
+			.sgid	= kdbus_from_kgid_keep(user_ns, meta->sgid),
+			.fsgid	= kdbus_from_kgid_keep(user_ns, meta->fsgid),
+		};
 
-		kdbus_meta_export_creds(meta, user_ns, &creds);
 		kdbus_meta_write_item(item, KDBUS_ITEM_CREDS,
 				      &creds, sizeof(creds));
 		item = KDBUS_ITEM_NEXT(item);
