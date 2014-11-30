@@ -539,8 +539,8 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 				KDBUS_ITEM_SIZE(strlen(e->name) + 1);
 
 		kfree(meta->owned_names_items);
-		meta->owned_names_items =
-			kzalloc(meta->owned_names_size, GFP_KERNEL);
+		meta->owned_names_items = kzalloc(meta->owned_names_size,
+						  GFP_KERNEL);
 		if (!meta->owned_names_items) {
 			ret = -ENOMEM;
 			goto exit_unlock;
@@ -559,8 +559,8 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 
 	if ((mask & KDBUS_ATTACH_CONN_DESCRIPTION) && conn_src->description) {
 		kfree(meta->conn_description);
-		meta->conn_description =
-			kstrdup(conn_src->description, GFP_KERNEL);
+		meta->conn_description = kstrdup(conn_src->description,
+						 GFP_KERNEL);
 		if (!meta->conn_description) {
 			ret = -ENOMEM;
 			goto exit_unlock;
