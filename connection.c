@@ -827,6 +827,15 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	}
 
 	if (kmsg->dst_name) {
+		/*
+		 * Lock the destination name so it will not get dropped or
+		 * moved between activator/implementor while we try to queue a
+		 * message. We also rely on this to read-lock the entire
+		 * registry so kdbus_meta_collect() will have a consistent view
+		 * of all acquired names on both connections.
+		 * If kdbus_name_lock() gets changed to a per-name lock, we
+		 * really need to read-lock the whole registry here.
+		 */
 		name_entry = kdbus_name_lock(bus->name_registry,
 					     kmsg->dst_name);
 		if (!name_entry)
