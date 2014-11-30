@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <stdbool.h>
 #include <sys/eventfd.h>
@@ -215,6 +216,7 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 
 	kdbus_msg_free(msg);
 
+	/* Read our queue */
 	for (i = 0; i < KDBUS_CONN_MAX_MSGS; i++) {
 		ret = kdbus_msg_recv_poll(reader, 100, &msg, NULL);
 		ASSERT_RETURN(ret == 0);
@@ -232,7 +234,7 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 
 /* Return the number of message successfully sent */
 static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
-				 struct kdbus_conn *conn_dst,
+				 uint64_t dst_id,
 				 unsigned int max_msgs)
 {
 	unsigned int i;
@@ -240,8 +242,8 @@ static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
 	int ret;
 
 	for (i = 0; i < max_msgs; i++) {
-		ret = kdbus_msg_send(conn_src, NULL, ++cookie, 0,
-				     0, 0, conn_dst->id);
+		ret = kdbus_msg_send(conn_src, NULL, ++cookie,
+				     0, 0, 0, dst_id);
 		if (ret < 0)
 			break;
 	}
@@ -249,6 +251,130 @@ static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
 	return i;
 }
 
+static int kdbus_test_broadcast_quota(struct kdbus_test_env *env)
+{
+	int ret;
+	size_t offset;
+	unsigned int i;
+	struct kdbus_msg *msg;
+	struct kdbus_conn *privileged_a;
+	struct kdbus_conn *privileged_b;
+	struct kdbus_conn *holder;
+	struct kdbus_policy_access access = {
+		.type = KDBUS_POLICY_ACCESS_WORLD,
+		.id = getuid(),
+		.access = KDBUS_POLICY_TALK,
+	};
+	uint64_t expected_cookie = time(NULL) ^ 0xdeadbeef;
+
+	holder = kdbus_hello_registrar(env->buspath, "com.example.a",
+				       &access, 1,
+				       KDBUS_HELLO_POLICY_HOLDER);
+	ASSERT_RETURN(holder);
+
+	privileged_a = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(privileged_a);
+
+	privileged_b = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(privileged_b);
+
+	/* Acquire name with access world so they can talk to us */
+	ret = kdbus_name_acquire(privileged_a, "com.example.a", NULL);
+	ASSERT_RETURN(ret >= 0);
+
+	/* Broadcast matches for privileged connections */
+	ret = kdbus_add_match_empty(privileged_a);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_add_match_empty(privileged_b);
+	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * We start accouting after KDBUS_CONN_MAX_MSGS_UNACCOUNTED
+	 * so the first sender will at least send
+	 * KDBUS_CONN_MAX_MSGS_UNACCOUNTED + KDBUS_CONN_MAX_MSGS_PER_USER
+	 */
+	ret = RUN_UNPRIVILEGED_CONN(unpriv, env->buspath, ({
+		unsigned int cnt;
+
+		cnt = kdbus_fill_conn_queue(unpriv, KDBUS_DST_ID_BROADCAST,
+					    MAX_USER_TOTAL_MSGS);
+		ASSERT_EXIT(cnt == MAX_USER_TOTAL_MSGS);
+
+		/*
+		 * Another message that will trigger the lost count
+		 *
+		 * Broadcasts always succeed
+		 */
+		ret = kdbus_msg_send(unpriv, NULL, 0xdeadbeef, 0, 0,
+				     0, KDBUS_DST_ID_BROADCAST);
+		ASSERT_EXIT(ret == 0);
+	}));
+	ASSERT_RETURN(ret == 0);
+
+	expected_cookie++;
+	/* Now try to send a legitimate message from B to A */
+	ret = kdbus_msg_send(privileged_b, NULL, expected_cookie, 0,
+			     0, 0, privileged_a->id);
+	ASSERT_RETURN(ret == 0);
+
+	expected_cookie++;
+	ret = kdbus_msg_send(privileged_b, NULL, expected_cookie, 0,
+			     0, 0, KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	/* Privileged service A tries to read its messages now */
+	ret = kdbus_msg_recv_poll(privileged_a, 100, &msg, &offset);
+	ASSERT_RETURN(ret == -EOVERFLOW);
+
+	/*
+	 * We have lost 1 broadcast messages, the one from unprivileged
+	 * the privileged broadcast was queued, our quota is per user
+	 */
+	ASSERT_RETURN(offset == 1);
+
+	kdbus_msg_free(msg);
+
+	/* Read our queue */
+	for (i = 0; i < MAX_USER_TOTAL_MSGS; i++) {
+		ret = kdbus_msg_recv_poll(privileged_a, 100, &msg, NULL);
+		ASSERT_RETURN(ret == 0);
+
+		ASSERT_RETURN(msg->dst_id == KDBUS_DST_ID_BROADCAST);
+
+		kdbus_msg_free(msg);
+	}
+
+	ret = kdbus_msg_recv_poll(privileged_a, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	/* Unicast message */
+	ASSERT_RETURN(msg->cookie == expected_cookie - 1);
+	ASSERT_RETURN(msg->src_id == privileged_b->id &&
+		      msg->dst_id == privileged_a->id);
+
+	kdbus_msg_free(msg);
+
+	ret = kdbus_msg_recv_poll(privileged_a, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+
+	/* Broadcast message */
+	ASSERT_RETURN(msg->cookie == expected_cookie);
+	ASSERT_RETURN(msg->src_id == privileged_b->id &&
+		      msg->dst_id == KDBUS_DST_ID_BROADCAST);
+
+	kdbus_msg_free(msg);
+
+	/* Queue empty */
+	ret = kdbus_msg_recv(privileged_a, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
+	kdbus_conn_free(holder);
+	kdbus_conn_free(privileged_a);
+	kdbus_conn_free(privileged_b);
+
+	return 0;
+}
 
 static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 {
@@ -308,7 +434,8 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 		unpriv = kdbus_hello(env->buspath, 0, NULL, 0);
 		ASSERT_EXIT(unpriv);
 
-		cnt = kdbus_fill_conn_queue(unpriv, conn, MAX_USER_TOTAL_MSGS + 1);
+		cnt = kdbus_fill_conn_queue(unpriv, conn->id,
+					    MAX_USER_TOTAL_MSGS + 1);
 		/* Explicitly check for 0 we can't send it to eventfd */
 		ASSERT_EXIT(cnt > 0);
 
@@ -323,7 +450,7 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 			unpriv = kdbus_hello(env->buspath, 0, NULL, 0);
 			ASSERT_EXIT(unpriv);
 
-			cnt = kdbus_fill_conn_queue(unpriv, conn,
+			cnt = kdbus_fill_conn_queue(unpriv, conn->id,
 						    MAX_USER_TOTAL_MSGS + 1);
 			/* Explicitly check for 0 */
 			ASSERT_EXIT(cnt > 0);
@@ -403,7 +530,7 @@ static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 		  KDBUS_CONN_MAX_MSGS_PER_USER)));
 
 	/* Try to queue up more, but we fail no space in the pool */
-	cnt = kdbus_fill_conn_queue(privileged, conn, KDBUS_CONN_MAX_MSGS);
+	cnt = kdbus_fill_conn_queue(privileged, conn->id, KDBUS_CONN_MAX_MSGS);
 	ASSERT_RETURN(cnt > 0 && cnt < KDBUS_CONN_MAX_MSGS);
 
 	ret = kdbus_msg_send(privileged, NULL, 0xdeadbeef, 0, 0,
@@ -434,6 +561,9 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 		ret = kdbus_test_multi_users_quota(env);
 		ASSERT_RETURN(ret == 0);
 
+		ret = kdbus_test_broadcast_quota(env);
+		ASSERT_RETURN(ret == 0);
+
 		/* Drop to 'nobody' and continue test */
 		ret = setresuid(UNPRIV_UID, UNPRIV_UID, UNPRIV_UID);
 		ASSERT_RETURN(ret == 0);
@@ -442,7 +572,7 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	a = kdbus_hello(env->buspath, 0, NULL, 0);
 	b = kdbus_hello(env->buspath, 0, NULL, 0);
 
-	ret = kdbus_fill_conn_queue(b, a, MAX_USER_TOTAL_MSGS);
+	ret = kdbus_fill_conn_queue(b, a->id, MAX_USER_TOTAL_MSGS);
 	ASSERT_RETURN(ret == MAX_USER_TOTAL_MSGS);
 
 	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
@@ -453,7 +583,7 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 		ASSERT_RETURN(ret == 0);
 	}
 
-	ret = kdbus_fill_conn_queue(b, a, MAX_USER_TOTAL_MSGS);
+	ret = kdbus_fill_conn_queue(b, a->id, MAX_USER_TOTAL_MSGS);
 	ASSERT_RETURN(ret == MAX_USER_TOTAL_MSGS);
 
 	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
