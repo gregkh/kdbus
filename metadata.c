@@ -540,7 +540,7 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 
 		kfree(meta->owned_names_items);
 		meta->owned_names_items =
-			kmalloc(meta->owned_names_size, GFP_KERNEL);
+			kzalloc(meta->owned_names_size, GFP_KERNEL);
 		if (!meta->owned_names_items) {
 			ret = -ENOMEM;
 			goto exit_unlock;
