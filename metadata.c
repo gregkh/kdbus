@@ -531,26 +531,29 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 	if (mask & KDBUS_ATTACH_NAMES) {
 		const struct kdbus_name_entry *e;
 		struct kdbus_item *item;
+		size_t len;
 
-		meta->owned_names_size = 0;
-
+		len = 0;
 		list_for_each_entry(e, &conn_src->names_list, conn_entry)
-			meta->owned_names_size +=
-				KDBUS_ITEM_SIZE(strlen(e->name) + 1);
+			len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
+					       strlen(e->name) + 1);
 
-		kfree(meta->owned_names_items);
-		meta->owned_names_items = kzalloc(meta->owned_names_size,
-						  GFP_KERNEL);
-		if (!meta->owned_names_items) {
+		item = kzalloc(len, GFP_KERNEL);
+		if (!item) {
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
 
-		item = meta->owned_names_items;
+		kfree(meta->owned_names_items);
+		meta->owned_names_items = item;
+		meta->owned_names_size = len;
 
 		list_for_each_entry(e, &conn_src->names_list, conn_entry) {
-			kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME,
-					      e->name, strlen(e->name) + 1);
+			len = strlen(e->name) + 1;
+			kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME, NULL,
+					      sizeof(struct kdbus_name) + len);
+			item->name.flags = e->flags;
+			memcpy(item->name.name, e->name, len);
 			item = KDBUS_ITEM_NEXT(item);
 		}
 
