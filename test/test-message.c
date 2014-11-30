@@ -37,10 +37,14 @@
 int kdbus_test_message_basic(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *conn;
+	struct kdbus_conn *sender;
 	struct kdbus_msg *msg;
 	uint64_t cookie = 0x1234abcd5678eeff;
 	uint64_t offset;
 	int ret;
+
+	sender = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(sender != NULL);
 
 	/* create a 2nd connection */
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -49,13 +53,17 @@ int kdbus_test_message_basic(struct kdbus_test_env *env)
 	ret = kdbus_add_match_empty(conn);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_add_match_empty(env->conn);
+	ret = kdbus_add_match_empty(sender);
 	ASSERT_RETURN(ret == 0);
 
 	/* send over 1st connection */
-	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0, 0,
+	ret = kdbus_msg_send(sender, NULL, cookie, 0, 0, 0,
 			     KDBUS_DST_ID_BROADCAST);
 	ASSERT_RETURN(ret == 0);
+
+	/* Make sure that we do not get our own broadcasts */
+	ret = kdbus_msg_recv(sender, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
 
 	/* ... and receive on the 2nd */
 	ret = kdbus_msg_recv_poll(conn, 100, &msg, &offset);
@@ -67,6 +75,7 @@ int kdbus_test_message_basic(struct kdbus_test_env *env)
 	ret = kdbus_free(conn, offset);
 	ASSERT_RETURN(ret == 0);
 
+	kdbus_conn_free(sender);
 	kdbus_conn_free(conn);
 
 	return TEST_OK;
