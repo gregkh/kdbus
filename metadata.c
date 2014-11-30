@@ -521,8 +521,14 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 			   const struct kdbus_conn *conn_dst)
 {
 	u64 mask = atomic64_read(&conn_dst->attach_flags_recv);
+	int ret;
 
-	if (mask & KDBUS_ATTACH_NAMES && conn_src) {
+	if (!conn_src)
+		return 0;
+
+	mutex_lock(&conn_src->lock);
+
+	if (mask & KDBUS_ATTACH_NAMES) {
 		const struct kdbus_name_entry *e;
 		struct kdbus_item *item;
 
@@ -535,8 +541,10 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 		kfree(meta->owned_names_items);
 		meta->owned_names_items =
 			kmalloc(meta->owned_names_size, GFP_KERNEL);
-		if (!meta->owned_names_items)
-			return -ENOMEM;
+		if (!meta->owned_names_items) {
+			ret = -ENOMEM;
+			goto exit_unlock;
+		}
 
 		item = meta->owned_names_items;
 
@@ -549,18 +557,23 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 		meta->collected |= KDBUS_ATTACH_NAMES;
 	}
 
-	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION &&
-	    conn_src && conn_src->description) {
+	if ((mask & KDBUS_ATTACH_CONN_DESCRIPTION) && conn_src->description) {
 		kfree(meta->conn_description);
 		meta->conn_description =
 			kstrdup(conn_src->description, GFP_KERNEL);
-		if (!meta->conn_description)
-			return -ENOMEM;
+		if (!meta->conn_description) {
+			ret = -ENOMEM;
+			goto exit_unlock;
+		}
 
 		meta->collected |= KDBUS_ATTACH_CONN_DESCRIPTION;
 	}
 
-	return 0;
+	ret = 0;
+
+exit_unlock:
+	mutex_unlock(&conn_src->lock);
+	return ret;
 }
 
 /**
