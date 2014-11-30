@@ -939,6 +939,16 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 	}
 
+	/*
+	 * Forward to monitors before queuing the message. Otherwise, the
+	 * receiver might queue a reply before the original message is queued
+	 * on the monitors.
+	 * We never guarantee consistent ordering across connections, but for
+	 * monitors we should at least make sure they get the message before
+	 * anyone else.
+	 */
+	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
+
 	if (reply_wake) {
 		/*
 		 * If we're synchronously responding to a message, allocate a
@@ -962,9 +972,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 		}
 	}
-
-	/* forward to monitors */
-	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
 
 wait_sync:
 	/* no reason to keep names locked for replies */
