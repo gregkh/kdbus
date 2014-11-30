@@ -344,19 +344,23 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 	unsigned int i;
 	int ret;
 
+	/*
+	 * Make sure broadcast are queued on monitors before we send it out to
+	 * anyone else. Otherwise, connections might react to broadcasts before
+	 * the monitor gets the broadcast queued. In the worst case, the
+	 * monitor sees a reaction to the broadcast before the broadcast itself.
+	 * We don't give ordering guarantees across connections (and monitors
+	 * can re-construct order via sequence numbers), but we should at least
+	 * try to avoid re-ordering for monitors.
+	 */
+	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
+
 	down_read(&bus->conn_rwlock);
 
 	hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
 		if (conn_dst->id == kmsg->msg.src_id)
 			continue;
-
-		/*
-		 * Activator or policy holder connections will
-		 * not receive any broadcast messages, only
-		 * ordinary and monitor ones.
-		 */
-		if (!kdbus_conn_is_ordinary(conn_dst) &&
-		    !kdbus_conn_is_monitor(conn_dst))
+		if (!kdbus_conn_is_ordinary(conn_dst))
 			continue;
 
 		/*
@@ -430,6 +434,15 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 
 	down_read(&bus->conn_rwlock);
 	list_for_each_entry(conn_dst, &bus->monitors_list, monitor_entry) {
+		/*
+		 * Check if there is a match for the kmsg object in
+		 * the destination connection match db for broadcasts.
+		 */
+		if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST &&
+		    !kdbus_match_db_match_kmsg(conn_dst->match_db, conn_src,
+					       kmsg))
+			continue;
+
 		/*
 		 * Collect metadata requested by the destination connection.
 		 * Ignore errors, as receivers need to check metadata
