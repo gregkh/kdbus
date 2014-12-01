@@ -254,7 +254,7 @@ static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
 static int kdbus_test_broadcast_quota(struct kdbus_test_env *env)
 {
 	int ret;
-	size_t offset;
+	uint64_t offset;
 	unsigned int i;
 	struct kdbus_msg *msg;
 	struct kdbus_conn *privileged_a;
