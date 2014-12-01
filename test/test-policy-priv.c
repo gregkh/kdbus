@@ -549,7 +549,6 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 		kdbus_msg_free(msg);
 		kdbus_free(owner_b, msg->offset_reply);
 
-
 	}));
 	ASSERT_RETURN(ret == 0);
 
@@ -711,6 +710,23 @@ static int test_policy_priv(struct kdbus_test_env *env)
 	ret = test_priv_before_policy_upload(env);
 	ASSERT_RETURN(ret == 0);
 
+	/*
+	 * Make sure unprivileged are not able to register policy
+	 * holders
+	 */
+
+	ret = RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_GID, ({
+		struct kdbus_conn *holder;
+
+		holder = kdbus_hello_registrar(env->buspath,
+					       "com.example.a", NULL, 0,
+					       KDBUS_HELLO_POLICY_HOLDER);
+		ASSERT_EXIT(holder == NULL && errno == EPERM);
+	}),
+	({ 0; }));
+	ASSERT_RETURN(ret == 0);
+
+
 	/* Register policy holder */
 
 	conn_a = kdbus_hello_registrar(env->buspath, "com.example.a",
@@ -752,6 +768,18 @@ static int test_policy_priv(struct kdbus_test_env *env)
 		.id = 0,
 		.access = KDBUS_POLICY_OWN,
 	};
+
+	/*
+	 * Make sure unprivileged/normal connections are not able
+	 * to update policies
+	 */
+
+	ret = RUN_UNPRIVILEGED_CONN(unpriv, env->buspath, ({
+		ret = kdbus_conn_update_policy(unpriv, "com.example.a",
+					       &access, 1);
+		ASSERT_EXIT(ret == -EOPNOTSUPP);
+	}));
+	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_conn_update_policy(conn_a, "com.example.a", &access, 1);
 	ASSERT_RETURN(ret == 0);
