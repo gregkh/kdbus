@@ -219,12 +219,11 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 		ret = kdbus_conn_move_messages(e->activator, e->conn,
 					       e->name_id);
 		if (ret < 0)
-			goto exit_release;
+			return ret;
 
 		return kdbus_name_replace_owner(e, e->activator, flags);
 	}
 
-exit_release:
 	/* release the name */
 	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_REMOVE,
 				 e->conn->id, 0,
