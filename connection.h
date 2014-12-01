@@ -121,7 +121,6 @@ struct kdbus_name_registry;
 
 struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 				  struct kdbus_cmd_hello *hello,
-				  struct kdbus_meta *meta,
 				  bool privileged);
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);

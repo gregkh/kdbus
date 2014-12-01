@@ -1558,14 +1558,12 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
  * kdbus_conn_new() - create a new connection
  * @ep:			The endpoint the connection is connected to
  * @hello:		The kdbus_cmd_hello as passed in by the user
- * @meta:		The metadata gathered at open() time of the handle
  * @privileged:		Whether to create a privileged connection
  *
  * Return: a new kdbus_conn on success, ERR_PTR on failure
  */
 struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 				  struct kdbus_cmd_hello *hello,
-				  struct kdbus_meta *meta,
 				  bool privileged)
 {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
@@ -1792,23 +1790,35 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		up_write(&bus->conn_rwlock);
 	}
 
+	conn->meta = kdbus_meta_new();
+	if (IS_ERR(conn->meta)) {
+		ret = PTR_ERR(conn->meta);
+		conn->meta = NULL;
+		goto exit_release_names;
+	}
+
 	/* privileged processes can impersonate somebody else */
 	if (creds || pids || seclabel) {
-		conn->meta = kdbus_meta_new();
-		if (IS_ERR(conn->meta)) {
-			ret = PTR_ERR(conn->meta);
-			conn->meta = NULL;
-			goto exit_release_names;
-		}
-
 		ret = kdbus_meta_fake(conn->meta, creds, pids, seclabel);
 		if (ret < 0)
 			goto exit_free_meta;
 
 		conn->faked_meta = true;
 	} else {
-		/* use the connection's metadata collected at open() */
-		conn->meta = kdbus_meta_ref(meta);
+		ret = kdbus_meta_collect(conn->meta, 0,
+					 KDBUS_ATTACH_CREDS	|
+					 KDBUS_ATTACH_PIDS	|
+					 KDBUS_ATTACH_AUXGROUPS	|
+					 KDBUS_ATTACH_TID_COMM	|
+					 KDBUS_ATTACH_PID_COMM	|
+					 KDBUS_ATTACH_EXE	|
+					 KDBUS_ATTACH_CMDLINE	|
+					 KDBUS_ATTACH_CGROUP	|
+					 KDBUS_ATTACH_CAPS	|
+					 KDBUS_ATTACH_SECLABEL	|
+					 KDBUS_ATTACH_AUDIT);
+		if (ret < 0)
+			goto exit_free_meta;
 	}
 
 	/*
