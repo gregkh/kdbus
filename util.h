@@ -92,7 +92,7 @@ static inline bool kdbus_str_valid(const char *str, size_t size)
 int kdbus_sysname_is_valid(const char *name);
 void kdbus_fput_files(struct file **files, unsigned int count);
 int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
-			    kuid_t uid);
+			    kuid_t kuid);
 u32 kdbus_from_kuid_keep(struct user_namespace *user_ns, kuid_t uid);
 u32 kdbus_from_kgid_keep(struct user_namespace *user_ns, kgid_t gid);
 
