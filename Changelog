@@ -31,6 +31,9 @@ since v2:
 
   * Test case fix for 32bit archs
 
+  * Fixed buses and custom endpoints name validation, reported by
+    Andy Lutomirski.
+
   * copy_from_user() return code issue fixed, reported by
     Dan Carpenter.
 
