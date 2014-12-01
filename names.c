@@ -184,8 +184,7 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_name_entry_release(struct kdbus_name_entry *e,
-				    struct kdbus_bus *bus)
+static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 {
 	struct kdbus_conn *conn;
 
@@ -265,7 +264,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 
 	/* Is the connection already the real owner of the name? */
 	if (e->conn == conn) {
-		ret = kdbus_name_entry_release(e, conn->ep->bus);
+		ret = kdbus_name_entry_release(e);
 	} else {
 		/*
 		 * Otherwise, walk the list of queued entries and search
@@ -334,7 +333,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
 		kdbus_name_queue_item_free(q);
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
-		kdbus_name_entry_release(e, conn->ep->bus);
+		kdbus_name_entry_release(e);
 
 	up_write(&reg->rwlock);
 	mutex_unlock(&conn->ep->bus->lock);
