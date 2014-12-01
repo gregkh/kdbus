@@ -1786,12 +1786,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_unref_ep;
 	}
 
-	if (is_monitor) {
-		down_write(&bus->conn_rwlock);
-		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
-		up_write(&bus->conn_rwlock);
-	}
-
 	conn->meta = kdbus_meta_new();
 	if (IS_ERR(conn->meta)) {
 		ret = PTR_ERR(conn->meta);
@@ -1856,6 +1850,10 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		ret = -ESHUTDOWN;
 		goto exit_unref_user_unlock;
 	}
+
+	/* link into monitor list */
+	if (is_monitor)
+		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
 
 	/* link into bus and endpoint */
 	list_add_tail(&conn->ep_entry, &ep->conn_list);
