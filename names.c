@@ -237,7 +237,6 @@ exit_release:
 	mutex_unlock(&conn->lock);
 	kdbus_conn_unref(conn);
 
-	kdbus_conn_unref(e->activator);
 	kdbus_name_entry_free(e);
 
 	return 0;
