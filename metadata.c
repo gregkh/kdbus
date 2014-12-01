@@ -50,7 +50,7 @@
  * @owned_names_items:	Array of items with names owned by the source
  * @owned_names_size:	Number of bytes in @owned_names_items
  * @audit_loginuid:	Audit loginuid
- * @audit_sessionid:	Audio session ID
+ * @audit_sessionid:	Audit session ID
  * @seclabel:		LSM security label
  * @auxgrps:		Auxiliary groups of the task
  * @n_auxgrps:		Number of auxiliary groups
