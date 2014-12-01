@@ -482,6 +482,10 @@ err:
  * In order to allow atomic replacement of rules, the function first removes
  * all entries that have been created for the given owner previously.
  *
+ * Callers to this function must make sur that the owner is a custom
+ * endpoint, or if the endpoint is a default endpoint, then it must be
+ * either a policy holder or an activator.
+ *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_policy_set(struct kdbus_policy_db *db,

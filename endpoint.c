@@ -219,6 +219,8 @@ void kdbus_ep_deactivate(struct kdbus_ep *ep)
  * @items:		The kdbus items containing policy information
  * @items_size:		The total length of the items
  *
+ * Only the endpoint owner should be able to call this function.
+ *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_ep_policy_set(struct kdbus_ep *ep,

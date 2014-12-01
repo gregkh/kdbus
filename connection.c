@@ -1519,7 +1519,9 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 		case KDBUS_ITEM_NAME:
 		case KDBUS_ITEM_POLICY_ACCESS:
 			/*
-			 * Only policy holders may update their policy entries.
+			 * Only policy holders may update their policy
+			 * entries. Policy holders are privileged
+			 * connections.
 			 */
 			if (!kdbus_conn_is_policy_holder(conn))
 				return -EOPNOTSUPP;

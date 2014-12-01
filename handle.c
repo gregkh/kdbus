@@ -39,7 +39,7 @@
 /**
  * enum kdbus_handle_ep_type - type an endpoint handle can be of
  * @KDBUS_HANDLE_EP_NONE:	New file descriptor on an endpoint
- * @KDBUS_HANDLE_EP_CONNECTED:	A bus connection after HELLO
+ * @KDBUS_HANDLE_EP_CONNECTED:	An endpoint connection after HELLO
  * @KDBUS_HANDLE_EP_OWNER:	File descriptor to hold an endpoint
  */
 enum kdbus_handle_ep_type {
