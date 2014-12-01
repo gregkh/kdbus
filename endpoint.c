@@ -89,6 +89,10 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	struct kdbus_ep *e;
 	int ret;
 
+	/*
+	 * Validate only custom endpoints names, default endpoints
+	 * with a "bus" name are created when the bus is created
+	 */
 	if (is_custom) {
 		ret = kdbus_verify_uid_prefix(name,
 					      bus->domain->user_namespace,
