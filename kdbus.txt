@@ -822,7 +822,7 @@ struct kdbus_msg {
 };
 
 The message will be augmented by the requested metadata items when queued into
-the receiver's pool. See also section 13.1 ("Metadata and namespaces").
+the receiver's pool. See also section 13.2 ("Metadata and namespaces").
 
 
 7.2 Message layout
@@ -1602,9 +1602,10 @@ those metadata items:
 
   b) Userspace might not always get all requested metadata items that it
      requested. That is because some of those items are only added if a
-     corresponding kernel feature has been enabled. Also, the two exceptions
-     described above will as well lead to less items be attached than
-     requested.
+     corresponding kernel feature has been enabled, or if the sender and
+     receiver are in different namespaces, see section 13.2 ("Metadata
+     and namespaces"). Also, the two exceptions described above will as
+     well lead to less items be attached than requested.
 
 
 13.1 Known item types
@@ -1689,7 +1690,7 @@ The following attach flags are currently supported.
     longer when the items are received.
 
 
-13.1 Metadata and namespaces
+13.2 Metadata and namespaces
 ----------------------------
 
 Metadata such as PIDs, UIDs or GIDs are automatically translated to the
