@@ -188,7 +188,7 @@ int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
 	char prefix[16];
 
 	snprintf(prefix, sizeof(prefix), "%u-", from_kuid(user_ns, uid));
-	if (strncmp(name, prefix, strlen(prefix) != 0))
+	if (strncmp(name, prefix, strlen(prefix)) != 0)
 		return -EINVAL;
 
 	return 0;
