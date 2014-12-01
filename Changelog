@@ -25,6 +25,8 @@ since v2:
   * Some fixes in kdbus.txt, spotted by Harald Hoyer and Andy
     Lutomirski.
 
+  * Fixed compiler warnings on test-message by Michele Curti
+
   * Test case memory leak plugged by Rui Miguel Silva.
 
   * Build fix for s390
