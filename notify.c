@@ -27,6 +27,14 @@
 #include "message.h"
 #include "notify.h"
 
+static inline void kdbus_notify_add_tail(struct kdbus_kmsg *kmsg,
+					 struct kdbus_bus *bus)
+{
+	spin_lock(&bus->notify_lock);
+	list_add_tail(&kmsg->notify_entry, &bus->notify_list);
+	spin_unlock(&bus->notify_lock);
+}
+
 static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 			      u64 cookie, u64 msg_type)
 {
@@ -50,11 +58,11 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 	kmsg->msg.cookie_reply = cookie;
 	kmsg->msg.items[0].type = msg_type;
 
-	spin_lock(&bus->notify_lock);
-	list_add_tail(&kmsg->notify_entry, &bus->notify_list);
-	spin_unlock(&bus->notify_lock);
+	kdbus_notify_add_tail(kmsg, bus);
+
 	return 0;
 }
+
 
 /**
  * kdbus_notify_reply_timeout() - queue a timeout reply
@@ -129,9 +137,8 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 	memcpy(kmsg->msg.items[0].name_change.name, name, name_len);
 	kmsg->notify_name = kmsg->msg.items[0].name_change.name;
 
-	spin_lock(&bus->notify_lock);
-	list_add_tail(&kmsg->notify_entry, &bus->notify_list);
-	spin_unlock(&bus->notify_lock);
+	kdbus_notify_add_tail(kmsg, bus);
+
 	return 0;
 }
 
@@ -175,9 +182,8 @@ int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 	kmsg->msg.items[0].id_change.id = id;
 	kmsg->msg.items[0].id_change.flags = flags;
 
-	spin_lock(&bus->notify_lock);
-	list_add_tail(&kmsg->notify_entry, &bus->notify_list);
-	spin_unlock(&bus->notify_lock);
+	kdbus_notify_add_tail(kmsg, bus);
+
 	return 0;
 }
 
