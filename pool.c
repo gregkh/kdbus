@@ -70,8 +70,9 @@ struct kdbus_pool {
  * @entry:		Entry in "all slices" list
  * @rb_node:		Entry in free or busy list
  * @free:		Unused slice
- * @public:		Slice was exposed to userspace and may be freed
- *			with KDBUS_CMD_FREE.
+ * @ref_kernel:		Kernel holds a reference
+ * @ref_user:		Userspace holds a reference
+ * @child:		Linked slice to free along with this one
  *
  * The pool has one or more slices, always spanning the entire size of the
  * pool.
@@ -94,6 +95,8 @@ struct kdbus_pool_slice {
 	bool free : 1;
 	bool ref_kernel : 1;
 	bool ref_user : 1;
+
+	struct kdbus_pool_slice *child;
 };
 
 static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,
@@ -305,6 +308,13 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 
 	slice->free = true;
 	kdbus_pool_add_free_slice(pool, slice);
+
+	if (slice->child) {
+		/* Only allow one level of recursion */
+		BUG_ON(slice->child->child);
+		__kdbus_pool_slice_release(slice->child);
+		slice->child = NULL;
+	}
 }
 
 /**
@@ -439,6 +449,20 @@ void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 {
 	return slice->off;
+}
+
+/**
+ * kdbus_pool_slice_set_child() - Set child of a slice
+ * @slice:	Slice to add a child to
+ * @child:	Slave to add
+ *
+ * Set @child as child of @slice, so it will be freed automatically when
+ * @slice goes away.
+ */
+void kdbus_pool_slice_set_child(struct kdbus_pool_slice *slice,
+				struct kdbus_pool_slice *child)
+{
+	slice->child = child;
 }
 
 /**
