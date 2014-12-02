@@ -52,8 +52,7 @@ extern int kdbus_util_verbose;
 		pid = fork();						\
 		if (pid == 0) {						\
 			ret = drop_privileges(child_uid, child_gid);	\
-			if (ret < 0)					\
-				_exit(ret);				\
+			ASSERT_EXIT_VAL(ret == 0, ret);			\
 									\
 			_child_;					\
 			_exit(0);					\
@@ -79,6 +78,46 @@ extern int kdbus_util_verbose;
 		_code_;							\
 		kdbus_conn_free(_var_);					\
 	}), ({ 0; }))
+
+#define RUN_CLONE_CHILD(clone_ret, flags, _setup_, _child_body_,	\
+			_parent_setup_, _parent_body_) ({		\
+	pid_t pid, rpid;						\
+	int ret;							\
+	int efd = -1;							\
+									\
+	_setup_;							\
+	efd = eventfd(0, EFD_CLOEXEC);					\
+	ASSERT_RETURN(efd >= 0);					\
+	*clone_ret = 0;							\
+	pid = syscall(__NR_clone, flags, NULL);				\
+	if (pid == 0) {							\
+		eventfd_t event_status = 0;				\
+		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);			\
+		ASSERT_EXIT(ret == 0);					\
+		ret = eventfd_read(efd, &event_status);			\
+		if (ret < 0 || event_status != 1) {			\
+			kdbus_printf("error eventfd_read()\n");		\
+			_exit(EXIT_FAILURE);				\
+		}							\
+		_child_body_;						\
+		_exit(0);						\
+	} else if (pid > 0) {						\
+		_parent_setup_;						\
+		ret = eventfd_write(efd, 1);				\
+		ASSERT_RETURN(ret >= 0);				\
+		_parent_body_;						\
+		rpid = waitpid(pid, &ret, 0);				\
+		ASSERT_RETURN(rpid == pid);				\
+		ASSERT_RETURN(WIFEXITED(ret));				\
+		ASSERT_RETURN(WEXITSTATUS(ret) == 0);			\
+		ret = TEST_OK;						\
+	} else {							\
+		ret = -errno;						\
+		*clone_ret = -errno;					\
+	}								\
+	close(efd);							\
+	ret;								\
+})
 
 /* Enums for parent if it should drop privs or not */
 enum kdbus_drop_parent {

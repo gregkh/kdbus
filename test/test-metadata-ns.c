@@ -52,12 +52,9 @@ static struct kdbus_item *kdbus_get_item(struct kdbus_msg *msg,
 
 static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 {
-	int efd = -1;
-	pid_t pid;
+	int clone_ret;
 	int ret;
-	int status;
 	unsigned int i;
-	unsigned int uid = 65534;
 	struct kdbus_msg *msg = NULL;
 	const struct kdbus_item *item;
 	uint64_t cookie = time(NULL) ^ 0xdeadbeef;
@@ -68,7 +65,7 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	ASSERT_EXIT(monitor);
 
 	ret = kdbus_add_match_empty(monitor);
-	ASSERT_RETURN(ret == 0);
+	ASSERT_EXIT(ret == 0);
 
 	ret = drop_privileges(UNPRIV_UID, UNPRIV_GID);
 	ASSERT_EXIT(ret == 0);
@@ -88,53 +85,27 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 			     0, conn->id);
 	ASSERT_EXIT(ret == 0);
 
-	/**
-	 * Since we just dropped privileges, the dumpable flag was just
-	 * cleared which makes the /proc/$clone_child/uid_map to be
-	 * owned by root, hence any userns uid mapping will fail with
-	 * -EPERM since the mapping will be done by uid 65534.
+	/*
+	 * Since we just dropped privileges, the dumpable flag
+	 * was just cleared which makes the /proc/$clone_child/uid_map
+	 * to be owned by root, hence any userns uid mapping will fail
+	 * with -EPERM since the mapping will be done by uid 65534.
 	 *
-	 * To avoid this set the dumpable flag again which makes procfs
-	 * update the /proc/$clone_child/ inodes owner to 65534.
+	 * To avoid this set the dumpable flag again which makes
+	 * procfs update the /proc/$clone_child/ inodes owner to 65534.
 	 *
 	 * Using this we will be able write to /proc/$clone_child/uid_map
-	 * as uid 65534 and map the uid 65534 to 0 inside the user
-	 * namespace.
+	 * as uid 65534 and map the uid 65534 to 0 inside the user namespace.
 	 */
 	ret = prctl(PR_SET_DUMPABLE, SUID_DUMP_USER);
 	ASSERT_EXIT(ret == 0);
 
-	/* sync with parent */
-	efd = eventfd(0, EFD_CLOEXEC);
-	ASSERT_EXIT(efd >= 0);
+	/* Make child privileged in its new userns and run tests */
 
-	pid = syscall(__NR_clone, SIGCHLD | CLONE_NEWUSER, NULL);
-	if (pid < 0) {
-		ret = -errno;
-		kdbus_printf("error clone: %d (%m)\n", ret);
-
-		/* Unprivileged can't create user namespace ? */
-		if (ret == -EPERM) {
-			kdbus_printf("-- CLONE_NEWUSER TEST Failed for "
-				     "uid: %u\n -- Make sure that your kernel "
-				     "do not allow CLONE_NEWUSER for "
-				     "unprivileged users\n",
-				uid);
-			ret = 0;
-		}
-
-		goto out;
-	}
-
-	if (pid == 0) {
+	ret = RUN_CLONE_CHILD(&clone_ret, SIGCHLD | CLONE_NEWUSER,
+	({ 0;  /* Clone setup, nothing */ }),
+	({
 		struct kdbus_conn *userns_conn;
-		eventfd_t event_status = 0;
-
-		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
-		ASSERT_EXIT(ret == 0);
-
-		ret = eventfd_read(efd, &event_status);
-		ASSERT_EXIT(ret >= 0 && event_status == 1);
 
 		/* ping connection from the new user namespace */
 		userns_conn = kdbus_hello(bus, 0, NULL, 0);
@@ -191,25 +162,24 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		kdbus_msg_free(msg);
 
 		kdbus_conn_free(userns_conn);
-		_exit(EXIT_SUCCESS);
-	}
-
-	ret = userns_map_uid_gid(pid, "0 65534 1", "0 65534 1");
-	if (ret < 0) {
-		/* send error to child */
-		eventfd_write(efd, 2);
-		kdbus_printf("error mapping uid/gid in new user namespace\n");
+	}),
+	({
+		/* Parent setup map child uid/gid */
+		ret = userns_map_uid_gid(pid, "0 65534 1", "0 65534 1");
+		ASSERT_EXIT(ret == 0);
+	}),
+	({ 0; }));
+	/* Unprivileged was not able to create user namespace */
+	if (clone_ret == -EPERM) {
+		kdbus_printf("-- CLONE_NEWUSER TEST Failed for "
+			     "uid: %u\n -- Make sure that your kernel "
+			     "do not allow CLONE_NEWUSER for "
+			     "unprivileged users\n", UNPRIV_UID);
+		ret = 0;
 		goto out;
 	}
 
-	ret = eventfd_write(efd, 1);
-	ASSERT_EXIT(ret >= 0);
-
-	ret = waitpid(pid, &status, 0);
-	ASSERT_EXIT(ret >= 0);
-
-	ASSERT_EXIT(WIFEXITED(status));
-	ASSERT_EXIT(!WEXITSTATUS(status));
+	ASSERT_EXIT(ret == 0);
 
 	/*
 	 * Receive from privileged connection
@@ -258,9 +228,6 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	}
 
 out:
-	if (efd != -1)
-		close(efd);
-
 	kdbus_conn_free(unpriv_conn);
 	kdbus_conn_free(monitor);
 
