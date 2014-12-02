@@ -431,6 +431,17 @@ void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 }
 
 /**
+ * kdbus_pool_slice_offset() - Get a slice's offset inside the pool
+ * @slice:	Slice to return the offset of
+ *
+ * Return: The internal offset @slice inside the pool.
+ */
+off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
+{
+	return slice->off;
+}
+
+/**
  * kdbus_pool_new() - create a new pool
  * @name:		Name of the (deleted) file which shows up in
  *			/proc, used for debugging
