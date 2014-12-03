@@ -59,6 +59,61 @@
 
 int kdbus_util_verbose = true;
 
+int kdbus_sysfs_get_parameter_mask(uint64_t *mask)
+{
+	int ret;
+	FILE *file;
+	unsigned long long value;
+
+	file = fopen(KDBUS_MASK_PARAMETER_PATH, "r");
+	if (!file) {
+		ret = -errno;
+		kdbus_printf("--- error fopen(): %d (%m)\n", ret);
+		return ret;
+	}
+
+	ret = fscanf(file, "%llu", &value);
+	if (ret != 1) {
+		if (ferror(file))
+			ret = -errno;
+		else
+			ret = -EIO;
+
+		kdbus_printf("--- error fscanf(): %d\n", ret);
+		fclose(file);
+		return ret;
+	}
+
+	*mask = (uint64_t)value;
+
+	fclose(file);
+
+	return 0;
+}
+
+int kdbus_sysfs_set_parameter_mask(uint64_t mask)
+{
+	int ret;
+	FILE *file;
+
+	file = fopen(KDBUS_MASK_PARAMETER_PATH, "w");
+	if (!file) {
+		ret = -errno;
+		kdbus_printf("--- error open(): %d (%m)\n", ret);
+		return ret;
+	}
+
+	ret = fprintf(file, "%llu", (unsigned long long)mask);
+	if (ret <= 0) {
+		ret = -EIO;
+		kdbus_printf("--- error fprintf(): %d\n", ret);
+	}
+
+	fclose(file);
+
+	return ret > 0 ? 0 : ret;
+}
+
 int kdbus_create_bus(int control_fd, const char *name,
 		     uint64_t req_meta, char **path)
 {

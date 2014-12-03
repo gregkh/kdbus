@@ -33,6 +33,9 @@
 
 #define POOL_SIZE (16 * 1024LU * 1024LU)
 
+#define KDBUS_MASK_PARAMETER_PATH \
+	"/sys/module/kdbus/parameters/attach_flags_mask"
+
 #define UNPRIV_UID 65534
 #define UNPRIV_GID 65534
 
@@ -131,6 +134,9 @@ struct kdbus_conn {
 	uint64_t id;
 	void *buf;
 };
+
+int kdbus_sysfs_get_parameter_mask(uint64_t *mask);
+int kdbus_sysfs_set_parameter_mask(uint64_t mask);
 
 int sys_memfd_create(const char *name, __u64 size);
 int sys_memfd_seal_set(int fd);
