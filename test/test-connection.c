@@ -176,15 +176,18 @@ static unsigned int kdbus_count_item(struct kdbus_info *info,
 	return i;
 }
 
-static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
+static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 {
 	int ret;
 	unsigned int cnt = 0;
 	uint64_t offset = 0;
+	uint64_t kdbus_flags_mask;
 	struct kdbus_info *info;
 	struct kdbus_conn *conn;
 	struct kdbus_conn *privileged;
 	const struct kdbus_item *item;
+	uint64_t valid_flags_set;
+	uint64_t invalid_flags_set;
 	uint64_t valid_flags = KDBUS_ATTACH_NAMES |
 			       KDBUS_ATTACH_CREDS |
 			       KDBUS_ATTACH_PIDS |
@@ -210,6 +213,12 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 		.tid	= syscall(SYS_gettid),
 	};
 
+	ret = kdbus_sysfs_get_parameter_mask(&kdbus_flags_mask);
+	ASSERT_RETURN(ret == 0);
+
+	valid_flags_set = valid_flags & kdbus_flags_mask;
+	invalid_flags_set = invalid_flags & kdbus_flags_mask;
+
 	ret = kdbus_info(env->conn, env->conn->id, NULL,
 			 valid_flags, &offset);
 	ASSERT_RETURN(ret == 0);
@@ -222,7 +231,11 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(item == NULL);
 
 	item = kdbus_get_item(info, KDBUS_ITEM_CONN_DESCRIPTION);
-	ASSERT_RETURN(item);
+	if (valid_flags_set & KDBUS_ATTACH_CONN_DESCRIPTION) {
+		ASSERT_RETURN(item);
+	} else {
+		ASSERT_RETURN(item == NULL);
+	}
 
 	kdbus_free(env->conn, offset);
 
@@ -243,21 +256,29 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(item == NULL);
 
 	cnt = kdbus_count_item(info, KDBUS_ITEM_CREDS);
-	ASSERT_RETURN(cnt == 1);
+	if (valid_flags_set & KDBUS_ATTACH_CREDS) {
+		ASSERT_RETURN(cnt == 1);
 
-	item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
-	ASSERT_RETURN(item);
+		item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
+		ASSERT_RETURN(item);
 
-	/* Compare received items with cached creds */
-	ASSERT_RETURN(memcmp(&item->creds, &cached_creds,
-			      sizeof(struct kdbus_creds)) == 0);
+		/* Compare received items with cached creds */
+		ASSERT_RETURN(memcmp(&item->creds, &cached_creds,
+				      sizeof(struct kdbus_creds)) == 0);
+	} else {
+		ASSERT_RETURN(cnt == 0);
+	}
 
 	item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
-	ASSERT_RETURN(item);
+	if (valid_flags_set & KDBUS_ATTACH_PIDS) {
+		ASSERT_RETURN(item);
 
-	/* Compare item->pids with cached PIDs */
-	ASSERT_RETURN(item->pids.pid == cached_pids.pid &&
-		      item->pids.tid == cached_pids.tid);
+		/* Compare item->pids with cached PIDs */
+		ASSERT_RETURN(item->pids.pid == cached_pids.pid &&
+			      item->pids.tid == cached_pids.tid);
+	} else {
+		ASSERT_RETURN(item == NULL);
+	}
 
 	/* We did not request KDBUS_ITEM_CAPS */
 	item = kdbus_get_item(info, KDBUS_ITEM_CAPS);
@@ -275,7 +296,11 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(info->id == conn->id);
 
 	item = kdbus_get_item(info, KDBUS_ITEM_OWNED_NAME);
-	ASSERT_RETURN(item && !strcmp(item->name.name, "com.example.a"));
+	if (valid_flags_set & KDBUS_ATTACH_NAMES) {
+		ASSERT_RETURN(item && !strcmp(item->name.name, "com.example.a"));
+	} else {
+		ASSERT_RETURN(item == NULL);
+	}
 
 	kdbus_free(conn, offset);
 
@@ -287,6 +312,10 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 
 	kdbus_free(conn, offset);
 
+	/* does not have the necessary caps to drop to unprivileged */
+	if (!capable)
+		goto continue_test;
+
 	ret = RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_GID, ({
 		ret = kdbus_info(conn, conn->id, NULL,
 				 valid_flags, &offset);
@@ -295,28 +324,36 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 		info = (struct kdbus_info *)(conn->buf + offset);
 		ASSERT_EXIT(info->id == conn->id);
 
-		item = kdbus_get_item(info, KDBUS_ITEM_OWNED_NAME);
-		ASSERT_EXIT(item &&
-			!strcmp(item->name.name, "com.example.a"));
+		if (valid_flags_set & KDBUS_ATTACH_NAMES) {
+			item = kdbus_get_item(info, KDBUS_ITEM_OWNED_NAME);
+			ASSERT_EXIT(item &&
+				    strcmp(item->name.name,
+				           "com.example.a") == 0);
+		}
 
-		item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
-		ASSERT_EXIT(item);
+		if (valid_flags_set & KDBUS_ATTACH_CREDS) {
+			item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
+			ASSERT_EXIT(item);
 
-		/* Compare received items with cached creds */
-		ASSERT_EXIT(memcmp(&item->creds, &cached_creds,
-			    sizeof(struct kdbus_creds)) == 0);
+			/* Compare received items with cached creds */
+			ASSERT_EXIT(memcmp(&item->creds, &cached_creds,
+				    sizeof(struct kdbus_creds)) == 0);
+		}
 
-		item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
-		ASSERT_EXIT(item);
+		if (valid_flags_set & KDBUS_ATTACH_PIDS) {
+			item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
+			ASSERT_EXIT(item);
 
-		/*
-		 * Compare item->pids with cached pids of
-		 * privileged one.
-		 *
-		 * cmd_info will always return cached pids.
-		 */
-		ASSERT_EXIT(item->pids.pid == cached_pids.pid &&
-			    item->pids.tid == cached_pids.tid);
+			/*
+			 * Compare item->pids with cached pids of
+			 * privileged one.
+			 *
+			 * cmd_info will always return cached pids.
+			 */
+			ASSERT_EXIT(item->pids.pid == cached_pids.pid &&
+				    item->pids.tid == cached_pids.tid);
+		}
+
 		kdbus_free(conn, offset);
 
 		/*
@@ -332,34 +369,51 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 		 * it points to the cached creds.
 		 */
 		cnt = kdbus_count_item(info, KDBUS_ITEM_CREDS);
-		ASSERT_EXIT(cnt == 1);
+		if (invalid_flags_set & KDBUS_ATTACH_CREDS) {
+			ASSERT_EXIT(cnt == 1);
 
-		item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
-		ASSERT_EXIT(item);
+			item = kdbus_get_item(info, KDBUS_ITEM_CREDS);
+			ASSERT_EXIT(item);
 
-		/* Compare received items with cached creds */
-		ASSERT_EXIT(memcmp(&item->creds, &cached_creds,
-			    sizeof(struct kdbus_creds)) == 0);
+			/* Compare received items with cached creds */
+			ASSERT_EXIT(memcmp(&item->creds, &cached_creds,
+				    sizeof(struct kdbus_creds)) == 0);
+		} else {
+			ASSERT_EXIT(cnt == 0);
+		}
 
-		cnt = kdbus_count_item(info, KDBUS_ITEM_PIDS);
-		ASSERT_EXIT(cnt == 1);
+		if (valid_flags_set & KDBUS_ATTACH_PIDS) {
+			cnt = kdbus_count_item(info, KDBUS_ITEM_PIDS);
+			ASSERT_EXIT(cnt == 1);
 
-		item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
-		ASSERT_EXIT(item);
+			item = kdbus_get_item(info, KDBUS_ITEM_PIDS);
+			ASSERT_EXIT(item);
 
-		/* Compare item->pids with cached pids */
-		ASSERT_EXIT(item->pids.pid == cached_pids.pid &&
-			    item->pids.tid == cached_pids.tid);
+			/* Compare item->pids with cached pids */
+			ASSERT_EXIT(item->pids.pid == cached_pids.pid &&
+				    item->pids.tid == cached_pids.tid);
+		}
 
 		cnt = kdbus_count_item(info, KDBUS_ITEM_CGROUP);
-		ASSERT_EXIT(cnt == 1);
+		if (valid_flags_set & KDBUS_ATTACH_CGROUP) {
+			ASSERT_EXIT(cnt == 1);
+		} else {
+			ASSERT_EXIT(cnt == 0);
+		}
 
 		cnt = kdbus_count_item(info, KDBUS_ITEM_CAPS);
-		ASSERT_EXIT(cnt == 1);
+		if (valid_flags_set & KDBUS_ATTACH_CAPS) {
+			ASSERT_EXIT(cnt == 1);
+		} else {
+			ASSERT_EXIT(cnt == 0);
+		}
 
 		kdbus_free(conn, offset);
 	}),
 	({ 0; }));
+	ASSERT_RETURN(ret == 0);
+
+continue_test:
 
 	/* A second name */
 	ret = kdbus_name_acquire(conn, "com.example.b", NULL);
@@ -372,7 +426,11 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(info->id == conn->id);
 
 	cnt = kdbus_count_item(info, KDBUS_ITEM_OWNED_NAME);
-	ASSERT_RETURN(cnt == 2);
+	if (valid_flags_set & KDBUS_ATTACH_NAMES) {
+		ASSERT_RETURN(cnt == 2);
+	} else {
+		ASSERT_RETURN(cnt == 0);
+	}
 
 	kdbus_free(conn, offset);
 
@@ -384,6 +442,7 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env)
 int kdbus_test_conn_info(struct kdbus_test_env *env)
 {
 	int ret;
+	int have_caps;
 	struct {
 		struct kdbus_cmd_info cmd_info;
 
@@ -416,14 +475,15 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -ESRCH);
 
 	/* Test for caps here, so we run the previous test */
-	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
-	ASSERT_RETURN(ret >= 0);
+	have_caps = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
+	ASSERT_RETURN(have_caps >= 0);
 
-	if (!ret)
-		return TEST_SKIP;
-
-	ret = kdbus_fuzz_conn_info(env);
+	ret = kdbus_fuzz_conn_info(env, have_caps);
 	ASSERT_RETURN(ret == 0);
+
+	/* Now if we have skipped some tests then let the user know */
+	if (!have_caps)
+		return TEST_SKIP;
 
 	return TEST_OK;
 }
