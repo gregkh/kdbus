@@ -591,6 +591,20 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			break;
 		}
 
+		case KDBUS_ITEM_FDS: {
+			int i, n = (item->size - KDBUS_ITEM_HEADER_SIZE) /
+					sizeof(int);
+
+			kdbus_printf("  +%s (%llu bytes, %d fds)\n",
+			       enum_MSG(item->type), item->size, n);
+
+			for (i = 0; i < n; i++)
+				kdbus_printf("    fd[%d] = %d\n",
+					     i, item->fds[i]);
+
+			break;
+		}
+
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			char *buf;
 			off_t size;
