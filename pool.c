@@ -69,10 +69,10 @@ struct kdbus_pool {
  * @size:		Size of slice
  * @entry:		Entry in "all slices" list
  * @rb_node:		Entry in free or busy list
+ * @child:		Child slice
  * @free:		Unused slice
  * @ref_kernel:		Kernel holds a reference
  * @ref_user:		Userspace holds a reference
- * @child:		Linked slice to free along with this one
  *
  * The pool has one or more slices, always spanning the entire size of the
  * pool.
@@ -91,12 +91,11 @@ struct kdbus_pool_slice {
 
 	struct list_head entry;
 	struct rb_node rb_node;
+	struct kdbus_pool_slice *child;
 
 	bool free : 1;
 	bool ref_kernel : 1;
 	bool ref_user : 1;
-
-	struct kdbus_pool_slice *child;
 };
 
 static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,
@@ -155,6 +154,8 @@ static void kdbus_pool_add_busy_slice(struct kdbus_pool *pool,
 			n = &pn->rb_left;
 		else if (slice->off > pslice->off)
 			n = &pn->rb_right;
+		else
+			BUG();
 	}
 
 	rb_link_node(&slice->rb_node, pn, n);
@@ -254,6 +255,7 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	s->ref_kernel = true;
 	s->ref_user = false;
 	s->free = false;
+	s->child = NULL;
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
 
@@ -298,11 +300,14 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 		s = list_entry(slice->entry.prev, struct kdbus_pool_slice,
 			       entry);
 		if (s->free) {
+			struct kdbus_pool_slice *child = slice->child;
+
 			rb_erase(&s->rb_node, &pool->slices_free);
 			list_del(&slice->entry);
 			s->size += slice->size;
 			kfree(slice);
 			slice = s;
+			slice->child = child;
 		}
 	}
 
@@ -312,6 +317,7 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 	if (slice->child) {
 		/* Only allow one level of recursion */
 		BUG_ON(slice->child->child);
+		slice->child->ref_kernel = false;
 		__kdbus_pool_slice_release(slice->child);
 		slice->child = NULL;
 	}
@@ -428,6 +434,9 @@ void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 {
 	kdbus_pool_slice_flush(slice);
 
+	if (slice->child)
+		kdbus_pool_slice_flush(slice->child);
+
 	mutex_lock(&slice->pool->lock);
 	/* kernel must own a ref to @slice to gain a user-space ref */
 	WARN_ON(!slice->ref_kernel);
@@ -462,6 +471,7 @@ off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 void kdbus_pool_slice_set_child(struct kdbus_pool_slice *slice,
 				struct kdbus_pool_slice *child)
 {
+	WARN_ON(slice->child);
 	slice->child = child;
 }
 
