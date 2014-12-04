@@ -510,34 +510,30 @@ int kdbus_meta_collect_dst(struct kdbus_meta *meta, u64 seq,
  * kdbus_meta_collect_from_src() - collect metadata from source connection
  * @meta:		Metadata object
  * @conn_src:		Connection to get owned names and description from
- * @conn_dst:		Connection to get attach flags from
  *
  * Collect the data specified in @which from @src_conn.
  *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_collect_src(struct kdbus_meta *meta,
-			   struct kdbus_conn *conn_src,
-			   const struct kdbus_conn *conn_dst)
+			   struct kdbus_conn *conn_src)
 {
-	u64 mask = atomic64_read(&conn_dst->attach_flags_recv);
-	int ret;
+	const struct kdbus_name_entry *e;
+	struct kdbus_item *item;
+	int ret = 0;
+	size_t len;
 
 	if (!conn_src)
 		return 0;
 
 	mutex_lock(&conn_src->lock);
 
-	if (mask & KDBUS_ATTACH_NAMES) {
-		const struct kdbus_name_entry *e;
-		struct kdbus_item *item;
-		size_t len;
+	len = 0;
+	list_for_each_entry(e, &conn_src->names_list, conn_entry)
+		len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
+				       strlen(e->name) + 1);
 
-		len = 0;
-		list_for_each_entry(e, &conn_src->names_list, conn_entry)
-			len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
-					       strlen(e->name) + 1);
-
+	if (len > 0) {
 		item = kzalloc(len, GFP_KERNEL);
 		if (!item) {
 			ret = -ENOMEM;
@@ -560,7 +556,7 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 		meta->collected |= KDBUS_ATTACH_NAMES;
 	}
 
-	if ((mask & KDBUS_ATTACH_CONN_DESCRIPTION) && conn_src->description) {
+	if (conn_src->description) {
 		kfree(meta->conn_description);
 		meta->conn_description = kstrdup(conn_src->description,
 						 GFP_KERNEL);
@@ -571,8 +567,6 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 
 		meta->collected |= KDBUS_ATTACH_CONN_DESCRIPTION;
 	}
-
-	ret = 0;
 
 exit_unlock:
 	mutex_unlock(&conn_src->lock);

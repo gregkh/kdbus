@@ -389,7 +389,7 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * messages that lack expected metadata.
 			 */
 			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
-			kdbus_meta_collect_src(kmsg->meta, conn_src, conn_dst);
+			kdbus_meta_collect_src(kmsg->meta, conn_src);
 		} else {
 			/*
 			 * Check if there is a policy db that prevents the
@@ -451,7 +451,7 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 		 */
 		if (conn_src) {
 			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
-			kdbus_meta_collect_src(kmsg->meta, conn_src, conn_dst);
+			kdbus_meta_collect_src(kmsg->meta, conn_src);
 		}
 
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
