@@ -132,7 +132,7 @@ enum kdbus_drop_parent {
 struct kdbus_conn {
 	int fd;
 	uint64_t id;
-	void *buf;
+	unsigned char *buf;
 };
 
 int kdbus_sysfs_get_parameter_mask(uint64_t *mask);
