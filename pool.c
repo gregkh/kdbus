@@ -297,17 +297,14 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 	if (pool->slices.next != &slice->entry) {
 		struct kdbus_pool_slice *s;
 
-		s = list_entry(slice->entry.prev, struct kdbus_pool_slice,
-			       entry);
+		s = list_entry(slice->entry.prev,
+			       struct kdbus_pool_slice, entry);
 		if (s->free) {
-			struct kdbus_pool_slice *child = slice->child;
-
 			rb_erase(&s->rb_node, &pool->slices_free);
 			list_del(&slice->entry);
 			s->size += slice->size;
 			kfree(slice);
 			slice = s;
-			slice->child = child;
 		}
 	}
 
