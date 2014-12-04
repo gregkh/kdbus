@@ -382,7 +382,7 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 			ASSERT_EXIT(cnt == 0);
 		}
 
-		if (valid_flags_set & KDBUS_ATTACH_PIDS) {
+		if (invalid_flags_set & KDBUS_ATTACH_PIDS) {
 			cnt = kdbus_count_item(info, KDBUS_ITEM_PIDS);
 			ASSERT_EXIT(cnt == 1);
 
@@ -395,14 +395,14 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 		}
 
 		cnt = kdbus_count_item(info, KDBUS_ITEM_CGROUP);
-		if (valid_flags_set & KDBUS_ATTACH_CGROUP) {
+		if (invalid_flags_set & KDBUS_ATTACH_CGROUP) {
 			ASSERT_EXIT(cnt == 1);
 		} else {
 			ASSERT_EXIT(cnt == 0);
 		}
 
 		cnt = kdbus_count_item(info, KDBUS_ITEM_CAPS);
-		if (valid_flags_set & KDBUS_ATTACH_CAPS) {
+		if (invalid_flags_set & KDBUS_ATTACH_CAPS) {
 			ASSERT_EXIT(cnt == 1);
 		} else {
 			ASSERT_EXIT(cnt == 0);
