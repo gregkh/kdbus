@@ -42,6 +42,7 @@ enum {
 	ASSERT_EXIT_VAL(cond, EXIT_FAILURE)
 
 int kdbus_test_activator(struct kdbus_test_env *env);
+int kdbus_test_attach_flags(struct kdbus_test_env *env);
 int kdbus_test_benchmark(struct kdbus_test_env *env);
 int kdbus_test_bus_make(struct kdbus_test_env *env);
 int kdbus_test_byebye(struct kdbus_test_env *env);

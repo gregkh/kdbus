@@ -254,6 +254,13 @@ static const struct kdbus_test tests[] = {
 		.func	= kdbus_test_race_byebye_match,
 		.flags	= TEST_CREATE_BUS,
 	},
+	{
+		/* Last test */
+		.name	= "attach-flags",
+		.desc	= "attach flags mask",
+		.func	= kdbus_test_attach_flags,
+		.flags	= 0,
+	},
 	{ NULL } /* sentinel */
 };
 
