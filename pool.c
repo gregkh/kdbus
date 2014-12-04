@@ -269,6 +269,7 @@ exit_unlock:
 static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 {
 	struct kdbus_pool *pool = slice->pool;
+	struct kdbus_pool_slice *child = slice->child;
 
 	/* don't free the slice if either has a reference */
 	if (slice->ref_kernel || slice->ref_user)
@@ -305,18 +306,19 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 			s->size += slice->size;
 			kfree(slice);
 			slice = s;
+			slice->child = child;
 		}
 	}
 
 	slice->free = true;
+	slice->child = NULL;
 	kdbus_pool_add_free_slice(pool, slice);
 
-	if (slice->child) {
+	if (child) {
 		/* Only allow one level of recursion */
-		BUG_ON(slice->child->child);
-		slice->child->ref_kernel = false;
-		__kdbus_pool_slice_release(slice->child);
-		slice->child = NULL;
+		BUG_ON(child->child);
+		child->ref_kernel = false;
+		__kdbus_pool_slice_release(child);
 	}
 }
 
