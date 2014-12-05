@@ -59,13 +59,13 @@
 
 int kdbus_util_verbose = true;
 
-int kdbus_sysfs_get_parameter_mask(uint64_t *mask)
+int kdbus_sysfs_get_parameter_mask(const char *path, uint64_t *mask)
 {
 	int ret;
 	FILE *file;
 	unsigned long long value;
 
-	file = fopen(KDBUS_MASK_PARAMETER_PATH, "r");
+	file = fopen(path, "r");
 	if (!file) {
 		ret = -errno;
 		kdbus_printf("--- error fopen(): %d (%m)\n", ret);
@@ -91,12 +91,12 @@ int kdbus_sysfs_get_parameter_mask(uint64_t *mask)
 	return 0;
 }
 
-int kdbus_sysfs_set_parameter_mask(uint64_t mask)
+int kdbus_sysfs_set_parameter_mask(const char *path, uint64_t mask)
 {
 	int ret;
 	FILE *file;
 
-	file = fopen(KDBUS_MASK_PARAMETER_PATH, "w");
+	file = fopen(path, "w");
 	if (!file) {
 		ret = -errno;
 		kdbus_printf("--- error open(): %d (%m)\n", ret);

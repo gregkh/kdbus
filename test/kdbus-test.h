@@ -4,6 +4,8 @@
 struct kdbus_test_env {
 	char *buspath;
 	const char *root;
+	const char *module;
+	const char *mask_param_path;
 	int control_fd;
 	struct kdbus_conn *conn;
 };

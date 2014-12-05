@@ -35,7 +35,8 @@ static int kdbus_bus_creation_flags(struct kdbus_test_env *env)
 
 	/* kdbus mask to 0 */
 	attach_flags_mask = 0;
-	ret = kdbus_sysfs_set_parameter_mask(attach_flags_mask);
+	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+					     attach_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
 	/*
@@ -54,7 +55,8 @@ static int kdbus_bus_creation_flags(struct kdbus_test_env *env)
 
 	/* Update kdbus module attach flags mask */
 	attach_flags_mask |= KDBUS_ATTACH_PIDS | KDBUS_ATTACH_CAPS;
-	ret = kdbus_sysfs_set_parameter_mask(attach_flags_mask);
+	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+					     attach_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_create_bus(control_fd, busname,
@@ -89,7 +91,8 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 	if (!ret)
 		return TEST_SKIP;
 
-	ret = kdbus_sysfs_get_parameter_mask(&old_kdbus_flags_mask);
+	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
+					     &old_kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
 	asprintf(&s, "%s/control", env->root);
@@ -106,10 +109,12 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* Restore previous kdbus mask */
-	ret = kdbus_sysfs_set_parameter_mask(old_kdbus_flags_mask);
+	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+					     old_kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_sysfs_get_parameter_mask(&flags_mask);
+	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
+					     &flags_mask);
 	ASSERT_RETURN(old_kdbus_flags_mask == flags_mask);
 
 	free(busname);

@@ -213,7 +213,8 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 		.tid	= syscall(SYS_gettid),
 	};
 
-	ret = kdbus_sysfs_get_parameter_mask(&kdbus_flags_mask);
+	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
+					     &kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
 	valid_flags_set = valid_flags & kdbus_flags_mask;

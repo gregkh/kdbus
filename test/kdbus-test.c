@@ -32,9 +32,11 @@ struct kdbus_test_args {
 	int loop;
 	int wait;
 	int fork;
+	char *module;
 	char *root;
 	char *test;
 	char *busname;
+	char *mask_param_path;
 };
 
 static const struct kdbus_test tests[] = {
@@ -265,9 +267,8 @@ static const struct kdbus_test tests[] = {
 };
 
 static int test_prepare_env(const struct kdbus_test *t,
-			    struct kdbus_test_env *env,
-			    const char *root,
-			    const char *busname)
+			    const struct kdbus_test_args *args,
+			    struct kdbus_test_env *env)
 {
 	if (t->flags & TEST_CREATE_BUS) {
 		char *s;
@@ -275,13 +276,13 @@ static int test_prepare_env(const struct kdbus_test *t,
 		int ret;
 		uint64_t current_attach_mask;
 
-		asprintf(&s, "%s/control", root);
+		asprintf(&s, "%s/control", args->root);
 
 		env->control_fd = open(s, O_RDWR);
 		free(s);
 		ASSERT_RETURN(env->control_fd >= 0);
 
-		if (!busname) {
+		if (!args->busname) {
 			n = unique_name("test-bus");
 			ASSERT_RETURN(n);
 		}
@@ -290,15 +291,17 @@ static int test_prepare_env(const struct kdbus_test *t,
 		 * Run tests with the current mask, otherwise we
 		 * need privileges to change the mask and run tests...
 		 */
-		ret = kdbus_sysfs_get_parameter_mask(&current_attach_mask);
+		ret = kdbus_sysfs_get_parameter_mask(args->mask_param_path,
+						     &current_attach_mask);
 		ASSERT_RETURN(ret == 0);
 
-		ret = kdbus_create_bus(env->control_fd, busname ?: n,
+		ret = kdbus_create_bus(env->control_fd,
+				       args->busname ?: n,
 				       current_attach_mask, &s);
 		free(n);
 		ASSERT_RETURN(ret == 0);
 
-		asprintf(&env->buspath, "%s/%s/bus", root, s);
+		asprintf(&env->buspath, "%s/%s/bus", args->root, s);
 		free(s);
 	}
 
@@ -307,7 +310,9 @@ static int test_prepare_env(const struct kdbus_test *t,
 		ASSERT_RETURN(env->conn);
 	}
 
-	env->root = root;
+	env->root = args->root;
+	env->module = args->module;
+	env->mask_param_path = args->mask_param_path;
 
 	return 0;
 }
@@ -330,13 +335,14 @@ void test_unprepare_env(const struct kdbus_test *t, struct kdbus_test_env *env)
 	}
 }
 
-static int test_run(const struct kdbus_test *t, const char *root,
-		    const char *busname, int wait)
+static int test_run(const struct kdbus_test *t,
+		    const struct kdbus_test_args *kdbus_args,
+		    int wait)
 {
 	int ret;
 	struct kdbus_test_env env = {};
 
-	ret = test_prepare_env(t, &env, root, busname);
+	ret = test_prepare_env(t, kdbus_args, &env);
 	if (ret != TEST_OK)
 		return ret;
 
@@ -350,8 +356,9 @@ static int test_run(const struct kdbus_test *t, const char *root,
 	return ret;
 }
 
-static int test_run_forked(const struct kdbus_test *t, const char *root,
-			   const char *busname, int wait)
+static int test_run_forked(const struct kdbus_test *t,
+			   const struct kdbus_test_args *kdbus_args,
+			   int wait)
 {
 	int ret;
 	pid_t pid;
@@ -360,7 +367,7 @@ static int test_run_forked(const struct kdbus_test *t, const char *root,
 	if (pid < 0) {
 		return TEST_ERR;
 	} else if (pid == 0) {
-		ret = test_run(t, root, busname, wait);
+		ret = test_run(t, kdbus_args, wait);
 		_exit(ret);
 	}
 
@@ -388,7 +395,7 @@ static void print_test_result(int ret)
 	}
 }
 
-static int start_all_tests(const char *root, const char *busname)
+static int start_all_tests(struct kdbus_test_args *kdbus_args)
 {
 	int ret;
 	unsigned int fail_cnt = 0;
@@ -405,7 +412,7 @@ static int start_all_tests(const char *root, const char *busname)
 			printf(".");
 		printf(" ");
 
-		ret = test_run_forked(t, root, busname, 0);
+		ret = test_run_forked(t, kdbus_args, 0);
 		switch (ret) {
 		case TEST_OK:
 			ok_cnt++;
@@ -441,12 +448,10 @@ static int start_one_test(struct kdbus_test_args *kdbus_args)
 		do {
 			test_found = true;
 			if (kdbus_args->fork)
-				ret = test_run_forked(t, kdbus_args->root,
-						      kdbus_args->busname,
+				ret = test_run_forked(t, kdbus_args,
 						      kdbus_args->wait);
 			else
-				ret = test_run(t, kdbus_args->root,
-					       kdbus_args->busname,
+				ret = test_run(t, kdbus_args,
 					       kdbus_args->wait);
 
 			printf("Testing %s: ", t->desc);
@@ -475,6 +480,7 @@ static void usage(const char *argv0)
 
 	printf("Usage: %s [options]\n"
 	       "Options:\n"
+	       "\t-m, --module <module>	Kdbus module name\n"
 	       "\t-x, --loop		Run in a loop\n"
 	       "\t-f, --fork		Fork before running a test\n"
 	       "\t-h, --help		Print this help\n"
@@ -508,8 +514,15 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 	int ret;
 	char *control;
 
+	if (!kdbus_args->module)
+		kdbus_args->module = "kdbus";
+
 	if (!kdbus_args->root)
 		kdbus_args->root = "/sys/fs/kdbus";
+
+	asprintf(&kdbus_args->mask_param_path,
+		 "/sys/module/%s/parameters/attach_flags_mask",
+		 kdbus_args->module);
 
 	asprintf(&control, "%s/control", kdbus_args->root);
 
@@ -525,12 +538,13 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 		ret = start_one_test(kdbus_args);
 	} else {
 		do {
-			ret = start_all_tests(kdbus_args->root,
-					      kdbus_args->busname);
+			ret = start_all_tests(kdbus_args);
 			if (ret != TEST_OK)
 				break;
 		} while (kdbus_args->loop);
 	}
+
+	free(kdbus_args->mask_param_path);
 
 	return ret;
 }
@@ -556,15 +570,20 @@ int main(int argc, char *argv[])
 		{ "bus",	required_argument,	NULL, 'b' },
 		{ "wait",	required_argument,	NULL, 'w' },
 		{ "fork",	no_argument,		NULL, 'f' },
+		{ "module",	required_argument,	NULL, 'm' },
 		{}
 	};
 
 	srand(time(NULL));
 
-	while ((t = getopt_long(argc, argv, "hxfr:t:b:w:", options, NULL)) >= 0) {
+	while ((t = getopt_long(argc, argv, "hxfm:r:t:b:w:", options, NULL)) >= 0) {
 		switch (t) {
 		case 'x':
 			kdbus_args->loop = 1;
+			break;
+
+		case 'm':
+			kdbus_args->module = optarg;
 			break;
 
 		case 'r':
