@@ -273,6 +273,7 @@ static int test_prepare_env(const struct kdbus_test *t,
 		char *s;
 		char *n = NULL;
 		int ret;
+		uint64_t current_attach_mask;
 
 		asprintf(&s, "%s/control", root);
 
@@ -285,8 +286,15 @@ static int test_prepare_env(const struct kdbus_test *t,
 			ASSERT_RETURN(n);
 		}
 
+		/*
+		 * Run tests with the current mask, otherwise we
+		 * need privileges to change the mask and run tests...
+		 */
+		ret = kdbus_sysfs_get_parameter_mask(&current_attach_mask);
+		ASSERT_RETURN(ret == 0);
+
 		ret = kdbus_create_bus(env->control_fd, busname ?: n,
-				       _KDBUS_ATTACH_ALL, &s);
+				       current_attach_mask, &s);
 		free(n);
 		ASSERT_RETURN(ret == 0);
 
