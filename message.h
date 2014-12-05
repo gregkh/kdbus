@@ -14,11 +14,16 @@
 #ifndef __KDBUS_MESSAGE_H
 #define __KDBUS_MESSAGE_H
 
+#include <linux/kref.h>
+
 #include "util.h"
 #include "metadata.h"
 
+struct kdbus_msg_vec;
+
 /**
  * struct kdbus_kmsg - internal message handling data
+ * @kref:		Reference counter
  * @seq:		Domain-global message sequence number
  * @notify_type:	Short-cut for faster lookup
  * @notify_old_id:	Short-cut for faster lookup
@@ -38,6 +43,8 @@
  * @msg:		Message from or to userspace
  */
 struct kdbus_kmsg {
+	struct kref kref;
+
 	u64 seq;
 	u64 notify_type;
 	u64 notify_old_id;
@@ -67,6 +74,7 @@ struct kdbus_conn;
 struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size);
 struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 					    struct kdbus_msg __user *msg);
-void kdbus_kmsg_free(struct kdbus_kmsg *kmsg);
+struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg);
+struct kdbus_kmsg *kdbus_kmsg_unref(struct kdbus_kmsg *kmsg);
 
 #endif

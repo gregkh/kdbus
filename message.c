@@ -38,12 +38,10 @@
 
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 
-/**
- * kdbus_kmsg_free() - free allocated message
- * @kmsg:		Message
- */
-void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
+static void __kdbus_kmsg_free(struct kref *kref)
 {
+	struct kdbus_kmsg *kmsg = container_of(kref, struct kdbus_kmsg, kref);
+
 	kdbus_fput_files(kmsg->memfds, kmsg->memfds_count);
 	kdbus_fput_files(kmsg->fds, kmsg->fds_count);
 	kdbus_meta_unref(kmsg->meta);
@@ -68,10 +66,39 @@ struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 	if (!m)
 		return ERR_PTR(-ENOMEM);
 
+	kref_init(&m->kref);
+
 	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
 	return m;
+}
+
+/**
+ * kdbus_kmsg_ref() - Increase ref-count on kmsg
+ * @kmsg:	The kmsg object
+ *
+ * Return: If @kmsg is %NULL, returns %NULL. Otherwise, returns the
+ * kmsg with an extra ref-count.
+ */
+struct kdbus_kmsg *kdbus_kmsg_ref(struct kdbus_kmsg *kmsg)
+{
+	if (kmsg)
+		kref_get(&kmsg->kref);
+	return kmsg;
+}
+
+/**
+ * kdbus_kmsg_unref() - Decrease ref-count on kmsg
+ * @kmsg:	The kmsg object
+ *
+ * Return: %NULL
+ */
+struct kdbus_kmsg *kdbus_kmsg_unref(struct kdbus_kmsg *kmsg)
+{
+	if (kmsg)
+		kref_put(&kmsg->kref, __kdbus_kmsg_free);
+	return NULL;
 }
 
 static int kdbus_handle_check_file(struct file *file)
@@ -409,6 +436,6 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	return m;
 
 exit_free:
-	kdbus_kmsg_free(m);
+	kdbus_kmsg_unref(m);
 	return ERR_PTR(ret);
 }

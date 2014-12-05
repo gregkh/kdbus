@@ -220,7 +220,7 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 		}
 
 		list_del(&kmsg->notify_entry);
-		kdbus_kmsg_free(kmsg);
+		kdbus_kmsg_unref(kmsg);
 	}
 
 	mutex_unlock(&bus->notify_flush_lock);
@@ -236,6 +236,6 @@ void kdbus_notify_free(struct kdbus_bus *bus)
 
 	list_for_each_entry_safe(kmsg, tmp, &bus->notify_list, notify_entry) {
 		list_del(&kmsg->notify_entry);
-		kdbus_kmsg_free(kmsg);
+		kdbus_kmsg_unref(kmsg);
 	}
 }
