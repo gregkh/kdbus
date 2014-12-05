@@ -277,7 +277,7 @@ static void kdbus_conn_work(struct work_struct *work)
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
-	bool peek = !!(recv->flags & KDBUS_RECV_PEEK);
+	bool install = !(recv->flags & KDBUS_RECV_PEEK);
 	struct kdbus_queue_entry *entry = NULL;
 	unsigned int lost_count;
 	int ret = 0;
@@ -359,12 +359,13 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_queue_entry_install(entry, conn, !peek);
+	ret = kdbus_queue_entry_install(entry, conn, install);
 	if (ret < 0)
 		goto exit_unlock;
 
 	/* Give the offset+size back to the caller. */
 	kdbus_pool_slice_publish(entry->slice, &recv->offset, &recv->msg_size);
+
 	/*
 	 * PEEK just returns the location of the next message. Do not install
 	 * file descriptors or anything else. This is usually used to
@@ -377,7 +378,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	 * Only if no PEEK is specified, the FDs are installed and the message
 	 * is dropped from internal queues.
 	 */
-	if (!peek) {
+	if (install) {
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
