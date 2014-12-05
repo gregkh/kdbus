@@ -462,7 +462,7 @@ off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 /**
  * kdbus_pool_slice_set_child() - Set child of a slice
  * @slice:	Slice to add a child to
- * @child:	Slave to add
+ * @child:	Child to set, may be %NULL
  *
  * Set @child as child of @slice, so it will be freed automatically when
  * @slice goes away.
@@ -470,6 +470,7 @@ off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 void kdbus_pool_slice_set_child(struct kdbus_pool_slice *slice,
 				struct kdbus_pool_slice *child)
 {
+	BUG_ON(child && slice->pool != child->pool);
 	WARN_ON(slice->child);
 	slice->child = child;
 }
