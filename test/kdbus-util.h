@@ -34,7 +34,7 @@
 #define POOL_SIZE (16 * 1024LU * 1024LU)
 
 #define KDBUS_MASK_PARAMETER_PATH \
-	"/sys/module/kdbus/parameters/attach_flags_mask"
+	"/sys/module/" KBUILD_MODNAME "/parameters/attach_flags_mask"
 
 #define UNPRIV_UID 65534
 #define UNPRIV_GID 65534
