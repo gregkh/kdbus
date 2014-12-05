@@ -66,6 +66,7 @@
  * @tid_comm:		COMM of the PID
  * @caps:		Capabilites
  * @user_namespace:	User namespace that was active when @caps were recorded
+ * @root_path:		Root path, pinned when @exe was recorded
  * @locked:		Meta object contains faked creds and should not be
  *			augmented.
  *
@@ -127,6 +128,7 @@ struct kdbus_meta {
 	} caps;
 
 	struct user_namespace *user_namespace;
+	struct path root_path;
 
 	bool locked:1;
 };
@@ -153,8 +155,10 @@ static void __kdbus_meta_free(struct kref *kref)
 {
 	struct kdbus_meta *meta = container_of(kref, struct kdbus_meta, kref);
 
-	if (meta->exe)
+	if (meta->exe) {
 		fput(meta->exe);
+		path_put(&meta->root_path);
+	}
 
 	put_user_ns(meta->user_namespace);
 	put_pid(meta->tgid);
@@ -381,6 +385,8 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 	if (mask & KDBUS_ATTACH_EXE) {
 		struct mm_struct *mm = get_task_mm(current);
 
+		get_fs_root(current->fs, &meta->root_path);
+
 		if (mm) {
 			down_read(&mm->mmap_sem);
 			meta->exe = get_file(mm->exe_file);
@@ -576,7 +582,6 @@ exit_unlock:
 /**
  * kdbus_meta_export() - export information from metadata into buffer
  * @meta:	The metadata object
- * @conn_dst:	Connection to translate items for
  * @mask:	Mask of KDBUS_ATTACH_* flags to export
  * @buf:	Pointer to return the allocated buffer
  * @sz:		Pointer to return the buffer size
@@ -594,13 +599,11 @@ exit_unlock:
  * Return: 0 on success, nagative error number otherwise.
  */
 int kdbus_meta_export(const struct kdbus_meta *meta,
-		      struct kdbus_conn *conn_dst,
 		      u64 mask, u8 **buf, size_t *sz)
 {
-	struct user_namespace *user_ns;
-	struct pid_namespace *pid_ns;
-	struct kdbus_item *item;
+	struct user_namespace *user_ns = current_user_ns();
 	char *exe_pathname = NULL;
+	struct kdbus_item *item;
 	size_t size = 0;
 	int ret = 0;
 	u8 *p, *tmp;
@@ -610,9 +613,6 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		return -ENOMEM;
 
 	mask &= meta->collected & kdbus_meta_attach_mask;
-
-	user_ns = conn_dst->user_namespace;
-	pid_ns = conn_dst->pid_namespace;
 
 	/*
 	 * We currently have no sane way of translating a set of caps
@@ -654,7 +654,7 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 		 */
 
 		get_fs_root(current->fs, &p);
-		if (path_equal(&p, &conn_dst->root_path)) {
+		if (path_equal(&p, &meta->root_path)) {
 			exe_pathname = d_path(&meta->exe->f_path, tmp,
 					      PAGE_SIZE);
 			if (IS_ERR(exe_pathname)) {
@@ -715,14 +715,14 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 
 	if (mask & KDBUS_ATTACH_CREDS) {
 		struct kdbus_creds creds = {
-			.uid	= kdbus_from_kuid_keep(user_ns, meta->uid),
-			.euid	= kdbus_from_kuid_keep(user_ns, meta->euid),
-			.suid	= kdbus_from_kuid_keep(user_ns, meta->suid),
-			.fsuid	= kdbus_from_kuid_keep(user_ns, meta->fsuid),
-			.gid	= kdbus_from_kgid_keep(user_ns, meta->gid),
-			.egid	= kdbus_from_kgid_keep(user_ns, meta->egid),
-			.sgid	= kdbus_from_kgid_keep(user_ns, meta->sgid),
-			.fsgid	= kdbus_from_kgid_keep(user_ns, meta->fsgid),
+			.uid	= kdbus_from_kuid_keep(meta->uid),
+			.euid	= kdbus_from_kuid_keep(meta->euid),
+			.suid	= kdbus_from_kuid_keep(meta->suid),
+			.fsuid	= kdbus_from_kuid_keep(meta->fsuid),
+			.gid	= kdbus_from_kgid_keep(meta->gid),
+			.egid	= kdbus_from_kgid_keep(meta->egid),
+			.sgid	= kdbus_from_kgid_keep(meta->sgid),
+			.fsgid	= kdbus_from_kgid_keep(meta->fsgid),
 		};
 
 		kdbus_meta_write_item(item, KDBUS_ITEM_CREDS,
@@ -732,8 +732,8 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 
 	if (mask & KDBUS_ATTACH_PIDS) {
 		struct kdbus_pids pids = {
-			.pid = pid_nr_ns(meta->tgid, pid_ns),
-			.tid = pid_nr_ns(meta->pid, pid_ns),
+			.pid = pid_vnr(meta->tgid),
+			.tid = pid_vnr(meta->pid),
 		};
 
 		kdbus_meta_write_item(item, KDBUS_ITEM_PIDS,

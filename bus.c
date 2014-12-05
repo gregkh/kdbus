@@ -493,7 +493,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	name_len = strlen(bus->node.name);
 	name_size = KDBUS_ITEM_SIZE(name_len + 1);
 
-	ret = kdbus_meta_export(bus->meta, conn, flags, &buf, &meta_size);
+	ret = kdbus_meta_export(bus->meta, flags, &buf, &meta_size);
 	if (ret < 0)
 		return ret;
 

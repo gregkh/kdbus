@@ -1376,8 +1376,8 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	attach_flags = cmd_info->flags &
 		       atomic64_read(&owner_conn->attach_flags_send);
 
-	ret = kdbus_meta_export(owner_conn->meta, conn,
-				attach_flags, &meta_buf, &meta_size);
+	ret = kdbus_meta_export(owner_conn->meta, attach_flags,
+				&meta_buf, &meta_size);
 	if (ret < 0)
 		goto exit;
 

@@ -392,8 +392,7 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	int i, ret;
 
 	if (entry->meta) {
-		ret = kdbus_meta_export(entry->meta, conn_dst,
-					_KDBUS_ATTACH_ALL,
+		ret = kdbus_meta_export(entry->meta, _KDBUS_ATTACH_ALL,
 					&meta_buf, &meta_size);
 		if (ret < 0)
 			return ret;
