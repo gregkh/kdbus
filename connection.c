@@ -1723,6 +1723,13 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 			goto exit_free_meta;
 
 		conn->faked_meta = true;
+
+		/*
+		 * When a privileged connection is used to installed faked
+		 * creds, it loses it privileged status, so the full set of
+		 * policies in enforced when they send messages.
+		 */
+		conn->privileged = false;
 	} else {
 		ret = kdbus_meta_collect(conn->meta, 0,
 					 KDBUS_ATTACH_CREDS	|
