@@ -375,6 +375,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	if (!m)
 		return ERR_PTR(-ENOMEM);
 	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
+	kref_init(&m->kref);
 
 	if (copy_from_user(&m->msg, msg, size)) {
 		ret = -EFAULT;
