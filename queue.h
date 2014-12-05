@@ -32,23 +32,40 @@ struct kdbus_queue {
 };
 
 /**
+ * struct kdbus_queue_vec - Data vec reference as stored by queue entries
+ * @off:	The offset, relative to the vec slice
+ * @size:	The number of bytes to store
+ */
+struct kdbus_queue_vec {
+	off_t off;
+	size_t size;
+};
+
+/**
  * struct kdbus_queue_entry - messages waiting to be read
  * @entry:		Entry in the connection's list
  * @prio_node:		Entry in the priority queue tree
  * @prio_entry:		Queue tree node entry in the list of one priority
- * @priority:		Queueing priority of the message
- * @slice:		Allocated slice in the receiver's pool
+ * @msg:		Message header, either as received from userspace
+ *			process, or as crafted by the kernel as notification
+ * @msg_extra:		For notifications, contains more fixed parts of a
+ *			message, which will be copied to the final message
+ *			slice verbatim.
+ * @slice:		Slice in the receiver's pool for the message
+ * @slice_vecs:		Slice in the receiver's pool for message payload
  * @memfds:		Arrays of offsets where to update the installed
  *			fd number
+ * @dst_name:		Destination well-known-name
+ * @vecs:		Array of struct kdbus_queue_vecs
+ * @vec_count:		Number of elements in @vecs
  * @memfds_fp:		Array memfd files queued up for this message
- * @memfds_count:	Number of memfds
- * @fds:		Offset to array where to update the installed fd number
+ * @memfd_size:		Array of size_t values, describing the sizes of memfds
+ * @memfds_count:	Number of elements in @memfds_fp
  * @fds_fp:		Array of passed files queued up for this message
- * @fds_count:		Number of files
- * @src_id:		The ID of the sender
- * @cookie:		Message cookie, used for replies
+ * @fds_count:		Number of elements in @fds_fp
  * @dst_name_id:	The sequence number of the name this message is
  *			addressed to, 0 for messages sent to an ID
+ * @meta:		Metadata, captured at message arrival
  * @reply:		The reply block if a reply to this message is expected.
  * @user:		Index in per-user message counter, -1 for unused
  */
@@ -56,17 +73,30 @@ struct kdbus_queue_entry {
 	struct list_head entry;
 	struct rb_node prio_node;
 	struct list_head prio_entry;
-	s64 priority;
+
+	struct kdbus_msg msg;
+
+	char *msg_extra;
+	size_t msg_extra_size;
+
 	struct kdbus_pool_slice *slice;
-	size_t *memfds;
+	struct kdbus_pool_slice *slice_vecs;
+
+	char *dst_name;
+
+	struct kdbus_queue_vec *vecs;
+	size_t vec_count;
+
 	struct file **memfds_fp;
+	size_t *memfd_size;
 	unsigned int memfds_count;
-	size_t fds;
+
 	struct file **fds_fp;
 	unsigned int fds_count;
-	u64 src_id;
-	u64 cookie;
+
 	u64 dst_name_id;
+
+	struct kdbus_meta *meta;
 	struct kdbus_conn_reply *reply;
 	struct kdbus_domain_user *user;
 };
@@ -76,11 +106,8 @@ struct kdbus_kmsg;
 void kdbus_queue_init(struct kdbus_queue *queue);
 
 struct kdbus_queue_entry *
-kdbus_queue_entry_alloc(struct kdbus_conn *conn_src,
-			struct kdbus_conn *conn_dst,
-			const struct kdbus_kmsg *kmsg,
-			const u8 *meta_buf,
-			size_t meta_size);
+kdbus_queue_entry_alloc(struct kdbus_pool *pool,
+			const struct kdbus_kmsg *kmsg);
 int kdbus_queue_entry_move(struct kdbus_conn *conn_src,
 			   struct kdbus_conn *conn_dst,
 			   struct kdbus_queue_entry *entry);
@@ -93,6 +120,8 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 						 s64 priority,
 						 bool use_priority);
-int kdbus_queue_entry_install(struct kdbus_queue_entry *entry);
+int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
+			      struct kdbus_conn *conn_dst,
+			      bool install_fds);
 
 #endif /* __KDBUS_QUEUE_H */

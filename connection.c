@@ -277,6 +277,7 @@ static void kdbus_conn_work(struct work_struct *work)
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
+	bool peek = !!(recv->flags & KDBUS_RECV_PEEK);
 	struct kdbus_queue_entry *entry = NULL;
 	unsigned int lost_count;
 	int ret = 0;
@@ -332,8 +333,8 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 				list_del_init(&entry->reply->entry);
 				kdbus_conn_reply_unref(entry->reply);
 				kdbus_notify_reply_dead(conn->ep->bus,
-							entry->src_id,
-							entry->cookie);
+							entry->msg.src_id,
+							entry->msg.cookie);
 			}
 		}
 
@@ -358,9 +359,12 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
+	ret = kdbus_queue_entry_install(entry, conn, !peek);
+	if (ret < 0)
+		goto exit_unlock;
+
 	/* Give the offset+size back to the caller. */
 	kdbus_pool_slice_publish(entry->slice, &recv->offset, &recv->msg_size);
-
 	/*
 	 * PEEK just returns the location of the next message. Do not install
 	 * file descriptors or anything else. This is usually used to
@@ -373,8 +377,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	 * Only if no PEEK is specified, the FDs are installed and the message
 	 * is dropped from internal queues.
 	 */
-	if (!(recv->flags & KDBUS_RECV_PEEK)) {
-		ret = kdbus_queue_entry_install(entry);
+	if (!peek) {
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
@@ -504,11 +507,8 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 
 /* Callers should take the conn_dst lock */
 static struct kdbus_queue_entry *
-kdbus_conn_entry_make(struct kdbus_conn *conn_src,
-		      struct kdbus_conn *conn_dst,
-		      const struct kdbus_kmsg *kmsg,
-		      const u8 *meta_buf,
-		      size_t meta_size)
+kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
+		      const struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_queue_entry *entry;
 
@@ -520,38 +520,11 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_src,
 	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) && kmsg->fds_count > 0)
 		return ERR_PTR(-ECOMM);
 
-	entry = kdbus_queue_entry_alloc(conn_src, conn_dst, kmsg,
-					meta_buf, meta_size);
+	entry = kdbus_queue_entry_alloc(conn_dst->pool, kmsg);
 	if (IS_ERR(entry))
 		return entry;
 
 	return entry;
-}
-
-/* you must *NOT* hold any connection lock when exporting metadata */
-static int kdbus_conn_export_meta(struct kdbus_conn *conn_src,
-				  struct kdbus_conn *conn_dst,
-				  const struct kdbus_kmsg *kmsg,
-				  u8 **out_buf,
-				  size_t *out_size)
-{
-	u64 attach_flags = 0;
-
-	if (conn_src)
-		attach_flags = atomic64_read(&conn_src->attach_flags_send) &
-			       atomic64_read(&conn_dst->attach_flags_recv);
-
-	if (!attach_flags) {
-		*out_buf = NULL;
-		*out_size = 0;
-		return 0;
-	}
-
-	/* any message with source must have metadata allocated */
-	BUG_ON(!kmsg->meta);
-
-	return kdbus_meta_export(kmsg->meta, conn_dst, attach_flags,
-				 out_buf, out_size);
 }
 
 /*
@@ -565,14 +538,8 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
 					struct kdbus_conn_reply *reply_wake)
 {
 	struct kdbus_queue_entry *entry;
-	size_t meta_size;
-	u8 *meta_buf;
 	int remote_ret;
-	int ret;
-
-	/* export metadata _before_ locking the destination */
-	ret = kdbus_conn_export_meta(conn_src, conn_dst, kmsg,
-				     &meta_buf, &meta_size);
+	int ret = 0;
 
 	mutex_lock(&conn_dst->lock);
 
@@ -580,21 +547,16 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
 	 * If we are still waiting then proceed, allocate a queue
 	 * entry and attach it to the reply object
 	 */
-	if (ret >= 0) {
-		if (reply_wake->waiting) {
-			entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg,
-						      meta_buf, meta_size);
-			if (IS_ERR(entry))
-				ret = PTR_ERR(entry);
-			else
-				/* Attach the entry to the reply object */
-				reply_wake->queue_entry = entry;
-		} else {
-			ret = -ECONNRESET;
-		}
+	if (reply_wake->waiting) {
+		entry = kdbus_conn_entry_make(conn_dst, kmsg);
+		if (IS_ERR(entry))
+			ret = PTR_ERR(entry);
+		else
+			/* Attach the entry to the reply object */
+			reply_wake->queue_entry = entry;
+	} else {
+		ret = -ECONNRESET;
 	}
-
-	kfree(meta_buf);
 
 	/*
 	 * Update the reply object and wake up remote peer only
@@ -639,15 +601,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 			    struct kdbus_conn_reply *reply)
 {
 	struct kdbus_queue_entry *entry;
-	size_t meta_size;
-	u8 *meta_buf;
 	int ret;
-
-	/* export metadata _before_ locking the destination */
-	ret = kdbus_conn_export_meta(conn_src, conn_dst, kmsg,
-				     &meta_buf, &meta_size);
-	if (ret < 0)
-		return ret;
 
 	mutex_lock(&conn_dst->lock);
 
@@ -666,9 +620,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 		goto exit_unlock;
 	}
 
-	/* Get a queue entry for src and dst pairs */
-	entry = kdbus_conn_entry_make(conn_src, conn_dst, kmsg,
-				      meta_buf, meta_size);
+	entry = kdbus_conn_entry_make(conn_dst, kmsg);
 	if (IS_ERR(entry)) {
 		ret = PTR_ERR(entry);
 		goto exit_unlock;
@@ -705,7 +657,6 @@ exit_queue_free:
 	kdbus_queue_entry_free(entry);
 exit_unlock:
 	mutex_unlock(&conn_dst->lock);
-	kfree(meta_buf);
 	return ret;
 }
 
@@ -757,9 +708,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	reply_wait->waiting = false;
 	entry = reply_wait->queue_entry;
 	if (entry) {
-		if (ret == 0)
-			ret = kdbus_queue_entry_install(entry);
-
+		ret = kdbus_queue_entry_install(entry, conn_src, ret == 0);
 		kdbus_pool_slice_publish(entry->slice, &msg->offset_reply,
 					 NULL);
 		kdbus_pool_slice_release(entry->slice);
@@ -1084,8 +1033,9 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
 		if (entry->reply)
-			kdbus_notify_reply_dead(conn->ep->bus, entry->src_id,
-						entry->cookie);
+			kdbus_notify_reply_dead(conn->ep->bus,
+						entry->msg.src_id,
+						entry->msg.cookie);
 
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
