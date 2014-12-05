@@ -26,7 +26,7 @@
 
 static const struct kdbus_creds privileged_creds = { };
 
-static const struct kdbus_creds unprivileged_creds = {
+static const struct kdbus_creds unmapped_creds = {
 	.uid	= UNPRIV_UID,
 	.euid	= UNPRIV_UID,
 	.suid	= UNPRIV_UID,
@@ -36,6 +36,8 @@ static const struct kdbus_creds unprivileged_creds = {
 	.sgid	= UNPRIV_GID,
 	.fsgid	= UNPRIV_GID,
 };
+
+static const struct kdbus_pids unmapped_pids = { };
 
 /* Get only the first item */
 static struct kdbus_item *kdbus_get_item(struct kdbus_msg *msg,
@@ -50,7 +52,9 @@ static struct kdbus_item *kdbus_get_item(struct kdbus_msg *msg,
 	return NULL;
 }
 
-static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
+static int __kdbus_clone_userns_test(const char *bus,
+				     struct kdbus_conn *conn,
+				     int signal_fd)
 {
 	int clone_ret;
 	int ret;
@@ -102,9 +106,11 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 
 	/* Make child privileged in its new userns and run tests */
 
-	ret = RUN_CLONE_CHILD(&clone_ret, SIGCHLD | CLONE_NEWUSER,
+	ret = RUN_CLONE_CHILD(&clone_ret,
+			      SIGCHLD | CLONE_NEWUSER | CLONE_NEWPID,
 	({ 0;  /* Clone setup, nothing */ }),
 	({
+		eventfd_t event_status = 0;
 		struct kdbus_conn *userns_conn;
 
 		/* ping connection from the new user namespace */
@@ -119,10 +125,16 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 				     0, 0, 0, conn->id);
 		ASSERT_EXIT(ret == 0);
 
+		/* Parent did send */
+		ret = eventfd_read(signal_fd, &event_status);
+		ASSERT_RETURN(ret >= 0 && event_status == 1);
+
 		/*
 		 * Receive from privileged connection
 		 */
-		kdbus_printf("Privileged → unprivileged/privileged in its userns:\n");
+		kdbus_printf("Privileged → unprivileged/privileged "
+			     "in its userns "
+			     "(different userns and pidns):\n");
 		ret = kdbus_msg_recv_poll(userns_conn, 300, &msg, NULL);
 		ASSERT_EXIT(ret == 0);
 		ASSERT_EXIT(msg->dst_id == userns_conn->id);
@@ -135,15 +147,24 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		item = kdbus_get_item(msg, KDBUS_ITEM_CREDS);
 		ASSERT_EXIT(item);
 
-		ASSERT_EXIT(memcmp(&item->creds, &unprivileged_creds,
+		ASSERT_EXIT(memcmp(&item->creds, &unmapped_creds,
 			    sizeof(struct kdbus_creds)) == 0);
+
+		/* diffent pid namepsace, pids are unmapped */
+		item = kdbus_get_item(msg, KDBUS_ITEM_PIDS);
+		ASSERT_EXIT(item);
+
+		ASSERT_EXIT(memcmp(&item->pids, &unmapped_pids,
+			    sizeof(struct kdbus_pids)) == 0);
 
 		kdbus_msg_free(msg);
 
 		/*
 		 * Receive broadcast from privileged connection
 		 */
-		kdbus_printf("Privileged → unprivileged/privileged in its userns:\n");
+		kdbus_printf("Privileged → unprivileged/privileged "
+			     "in its userns "
+			     "(different userns and pidns):\n");
 		ret = kdbus_msg_recv_poll(userns_conn, 300, &msg, NULL);
 		ASSERT_EXIT(ret == 0);
 		ASSERT_EXIT(msg->dst_id == KDBUS_DST_ID_BROADCAST);
@@ -156,7 +177,7 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		item = kdbus_get_item(msg, KDBUS_ITEM_CREDS);
 		ASSERT_EXIT(item);
 
-		ASSERT_EXIT(memcmp(&item->creds, &unprivileged_creds,
+		ASSERT_EXIT(memcmp(&item->creds, &unmapped_creds,
 			    sizeof(struct kdbus_creds)) == 0);
 
 		kdbus_msg_free(msg);
@@ -181,10 +202,11 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 
 	ASSERT_EXIT(ret == 0);
 
+
 	/*
 	 * Receive from privileged connection
 	 */
-	kdbus_printf("Privileged → unprivileged:\n");
+	kdbus_printf("\nPrivileged → unprivileged (same namespaces):\n");
 	ret = kdbus_msg_recv_poll(unpriv_conn, 300, &msg, NULL);
 
 	ASSERT_EXIT(ret == 0);
@@ -203,7 +225,7 @@ static int __kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	/*
 	 * Receive broadcast from privileged connection
 	 */
-	kdbus_printf("Privileged → unprivileged:\n");
+	kdbus_printf("\nPrivileged → unprivileged (same namespaces):\n");
 	ret = kdbus_msg_recv_poll(unpriv_conn, 300, &msg, NULL);
 
 	ASSERT_EXIT(ret == 0);
@@ -234,17 +256,26 @@ out:
 	return ret;
 }
 
-static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
+static int kdbus_clone_userns_test(const char *bus,
+				   struct kdbus_conn *conn)
 {
 	int ret;
 	pid_t pid;
 	int status;
+	int efd = -1;
 	uint64_t unpriv_conn_id = 0;
 	uint64_t userns_conn_id = 0;
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;
 
 	kdbus_printf("STARTING TEST 'metadata-ns' in a new user namespace.\n");
+
+	/*
+	 * parent will signal to child that is in its
+	 * userns to read its queue
+	 */
+	efd = eventfd(0, EFD_CLOEXEC);
+	ASSERT_RETURN_VAL(efd >= 0, efd);
 
 	pid = fork();
 	ASSERT_RETURN_VAL(pid >= 0, -errno);
@@ -253,14 +284,14 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
 		ASSERT_EXIT_VAL(ret == 0, -errno);
 
-		ret = __kdbus_clone_userns_test(bus, conn);
+		ret = __kdbus_clone_userns_test(bus, conn, efd);
 		_exit(ret);
 	}
 
 	/*
-	 * Receive from the unprileged child
+	 * Receive from the unprivileged child
 	 */
-	kdbus_printf("Unprivileged → privileged:\n");
+	kdbus_printf("\nUnprivileged → privileged (same namespaces):\n");
 	ret = kdbus_msg_recv_poll(conn, 300, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
@@ -269,7 +300,7 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	item = kdbus_get_item(msg, KDBUS_ITEM_CREDS);
 	ASSERT_RETURN(item);
 
-	ASSERT_RETURN(memcmp(&item->creds, &unprivileged_creds,
+	ASSERT_RETURN(memcmp(&item->creds, &unmapped_creds,
 			      sizeof(struct kdbus_creds)) == 0);
 
 	kdbus_msg_free(msg);
@@ -279,7 +310,8 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	 * user namespace
 	 */
 
-	kdbus_printf("Unprivileged/privileged in its userns → privileged:\n");
+	kdbus_printf("\nUnprivileged/privileged in its userns → privileged "
+		     "(different userns and pidns)\n");
 	ret = kdbus_msg_recv_poll(conn, 300, &msg, NULL);
 	if (ret == -ETIMEDOUT)
 		/* perhaps unprivileged userns is not allowed */
@@ -300,7 +332,7 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	 * Compare received items, creds must be translated into
 	 * the domain user namespace, so the user is unprivileged
 	 */
-	ASSERT_RETURN(memcmp(&item->creds, &unprivileged_creds,
+	ASSERT_RETURN(memcmp(&item->creds, &unmapped_creds,
 			      sizeof(struct kdbus_creds)) == 0);
 
 	kdbus_msg_free(msg);
@@ -311,6 +343,10 @@ static int kdbus_clone_userns_test(const char *bus, struct kdbus_conn *conn)
 	ret = kdbus_msg_send(conn, NULL, 0xdeadbeef, 0, 0,
 			     0, unpriv_conn_id);
 	ASSERT_RETURN(ret == 0);
+
+	/* signal to child that is in its userns */
+	ret = eventfd_write(efd, 1);
+	ASSERT_EXIT(ret == 0);
 
 	/*
 	 * Sending to unprivileged/privilged in its userns
@@ -333,6 +369,8 @@ wait:
 
 	ASSERT_RETURN(WIFEXITED(status))
 	ASSERT_RETURN(!WEXITSTATUS(status));
+
+	close(efd);
 
 	return 0;
 }
