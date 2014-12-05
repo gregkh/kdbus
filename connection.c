@@ -1301,7 +1301,6 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_info info = {};
-	struct kdbus_meta *meta = NULL;
 	u8 *meta_buf = NULL;
 	size_t meta_size;
 	u64 attach_flags;
@@ -1385,7 +1384,6 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 exit:
 	kdbus_pool_slice_release(slice);
 	kfree(meta_buf);
-	kdbus_meta_unref(meta);
 	kdbus_conn_unref(owner_conn);
 	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
 
