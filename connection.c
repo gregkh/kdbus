@@ -1111,10 +1111,6 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_conn_purge_policy_cache(conn);
 	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
 
-	path_put(&conn->root_path);
-	put_user_ns(conn->user_namespace);
-	put_pid_ns(conn->pid_namespace);
-
 	kdbus_meta_unref(conn->meta);
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
@@ -1150,22 +1146,6 @@ struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
 	if (conn)
 		kref_put(&conn->kref, __kdbus_conn_free);
 	return NULL;
-}
-
-/**
- * kdbus_conn_namespace_eq() - check if namespaces of two connections are equal
- * @conn_a:	Connection A to check
- * @conn_b:	Connection B to check
- *
- * Return: %true if all pinned namespaces of the given connections are
- * identical, false otherwise.
- */
-bool kdbus_conn_namespace_eq(const struct kdbus_conn *conn_a,
-			     const struct kdbus_conn *conn_b)
-{
-	return (conn_a->pid_namespace == conn_b->pid_namespace &&
-		conn_a->user_namespace == conn_b->user_namespace &&
-		path_equal(&conn_a->root_path, &conn_b->root_path));
 }
 
 /**
@@ -1688,14 +1668,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* init entry, so we can unconditionally remove it */
 	INIT_LIST_HEAD(&conn->monitor_entry);
-
-	/*
-	 * Pin user and PID namespaces so we can translate metadata items
-	 * into the context of the connection.
-	 */
-	conn->pid_namespace = get_pid_ns(task_active_pid_ns(current));
-	conn->user_namespace = get_user_ns(current_user_ns());
-	get_fs_root(current->fs, &conn->root_path);
 
 	conn->pool = kdbus_pool_new(conn->description, hello->pool_size);
 	if (IS_ERR(conn->pool)) {
