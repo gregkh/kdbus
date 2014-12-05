@@ -405,43 +405,6 @@ int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 	return ret;
 }
 
-static int
-kdbus_custom_ep_check_talk_access(struct kdbus_ep *ep,
-				  struct kdbus_conn *conn_src,
-				  struct kdbus_conn *conn_dst)
-{
-	int ret;
-
-	if (!ep->has_policy)
-		return 0;
-
-	/* Custom endpoints have stricter policies */
-	ret = kdbus_policy_check_talk_access(&ep->policy_db,
-					     conn_src, conn_dst);
-
-	/*
-	 * Don't leak hints whether a name exists on a custom
-	 * endpoint.
-	 */
-	if (ret == -EPERM)
-		ret = -ENOENT;
-
-	return ret;
-}
-
-static bool
-kdbus_ep_has_default_talk_access(struct kdbus_conn *conn_src,
-				 struct kdbus_conn *conn_dst)
-{
-	if (conn_src->privileged)
-		return true;
-
-	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
-		return true;
-
-	return false;
-}
-
 /**
  * kdbus_ep_policy_check_talk_access() - verify a connection can talk to the
  *					 the passed connection
@@ -461,12 +424,20 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 	int ret;
 
 	/* First check the custom endpoint with its policies */
-	ret = kdbus_custom_ep_check_talk_access(ep, conn_src, conn_dst);
-	if (ret < 0)
-		return ret;
+	if (ep->has_policy) {
+		ret = kdbus_policy_check_talk_access(&ep->policy_db,
+						     conn_src, conn_dst);
+		/* Don't leak hints whether a name exists on a custom ep */
+		if (ret == -EPERM)
+			ret = -ENOENT;
+		if (ret < 0)
+			return ret;
+	}
 
 	/* Then check if it satisfies the implicit policies */
-	if (kdbus_ep_has_default_talk_access(conn_src, conn_dst))
+	if (conn_src->privileged)
+		return 0;
+	if (uid_eq(conn_src->cred->fsuid, conn_dst->cred->uid))
 		return 0;
 
 	/* Fallback to the default endpoint policy */
