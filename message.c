@@ -109,11 +109,13 @@ static int kdbus_handle_check_file(struct file *file)
  *
  * Return: 0 on success, negative errno on failure.
  *
+ * Files references in MEMFD or FDS items are pinned.
+ *
  * On errors, the caller should drop any taken reference with
  * kdbus_kmsg_free()
  */
-int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
-			 struct kdbus_bus *bus)
+static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
+				struct kdbus_bus *bus)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
@@ -122,6 +124,21 @@ int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	bool has_bloom = false;
 	bool has_name = false;
 	bool has_fds = false;
+	struct file *f;
+
+	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items))
+		if (item->type == KDBUS_ITEM_PAYLOAD_MEMFD)
+			kmsg->memfds_count++;
+
+	if (kmsg->memfds_count > 0) {
+		kmsg->memfds = kcalloc(kmsg->memfds_count,
+				       sizeof(struct file *), GFP_KERNEL);
+		if (!kmsg->memfds)
+			return -ENOMEM;
+
+		/* reset counter so we can reuse it as counter below */
+		kmsg->memfds_count = 0;
+	}
 
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
@@ -146,11 +163,51 @@ int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			kmsg->vecs_count++;
 			break;
 
-		case KDBUS_ITEM_PAYLOAD_MEMFD:
-			kmsg->memfds_count++;
-			break;
+		case KDBUS_ITEM_PAYLOAD_MEMFD: {
+			int seals, mask;
+			int fd = item->memfd.fd;
 
-		case KDBUS_ITEM_FDS:
+			/* Verify the fd and increment the usage count */
+			if (fd < 0)
+				return -EBADF;
+
+			f = fget(fd);
+			if (!f)
+				return -EBADF;
+
+			kmsg->memfds[kmsg->memfds_count] = f;
+			kmsg->memfds_count++;
+
+			/*
+			 * We only accept a sealed memfd file whose content
+			 * cannot be altered by the sender or anybody else
+			 * while it is shared or in-flight. Other files need
+			 * to be passed with KDBUS_MSG_FDS.
+			 */
+			seals = shmem_get_seals(f);
+			if (seals < 0)
+				return -EMEDIUMTYPE;
+
+			mask = F_SEAL_SHRINK |
+			       F_SEAL_GROW |
+			       F_SEAL_WRITE |
+			       F_SEAL_SEAL;
+			if ((seals & mask) != mask)
+				return -ETXTBSY;
+
+			/*
+			 * The specified size in the item cannot be larger
+			 * than the backing file.
+			 */
+			if (item->memfd.size > i_size_read(file_inode(f)))
+				return -EBADF;
+
+			break;
+		}
+
+		case KDBUS_ITEM_FDS: {
+			unsigned int i;
+
 			/* do not allow multiple fd arrays */
 			if (has_fds)
 				return -EEXIST;
@@ -161,9 +218,38 @@ int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				return -ENOTUNIQ;
 
 			kmsg->fds_count = payload_size / sizeof(int);
+
 			if (kmsg->fds_count > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
+			kmsg->fds = kcalloc(kmsg->fds_count,
+					    sizeof(*kmsg->fds), GFP_KERNEL);
+			if (!kmsg->fds)
+				return -ENOMEM;
+
+			for (i = 0; i < kmsg->fds_count; i++) {
+				int ret;
+				int fd = item->fds[i];
+
+				/*
+				 * Verify the fd and increment the usage count.
+				 * Use fget_raw() to allow passing O_PATH fds.
+				 */
+				if (fd < 0)
+					return -EBADF;
+
+				f = fget_raw(fd);
+				if (!f)
+					return -EBADF;
+
+				kmsg->fds[i] = f;
+
+				ret = kdbus_handle_check_file(f);
+				if (ret < 0)
+					return ret;
+			}
+
 			break;
+		}
 
 		case KDBUS_ITEM_BLOOM_FILTER: {
 			u64 bloom_size;
@@ -229,106 +315,6 @@ int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	/* bloom filters are for undirected messages only */
 	if (has_name && has_bloom)
 		return -EBADMSG;
-
-	return 0;
-}
-
-static int kdbus_msg_pin_files(struct kdbus_kmsg *kmsg)
-{
-	const struct kdbus_msg *msg = &kmsg->msg;
-	const struct kdbus_item *item;
-	struct file *f;
-
-	if (kmsg->memfds_count > 0) {
-		kmsg->memfds = kcalloc(kmsg->memfds_count,
-				       sizeof(struct file *), GFP_KERNEL);
-		if (!kmsg->memfds)
-			return -ENOMEM;
-
-		/* reset counter so we can reuse it */
-		kmsg->memfds_count = 0;
-	}
-
-	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			int seals, mask;
-			int fd = item->memfd.fd;
-
-			/* Verify the fd and increment the usage count */
-			if (fd < 0)
-				return -EBADF;
-
-			f = fget(fd);
-			if (!f)
-				return -EBADF;
-
-			kmsg->memfds[kmsg->memfds_count] = f;
-			kmsg->memfds_count++;
-
-			/*
-			 * We only accept a sealed memfd file whose content
-			 * cannot be altered by the sender or anybody else
-			 * while it is shared or in-flight. Other files need
-			 * to be passed with KDBUS_MSG_FDS.
-			 */
-			seals = shmem_get_seals(f);
-			if (seals < 0)
-				return -EMEDIUMTYPE;
-
-			mask = F_SEAL_SHRINK |
-			       F_SEAL_GROW |
-			       F_SEAL_WRITE |
-			       F_SEAL_SEAL;
-			if ((seals & mask) != mask)
-				return -ETXTBSY;
-
-			/*
-			 * The specified size in the item cannot be larger
-			 * than the backing file.
-			 */
-			if (item->memfd.size > i_size_read(file_inode(f)))
-				return -EBADF;
-
-			break;
-		}
-
-		case KDBUS_ITEM_FDS: {
-			unsigned int i;
-
-			kmsg->fds = kcalloc(kmsg->fds_count,
-					    sizeof(*kmsg->fds), GFP_KERNEL);
-			if (!kmsg->fds)
-				return -ENOMEM;
-
-			for (i = 0; i < kmsg->fds_count; i++) {
-				int ret;
-				int fd = item->fds[i];
-
-				/*
-				 * Verify the fd and increment the usage count.
-				 * Use fget_raw() to allow passing O_PATH fds.
-				 */
-				if (fd < 0)
-					return -EBADF;
-
-				f = fget_raw(fd);
-				if (!f)
-					return -EBADF;
-
-				kmsg->fds[i] = f;
-
-				ret = kdbus_handle_check_file(f);
-				if (ret < 0)
-					return ret;
-			}
-
-			break;
-		}
-		default:
-			break;
-		}
-	}
 
 	return 0;
 }
@@ -410,10 +396,6 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 	}
 
 	ret = kdbus_msg_scan_items(m, conn->ep->bus);
-	if (ret < 0)
-		goto exit_free;
-
-	ret = kdbus_msg_pin_files(m);
 	if (ret < 0)
 		goto exit_free;
 
