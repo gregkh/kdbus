@@ -511,14 +511,18 @@ static void usage(const char *argv0)
 
 int start_tests(struct kdbus_test_args *kdbus_args)
 {
+	static char pathbuf[4096];
 	int ret;
 	char *control;
 
 	if (!kdbus_args->module)
 		kdbus_args->module = "kdbus";
 
-	if (!kdbus_args->root)
-		kdbus_args->root = "/sys/fs/kdbus";
+	if (!kdbus_args->root) {
+		snprintf(pathbuf, sizeof(pathbuf), "/sys/fs/%s",
+			 kdbus_args->module);
+		kdbus_args->root = pathbuf;
+	}
 
 	asprintf(&kdbus_args->mask_param_path,
 		 "/sys/module/%s/parameters/attach_flags_mask",

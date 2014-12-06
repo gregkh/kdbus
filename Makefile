@@ -68,9 +68,9 @@ tt-prepare: module test
 	sudo mount -t kdbus$(EXT)fs kdbus$(EXT)fs /sys/fs/kdbus$(EXT)
 
 tt: tt-prepare
-	test/kdbus-test -m kdbus$(EXT) -r /sys/fs/kdbus$(EXT)
+	test/kdbus-test -m kdbus$(EXT)
 	dmesg
 
 stt: tt-prepare
-	sudo test/kdbus-test -m kdbus$(EXT) -r /sys/fs/kdbus$(EXT)
+	sudo test/kdbus-test -m kdbus$(EXT)
 	dmesg
