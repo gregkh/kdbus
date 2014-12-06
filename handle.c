@@ -601,7 +601,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		ret = kdbus_conn_kmsg_send(conn->ep, conn, kmsg);
 		if (ret < 0) {
-			kdbus_kmsg_unref(kmsg);
+			kdbus_kmsg_free(kmsg);
 			break;
 		}
 
@@ -615,7 +615,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 				ret = -EFAULT;
 		}
 
-		kdbus_kmsg_unref(kmsg);
+		kdbus_kmsg_free(kmsg);
 		break;
 	}
 
