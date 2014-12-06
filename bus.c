@@ -79,8 +79,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	const struct kdbus_item *item;
 	struct kdbus_bus *b;
 	const char *name = NULL;
-	u64 attach_flags = 0;
-	const u64 *pattach = &attach_flags;
+	const u64 *pattach = NULL;
+	u64 attach_flags;
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
@@ -118,7 +118,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (bloom->n_hash < 1)
 		return ERR_PTR(-EINVAL);
 
-	ret = kdbus_sanitize_attach_flags(*pattach, &attach_flags);
+	ret = kdbus_sanitize_attach_flags(pattach ? *pattach : 0,
+					  &attach_flags);
 	if (ret < 0)
 		return ERR_PTR(ret);
 
