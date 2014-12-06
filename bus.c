@@ -123,13 +123,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (ret < 0)
 		return ERR_PTR(ret);
 
-	/*
-	 * The ATTACH_FLAGS_RECV required by a bus from its peers
-	 * must not overlap with the kdbus attach mask
-	 */
-	if (attach_flags & ~kdbus_meta_attach_mask)
-		return ERR_PTR(-EINVAL);
-
 	ret = kdbus_verify_uid_prefix(name, domain->user_namespace, uid);
 	if (ret < 0)
 		return ERR_PTR(ret);

@@ -16,64 +16,6 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-static int kdbus_bus_creation_flags(struct kdbus_test_env *env)
-{
-	int ret;
-	int control_fd;
-	char *s;
-	char *busname;
-	uint64_t attach_flags_mask;
-
-	asprintf(&s, "%s/control", env->root);
-
-	control_fd = open(s, O_RDWR);
-	free(s);
-	ASSERT_RETURN(control_fd >= 0);
-
-	busname = unique_name("test-creation-flags-bus");
-	ASSERT_RETURN(busname);
-
-	/* kdbus mask to 0 */
-	attach_flags_mask = 0;
-	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
-					     attach_flags_mask);
-	ASSERT_RETURN(ret == 0);
-
-	/*
-	 * Create bus with a full set of ATTACH flags, this must fail
-	 * with -EINVAL
-	 */
-
-	ret = kdbus_create_bus(control_fd, busname, _KDBUS_ATTACH_ALL, &s);
-	ASSERT_RETURN(ret == -EINVAL);
-
-	/*
-	 * Create bus with KDBUS_ATTACH_PIDS
-	 */
-	ret = kdbus_create_bus(control_fd, busname, KDBUS_ATTACH_PIDS, &s);
-	ASSERT_RETURN(ret == -EINVAL);
-
-	/* Update kdbus module attach flags mask */
-	attach_flags_mask |= KDBUS_ATTACH_PIDS | KDBUS_ATTACH_CAPS;
-	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
-					     attach_flags_mask);
-	ASSERT_RETURN(ret == 0);
-
-	ret = kdbus_create_bus(control_fd, busname,
-			       KDBUS_ATTACH_PIDS |
-			       KDBUS_ATTACH_CREDS, &s);
-	ASSERT_RETURN(ret == -EINVAL);
-
-	ret = kdbus_create_bus(control_fd, busname, KDBUS_ATTACH_PIDS, &s);
-	ASSERT_RETURN(ret == 0);
-
-	free(s);
-	free(busname);
-	close(control_fd);
-
-	return 0;
-}
-
 int kdbus_test_attach_flags(struct kdbus_test_env *env)
 {
 	int ret;
@@ -103,10 +45,6 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 
 	busname = unique_name("test-attach-flags-bus");
 	ASSERT_RETURN(busname);
-
-	/* Test bus creation */
-	ret = kdbus_bus_creation_flags(env);
-	ASSERT_RETURN(ret == 0);
 
 	/* Restore previous kdbus mask */
 	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
