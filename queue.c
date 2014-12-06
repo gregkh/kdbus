@@ -185,6 +185,55 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 	}
 }
 
+static struct kdbus_pool_slice *
+kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
+			  struct kdbus_pool *pool)
+{
+	const char *zeros = "\0\0\0\0\0\0\0";
+	struct kdbus_pool_slice *slice;
+	size_t want, have;
+	off_t pos = 0;
+	int i, ret;
+
+	/* do not give out more than half of the remaining space */
+	want = res->vecs_size;
+	have = kdbus_pool_remain(pool);
+	if (want < have && want > have / 2)
+		return ERR_PTR(-EXFULL);
+
+	/* allocate the needed space in the pool of the receiver */
+	slice = kdbus_pool_slice_alloc(pool, want);
+	if (IS_ERR(slice))
+		return slice;
+
+	for (i = 0; i < res->vecs_count; i++) {
+		struct kdbus_msg_vec *v = res->vecs + i;
+		const void *copy_src;
+		size_t copy_len;
+
+		if (v->off != ~0ULL) {
+			copy_src = v->src_addr;
+			copy_len = v->size;
+		} else {
+			copy_src = zeros;
+			copy_len = v->size % 8;
+		}
+
+		ret = kdbus_pool_slice_copy(slice, pos,
+					    copy_src, copy_len);
+		if (ret < 0)
+			goto exit_free_slice;
+
+		pos += copy_len;
+	}
+
+	return slice;
+
+exit_free_slice:
+	kdbus_pool_slice_release(slice);
+	return ERR_PTR(ret);
+}
+
 /**
  * kdbus_queue_entry_alloc() - allocate a queue entry
  * @pool:	The pool to allocate the slice in
@@ -200,70 +249,27 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 						  const struct kdbus_kmsg *kmsg)
 {
 	const struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_queue_entry *entry;
-	const struct kdbus_item *item;
-	int i, ret = 0;
-	size_t pos;
+	int ret = 0;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return ERR_PTR(-ENOMEM);
 
-	if (kmsg->dst_name) {
-		entry->dst_name = kstrdup(kmsg->dst_name, GFP_KERNEL);
-		if (!entry->dst_name) {
-			ret = -ENOMEM;
-			goto exit_free_entry;
-		}
-	}
-
-	if (kmsg->vecs_count) {
-		entry->vecs = kcalloc(kmsg->vecs_count,
-				      sizeof(struct kdbus_queue_vec),
-				      GFP_KERNEL);
-		if (!entry->vecs) {
-			ret = -ENOMEM;
-			goto exit_free_entry;
-		}
-	}
-
-	if (kmsg->fds_count) {
-		entry->fds_fp = kcalloc(kmsg->fds_count,
-					sizeof(struct file *), GFP_KERNEL);
-		if (!entry->fds_fp) {
-			ret = -ENOMEM;
-			goto exit_free_entry;
-		}
-
-		for (i = 0; i < kmsg->fds_count; i++)
-			entry->fds_fp[i] = get_file(kmsg->fds[i]);
-
-		entry->fds_count = kmsg->fds_count;
-	}
-
-	if (kmsg->memfds_count) {
-		entry->memfds_fp = kcalloc(kmsg->memfds_count,
-					   sizeof(struct file *), GFP_KERNEL);
-		if (!entry->memfds_fp) {
-			ret = -ENOMEM;
-			goto exit_free_entry;
-		}
-
-		entry->memfd_size = kcalloc(kmsg->memfds_count,
-					    sizeof(size_t), GFP_KERNEL);
-		if (!entry->memfd_size) {
-			ret = -ENOMEM;
-			goto exit_free_entry;
-		}
-
-		for (i = 0; i < kmsg->memfds_count; i++)
-			entry->memfds_fp[i] = get_file(kmsg->memfds[i]);
-	}
-
 	INIT_LIST_HEAD(&entry->entry);
+	entry->msg_res = kdbus_msg_resources_ref(kmsg->res);
 	entry->meta = kdbus_meta_ref(kmsg->meta);
 	memcpy(&entry->msg, msg, sizeof(*msg));
+
+	if (kmsg->res && kmsg->res->vecs_size) {
+		struct kdbus_pool_slice *slice;
+
+		slice = kdbus_kmsg_make_vec_slice(kmsg->res, pool);
+		if (IS_ERR(slice))
+			return ERR_CAST(slice);
+
+		entry->slice_vecs = slice;
+	}
 
 	if (msg->src_id == KDBUS_SRC_ID_KERNEL) {
 		size_t extra_size = msg->size - sizeof(*msg);
@@ -272,98 +278,106 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 					   extra_size, GFP_KERNEL);
 		if (!entry->msg_extra) {
 			ret = -ENOMEM;
-			goto exit_free_entry;
+			goto exit_free_slice;
 		}
 
 		entry->msg_extra_size = extra_size;
 	}
 
-	if (kmsg->vecs_size > 0) {
-		size_t want, have;
-
-		/* do not give out more than half of the remaining space */
-		want = kmsg->vecs_size;
-		have = kdbus_pool_remain(pool);
-		if (want < have && want > have / 2) {
-			ret = -EXFULL;
-			goto exit_free_entry;
-		}
-
-		/* allocate the needed space in the pool of the receiver */
-		slice = kdbus_pool_slice_alloc(pool, want);
-		if (IS_ERR(slice)) {
-			ret = PTR_ERR(slice);
-			goto exit_free_entry;
-		}
-	}
-
-	pos = 0;
-
-	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items))
-		switch (item->type) {
-		case KDBUS_ITEM_PAYLOAD_VEC: {
-			void *addr = KDBUS_PTR(item->vec.address);
-			const char *zeros = "\0\0\0\0\0\0\0";
-			const void *copy_src;
-			size_t copy_len;
-
-			entry->vecs[entry->vec_count].size = item->vec.size;
-
-			/* a NULL address specifies a \0-bytes record */
-			if (addr) {
-				entry->vecs[entry->vec_count].off = pos;
-				copy_src = addr;
-				copy_len = item->vec.size;
-			} else {
-				/*
-				 *  \0-bytes record.
-				 *
-				 * Preserve the alignment for the next payload
-				 * record in the output buffer; write as many
-				 * null-bytes to the buffer which the \0-bytes
-				 * record would have shifted the alignment.
-				 */
-				entry->vecs[entry->vec_count].off = ~0ULL;
-				copy_src = zeros;
-				copy_len = item->vec.size % 8;
-			}
-
-
-			ret = kdbus_pool_slice_copy(slice, pos,
-						    copy_src, copy_len);
-			if (ret < 0)
-				goto exit_free_slice;
-
-			pos += copy_len;
-			entry->vec_count++;
-			break;
-		}
-
-		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			entry->memfd_size[entry->memfds_count] =
-						item->memfd.size;
-			entry->memfds_count++;
-			break;
-		}
-
-		default:
-			break;
-	}
-
-	BUG_ON(entry->vec_count != kmsg->vecs_count);
-	BUG_ON(entry->memfds_count != kmsg->memfds_count);
-
-	entry->slice_vecs = slice;
-
 	return entry;
 
 exit_free_slice:
-	kdbus_pool_slice_release(slice);
-exit_free_entry:
+	kdbus_pool_slice_release(entry->slice_vecs);
 	kdbus_queue_entry_free(entry);
 	return ERR_PTR(ret);
 }
 
+static struct kdbus_item *
+kdbus_msg_make_items(const struct kdbus_msg_resources *res,
+		     off_t payload_off, bool install_fds, size_t *out_size)
+{
+	struct kdbus_item *items, *item;
+	size_t size = 0;
+	int i;
+
+	/* sum up how much space we need for the 'control' part */
+	size += res->vecs_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += res->memfds_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+
+	if (res->fds_count)
+		size += KDBUS_ITEM_SIZE(sizeof(int) * res->fds_count);
+
+	if (res->dst_name)
+		size += KDBUS_ITEM_SIZE(strlen(res->dst_name) + 1);
+
+	items = (struct kdbus_item *) kzalloc(size, GFP_KERNEL);
+	if (!items)
+		return ERR_PTR(-ENOMEM);
+
+	item = items;
+
+	if (res->dst_name) {
+		item->size = KDBUS_ITEM_HEADER_SIZE +
+			     strlen(res->dst_name) + 1;
+		item->type = KDBUS_ITEM_DST_NAME;
+		strcpy(item->str, res->dst_name);
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	for (i = 0; i < res->vecs_count; i++) {
+		item->size = KDBUS_ITEM_HEADER_SIZE +
+			     sizeof(struct kdbus_vec);
+		item->type = KDBUS_ITEM_PAYLOAD_OFF;
+		item->vec.offset = res->vecs[i].off;
+		if (res->vecs[i].off != ~0ULL)
+			item->vec.offset += payload_off;
+		item->vec.size = res->vecs[i].size;
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	for (i = 0; i < res->memfds_count; i++) {
+		item->size = KDBUS_ITEM_HEADER_SIZE +
+			     sizeof(struct kdbus_memfd);
+		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
+		item->memfd.size = res->memfd_sizes[i];
+
+		if (install_fds) {
+			item->memfd.fd = get_unused_fd_flags(O_CLOEXEC);
+			if (item->memfd.fd >= 0)
+				fd_install(item->memfd.fd,
+					   get_file(res->memfds[i]));
+		} else {
+			item->memfd.fd = -1;
+		}
+
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	if (res->fds_count) {
+		item->size = KDBUS_ITEM_HEADER_SIZE +
+			     (sizeof(int) * res->fds_count);
+		item->type = KDBUS_ITEM_FDS;
+
+		for (i = 0; i < res->fds_count; i++) {
+			if (install_fds) {
+				item->fds[i] = get_unused_fd_flags(O_CLOEXEC);
+				if (item->fds[i] >= 0)
+					fd_install(item->fds[i],
+						   get_file(res->fds[i]));
+			} else {
+				item->fds[i] = -1;
+			}
+		}
+
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	/* Make sure the sizes actually match */
+	BUG_ON((u8 *) item != (u8 *) items + size);
+
+	*out_size = size;
+	return items;
+}
 /**
  * kdbus_queue_entry_install() - install message components into the
  *				 receiver's process
@@ -385,11 +399,11 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			      bool install_fds)
 {
 	size_t meta_size = 0, items_size = 0;
-	u8 *meta_buf = NULL, *items_buf;
-	struct kdbus_item *item;
+	struct kdbus_item *items = NULL;
 	off_t payload_off = 0;
+	u8 *meta_buf = NULL;
 	size_t pos;
-	int i, ret;
+	int ret;
 
 	if (entry->meta) {
 		ret = kdbus_meta_export(entry->meta, _KDBUS_ATTACH_ALL,
@@ -398,95 +412,22 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			return ret;
 	}
 
-	/* sum up how much space we need for the 'control' part */
-	items_size += entry->vec_count *
-		      KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-
-	items_size += entry->memfds_count *
-		      KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
-
-	if (entry->fds_count)
-		items_size += KDBUS_ITEM_SIZE(sizeof(int) * entry->fds_count);
-
-	if (entry->dst_name)
-		items_size += KDBUS_ITEM_SIZE(strlen(entry->dst_name) + 1);
-
-	items_buf = kzalloc(items_size, GFP_KERNEL);
-	if (!items_buf) {
-		ret = -ENOMEM;
-		goto exit_free_meta;
-	}
-
 	/*
 	 * The offsets stored in the slice are relative to the the start
 	 * of the payload slice. When exporting them, they need to become
-	 * relative to the entire pool, so get the payload slice's offset
-	 * first.
+	 * relative to the pool, so get the payload slice's offset first.
 	 */
 	if (entry->slice_vecs)
 		payload_off = kdbus_pool_slice_offset(entry->slice_vecs);
 
-	/* Now fill in the payload and file descriptor items */
-	item = (struct kdbus_item *) items_buf;
-
-	if (entry->dst_name) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     strlen(entry->dst_name) + 1;
-		item->type = KDBUS_ITEM_DST_NAME;
-		strcpy(item->str, entry->dst_name);
-		item = KDBUS_ITEM_NEXT(item);
-	}
-
-	for (i = 0; i < entry->vec_count; i++) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     sizeof(struct kdbus_vec);
-		item->type = KDBUS_ITEM_PAYLOAD_OFF;
-		item->vec.offset = entry->vecs[i].off;
-		if (entry->vecs[i].off != ~0ULL)
-			item->vec.offset += payload_off;
-		item->vec.size = entry->vecs[i].size;
-		item = KDBUS_ITEM_NEXT(item);
-	}
-
-	for (i = 0; i < entry->memfds_count; i++) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     sizeof(struct kdbus_memfd);
-		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-		item->memfd.size = entry->memfd_size[i];
-
-		if (install_fds) {
-			item->memfd.fd = get_unused_fd_flags(O_CLOEXEC);
-			if (item->memfd.fd >= 0)
-				fd_install(item->memfd.fd,
-					   get_file(entry->memfds_fp[i]));
-		} else {
-			item->memfd.fd = -1;
+	if (entry->msg_res) {
+		items = kdbus_msg_make_items(entry->msg_res, payload_off,
+					     install_fds, &items_size);
+		if (IS_ERR(items)) {
+			ret = PTR_ERR(items);
+			goto exit_free_meta;
 		}
-
-		item = KDBUS_ITEM_NEXT(item);
 	}
-
-	if (entry->fds_count) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     (sizeof(int) * entry->fds_count);
-		item->type = KDBUS_ITEM_FDS;
-
-		for (i = 0; i < entry->fds_count; i++) {
-			if (install_fds) {
-				item->fds[i] = get_unused_fd_flags(O_CLOEXEC);
-				if (item->fds[i] >= 0)
-					fd_install(item->fds[i],
-						   get_file(entry->fds_fp[i]));
-			} else {
-				item->fds[i] = -1;
-			}
-		}
-
-		item = KDBUS_ITEM_NEXT(item);
-	}
-
-	/* Make sure the sizes actually match */
-	BUG_ON((u8 *) item != items_buf + items_size);
 
 	/* Now that we know it, update the message size */
 	entry->msg.size = sizeof(entry->msg) + entry->msg_extra_size +
@@ -515,8 +456,7 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 		goto exit_free_slice;
 
 	pos += entry->msg_extra_size;
-	ret = kdbus_pool_slice_copy(entry->slice, pos,
-				    items_buf, items_size);
+	ret = kdbus_pool_slice_copy(entry->slice, pos, items, items_size);
 	if (ret < 0)
 		goto exit_free_slice;
 
@@ -526,8 +466,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	if (ret < 0)
 		goto exit_free_slice;
 
-	kfree(items_buf);
 	kfree(meta_buf);
+	kfree(items);
 
 	return 0;
 
@@ -535,8 +475,8 @@ exit_free_slice:
 	kdbus_pool_slice_release(entry->slice);
 
 exit_free_meta:
-	kfree(items_buf);
 	kfree(meta_buf);
+	kfree(items);
 
 	return ret;
 }
@@ -576,15 +516,7 @@ int kdbus_queue_entry_move(struct kdbus_conn *conn_src,
  */
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
-	kdbus_fput_files(entry->memfds_fp, entry->memfds_count);
-	kdbus_fput_files(entry->fds_fp, entry->fds_count);
-	kdbus_meta_unref(entry->meta);
-	kfree(entry->memfd_size);
-	kfree(entry->memfds_fp);
-	kfree(entry->msg_extra);
-	kfree(entry->dst_name);
-	kfree(entry->fds_fp);
-	kfree(entry->vecs);
+	kdbus_msg_resources_unref(entry->msg_res);
 	kfree(entry);
 }
 

@@ -101,7 +101,7 @@ void kdbus_fput_files(struct file **files, unsigned int count)
 {
 	int i;
 
-	if (!files)
+	if (!files || count == 0)
 		return;
 
 	for (i = count - 1; i >= 0; i--)

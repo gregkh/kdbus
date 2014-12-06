@@ -82,20 +82,9 @@ struct kdbus_queue_entry {
 	struct kdbus_pool_slice *slice;
 	struct kdbus_pool_slice *slice_vecs;
 
-	char *dst_name;
-
-	struct kdbus_queue_vec *vecs;
-	size_t vec_count;
-
-	struct file **memfds_fp;
-	size_t *memfd_size;
-	unsigned int memfds_count;
-
-	struct file **fds_fp;
-	unsigned int fds_count;
-
 	u64 dst_name_id;
 
+	struct kdbus_msg_resources *msg_res;
 	struct kdbus_meta *meta;
 	struct kdbus_conn_reply *reply;
 	struct kdbus_domain_user *user;

@@ -38,23 +38,63 @@
 
 #define KDBUS_KMSG_HEADER_SIZE offsetof(struct kdbus_kmsg, msg)
 
+static struct kdbus_msg_resources *kdbus_msg_resources_new(void)
+{
+	struct kdbus_msg_resources *r;
+
+	r = kzalloc(sizeof(*r), GFP_KERNEL);
+	if (!r)
+		return ERR_PTR(-ENOMEM);
+
+	kref_init(&r->kref);
+
+	return r;
+}
+
+static void __kdbus_msg_resources_free(struct kref *kref)
+{
+	struct kdbus_msg_resources *r =
+		container_of(kref, struct kdbus_msg_resources, kref);
+
+	kdbus_fput_files(r->memfds, r->memfds_count);
+	kdbus_fput_files(r->fds, r->fds_count);
+	kfree(r->dst_name);
+	kfree(r->memfds);
+	kfree(r->vecs);
+	kfree(r->fds);
+	kfree(r);
+}
+
+struct kdbus_msg_resources *
+kdbus_msg_resources_ref(struct kdbus_msg_resources *r)
+{
+	if (r)
+		kref_get(&r->kref);
+	return r;
+}
+
+struct kdbus_msg_resources *
+kdbus_msg_resources_unref(struct kdbus_msg_resources *r)
+{
+	if (r)
+		kref_put(&r->kref, __kdbus_msg_resources_free);
+	return NULL;
+}
+
 /**
  * kdbus_kmsg_free() - free allocated message
  * @kmsg:		Message
  */
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
-	kdbus_fput_files(kmsg->memfds, kmsg->memfds_count);
-	kdbus_fput_files(kmsg->fds, kmsg->fds_count);
+	kdbus_msg_resources_unref(kmsg->res);
 	kdbus_meta_unref(kmsg->meta);
-	kfree(kmsg->memfds);
-	kfree(kmsg->fds);
 	kfree(kmsg);
 }
 
 /**
  * kdbus_kmsg_new() - allocate message
- * @extra_size:		additional size to reserve for data
+ * @extra_size:		Additional size to reserve for data
  *
  * Return: new kdbus_kmsg on success, ERR_PTR on failure.
  */
@@ -117,28 +157,57 @@ static int kdbus_handle_check_file(struct file *file)
 static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				struct kdbus_bus *bus)
 {
+	struct kdbus_msg_resources *res = kmsg->res;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
 	unsigned int items_count = 0;
-	size_t vecs_size = 0;
 	bool has_bloom = false;
 	bool has_name = false;
 	bool has_fds = false;
-	struct file *f;
 
-	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items))
-		if (item->type == KDBUS_ITEM_PAYLOAD_MEMFD)
-			kmsg->memfds_count++;
+	/*
+	 * Iterate the items once in order to get the number of vecs and
+	 * memfds, so that we can allocate the arrays.
+	 */
+	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
+		switch (item->type) {
+		case KDBUS_ITEM_PAYLOAD_VEC:
+			res->vecs_count++;
+			break;
 
-	if (kmsg->memfds_count > 0) {
-		kmsg->memfds = kcalloc(kmsg->memfds_count,
-				       sizeof(struct file *), GFP_KERNEL);
-		if (!kmsg->memfds)
+		case KDBUS_ITEM_PAYLOAD_MEMFD:
+			res->memfds_count++;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	if (res->vecs_count > 0) {
+		res->vecs = kcalloc(res->vecs_count,
+				    sizeof(struct kdbus_msg_vec), GFP_KERNEL);
+		if (!res->vecs)
+			return -ENOMEM;
+	}
+
+	if (res->memfds_count > 0) {
+		res->memfds = kcalloc(res->memfds_count,
+				      sizeof(struct file *), GFP_KERNEL);
+		if (!res->memfds)
 			return -ENOMEM;
 
-		/* reset counter so we can reuse it as counter below */
-		kmsg->memfds_count = 0;
+		res->memfd_sizes = kcalloc(res->memfds_count,
+					   sizeof(size_t), GFP_KERNEL);
+		if (!res->memfds)
+			return -ENOMEM;
+
 	}
+
+	/* reset values so we can reuse them as counters below */
+	res->vecs_size = 0;
+	res->vecs_count = 0;
+	res->memfds_count = 0;
 
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
@@ -147,25 +216,36 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			return -E2BIG;
 
 		switch (item->type) {
-		case KDBUS_ITEM_PAYLOAD_VEC:
-			if (vecs_size + item->vec.size <= vecs_size)
+		case KDBUS_ITEM_PAYLOAD_VEC: {
+			struct kdbus_msg_vec *v = res->vecs + res->vecs_count;
+
+			if (res->vecs_size + item->vec.size <= res->vecs_size)
 				return -EMSGSIZE;
 
-			vecs_size += item->vec.size;
-			if (vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+			if (res->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
+
+			v->src_addr = KDBUS_PTR(item->vec.address);
 
 			/* \0-bytes records store only the alignment bytes */
-			if (KDBUS_PTR(item->vec.address))
-				kmsg->vecs_size += item->vec.size;
-			else
-				kmsg->vecs_size += item->vec.size % 8;
-			kmsg->vecs_count++;
+			if (v->src_addr) {
+				v->size = item->vec.size;
+				v->off = res->vecs_size;
+			} else {
+				v->size = item->vec.size % 8;
+				v->off = ~0ULL;
+			}
+
+			res->vecs_size += v->size;
+			res->vecs_count++;
 			break;
+		}
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			int seals, mask;
 			int fd = item->memfd.fd;
+			int n = res->memfds_count;
+			int seals, mask;
+			struct file *f;
 
 			/* Verify the fd and increment the usage count */
 			if (fd < 0)
@@ -175,8 +255,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (!f)
 				return -EBADF;
 
-			kmsg->memfds[kmsg->memfds_count] = f;
-			kmsg->memfds_count++;
+			res->memfds[n] = f;
+			res->memfds_count++;
 
 			/*
 			 * We only accept a sealed memfd file whose content
@@ -188,10 +268,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (seals < 0)
 				return -EMEDIUMTYPE;
 
-			mask = F_SEAL_SHRINK |
-			       F_SEAL_GROW |
-			       F_SEAL_WRITE |
-			       F_SEAL_SEAL;
+			mask = F_SEAL_SHRINK | F_SEAL_GROW |
+				F_SEAL_WRITE | F_SEAL_SEAL;
 			if ((seals & mask) != mask)
 				return -ETXTBSY;
 
@@ -201,6 +279,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			 */
 			if (item->memfd.size > i_size_read(file_inode(f)))
 				return -EBADF;
+
+			res->memfd_sizes[n] = item->memfd.size;
 
 			break;
 		}
@@ -217,18 +297,19 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			kmsg->fds_count = payload_size / sizeof(int);
+			res->fds_count = payload_size / sizeof(int);
 
-			if (kmsg->fds_count > KDBUS_MSG_MAX_FDS)
+			if (res->fds_count > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
-			kmsg->fds = kcalloc(kmsg->fds_count,
-					    sizeof(*kmsg->fds), GFP_KERNEL);
-			if (!kmsg->fds)
+
+			res->fds = kcalloc(res->fds_count, sizeof(int),
+					   GFP_KERNEL);
+			if (!res->fds)
 				return -ENOMEM;
 
-			for (i = 0; i < kmsg->fds_count; i++) {
-				int ret;
+			for (i = 0; i < res->fds_count; i++) {
 				int fd = item->fds[i];
+				int ret;
 
 				/*
 				 * Verify the fd and increment the usage count.
@@ -237,13 +318,11 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				if (fd < 0)
 					return -EBADF;
 
-				f = fget_raw(fd);
-				if (!f)
+				res->fds[i] = fget_raw(fd);
+				if (!res->fds[i])
 					return -EBADF;
 
-				kmsg->fds[i] = f;
-
-				ret = kdbus_handle_check_file(f);
+				ret = kdbus_handle_check_file(res->fds[i]);
 				if (ret < 0)
 					return ret;
 			}
@@ -289,7 +368,9 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (!kdbus_name_is_valid(item->str, false))
 				return -EINVAL;
 
-			kmsg->dst_name = item->str;
+			res->dst_name = kstrdup(item->str, GFP_KERNEL);
+			if (!res->dst_name)
+				return -ENOMEM;
 			break;
 		}
 	}
@@ -351,6 +432,13 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 
 	if (copy_from_user(&m->msg, msg, size)) {
 		ret = -EFAULT;
+		goto exit_free;
+	}
+
+	m->res = kdbus_msg_resources_new();
+	if (IS_ERR(m->res)) {
+		ret = PTR_ERR(m->res);
+		m->res = NULL;
 		goto exit_free;
 	}
 

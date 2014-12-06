@@ -298,7 +298,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	 * refused to receive any.
 	 */
 	if (WARN_ON(!(conn->flags & KDBUS_HELLO_ACCEPT_FD) &&
-		    entry->fds_count > 0)) {
+	    entry->msg_res && entry->msg_res->fds_count > 0)) {
 		ret = -EINVAL;
 		goto exit_unlock;
 	}
@@ -518,7 +518,8 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 		return ERR_PTR(-ECONNRESET);
 
 	/* The connection does not accept file descriptors */
-	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) && kmsg->fds_count > 0)
+	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
+	    kmsg->res && kmsg->res->fds_count > 0)
 		return ERR_PTR(-ECOMM);
 
 	entry = kdbus_queue_entry_alloc(conn_dst->pool, kmsg);
@@ -776,7 +777,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		return 0;
 	}
 
-	if (kmsg->dst_name) {
+	if (kmsg->res && kmsg->res->dst_name) {
 		/*
 		 * Lock the destination name so it will not get dropped or
 		 * moved between activator/implementor while we try to queue a
@@ -787,7 +788,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * really need to read-lock the whole registry here.
 		 */
 		name_entry = kdbus_name_lock(bus->name_registry,
-					     kmsg->dst_name);
+					     kmsg->res->dst_name);
 		if (!name_entry)
 			return -ESRCH;
 
@@ -1252,7 +1253,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		kdbus_queue_entry_remove(conn_src, q);
 
 		if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
-		    q->fds_count > 0) {
+		    q->msg_res && q->msg_res->fds_count > 0) {
 			atomic_inc(&conn_dst->lost_count);
 			continue;
 		}

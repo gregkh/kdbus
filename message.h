@@ -18,23 +18,57 @@
 #include "metadata.h"
 
 /**
+ * struct kdbus_msg_vec - Data vec reference as stored by messages
+ * @off:	The offset, relative to the vec slice
+ * @size:	The number of bytes to store
+ */
+struct kdbus_msg_vec {
+	off_t off;
+	size_t size;
+	const void __user *src_addr;
+};
+
+/**
+ * struct kdbus_kmsg_resources - resources of a message
+ * @kref:		Reference counter
+ * @dst_name:		Short-cut to msg for faster lookup
+ * @fds:		Array of file descriptors to pass
+ * @fds_count:		Number of file descriptors to pass
+ * @vecs_size:		Size of PAYLOAD data
+ * @vecs_count:		Number of PAYLOAD vectors
+ * @memfds_count:	Number of memfds to pass
+ */
+struct kdbus_msg_resources {
+	struct kref kref;
+	const char *dst_name;
+	struct file **fds;
+	unsigned int fds_count;
+	struct kdbus_msg_vec *vecs;
+	unsigned int vecs_count;
+	size_t vecs_size;
+	struct file **memfds;
+	size_t *memfd_sizes;
+	unsigned int memfds_count;
+};
+
+struct kdbus_msg_resources *
+kdbus_msg_resources_ref(struct kdbus_msg_resources *r);
+struct kdbus_msg_resources *
+kdbus_msg_resources_unref(struct kdbus_msg_resources *r);
+
+/**
  * struct kdbus_kmsg - internal message handling data
  * @seq:		Domain-global message sequence number
  * @notify_type:	Short-cut for faster lookup
  * @notify_old_id:	Short-cut for faster lookup
  * @notify_new_id:	Short-cut for faster lookup
  * @notify_name:	Short-cut for faster lookup
- * @dst_name:		Short-cut to msg for faster lookup
  * @dst_name_id:	Short-cut to msg for faster lookup
  * @bloom_filter:	Bloom filter to match message properties
  * @bloom_generation:	Generation of bloom element set
- * @fds:		Array of file descriptors to pass
- * @fds_count:		Number of file descriptors to pass
- * @meta:		Appended SCM-like metadata of the sending process
- * @vecs_size:		Size of PAYLOAD data
- * @vecs_count:		Number of PAYLOAD vectors
- * @memfds_count:	Number of memfds to pass
  * @notify_entry:	List of kernel-generated notifications
+ * @meta:		Appended SCM-like metadata of the sending process
+ * @res:		Message resources
  * @msg:		Message from or to userspace
  */
 struct kdbus_kmsg {
@@ -44,18 +78,13 @@ struct kdbus_kmsg {
 	u64 notify_new_id;
 	const char *notify_name;
 
-	const char *dst_name;
 	u64 dst_name_id;
 	const struct kdbus_bloom_filter *bloom_filter;
 	u64 bloom_generation;
-	struct file **fds;
-	unsigned int fds_count;
-	struct kdbus_meta *meta;
-	size_t vecs_size;
-	unsigned int vecs_count;
-	struct file **memfds;
-	unsigned int memfds_count;
 	struct list_head notify_entry;
+
+	struct kdbus_meta *meta;
+	struct kdbus_msg_resources *res;
 
 	/* variable size, must be the last member */
 	struct kdbus_msg msg;
