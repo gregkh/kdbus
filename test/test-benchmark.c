@@ -270,7 +270,9 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	if (attach_none) {
-		ret = kdbus_conn_update_attach_flags(conn_a, 0);
+		ret = kdbus_conn_update_attach_flags(conn_a,
+						     _KDBUS_ATTACH_ALL,
+						     0);
 		ASSERT_RETURN(ret == 0);
 	}
 

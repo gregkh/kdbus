@@ -1038,7 +1038,9 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 	return ret;
 }
 
-int kdbus_conn_update_attach_flags(struct kdbus_conn *conn, uint64_t flags)
+int kdbus_conn_update_attach_flags(struct kdbus_conn *conn,
+				   uint64_t attach_flags_send,
+				   uint64_t attach_flags_recv)
 {
 	int ret;
 	size_t size;
@@ -1046,7 +1048,7 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn, uint64_t flags)
 	struct kdbus_item *item;
 
 	size = sizeof(struct kdbus_cmd_update);
-	size += KDBUS_ITEM_SIZE(sizeof(uint64_t));
+	size += KDBUS_ITEM_SIZE(sizeof(uint64_t)) * 2;
 
 	update = malloc(size);
 	if (!update) {
@@ -1060,9 +1062,14 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn, uint64_t flags)
 
 	item = update->items;
 
+	item->type = KDBUS_ITEM_ATTACH_FLAGS_SEND;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
+	item->data64[0] = attach_flags_send;
+	item = KDBUS_ITEM_NEXT(item);
+
 	item->type = KDBUS_ITEM_ATTACH_FLAGS_RECV;
 	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(uint64_t);
-	item->data64[0] = flags;
+	item->data64[0] = attach_flags_recv;
 	item = KDBUS_ITEM_NEXT(item);
 
 	ret = ioctl(conn->fd, KDBUS_CMD_CONN_UPDATE, update);

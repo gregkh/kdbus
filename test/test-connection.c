@@ -525,8 +525,10 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 	 */
 	found = 0;
 
-	ret = kdbus_conn_update_attach_flags(conn, _KDBUS_ATTACH_ALL &
-						   ~KDBUS_ATTACH_TIMESTAMP);
+	ret = kdbus_conn_update_attach_flags(conn,
+					     _KDBUS_ATTACH_ALL,
+					     _KDBUS_ATTACH_ALL &
+					     ~KDBUS_ATTACH_TIMESTAMP);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_msg_send(env->conn, NULL, 0x12345678, 0, 0, 0, conn->id);
@@ -542,7 +544,9 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 	ASSERT_RETURN(found == 0);
 
 	/* Provide a bogus attach_flags value */
-	ret = kdbus_conn_update_attach_flags(conn, _KDBUS_ATTACH_ALL + 1);
+	ret = kdbus_conn_update_attach_flags(conn,
+					     _KDBUS_ATTACH_ALL + 1,
+					     _KDBUS_ATTACH_ALL);
 	ASSERT_RETURN(ret == -EINVAL);
 
 	kdbus_msg_free(msg);

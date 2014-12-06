@@ -97,10 +97,12 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 
 	/*
 	 * Since we are the only monitor, update the attach flags
-	 * and tell we are not interessted in attach flags
-	*/
+	 * and tell we are not interessted in attach flags recv
+	 */
 
-	ret = kdbus_conn_update_attach_flags(monitor, 0);
+	ret = kdbus_conn_update_attach_flags(monitor,
+					     _KDBUS_ATTACH_ALL,
+					     0);
 	ASSERT_RETURN(ret == 0);
 
 	cookie++;
@@ -123,6 +125,7 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	 * KDBUS_ITEM_CREDS
 	 */
 	ret = kdbus_conn_update_attach_flags(monitor,
+					     _KDBUS_ATTACH_ALL,
 					     KDBUS_ATTACH_TIMESTAMP |
 					     KDBUS_ATTACH_CREDS);
 	ASSERT_RETURN(ret == 0);
