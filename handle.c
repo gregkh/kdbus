@@ -235,7 +235,8 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 				    KDBUS_HELLO_ACCEPT_FD |
 				    KDBUS_HELLO_ACTIVATOR |
 				    KDBUS_HELLO_POLICY_HOLDER |
-				    KDBUS_HELLO_MONITOR);
+				    KDBUS_HELLO_MONITOR |
+				    KDBUS_HELLO_UNPRIVILEGED);
 	if (ret < 0)
 		goto exit;
 
