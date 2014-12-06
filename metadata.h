@@ -39,30 +39,4 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 int kdbus_meta_export(const struct kdbus_meta *meta,
 		      u64 mask, u8 **buf, size_t *size);
 
-/**
- * kdbus_meta_set_attach_flags() - Set the attach flags
- * @flags		Attach flags provided by userspace
- * @attach_flags	A pointer where to store the valid attach flags
- *
- * Code that sets the meta attach flags must call this function to
- * validate the provided flags.
- *
- * Return: 0 on success, negative error on failure.
- */
-static inline int kdbus_meta_set_attach_flags(u64 flags,
-					      u64 *attach_flags)
-{
-	/* 'any' degrades to 'all' for compatibility */
-	if (flags == _KDBUS_ATTACH_ANY)
-		flags = _KDBUS_ATTACH_ALL;
-
-	/* reject unknown attach flags */
-	if (flags & ~_KDBUS_ATTACH_ALL)
-		return -EINVAL;
-
-	*attach_flags = flags;
-
-	return 0;
-}
-
 #endif

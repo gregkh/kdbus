@@ -103,7 +103,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 			if (attach_flags)
 				return ERR_PTR(-EEXIST);
 
-			ret = kdbus_meta_set_attach_flags(item->data64[0],
+			ret = kdbus_sanitize_attach_flags(item->data64[0],
 							  &attach_flags);
 			if (ret < 0)
 				return ERR_PTR(ret);

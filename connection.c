@@ -1424,7 +1424,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 				    !kdbus_conn_is_monitor(conn))
 					return -EOPNOTSUPP;
 
-				ret = kdbus_meta_set_attach_flags(item->data64[0],
+				ret = kdbus_sanitize_attach_flags(item->data64[0],
 								  &attach_send);
 				if (ret < 0)
 					return ret;
@@ -1436,7 +1436,7 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 				    !kdbus_conn_is_activator(conn))
 					return -EOPNOTSUPP;
 
-				ret = kdbus_meta_set_attach_flags(item->data64[0],
+				ret = kdbus_sanitize_attach_flags(item->data64[0],
 								  &attach_recv);
 				if (ret < 0)
 					return ret;
@@ -1602,12 +1602,12 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	if ((is_activator || is_policy_holder) && !name)
 		return ERR_PTR(-EINVAL);
 
-	ret = kdbus_meta_set_attach_flags(hello->attach_flags_send,
+	ret = kdbus_sanitize_attach_flags(hello->attach_flags_send,
 					  &attach_flags_send);
 	if (ret < 0)
 		return ERR_PTR(ret);
 
-	ret = kdbus_meta_set_attach_flags(hello->attach_flags_recv,
+	ret = kdbus_sanitize_attach_flags(hello->attach_flags_recv,
 					  &attach_flags_recv);
 	if (ret < 0)
 		return ERR_PTR(ret);
