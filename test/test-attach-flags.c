@@ -145,6 +145,17 @@ static int kdbus_bus_peer_flags(struct kdbus_test_env *env)
 	conn = __kdbus_hello(buspath, 0, _KDBUS_ATTACH_ALL, 0);
 	ASSERT_RETURN(conn);
 
+	/* Try to cut back some send attach flags */
+	ret = kdbus_conn_update_attach_flags(conn,
+					     KDBUS_ATTACH_CREDS|
+					     KDBUS_ATTACH_PIDS,
+					     _KDBUS_ATTACH_ALL);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	ret = kdbus_conn_update_attach_flags(conn,
+					     _KDBUS_ATTACH_ALL, 0);
+	ASSERT_RETURN(ret == 0);
+
 	kdbus_conn_free(conn);
 	free(path);
 	free(busname);
@@ -186,8 +197,23 @@ static int kdbus_bus_peer_flags(struct kdbus_test_env *env)
 
 	conn = __kdbus_hello(buspath, 0, _KDBUS_ATTACH_ALL, 0);
 	ASSERT_RETURN(conn);
-	kdbus_conn_free(conn);
 
+	ret = kdbus_conn_update_attach_flags(conn,
+					     _KDBUS_ATTACH_ALL &
+					     ~KDBUS_ATTACH_PIDS,
+					     _KDBUS_ATTACH_ALL);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	ret = kdbus_conn_update_attach_flags(conn, 0,
+					     _KDBUS_ATTACH_ALL);
+	ASSERT_RETURN(ret == -EINVAL);
+
+	/* Now we want only KDBUS_ATTACH_PIDS */
+	ret = kdbus_conn_update_attach_flags(conn,
+					     KDBUS_ATTACH_PIDS, 0);
+	ASSERT_RETURN(ret == 0);
+
+	kdbus_conn_free(conn);
 	free(path);
 	free(busname);
 	close(control_fd);
@@ -216,8 +242,14 @@ static int kdbus_bus_peer_flags(struct kdbus_test_env *env)
 
 	conn = __kdbus_hello(buspath, 0, _KDBUS_ATTACH_ALL, 0);
 	ASSERT_RETURN(conn);
-	kdbus_conn_free(conn);
 
+	ret = kdbus_conn_update_attach_flags(conn, 0, 0);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_conn_update_attach_flags(conn, KDBUS_ATTACH_CREDS, 0);
+	ASSERT_RETURN(ret == 0);
+
+	kdbus_conn_free(conn);
 	free(path);
 	free(busname);
 	close(control_fd);
