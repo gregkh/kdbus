@@ -502,32 +502,30 @@ static void usage(const char *argv0)
 
 int start_tests(struct kdbus_test_args *kdbus_args)
 {
-	static char pathbuf[4096];
+	static char fspath[4096], parampath[4096], control[4096];
 	int ret;
-	char *control;
 
 	if (!kdbus_args->module)
 		kdbus_args->module = "kdbus";
 
 	if (!kdbus_args->root) {
-		snprintf(pathbuf, sizeof(pathbuf), "/sys/fs/%s",
+		snprintf(fspath, sizeof(fspath), "/sys/fs/%s",
 			 kdbus_args->module);
-		kdbus_args->root = pathbuf;
+		kdbus_args->root = fspath;
 	}
 
-	asprintf(&kdbus_args->mask_param_path,
+	snprintf(parampath, sizeof(parampath),
 		 "/sys/module/%s/parameters/attach_flags_mask",
 		 kdbus_args->module);
+	kdbus_args->mask_param_path = parampath;
 
-	asprintf(&control, "%s/control", kdbus_args->root);
+	snprintf(control, sizeof(control), "%s/control", kdbus_args->root);
 
 	if (access(control, W_OK) < 0) {
 		printf("Unable to locate control node at '%s'.\n",
 			control);
 		return TEST_ERR;
 	}
-
-	free(control);
 
 	if (kdbus_args->test) {
 		ret = start_one_test(kdbus_args);
@@ -538,8 +536,6 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 				break;
 		} while (kdbus_args->loop);
 	}
-
-	free(kdbus_args->mask_param_path);
 
 	return ret;
 }
