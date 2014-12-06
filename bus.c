@@ -79,9 +79,9 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	const struct kdbus_item *item;
 	struct kdbus_bus *b;
 	const char *name = NULL;
-	int ret;
-
 	u64 attach_flags = 0;
+	const u64 *pattach = &attach_flags;
+	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
 		switch (item->type) {
@@ -100,14 +100,10 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 			break;
 
 		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
-			if (attach_flags)
+			if (pattach)
 				return ERR_PTR(-EEXIST);
 
-			ret = kdbus_sanitize_attach_flags(item->data64[0],
-							  &attach_flags);
-			if (ret < 0)
-				return ERR_PTR(ret);
-
+			pattach = &item->data64[0];
 			break;
 		}
 	}
@@ -121,6 +117,10 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		return ERR_PTR(-EINVAL);
 	if (bloom->n_hash < 1)
 		return ERR_PTR(-EINVAL);
+
+	ret = kdbus_sanitize_attach_flags(*pattach, &attach_flags);
+	if (ret < 0)
+		return ERR_PTR(ret);
 
 	/*
 	 * The ATTACH_FLAGS_RECV required by a bus from its peers
