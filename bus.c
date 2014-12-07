@@ -482,7 +482,6 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
 	u64 flags = cmd_info->flags;
-	u8 *buf = NULL;
 	int ret;
 
 	name_len = strlen(bus->node.name);
@@ -521,7 +520,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	if (ret < 0)
 		goto exit;
 
-	if (buf && meta_size) {
+	if (meta_items && meta_size) {
 		ret = kdbus_pool_slice_copy(slice, sizeof(info) + name_size,
 					    meta_items, meta_size);
 		if (ret < 0)
