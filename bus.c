@@ -478,6 +478,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
 	size_t meta_size, name_size, name_len;
+	struct kdbus_item *meta_items;
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
 	u64 flags = cmd_info->flags;
@@ -487,9 +488,9 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	name_len = strlen(bus->node.name);
 	name_size = KDBUS_ITEM_SIZE(name_len + 1);
 
-	ret = kdbus_meta_export(bus->meta, flags, &buf, &meta_size);
-	if (ret < 0)
-		return ret;
+	meta_items = kdbus_meta_export(bus->meta, flags, &meta_size);
+	if (IS_ERR(meta_items))
+		return PTR_ERR(meta_items);
 
 	info.id = bus->id;
 	info.flags = bus->bus_flags;
@@ -522,7 +523,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 
 	if (buf && meta_size) {
 		ret = kdbus_pool_slice_copy(slice, sizeof(info) + name_size,
-					    buf, meta_size);
+					    meta_items, meta_size);
 		if (ret < 0)
 			goto exit;
 	}
@@ -533,6 +534,6 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 
 exit:
 	kdbus_pool_slice_release(slice);
-	kfree(buf);
+	kfree(meta_items);
 	return ret;
 }

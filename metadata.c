@@ -583,7 +583,6 @@ exit_unlock:
  * kdbus_meta_export() - export information from metadata into buffer
  * @meta:	The metadata object
  * @mask:	Mask of KDBUS_ATTACH_* flags to export
- * @buf:	Pointer to return the allocated buffer
  * @sz:		Pointer to return the buffer size
  *
  * This function exports information from metadata to allocated buffer.
@@ -596,21 +595,22 @@ exit_unlock:
  * report the length of that buffer. The caller is obliged to free @buf when no
  * longer needed.
  *
- * Return: 0 on success, nagative error number otherwise.
+ * Return: An array of items on success, ERR_PTR value on errors. On success,
+ * @sz is also set to the number of bytes stored in the items array.
  */
-int kdbus_meta_export(const struct kdbus_meta *meta,
-		      u64 mask, u8 **buf, size_t *sz)
+struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
+				     u64 mask, size_t *sz)
 {
 	struct user_namespace *user_ns = current_user_ns();
+	struct kdbus_item *item, *items = NULL;
 	char *exe_pathname = NULL;
-	struct kdbus_item *item;
 	size_t size = 0;
 	int ret = 0;
-	u8 *p, *tmp;
+	u8 *tmp;
 
 	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
 	if (!tmp)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	mask &= meta->collected & kdbus_meta_attach_mask;
 
@@ -693,13 +693,13 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	 * Allocate memory and fill in the items.
 	 */
 
-	p = kzalloc(size, GFP_KERNEL);
-	if (!p) {
+	items = (struct kdbus_item *) kzalloc(size, GFP_KERNEL);
+	if (!items) {
 		ret = -ENOMEM;
 		goto exit_free;
 	}
 
-	item = (struct kdbus_item *) p;
+	item = items;
 
 	if (mask & KDBUS_ATTACH_TIMESTAMP) {
 		struct kdbus_timestamp ts = {
@@ -823,13 +823,12 @@ int kdbus_meta_export(const struct kdbus_meta *meta,
 	}
 
 	/* sanity check: the buffer should be completely written now */
-	WARN_ON((char *) item != (char *) (p + size));
+	WARN_ON((u8 *) item != (u8 *) items + size);
 
 	*sz = size;
-	*buf = p;
 
 exit_free:
 	free_page((unsigned long) tmp);
 
-	return ret;
+	return items;
 }

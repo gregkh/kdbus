@@ -36,7 +36,7 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 		    const struct kdbus_creds *creds,
 		    const struct kdbus_pids *pids,
 		    const char *seclabel);
-int kdbus_meta_export(const struct kdbus_meta *meta,
-		      u64 mask, u8 **buf, size_t *size);
+struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
+				     u64 mask, size_t *sz);
 
 #endif

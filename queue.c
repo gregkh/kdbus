@@ -399,17 +399,17 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			      bool install_fds)
 {
 	size_t meta_size = 0, items_size = 0;
+	struct kdbus_item *meta_items = NULL;
 	struct kdbus_item *items = NULL;
 	off_t payload_off = 0;
-	u8 *meta_buf = NULL;
 	size_t pos;
 	int ret;
 
 	if (entry->meta) {
-		ret = kdbus_meta_export(entry->meta, _KDBUS_ATTACH_ALL,
-					&meta_buf, &meta_size);
-		if (ret < 0)
-			return ret;
+		meta_items = kdbus_meta_export(entry->meta, _KDBUS_ATTACH_ALL,
+					       &meta_size);
+		if (IS_ERR(meta_items))
+			return PTR_ERR(meta_items);
 	}
 
 	/*
@@ -461,12 +461,11 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 		goto exit_free_slice;
 
 	pos += items_size;
-	ret = kdbus_pool_slice_copy(entry->slice, pos,
-				    meta_buf, meta_size);
+	ret = kdbus_pool_slice_copy(entry->slice, pos, meta_items, meta_size);
 	if (ret < 0)
 		goto exit_free_slice;
 
-	kfree(meta_buf);
+	kfree(meta_items);
 	kfree(items);
 
 	return 0;
@@ -475,7 +474,7 @@ exit_free_slice:
 	kdbus_pool_slice_release(entry->slice);
 
 exit_free_meta:
-	kfree(meta_buf);
+	kfree(meta_items);
 	kfree(items);
 
 	return ret;

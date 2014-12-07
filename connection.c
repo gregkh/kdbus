@@ -1301,8 +1301,8 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_conn *owner_conn = NULL;
+	struct kdbus_item *meta_items = NULL;
 	struct kdbus_info info = {};
-	u8 *meta_buf = NULL;
 	size_t meta_size;
 	u64 attach_flags;
 	int ret = 0;
@@ -1356,10 +1356,12 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	attach_flags = cmd_info->flags &
 		       atomic64_read(&owner_conn->attach_flags_send);
 
-	ret = kdbus_meta_export(owner_conn->meta, attach_flags,
-				&meta_buf, &meta_size);
-	if (ret < 0)
+	meta_items = kdbus_meta_export(owner_conn->meta, attach_flags,
+				       &meta_size);
+	if (IS_ERR(meta_items)) {
+		ret = PTR_ERR(meta_items);
 		goto exit;
+	}
 
 	info.size += meta_size;
 
@@ -1374,7 +1376,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	if (ret < 0)
 		goto exit;
 
-	ret = kdbus_pool_slice_copy(slice, sizeof(info), meta_buf, meta_size);
+	ret = kdbus_pool_slice_copy(slice, sizeof(info), meta_items, meta_size);
 	if (ret < 0)
 		goto exit;
 
@@ -1384,7 +1386,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 
 exit:
 	kdbus_pool_slice_release(slice);
-	kfree(meta_buf);
+	kfree(meta_items);
 	kdbus_conn_unref(owner_conn);
 	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
 
