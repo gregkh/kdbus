@@ -542,7 +542,7 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 
 		list_for_each_entry(e, &conn_src->names_list, conn_entry) {
 			len = strlen(e->name) + 1;
-			kdbus_meta_write_item(item, KDBUS_ITEM_OWNED_NAME, NULL,
+			kdbus_item_set(item, KDBUS_ITEM_OWNED_NAME, NULL,
 					      sizeof(struct kdbus_name) + len);
 			item->name.flags = e->flags;
 			memcpy(item->name.name, e->name, len);
@@ -698,8 +698,7 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 			.realtime_ns	= meta->ts_realtime_ns,
 		};
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_TIMESTAMP,
-				      &ts, sizeof(ts));
+		kdbus_item_set(item, KDBUS_ITEM_TIMESTAMP, &ts, sizeof(ts));
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
@@ -715,8 +714,7 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 			.fsgid	= kdbus_from_kgid_keep(meta->fsgid),
 		};
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_CREDS,
-				      &creds, sizeof(creds));
+		kdbus_item_set(item, KDBUS_ITEM_CREDS, &creds, sizeof(creds));
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
@@ -726,16 +724,15 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 			.tid = pid_vnr(meta->pid),
 		};
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_PIDS,
-				      &pids, sizeof(pids));
+		kdbus_item_set(item, KDBUS_ITEM_PIDS, &pids, sizeof(pids));
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (mask & KDBUS_ATTACH_AUXGROUPS) {
 		int i;
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_AUXGROUPS,
-				      NULL, meta->n_auxgrps * sizeof(u32));
+		kdbus_item_set(item, KDBUS_ITEM_AUXGROUPS,
+			       NULL, meta->n_auxgrps * sizeof(u32));
 
 		for (i = 0; i < meta->n_auxgrps; i++)
 			item->data32[i] =
@@ -745,47 +742,44 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_PID_COMM) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_PID_COMM,
-				      meta->pid_comm,
-				      strlen(meta->pid_comm) + 1);
+		kdbus_item_set(item, KDBUS_ITEM_PID_COMM,
+			       meta->pid_comm, strlen(meta->pid_comm) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (mask & KDBUS_ATTACH_TID_COMM) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_TID_COMM,
-				      meta->tid_comm,
-				      strlen(meta->tid_comm) + 1);
+		kdbus_item_set(item, KDBUS_ITEM_TID_COMM,
+			       meta->tid_comm, strlen(meta->tid_comm) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if ((mask & KDBUS_ATTACH_EXE) && exe_pathname) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_EXE,
+		kdbus_item_set(item, KDBUS_ITEM_EXE,
 				      exe_pathname, strlen(exe_pathname) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (mask & KDBUS_ATTACH_CMDLINE) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_CMDLINE,
-				      meta->cmdline, strlen(meta->cmdline) + 1);
+		kdbus_item_set(item, KDBUS_ITEM_CMDLINE,
+			       meta->cmdline, strlen(meta->cmdline) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (mask & KDBUS_ATTACH_CGROUP) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_CGROUP,
-				      meta->cgroup, strlen(meta->cgroup) + 1);
+		kdbus_item_set(item, KDBUS_ITEM_CGROUP,
+			       meta->cgroup, strlen(meta->cgroup) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (mask & KDBUS_ATTACH_CAPS) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_CAPS,
-				      &meta->caps, sizeof(meta->caps));
+		kdbus_item_set(item, KDBUS_ITEM_CAPS,
+			       &meta->caps, sizeof(meta->caps));
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (mask & KDBUS_ATTACH_SECLABEL) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_SECLABEL,
-				      meta->seclabel,
-				      strlen(meta->seclabel) + 1);
+		kdbus_item_set(item, KDBUS_ITEM_SECLABEL,
+			       meta->seclabel, strlen(meta->seclabel) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
@@ -795,14 +789,14 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 		a.loginuid  = from_kuid(user_ns, meta->audit_loginuid),
 		a.sessionid = meta->audit_sessionid,
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_AUDIT, &a, sizeof(a));
+		kdbus_item_set(item, KDBUS_ITEM_AUDIT, &a, sizeof(a));
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (mask & KDBUS_ATTACH_CONN_DESCRIPTION) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_CONN_DESCRIPTION,
-				      meta->conn_description,
-				      strlen(meta->conn_description) + 1);
+		kdbus_item_set(item, KDBUS_ITEM_CONN_DESCRIPTION,
+			       meta->conn_description,
+			       strlen(meta->conn_description) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 

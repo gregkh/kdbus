@@ -322,8 +322,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 	item = items;
 
 	if (res->dst_name) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_DST_NAME,
-				      res->dst_name, strlen(res->dst_name) + 1);
+		kdbus_item_set(item, KDBUS_ITEM_DST_NAME,
+			       res->dst_name, strlen(res->dst_name) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
@@ -335,8 +335,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 			v.offset += payload_off;
 		v.size = res->vecs[i].size;
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_PAYLOAD_OFF,
-				      &v, sizeof(v));
+		kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_OFF, &v, sizeof(v));
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
@@ -345,8 +344,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 			.size = res->memfd_sizes[i],
 		};
 
-		kdbus_meta_write_item(item, KDBUS_ITEM_PAYLOAD_MEMFD,
-				      &m, sizeof(m));
+		kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD, &m, sizeof(m));
 		if (install_fds) {
 			item->memfd.fd = get_unused_fd_flags(O_CLOEXEC);
 			if (item->memfd.fd >= 0)
@@ -360,8 +358,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 	}
 
 	if (res->fds_count) {
-		kdbus_meta_write_item(item, KDBUS_ITEM_FDS,
-				      NULL, (sizeof(int) * res->fds_count));
+		kdbus_item_set(item, KDBUS_ITEM_FDS,
+			       NULL, (sizeof(int) * res->fds_count));
 		for (i = 0; i < res->fds_count; i++) {
 			if (install_fds) {
 				item->fds[i] = get_unused_fd_flags(O_CLOEXEC);
