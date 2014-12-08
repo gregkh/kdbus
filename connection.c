@@ -1630,26 +1630,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	if (!conn)
 		return ERR_PTR(-ENOMEM);
 
-	if (is_activator || is_policy_holder) {
-		/*
-		 * Policy holders may install one name, and are
-		 * allowed to use wildcards.
-		 */
-		ret = kdbus_policy_set(&bus->policy_db, hello->items,
-				       KDBUS_ITEMS_SIZE(hello, items),
-				       1, is_policy_holder, conn);
-		if (ret < 0)
-			goto exit_free_conn;
-	}
-
-	if (conn_description) {
-		conn->description = kstrdup(conn_description, GFP_KERNEL);
-		if (!conn->description) {
-			ret = -ENOMEM;
-			goto exit_free_conn;
-		}
-	}
-
 	kref_init(&conn->kref);
 	atomic_set(&conn->active, KDBUS_CONN_ACTIVE_NEW);
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
@@ -1668,28 +1648,47 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	kdbus_queue_init(&conn->queue);
 	conn->privileged = privileged &&
 			   !(hello->flags & KDBUS_HELLO_UNPRIVILEGED);
-
-	/* init entry, so we can unconditionally remove it */
+	conn->ep = kdbus_ep_ref(ep);
+	conn->id = atomic64_inc_return(&bus->conn_seq_last);
+	conn->flags = hello->flags;
+	atomic64_set(&conn->attach_flags_send, attach_flags_send);
+	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
+	/* init entry, so we can remove it unconditionally */
 	INIT_LIST_HEAD(&conn->monitor_entry);
+
+	if (conn_description) {
+		conn->description = kstrdup(conn_description, GFP_KERNEL);
+		if (!conn->description) {
+			ret = -ENOMEM;
+			goto exit_unref;
+		}
+	}
 
 	conn->pool = kdbus_pool_new(conn->description, hello->pool_size);
 	if (IS_ERR(conn->pool)) {
 		ret = PTR_ERR(conn->pool);
 		conn->pool = NULL;
-		goto exit_unref_cred;
+		goto exit_unref;
 	}
 
 	conn->match_db = kdbus_match_db_new();
 	if (IS_ERR(conn->match_db)) {
 		ret = PTR_ERR(conn->match_db);
 		conn->match_db = NULL;
-		goto exit_free_pool;
+		goto exit_unref;
 	}
 
-	conn->ep = kdbus_ep_ref(ep);
-
-	/* get new id for this connection */
-	conn->id = atomic64_inc_return(&bus->conn_seq_last);
+	if (is_activator || is_policy_holder) {
+		/*
+		 * Policy holders may install one name, and are
+		 * allowed to use wildcards.
+		 */
+		ret = kdbus_policy_set(&bus->policy_db, hello->items,
+				       KDBUS_ITEMS_SIZE(hello, items),
+				       1, is_policy_holder, conn);
+		if (ret < 0)
+			goto exit_unref;
+	}
 
 	/* return properties of this connection to the caller */
 	hello->bus_flags = bus->bus_flags;
@@ -1699,22 +1698,18 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
-	conn->flags = hello->flags;
-	atomic64_set(&conn->attach_flags_send, attach_flags_send);
-	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
-
 	conn->meta = kdbus_meta_new();
 	if (IS_ERR(conn->meta)) {
 		ret = PTR_ERR(conn->meta);
 		conn->meta = NULL;
-		goto exit_release_names;
+		goto exit_unref;
 	}
 
 	/* privileged processes can impersonate somebody else */
 	if (creds || pids || seclabel) {
 		ret = kdbus_meta_fake(conn->meta, creds, pids, seclabel);
 		if (ret < 0)
-			goto exit_free_meta;
+			goto exit_unref;
 
 		conn->faked_meta = true;
 	} else {
@@ -1731,7 +1726,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 					 KDBUS_ATTACH_SECLABEL	|
 					 KDBUS_ATTACH_AUDIT);
 		if (ret < 0)
-			goto exit_free_meta;
+			goto exit_unref;
 	}
 
 	/*
@@ -1746,34 +1741,20 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		if (IS_ERR(conn->user)) {
 			ret = PTR_ERR(conn->user);
 			conn->user = NULL;
-			goto exit_free_meta;
+			goto exit_unref;
 		}
 	}
 
 	if (atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
-		atomic_dec(&conn->user->connections);
+		/* decremented by destructor as conn->user is valid */
 		ret = -EMFILE;
-		goto exit_domain_user_unref;
+		goto exit_unref;
 	}
 
 	return conn;
 
-exit_domain_user_unref:
-	kdbus_domain_user_unref(conn->user);
-exit_free_meta:
-	kdbus_meta_unref(conn->meta);
-exit_release_names:
-	kdbus_name_remove_by_conn(bus->name_registry, conn);
-	kdbus_ep_unref(conn->ep);
-	kdbus_match_db_free(conn->match_db);
-exit_free_pool:
-	kdbus_pool_free(conn->pool);
-exit_unref_cred:
-	put_cred(conn->cred);
-exit_free_conn:
-	kfree(conn->description);
-	kfree(conn);
-
+exit_unref:
+	kdbus_conn_unref(conn);
 	return ERR_PTR(ret);
 }
 
