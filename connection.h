@@ -120,6 +120,7 @@ struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
 int kdbus_conn_acquire(struct kdbus_conn *conn);
 void kdbus_conn_release(struct kdbus_conn *conn);
+int kdbus_conn_connect(struct kdbus_conn *conn, struct kdbus_cmd_hello *hello);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty);
 bool kdbus_conn_active(const struct kdbus_conn *conn);
 int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,

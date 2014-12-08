@@ -256,9 +256,13 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 		goto exit;
 	}
 
+	ret = kdbus_conn_connect(conn, hello);
+	if (ret < 0)
+		goto exit_conn;
+
 	if (copy_to_user(buf, hello, sizeof(*hello))) {
 		ret = -EFAULT;
-		goto exit_conn_live;
+		goto exit_conn;
 	}
 
 	/* protect against parallel ioctls */
@@ -272,11 +276,11 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 	mutex_unlock(&handle->lock);
 
 	if (ret < 0)
-		goto exit_conn_live;
+		goto exit_conn;
 
 	goto exit;
 
-exit_conn_live:
+exit_conn:
 	kdbus_conn_disconnect(conn, false);
 	kdbus_conn_unref(conn);
 exit:

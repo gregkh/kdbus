@@ -46,7 +46,8 @@
 #include "util.h"
 #include "queue.h"
 
-#define KDBUS_CONN_ACTIVE_BIAS (INT_MIN + 1)
+#define KDBUS_CONN_ACTIVE_BIAS	(INT_MIN + 2)
+#define KDBUS_CONN_ACTIVE_NEW	(INT_MIN + 1)
 
 /**
  * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
@@ -980,14 +981,22 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	struct kdbus_conn_reply *reply, *reply_tmp;
 	struct kdbus_queue_entry *entry, *tmp;
 	LIST_HEAD(reply_list);
+	int v;
 
 	mutex_lock(&conn->lock);
-	if (!kdbus_conn_active(conn)) {
+	v = atomic_read(&conn->active);
+	if (v == KDBUS_CONN_ACTIVE_NEW) {
+		/* was never connected */
+		mutex_unlock(&conn->lock);
+		return 0;
+	}
+	if (v < 0) {
+		/* already dead */
 		mutex_unlock(&conn->lock);
 		return -EALREADY;
 	}
-
 	if (ensure_queue_empty && !list_empty(&conn->queue.msg_list)) {
+		/* still busy */
 		mutex_unlock(&conn->lock);
 		return -EBUSY;
 	}
@@ -1642,7 +1651,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	}
 
 	kref_init(&conn->kref);
-	atomic_set(&conn->active, 0);
+	atomic_set(&conn->active, KDBUS_CONN_ACTIVE_NEW);
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	lockdep_init_map(&conn->dep_map, "s_active", &__key, 0);
 #endif
@@ -1694,15 +1703,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	atomic64_set(&conn->attach_flags_send, attach_flags_send);
 	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
 
-	if (is_activator) {
-		u64 flags = KDBUS_NAME_ACTIVATOR;
-
-		ret = kdbus_name_acquire(bus->name_registry, conn,
-					 name, &flags);
-		if (ret < 0)
-			goto exit_unref_ep;
-	}
-
 	conn->meta = kdbus_meta_new();
 	if (IS_ERR(conn->meta)) {
 		ret = PTR_ERR(conn->meta);
@@ -1750,60 +1750,20 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		}
 	}
 
-	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&bus->lock);
-	mutex_lock(&ep->lock);
-	down_write(&bus->conn_rwlock);
-
 	if (atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
 		atomic_dec(&conn->user->connections);
 		ret = -EMFILE;
-		goto exit_unref_user_unlock;
-	}
-
-	/* make sure the ep-node is active while we add our connection */
-	if (!kdbus_node_acquire(&ep->node)) {
-		atomic_dec(&conn->user->connections);
-		ret = -ESHUTDOWN;
-		goto exit_unref_user_unlock;
-	}
-
-	/* link into monitor list */
-	if (is_monitor)
-		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
-
-	/* link into bus and endpoint */
-	list_add_tail(&conn->ep_entry, &ep->conn_list);
-	hash_add(bus->conn_hash, &conn->hentry, conn->id);
-
-	kdbus_node_release(&ep->node);
-	up_write(&bus->conn_rwlock);
-	mutex_unlock(&ep->lock);
-	mutex_unlock(&bus->lock);
-
-	/* notify subscribers about the new active connection */
-	ret = kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_ADD,
-				     conn->id, conn->flags);
-	if (ret < 0) {
-		atomic_dec(&conn->user->connections);
 		goto exit_domain_user_unref;
 	}
 
-	kdbus_notify_flush(conn->ep->bus);
-
 	return conn;
 
-exit_unref_user_unlock:
-	up_write(&bus->conn_rwlock);
-	mutex_unlock(&ep->lock);
-	mutex_unlock(&bus->lock);
 exit_domain_user_unref:
 	kdbus_domain_user_unref(conn->user);
 exit_free_meta:
 	kdbus_meta_unref(conn->meta);
 exit_release_names:
 	kdbus_name_remove_by_conn(bus->name_registry, conn);
-exit_unref_ep:
 	kdbus_ep_unref(conn->ep);
 	kdbus_match_db_free(conn->match_db);
 exit_free_pool:
@@ -1815,6 +1775,89 @@ exit_free_conn:
 	kfree(conn);
 
 	return ERR_PTR(ret);
+}
+
+/**
+ * kdbus_conn_connect() - introduce a connection to a bus
+ * @conn:		Connection
+ * @hello:		Hello parameters
+ *
+ * This puts life into a kdbus-conn object. A connection to the bus is
+ * established and the peer will be reachable via the bus (if it is an ordinary
+ * connection).
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_conn_connect(struct kdbus_conn *conn, struct kdbus_cmd_hello *hello)
+{
+	struct kdbus_ep *ep = conn->ep;
+	struct kdbus_bus *bus = ep->bus;
+	int ret;
+
+	if (WARN_ON(atomic_read(&conn->active) != KDBUS_CONN_ACTIVE_NEW))
+		return -EALREADY;
+
+	/* make sure the ep-node is active while we add our connection */
+	if (!kdbus_node_acquire(&ep->node))
+		return -ESHUTDOWN;
+
+	/* lock order: domain -> bus -> ep -> names -> conn */
+	mutex_lock(&bus->lock);
+	mutex_lock(&ep->lock);
+	down_write(&bus->conn_rwlock);
+
+	/* link into monitor list */
+	if (kdbus_conn_is_monitor(conn))
+		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
+
+	/* link into bus and endpoint */
+	list_add_tail(&conn->ep_entry, &ep->conn_list);
+	hash_add(bus->conn_hash, &conn->hentry, conn->id);
+
+	/* enable lookups and acquire active ref */
+	atomic_set(&conn->active, 1);
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_acquire_read(&conn->dep_map, 0, 1, _RET_IP_);
+#endif
+
+	up_write(&bus->conn_rwlock);
+	mutex_unlock(&ep->lock);
+	mutex_unlock(&bus->lock);
+
+	kdbus_node_release(&ep->node);
+
+	/* notify subscribers about the new active connection */
+	ret = kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_ADD,
+				     conn->id, conn->flags);
+	if (ret < 0)
+		goto exit_disconnect;
+
+	if (kdbus_conn_is_activator(conn)) {
+		u64 flags = KDBUS_NAME_ACTIVATOR;
+		const char *name;
+
+		name = kdbus_items_get_str(hello->items,
+					   KDBUS_ITEMS_SIZE(hello, items),
+					   KDBUS_ITEM_NAME);
+		if (WARN_ON(!name)) {
+			ret = -EINVAL;
+			goto exit_disconnect;
+		}
+
+		ret = kdbus_name_acquire(bus->name_registry, conn, name,
+					 &flags);
+		if (ret < 0)
+			goto exit_disconnect;
+	}
+
+	kdbus_conn_release(conn);
+	kdbus_notify_flush(bus);
+	return 0;
+
+exit_disconnect:
+	kdbus_conn_release(conn);
+	kdbus_conn_disconnect(conn, false);
+	return ret;
 }
 
 /**
