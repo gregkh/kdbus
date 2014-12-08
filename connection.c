@@ -1106,8 +1106,10 @@ static void __kdbus_conn_free(struct kref *kref)
 	BUG_ON(!list_empty(&conn->names_queue_list));
 	BUG_ON(!list_empty(&conn->reply_list));
 
-	atomic_dec(&conn->user->connections);
-	kdbus_domain_user_unref(conn->user);
+	if (conn->user) {
+		atomic_dec(&conn->user->connections);
+		kdbus_domain_user_unref(conn->user);
+	}
 
 	kdbus_conn_purge_policy_cache(conn);
 	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
