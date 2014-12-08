@@ -443,6 +443,8 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
+	m->res->vec_src_valid = true;
+
 	ret = kdbus_items_validate(m->msg.items,
 				   KDBUS_ITEMS_SIZE(&m->msg, items));
 	if (ret < 0)

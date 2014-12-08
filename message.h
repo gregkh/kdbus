@@ -49,6 +49,7 @@ struct kdbus_msg_resources {
 	struct file **memfds;
 	size_t *memfd_sizes;
 	unsigned int memfds_count;
+	bool vec_src_valid:1;
 };
 
 struct kdbus_msg_resources *

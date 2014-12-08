@@ -195,6 +195,8 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 	off_t pos = 0;
 	int i, ret;
 
+	BUG_ON(!res->vec_src_valid);
+
 	/* do not give out more than half of the remaining space */
 	want = res->vecs_size;
 	have = kdbus_pool_remain(pool);
