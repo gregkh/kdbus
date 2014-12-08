@@ -138,6 +138,9 @@ void kdbus_match_db_free(struct kdbus_match_db *mdb)
 {
 	struct kdbus_match_entry *entry, *tmp;
 
+	if (!mdb)
+		return;
+
 	down_write(&mdb->mdb_rwlock);
 	list_for_each_entry_safe(entry, tmp, &mdb->entries_list, list_entry)
 		kdbus_match_entry_free(entry);
