@@ -267,8 +267,10 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 		struct kdbus_pool_slice *slice;
 
 		slice = kdbus_kmsg_make_vec_slice(kmsg->res, pool);
-		if (IS_ERR(slice))
-			return ERR_CAST(slice);
+		if (IS_ERR(slice)) {
+			ret = PTR_ERR(slice);
+			goto exit_free_entry;
+		}
 
 		entry->slice_vecs = slice;
 	}
@@ -290,6 +292,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 
 exit_free_slice:
 	kdbus_pool_slice_release(entry->slice_vecs);
+exit_free_entry:
 	kdbus_queue_entry_free(entry);
 	return ERR_PTR(ret);
 }
