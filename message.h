@@ -26,7 +26,7 @@
 struct kdbus_msg_vec {
 	off_t off;
 	size_t size;
-	const void __user *src_addr;
+	void __user *src_addr;
 };
 
 /**

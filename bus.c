@@ -21,6 +21,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/uio.h>
 
 #include "bus.h"
 #include "notify.h"
@@ -486,6 +487,8 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
 	u64 flags = cmd_info->flags;
+	struct iovec iov[4];
+	size_t iov_count = 0;
 	int ret;
 
 	name_len = strlen(bus->node.name);
@@ -506,30 +509,29 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
-	if (ret < 0)
-		goto exit;
-
 	item.type = KDBUS_ITEM_MAKE_NAME;
 	item.size = KDBUS_ITEM_HEADER_SIZE + name_len + 1;
 
-	ret = kdbus_pool_slice_copy(slice, sizeof(info), &item,
-				    KDBUS_ITEM_HEADER_SIZE);
-	if (ret < 0)
-		goto exit;
+	iov[0].iov_base = &info;
+	iov[0].iov_len = sizeof(info);
 
-	ret = kdbus_pool_slice_copy(slice,
-				    sizeof(info) + KDBUS_ITEM_HEADER_SIZE,
-				    bus->node.name, name_len + 1);
-	if (ret < 0)
-		goto exit;
+	iov[1].iov_base = &item;
+	iov[1].iov_len = KDBUS_ITEM_HEADER_SIZE;
+
+	iov[2].iov_base = bus->node.name;
+	iov[2].iov_len = name_len + 1;
+
+	iov_count = 3;
 
 	if (meta_items && meta_size) {
-		ret = kdbus_pool_slice_copy(slice, sizeof(info) + name_size,
-					    meta_items, meta_size);
-		if (ret < 0)
-			goto exit;
+		iov[3].iov_base = meta_items;
+		iov[3].iov_len = meta_size;
+		iov_count++;
 	}
+
+	ret = kdbus_pool_slice_copy(slice, 0, iov, iov_count, info.size);
+	if (ret < 0)
+		goto exit;
 
 	/* write back the offset */
 	kdbus_pool_slice_publish(slice, &cmd_info->offset, NULL);

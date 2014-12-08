@@ -23,6 +23,7 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/uio.h>
 
 #include "bus.h"
 #include "connection.h"
@@ -707,67 +708,71 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 				 struct kdbus_name_entry *e,
 				 bool write)
 {
-	const size_t len = sizeof(struct kdbus_name_info);
-	size_t p = *pos;
-	size_t name_item_size = 0;
+	char *zeros = "\0\0\0\0\0\0\0";
+	struct iovec iov[4];
+	size_t iov_count = 0;
+	int ret;
 
-	if (e) {
-		name_item_size = offsetof(struct kdbus_item, name.name) +
-				 KDBUS_ALIGN8(strlen(e->name) + 1);
+	/* info header */
+	struct kdbus_name_info info = {
+		.size = 0,
+		.owner_id = c->id,
+		.conn_flags = c->flags,
+	};
 
-		if (kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
-							      e->name) < 0)
+	/* fake the header of a kdbus_name item */
+	struct {
+		__u64 size;
+		__u64 type;
+		__u64 flags;
+	} h;
+
+	if (e && kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
+							   e->name) < 0)
 			return 0;
+
+	iov[iov_count].iov_base = &info;
+	iov[iov_count].iov_len = sizeof(info);
+	info.size += iov[iov_count].iov_len;
+	iov_count++;
+
+	/* append name */
+	if (e) {
+		size_t pad;
+		size_t slen = strlen(e->name) + 1;
+
+		h.size = offsetof(struct kdbus_item, name.name) +
+			 KDBUS_ALIGN8(strlen(e->name) + 1);
+		h.type = KDBUS_ITEM_OWNED_NAME;
+		h.flags = e->flags;
+
+		iov[iov_count].iov_base = &h;
+		iov[iov_count].iov_len = sizeof(h);
+		info.size += iov[iov_count].iov_len;
+		iov_count++;
+
+		iov[iov_count].iov_base = e->name;
+		iov[iov_count].iov_len = slen;
+		info.size += iov[iov_count].iov_len;
+		iov_count++;
+
+		pad = KDBUS_ALIGN8(slen) - slen;
+		if (pad) {
+			iov[iov_count].iov_base = zeros;
+			iov[iov_count].iov_len = pad;
+			info.size += pad;
+			iov_count++;
+		}
 	}
 
 	if (write) {
-		int ret;
-		struct kdbus_name_info info = {
-			.size = len,
-			.owner_id = c->id,
-			.conn_flags = c->flags,
-		};
-
-		info.size += name_item_size;
-
-		/* write record */
-		ret = kdbus_pool_slice_copy(slice, p, &info, len);
+		ret = kdbus_pool_slice_copy(slice, *pos, iov,
+					    iov_count, info.size);
 		if (ret < 0)
 			return ret;
-		p += len;
-
-		/* append name */
-		if (e) {
-			/* fake the header of a kdbus_name item */
-			struct {
-				__u64 size;
-				__u64 type;
-				__u64 flags;
-			} h;
-			size_t nlen;
-
-			h.size = name_item_size;
-			h.type = KDBUS_ITEM_OWNED_NAME;
-			h.flags = e->flags;
-
-			ret = kdbus_pool_slice_copy(slice, p, &h, sizeof(h));
-			if (ret < 0)
-				return ret;
-
-			p += sizeof(h);
-
-			nlen = name_item_size - sizeof(h);
-			ret = kdbus_pool_slice_copy(slice, p, e->name, nlen);
-			if (ret < 0)
-				return ret;
-
-			p += nlen;
-		}
-	} else {
-		p += len + name_item_size;
 	}
 
-	*pos = p;
+	*pos += info.size;
 	return 0;
 }
 
@@ -870,6 +875,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_policy_db *policy_db;
 	struct kdbus_name_list list = {};
+	struct iovec iov;
 	size_t pos;
 	int ret;
 
@@ -895,7 +901,10 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	/* copy the header, specifying the overall size */
 	list.size = pos;
-	ret = kdbus_pool_slice_copy(slice, 0, &list, sizeof(list));
+	iov.iov_base = &list;
+	iov.iov_len = sizeof(list);
+
+	ret = kdbus_pool_slice_copy(slice, 0, &iov, 1, list.size);
 	if (ret < 0)
 		goto exit_unlock;
 

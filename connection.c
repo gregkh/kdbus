@@ -30,6 +30,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
+#include <linux/uio.h>
 
 #include "bus.h"
 #include "connection.h"
@@ -1314,6 +1315,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_item *meta_items = NULL;
 	struct kdbus_info info = {};
+	struct iovec iov[2];
 	size_t meta_size;
 	u64 attach_flags;
 	int ret = 0;
@@ -1383,11 +1385,13 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	ret = kdbus_pool_slice_copy(slice, 0, &info, sizeof(info));
-	if (ret < 0)
-		goto exit;
+	iov[0].iov_base = &info;
+	iov[0].iov_len = sizeof(info);
 
-	ret = kdbus_pool_slice_copy(slice, sizeof(info), meta_items, meta_size);
+	iov[1].iov_base = meta_items;
+	iov[1].iov_len = meta_size;
+
+	ret = kdbus_pool_slice_copy(slice, 0, iov, 2, info.size);
 	if (ret < 0)
 		goto exit;
 

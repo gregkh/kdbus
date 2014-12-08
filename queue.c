@@ -26,6 +26,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
+#include <linux/uio.h>
 
 #include "util.h"
 #include "domain.h"
@@ -189,11 +190,11 @@ static struct kdbus_pool_slice *
 kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 			  struct kdbus_pool *pool)
 {
-	const char *zeros = "\0\0\0\0\0\0\0";
+	char *zeros = "\0\0\0\0\0\0\0";
 	struct kdbus_pool_slice *slice;
 	size_t want, have;
-	off_t pos = 0;
 	int i, ret;
+	struct iovec *iov;
 
 	BUG_ON(!res->vec_src_valid);
 
@@ -208,26 +209,30 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 	if (IS_ERR(slice))
 		return slice;
 
+	/* FIXME: move this iov to message resources */
+	iov = kcalloc(res->vecs_count, sizeof(*iov), GFP_KERNEL);
+	if (!iov) {
+		ret = -ENOMEM;
+		goto exit_free_slice;
+	}
+
 	for (i = 0; i < res->vecs_count; i++) {
 		struct kdbus_msg_vec *v = res->vecs + i;
-		const void *copy_src;
-		size_t copy_len;
 
 		if (v->off != ~0ULL) {
-			copy_src = v->src_addr;
-			copy_len = v->size;
+			iov[i].iov_base = v->src_addr;
+			iov[i].iov_len = v->size;
 		} else {
-			copy_src = zeros;
-			copy_len = v->size % 8;
+			iov[i].iov_base = zeros;
+			iov[i].iov_len = v->size % 8;
 		}
-
-		ret = kdbus_pool_slice_copy_user(slice, pos,
-						 copy_src, copy_len);
-		if (ret < 0)
-			goto exit_free_slice;
-
-		pos += copy_len;
 	}
+
+	ret = kdbus_pool_slice_copy_user(slice, 0, iov, res->vecs_count,
+					 res->vecs_size);
+	kfree(iov);
+	if (ret < 0)
+		goto exit_free_slice;
 
 	return slice;
 
@@ -404,7 +409,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	struct kdbus_item *meta_items = NULL;
 	struct kdbus_item *items = NULL;
 	off_t payload_off = 0;
-	size_t pos;
+	struct iovec iov[4];
+	size_t iov_count = 0;
 	int ret;
 
 	if (entry->meta) {
@@ -445,25 +451,30 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 	kdbus_pool_slice_set_child(entry->slice, entry->slice_vecs);
 
-	pos = 0;
-	ret = kdbus_pool_slice_copy(entry->slice, pos,
-				    &entry->msg, sizeof(entry->msg));
-	if (ret < 0)
-		goto exit_free_slice;
+	iov[iov_count].iov_base = &entry->msg;
+	iov[iov_count].iov_len = sizeof(entry->msg);
+	iov_count++;
 
-	pos += sizeof(entry->msg);
-	ret = kdbus_pool_slice_copy(entry->slice, pos,
-				    entry->msg_extra, entry->msg_extra_size);
-	if (ret < 0)
-		goto exit_free_slice;
+	if (entry->msg_extra_size) {
+		iov[iov_count].iov_base = entry->msg_extra;
+		iov[iov_count].iov_len = entry->msg_extra_size;
+		iov_count++;
+	}
 
-	pos += entry->msg_extra_size;
-	ret = kdbus_pool_slice_copy(entry->slice, pos, items, items_size);
-	if (ret < 0)
-		goto exit_free_slice;
+	if (items_size) {
+		iov[iov_count].iov_base = items;
+		iov[iov_count].iov_len = items_size;
+		iov_count++;
+	}
 
-	pos += items_size;
-	ret = kdbus_pool_slice_copy(entry->slice, pos, meta_items, meta_size);
+	if (meta_size) {
+		iov[iov_count].iov_base = meta_items;
+		iov[iov_count].iov_len = meta_size;
+		iov_count++;
+	}
+
+	ret = kdbus_pool_slice_copy(entry->slice, 0, iov,
+				    iov_count, entry->msg.size);
 	if (ret < 0)
 		goto exit_free_slice;
 

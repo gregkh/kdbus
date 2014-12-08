@@ -35,9 +35,10 @@ int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
 			  struct kdbus_pool *dst_pool,
 			  struct kdbus_pool_slice **slice);
 ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
-			      const void *data, size_t len);
+			      struct iovec *iov, size_t iov_count,
+			      size_t total_len);
 ssize_t kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice,
-				   size_t off, const void __user *data,
-				   size_t len);
+				   size_t off, struct iovec *iov,
+				   size_t iov_count, size_t total_len);
 
 #endif

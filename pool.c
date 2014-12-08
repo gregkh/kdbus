@@ -25,6 +25,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/uio.h>
 
 #include "pool.h"
 #include "util.h"
@@ -601,43 +602,20 @@ static int kdbus_pool_copy_file(struct page *p, size_t start,
 	return 0;
 }
 
-/* copy data to a page in the receiver's pool */
-static int kdbus_pool_copy_data(struct page *p, size_t start,
-				const void __user *from, size_t count)
-{
-	unsigned long remain;
-	char *kaddr;
-
-	if (fault_in_pages_readable(from, count) < 0)
-		return -EFAULT;
-
-	kaddr = kmap_atomic(p);
-	pagefault_disable();
-	remain = __copy_from_user_inatomic(kaddr + start, from, count);
-	pagefault_enable();
-	kunmap_atomic(kaddr);
-	if (remain > 0)
-		return -EFAULT;
-
-	cond_resched();
-	return 0;
-}
-
 /* copy data to the receiver's pool */
-static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
-			      const void __user *data, struct file *f_src,
-			      size_t off_src, size_t len)
+static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,
+			      struct file *f_src, size_t off_src, size_t len)
 {
 	struct file *f_dst = slice->pool->f;
 	struct inode *i_dst = file_inode(f_dst);
 	struct address_space *mapping = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping->a_ops;
-	unsigned long fpos = slice->off + off;
+	unsigned long fpos = slice->off;
 	unsigned long rem = len;
 	size_t pos = 0;
 	int ret = 0;
 
-	BUG_ON(off + len > slice->size);
+	BUG_ON(fpos + len > slice->size);
 	BUG_ON(slice->free);
 
 	mutex_lock(&i_dst->i_mutex);
@@ -659,11 +637,7 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
 			break;
 		}
 
-		if (data)
-			ret = kdbus_pool_copy_data(p, o, data + pos, n);
-		else
-			ret = kdbus_pool_copy_file(p, o, f_src,
-						   off_src + pos, n);
+		ret = kdbus_pool_copy_file(p, o, f_src, off_src + pos, n);
 		mark_page_accessed(p);
 
 		status = aops->write_end(f_dst, mapping, fpos, n, n, p, fsdata);
@@ -700,9 +674,21 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice, size_t off,
  */
 ssize_t
 kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
-			   const void __user *data, size_t len)
+			   struct iovec *iov, size_t iov_len, size_t total_len)
 {
-	return kdbus_pool_copy(slice, off, data, NULL, 0, len);
+	struct iov_iter iter;
+	struct file *f;
+	struct kiocb kiocb;
+
+	f = slice->pool->f;
+	init_sync_kiocb(&kiocb, f);
+	kiocb.ki_pos = slice->off + off;
+	kiocb.ki_nbytes = total_len;
+	iov_iter_init(&iter, WRITE, iov, iov_len, total_len);
+
+	BUG_ON(off + total_len > slice->size);
+
+	return f->f_op->write_iter(&kiocb, &iter);
 }
 
 /**
@@ -719,18 +705,15 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
-			      const void *data, size_t len)
+			      struct iovec *iov, size_t iov_len,
+			      size_t total_len)
 {
 	mm_segment_t old_fs;
 	ssize_t ret;
 
-	if (!len)
-		return 0;
-
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_copy(slice, off,
-			      (const void __user *)data, NULL, 0, len);
+	ret = kdbus_pool_slice_copy_user(slice, off, iov, iov_len, total_len);
 	set_fs(old_fs);
 
 	return ret;
@@ -764,8 +747,8 @@ int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_copy(slice_new, 0, NULL,
-			      src_pool->f, (*slice)->off, (*slice)->size);
+	ret = kdbus_pool_copy(slice_new, src_pool->f,
+			      (*slice)->off, (*slice)->size);
 	set_fs(old_fs);
 	if (ret < 0)
 		goto exit_free;
