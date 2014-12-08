@@ -21,6 +21,7 @@
  * struct kdbus_msg_vec - Data vec reference as stored by messages
  * @off:	The offset, relative to the vec slice
  * @size:	The number of bytes to store
+ * @src_addr:	Source address in userspace
  */
 struct kdbus_msg_vec {
 	off_t off;
@@ -34,9 +35,12 @@ struct kdbus_msg_vec {
  * @dst_name:		Short-cut to msg for faster lookup
  * @fds:		Array of file descriptors to pass
  * @fds_count:		Number of file descriptors to pass
- * @vecs_size:		Size of PAYLOAD data
+ * @vecs:		Data vecs
  * @vecs_count:		Number of PAYLOAD vectors
+ * @vecs_size:		Size of PAYLOAD data
+ * @memfd_sizes:	Sizes of supplied memfds
  * @memfds_count:	Number of memfds to pass
+ * @vec_src_valid:	Boolean flag indicating the validity of @vecs.src_addr
  */
 struct kdbus_msg_resources {
 	struct kref kref;
