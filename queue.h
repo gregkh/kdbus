@@ -32,16 +32,6 @@ struct kdbus_queue {
 };
 
 /**
- * struct kdbus_queue_vec - Data vec reference as stored by queue entries
- * @off:	The offset, relative to the vec slice
- * @size:	The number of bytes to store
- */
-struct kdbus_queue_vec {
-	off_t off;
-	size_t size;
-};
-
-/**
  * struct kdbus_queue_entry - messages waiting to be read
  * @entry:		Entry in the connection's list
  * @prio_node:		Entry in the priority queue tree
