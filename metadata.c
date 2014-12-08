@@ -277,8 +277,10 @@ static inline void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
 
-	if (data)
+	if (data) {
 		memcpy(item->data, data, len);
+		memzero_explicit(item->data + len, KDBUS_ALIGN8(len) - len);
+	}
 }
 
 /**
