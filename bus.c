@@ -43,7 +43,7 @@ static void kdbus_bus_free(struct kdbus_node *node)
 
 	kdbus_notify_free(bus);
 
-	kdbus_domain_user_unref(bus->user);
+	kdbus_domain_user_unref(bus->creator);
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
@@ -56,7 +56,7 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
 	if (was_active)
-		atomic_dec(&bus->user->buses);
+		atomic_dec(&bus->creator->buses);
 }
 
 /**
@@ -198,10 +198,14 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
-	b->user = kdbus_domain_get_user(domain, uid);
-	if (IS_ERR(b->user)) {
-		ret = PTR_ERR(b->user);
-		b->user = NULL;
+	/*
+	 * Bus-limits of the creator are accounted on its real UID, just like
+	 * all other per-user limits.
+	 */
+	b->creator = kdbus_domain_get_user(domain, current_uid());
+	if (IS_ERR(b->creator)) {
+		ret = PTR_ERR(b->creator);
+		b->creator = NULL;
 		goto exit_unref;
 	}
 
@@ -258,8 +262,8 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 	struct kdbus_ep *ep;
 	int ret;
 
-	if (atomic_inc_return(&bus->user->buses) > KDBUS_USER_MAX_BUSES) {
-		atomic_dec(&bus->user->buses);
+	if (atomic_inc_return(&bus->creator->buses) > KDBUS_USER_MAX_BUSES) {
+		atomic_dec(&bus->creator->buses);
 		return -EMFILE;
 	}
 
@@ -269,7 +273,7 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
 	 * dead.
 	 */
 	if (!kdbus_node_activate(&bus->node)) {
-		atomic_dec(&bus->user->buses);
+		atomic_dec(&bus->creator->buses);
 		return -ESHUTDOWN;
 	}
 

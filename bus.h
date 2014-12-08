@@ -37,7 +37,7 @@
  * @name_registry:	Name registry of this bus
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
- * @user:		Owner of the bus
+ * @creator:		Creator of the bus
  * @policy_db:		Policy database for this bus
  * @notify_list:	List of pending kernel-generated messages
  * @notify_lock:	Notification list lock
@@ -66,7 +66,7 @@ struct kdbus_bus {
 	struct kdbus_name_registry *name_registry;
 	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
-	struct kdbus_domain_user *user;
+	struct kdbus_domain_user *creator;
 	struct kdbus_policy_db policy_db;
 	struct list_head notify_list;
 	spinlock_t notify_lock;
