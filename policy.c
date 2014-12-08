@@ -446,7 +446,6 @@ kdbus_policy_make_access(const struct kdbus_policy_access *uaccess)
 
 		break;
 	case KDBUS_POLICY_ACCESS_WORLD:
-		a->uid = current_uid();
 		break;
 	default:
 		goto err;
