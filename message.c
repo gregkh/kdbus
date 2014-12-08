@@ -200,7 +200,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 
 		res->memfd_sizes = kcalloc(res->memfds_count,
 					   sizeof(size_t), GFP_KERNEL);
-		if (!res->memfds)
+		if (!res->memfd_sizes)
 			return -ENOMEM;
 
 	}
