@@ -41,20 +41,21 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	uint64_t offset = 0;
 	int ret;
 
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn);
+
+	/* register a monitor */
 	monitor = kdbus_hello(env->buspath, KDBUS_HELLO_MONITOR, NULL, 0);
 	ASSERT_RETURN(monitor);
 
-	/* check that we can acquire a name */
+	/* check that a monitor cannot acquire a name */
 	ret = kdbus_name_acquire(monitor, "foo.bar.baz", NULL);
 	ASSERT_RETURN(ret == -EOPNOTSUPP);
-
-	conn = kdbus_hello(env->buspath, 0, NULL, 0);
-	ASSERT_RETURN(conn);
 
 	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0,  0, conn->id);
 	ASSERT_RETURN(ret == 0);
 
-	/* the recipient should have got the message */
+	/* the recipient should have gotten the message */
 	ret = kdbus_msg_recv(conn, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
@@ -63,31 +64,23 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 
 	/* and so should the monitor */
 	ret = kdbus_msg_recv(monitor, &msg, &offset);
+	ret = kdbus_msg_recv(monitor, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
 
 	kdbus_msg_free(msg);
 	kdbus_free(monitor, offset);
 
-	cookie++;
-	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0, 0,
-			     KDBUS_DST_ID_BROADCAST);
-	ASSERT_RETURN(ret == 0);
-
-	/* The monitor did not install matches, this will timeout */
-	ret = kdbus_msg_recv_poll(monitor, 100, NULL, NULL);
-	ASSERT_RETURN(ret == -ETIMEDOUT);
-
-	/* Install empty match for monitor */
+	/* Installing matches for monitors must fais must fail */
 	ret = kdbus_add_match_empty(monitor);
-	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(ret == -EOPNOTSUPP);
 
 	cookie++;
 	ret = kdbus_msg_send(env->conn, NULL, cookie, 0, 0, 0,
 			     KDBUS_DST_ID_BROADCAST);
 	ASSERT_RETURN(ret == 0);
 
-	/* The monitor should get the message now. */
+	/* The monitor should get the message. */
 	ret = kdbus_msg_recv_poll(monitor, 100, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);

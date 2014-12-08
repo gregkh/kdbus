@@ -441,15 +441,6 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 	down_read(&bus->conn_rwlock);
 	list_for_each_entry(conn_dst, &bus->monitors_list, monitor_entry) {
 		/*
-		 * Check if there is a match for the kmsg object in
-		 * the destination connection match db for broadcasts.
-		 */
-		if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST &&
-		    !kdbus_match_db_match_kmsg(conn_dst->match_db, conn_src,
-					       kmsg))
-			continue;
-
-		/*
 		 * Collect metadata requested by the destination connection.
 		 * Ignore errors, as receivers need to check metadata
 		 * availability, anyway. So it's still better to send messages
