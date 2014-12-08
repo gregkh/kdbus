@@ -60,6 +60,7 @@ static void __kdbus_msg_resources_free(struct kref *kref)
 	kdbus_fput_files(r->fds, r->fds_count);
 	kfree(r->dst_name);
 	kfree(r->memfds);
+	kfree(r->memfd_sizes);
 	kfree(r->vecs);
 	kfree(r->fds);
 	kfree(r);
