@@ -1183,8 +1183,10 @@ int kdbus_add_match_empty(struct kdbus_conn *conn)
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
-	if (ret < 0)
+	if (ret < 0) {
 		kdbus_printf("--- error adding conn match: %d (%m)\n", ret);
+		ret = -errno;
+	}
 
 	return ret;
 }
