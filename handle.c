@@ -103,11 +103,11 @@ static int handle_ep_open(struct inode *inode, struct file *file)
 	 * custom policy and either:
 	 *   * the user has CAP_IPC_OWNER in the domain user namespace
 	 * or
-	 *   * the callers fsuid matches the uid of the bus creator
+	 *   * the callers euid matches the uid of the bus creator
 	 */
 	if (!handle->ep->has_policy &&
 	    (ns_capable(domain->user_namespace, CAP_IPC_OWNER) ||
-	     uid_eq(file->f_cred->fsuid, bus->node.uid)))
+	     uid_eq(file->f_cred->euid, bus->node.uid)))
 		handle->privileged = true;
 
 	file->private_data = handle;
@@ -182,7 +182,7 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	ep = kdbus_ep_new(handle->ep->bus, name,
 			  make->flags & (KDBUS_MAKE_ACCESS_WORLD |
 			                 KDBUS_MAKE_ACCESS_GROUP),
-			  current_fsuid(), current_fsgid(), true);
+			  current_euid(), current_egid(), true);
 	if (IS_ERR(ep)) {
 		ret = PTR_ERR(ep);
 		goto exit;
@@ -907,7 +907,7 @@ static int handle_control_ioctl_bus_make(struct file *file,
 	if (ret < 0)
 		goto exit;
 
-	bus = kdbus_bus_new(domain, make, current_fsuid(), current_fsgid());
+	bus = kdbus_bus_new(domain, make, current_euid(), current_egid());
 	if (IS_ERR(bus)) {
 		ret = PTR_ERR(bus);
 		goto exit;
