@@ -1732,12 +1732,15 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	/*
 	 * Account the connection against the current user (UID), or for
 	 * custom endpoints use the anonymous user assigned to the endpoint.
+	 * Note that limits are always accounted against the real UID, not
+	 * the effective UID (cred->user always points to the accounting of
+	 * cred->uid, not cred->euid).
 	 */
 	if (ep->user) {
 		conn->user = kdbus_domain_user_ref(ep->user);
 	} else {
 		conn->user = kdbus_domain_get_user(ep->bus->domain,
-						   current_fsuid());
+						   current_uid());
 		if (IS_ERR(conn->user)) {
 			ret = PTR_ERR(conn->user);
 			conn->user = NULL;
