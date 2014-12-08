@@ -221,8 +221,8 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 			copy_len = v->size % 8;
 		}
 
-		ret = kdbus_pool_slice_copy(slice, pos,
-					    copy_src, copy_len);
+		ret = kdbus_pool_slice_copy_user(slice, pos,
+						 copy_src, copy_len);
 		if (ret < 0)
 			goto exit_free_slice;
 
