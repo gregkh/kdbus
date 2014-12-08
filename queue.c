@@ -516,6 +516,7 @@ int kdbus_queue_entry_move(struct kdbus_conn *conn_src,
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
 	kdbus_msg_resources_unref(entry->msg_res);
+	kdbus_meta_unref(entry->meta);
 	kfree(entry);
 }
 
