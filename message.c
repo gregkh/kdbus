@@ -286,6 +286,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 
 		case KDBUS_ITEM_FDS: {
 			unsigned int i;
+			unsigned int fds_count = payload_size / sizeof(int);
 
 			/* do not allow multiple fd arrays */
 			if (has_fds)
@@ -296,17 +297,15 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
 				return -ENOTUNIQ;
 
-			res->fds_count = payload_size / sizeof(int);
-
-			if (res->fds_count > KDBUS_MSG_MAX_FDS)
+			if (fds_count > KDBUS_MSG_MAX_FDS)
 				return -EMFILE;
 
-			res->fds = kcalloc(res->fds_count, sizeof(int),
+			res->fds = kcalloc(fds_count, sizeof(struct file *),
 					   GFP_KERNEL);
 			if (!res->fds)
 				return -ENOMEM;
 
-			for (i = 0; i < res->fds_count; i++) {
+			for (i = 0; i < fds_count; i++) {
 				int fd = item->fds[i];
 				int ret;
 
@@ -320,6 +319,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				res->fds[i] = fget_raw(fd);
 				if (!res->fds[i])
 					return -EBADF;
+
+				res->fds_count++;
 
 				ret = kdbus_handle_check_file(res->fds[i]);
 				if (ret < 0)
