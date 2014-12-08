@@ -315,37 +315,38 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 	if (res->dst_name)
 		size += KDBUS_ITEM_SIZE(strlen(res->dst_name) + 1);
 
-	items = (struct kdbus_item *) kzalloc(size, GFP_KERNEL);
+	items = (struct kdbus_item *) kmalloc(size, GFP_KERNEL);
 	if (!items)
 		return ERR_PTR(-ENOMEM);
 
 	item = items;
 
 	if (res->dst_name) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     strlen(res->dst_name) + 1;
-		item->type = KDBUS_ITEM_DST_NAME;
-		strcpy(item->str, res->dst_name);
+		kdbus_meta_write_item(item, KDBUS_ITEM_DST_NAME,
+				      res->dst_name, strlen(res->dst_name) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	for (i = 0; i < res->vecs_count; i++) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     sizeof(struct kdbus_vec);
-		item->type = KDBUS_ITEM_PAYLOAD_OFF;
-		item->vec.offset = res->vecs[i].off;
-		if (res->vecs[i].off != ~0ULL)
-			item->vec.offset += payload_off;
-		item->vec.size = res->vecs[i].size;
+		struct kdbus_vec v;
+
+		v.offset = res->vecs[i].off;
+		if (v.offset != ~0ULL)
+			v.offset += payload_off;
+		v.size = res->vecs[i].size;
+
+		kdbus_meta_write_item(item, KDBUS_ITEM_PAYLOAD_OFF,
+				      &v, sizeof(v));
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	for (i = 0; i < res->memfds_count; i++) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     sizeof(struct kdbus_memfd);
-		item->type = KDBUS_ITEM_PAYLOAD_MEMFD;
-		item->memfd.size = res->memfd_sizes[i];
+		struct kdbus_memfd m = {
+			.size = res->memfd_sizes[i],
+		};
 
+		kdbus_meta_write_item(item, KDBUS_ITEM_PAYLOAD_MEMFD,
+				      &m, sizeof(m));
 		if (install_fds) {
 			item->memfd.fd = get_unused_fd_flags(O_CLOEXEC);
 			if (item->memfd.fd >= 0)
@@ -359,10 +360,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 	}
 
 	if (res->fds_count) {
-		item->size = KDBUS_ITEM_HEADER_SIZE +
-			     (sizeof(int) * res->fds_count);
-		item->type = KDBUS_ITEM_FDS;
-
+		kdbus_meta_write_item(item, KDBUS_ITEM_FDS,
+				      NULL, (sizeof(int) * res->fds_count));
 		for (i = 0; i < res->fds_count; i++) {
 			if (install_fds) {
 				item->fds[i] = get_unused_fd_flags(O_CLOEXEC);
