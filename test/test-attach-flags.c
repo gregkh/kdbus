@@ -19,6 +19,7 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
+
 static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 					uint64_t attach_flags_send,
 					uint64_t attach_flags_recv)
@@ -86,7 +87,7 @@ static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 	return conn;
 }
 
-static int kdbus_bus_peer_flags(struct kdbus_test_env *env)
+static int kdbus_test_peers_creation(struct kdbus_test_env *env)
 {
 	int ret;
 	int control_fd;
@@ -120,7 +121,7 @@ static int kdbus_bus_peer_flags(struct kdbus_test_env *env)
 	control_fd = open(control_path, O_RDWR);
 	ASSERT_RETURN(control_fd >= 0);
 
-	busname = unique_name("test-peer-flags-bus");
+	busname = unique_name("test-peers-creation-bus");
 	ASSERT_RETURN(busname);
 
 	ret = kdbus_create_bus(control_fd, busname, _KDBUS_ATTACH_ALL,
@@ -257,6 +258,97 @@ static int kdbus_bus_peer_flags(struct kdbus_test_env *env)
 	return 0;
 }
 
+static int kdbus_test_peers_info(struct kdbus_test_env *env)
+{
+	int ret;
+	int control_fd;
+	char *path;
+	char *busname;
+	unsigned int i = 0;
+	uint64_t offset = 0;
+	char buspath[2048];
+	char control_path[2048];
+	uint64_t attach_flags_mask;
+	struct kdbus_item *item;
+	struct kdbus_info *info;
+	struct kdbus_conn *conn;
+	struct kdbus_conn *reader;
+	unsigned long long attach_count = 0;
+
+	snprintf(control_path, sizeof(control_path),
+		 "%s/control", env->root);
+
+	attach_flags_mask = 0;
+	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+					     attach_flags_mask);
+	ASSERT_RETURN(ret == 0);
+
+	control_fd = open(control_path, O_RDWR);
+	ASSERT_RETURN(control_fd >= 0);
+
+	busname = unique_name("test-peers-info-bus");
+	ASSERT_RETURN(busname);
+
+	ret = kdbus_create_bus(control_fd, busname, _KDBUS_ATTACH_ALL,
+			       &path);
+	ASSERT_RETURN(ret == 0);
+
+	snprintf(buspath, sizeof(buspath), "%s/%s/bus", env->root, path);
+
+	/* Create connections with the appropriate flags */
+	conn = __kdbus_hello(buspath, 0, _KDBUS_ATTACH_ALL, 0);
+	ASSERT_RETURN(conn);
+
+	reader = __kdbus_hello(buspath, 0, _KDBUS_ATTACH_ALL, 0);
+	ASSERT_RETURN(reader);
+
+	ret = kdbus_info(reader, conn->id, NULL,
+			 _KDBUS_ATTACH_ALL, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(reader->buf + offset);
+	ASSERT_RETURN(info->id == conn->id);
+
+	/* all attach flags are masked, no metadata */
+	KDBUS_ITEM_FOREACH(item, info, items)
+		i++;
+
+	ASSERT_RETURN(i == 0);
+
+	kdbus_free(reader, offset);
+
+	/* Set the mask to _KDBUS_ATTACH_ANY */
+	attach_flags_mask = _KDBUS_ATTACH_ANY;
+	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+					     attach_flags_mask);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_info(reader, conn->id, NULL,
+			 _KDBUS_ATTACH_ALL, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(reader->buf + offset);
+	ASSERT_RETURN(info->id == conn->id);
+
+	attach_count = 0;
+	KDBUS_ITEM_FOREACH(item, info, items)
+		    attach_count += item->type;
+
+	/*
+	 * All flags have been returned except for:
+	 * KDBUS_ITEM_TIMESTAMP and
+	 * KDBUS_ITEM_NAMES we do not own any name.
+	 */
+	ASSERT_RETURN(attach_count == (KDBUS_ATTACH_ITEMS_TYPE_SUM -
+				       KDBUS_ITEM_OWNED_NAME -
+				       KDBUS_ITEM_TIMESTAMP));
+
+	kdbus_conn_free(conn);
+	kdbus_conn_free(reader);
+
+	return 0;
+}
+
 int kdbus_test_attach_flags(struct kdbus_test_env *env)
 {
 	int ret;
@@ -276,10 +368,17 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/*
-	 * Test the bus peer attach flags
+	 * Test the connection creation attach flags
 	 */
-	ret = kdbus_bus_peer_flags(env);
+	ret = kdbus_test_peers_creation(env);
 	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * Test the CONN_INFO ioctl attach flags
+	 */
+	ret = kdbus_test_peers_info(env);
+	ASSERT_RETURN(ret == 0);
+
 
 	/* Restore previous kdbus mask */
 	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
