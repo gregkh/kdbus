@@ -220,10 +220,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 		case KDBUS_ITEM_PAYLOAD_VEC: {
 			struct kdbus_msg_vec *v = res->vecs + res->vecs_count;
 
-			if (res->vecs_size + item->vec.size <= res->vecs_size)
-				return -EMSGSIZE;
-
-			if (res->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+			if (res->vecs_size + item->vec.size <= res->vecs_size ||
+			    res->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
 
 			v->src_addr = KDBUS_PTR(item->vec.address);
