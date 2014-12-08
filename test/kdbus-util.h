@@ -31,6 +31,15 @@
 	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;	\
 	     item = KDBUS_ITEM_NEXT(item))
 
+
+#define _KDBUS_ATTACH_BITS_SET_NR  (__builtin_popcountll(_KDBUS_ATTACH_ALL))
+
+#define KDBUS_ATTACH_ITEMS_TYPE_SUM \
+	((((_KDBUS_ATTACH_BITS_SET_NR - 1) * \
+	((_KDBUS_ATTACH_BITS_SET_NR - 1) + 1)) / 2 ) + \
+	(_KDBUS_ITEM_ATTACH_BASE * _KDBUS_ATTACH_BITS_SET_NR))
+
+
 #define POOL_SIZE (16 * 1024LU * 1024LU)
 
 #define UNPRIV_UID 65534
