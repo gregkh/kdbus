@@ -438,7 +438,7 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;
-		goto exit_free_slice;
+		goto exit_free_items;
 	}
 
 	kdbus_pool_slice_set_child(entry->slice, entry->slice_vecs);
@@ -472,10 +472,10 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 exit_free_slice:
 	kdbus_pool_slice_release(entry->slice);
-
+exit_free_items:
+	kfree(items);
 exit_free_meta:
 	kfree(meta_items);
-	kfree(items);
 
 	return ret;
 }
