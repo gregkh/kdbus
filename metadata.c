@@ -271,18 +271,6 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 	return 0;
 }
 
-static inline void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
-					 const void *data, size_t len)
-{
-	item->type = type;
-	item->size = KDBUS_ITEM_HEADER_SIZE + len;
-
-	if (data) {
-		memcpy(item->data, data, len);
-		memzero_explicit(item->data + len, KDBUS_ALIGN8(len) - len);
-	}
-}
-
 /**
  * kdbus_meta_collect() - collect metadata from current process
  * @meta:		Metadata object

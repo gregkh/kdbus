@@ -37,5 +37,6 @@ int kdbus_items_validate(const struct kdbus_item *items, size_t items_size);
 const char *kdbus_items_get_str(const struct kdbus_item *items,
 				size_t items_size,
 				unsigned int item_type);
-
+void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
+			   const void *data, size_t len);
 #endif

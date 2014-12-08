@@ -256,3 +256,24 @@ const char *kdbus_items_get_str(const struct kdbus_item *items,
 
 	return n;
 }
+
+/**
+ * kdbus_meta_write_item() - Set item content
+ * @item:	The item to modify
+ * @type:	The item type to set (KDBUS_ITEM_*)
+ * @data:	Data to copy to item->data, may be %NULL
+ * @len:	Number of bytes in @data
+ */
+void kdbus_meta_write_item(struct kdbus_item *item, u64 type,
+			   const void *data, size_t len)
+{
+	item->type = type;
+	item->size = KDBUS_ITEM_HEADER_SIZE + len;
+
+	if (data) {
+		memcpy(item->data, data, len);
+		memzero_explicit(item->data + len, KDBUS_ALIGN8(len) - len);
+	} else {
+		memzero_explicit(item->data, len);
+	}
+}
