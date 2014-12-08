@@ -482,17 +482,18 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 {
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
-	size_t meta_size, name_size, name_len;
+	size_t meta_size, name_len;
+	char *zeros = "\0\0\0\0\0\0\0";
 	struct kdbus_item *meta_items;
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
 	u64 flags = cmd_info->flags;
-	struct iovec iov[4];
+	struct iovec iov[5];
 	size_t iov_count = 0;
+	size_t pad;
 	int ret;
 
-	name_len = strlen(bus->node.name);
-	name_size = KDBUS_ITEM_SIZE(name_len + 1);
+	name_len = strlen(bus->node.name) + 1;
 
 	meta_items = kdbus_meta_export(bus->meta, flags, &meta_size);
 	if (IS_ERR(meta_items))
@@ -500,7 +501,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 
 	info.id = bus->id;
 	info.flags = bus->bus_flags;
-	info.size = sizeof(info) + name_size + meta_size;
+	info.size = sizeof(info) + KDBUS_ITEM_SIZE(name_len) + meta_size;
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
@@ -510,7 +511,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	}
 
 	item.type = KDBUS_ITEM_MAKE_NAME;
-	item.size = KDBUS_ITEM_HEADER_SIZE + name_len + 1;
+	item.size = KDBUS_ITEM_HEADER_SIZE + name_len;
 
 	iov[0].iov_base = &info;
 	iov[0].iov_len = sizeof(info);
@@ -519,9 +520,16 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	iov[1].iov_len = KDBUS_ITEM_HEADER_SIZE;
 
 	iov[2].iov_base = bus->node.name;
-	iov[2].iov_len = name_len + 1;
+	iov[2].iov_len = name_len;
 
 	iov_count = 3;
+
+	pad = KDBUS_ALIGN8(name_len) - name_len;
+	if (pad) {
+		iov[iov_count].iov_base = zeros;
+		iov[iov_count].iov_len = pad;
+		iov_count++;
+	}
 
 	if (meta_items && meta_size) {
 		iov[3].iov_base = meta_items;
