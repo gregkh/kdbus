@@ -914,7 +914,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	if (ret < 0)
 		goto exit_unlock;
 
-	kdbus_pool_slice_publish(slice, &cmd->offset, NULL);
+	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->size);
 	ret = 0;
 
 exit_unlock:

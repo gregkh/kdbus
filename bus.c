@@ -533,7 +533,8 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 		goto exit;
 
 	/* write back the offset */
-	kdbus_pool_slice_publish(slice, &cmd_info->offset, NULL);
+	kdbus_pool_slice_publish(slice, &cmd_info->offset,
+				 &cmd_info->info_size);
 	ret = 0;
 
 exit:

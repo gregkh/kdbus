@@ -1357,7 +1357,6 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 			goto exit;
 	}
 
-	info.size = sizeof(info);
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
@@ -1376,7 +1375,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	info.size += meta_size;
+	info.size = sizeof(info) + meta_size;
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
@@ -1396,7 +1395,8 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		goto exit;
 
 	/* write back the offset */
-	kdbus_pool_slice_publish(slice, &cmd_info->offset, NULL);
+	kdbus_pool_slice_publish(slice, &cmd_info->offset,
+				 &cmd_info->info_size);
 	ret = 0;
 
 exit:
