@@ -519,6 +519,7 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
 	kdbus_msg_resources_unref(entry->msg_res);
 	kdbus_meta_unref(entry->meta);
+	kfree(entry->msg_extra);
 	kfree(entry);
 }
 
