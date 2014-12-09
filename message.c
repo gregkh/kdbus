@@ -258,11 +258,14 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			struct kdbus_msg_data *d = res->data + res->data_count;
+			u64 start = item->memfd.start;
 			u64 size = item->memfd.size;
 			int seals, mask;
 			struct file *f;
 
 			if (res->pool_size + size % 8 < res->pool_size)
+				return -EMSGSIZE;
+			if (start + size < start)
 				return -EMSGSIZE;
 
 			if (item->memfd.fd < 0)
@@ -277,6 +280,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 
 			d->type = KDBUS_MSG_DATA_MEMFD;
 			d->size = size;
+			d->memfd.start = start;
 			d->memfd.file = f;
 
 			/* memfd-alignment affects following VECs */
@@ -297,7 +301,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if ((seals & mask) != mask)
 				return -ETXTBSY;
 
-			if (size > i_size_read(file_inode(f)))
+			if (start + size > (u64)i_size_read(file_inode(f)))
 				return -EBADF;
 
 			break;

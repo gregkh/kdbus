@@ -359,6 +359,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 			break;
 
 		case KDBUS_MSG_DATA_MEMFD:
+			m.start = d->memfd.start;
 			m.size = d->size;
 			m.fd = -1;
 			if (install_fds) {

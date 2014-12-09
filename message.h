@@ -44,6 +44,7 @@ struct kdbus_msg_data {
 			void __user *src_addr;
 		} vec;
 		struct {
+			u64 start;
 			struct file *file;
 		} memfd;
 	};

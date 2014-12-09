@@ -183,7 +183,8 @@ struct kdbus_bloom_filter {
 
 /**
  * struct kdbus_memfd - a kdbus memfd
- * @size:		The memfd's size
+ * @start:		The offset into the memfd where the segment starts
+ * @size:		The size of the memfd segment
  * @fd:			The file descriptor number
  * @__pad:		Padding to ensure proper alignment and size
  *
@@ -191,6 +192,7 @@ struct kdbus_bloom_filter {
  *   KDBUS_ITEM_PAYLOAD_MEMFD
  */
 struct kdbus_memfd {
+	__u64 start;
 	__u64 size;
 	int fd;
 	__u32 __pad;
