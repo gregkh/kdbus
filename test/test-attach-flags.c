@@ -303,8 +303,8 @@ static int kdbus_test_peers_info(struct kdbus_test_env *env)
 	reader = __kdbus_hello(buspath, 0, _KDBUS_ATTACH_ALL, 0);
 	ASSERT_RETURN(reader);
 
-	ret = kdbus_info(reader, conn->id, NULL,
-			 _KDBUS_ATTACH_ALL, &offset);
+	ret = kdbus_conn_info(reader, conn->id, NULL,
+			      _KDBUS_ATTACH_ALL, &offset);
 	ASSERT_RETURN(ret == 0);
 
 	info = (struct kdbus_info *)(reader->buf + offset);
@@ -324,8 +324,8 @@ static int kdbus_test_peers_info(struct kdbus_test_env *env)
 					     attach_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_info(reader, conn->id, NULL,
-			 _KDBUS_ATTACH_ALL, &offset);
+	ret = kdbus_conn_info(reader, conn->id, NULL,
+			      _KDBUS_ATTACH_ALL, &offset);
 	ASSERT_RETURN(ret == 0);
 
 	info = (struct kdbus_info *)(reader->buf + offset);

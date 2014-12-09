@@ -220,8 +220,8 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 	valid_flags_set = valid_flags & kdbus_flags_mask;
 	invalid_flags_set = invalid_flags & kdbus_flags_mask;
 
-	ret = kdbus_info(env->conn, env->conn->id, NULL,
-			 valid_flags, &offset);
+	ret = kdbus_conn_info(env->conn, env->conn->id, NULL,
+			      valid_flags, &offset);
 	ASSERT_RETURN(ret == 0);
 
 	info = (struct kdbus_info *)(env->conn->buf + offset);
@@ -246,7 +246,7 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 	privileged = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(privileged);
 
-	ret = kdbus_info(conn, conn->id, NULL, valid_flags, &offset);
+	ret = kdbus_conn_info(conn, conn->id, NULL, valid_flags, &offset);
 	ASSERT_RETURN(ret == 0);
 
 	info = (struct kdbus_info *)(conn->buf + offset);
@@ -290,7 +290,7 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 	ret = kdbus_name_acquire(conn, "com.example.a", NULL);
 	ASSERT_RETURN(ret >= 0);
 
-	ret = kdbus_info(conn, conn->id, NULL, valid_flags, &offset);
+	ret = kdbus_conn_info(conn, conn->id, NULL, valid_flags, &offset);
 	ASSERT_RETURN(ret == 0);
 
 	info = (struct kdbus_info *)(conn->buf + offset);
@@ -305,7 +305,7 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 
 	kdbus_free(conn, offset);
 
-	ret = kdbus_info(conn, 0, "com.example.a", valid_flags, &offset);
+	ret = kdbus_conn_info(conn, 0, "com.example.a", valid_flags, &offset);
 	ASSERT_RETURN(ret == 0);
 
 	info = (struct kdbus_info *)(conn->buf + offset);
@@ -318,8 +318,8 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 		goto continue_test;
 
 	ret = RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_GID, ({
-		ret = kdbus_info(conn, conn->id, NULL,
-				 valid_flags, &offset);
+		ret = kdbus_conn_info(conn, conn->id, NULL,
+				      valid_flags, &offset);
 		ASSERT_EXIT(ret == 0);
 
 		info = (struct kdbus_info *)(conn->buf + offset);
@@ -361,8 +361,8 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 		 * Use invalid_flags and make sure that userspace
 		 * do not play with us.
 		 */
-		ret = kdbus_info(conn, conn->id, NULL,
-				 invalid_flags, &offset);
+		ret = kdbus_conn_info(conn, conn->id, NULL,
+				      invalid_flags, &offset);
 		ASSERT_EXIT(ret == 0);
 
 		/*
@@ -420,7 +420,7 @@ continue_test:
 	ret = kdbus_name_acquire(conn, "com.example.b", NULL);
 	ASSERT_RETURN(ret >= 0);
 
-	ret = kdbus_info(conn, conn->id, NULL, valid_flags, &offset);
+	ret = kdbus_conn_info(conn, conn->id, NULL, valid_flags, &offset);
 	ASSERT_RETURN(ret == 0);
 
 	info = (struct kdbus_info *)(conn->buf + offset);
@@ -458,7 +458,7 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	buf.cmd_info.flags = 0;
 	buf.cmd_info.id = env->conn->id;
 
-	ret = kdbus_info(env->conn, env->conn->id, NULL, 0, NULL);
+	ret = kdbus_conn_info(env->conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* try to pass a name that is longer than the buffer's size */
@@ -472,7 +472,7 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
 	/* Pass a non existent name */
-	ret = kdbus_info(env->conn, 0, "non.existent.name", 0, NULL);
+	ret = kdbus_conn_info(env->conn, 0, "non.existent.name", 0, NULL);
 	ASSERT_RETURN(ret == -ESRCH);
 
 	/* Test for caps here, so we run the previous test */

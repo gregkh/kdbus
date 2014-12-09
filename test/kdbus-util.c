@@ -326,9 +326,9 @@ int kdbus_bus_creator_info(struct kdbus_conn *conn,
 	return 0;
 }
 
-int kdbus_info(struct kdbus_conn *conn, uint64_t id,
-	       const char *name, uint64_t flags,
-	       uint64_t *offset)
+int kdbus_conn_info(struct kdbus_conn *conn, uint64_t id,
+		    const char *name, uint64_t flags,
+		    uint64_t *offset)
 {
 	struct kdbus_cmd_info *cmd;
 	size_t size = sizeof(*cmd);

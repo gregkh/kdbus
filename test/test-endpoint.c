@@ -274,10 +274,10 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ret = kdbus_msg_recv(ep_conn, NULL, NULL);
 	ASSERT_RETURN(ret == -EAGAIN);
 
-	ret = kdbus_info(ep_conn, 0, name, 0, NULL);
+	ret = kdbus_conn_info(ep_conn, 0, name, 0, NULL);
 	ASSERT_RETURN(ret == -ENOENT);
 
-	ret = kdbus_info(ep_conn, env->conn->id, NULL, 0, NULL);
+	ret = kdbus_conn_info(ep_conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == -ENOENT);
 
 	/* Check that the reader did not receive anything */
@@ -312,10 +312,10 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 
 	kdbus_msg_free(msg);
 
-	ret = kdbus_info(ep_conn, 0, name, 0, NULL);
+	ret = kdbus_conn_info(ep_conn, 0, name, 0, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_info(ep_conn, env->conn->id, NULL, 0, NULL);
+	ret = kdbus_conn_info(ep_conn, env->conn->id, NULL, 0, NULL);
 	ASSERT_RETURN(ret == 0);
 
 	/* If we have privileges test custom endpoints */
