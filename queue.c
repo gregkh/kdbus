@@ -192,14 +192,12 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 {
 	char *zeros = "\0\0\0\0\0\0\0";
 	struct kdbus_pool_slice *slice;
-	size_t want, have;
-	int i, ret;
+	size_t i, n, want, have;
 	struct iovec *iov;
-
-	BUG_ON(!res->vec_src_valid);
+	int ret;
 
 	/* do not give out more than half of the remaining space */
-	want = res->vecs_size;
+	want = res->pool_size;
 	have = kdbus_pool_remain(pool);
 	if (want < have && want > have / 2)
 		return ERR_PTR(-EXFULL);
@@ -210,26 +208,35 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 		return slice;
 
 	/* FIXME: move this iov to message resources */
-	iov = kcalloc(res->vecs_count, sizeof(*iov), GFP_KERNEL);
+	iov = kcalloc(res->vec_count, sizeof(*iov), GFP_KERNEL);
 	if (!iov) {
 		ret = -ENOMEM;
 		goto exit_free_slice;
 	}
 
-	for (i = 0; i < res->vecs_count; i++) {
-		struct kdbus_msg_vec *v = res->vecs + i;
+	n = 0;
+	for (i = 0; i < res->data_count; i++) {
+		struct kdbus_msg_data *d = res->data + i;
 
-		if (v->off != ~0ULL) {
-			iov[i].iov_base = v->src_addr;
-			iov[i].iov_len = v->size;
-		} else {
-			iov[i].iov_base = zeros;
-			iov[i].iov_len = v->size % 8;
+		switch (d->type) {
+		case KDBUS_MSG_DATA_VEC:
+			if (d->vec.off != ~0ULL) {
+				iov[n].iov_base = d->vec.src_addr;
+				iov[n].iov_len = d->size;
+			} else {
+				iov[n].iov_base = zeros;
+				iov[n].iov_len = d->size % 8;
+			}
+			++n;
+			break;
+
+		default:
+			break;
 		}
 	}
 
-	ret = kdbus_pool_slice_copy_user(slice, 0, iov, res->vecs_count,
-					 res->vecs_size);
+	ret = kdbus_pool_slice_copy_user(slice, 0, iov, res->vec_count,
+					 res->pool_size);
 	kfree(iov);
 	if (ret < 0)
 		goto exit_free_slice;
@@ -268,7 +275,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 	entry->meta = kdbus_meta_ref(kmsg->meta);
 	memcpy(&entry->msg, msg, sizeof(*msg));
 
-	if (kmsg->res && kmsg->res->vecs_size) {
+	if (kmsg->res && kmsg->res->vec_count) {
 		struct kdbus_pool_slice *slice;
 
 		slice = kdbus_kmsg_make_vec_slice(kmsg->res, pool);
@@ -307,12 +314,11 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 		     off_t payload_off, bool install_fds, size_t *out_size)
 {
 	struct kdbus_item *items, *item;
-	size_t size = 0;
-	int i;
+	size_t i, size = 0;
 
 	/* sum up how much space we need for the 'control' part */
-	size += res->vecs_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-	size += res->memfds_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+	size += res->vec_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+	size += res->memfd_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 
 	if (res->fds_count)
 		size += KDBUS_ITEM_SIZE(sizeof(int) * res->fds_count);
@@ -332,34 +338,38 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
-	for (i = 0; i < res->vecs_count; i++) {
-		struct kdbus_vec v;
+	for (i = 0; i < res->data_count; ++i) {
+		struct kdbus_msg_data *d = res->data + i;
+		struct kdbus_memfd m = { };
+		struct kdbus_vec v = { };
 
-		v.offset = res->vecs[i].off;
-		if (v.offset != ~0ULL)
-			v.offset += payload_off;
-		v.size = res->vecs[i].size;
+		switch (d->type) {
+		case KDBUS_MSG_DATA_VEC:
+			v.size = d->size;
+			v.offset = d->vec.off;
+			if (v.offset != ~0ULL)
+				v.offset += payload_off;
 
-		kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_OFF, &v, sizeof(v));
-		item = KDBUS_ITEM_NEXT(item);
-	}
+			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_OFF, &v,
+				       sizeof(v));
+			item = KDBUS_ITEM_NEXT(item);
+			break;
 
-	for (i = 0; i < res->memfds_count; i++) {
-		struct kdbus_memfd m = {
-			.size = res->memfd_sizes[i],
-		};
+		case KDBUS_MSG_DATA_MEMFD:
+			m.size = d->size;
+			m.fd = -1;
+			if (install_fds) {
+				m.fd = get_unused_fd_flags(O_CLOEXEC);
+				if (m.fd >= 0)
+					fd_install(m.fd,
+						   get_file(d->memfd.file));
+			}
 
-		kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD, &m, sizeof(m));
-		if (install_fds) {
-			item->memfd.fd = get_unused_fd_flags(O_CLOEXEC);
-			if (item->memfd.fd >= 0)
-				fd_install(item->memfd.fd,
-					   get_file(res->memfds[i]));
-		} else {
-			item->memfd.fd = -1;
+			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD, &m,
+				       sizeof(m));
+			item = KDBUS_ITEM_NEXT(item);
+			break;
 		}
-
-		item = KDBUS_ITEM_NEXT(item);
 	}
 
 	if (res->fds_count) {

@@ -55,17 +55,35 @@ static void __kdbus_msg_resources_free(struct kref *kref)
 {
 	struct kdbus_msg_resources *r =
 		container_of(kref, struct kdbus_msg_resources, kref);
+	size_t i;
 
-	kdbus_fput_files(r->memfds, r->memfds_count);
+	for (i = 0; i < r->data_count; ++i) {
+		switch (r->data[i].type) {
+		case KDBUS_MSG_DATA_VEC:
+			/* nothing to do */
+			break;
+		case KDBUS_MSG_DATA_MEMFD:
+			if (r->data[i].memfd.file)
+				fput(r->data[i].memfd.file);
+			break;
+		}
+	}
+
+	kfree(r->data);
+
 	kdbus_fput_files(r->fds, r->fds_count);
-	kfree(r->dst_name);
-	kfree(r->memfds);
-	kfree(r->memfd_sizes);
-	kfree(r->vecs);
 	kfree(r->fds);
+
+	kfree(r->dst_name);
 	kfree(r);
 }
 
+/**
+ * kdbus_msg_resources_ref() - Acquire reference to msg resources
+ * @r:		resources to acquire ref to
+ *
+ * Return: The acquired resource
+ */
 struct kdbus_msg_resources *
 kdbus_msg_resources_ref(struct kdbus_msg_resources *r)
 {
@@ -74,6 +92,12 @@ kdbus_msg_resources_ref(struct kdbus_msg_resources *r)
 	return r;
 }
 
+/**
+ * kdbus_msg_resources_unref() - Drop reference to msg resources
+ * @r:		resources to drop reference of
+ *
+ * Return: NULL
+ */
 struct kdbus_msg_resources *
 kdbus_msg_resources_unref(struct kdbus_msg_resources *r)
 {
@@ -132,7 +156,6 @@ static int kdbus_handle_check_file(struct file *file)
 	if (!S_ISSOCK(inode->i_mode))
 		return 0;
 
-	/* Almost nothing can be done with O_PATHed files */
 	if (file->f_mode & FMODE_PATH)
 		return 0;
 
@@ -161,101 +184,90 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	struct kdbus_msg_resources *res = kmsg->res;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	const struct kdbus_item *item;
-	unsigned int items_count = 0;
+	size_t n, n_vecs, n_memfds;
 	bool has_bloom = false;
 	bool has_name = false;
 	bool has_fds = false;
+	u64 vec_size;
 
-	/*
-	 * Iterate the items once in order to get the number of vecs and
-	 * memfds, so that we can allocate the arrays.
-	 */
+	/* count data payloads */
+	n_vecs = 0;
+	n_memfds = 0;
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC:
-			res->vecs_count++;
+			++n_vecs;
 			break;
-
 		case KDBUS_ITEM_PAYLOAD_MEMFD:
-			res->memfds_count++;
+			++n_memfds;
 			break;
-
 		default:
 			break;
 		}
 	}
 
-	if (res->vecs_count > 0) {
-		res->vecs = kcalloc(res->vecs_count,
-				    sizeof(struct kdbus_msg_vec), GFP_KERNEL);
-		if (!res->vecs)
+	n = n_vecs + n_memfds;
+	if (n > 0) {
+		res->data = kcalloc(n, sizeof(*res->data), GFP_KERNEL);
+		if (!res->data)
 			return -ENOMEM;
 	}
 
-	if (res->memfds_count > 0) {
-		res->memfds = kcalloc(res->memfds_count,
-				      sizeof(struct file *), GFP_KERNEL);
-		if (!res->memfds)
-			return -ENOMEM;
-
-		res->memfd_sizes = kcalloc(res->memfds_count,
-					   sizeof(size_t), GFP_KERNEL);
-		if (!res->memfd_sizes)
-			return -ENOMEM;
-
-	}
-
-	/* reset values so we can reuse them as counters below */
-	res->vecs_size = 0;
-	res->vecs_count = 0;
-	res->memfds_count = 0;
-
+	/* import data payloads */
+	n = 0;
+	vec_size = 0;
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
 
-		if (++items_count > KDBUS_MSG_MAX_ITEMS)
+		if (++n > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
 
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
-			struct kdbus_msg_vec *v = res->vecs + res->vecs_count;
+			struct kdbus_msg_data *d = res->data + res->data_count;
 
-			if (res->vecs_size + item->vec.size <= res->vecs_size ||
-			    res->vecs_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+			if (vec_size + item->vec.size < vec_size)
 				return -EMSGSIZE;
 
-			v->src_addr = KDBUS_PTR(item->vec.address);
+			vec_size += item->vec.size;
+			if (vec_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+				return -EMSGSIZE;
 
-			/* \0-bytes records store only the alignment bytes */
-			if (v->src_addr) {
-				v->size = item->vec.size;
-				v->off = res->vecs_size;
+			++res->data_count;
+			++res->vec_count;
+			d->type = KDBUS_MSG_DATA_VEC;
+			d->size = item->vec.size;
+			d->vec.src_addr = KDBUS_PTR(item->vec.address);
+
+			if (d->vec.src_addr) {
+				d->vec.off = res->pool_size;
+				res->pool_size += d->size;
 			} else {
-				v->size = item->vec.size % 8;
-				v->off = ~0ULL;
+				d->vec.off = ~0ULL;
+				res->pool_size += d->size % 8;
 			}
 
-			res->vecs_size += v->size;
-			res->vecs_count++;
 			break;
 		}
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
-			int fd = item->memfd.fd;
-			int n = res->memfds_count;
+			struct kdbus_msg_data *d = res->data + res->data_count;
 			int seals, mask;
 			struct file *f;
 
 			/* Verify the fd and increment the usage count */
-			if (fd < 0)
+			if (item->memfd.fd < 0)
 				return -EBADF;
 
-			f = fget(fd);
+			f = fget(item->memfd.fd);
 			if (!f)
 				return -EBADF;
 
-			res->memfds[n] = f;
-			res->memfds_count++;
+			++res->data_count;
+			++res->memfd_count;
+			d->type = KDBUS_MSG_DATA_MEMFD;
+			d->size = item->memfd.size;
+			d->memfd.file = f;
 
 			/*
 			 * We only accept a sealed memfd file whose content
@@ -272,14 +284,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if ((seals & mask) != mask)
 				return -ETXTBSY;
 
-			/*
-			 * The specified size in the item cannot be larger
-			 * than the backing file.
-			 */
-			if (item->memfd.size > i_size_read(file_inode(f)))
+			if (d->size > i_size_read(file_inode(f)))
 				return -EBADF;
-
-			res->memfd_sizes[n] = item->memfd.size;
 
 			break;
 		}
@@ -441,8 +447,6 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		m->res = NULL;
 		goto exit_free;
 	}
-
-	m->res->vec_src_valid = true;
 
 	ret = kdbus_items_validate(m->msg.items,
 				   KDBUS_ITEMS_SIZE(&m->msg, items));

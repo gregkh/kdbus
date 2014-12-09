@@ -619,12 +619,6 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 				ret = -EFAULT;
 		}
 
-		/*
-		 * Once the ioctl returns, the src_addr pointers stored in
-		 * the message resources are no longer valid. Make sure
-		 * nobody accesses them by accident.
-		 */
-		kmsg->res->vec_src_valid = false;
 		kdbus_kmsg_free(kmsg);
 		break;
 	}

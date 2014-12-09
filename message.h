@@ -18,15 +18,35 @@
 #include "metadata.h"
 
 /**
- * struct kdbus_msg_vec - Data vec reference as stored by messages
+ * enum kdbus_msg_data_type - Type of kdbus_msg_data payloads
+ * @KDBUS_MSG_DATA_VEC:		Data vector provided by user-space
+ * @KDBUS_MSG_DATA_MEMFD:	Memfd payload
+ */
+enum kdbus_msg_data_type {
+	KDBUS_MSG_DATA_VEC,
+	KDBUS_MSG_DATA_MEMFD,
+};
+
+/**
+ * struct kdbus_msg_data - Data payload as stored by messages
+ * @type:	Type of payload (KDBUS_MSG_DATA_*)
  * @off:	The offset, relative to the vec slice
  * @size:	The number of bytes to store
  * @src_addr:	Source address in userspace
  */
-struct kdbus_msg_vec {
-	off_t off;
-	size_t size;
-	void __user *src_addr;
+struct kdbus_msg_data {
+	unsigned int type;
+	u64 size;
+
+	union {
+		struct {
+			u64 off;
+			void __user *src_addr;
+		} vec;
+		struct {
+			struct file *file;
+		} memfd;
+	};
 };
 
 /**
@@ -35,25 +55,24 @@ struct kdbus_msg_vec {
  * @dst_name:		Short-cut to msg for faster lookup
  * @fds:		Array of file descriptors to pass
  * @fds_count:		Number of file descriptors to pass
- * @vecs:		Data vecs
- * @vecs_count:		Number of PAYLOAD vectors
- * @vecs_size:		Size of PAYLOAD data
- * @memfd_sizes:	Sizes of supplied memfds
- * @memfds_count:	Number of memfds to pass
- * @vec_src_valid:	Boolean flag indicating the validity of @vecs.src_addr
+ * @data:		Array of data payloads
+ * @vec_count:		Number of VEC entries in @data
+ * @memfd_count:	Number of MEMFD entries in @data
+ * @data_count:		Sum of @vec_count + @memfd_count
+ * @pool_size:		Overall size of inlined data (VECs + alignment)
  */
 struct kdbus_msg_resources {
 	struct kref kref;
 	const char *dst_name;
+
 	struct file **fds;
 	unsigned int fds_count;
-	struct kdbus_msg_vec *vecs;
-	unsigned int vecs_count;
-	size_t vecs_size;
-	struct file **memfds;
-	size_t *memfd_sizes;
-	unsigned int memfds_count;
-	bool vec_src_valid:1;
+
+	struct kdbus_msg_data *data;
+	size_t vec_count;
+	size_t memfd_count;
+	size_t data_count;
+	u64 pool_size;
 };
 
 struct kdbus_msg_resources *
