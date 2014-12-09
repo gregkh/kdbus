@@ -384,37 +384,6 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
 }
 
 /**
- * kdbus_pool_slice_flush() - flush dcache memory area of a slice
- * @slice:		The allocated slice to flush
- *
- * Dcache flushes are delayed to happen only right before the receiver
- * gets the new buffer area announced. The mapped buffer is always
- * read-only for the receiver, and only the area of the announced message
- * needs to be flushed.
- */
-static void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice)
-{
-#if ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE == 1
-	struct address_space *mapping = slice->pool->f->f_mapping;
-	pgoff_t first = slice->off >> PAGE_CACHE_SHIFT;
-	pgoff_t last = (slice->off + slice->size +
-			PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
-	pgoff_t i;
-
-	for (i = first; i < last; i++) {
-		struct page *page;
-
-		page = find_get_page(mapping, i);
-		if (!page)
-			continue;
-
-		flush_dcache_page(page);
-		put_page(page);
-	}
-#endif
-}
-
-/**
  * kdbus_pool_slice_publish() - publish slice to user-space
  * @slice:		The slice
  * @out_offset:		Output storage for offset, or NULL
@@ -432,11 +401,6 @@ static void kdbus_pool_slice_flush(const struct kdbus_pool_slice *slice)
 void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 			      u64 *out_offset, u64 *out_size)
 {
-	kdbus_pool_slice_flush(slice);
-
-	if (slice->child)
-		kdbus_pool_slice_flush(slice->child);
-
 	mutex_lock(&slice->pool->lock);
 	/* kernel must own a ref to @slice to gain a user-space ref */
 	WARN_ON(!slice->ref_kernel);
@@ -683,6 +647,7 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 		n_read = f_src->f_op->read(f_src, kaddr, copy_len, &off_src);
 		kunmap(page);
 		mark_page_accessed(page);
+		flush_dcache_page(page);
 
 		status = aops->write_end(f_dst, mapping_dst, off_dst, copy_len,
 					 copy_len, page, fsdata);
