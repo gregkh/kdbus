@@ -587,12 +587,11 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
  * kdbus_pool_slice_copy_user() - copy user memory to a slice
  * @slice:		The slice to write to
  * @off:		Offset in the slice to write to
- * @data:		User memory to copy from
- * @len:		Number of bytes to copy
+ * @iov:		iovec array, pointing to data to copy
+ * @iov_len:		Number of elements in @iov
+ * @total_len:		Total number of bytes described in @iov_len
  *
- * The offset was returned by the call to kdbus_pool_alloc_slice().
- * The user memory at @data will be copied to the @off in the allocated
- * slice in the pool.
+ * User memory referenced by @iov will be copied into @slice at offset @off.
  *
  * Return: the numbers of bytes copied, negative errno on failure.
  */
@@ -621,12 +620,11 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
  * kdbus_pool_slice_copy() - copy kernel memory to a slice
  * @slice:		The slice to write to
  * @off:		Offset in the slice to write to
- * @data:		Kernel memory to copy from
- * @len:		Number of bytes to copy
+ * @iov:		iovec array, pointing to data to copy
+ * @iov_len:		Number of elements in @iov
+ * @total_len:		Total number of bytes described in @iov_len
  *
- * The slice was returned by the call to kdbus_pool_alloc_slice().
- * The user memory at @data will be copied to the @off in the allocated
- * slice in the pool.
+ * Kernel memory referenced by @iov will be copied into @slice at offset @off.
  *
  * Return: the numbers of bytes copied, negative errno on failure.
  */
