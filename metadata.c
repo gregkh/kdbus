@@ -56,7 +56,6 @@
  * @n_auxgrps:		Number of auxiliary groups
  * @pid:		Pinned GID
  * @tgid:		Pinned TGID
- * @starttime:		Task starttime
  * @ts_monotonic_ns:	Monotonic timestamp taken at collect time
  * @ts_realtime_ns:	Realtime timestamp taken at collect time
  * @exe:		Task's executable file, pinned
@@ -108,7 +107,6 @@ struct kdbus_meta {
 
 	struct pid *pid;
 	struct pid *tgid;
-	u64 starttime;
 
 	s64 ts_monotonic_ns;
 	s64 ts_realtime_ns;
@@ -256,7 +254,6 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 	if (pids) {
 		meta->pid = get_pid(find_vpid(pids->tid));
 		meta->tgid = get_pid(find_vpid(pids->pid));
-		meta->starttime = pids->starttime;
 		meta->collected |= KDBUS_ATTACH_PIDS;
 	}
 
@@ -334,7 +331,6 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 	if (mask & KDBUS_ATTACH_PIDS) {
 		meta->pid = get_pid(task_pid(current));
 		meta->tgid = get_pid(task_tgid(current));
-		meta->starttime = current->start_time,
 		meta->collected |= KDBUS_ATTACH_PIDS;
 	}
 

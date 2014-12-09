@@ -84,12 +84,8 @@ struct kdbus_creds {
  * struct kdbus_pids - process identifiers
  * @pid:		Process ID
  * @tid:		Thread ID
- * @starttime:		Starttime of the process
  *
- * The PID, TID and starttime of a process. The start tmie is useful to detect
- * PID overruns from the client side. i.e. if you use the PID to look something
- * up in /proc/$PID/ you can afterwards check the starttime field of it, to
- * ensure you didn't run into a PID overrun.
+ * The PID and TID of a process.
  *
  * Attached to:
  *   KDBUS_ITEM_PIDS
@@ -97,7 +93,6 @@ struct kdbus_creds {
 struct kdbus_pids {
 	__u64 pid;
 	__u64 tid;
-	__u64 starttime;
 };
 
 /**
