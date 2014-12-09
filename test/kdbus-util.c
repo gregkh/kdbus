@@ -1396,5 +1396,29 @@ int config_cgroups_is_enabled(void)
 
 int config_security_is_enabled(void)
 {
-	return (access("/proc/self/attr/current", F_OK) == 0);
+	int fd;
+	int ret;
+	char buf[128];
+
+	/* CONFIG_SECURITY is disabled */
+	if (access("/proc/self/attr/current", F_OK) != 0)
+		return 1;
+
+	/*
+	 * Now only if read() fails with -EINVAL then we assume
+	 * that SECLABEL and LSM are disabled
+	 */
+	fd = open("/proc/self/attr/current", O_RDONLY|O_CLOEXEC);
+	if (fd < 0)
+		return 0;
+
+	ret = read(fd, buf, sizeof(buf));
+	if (ret == -EINVAL)
+		ret = 1;
+	else
+		ret = 0;
+
+	close(fd);
+
+	return ret;
 }
