@@ -225,21 +225,27 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
 			struct kdbus_msg_data *d = res->data + res->data_count;
+			void *ptr = KDBUS_PTR(item->vec.address);
+			size_t size = item->vec.size;
 
-			if (vec_size + item->vec.size < vec_size)
+			if (vec_size + size < vec_size)
 				return -EMSGSIZE;
-
-			vec_size += item->vec.size;
-			if (vec_size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+			if (vec_size + size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
+				return -EMSGSIZE;
+			if (ptr && res->pool_size + size < res->pool_size)
+				return -EMSGSIZE;
+			if (!ptr && res->pool_size + size % 8 < res->pool_size)
 				return -EMSGSIZE;
 
 			++res->data_count;
 			++res->vec_count;
-			d->type = KDBUS_MSG_DATA_VEC;
-			d->size = item->vec.size;
-			d->vec.src_addr = KDBUS_PTR(item->vec.address);
+			vec_size += size;
 
-			if (d->vec.src_addr) {
+			d->type = KDBUS_MSG_DATA_VEC;
+			d->size = size;
+			d->vec.src_addr = ptr;
+
+			if (ptr) {
 				d->vec.off = res->pool_size;
 				res->pool_size += d->size;
 			} else {
@@ -252,10 +258,13 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 
 		case KDBUS_ITEM_PAYLOAD_MEMFD: {
 			struct kdbus_msg_data *d = res->data + res->data_count;
+			u64 size = item->memfd.size;
 			int seals, mask;
 			struct file *f;
 
-			/* Verify the fd and increment the usage count */
+			if (res->pool_size + size % 8 < res->pool_size)
+				return -EMSGSIZE;
+
 			if (item->memfd.fd < 0)
 				return -EBADF;
 
@@ -265,9 +274,13 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 
 			++res->data_count;
 			++res->memfd_count;
+
 			d->type = KDBUS_MSG_DATA_MEMFD;
-			d->size = item->memfd.size;
+			d->size = size;
 			d->memfd.file = f;
+
+			/* memfd-alignment affects following VECs */
+			res->pool_size += size % 8;
 
 			/*
 			 * We only accept a sealed memfd file whose content
@@ -284,7 +297,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if ((seals & mask) != mask)
 				return -ETXTBSY;
 
-			if (d->size > i_size_read(file_inode(f)))
+			if (size > i_size_read(file_inode(f)))
 				return -EBADF;
 
 			break;

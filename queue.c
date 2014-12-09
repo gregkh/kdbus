@@ -208,7 +208,7 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 		return slice;
 
 	/* FIXME: move this iov to message resources */
-	iov = kcalloc(res->vec_count, sizeof(*iov), GFP_KERNEL);
+	iov = kcalloc(res->data_count, sizeof(*iov), GFP_KERNEL);
 	if (!iov) {
 		ret = -ENOMEM;
 		goto exit_free_slice;
@@ -227,16 +227,19 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 				iov[n].iov_base = zeros;
 				iov[n].iov_len = d->size % 8;
 			}
-			++n;
 			break;
 
-		default:
+		case KDBUS_MSG_DATA_MEMFD:
+			iov[n].iov_base = zeros;
+			iov[n].iov_len = d->size % 8;
 			break;
 		}
+
+		if (iov[n].iov_len > 0)
+			++n;
 	}
 
-	ret = kdbus_pool_slice_copy_user(slice, 0, iov, res->vec_count,
-					 res->pool_size);
+	ret = kdbus_pool_slice_copy_user(slice, 0, iov, n, res->pool_size);
 	kfree(iov);
 	if (ret < 0)
 		goto exit_free_slice;
