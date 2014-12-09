@@ -531,7 +531,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		/* subscribe to/filter for broadcast messages */
 		struct kdbus_cmd_match *cmd_match;
 
-		if (!kdbus_conn_is_ordinary(conn)) {
+		if (!kdbus_conn_is_ordinary(conn) &&
+		    !kdbus_conn_is_activator(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
@@ -564,7 +565,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		struct kdbus_cmd_match *cmd_match;
 
 		if (!kdbus_conn_is_ordinary(conn) &&
-		    !kdbus_conn_is_monitor(conn)) {
+		    !kdbus_conn_is_activator(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
