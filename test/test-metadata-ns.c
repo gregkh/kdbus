@@ -68,9 +68,6 @@ static int __kdbus_clone_userns_test(const char *bus,
 	monitor = kdbus_hello(bus, KDBUS_HELLO_MONITOR, NULL, 0);
 	ASSERT_EXIT(monitor);
 
-	ret = kdbus_add_match_empty(monitor);
-	ASSERT_EXIT(ret == 0);
-
 	ret = drop_privileges(UNPRIV_UID, UNPRIV_GID);
 	ASSERT_EXIT(ret == 0);
 
