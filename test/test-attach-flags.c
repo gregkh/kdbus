@@ -19,6 +19,7 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
+static unsigned int KDBUS_TEST_ITEMS_SUM = KDBUS_ATTACH_ITEMS_TYPE_SUM;
 
 static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 					uint64_t attach_flags_send,
@@ -337,9 +338,9 @@ static int kdbus_test_peers_info(struct kdbus_test_env *env)
 	/*
 	 * All flags have been returned except for:
 	 * KDBUS_ITEM_TIMESTAMP and
-	 * KDBUS_ITEM_NAMES we do not own any name.
+	 * KDBUS_ITEM_OWNED_NAME we do not own any name.
 	 */
-	ASSERT_RETURN(attach_count == (KDBUS_ATTACH_ITEMS_TYPE_SUM -
+	ASSERT_RETURN(attach_count == (KDBUS_TEST_ITEMS_SUM -
 				       KDBUS_ITEM_OWNED_NAME -
 				       KDBUS_ITEM_TIMESTAMP));
 
@@ -366,6 +367,16 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
 					     &old_kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
+
+	/* setup the right KDBUS_TEST_ITEMS_SUM */
+	if (!config_auditsyscall_is_enabled())
+		KDBUS_TEST_ITEMS_SUM -= KDBUS_ITEM_AUDIT;
+
+	if (!config_cgroups_is_enabled())
+		KDBUS_TEST_ITEMS_SUM -= KDBUS_ITEM_CGROUP;
+
+	if (!config_security_is_enabled())
+		KDBUS_TEST_ITEMS_SUM -= KDBUS_ITEM_SECLABEL;
 
 	/*
 	 * Test the connection creation attach flags

@@ -1365,3 +1365,23 @@ out:
 	cap_free(caps);
 	return ret;
 }
+
+int config_user_ns_is_enabled(void)
+{
+	return (access("/proc/self/uid_map", F_OK) == 0);
+}
+
+int config_auditsyscall_is_enabled(void)
+{
+	return (access("/proc/self/loginuid", F_OK) == 0);
+}
+
+int config_cgroups_is_enabled(void)
+{
+	return (access("/proc/self/cgroup", F_OK) == 0);
+}
+
+int config_security_is_enabled(void)
+{
+	return (access("/proc/self/attr/current", F_OK) == 0);
+}

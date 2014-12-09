@@ -384,7 +384,7 @@ int kdbus_test_metadata_ns(struct kdbus_test_env *env)
 	};
 
 	/* we require user-namespaces */
-	if (access("/proc/self/uid_map", F_OK) != 0)
+	if (!config_user_ns_is_enabled())
 		return TEST_SKIP;
 
 	ret = test_is_capable(CAP_SETUID, CAP_SETGID, CAP_SYS_ADMIN, -1);

@@ -196,3 +196,7 @@ int userns_map_uid_gid(pid_t pid,
 		       const char *map_uid,
 		       const char *map_gid);
 int test_is_capable(int cap, ...);
+int config_user_ns_is_enabled(void);
+int config_auditsyscall_is_enabled(void);
+int config_cgroups_is_enabled(void);
+int config_security_is_enabled(void);
