@@ -1430,7 +1430,7 @@ int config_security_is_enabled(void)
 
 	/* CONFIG_SECURITY is disabled */
 	if (access("/proc/self/attr/current", F_OK) != 0)
-		return 1;
+		return 0;
 
 	/*
 	 * Now only if read() fails with -EINVAL then we assume
@@ -1438,13 +1438,13 @@ int config_security_is_enabled(void)
 	 */
 	fd = open("/proc/self/attr/current", O_RDONLY|O_CLOEXEC);
 	if (fd < 0)
-		return 0;
+		return 1;
 
 	ret = read(fd, buf, sizeof(buf));
-	if (ret == -EINVAL)
-		ret = 1;
-	else
+	if (ret == -1 && errno == EINVAL)
 		ret = 0;
+	else
+		ret = 1;
 
 	close(fd);
 
