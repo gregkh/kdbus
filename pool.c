@@ -583,67 +583,6 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
 	return size;
 }
 
-/* copy data to the receiver's pool */
-static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,
-			      struct file *f_src, loff_t off_src, size_t len)
-{
-	struct file *f_dst = slice->pool->f;
-	struct inode *i_dst = file_inode(f_dst);
-	struct address_space *mapping_dst = f_dst->f_mapping;
-	const struct address_space_operations *aops = mapping_dst->a_ops;
-	unsigned long off_dst= slice->off;
-	unsigned long rem = len;
-	int ret = 0;
-
-	BUG_ON(off_dst + len > slice->size);
-	BUG_ON(slice->free);
-
-	mutex_lock(&i_dst->i_mutex);
-
-	while (rem > 0) {
-		struct page *page;
-		unsigned long page_off;
-		unsigned long copy_len;
-		char __user *kaddr;
-		ssize_t n_read;
-		void *fsdata;
-		int status;
-
-		page_off = off_dst & (PAGE_CACHE_SIZE - 1);
-		copy_len = min_t(unsigned long,
-				 PAGE_CACHE_SIZE - page_off, rem);
-
-		status = aops->write_begin(f_dst, mapping_dst, off_dst,
-					   copy_len, 0, &page, &fsdata);
-		if (status) {
-			ret = -EFAULT;
-			break;
-		}
-
-		kaddr = (char __force __user *) kmap(page) + page_off;
-		n_read = f_src->f_op->read(f_src, kaddr, copy_len, &off_src);
-		kunmap(page);
-		mark_page_accessed(page);
-
-		status = aops->write_end(f_dst, mapping_dst, off_dst, copy_len,
-					 copy_len, page, fsdata);
-
-		if (n_read < 0)
-			break;
-		if (n_read != status) {
-			ret = -EFAULT;
-			break;
-		}
-
-		off_dst += copy_len;
-		rem -= copy_len;
-	}
-
-	mutex_unlock(&i_dst->i_mutex);
-
-	return ret;
-}
-
 /**
  * kdbus_pool_slice_copy_user() - copy user memory to a slice
  * @slice:		The slice to write to
@@ -702,6 +641,66 @@ ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
 	set_fs(get_ds());
 	ret = kdbus_pool_slice_copy_user(slice, off, iov, iov_len, total_len);
 	set_fs(old_fs);
+
+	return ret;
+}
+
+static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,
+			      struct file *f_src, loff_t off_src, size_t len)
+{
+	struct file *f_dst = slice->pool->f;
+	struct inode *i_dst = file_inode(f_dst);
+	struct address_space *mapping_dst = f_dst->f_mapping;
+	const struct address_space_operations *aops = mapping_dst->a_ops;
+	unsigned long off_dst= slice->off;
+	unsigned long rem = len;
+	int ret = 0;
+
+	BUG_ON(off_dst + len > slice->size);
+	BUG_ON(slice->free);
+
+	mutex_lock(&i_dst->i_mutex);
+
+	while (rem > 0) {
+		struct page *page;
+		unsigned long page_off;
+		unsigned long copy_len;
+		char __user *kaddr;
+		ssize_t n_read;
+		void *fsdata;
+		int status;
+
+		page_off = off_dst & (PAGE_CACHE_SIZE - 1);
+		copy_len = min_t(unsigned long,
+				 PAGE_CACHE_SIZE - page_off, rem);
+
+		status = aops->write_begin(f_dst, mapping_dst, off_dst,
+					   copy_len, 0, &page, &fsdata);
+		if (status) {
+			ret = -EFAULT;
+			break;
+		}
+
+		kaddr = (char __force __user *) kmap(page) + page_off;
+		n_read = f_src->f_op->read(f_src, kaddr, copy_len, &off_src);
+		kunmap(page);
+		mark_page_accessed(page);
+
+		status = aops->write_end(f_dst, mapping_dst, off_dst, copy_len,
+					 copy_len, page, fsdata);
+
+		if (n_read < 0)
+			break;
+		if (n_read != status) {
+			ret = -EFAULT;
+			break;
+		}
+
+		off_dst += copy_len;
+		rem -= copy_len;
+	}
+
+	mutex_unlock(&i_dst->i_mutex);
 
 	return ret;
 }
