@@ -304,6 +304,7 @@ int kdbus_info(struct kdbus_conn *conn, uint64_t id,
 {
 	struct kdbus_cmd_info *cmd;
 	size_t size = sizeof(*cmd);
+	struct kdbus_info *info;
 	int ret;
 
 	if (name)
@@ -327,6 +328,13 @@ int kdbus_info(struct kdbus_conn *conn, uint64_t id,
 		ret = -errno;
 		kdbus_printf("--- error when requesting info: %d (%m)\n", ret);
 		return ret;
+	}
+
+	info = (struct kdbus_info *) (conn->buf + cmd->offset);
+	if (info->size != cmd->info_size) {
+		kdbus_printf("%s(): size mismatch: %d != %d\n", __func__,
+				(int) info->size, (int) cmd->info_size);
+		return -EIO;
 	}
 
 	if (offset)
@@ -1013,6 +1021,12 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 
 	kdbus_printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
+	if (list->size != cmd_list.size) {
+		kdbus_printf("%s(): size mismatch: %d != %d\n", __func__,
+				(int) list->size, (int) cmd_list.size);
+		return -EIO;
+	}
+
 	KDBUS_ITEM_FOREACH(name, list, names) {
 		uint64_t flags = 0;
 		struct kdbus_item *item;
