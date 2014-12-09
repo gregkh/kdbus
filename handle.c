@@ -443,7 +443,9 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		/* return allocated data */
 		if (kdbus_member_set_user(&cmd_list.offset, buf,
-					  struct kdbus_cmd_name_list, offset))
+					  struct kdbus_cmd_name_list, offset) ||
+		    kdbus_member_set_user(&cmd_list.size, buf,
+					  struct kdbus_cmd_name_list, size))
 			ret = -EFAULT;
 
 		break;
@@ -483,7 +485,9 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 
 		if (kdbus_member_set_user(&cmd_info->offset, buf,
-					  struct kdbus_cmd_info, offset))
+					  struct kdbus_cmd_info, offset) ||
+		    kdbus_member_set_user(&cmd_info->info_size, buf,
+					  struct kdbus_cmd_info, info_size))
 			ret = -EFAULT;
 
 		break;
