@@ -174,6 +174,9 @@ struct kdbus_conn *kdbus_hello_registrar(const char *path, const char *name,
 struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 					 const struct kdbus_policy_access *access,
 					 size_t num_access);
+int kdbus_bus_creator_info(struct kdbus_conn *conn,
+			   uint64_t flags,
+			   uint64_t *offset);
 int kdbus_info(struct kdbus_conn *conn, uint64_t id,
 	       const char *name, uint64_t flags, uint64_t *offset);
 void kdbus_conn_free(struct kdbus_conn *conn);

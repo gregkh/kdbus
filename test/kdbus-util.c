@@ -298,6 +298,34 @@ struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 				     KDBUS_HELLO_ACTIVATOR);
 }
 
+int kdbus_bus_creator_info(struct kdbus_conn *conn,
+			   uint64_t flags,
+			   uint64_t *offset)
+{
+	struct kdbus_cmd_info *cmd;
+	size_t size = sizeof(*cmd);
+	int ret;
+
+	cmd = alloca(size);
+	memset(cmd, 0, size);
+	cmd->size = size;
+	cmd->flags = flags;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_BUS_CREATOR_INFO, cmd);
+	if (ret < 0) {
+		ret = -errno;
+		kdbus_printf("--- error when requesting info: %d (%m)\n", ret);
+		return ret;
+	}
+
+	if (offset)
+		*offset = cmd->offset;
+	else
+		kdbus_free(conn, cmd->offset);
+
+	return 0;
+}
+
 int kdbus_info(struct kdbus_conn *conn, uint64_t id,
 	       const char *name, uint64_t flags,
 	       uint64_t *offset)

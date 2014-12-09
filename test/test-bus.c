@@ -31,8 +31,8 @@ static struct kdbus_item *kdbus_get_item(struct kdbus_info *info,
 static int test_bus_creator_info(const char *bus_path)
 {
 	int ret;
+	uint64_t offset;
 	struct kdbus_conn *conn;
-	struct kdbus_cmd_info cmd = {};
 	struct kdbus_info *info;
 	struct kdbus_item *item;
 	char *tmp, *busname;
@@ -47,21 +47,19 @@ static int test_bus_creator_info(const char *bus_path)
 	ASSERT_RETURN(busname);
 	++busname;
 
-	cmd.size = sizeof(cmd);
-
 	conn = kdbus_hello(bus_path, 0, NULL, 0);
 	ASSERT_RETURN(conn);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_BUS_CREATOR_INFO, &cmd);
-	ASSERT_RETURN_VAL(ret == 0, ret);
+	ret = kdbus_bus_creator_info(conn, _KDBUS_ATTACH_ALL, &offset);
+	ASSERT_RETURN(ret == 0);
 
-	info = (struct kdbus_info *)(conn->buf + cmd.offset);
+	info = (struct kdbus_info *)(conn->buf + offset);
 
 	item = kdbus_get_item(info, KDBUS_ITEM_MAKE_NAME);
 	ASSERT_RETURN(item);
 	ASSERT_RETURN(!strcmp(item->str, busname));
 
-	ret = kdbus_free(conn, cmd.offset);
+	ret = kdbus_free(conn, offset);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
 	free(tmp);
