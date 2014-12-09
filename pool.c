@@ -679,6 +679,7 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
 	struct iov_iter iter;
 	struct file *f;
 	struct kiocb kiocb;
+	ssize_t len;
 
 	BUG_ON(off + total_len > slice->size);
 
@@ -688,7 +689,8 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
 	kiocb.ki_nbytes = total_len;
 	iov_iter_init(&iter, WRITE, iov, iov_len, total_len);
 
-	return f->f_op->write_iter(&kiocb, &iter);
+	len = f->f_op->write_iter(&kiocb, &iter);
+	return (len < 0) ? len : (len != total_len) ? -EFAULT : len;
 }
 
 /**
