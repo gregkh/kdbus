@@ -160,7 +160,8 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn, int timeout_ms,
 int kdbus_free(const struct kdbus_conn *conn, uint64_t offset);
 int kdbus_msg_dump(const struct kdbus_conn *conn,
 		   const struct kdbus_msg *msg);
-int kdbus_create_bus(int control_fd, const char *name, uint64_t req_meta,
+int kdbus_create_bus(int control_fd, const char *name,
+		     uint64_t req_meta, uint64_t owner_meta,
 		     char **path);
 int kdbus_msg_send(const struct kdbus_conn *conn, const char *name,
 		   uint64_t cookie, uint64_t flags, uint64_t timeout,

@@ -288,6 +288,7 @@ static int test_prepare_env(const struct kdbus_test *t,
 
 		ret = kdbus_create_bus(env->control_fd,
 				       args->busname ?: n,
+				       _KDBUS_ATTACH_ALL,
 				       _KDBUS_ATTACH_ALL, &s);
 		free(n);
 		ASSERT_RETURN(ret == 0);

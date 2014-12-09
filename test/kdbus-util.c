@@ -115,7 +115,8 @@ int kdbus_sysfs_set_parameter_mask(const char *path, uint64_t mask)
 }
 
 int kdbus_create_bus(int control_fd, const char *name,
-		     uint64_t req_meta, char **path)
+		     uint64_t req_meta, uint64_t owner_meta,
+		     char **path)
 {
 	struct {
 		struct kdbus_cmd_make head;
@@ -127,12 +128,12 @@ int kdbus_create_bus(int control_fd, const char *name,
 			struct kdbus_bloom_parameter bloom;
 		} bp;
 
-		/* required metadata item */
+		/* required and owner metadata items */
 		struct {
 			uint64_t size;
 			uint64_t type;
 			uint64_t flags;
-		} attach;
+		} attach[2];
 
 		/* name item */
 		struct {
@@ -152,9 +153,13 @@ int kdbus_create_bus(int control_fd, const char *name,
 	snprintf(bus_make.name.str, sizeof(bus_make.name.str),
 		 "%u-%s", getuid(), name);
 
-	bus_make.attach.type = KDBUS_ITEM_ATTACH_FLAGS_RECV;
-	bus_make.attach.size = sizeof(bus_make.attach);
-	bus_make.attach.flags = req_meta;
+	bus_make.attach[0].type = KDBUS_ITEM_ATTACH_FLAGS_RECV;
+	bus_make.attach[0].size = sizeof(bus_make.attach[0]);
+	bus_make.attach[0].flags = req_meta;
+
+	bus_make.attach[1].type = KDBUS_ITEM_ATTACH_FLAGS_SEND;
+	bus_make.attach[1].size = sizeof(bus_make.attach[0]);
+	bus_make.attach[1].flags = owner_meta;
 
 	bus_make.name.type = KDBUS_ITEM_MAKE_NAME;
 	bus_make.name.size = KDBUS_ITEM_HEADER_SIZE +
@@ -163,7 +168,8 @@ int kdbus_create_bus(int control_fd, const char *name,
 	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
 	bus_make.head.size = sizeof(bus_make.head) +
 			     bus_make.bp.size +
-			     bus_make.attach.size +
+			     bus_make.attach[0].size +
+			     bus_make.attach[1].size +
 			     bus_make.name.size;
 
 	kdbus_printf("Creating bus with name >%s< on control fd %d ...\n",
