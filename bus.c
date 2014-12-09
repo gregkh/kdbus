@@ -80,8 +80,10 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	const struct kdbus_item *item;
 	struct kdbus_bus *b;
 	const char *name = NULL;
-	const u64 *pattach = NULL;
-	u64 attach_flags;
+	const u64 *pattach_owner = NULL;
+	const u64 *pattach_recv = NULL;
+	u64 attach_owner;
+	u64 attach_recv;
 	int ret;
 
 	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
@@ -100,11 +102,18 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 			bloom = &item->bloom_parameter;
 			break;
 
-		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
-			if (pattach)
+		case KDBUS_ITEM_ATTACH_FLAGS_SEND:
+			if (pattach_owner)
 				return ERR_PTR(-EEXIST);
 
-			pattach = &item->data64[0];
+			pattach_owner = &item->data64[0];
+			break;
+
+		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
+			if (pattach_recv)
+				return ERR_PTR(-EEXIST);
+
+			pattach_recv = &item->data64[0];
 			break;
 		}
 	}
@@ -119,8 +128,13 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (bloom->n_hash < 1)
 		return ERR_PTR(-EINVAL);
 
-	ret = kdbus_sanitize_attach_flags(pattach ? *pattach : 0,
-					  &attach_flags);
+	ret = kdbus_sanitize_attach_flags(pattach_recv ? *pattach_recv : 0,
+					  &attach_recv);
+	if (ret < 0)
+		return ERR_PTR(ret);
+
+	ret = kdbus_sanitize_attach_flags(pattach_owner ? *pattach_owner : 0,
+					  &attach_owner);
 	if (ret < 0)
 		return ERR_PTR(ret);
 
@@ -149,7 +163,8 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 
 	b->bus_flags = make->flags;
 	b->bloom = *bloom;
-	b->attach_flags_req = attach_flags;
+	b->attach_flags_req = attach_recv;
+	b->attach_flags_owner = attach_owner;
 	mutex_init(&b->lock);
 	init_rwsem(&b->conn_rwlock);
 	hash_init(b->conn_hash);

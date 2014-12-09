@@ -33,7 +33,9 @@
  * @ep_seq_last:	Last used endpoint id sequence number
  * @conn_seq_last:	Last used connection id sequence number
  * @bus_flags:		Simple pass-through flags from userspace to userspace
- * @attach_flags_req:	Attach flags required by connecting peers
+ * @attach_flags_req:	KDBUS_ATTACH_* flags required by connecting peers
+ * @attach_flags_owner:	KDBUS_ATTACH_* flags of bus creator that other
+ *			connections can see or query
  * @name_registry:	Name registry of this bus
  * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
@@ -63,6 +65,7 @@ struct kdbus_bus {
 	atomic64_t conn_seq_last;
 	u64 bus_flags;
 	u64 attach_flags_req;
+	u64 attach_flags_owner;
 	struct kdbus_name_registry *name_registry;
 	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
