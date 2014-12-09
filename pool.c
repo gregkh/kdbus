@@ -583,75 +583,60 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
 	return size;
 }
 
-/* copy data from a file to a page in the receiver's pool */
-static int kdbus_pool_copy_file(struct page *p, size_t start,
-				struct file *f, size_t off, size_t count)
-{
-	loff_t o = off;
-	char *kaddr;
-	ssize_t n;
-
-	kaddr = kmap(p);
-	n = f->f_op->read(f, (char __force __user *)kaddr + start, count, &o);
-	kunmap(p);
-	if (n < 0)
-		return n;
-	if (n != count)
-		return -EFAULT;
-
-	return 0;
-}
-
 /* copy data to the receiver's pool */
 static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,
-			      struct file *f_src, size_t off_src, size_t len)
+			      struct file *f_src, loff_t off_src, size_t len)
 {
 	struct file *f_dst = slice->pool->f;
 	struct inode *i_dst = file_inode(f_dst);
-	struct address_space *mapping = f_dst->f_mapping;
-	const struct address_space_operations *aops = mapping->a_ops;
-	unsigned long fpos = slice->off;
+	struct address_space *mapping_dst = f_dst->f_mapping;
+	const struct address_space_operations *aops = mapping_dst->a_ops;
+	unsigned long off_dst= slice->off;
 	unsigned long rem = len;
-	size_t pos = 0;
 	int ret = 0;
 
-	BUG_ON(fpos + len > slice->size);
+	BUG_ON(off_dst + len > slice->size);
 	BUG_ON(slice->free);
 
 	mutex_lock(&i_dst->i_mutex);
 
 	while (rem > 0) {
-		struct page *p;
-		unsigned long o;
-		unsigned long n;
+		struct page *page;
+		unsigned long page_off;
+		unsigned long copy_len;
+		char __user *kaddr;
+		ssize_t n_read;
 		void *fsdata;
 		int status;
 
-		o = fpos & (PAGE_CACHE_SIZE - 1);
-		n = min_t(unsigned long, PAGE_CACHE_SIZE - o, rem);
+		page_off = off_dst & (PAGE_CACHE_SIZE - 1);
+		copy_len = min_t(unsigned long,
+				 PAGE_CACHE_SIZE - page_off, rem);
 
-		status = aops->write_begin(f_dst, mapping, fpos, n, 0, &p,
-					   &fsdata);
+		status = aops->write_begin(f_dst, mapping_dst, off_dst,
+					   copy_len, 0, &page, &fsdata);
 		if (status) {
 			ret = -EFAULT;
 			break;
 		}
 
-		ret = kdbus_pool_copy_file(p, o, f_src, off_src + pos, n);
-		mark_page_accessed(p);
+		kaddr = (char __force __user *) kmap(page) + page_off;
+		n_read = f_src->f_op->read(f_src, kaddr, copy_len, &off_src);
+		kunmap(page);
+		mark_page_accessed(page);
 
-		status = aops->write_end(f_dst, mapping, fpos, n, n, p, fsdata);
+		status = aops->write_end(f_dst, mapping_dst, off_dst, copy_len,
+					 copy_len, page, fsdata);
 
-		if (ret < 0)
+		if (n_read < 0)
 			break;
-		if (status != n) {
+		if (n_read != status) {
 			ret = -EFAULT;
 			break;
 		}
 
-		pos += n;
-		fpos += n;
-		rem -= n;
+		off_dst += copy_len;
+		rem -= copy_len;
 	}
 
 	mutex_unlock(&i_dst->i_mutex);
