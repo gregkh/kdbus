@@ -628,7 +628,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_RECV: {
-		struct kdbus_cmd_recv cmd_recv;
+		struct kdbus_cmd_recv *cmd_recv;
 
 		if (!kdbus_conn_is_ordinary(conn) &&
 		    !kdbus_conn_is_monitor(conn) &&
@@ -637,17 +637,28 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_copy_from_user(&cmd_recv, buf, sizeof(cmd_recv));
-		if (ret < 0)
+		cmd_recv = kdbus_memdup_user(buf, sizeof(*cmd_recv),
+					     KDBUS_RECV_MAX_SIZE);
+		if (IS_ERR(cmd_recv)) {
+			ret = PTR_ERR(cmd_recv);
 			break;
+		}
 
-		ret = kdbus_negotiate_flags(&cmd_recv, buf, typeof(cmd_recv),
-					    KDBUS_RECV_PEEK | KDBUS_RECV_DROP |
+		free_ptr = cmd_recv;
+
+		ret = kdbus_negotiate_flags(cmd_recv, buf, typeof(*cmd_recv),
+					    KDBUS_RECV_PEEK |
+					    KDBUS_RECV_DROP |
 					    KDBUS_RECV_USE_PRIORITY);
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_msg_recv(conn, &cmd_recv);
+		ret = kdbus_items_validate(cmd_recv->items,
+					   KDBUS_ITEMS_SIZE(cmd_recv, items));
+		if (ret < 0)
+			break;
+
+		ret = kdbus_cmd_msg_recv(conn, cmd_recv);
 		/*
 		 * In case of -EOVERFLOW, we still have to write back the
 		 * number of lost messages, which shares the same buffer
@@ -657,12 +668,12 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 
 		/* return the address of the next message in the pool */
-		if (kdbus_member_set_user(&cmd_recv.offset, buf,
+		if (kdbus_member_set_user(&cmd_recv->offset, buf,
 					  struct kdbus_cmd_recv, offset))
 			ret = -EFAULT;
 
 		/* return the size of the next message in the pool */
-		if (kdbus_member_set_user(&cmd_recv.msg_size, buf,
+		if (kdbus_member_set_user(&cmd_recv->msg_size, buf,
 					  struct kdbus_cmd_recv, msg_size))
 			ret = -EFAULT;
 

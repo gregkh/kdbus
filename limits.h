@@ -53,6 +53,9 @@
 /* maximum size of match data */
 #define KDBUS_MATCH_MAX_SIZE			SZ_32K
 
+/* maximum size of recv data */
+#define KDBUS_RECV_MAX_SIZE			SZ_32K
+
 /* maximum size of policy data */
 #define KDBUS_POLICY_MAX_SIZE			SZ_32K
 

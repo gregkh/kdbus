@@ -87,6 +87,7 @@ static int msg_recv_prio(struct kdbus_conn *conn,
 			 int64_t expected_prio)
 {
 	struct kdbus_cmd_recv recv = {
+		.size = sizeof(recv),
 		.flags = KDBUS_RECV_USE_PRIORITY,
 		.priority = requested_prio,
 	};

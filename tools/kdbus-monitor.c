@@ -119,7 +119,7 @@ static struct conn *kdbus_hello(const char *path, uint64_t flags)
 static int dump_packet(struct conn *conn, int fd)
 {
 	int ret;
-	struct kdbus_cmd_recv recv = {};
+	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
 	uint64_t size;
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;

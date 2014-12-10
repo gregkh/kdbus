@@ -479,6 +479,7 @@ enum kdbus_recv_flags {
 
 /**
  * struct kdbus_cmd_recv - struct to de-queue a buffered message
+ * @size:		Overall size of this object
  * @flags:		KDBUS_RECV_* flags, userspace → kernel
  * @kernel_flags:	Supported KDBUS_RECV_* flags, kernel → userspace
  * @priority:		Minimum priority of the messages to de-queue. Lowest
@@ -496,10 +497,12 @@ enum kdbus_recv_flags {
  *			also for all appended VECs. By using @msg_size and
  *			@offset, you can map a single message, instead of
  *			mapping the whole pool.
+ * @items:		Additional items for this command.
  *
  * This struct is used with the KDBUS_CMD_RECV ioctl.
  */
 struct kdbus_cmd_recv {
+	__u64 size;
 	__u64 flags;
 	__u64 kernel_flags;
 	__s64 priority;
@@ -508,6 +511,7 @@ struct kdbus_cmd_recv {
 		__u64 dropped_msgs;
 	};
 	__u64 msg_size;
+	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
 /**

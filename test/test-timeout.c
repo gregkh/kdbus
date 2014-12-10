@@ -18,7 +18,7 @@
 
 int timeout_msg_recv(struct kdbus_conn *conn, uint64_t *expected)
 {
-	struct kdbus_cmd_recv recv = {};
+	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
 	struct kdbus_msg *msg;
 	int ret;
 

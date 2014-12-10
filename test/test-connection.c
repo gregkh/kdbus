@@ -108,7 +108,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 int kdbus_test_byebye(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *conn;
-	struct kdbus_cmd_recv recv = {};
+	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
 	int ret;
 
 	/* create a 2nd connection */

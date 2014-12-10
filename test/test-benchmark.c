@@ -187,7 +187,7 @@ static int
 handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 {
 	int ret;
-	struct kdbus_cmd_recv recv = {};
+	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;
 	bool has_memfd = false;

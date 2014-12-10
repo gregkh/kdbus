@@ -864,7 +864,7 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 		   struct kdbus_msg **msg_out,
 		   uint64_t *offset)
 {
-	struct kdbus_cmd_recv recv = {};
+	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
 	struct kdbus_msg *msg;
 	int ret;
 
