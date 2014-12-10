@@ -123,6 +123,7 @@ static int dump_packet(struct conn *conn, int fd)
 	uint64_t size;
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;
+	struct kdbus_cmd_free cmd_free = { };
 	struct timeval now;
 	struct pcap_entry entry;
 	uint64_t to_write;
@@ -138,7 +139,7 @@ static int dump_packet(struct conn *conn, int fd)
 		return EXIT_FAILURE;
 	}
 
-	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
+	msg = (struct kdbus_msg *)(conn->buf + recv.reply.offset);
 	item = msg->items;
 	size = msg->size;
 
@@ -187,7 +188,8 @@ static int dump_packet(struct conn *conn, int fd)
 		}
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &recv.offset);
+	cmd_free.offset = recv.reply.offset;
+	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &cmd_free);
 	if (ret < 0) {
 		fprintf(stderr, "error free message: %d (%m)\n", ret);
 		return EXIT_FAILURE;
