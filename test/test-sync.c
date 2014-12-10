@@ -27,24 +27,27 @@ static int send_reply(const struct kdbus_conn *conn,
 		      uint64_t reply_cookie,
 		      uint64_t dst_id)
 {
+	struct kdbus_cmd_send *cmd;
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	struct kdbus_item *item;
 	uint64_t size;
 	int ret;
 
-	size = sizeof(struct kdbus_msg);
+	size = sizeof(struct kdbus_cmd_send);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
-	msg = malloc(size);
-	if (!msg) {
+	cmd = malloc(size);
+	if (!cmd) {
 		ret = -errno;
 		kdbus_printf("unable to malloc()!?\n");
 		return ret;
 	}
 
-	memset(msg, 0, size);
-	msg->size = size;
+	memset(cmd, 0, size);
+	cmd->size = size;
+	msg = &cmd->msg;
+	msg->size = cmd->size - offsetof(struct kdbus_cmd_send, msg);
 	msg->src_id = conn->id;
 	msg->dst_id = dst_id;
 	msg->cookie_reply = reply_cookie;
@@ -58,14 +61,14 @@ static int send_reply(const struct kdbus_conn *conn,
 	item->vec.size = sizeof(ref1);
 	item = KDBUS_ITEM_NEXT(item);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
 
-	free(msg);
+	free(cmd);
 
 	return 0;
 }
@@ -89,10 +92,9 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 		ret = sigaction(SIGINT, &sa, NULL);
 		ASSERT_EXIT(ret == 0);
 
-		ret = kdbus_msg_send(conn_dst, NULL, cookie,
-				     KDBUS_MSG_FLAGS_EXPECT_REPLY |
-				     KDBUS_MSG_FLAGS_SYNC_REPLY,
-				     100000000ULL, 0, conn_src->id);
+		ret = kdbus_msg_send_sync(conn_dst, NULL, cookie,
+					  KDBUS_MSG_FLAGS_EXPECT_REPLY,
+					  100000000ULL, 0, conn_src->id);
 		ASSERT_EXIT(ret == -ETIMEDOUT);
 
 		_exit(EXIT_SUCCESS);
@@ -143,10 +145,9 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 
 	pthread_create(&thread, NULL, run_thread_reply, NULL);
 
-	ret = kdbus_msg_send(conn_b, NULL, cookie,
-			     KDBUS_MSG_FLAGS_EXPECT_REPLY |
-			     KDBUS_MSG_FLAGS_SYNC_REPLY,
-			     5000000000ULL, 0, conn_a->id);
+	ret = kdbus_msg_send_sync(conn_b, NULL, cookie,
+				  KDBUS_MSG_FLAGS_EXPECT_REPLY,
+				  5000000000ULL, 0, conn_a->id);
 
 	pthread_join(thread, NULL);
 	ASSERT_RETURN(ret == 0);
@@ -207,10 +208,9 @@ int kdbus_test_sync_byebye(struct kdbus_test_env *env)
 
 	pthread_create(&thread, NULL, run_thread_byebye, BYEBYE_ME);
 
-	ret = kdbus_msg_send(conn_b, NULL, cookie,
-			     KDBUS_MSG_FLAGS_EXPECT_REPLY |
-			     KDBUS_MSG_FLAGS_SYNC_REPLY,
-			     5000000000ULL, 0, conn_a->id);
+	ret = kdbus_msg_send_sync(conn_b, NULL, cookie,
+				  KDBUS_MSG_FLAGS_EXPECT_REPLY,
+				  5000000000ULL, 0, conn_a->id);
 
 	ASSERT_RETURN(ret == -ECONNRESET);
 
@@ -225,10 +225,9 @@ int kdbus_test_sync_byebye(struct kdbus_test_env *env)
 
 	pthread_create(&thread, NULL, run_thread_byebye, BYEBYE_THEM);
 
-	ret = kdbus_msg_send(conn_b, NULL, cookie,
-			     KDBUS_MSG_FLAGS_EXPECT_REPLY |
-			     KDBUS_MSG_FLAGS_SYNC_REPLY,
-			     5000000000ULL, 0, conn_a->id);
+	ret = kdbus_msg_send_sync(conn_b, NULL, cookie,
+				  KDBUS_MSG_FLAGS_EXPECT_REPLY,
+				  5000000000ULL, 0, conn_a->id);
 
 	ASSERT_RETURN(ret == -EPIPE);
 

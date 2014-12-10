@@ -82,9 +82,9 @@ struct kdbus_conn_reply {
 static struct kdbus_conn_reply *
 kdbus_conn_reply_new(struct kdbus_conn *reply_dst,
 		     const struct kdbus_msg *msg,
-		     struct kdbus_name_entry *name_entry)
+		     struct kdbus_name_entry *name_entry,
+		     bool sync)
 {
-	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
 	struct kdbus_conn_reply *r;
 	int ret = 0;
 
@@ -667,6 +667,7 @@ exit_unlock:
 
 static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
+				 struct kdbus_cmd_send *cmd_send,
 				 struct kdbus_msg *msg,
 				 struct kdbus_conn_reply *reply_wait,
 				 u64 timeout_ns)
@@ -714,8 +715,8 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	entry = reply_wait->queue_entry;
 	if (entry) {
 		ret = kdbus_queue_entry_install(entry, conn_src, ret == 0);
-		kdbus_pool_slice_publish(entry->slice, &msg->offset_reply,
-					 NULL);
+		kdbus_pool_slice_publish(entry->slice, &cmd_send->reply.offset,
+					 &cmd_send->reply.msg_size);
 		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
 	}
@@ -730,12 +731,14 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
  * @conn_src:		Connection, kernel-generated messages do not have one
+ * @cmd_send:		Payload of SEND command or NULL
  * @kmsg:		Message to send
  *
  * Return: 0 on success, negative errno on failure
  */
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
+			 struct kdbus_cmd_send *cmd_send,
 			 struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_conn_reply *reply_wait = NULL;
@@ -744,7 +747,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = ep->bus;
-	bool sync = msg->flags & KDBUS_MSG_FLAGS_SYNC_REPLY;
+	bool sync = cmd_send && (cmd_send->flags & KDBUS_SEND_SYNC_REPLY);
 	int ret = 0;
 
 	/* assign domain-global message sequence number */
@@ -889,7 +892,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto exit_unref;
 
 			reply_wait = kdbus_conn_reply_new(conn_src, msg,
-							  name_entry);
+							  name_entry, sync);
 			if (IS_ERR(reply_wait)) {
 				ret = PTR_ERR(reply_wait);
 				goto exit_unref;
@@ -954,7 +957,7 @@ wait_sync:
 		else
 			timeout = msg->timeout_ns - now;
 
-		ret = kdbus_conn_wait_reply(conn_src, conn_dst, msg,
+		ret = kdbus_conn_wait_reply(conn_src, conn_dst, cmd_send, msg,
 					    reply_wait, timeout);
 	}
 

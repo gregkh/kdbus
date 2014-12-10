@@ -594,6 +594,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_SEND: {
 		/* submit a message which will be queued in the receiver */
+		struct kdbus_cmd_send *cmd_send;
 		struct kdbus_kmsg *kmsg = NULL;
 
 		if (!kdbus_conn_is_ordinary(conn)) {
@@ -601,25 +602,58 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		kmsg = kdbus_kmsg_new_from_user(conn, buf);
+		cmd_send = kdbus_memdup_user(buf, sizeof(*cmd_send),
+					     KDBUS_SEND_MAX_SIZE);
+		if (IS_ERR(cmd_send)) {
+			ret = PTR_ERR(cmd_send);
+			break;
+		}
+
+		free_ptr = cmd_send;
+
+		if (cmd_send->msg.size < sizeof(cmd_send->msg) ||
+		    cmd_send->msg.size > cmd_send->size -
+		                         offsetof(struct kdbus_cmd_send, msg) ||
+		    cmd_send->msg.size > KDBUS_MSG_MAX_SIZE) {
+			ret = -EINVAL;
+			break;
+		}
+
+		ret = kdbus_negotiate_flags(cmd_send, buf, typeof(*cmd_send),
+					    KDBUS_SEND_SYNC_REPLY);
+		if (ret < 0)
+			break;
+
+		ret = kdbus_check_and_write_flags(cmd_send->msg.flags, buf,
+				offsetof(struct kdbus_cmd_send,
+					 kernel_msg_flags),
+				KDBUS_MSG_FLAGS_EXPECT_REPLY |
+				KDBUS_MSG_FLAGS_NO_AUTO_START);
+		if (ret < 0)
+			break;
+
+		ret = kdbus_items_validate(cmd_send->items,
+					   KDBUS_ITEMS_SIZE(cmd_send, items));
+		if (ret < 0)
+			break;
+
+		kmsg = kdbus_kmsg_new_from_cmd(conn, cmd_send);
 		if (IS_ERR(kmsg)) {
 			ret = PTR_ERR(kmsg);
 			break;
 		}
 
-		ret = kdbus_conn_kmsg_send(conn->ep, conn, kmsg);
+		ret = kdbus_conn_kmsg_send(conn->ep, conn, cmd_send, kmsg);
 		if (ret < 0) {
 			kdbus_kmsg_free(kmsg);
 			break;
 		}
 
-		/* store the offset of the reply back to userspace */
-		if (kmsg->msg.flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
-			struct kdbus_msg __user *msg = buf;
-
-			if (copy_to_user(&msg->offset_reply,
-					 &kmsg->msg.offset_reply,
-					 sizeof(msg->offset_reply)))
+		/* store the reply back to userspace */
+		if (cmd_send->flags & KDBUS_SEND_SYNC_REPLY) {
+			if (kdbus_member_set_user(&cmd_send->reply, buf,
+						  struct kdbus_cmd_send,
+						  reply))
 				ret = -EFAULT;
 		}
 

@@ -314,18 +314,21 @@ static int send_bloom_filter(const struct kdbus_conn *conn,
 			     size_t filter_size,
 			     uint64_t filter_generation)
 {
+	struct kdbus_cmd_send *cmd;
 	struct kdbus_msg *msg;
 	struct kdbus_item *item;
 	uint64_t size;
 	int ret;
 
-	size = sizeof(struct kdbus_msg);
+	size = sizeof(struct kdbus_cmd_send);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + filter_size;
 
-	msg = alloca(size);
+	cmd = alloca(size);
 
-	memset(msg, 0, size);
-	msg->size = size;
+	memset(cmd, 0, size);
+	cmd->size = size;
+	msg = &cmd->msg;
+	msg->size = cmd->size - offsetof(struct kdbus_cmd_send, msg);
 	msg->src_id = conn->id;
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS;
@@ -339,7 +342,7 @@ static int send_bloom_filter(const struct kdbus_conn *conn,
 	item->bloom_filter.generation = filter_generation;
 	memcpy(item->bloom_filter.data, filter, filter_size);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);

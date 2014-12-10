@@ -388,23 +388,12 @@ struct kdbus_item {
  *					cookie identifies the message and the
  *					respective reply carries the cookie
  *					in cookie_reply
- * @KDBUS_MSG_FLAGS_SYNC_REPLY:		Wait for destination connection to
- *					reply to this message. The
- *					KDBUS_CMD_SEND ioctl() will block
- *					until the reply is received, and
- *					offset_reply in struct kdbus_msg will
- *					yield the offset in the sender's pool
- *					where the reply can be found.
- *					This flag is only valid if
- *					@KDBUS_MSG_FLAGS_EXPECT_REPLY is set as
- *					well.
  * @KDBUS_MSG_FLAGS_NO_AUTO_START:	Do not start a service, if the addressed
  *					name is not currently active
  */
 enum kdbus_msg_flags {
 	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1ULL << 0,
-	KDBUS_MSG_FLAGS_SYNC_REPLY	= 1ULL << 1,
-	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1ULL << 2,
+	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1ULL << 1,
 };
 
 /**
@@ -421,7 +410,6 @@ enum kdbus_payload_type {
  * struct kdbus_msg - the representation of a kdbus message
  * @size:		Total size of the message
  * @flags:		Message flags (KDBUS_MSG_FLAGS_*), userspace → kernel
- * @kernel_flags:	Supported message flags, kernel → userspace
  * @priority:		Message queue priority value
  * @dst_id:		64-bit ID of the destination connection
  * @src_id:		64-bit ID of the source connection
@@ -436,15 +424,11 @@ enum kdbus_payload_type {
  * @cookie_reply:	A reply to the requesting message with the same
  *			cookie. The requesting connection can match its
  *			request and the reply with this value
- * @offset_reply:	If KDBUS_MSG_FLAGS_EXPECT_REPLY, this field will
- *			contain the offset in the sender's pool where the
- *			reply is stored.
  * @items:		A list of kdbus_items containing the message payload
  */
 struct kdbus_msg {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__s64 priority;
 	__u64 dst_id;
 	__u64 src_id;
@@ -453,7 +437,6 @@ struct kdbus_msg {
 	union {
 		__u64 timeout_ns;
 		__u64 cookie_reply;
-		__u64 offset_reply;
 	};
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
@@ -467,6 +450,49 @@ struct kdbus_reply {
 	__u64 offset;
 	__u64 msg_size;
 };
+
+/**
+ * enum kdbus_send_flags - flags for sending messages
+ * @KDBUS_SEND_SYNC_REPLY:	Wait for destination connection to
+ *				reply to this message. The
+ *				KDBUS_CMD_SEND ioctl() will block
+ *				until the reply is received, and
+ *				offset_reply in struct kdbus_msg will
+ *				yield the offset in the sender's pool
+ *				where the reply can be found.
+ *				This flag is only valid if
+ *				@KDBUS_MSG_EXPECT_REPLY is set as well.
+ */
+enum kdbus_send_flags {
+	KDBUS_SEND_SYNC_REPLY		= 1ULL << 0,
+};
+
+/**
+ * struct kdbus_cmd_send - send message
+ * @size:		Overall size of this structure
+ * @flags:		Flags to change send behavior (KDBUS_SEND_*)
+ * @kernel_flags:	Supported send flags, kernel → userspace
+ * @kernel_msg_flags:	Supported message flags, kernel → userspace
+ * @reply:		Storage for message reply if KDBUS_SEND_SYNC_REPLY
+ *			was given
+ * @msg:		Message to transmit. The message itself may contain
+ *			items as tail, as well as the kdbus_cmd_send object may
+ *			contain them. You must append the items for the message
+ *			first, then the additional items for kdbus_cmd_send.
+ *			@msg.size must account for the message items, but not
+ *			for the kdbus_cmd_send items. @size must account for
+ *			both.
+ * @items:		Additional items for this command
+ */
+struct kdbus_cmd_send {
+	__u64 size;
+	__u64 flags;
+	__u64 kernel_flags;
+	__u64 kernel_msg_flags;
+	struct kdbus_reply reply;
+	struct kdbus_msg msg;
+	struct kdbus_item items[0];
+} __attribute__((aligned(8)));
 
 /**
  * enum kdbus_recv_flags - flags for de-queuing messages

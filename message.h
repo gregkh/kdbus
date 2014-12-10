@@ -119,8 +119,8 @@ struct kdbus_ep;
 struct kdbus_conn;
 
 struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size);
-struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
-					    struct kdbus_msg __user *msg);
+struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
+					   struct kdbus_cmd_send *cmd_send);
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg);
 
 #endif

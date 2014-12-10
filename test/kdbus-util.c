@@ -433,14 +433,16 @@ off_t sys_memfd_get_size(int fd, off_t *size)
 	return 0;
 }
 
-int kdbus_msg_send(const struct kdbus_conn *conn,
-		   const char *name,
-		   uint64_t cookie,
-		   uint64_t flags,
-		   uint64_t timeout,
-		   int64_t priority,
-		   uint64_t dst_id)
+static int __kdbus_msg_send(const struct kdbus_conn *conn,
+			    const char *name,
+			    uint64_t cookie,
+			    uint64_t flags,
+			    uint64_t timeout,
+			    int64_t priority,
+			    uint64_t dst_id,
+			    uint64_t cmd_flags)
 {
+	struct kdbus_cmd_send *cmd;
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	const char ref2[] = "0123456789_1";
@@ -450,7 +452,7 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 	int memfd = -1;
 	int ret;
 
-	size = sizeof(struct kdbus_msg);
+	size = sizeof(struct kdbus_cmd_send);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
@@ -483,17 +485,20 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 	if (name)
 		size += KDBUS_ITEM_SIZE(strlen(name) + 1);
 
-	msg = malloc(size);
-	if (!msg) {
+	cmd = malloc(size);
+	if (!cmd) {
 		ret = -errno;
 		kdbus_printf("unable to malloc()!?\n");
 		return ret;
 	}
 
-	memset(msg, 0, size);
+	memset(cmd, 0, size);
+	cmd->size = size;
+	cmd->flags = cmd_flags;
+	msg = &cmd->msg;
+	msg->size = cmd->size - offsetof(struct kdbus_cmd_send, msg);
 	msg->flags = flags;
 	msg->priority = priority;
-	msg->size = size;
 	msg->src_id = conn->id;
 	msg->dst_id = name ? 0 : dst_id;
 	msg->cookie = cookie;
@@ -548,7 +553,7 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 	}
 	item = KDBUS_ITEM_NEXT(item);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
 	if (memfd >= 0)
 		close(memfd);
 
@@ -558,23 +563,39 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 		return ret;
 	}
 
-	if (flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
+	if (cmd_flags & KDBUS_SEND_SYNC_REPLY) {
 		struct kdbus_msg *reply;
 
-		kdbus_printf("SYNC REPLY @offset %llu:\n", msg->offset_reply);
-		reply = (struct kdbus_msg *)(conn->buf + msg->offset_reply);
+		kdbus_printf("SYNC REPLY @offset %llu:\n", cmd->reply.offset);
+		reply = (struct kdbus_msg *)(conn->buf + cmd->reply.offset);
 		kdbus_msg_dump(conn, reply);
 
 		kdbus_msg_free(reply);
 
-		ret = kdbus_free(conn, msg->offset_reply);
+		ret = kdbus_free(conn, cmd->reply.offset);
 		if (ret < 0)
 			return ret;
 	}
 
-	free(msg);
+	free(cmd);
 
 	return 0;
+}
+
+int kdbus_msg_send(const struct kdbus_conn *conn, const char *name,
+		   uint64_t cookie, uint64_t flags, uint64_t timeout,
+		   int64_t priority, uint64_t dst_id)
+{
+	return __kdbus_msg_send(conn, name, cookie, flags, timeout, priority,
+				dst_id, 0);
+}
+
+int kdbus_msg_send_sync(const struct kdbus_conn *conn, const char *name,
+			uint64_t cookie, uint64_t flags, uint64_t timeout,
+			int64_t priority, uint64_t dst_id)
+{
+	return __kdbus_msg_send(conn, name, cookie, flags, timeout, priority,
+				dst_id, KDBUS_SEND_SYNC_REPLY);
 }
 
 static char *msg_id(uint64_t id, char *buf)

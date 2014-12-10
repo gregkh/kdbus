@@ -82,20 +82,23 @@ static void add_stats(uint64_t prev)
 
 static int setup_simple_kdbus_msg(struct kdbus_conn *conn,
 				  uint64_t dst_id,
-				  struct kdbus_msg **msg_out)
+				  struct kdbus_cmd_send **cmd_out)
 {
+	struct kdbus_cmd_send *cmd;
 	struct kdbus_msg *msg;
 	struct kdbus_item *item;
 	uint64_t size;
 
-	size = sizeof(struct kdbus_msg);
+	size = sizeof(struct kdbus_cmd_send);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
-	msg = malloc(size);
-	ASSERT_RETURN_VAL(msg, -ENOMEM);
+	cmd = malloc(size);
+	ASSERT_RETURN_VAL(cmd, -ENOMEM);
 
-	memset(msg, 0, size);
-	msg->size = size;
+	memset(cmd, 0, size);
+	cmd->size = size;
+	msg = &cmd->msg;
+	msg->size = cmd->size - offsetof(struct kdbus_cmd_send, msg);
 	msg->src_id = conn->id;
 	msg->dst_id = dst_id;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS;
@@ -108,7 +111,7 @@ static int setup_simple_kdbus_msg(struct kdbus_conn *conn,
 	item->vec.size = sizeof(stress_payload);
 	item = KDBUS_ITEM_NEXT(item);
 
-	*msg_out = msg;
+	*cmd_out = cmd;
 
 	return 0;
 }
@@ -116,21 +119,24 @@ static int setup_simple_kdbus_msg(struct kdbus_conn *conn,
 static int setup_memfd_kdbus_msg(struct kdbus_conn *conn,
 				 uint64_t dst_id,
 				 off_t *memfd_item_offset,
-				 struct kdbus_msg **msg_out)
+				 struct kdbus_cmd_send **cmd_out)
 {
+	struct kdbus_cmd_send *cmd;
 	struct kdbus_msg *msg;
 	struct kdbus_item *item;
 	uint64_t size;
 
-	size = sizeof(struct kdbus_msg);
+	size = sizeof(struct kdbus_cmd_send);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 
-	msg = malloc(size);
-	ASSERT_RETURN_VAL(msg, -ENOMEM);
+	cmd = malloc(size);
+	ASSERT_RETURN_VAL(cmd, -ENOMEM);
 
-	memset(msg, 0, size);
-	msg->size = size;
+	memset(cmd, 0, size);
+	cmd->size = size;
+	msg = &cmd->msg;
+	msg->size = cmd->size - offsetof(struct kdbus_cmd_send, msg);
 	msg->src_id = conn->id;
 	msg->dst_id = dst_id;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS;
@@ -148,21 +154,23 @@ static int setup_memfd_kdbus_msg(struct kdbus_conn *conn,
 	item->memfd.size = sizeof(uint64_t);
 
 	*memfd_item_offset = (unsigned char *)item - (unsigned char *)msg;
-	*msg_out = msg;
+	*cmd_out = cmd;
 
 	return 0;
 }
 
 static int
 send_echo_request(struct kdbus_conn *conn, uint64_t dst_id,
-		  void *kdbus_msg, off_t memfd_item_offset)
+		  struct kdbus_cmd_send *cmd, off_t memfd_item_offset)
 {
 	int memfd = -1;
 	int ret;
 
 	if (use_memfd) {
 		uint64_t now_ns = now(CLOCK_THREAD_CPUTIME_ID);
-		struct kdbus_item *item = memfd_item_offset + kdbus_msg;
+		struct kdbus_item *item = (void*)((char*)&cmd->msg +
+						  memfd_item_offset);
+
 		memfd = sys_memfd_create("memfd-name", 0);
 		ASSERT_RETURN_VAL(memfd >= 0, memfd);
 
@@ -175,7 +183,7 @@ send_echo_request(struct kdbus_conn *conn, uint64_t dst_id,
 		item->memfd.fd = memfd;
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, kdbus_msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
 	ASSERT_RETURN_VAL(ret == 0, -errno);
 
 	close(memfd);
@@ -240,7 +248,7 @@ out:
 int kdbus_test_benchmark(struct kdbus_test_env *env)
 {
 	static char buf[sizeof(stress_payload)];
-	struct kdbus_msg *kdbus_msg = NULL;
+	struct kdbus_cmd_send *cmd;
 	off_t memfd_cached_offset = 0;
 	int ret;
 	struct kdbus_conn *conn_a, *conn_b;
@@ -285,10 +293,10 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 	if (use_memfd) {
 		ret = setup_memfd_kdbus_msg(conn_b, conn_a->id,
 					    &memfd_cached_offset,
-					    &kdbus_msg);
+					    &cmd);
 		ASSERT_RETURN(ret == 0);
 	} else {
-		ret = setup_simple_kdbus_msg(conn_b, conn_a->id, &kdbus_msg);
+		ret = setup_simple_kdbus_msg(conn_b, conn_a->id, &cmd);
 		ASSERT_RETURN(ret == 0);
 	}
 
@@ -309,7 +317,7 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 
 		send_ns = now(CLOCK_THREAD_CPUTIME_ID);
 		ret = send_echo_request(conn_b, conn_a->id,
-					kdbus_msg, memfd_cached_offset);
+					cmd, memfd_cached_offset);
 		ASSERT_RETURN(ret == 0);
 
 		while (1) {
@@ -331,7 +339,7 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 
 				send_ns = now(CLOCK_THREAD_CPUTIME_ID);
 				ret = send_echo_request(conn_b, conn_a->id,
-							kdbus_msg,
+							cmd,
 							memfd_cached_offset);
 				ASSERT_RETURN(ret == 0);
 			}
@@ -402,7 +410,7 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 
 	kdbus_printf("-- closing bus connections\n");
 
-	free(kdbus_msg);
+	free(cmd);
 
 	kdbus_conn_free(conn_a);
 	kdbus_conn_free(conn_b);

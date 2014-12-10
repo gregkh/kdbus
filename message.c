@@ -424,39 +424,24 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 }
 
 /**
- * kdbus_kmsg_new_from_user() - copy message from user memory
+ * kdbus_kmsg_new_from_cmd() - create kernel message from send payload
  * @conn:		Connection
- * @msg:		User-provided message
+ * @cmd:		Payload of KDBUS_CMD_SEND
  *
  * Return: a new kdbus_kmsg on success, ERR_PTR on failure.
  */
-struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
-					    struct kdbus_msg __user *msg)
+struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
+					   struct kdbus_cmd_send *cmd_send)
 {
 	struct kdbus_kmsg *m;
-	u64 size, alloc_size;
 	int ret;
 
-	if (!KDBUS_IS_ALIGNED8((unsigned long)msg))
-		return ERR_PTR(-EFAULT);
-
-	if (kdbus_size_get_user(&size, msg, struct kdbus_msg))
-		return ERR_PTR(-EFAULT);
-
-	if (size < sizeof(struct kdbus_msg) || size > KDBUS_MSG_MAX_SIZE)
-		return ERR_PTR(-EMSGSIZE);
-
-	alloc_size = size + KDBUS_KMSG_HEADER_SIZE;
-
-	m = kmalloc(alloc_size, GFP_KERNEL);
+	m = kmalloc(cmd_send->msg.size + KDBUS_KMSG_HEADER_SIZE, GFP_KERNEL);
 	if (!m)
 		return ERR_PTR(-ENOMEM);
-	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
 
-	if (copy_from_user(&m->msg, msg, size)) {
-		ret = -EFAULT;
-		goto exit_free;
-	}
+	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
+	memcpy(&m->msg, &cmd_send->msg, cmd_send->msg.size);
 
 	m->res = kdbus_msg_resources_new();
 	if (IS_ERR(m->res)) {
@@ -465,23 +450,11 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	ret = kdbus_items_validate(m->msg.items,
-				   KDBUS_ITEMS_SIZE(&m->msg, items));
-	if (ret < 0)
-		goto exit_free;
-
 	/* do not accept kernel-generated messages */
 	if (m->msg.payload_type == KDBUS_PAYLOAD_KERNEL) {
 		ret = -EINVAL;
 		goto exit_free;
 	}
-
-	ret = kdbus_negotiate_flags(&m->msg, msg, struct kdbus_msg,
-				    KDBUS_MSG_FLAGS_EXPECT_REPLY |
-				    KDBUS_MSG_FLAGS_SYNC_REPLY |
-				    KDBUS_MSG_FLAGS_NO_AUTO_START);
-	if (ret < 0)
-		goto exit_free;
 
 	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
 		/* requests for replies need a timeout */
@@ -497,10 +470,10 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_user(struct kdbus_conn *conn,
 		}
 	} else {
 		/*
-		 * KDBUS_MSG_FLAGS_SYNC_REPLY is only valid together with
+		 * KDBUS_SEND_SYNC_REPLY is only valid together with
 		 * KDBUS_MSG_FLAGS_EXPECT_REPLY
 		 */
-		if (m->msg.flags & KDBUS_MSG_FLAGS_SYNC_REPLY) {
+		if (cmd_send->flags & KDBUS_SEND_SYNC_REPLY) {
 			ret = -EINVAL;
 			goto exit_free;
 		}

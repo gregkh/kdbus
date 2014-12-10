@@ -417,8 +417,6 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	ASSERT_RETURN(msg->src_id == owner_a->id);
 
 	kdbus_msg_free(msg);
-	kdbus_free(owner_b, msg->offset_reply);
-
 
 	/* Release name "com.example.broadcastB" */
 
@@ -547,7 +545,6 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 		ASSERT_RETURN(msg->cookie == expected_cookie);
 
 		kdbus_msg_free(msg);
-		kdbus_free(owner_b, msg->offset_reply);
 
 	}));
 	ASSERT_RETURN(ret == 0);
@@ -626,7 +623,6 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	ASSERT_RETURN(msg->cookie == expected_cookie);
 
 	kdbus_msg_free(msg);
-	kdbus_free(owner_a, msg->offset_reply);
 
 	/*
 	 * owner_a released name "com.example.broadcastA". It should
@@ -659,7 +655,6 @@ static int test_broadcast_after_policy_upload(struct kdbus_test_env *env)
 	ASSERT_RETURN(msg->cookie == expected_cookie);
 
 	kdbus_msg_free(msg);
-	kdbus_free(owner_a, msg->offset_reply);
 
 	kdbus_conn_free(owner_a);
 	kdbus_conn_free(owner_b);

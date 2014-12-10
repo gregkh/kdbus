@@ -162,7 +162,6 @@ static int kdbus_priv_activator(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
 
 	kdbus_msg_free(msg);
-	kdbus_free(service, msg->offset_reply);
 
 	/* Policies default to deny TALK now */
 	kdbus_conn_free(activator);
@@ -189,7 +188,6 @@ static int kdbus_priv_activator(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
 
 	kdbus_msg_free(msg);
-	kdbus_free(service, msg->offset_reply);
 
 	access = (struct kdbus_policy_access []){
 		{
