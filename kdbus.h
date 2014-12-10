@@ -459,6 +459,16 @@ struct kdbus_msg {
 } __attribute__((aligned(8)));
 
 /**
+ * struct kdbus_reply - reply container
+ * @offset:		Offset of kdbus_msg slice in pool
+ * @msg_size:		Copy of the kdbus_msg.size field
+ */
+struct kdbus_reply {
+	__u64 offset;
+	__u64 msg_size;
+};
+
+/**
  * enum kdbus_recv_flags - flags for de-queuing messages
  * @KDBUS_RECV_PEEK:		Return the next queued message without
  *				actually de-queuing it, and without installing
@@ -484,19 +494,11 @@ enum kdbus_recv_flags {
  * @kernel_flags:	Supported KDBUS_RECV_* flags, kernel → userspace
  * @priority:		Minimum priority of the messages to de-queue. Lowest
  *			values have the highest priority.
- * @offset:		Returned offset in the pool where the message is
- *			stored. The user must use KDBUS_CMD_FREE to free
- *			the allocated memory.
  * @dropped_msgs:	In case the KDBUS_CMD_RECV ioctl returns
  *			-EOVERFLOW, this field will contain the number of
  *			broadcast messages that have been lost since the
  *			last call.
- * @msg_size:		Filled by the kernel with the actual message size. This
- *			is the full size of the slice placed at @offset. It
- *			includes the memory used for the kdbus_msg object, but
- *			also for all appended VECs. By using @msg_size and
- *			@offset, you can map a single message, instead of
- *			mapping the whole pool.
+ * @reply:		Return storage for received message.
  * @items:		Additional items for this command.
  *
  * This struct is used with the KDBUS_CMD_RECV ioctl.
@@ -506,11 +508,8 @@ struct kdbus_cmd_recv {
 	__u64 flags;
 	__u64 kernel_flags;
 	__s64 priority;
-	union {
-		__u64 offset;
-		__u64 dropped_msgs;
-	};
-	__u64 msg_size;
+	__u64 dropped_msgs;
+	struct kdbus_reply reply;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 

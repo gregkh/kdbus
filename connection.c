@@ -284,7 +284,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	unsigned int lost_count;
 	int ret = 0;
 
-	if (recv->offset > 0)
+	if (recv->reply.offset > 0)
 		return -EINVAL;
 
 	mutex_lock(&conn->lock);
@@ -366,7 +366,8 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 
 	/* Give the offset+size back to the caller. */
-	kdbus_pool_slice_publish(entry->slice, &recv->offset, &recv->msg_size);
+	kdbus_pool_slice_publish(entry->slice, &recv->reply.offset,
+				 &recv->reply.msg_size);
 
 	/*
 	 * PEEK just returns the location of the next message. Do not install

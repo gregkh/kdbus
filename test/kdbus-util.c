@@ -878,7 +878,7 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 		return ret;
 	}
 
-	msg = (struct kdbus_msg *)(conn->buf + recv.offset);
+	msg = (struct kdbus_msg *)(conn->buf + recv.reply.offset);
 	ret = kdbus_msg_dump(conn, msg);
 	if (ret < 0) {
 		kdbus_msg_free(msg);
@@ -889,11 +889,11 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 		*msg_out = msg;
 
 		if (offset)
-			*offset = recv.offset;
+			*offset = recv.reply.offset;
 	} else {
 		kdbus_msg_free(msg);
 
-		ret = kdbus_free(conn, recv.offset);
+		ret = kdbus_free(conn, recv.reply.offset);
 		if (ret < 0)
 			return ret;
 	}
