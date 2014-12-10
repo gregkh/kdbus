@@ -6,7 +6,9 @@ since v2:
 
   * Rewrite major parts of the metadata implementation to allow for
     per-recipient namespace translations. For this, namespaces are
-    now pinned to connections rather than to domains.
+    now not pinned by domains anymore. Instead, metadata is recorded
+    in kernel scope, and exported into the currently active namespaces
+    at the time of message installing.
 
   * Split PID and TID from KDBUS_ITEM_CREDS into KDBUS_ITEM_PIDS.
     The starttime is there to detect re-used PIDs, so move it to that
@@ -16,11 +18,29 @@ since v2:
   * Add {e,s,fs}{u,g}id to KDBUS_ITEM_CREDS, so users have a way to
     get more fine-grained credential information.
 
+  * Dropped startttime from KDBUS_ITEM_PIDS
+
   * Restrict names of custom endpoints to names with a "<uid>-" prefix,
     just like we do for buses.
 
   * Provide module-parameter "kdbus.attach_flags_mask" to specify the
     a mask of metadata items that is applied on all exported items.
+
+  * Monitors are now entirely invisible (IOW, there won't be any
+    notification when they are created) and they don't need to install
+    filters for broadcast messages anymore.
+
+  * All information exposed via a connection's pool now also reports
+    the length in addition to the offset. That way, userspace
+    applications can mmap() only parts of the pool on demand.
+
+  * Due to the metadata rework, KDBUS_ITEM_PAYLOAD_OFF items now
+    describe the offset relative to the pool, where they used to be
+    relative to the message header.
+
+  * Added return_flags bitmask to all kdbus_cmd_* structs, so the
+    kernel can report details of the command processing. This is
+    mostly reserved for future extensions.
 
   * Some fixes in kdbus.txt and tests, spotted by Harald Hoyer, Andy
     Lutomirski, Michele Curti and Sergei Zviagintsev
