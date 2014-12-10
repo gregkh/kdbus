@@ -361,15 +361,6 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_queue_entry_install(entry, conn, &recv->reply.return_flags,
-					install);
-	if (ret < 0)
-		goto exit_unlock;
-
-	/* Give the offset+size back to the caller. */
-	kdbus_pool_slice_publish(entry->slice, &recv->reply.offset,
-				 &recv->reply.msg_size);
-
 	/*
 	 * PEEK just returns the location of the next message. Do not install
 	 * file descriptors or anything else. This is usually used to
@@ -382,6 +373,15 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	 * Only if no PEEK is specified, the FDs are installed and the message
 	 * is dropped from internal queues.
 	 */
+	ret = kdbus_queue_entry_install(entry, conn, &recv->reply.return_flags,
+					install);
+	if (ret < 0)
+		goto exit_unlock;
+
+	/* Give the offset+size back to the caller. */
+	kdbus_pool_slice_publish(entry->slice, &recv->reply.offset,
+				 &recv->reply.msg_size);
+
 	if (install) {
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
