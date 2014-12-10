@@ -357,8 +357,8 @@ static int kdbus_test_peers_info(struct kdbus_test_env *env)
 /**
  * @kdbus_mask_param:	kdbus module mask parameter (system-wide)
  * @requested_meta:	The bus owner metadata that we want
- * @expected_items:	The returned KDBUS_ITEMS_*. Used to validate
- *			the returned metadata items
+ * @expected_items:	The returned KDBUS_ITEMS_* sum. Used to
+ *			validate the returned metadata items
  */
 static int kdbus_cmp_bus_creator_metadata(struct kdbus_test_env *env,
 					  struct kdbus_conn *conn,
@@ -370,7 +370,7 @@ static int kdbus_cmp_bus_creator_metadata(struct kdbus_test_env *env,
 	uint64_t offset = 0;
 	struct kdbus_info *info;
 	struct kdbus_item *item;
-	unsigned long attach_count = 0; 
+	unsigned long attach_count = 0;
 
 	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
 					     kdbus_mask_param);
@@ -490,7 +490,145 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	/* system-wide mask to 0 */
 	attach_flags_mask = 0;
 
-	/* we should only see: KDBUS_ITEM_MAKE_NAME */ 
+	/* we should only see: KDBUS_ITEM_MAKE_NAME */
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     _KDBUS_ATTACH_ALL,
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	kdbus_conn_free(conn);
+	free(path);
+	free(busname);
+	close(control_fd);
+
+
+	/*
+	 * A new bus that hides all its owner metadata
+	 */
+
+	control_fd = open(control_path, O_RDWR);
+	ASSERT_RETURN(control_fd >= 0);
+
+	busname = unique_name("test-peers-info-bus");
+	ASSERT_RETURN(busname);
+
+	ret = kdbus_create_bus(control_fd, busname, 0, 0, &path);
+	ASSERT_RETURN(ret == 0);
+
+	snprintf(buspath, sizeof(buspath), "%s/%s/bus", env->root, path);
+
+	conn = __kdbus_hello(buspath, 0, 0, 0);
+	ASSERT_RETURN(conn);
+
+	/*
+	 * Start with a kdbus module mask set to _KDBUS_ATTACH_ANY
+	 */
+	attach_flags_mask = _KDBUS_ATTACH_ANY;
+
+	/*
+	 * We only get the KDBUS_ITEM_MAKE_NAME
+	 */
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     _KDBUS_ATTACH_ALL,
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * We still get only kdbus_ITEM_MAKE_NAME
+	 */
+	attach_flags_mask = 0;
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     _KDBUS_ATTACH_ALL,
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	kdbus_conn_free(conn);
+	free(path);
+	free(busname);
+	close(control_fd);
+
+
+	/*
+	 * A new bus that shows only the PID and CREDS metadata
+	 * of the bus owner.
+	 */
+	control_fd = open(control_path, O_RDWR);
+	ASSERT_RETURN(control_fd >= 0);
+
+	busname = unique_name("test-peers-info-bus");
+	ASSERT_RETURN(busname);
+
+	ret = kdbus_create_bus(control_fd, busname, 0,
+			       KDBUS_ATTACH_PIDS|
+			       KDBUS_ATTACH_CREDS, &path);
+	ASSERT_RETURN(ret == 0);
+
+	snprintf(buspath, sizeof(buspath), "%s/%s/bus", env->root, path);
+
+	conn = __kdbus_hello(buspath, 0, 0, 0);
+	ASSERT_RETURN(conn);
+
+	/*
+	 * Start with a kdbus module mask set to _KDBUS_ATTACH_ANY
+	 */
+	attach_flags_mask = _KDBUS_ATTACH_ANY;
+
+	/*
+	 * We should have:
+	 * KDBUS_ITEM_PIDS + KDBUS_ITEM_CREDS + KDBUS_ITEM_MAKE_NAME
+	 */
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     _KDBUS_ATTACH_ALL,
+					     KDBUS_ITEM_PIDS +
+					     KDBUS_ITEM_CREDS +
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     KDBUS_ATTACH_CREDS,
+					     KDBUS_ITEM_CREDS +
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	/* KDBUS_ITEM_MAKE_NAME is always returned */
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     0,
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	/*
+	 * Restrict kdbus system-wide mask to KDBUS_ATTACH_PIDS
+	 */
+
+	attach_flags_mask = KDBUS_ATTACH_PIDS;
+	/*
+	 * We should have:
+	 * KDBUS_ITEM_PIDS + KDBUS_ITEM_MAKE_NAME
+	 */
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     _KDBUS_ATTACH_ALL,
+					     KDBUS_ITEM_PIDS +
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	/* No KDBUS_ATTACH_CREDS */
+	ret = kdbus_cmp_bus_creator_metadata(env, conn,
+					     attach_flags_mask,
+					     KDBUS_ATTACH_CREDS,
+					     KDBUS_ITEM_MAKE_NAME);
+	ASSERT_RETURN(ret == 0);
+
+	/* system-wide mask to 0 */
+	attach_flags_mask = 0;
+
+	/* we should only see: KDBUS_ITEM_MAKE_NAME */
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
