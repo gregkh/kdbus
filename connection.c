@@ -1818,11 +1818,17 @@ int kdbus_conn_connect(struct kdbus_conn *conn, struct kdbus_cmd_hello *hello)
 
 	kdbus_node_release(&ep->node);
 
-	/* notify subscribers about the new active connection */
-	ret = kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_ADD,
-				     conn->id, conn->flags);
-	if (ret < 0)
-		goto exit_disconnect;
+	/*
+	 * Notify subscribers about the new active connection, unless it is
+	 * a monitor. Monitors are invisible on the bus, can't be addressed
+	 * directly, and won't cause any notifications.
+	 */
+	if (!kdbus_conn_is_monitor(conn)) {
+		ret = kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_ADD,
+					     conn->id, conn->flags);
+		if (ret < 0)
+			goto exit_disconnect;
+	}
 
 	if (kdbus_conn_is_activator(conn)) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
