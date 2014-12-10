@@ -300,10 +300,9 @@ static long handle_ep_ioctl_none(struct file *file, unsigned int cmd,
 		ret = handle_ep_ioctl_endpoint_make(handle, buf);
 		break;
 
-	case KDBUS_CMD_HELLO: {
+	case KDBUS_CMD_HELLO:
 		ret = handle_ep_ioctl_hello(handle, buf);
 		break;
-	}
 
 	default:
 		ret = -ENOTTY;
