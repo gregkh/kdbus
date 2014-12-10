@@ -493,9 +493,9 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_item *meta_items;
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
-	u64 flags = cmd_info->flags;
 	struct iovec iov[5];
 	size_t iov_count = 0;
+	u64 attach_flags;
 	size_t pad;
 	int ret;
 
@@ -504,7 +504,10 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 
 	name_len = strlen(bus->node.name) + 1;
 
-	meta_items = kdbus_meta_export(bus->meta, flags, &meta_size);
+	/* mask out what information the bus owner wants to pass us */
+	attach_flags = cmd_info->flags & bus->attach_flags_owner;
+
+	meta_items = kdbus_meta_export(bus->meta, attach_flags, &meta_size);
 	if (IS_ERR(meta_items))
 		return PTR_ERR(meta_items);
 
