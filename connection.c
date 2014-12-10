@@ -1072,8 +1072,9 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		kdbus_conn_reply_unref(reply);
 	}
 
-	kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_REMOVE,
-			       conn->id, conn->flags);
+	if (!kdbus_conn_is_monitor(conn))
+		kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_REMOVE,
+				       conn->id, conn->flags);
 
 	kdbus_notify_flush(conn->ep->bus);
 
