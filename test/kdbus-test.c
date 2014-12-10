@@ -245,6 +245,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
+		.name	= "benchmark-nomemfds",
+		.desc	= "benchmark without using memfds",
+		.func	= kdbus_test_benchmark_nomemfds,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		.name	= "race-byebye",
 		.desc	= "race multiple byebyes",
 		.func	= kdbus_test_race_byebye,

@@ -29,9 +29,9 @@
  * attach_none	= true;		do not attached metadata
  */
 
-static const bool use_memfd = true;		/* transmit memfd? */
-static const bool compare_uds = false;		/* unix-socket comparison? */
-static const bool attach_none = false;		/* clear attach-flags? */
+static bool use_memfd = true;		/* transmit memfd? */
+static bool compare_uds = false;		/* unix-socket comparison? */
+static bool attach_none = false;		/* clear attach-flags? */
 static char stress_payload[8192];
 
 struct stats {
@@ -245,7 +245,7 @@ out:
 	return 0;
 }
 
-int kdbus_test_benchmark(struct kdbus_test_env *env)
+static int benchmark(struct kdbus_test_env *env)
 {
 	static char buf[sizeof(stress_payload)];
 	struct kdbus_cmd_send *cmd;
@@ -416,4 +416,16 @@ int kdbus_test_benchmark(struct kdbus_test_env *env)
 	kdbus_conn_free(conn_b);
 
 	return (stats.count > 1) ? TEST_OK : TEST_ERR;
+}
+
+int kdbus_test_benchmark(struct kdbus_test_env *env)
+{
+	use_memfd = true;
+	return benchmark(env);
+}
+
+int kdbus_test_benchmark_nomemfds(struct kdbus_test_env *env)
+{
+	use_memfd = false;
+	return benchmark(env);
 }
