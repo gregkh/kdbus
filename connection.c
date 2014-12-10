@@ -473,19 +473,15 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 				   struct kdbus_conn *conn_dst,
 				   struct kdbus_conn_reply **reply_wake)
 {
-	bool allowed = false;
-
 	/*
-	 * Walk the conn_src's list of expected replies. If there's any
-	 * matching entry, allow the message to be sent, and remove it.
-	 *
-	 * If conn_dst did not issue any previous request or if the
-	 * request was canceled then nothing to do, and fallback to
-	 * to a normal permission check
+	 * If the message is a reply, its cookie_reply field must match any
+	 * of the connection's expected replies. Otherwise, access to send the
+	 * message will be denied.
 	 */
 	if (reply_wake && msg->cookie_reply > 0 &&
 	    atomic_read(&conn_dst->reply_count) > 0) {
 		struct kdbus_conn_reply *r;
+		bool allowed = false;
 
 		mutex_lock(&conn_src->lock);
 		r = kdbus_conn_reply_find(conn_src, conn_dst,
@@ -500,10 +496,9 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 			allowed = true;
 		}
 		mutex_unlock(&conn_src->lock);
-	}
 
-	if (allowed)
-		return 0;
+		return allowed ? 0 : -EPERM;
+	}
 
 	/* ... otherwise, ask the policy DBs for permission */
 	return kdbus_ep_policy_check_talk_access(ep, conn_src, conn_dst);
