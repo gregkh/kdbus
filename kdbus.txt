@@ -700,13 +700,13 @@ message metadata fields, raw data, references to data, or file descriptors.
 7.1 Sending messages
 --------------------
 
-Messages are passed to the kernel with the KDBUS_CMD_MSG_SEND ioctl. Depending
+Messages are passed to the kernel with the KDBUS_CMD_SEND ioctl. Depending
 on the destination address of the message, the kernel delivers the message to
 the specific destination connection or to all connections on the same bus.
 Sending messages across buses is not possible. Messages are always queued in
 the memory pool of the destination connection (see below).
 
-The KDBUS_CMD_MSG_SEND ioctl uses struct kdbus_msg to describe the message to
+The KDBUS_CMD_SEND ioctl uses struct kdbus_msg to describe the message to
 be sent.
 
 struct kdbus_msg {
@@ -737,14 +737,14 @@ struct kdbus_msg {
       non-blocking. However, as there are many use cases that need to wait
       for a remote peer to answer a method call, there's a way to send a
       message and wait for a reply in a synchronous fashion. This is what
-      the KDBUS_MSG_FLAGS_SYNC_REPLY controls. The KDBUS_CMD_MSG_SEND ioctl
+      the KDBUS_MSG_FLAGS_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl
       will block until the reply has arrived, the timeout limit is reached,
       in case the remote connection was shut down, or if interrupted by
       a signal before any reply; see signal(7).
 
       The offset of the reply message in the sender's pool is stored in
       in 'offset_reply' when the ioctl has returned without error. Hence,
-      there is no need for another KDBUS_CMD_MSG_RECV ioctl or anything else
+      there is no need for another KDBUS_CMD_RECV ioctl or anything else
       to receive the reply.
 
     KDBUS_MSG_FLAGS_NO_AUTO_START
@@ -796,7 +796,7 @@ struct kdbus_msg {
   __u64 offset_reply;
     If the message successfully got a synchronous reply (see above), this
     field will yield the offset of the reply message in the sender's pool.
-    Is is what KDBUS_CMD_MSG_RECV usually does for asynchronous messages.
+    Is is what KDBUS_CMD_RECV usually does for asynchronous messages.
 
   struct kdbus_item items[0];
     A dynamically sized list of items to contain additional information.
@@ -905,11 +905,11 @@ hunks than it was sent as.
 7.4 Receiving messages
 ----------------------
 
-Messages are received by the client with the KDBUS_CMD_MSG_RECV ioctl. The
+Messages are received by the client with the KDBUS_CMD_RECV ioctl. The
 endpoint file of the bus supports poll() to wake up the receiving process when
 new messages are queued up to be received.
 
-With the KDBUS_CMD_MSG_RECV ioctl, a struct kdbus_cmd_recv is used.
+With the KDBUS_CMD_RECV ioctl, a struct kdbus_cmd_recv is used.
 
 struct kdbus_cmd_recv {
   __u64 flags;
@@ -940,7 +940,7 @@ struct kdbus_cmd_recv {
       receiver's memory pool.
 
   __u64 dropped_msgs;
-      If the CMD_MSG_RECV ioctl fails with EOVERFLOW, this field is filled by
+      If the CMD_RECV ioctl fails with EOVERFLOW, this field is filled by
       the kernel with the number of messages that couldn't be transmitted to
       this connection. In that case, the @offset member must not be accessed.
 
@@ -959,7 +959,7 @@ interpreted with the semantics described above.
 
 Also, if the connection allowed for file descriptor to be passed
 (KDBUS_HELLO_ACCEPT_FD), and if the message contained any, they will be
-installed into the receiving process after the KDBUS_CMD_MSG_RECV ioctl
+installed into the receiving process after the KDBUS_CMD_RECV ioctl
 returns. The receiving task is obliged to close all of them appropriately.
 If KDBUS_RECV_PEEK is used, no file descriptors are installed. This allows for
 peeking at a message and dropping it via KDBUS_RECV_DROP, without ever
@@ -973,7 +973,7 @@ the memory is no longer needed.
 --------------------------------------------------------
 
 When a connection sends a message with KDBUS_MSG_FLAGS_SYNC_REPLY and
-blocks while waiting for the reply, the KDBUS_CMD_MSG_CANCEL ioctl can be
+blocks while waiting for the reply, the KDBUS_CMD_CANCEL ioctl can be
 used on the same file descriptor to cancel blocking wait, based on its cookie.
 If there are multiple messages with the same cookie that are all synchronously
 waiting for a reply, all of them will be canceled. Obviously, this is only
@@ -1551,7 +1551,7 @@ A pool for data received from the kernel is installed for every connection of
 the bus, and is sized according to kdbus_cmd_hello.pool_size. It is accessed
 when one of the following ioctls is issued:
 
-  * KDBUS_CMD_MSG_RECV, to receive a message
+  * KDBUS_CMD_RECV, to receive a message
   * KDBUS_CMD_NAME_LIST, to dump the name registry
   * KDBUS_CMD_CONN_INFO, to retrieve information on a connection
 
@@ -1757,7 +1757,7 @@ For KDBUS_CMD_BYEBYE:
   -EALREADY	The connection has already been shut down
   -EBUSY	There are still messages queued up in the connection's pool
 
-For KDBUS_CMD_MSG_SEND:
+For KDBUS_CMD_SEND:
 
   -EOPNOTSUPP	The connection is not an ordinary connection, or the passed
 		file descriptors are either kdbus handles or unix domain
@@ -1812,14 +1812,14 @@ For KDBUS_CMD_MSG_SEND:
   -EREMOTEIO	While synchronously waiting for a reply, the remote peer
 		failed with an I/O error.
 
-For KDBUS_CMD_MSG_RECV:
+For KDBUS_CMD_RECV:
 
   -EINVAL	Invalid flags or offset
   -EAGAIN	No message found in the queue
   -ENOMSG	No message of the requested priority found
   -EOVERFLOW	Broadcast messages have been lost
 
-For KDBUS_CMD_MSG_CANCEL:
+For KDBUS_CMD_CANCEL:
 
   -EINVAL	Invalid flags
   -ENOENT	Pending message with the supplied cookie not found

@@ -548,7 +548,7 @@ int kdbus_msg_send(const struct kdbus_conn *conn,
 	}
 	item = KDBUS_ITEM_NEXT(item);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
 	if (memfd >= 0)
 		close(memfd);
 
@@ -868,7 +868,7 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
 	if (ret < 0) {
 		ret = -errno;
 		/* store how many lost packets */

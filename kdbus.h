@@ -390,7 +390,7 @@ struct kdbus_item {
  *					in cookie_reply
  * @KDBUS_MSG_FLAGS_SYNC_REPLY:		Wait for destination connection to
  *					reply to this message. The
- *					KDBUS_CMD_MSG_SEND ioctl() will block
+ *					KDBUS_CMD_SEND ioctl() will block
  *					until the reply is received, and
  *					offset_reply in struct kdbus_msg will
  *					yield the offset in the sender's pool
@@ -486,7 +486,7 @@ enum kdbus_recv_flags {
  * @offset:		Returned offset in the pool where the message is
  *			stored. The user must use KDBUS_CMD_FREE to free
  *			the allocated memory.
- * @dropped_msgs:	In case the KDBUS_CMD_MSG_RECV ioctl returns
+ * @dropped_msgs:	In case the KDBUS_CMD_RECV ioctl returns
  *			-EOVERFLOW, this field will contain the number of
  *			broadcast messages that have been lost since the
  *			last call.
@@ -497,7 +497,7 @@ enum kdbus_recv_flags {
  *			@offset, you can map a single message, instead of
  *			mapping the whole pool.
  *
- * This struct is used with the KDBUS_CMD_MSG_RECV ioctl.
+ * This struct is used with the KDBUS_CMD_RECV ioctl.
  */
 struct kdbus_cmd_recv {
 	__u64 flags;
@@ -905,11 +905,11 @@ struct kdbus_cmd_match {
  *				the call succeeds, and the handle is rendered
  *				unusable. Otherwise, -EBUSY is returned without
  *				any further side-effects.
- * KDBUS_CMD_MSG_SEND:		Send a message and pass data from userspace to
+ * KDBUS_CMD_SEND:		Send a message and pass data from userspace to
  *				the kernel.
- * KDBUS_CMD_MSG_RECV:		Receive a message from the kernel which is
+ * KDBUS_CMD_RECV:		Receive a message from the kernel which is
  *				placed in the receiver's pool.
- * KDBUS_CMD_MSG_CANCEL:	Cancel a pending request of a message that
+ * KDBUS_CMD_CANCEL:		Cancel a pending request of a message that
  *				blocks while waiting for a reply. The parameter
  *				denotes the cookie of the message in flight.
  * KDBUS_CMD_FREE:		Release the allocated memory in the receiver's
@@ -946,11 +946,11 @@ struct kdbus_cmd_match {
 					      struct kdbus_cmd_hello)
 #define KDBUS_CMD_BYEBYE		_IO(KDBUS_IOCTL_MAGIC, 0x21)	\
 
-#define KDBUS_CMD_MSG_SEND		_IOWR(KDBUS_IOCTL_MAGIC, 0x30,	\
+#define KDBUS_CMD_SEND			_IOWR(KDBUS_IOCTL_MAGIC, 0x30,	\
 					      struct kdbus_msg)
-#define KDBUS_CMD_MSG_RECV		_IOWR(KDBUS_IOCTL_MAGIC, 0x31,	\
+#define KDBUS_CMD_RECV			_IOWR(KDBUS_IOCTL_MAGIC, 0x31,	\
 					      struct kdbus_cmd_recv)
-#define KDBUS_CMD_MSG_CANCEL		_IOW(KDBUS_IOCTL_MAGIC, 0x32,	\
+#define KDBUS_CMD_CANCEL		_IOW(KDBUS_IOCTL_MAGIC, 0x32,	\
 					     struct kdbus_cmd_cancel)
 #define KDBUS_CMD_FREE			_IOW(KDBUS_IOCTL_MAGIC, 0x33,	\
 					     struct kdbus_cmd_free)

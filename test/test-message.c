@@ -93,7 +93,7 @@ static int msg_recv_prio(struct kdbus_conn *conn,
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
 	if (ret < 0) {
 		kdbus_printf("error receiving message: %d (%m)\n", -errno);
 		return -errno;

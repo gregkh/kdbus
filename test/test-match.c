@@ -339,7 +339,7 @@ static int send_bloom_filter(const struct kdbus_conn *conn,
 	item->bloom_filter.generation = filter_generation;
 	memcpy(item->bloom_filter.data, filter, filter_size);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);

@@ -22,7 +22,7 @@ int timeout_msg_recv(struct kdbus_conn *conn, uint64_t *expected)
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
 	if (ret < 0) {
 		kdbus_printf("error receiving message: %d (%m)\n", ret);
 		return -errno;

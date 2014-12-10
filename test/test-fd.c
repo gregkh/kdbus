@@ -113,7 +113,7 @@ static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 
 	make_item_memfds(item, memfds_array, memfd_count);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
@@ -151,7 +151,7 @@ static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 
 	make_item_fds(item, fd_array, fd_count);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
@@ -184,7 +184,7 @@ static int send_fds_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 	item = KDBUS_ITEM_NEXT(item);
 	make_item_memfds(item, memfds_array, memfd_count);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
@@ -349,7 +349,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 					KDBUS_MSG_FLAGS_SYNC_REPLY;
 
 
-		ret = ioctl(conn_dst->fd, KDBUS_CMD_MSG_SEND,
+		ret = ioctl(conn_dst->fd, KDBUS_CMD_SEND,
 			    msg_sync_reply);
 		ASSERT_EXIT(ret < 0 && -errno == -ECOMM);
 
@@ -398,7 +398,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 
 	msg_sync_reply->cookie_reply = cookie;
 
-	ret = ioctl(conn_src->fd, KDBUS_CMD_MSG_SEND, msg_sync_reply);
+	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, msg_sync_reply);
 	ASSERT_RETURN(ret < 0 && -errno == -EOPNOTSUPP);
 
 	free(msg_sync_reply);
@@ -416,7 +416,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 
 	msg_sync_reply->cookie_reply = cookie;
 
-	ret = ioctl(conn_src->fd, KDBUS_CMD_MSG_SEND, msg_sync_reply);
+	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, msg_sync_reply);
 	ASSERT_RETURN(ret < 0 && -errno == -ECOMM);
 
 	free(msg_sync_reply);

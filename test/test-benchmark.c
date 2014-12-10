@@ -175,7 +175,7 @@ send_echo_request(struct kdbus_conn *conn, uint64_t dst_id,
 		item->memfd.fd = memfd;
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, kdbus_msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, kdbus_msg);
 	ASSERT_RETURN_VAL(ret == 0, -errno);
 
 	close(memfd);
@@ -192,7 +192,7 @@ handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 	const struct kdbus_item *item;
 	bool has_memfd = false;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
 	if (ret < 0 && errno == EAGAIN)
 		return -EAGAIN;
 

@@ -131,7 +131,7 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -1 && errno == EBUSY);
 
 	/* receive the message */
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_free(conn, recv.offset);

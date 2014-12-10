@@ -43,14 +43,14 @@
  * The receiver's buffer, managed as a pool of allocated and free
  * slices containing the queued messages.
  *
- * Messages sent with KDBUS_CMD_MSG_SEND are copied direcly by the
+ * Messages sent with KDBUS_CMD_SEND are copied direcly by the
  * sending process into the receiver's pool.
  *
- * Messages received with KDBUS_CMD_MSG_RECV just return the offset
+ * Messages received with KDBUS_CMD_RECV just return the offset
  * to the data placed in the pool.
  *
  * The internally allocated memory needs to be returned by the receiver
- * with KDBUS_CMD_MSG_FREE.
+ * with KDBUS_CMD_FREE.
  */
 struct kdbus_pool {
 	struct file *f;

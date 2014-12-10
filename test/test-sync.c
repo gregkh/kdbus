@@ -58,7 +58,7 @@ static int send_reply(const struct kdbus_conn *conn,
 	item->vec.size = sizeof(ref1);
 	item = KDBUS_ITEM_NEXT(item);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_SEND, msg);
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, msg);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);

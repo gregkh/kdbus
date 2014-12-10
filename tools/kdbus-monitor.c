@@ -132,7 +132,7 @@ static int dump_packet(struct conn *conn, int fd)
 	entry.tv_sec = now.tv_sec;
 	entry.tv_usec = now.tv_usec;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MSG_RECV, &recv);
+	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
 	if (ret < 0) {
 		fprintf(stderr, "error receiving message: %d (%m)\n", ret);
 		return EXIT_FAILURE;

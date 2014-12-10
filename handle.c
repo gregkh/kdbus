@@ -592,7 +592,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_MSG_SEND: {
+	case KDBUS_CMD_SEND: {
 		/* submit a message which will be queued in the receiver */
 		struct kdbus_kmsg *kmsg = NULL;
 
@@ -627,7 +627,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_MSG_RECV: {
+	case KDBUS_CMD_RECV: {
 		struct kdbus_cmd_recv cmd_recv;
 
 		if (!kdbus_conn_is_ordinary(conn) &&
@@ -669,7 +669,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_MSG_CANCEL: {
+	case KDBUS_CMD_CANCEL: {
 		struct kdbus_cmd_cancel cmd_cancel;
 
 		if (!kdbus_conn_is_ordinary(conn)) {
