@@ -169,7 +169,7 @@ The kdbus interface is exposed through files in its kdbusfs mount point
 The above description uses the D-Bus notation of unique connection names that
 adds a ":1." prefix to the connection's unique ID. kdbus itself doesn't
 use that notation, neither internally nor externally. However, libraries and
-other usespace code that aims for compatibility to D-Bus might.
+other userspace code that aims for compatibility to D-Bus might.
 
 3.2 Flags
 ---------
@@ -1460,7 +1460,7 @@ and are translated back and forth on the ioctl level accordingly.
 
 Policy holder connections may upload names that contain the wildcard suffix
 (".*"). That way, a policy can be uploaded that is effective for every
-well-kwown name that extends the provided name by exactly one more level.
+well-known name that extends the provided name by exactly one more level.
 
 For example, if an item of a set up uploaded policy rules contains the name
 "foo.bar.*", both "foo.bar.baz" and "foo.bar.bazbaz" are valid, but
@@ -1579,7 +1579,7 @@ metadata items in accordance to the destination's current attach flags. The
 information stored in those metadata items refer to the sender task at the
 time of sending the message, so even if any detail of the sender task has
 already changed upon message reception (or if the sender task does not exist
-anymore), the information is still preserved and won't be modfied until the
+anymore), the information is still preserved and won't be modified until the
 message is freed.
 
 Note that there are two exceptions to the above rules:
@@ -1768,7 +1768,7 @@ For KDBUS_CMD_SEND:
 		KDBUS_MSG_FLAGS_EXPECT_REPLY, an invalid item was supplied,
 		src_id was != 0 and different from the current connection's ID,
 		a supplied memfd had a size of 0, a string was not properly
-		nul-terminated
+		null-terminated
   -ENOTUNIQ	The supplied destination is KDBUS_DST_ID_BROADCAST, a file
 		descriptor was passed, KDBUS_MSG_FLAGS_EXPECT_REPLY was set,
 		or a timeout was given for a broadcast message
