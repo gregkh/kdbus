@@ -66,7 +66,7 @@ static const struct kdbus_test tests[] = {
 	},
 	{
 		.name	= "daemon",
-		.desc	= "a simple dameon",
+		.desc	= "a simple daemon",
 		.func	= kdbus_test_daemon,
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
