@@ -64,7 +64,6 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 
 	/* and so should the monitor */
 	ret = kdbus_msg_recv(monitor, &msg, &offset);
-	ret = kdbus_msg_recv(monitor, &msg, &offset);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(msg->cookie == cookie);
 
