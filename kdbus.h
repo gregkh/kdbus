@@ -445,10 +445,12 @@ struct kdbus_msg {
  * struct kdbus_reply - reply container
  * @offset:		Offset of kdbus_msg slice in pool
  * @msg_size:		Copy of the kdbus_msg.size field
+ * @return_flags:	Command return flags, kernel → userspace
  */
 struct kdbus_reply {
 	__u64 offset;
 	__u64 msg_size;
+	__u64 return_flags;
 };
 
 /**
