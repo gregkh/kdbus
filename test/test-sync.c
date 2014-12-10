@@ -123,19 +123,35 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 static void *run_thread_reply(void *data)
 {
 	int ret;
+	unsigned long status = TEST_OK;
 
 	ret = kdbus_msg_recv_poll(conn_a, 3000, NULL, NULL);
-	if (ret == 0) {
-		kdbus_printf("Thread received message, sending reply ...\n");
-		send_reply(conn_a, cookie, conn_b->id);
+	if (ret < 0)
+		goto exit_thread;
+
+	kdbus_printf("Thread received message, sending reply ...\n");
+
+	/* using an unknown cookie must fail */
+	ret = send_reply(conn_a, ~cookie, conn_b->id);
+	if (ret != -EPERM) {
+		status = TEST_ERR;
+		goto exit_thread;
 	}
 
+	ret = send_reply(conn_a, cookie, conn_b->id);
+	if (ret != 0) {
+		status = TEST_ERR;
+		goto exit_thread;
+	}
+
+exit_thread:
 	pthread_exit(NULL);
-	return NULL;
+	return (void *) status;
 }
 
 int kdbus_test_sync_reply(struct kdbus_test_env *env)
 {
+	unsigned long status;
 	pthread_t thread;
 	int ret;
 
@@ -149,7 +165,8 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 				  KDBUS_MSG_FLAGS_EXPECT_REPLY,
 				  5000000000ULL, 0, conn_a->id);
 
-	pthread_join(thread, NULL);
+	pthread_join(thread, (void *) &status);
+	ASSERT_RETURN(status == 0);
 	ASSERT_RETURN(ret == 0);
 
 	ret = interrupt_sync(conn_a, conn_b);
