@@ -22,8 +22,8 @@ since v2:
   * Provide module-parameter "kdbus.attach_flags_mask" to specify the
     a mask of metadata items that is applied on all exported items.
 
-  * Some fixes in kdbus.txt, spotted by Harald Hoyer and Andy
-    Lutomirski.
+  * Some fixes in kdbus.txt and tests, spotted by Harald Hoyer, Andy
+    Lutomirski, Michele Curti and Sergei Zviagintsev
 
   * Fixed compiler warnings on test-message by Michele Curti
 
