@@ -1477,6 +1477,9 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 
 			policy_provided = true;
 			break;
+
+		default:
+			return -EINVAL;
 		}
 	}
 
@@ -1606,6 +1609,20 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 			conn_description = item->str;
 			break;
+
+		case KDBUS_ITEM_POLICY_ACCESS:
+		case KDBUS_ITEM_BLOOM_MASK:
+		case KDBUS_ITEM_ID:
+		case KDBUS_ITEM_NAME_ADD:
+		case KDBUS_ITEM_NAME_REMOVE:
+		case KDBUS_ITEM_NAME_CHANGE:
+		case KDBUS_ITEM_ID_ADD:
+		case KDBUS_ITEM_ID_REMOVE:
+			/* will be handled by policy and match code */
+			break;
+
+		default:
+			return ERR_PTR(-EINVAL);
 		}
 	}
 

@@ -115,6 +115,9 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 
 			pattach_recv = &item->data64[0];
 			break;
+
+		default:
+			return ERR_PTR(-EINVAL);
 		}
 	}
 

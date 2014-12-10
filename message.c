@@ -395,6 +395,9 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (!res->dst_name)
 				return -ENOMEM;
 			break;
+
+		default:
+			return -EINVAL;
 		}
 	}
 
