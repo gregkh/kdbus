@@ -101,6 +101,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 						 bool use_priority);
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			      struct kdbus_conn *conn_dst,
-			      bool install_fds);
+			      u64 *return_flags, bool install_fds);
 
 #endif /* __KDBUS_QUEUE_H */

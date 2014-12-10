@@ -313,10 +313,11 @@ exit_free_entry:
 }
 
 static struct kdbus_item *
-kdbus_msg_make_items(const struct kdbus_msg_resources *res,
-		     off_t payload_off, bool install_fds, size_t *out_size)
+kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
+		     bool install_fds, u64 *return_flags, size_t *out_size)
 {
 	struct kdbus_item *items, *item;
+	bool incomplete_fds = false;
 	size_t i, size = 0;
 
 	/* sum up how much space we need for the 'control' part */
@@ -367,6 +368,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 				if (m.fd >= 0)
 					fd_install(m.fd,
 						   get_file(d->memfd.file));
+				else
+					incomplete_fds = true;
 			}
 
 			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD, &m,
@@ -385,6 +388,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 				if (item->fds[i] >= 0)
 					fd_install(item->fds[i],
 						   get_file(res->fds[i]));
+				else
+					incomplete_fds = true;
 			} else {
 				item->fds[i] = -1;
 			}
@@ -396,6 +401,9 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
 	/* Make sure the sizes actually match */
 	BUG_ON((u8 *) item != (u8 *) items + size);
 
+	if (incomplete_fds)
+		*return_flags |= KDBUS_RECV_RETURN_INCOMPLETE_FDS;
+
 	*out_size = size;
 	return items;
 }
@@ -404,6 +412,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
  *				 receiver's process
  * @entry:		The queue entry to install
  * @conn_dst:		The receiver connection
+ * @return_flagss:	Pointer to store the return flags for userspace
  * @install_fds:	Whether or not to install associated file descriptors
  *
  * This function will create a slice to transport the message header, the
@@ -417,7 +426,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res,
  */
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			      struct kdbus_conn *conn_dst,
-			      bool install_fds)
+			      u64 *return_flags, bool install_fds)
 {
 	size_t meta_size = 0, items_size = 0;
 	struct kdbus_item *meta_items = NULL;
@@ -444,7 +453,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 	if (entry->msg_res) {
 		items = kdbus_msg_make_items(entry->msg_res, payload_off,
-					     install_fds, &items_size);
+					     install_fds, return_flags,
+					     &items_size);
 		if (IS_ERR(items)) {
 			ret = PTR_ERR(items);
 			goto exit_free_meta;

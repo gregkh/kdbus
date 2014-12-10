@@ -518,6 +518,16 @@ enum kdbus_recv_flags {
 };
 
 /**
+ * enum kdbus_recv_return_flags - return flags for message receive commands
+ * @KDBUS_RECV_RETURN_INCOMPLETE_FDS:	One or more file descriptors could not
+ *					be installed. These descriptors in
+ *					KDBUS_ITEM_FDS will carry the value -1.
+ */
+enum kdbus_recv_return_flags {
+	KDBUS_RECV_RETURN_INCOMPLETE_FDS	= 1ULL <<  0,
+};
+
+/**
  * struct kdbus_cmd_recv - struct to de-queue a buffered message
  * @size:		Overall size of this object
  * @flags:		KDBUS_RECV_* flags, userspace → kernel

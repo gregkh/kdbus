@@ -361,7 +361,8 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_queue_entry_install(entry, conn, install);
+	ret = kdbus_queue_entry_install(entry, conn, &recv->reply.return_flags,
+					install);
 	if (ret < 0)
 		goto exit_unlock;
 
@@ -709,7 +710,9 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	reply_wait->waiting = false;
 	entry = reply_wait->queue_entry;
 	if (entry) {
-		ret = kdbus_queue_entry_install(entry, conn_src, ret == 0);
+		ret = kdbus_queue_entry_install(entry, conn_src,
+						&cmd_send->reply.return_flags,
+						true);
 		kdbus_pool_slice_publish(entry->slice, &cmd_send->reply.offset,
 					 &cmd_send->reply.msg_size);
 		kdbus_pool_slice_release(entry->slice);
