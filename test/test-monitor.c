@@ -44,9 +44,24 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn);
 
+	/* add matches to make sure the monitor do not trigger an item add or
+	 * remove on connect and disconnect, respectively.
+	 */
+	ret = kdbus_add_match_id(conn, 0x1, KDBUS_ITEM_ID_ADD,
+				 KDBUS_MATCH_ID_ANY);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_add_match_id(conn, 0x2, KDBUS_ITEM_ID_REMOVE,
+				 KDBUS_MATCH_ID_ANY);
+	ASSERT_RETURN(ret == 0);
+
 	/* register a monitor */
 	monitor = kdbus_hello(env->buspath, KDBUS_HELLO_MONITOR, NULL, 0);
 	ASSERT_RETURN(monitor);
+
+	/* make sure we did not receive a monitor connect notification */
+	ret = kdbus_msg_recv(conn, &msg, &offset);
+	ASSERT_RETURN(ret == -EAGAIN);
 
 	/* check that a monitor cannot acquire a name */
 	ret = kdbus_name_acquire(monitor, "foo.bar.baz", NULL);
@@ -145,6 +160,10 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	kdbus_free(monitor, offset);
 
 	kdbus_conn_free(monitor);
+	/* make sure we did not receive a monitor disconnect notification */
+	ret = kdbus_msg_recv(conn, &msg, &offset);
+	ASSERT_RETURN(ret == -EAGAIN);
+
 	kdbus_conn_free(conn);
 
 	return TEST_OK;
