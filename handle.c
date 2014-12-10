@@ -162,6 +162,11 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	if (IS_ERR(make))
 		return PTR_ERR(make);
 
+	make->return_flags = 0;
+	if (kdbus_member_set_user(&make->return_flags, buf,
+				  struct kdbus_cmd_make, return_flags))
+		return -EFAULT;
+
 	ret = kdbus_negotiate_flags(make, buf, struct kdbus_cmd_make,
 				    KDBUS_MAKE_ACCESS_GROUP |
 				    KDBUS_MAKE_ACCESS_WORLD);
@@ -239,6 +244,11 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 				    KDBUS_HELLO_UNPRIVILEGED);
 	if (ret < 0)
 		goto exit;
+
+	hello->return_flags = 0;
+	if (kdbus_member_set_user(&hello->return_flags, buf,
+				  struct kdbus_cmd_hello, return_flags))
+		return -EFAULT;
 
 	ret = kdbus_items_validate(hello->items,
 				   KDBUS_ITEMS_SIZE(hello, items));
@@ -359,6 +369,14 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		free_ptr = cmd_name;
 
+		cmd_name->return_flags = 0;
+		if (kdbus_member_set_user(&cmd_name->return_flags, buf,
+					  struct kdbus_cmd_name,
+					  return_flags)) {
+			ret = -EFAULT;
+			break;
+		}
+
 		ret = kdbus_negotiate_flags(cmd_name, buf, typeof(*cmd_name),
 					    KDBUS_NAME_REPLACE_EXISTING |
 					    KDBUS_NAME_ALLOW_REPLACEMENT |
@@ -403,6 +421,14 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		free_ptr = cmd_name;
 
+		cmd_name->return_flags = 0;
+		if (kdbus_member_set_user(&cmd_name->return_flags, buf,
+					  struct kdbus_cmd_name,
+					  return_flags)) {
+			ret = -EFAULT;
+			break;
+		}
+
 		ret = kdbus_negotiate_flags(cmd_name, buf, typeof(*cmd_name),
 					    0);
 		if (ret < 0)
@@ -440,11 +466,16 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_list.return_flags = 0;
+
 		/* return allocated data */
 		if (kdbus_member_set_user(&cmd_list.offset, buf,
 					  struct kdbus_cmd_name_list, offset) ||
 		    kdbus_member_set_user(&cmd_list.size, buf,
-					  struct kdbus_cmd_name_list, size))
+					  struct kdbus_cmd_name_list, size) ||
+		    kdbus_member_set_user(&cmd_list.return_flags, buf,
+					  struct kdbus_cmd_name_list,
+					  return_flags))
 			ret = -EFAULT;
 
 		break;
@@ -470,6 +501,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_info->return_flags = 0;
+
 		ret = kdbus_items_validate(cmd_info->items,
 					   KDBUS_ITEMS_SIZE(cmd_info, items));
 		if (ret < 0)
@@ -486,7 +519,10 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (kdbus_member_set_user(&cmd_info->offset, buf,
 					  struct kdbus_cmd_info, offset) ||
 		    kdbus_member_set_user(&cmd_info->info_size, buf,
-					  struct kdbus_cmd_info, info_size))
+					  struct kdbus_cmd_info, info_size) ||
+		    kdbus_member_set_user(&cmd_info->return_flags, buf,
+					  struct kdbus_cmd_info,
+					  return_flags))
 			ret = -EFAULT;
 
 		break;
@@ -517,12 +553,22 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_update->return_flags = 0;
+
 		ret = kdbus_items_validate(cmd_update->items,
 					   KDBUS_ITEMS_SIZE(cmd_update, items));
 		if (ret < 0)
 			break;
 
 		ret = kdbus_cmd_conn_update(conn, cmd_update);
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_update->return_flags, buf,
+					  struct kdbus_cmd_update,
+					  return_flags))
+			ret = -EFAULT;
+
 		break;
 	}
 
@@ -549,12 +595,22 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_match->return_flags = 0;
+
 		ret = kdbus_items_validate(cmd_match->items,
 					   KDBUS_ITEMS_SIZE(cmd_match, items));
 		if (ret < 0)
 			break;
 
 		ret = kdbus_match_db_add(conn, cmd_match);
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_match->return_flags, buf,
+					  struct kdbus_cmd_match,
+					  return_flags))
+			ret = -EFAULT;
+
 		break;
 	}
 
@@ -581,12 +637,22 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_match->return_flags = 0;
+
 		ret = kdbus_items_validate(cmd_match->items,
 					   KDBUS_ITEMS_SIZE(cmd_match, items));
 		if (ret < 0)
 			break;
 
 		ret = kdbus_match_db_remove(conn, cmd_match);
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_match->return_flags, buf,
+					  struct kdbus_cmd_match,
+					  return_flags))
+			ret = -EFAULT;
+
 		break;
 	}
 
@@ -622,6 +688,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_send->return_flags = 0;
+
 		ret = kdbus_check_and_write_flags(cmd_send->msg.flags, buf,
 				offsetof(struct kdbus_cmd_send,
 					 kernel_msg_flags),
@@ -644,6 +712,13 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_conn_kmsg_send(conn->ep, conn, cmd_send, kmsg);
 		if (ret < 0) {
 			kdbus_kmsg_free(kmsg);
+			break;
+		}
+
+		if (kdbus_member_set_user(&cmd_send->return_flags, buf,
+					  struct kdbus_cmd_send,
+					  return_flags)) {
+			ret = -EFAULT;
 			break;
 		}
 
@@ -685,6 +760,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_recv->return_flags = 0;
+
 		ret = kdbus_items_validate(cmd_recv->items,
 					   KDBUS_ITEMS_SIZE(cmd_recv, items));
 		if (ret < 0)
@@ -700,12 +777,13 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		/* return the number of dropped messages */
 		if (kdbus_member_set_user(&cmd_recv->dropped_msgs, buf,
-					  struct kdbus_cmd_recv, dropped_msgs))
-			ret = -EFAULT;
-
-		/* return the received message address */
-		if (kdbus_member_set_user(&cmd_recv->reply, buf,
-					  struct kdbus_cmd_recv, reply))
+					  struct kdbus_cmd_recv,
+					  dropped_msgs) ||
+		    kdbus_member_set_user(&cmd_recv->reply, buf,
+					  struct kdbus_cmd_recv, reply) ||
+		    kdbus_member_set_user(&cmd_recv->return_flags, buf,
+					  struct kdbus_cmd_recv,
+					  return_flags))
 			ret = -EFAULT;
 
 		break;
@@ -728,7 +806,17 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (cmd_cancel.flags != 0)
 			return -EOPNOTSUPP;
 
+		cmd_cancel.return_flags = 0;
+
 		ret = kdbus_cmd_msg_cancel(conn, cmd_cancel.cookie);
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_cancel.return_flags, buf,
+					  struct kdbus_cmd_cancel,
+					  return_flags))
+			ret = -EFAULT;
+
 		break;
 	}
 
@@ -753,7 +841,17 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_free.return_flags = 0;
+
 		ret = kdbus_pool_release_offset(conn->pool, cmd_free.offset);
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_free.return_flags, buf,
+					  struct kdbus_cmd_free,
+					  return_flags))
+			ret = -EFAULT;
+
 		break;
 	}
 
@@ -795,6 +893,8 @@ static long handle_ep_ioctl_owner(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
+		cmd_update->return_flags = 0;
+
 		ret = kdbus_items_validate(cmd_update->items,
 					   KDBUS_ITEMS_SIZE(cmd_update, items));
 		if (ret < 0)
@@ -802,6 +902,14 @@ static long handle_ep_ioctl_owner(struct file *file, unsigned int cmd,
 
 		ret = kdbus_ep_policy_set(ep, cmd_update->items,
 					  KDBUS_ITEMS_SIZE(cmd_update, items));
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_update->return_flags, buf,
+					  struct kdbus_cmd_update,
+					  return_flags))
+			ret = -EFAULT;
+
 		break;
 	}
 
