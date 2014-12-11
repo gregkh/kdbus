@@ -507,7 +507,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_item *meta_items;
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
-	struct iovec iov[5];
+	struct kvec kvec[5];
 	u64 attach_flags;
 	size_t cnt = 0;
 	int ret;
@@ -527,15 +527,15 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	item.type = KDBUS_ITEM_MAKE_NAME;
 	item.size = KDBUS_ITEM_HEADER_SIZE + name_len;
 
-	kdbus_iovec_set(&iov[cnt++], &info, sizeof(info), &info.size);
-	kdbus_iovec_set(&iov[cnt++], &item, KDBUS_ITEM_HEADER_SIZE, &info.size);
-	kdbus_iovec_set(&iov[cnt++], bus->node.name, name_len, &info.size);
-	cnt += !!kdbus_iovec_pad(&iov[cnt], &info.size);
+	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &info.size);
+	kdbus_kvec_set(&kvec[cnt++], &item, KDBUS_ITEM_HEADER_SIZE, &info.size);
+	kdbus_kvec_set(&kvec[cnt++], bus->node.name, name_len, &info.size);
+	cnt += !!kdbus_kvec_pad(&kvec[cnt], &info.size);
 
 	if (meta_items && meta_size)
-		kdbus_iovec_set(&iov[cnt++], meta_items, meta_size, &info.size);
+		kdbus_kvec_set(&kvec[cnt++], meta_items, meta_size, &info.size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size, iov, cnt);
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size, kvec, cnt);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;

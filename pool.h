@@ -24,8 +24,8 @@ int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);
 int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off);
 
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-						size_t size, struct iovec *iov,
-						size_t iov_count);
+						size_t size, struct kvec *kvec,
+						size_t kvec_count);
 void kdbus_pool_slice_release(struct kdbus_pool_slice *slice);
 void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 			      u64 *out_offset, u64 *out_size);
@@ -36,7 +36,7 @@ int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
 			  struct kdbus_pool *dst_pool,
 			  struct kdbus_pool_slice **slice);
 ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
-			      struct iovec *iov, size_t iov_count,
+			      struct kvec *kvec, size_t kvec_count,
 			      size_t total_len);
 ssize_t kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice,
 				   size_t off, struct iovec *iov,

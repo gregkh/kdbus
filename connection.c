@@ -1310,7 +1310,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_item *meta_items = NULL;
 	struct kdbus_info info = {};
-	struct iovec iov[2];
+	struct kvec kvec[2];
 	size_t meta_size;
 	u64 attach_flags;
 	int ret = 0;
@@ -1370,11 +1370,11 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	kdbus_iovec_set(&iov[0], &info, sizeof(info), &info.size);
-	kdbus_iovec_set(&iov[1], meta_items, meta_size, &info.size);
+	kdbus_kvec_set(&kvec[0], &info, sizeof(info), &info.size);
+	kdbus_kvec_set(&kvec[1], meta_items, meta_size, &info.size);
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size,
-				       iov, ARRAY_SIZE(iov));
+				       kvec, ARRAY_SIZE(kvec));
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
@@ -1523,7 +1523,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	bool is_policy_holder;
 	bool is_activator;
 	bool is_monitor;
-	struct iovec iov[2];
+	struct kvec kvec[2];
 	int ret;
 
 	struct {
@@ -1773,11 +1773,11 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	bloom_item.size = sizeof(bloom_item);
 	bloom_item.type = KDBUS_ITEM_BLOOM_PARAMETER;
 	bloom_item.bloom = bus->bloom;
-	kdbus_iovec_set(&iov[0], &items, sizeof(items), &items.size);
-	kdbus_iovec_set(&iov[1], &bloom_item, bloom_item.size, &items.size);
+	kdbus_kvec_set(&kvec[0], &items, sizeof(items), &items.size);
+	kdbus_kvec_set(&kvec[1], &bloom_item, bloom_item.size, &items.size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, items.size, iov,
-				       ARRAY_SIZE(iov));
+	slice = kdbus_pool_slice_alloc(conn->pool, items.size, kvec,
+				       ARRAY_SIZE(kvec));
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;

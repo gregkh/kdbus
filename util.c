@@ -272,43 +272,43 @@ int kdbus_sanitize_attach_flags(u64 flags, u64 *attach_flags)
 }
 
 /**
- * kdbus_iovec_set - helper utility to assemble iovec arrays
- * @iov:	iovec entry to use
- * @src:	Source address to set in @iov
+ * kdbus_kvec_set - helper utility to assemble kvec arrays
+ * @kvec:	kvec entry to use
+ * @src:	Source address to set in @kvec
  * @len:	Number of bytes in @src
  * @total_len:	Pointer to total length variable
  *
- * Set @src and @len in @iov, and increase @total_len by @len.
+ * Set @src and @len in @kvec, and increase @total_len by @len.
  */
-void kdbus_iovec_set(struct iovec *iov, void *src, size_t len, u64 *total_len)
+void kdbus_kvec_set(struct kvec *kvec, void *src, size_t len, u64 *total_len)
 {
-	iov->iov_base = src;
-	iov->iov_len = len;
+	kvec->iov_base = src;
+	kvec->iov_len = len;
 	*total_len += len;
 }
 
 static char * const zeros = "\0\0\0\0\0\0\0";
 
 /**
- * kdbus_iovec_pad - conditionally write a padding iovec
- * @iov:	iovec entry to use
- * @len:	Total length used for iovec array
+ * kdbus_kvec_pad - conditionally write a padding kvec
+ * @kvec:	kvec entry to use
+ * @len:	Total length used for kvec array
  *
  * Check if the current total byte length of the array in @len is aligned to
- * 8 bytes. If it isn't, fill @iov with padding information and increase @len
- * by the number of bytes stored in @iov.
+ * 8 bytes. If it isn't, fill @kvec with padding information and increase @len
+ * by the number of bytes stored in @kvec.
  *
  * Return: the number of added padding bytes.
  */
-size_t kdbus_iovec_pad(struct iovec *iov, u64 *len)
+size_t kdbus_kvec_pad(struct kvec *kvec, u64 *len)
 {
 	size_t pad = KDBUS_ALIGN8(*len) - *len;
 
 	if (!pad)
 		return 0;
 
-	iov->iov_base = zeros;
-	iov->iov_len = pad;
+	kvec->iov_base = zeros;
+	kvec->iov_len = pad;
 
 	*len += pad;
 

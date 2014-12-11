@@ -708,7 +708,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 				 struct kdbus_name_entry *e,
 				 bool write)
 {
-	struct iovec iov[4];
+	struct kvec kvec[4];
 	size_t cnt = 0;
 	int ret;
 
@@ -730,7 +730,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 							   e->name) < 0)
 			return 0;
 
-	kdbus_iovec_set(&iov[cnt++], &info, sizeof(info), &info.size);
+	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &info.size);
 
 	/* append name */
 	if (e) {
@@ -740,13 +740,13 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		h.type = KDBUS_ITEM_OWNED_NAME;
 		h.flags = e->flags;
 
-		kdbus_iovec_set(&iov[cnt++], &h, sizeof(h), &info.size);
-		kdbus_iovec_set(&iov[cnt++], e->name, slen, &info.size);
-		cnt += !!kdbus_iovec_pad(&iov[cnt], &info.size);
+		kdbus_kvec_set(&kvec[cnt++], &h, sizeof(h), &info.size);
+		kdbus_kvec_set(&kvec[cnt++], e->name, slen, &info.size);
+		cnt += !!kdbus_kvec_pad(&kvec[cnt], &info.size);
 	}
 
 	if (write) {
-		ret = kdbus_pool_slice_copy(slice, *pos, iov, cnt, info.size);
+		ret = kdbus_pool_slice_copy(slice, *pos, kvec, cnt, info.size);
 		if (ret < 0)
 			return ret;
 	}
@@ -855,7 +855,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	struct kdbus_policy_db *policy_db;
 	struct kdbus_name_list list = {};
 	const struct kdbus_item *item;
-	struct iovec iov;
+	struct kvec kvec;
 	size_t pos;
 	int ret;
 
@@ -882,10 +882,10 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 	/* copy the header, specifying the overall size */
 	list.size = pos;
-	iov.iov_base = &list;
-	iov.iov_len = sizeof(list);
+	kvec.iov_base = &list;
+	kvec.iov_len = sizeof(list);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, list.size, &iov, 1);
+	slice = kdbus_pool_slice_alloc(conn->pool, list.size, &kvec, 1);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;

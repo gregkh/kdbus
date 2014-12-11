@@ -20,6 +20,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/uio.h>
 
 #include "bus.h"
 #include "connection.h"

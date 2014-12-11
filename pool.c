@@ -188,18 +188,18 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * kdbus_pool_slice_alloc() - allocate memory from a pool
  * @pool:	The receiver's pool
  * @size:	The number of bytes to allocate
- * @iov:	iovec to copy into the new slice, may be %NULL
- * @iov_len:	Number of elements in @iov
+ * @kvec:	kvec to copy into the new slice, may be %NULL
+ * @kvec_len:	Number of elements in @kvec
  *
  * The returned slice is used for kdbus_pool_slice_release() to
- * free the allocated memory. If @iov is non-NULL, the data will be copied
+ * free the allocated memory. If @kvec is non-NULL, the data will be copied
  * from kernel memory into the new slice at offset 0.
  *
  * Return: the allocated slice on success, ERR_PTR on failure.
  */
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-						size_t size, struct iovec *iov,
-						size_t iov_count)
+						size_t size, struct kvec *kvec,
+						size_t kvec_count)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
 	struct rb_node *n, *found = NULL;
@@ -264,8 +264,8 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
 
-	if (iov) {
-		ret = kdbus_pool_slice_copy(s, 0, iov, iov_count, size);
+	if (kvec) {
+		ret = kdbus_pool_slice_copy(s, 0, kvec, kvec_count, size);
 		if (ret < 0) {
 			kdbus_pool_slice_release(s);
 			return ERR_PTR(ret);
@@ -596,27 +596,41 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
  * kdbus_pool_slice_copy() - copy kernel memory to a slice
  * @slice:		The slice to write to
  * @off:		Offset in the slice to write to
- * @iov:		iovec array, pointing to data to copy
- * @iov_len:		Number of elements in @iov
+ * @kvec:		kvec array, pointing to data to copy
+ * @kvec_len:		Number of elements in @kvec
  * @total_len:		Total number of bytes described in @iov_len
  *
- * Kernel memory referenced by @iov will be copied into @slice at offset @off.
+ * Kernel memory referenced by @kvec will be copied into @slice at offset @off.
  *
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
-			      struct iovec *iov, size_t iov_len,
+			      struct kvec *kvec, size_t kvec_len,
 			      size_t total_len)
 {
 	mm_segment_t old_fs;
-	ssize_t ret;
+	struct iov_iter iter;
+	struct file *f;
+	struct kiocb kiocb;
+	ssize_t len;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_slice_copy_user(slice, off, iov, iov_len, total_len);
+
+	f = slice->pool->f;
+	init_sync_kiocb(&kiocb, f);
+	kiocb.ki_pos = slice->off + off;
+	kiocb.ki_nbytes = total_len;
+
+	/* FIXME: replace with iov_iter_kvec() once 3.19-rc1 is out */
+	iov_iter_init(&iter, WRITE | ITER_KVEC, (struct iovec *) kvec,
+		      kvec_len, total_len);
+
+	len = f->f_op->write_iter(&kiocb, &iter);
+
 	set_fs(old_fs);
 
-	return ret;
+	return (len < 0) ? len : (len != total_len) ? -EFAULT : len;
 }
 
 static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,

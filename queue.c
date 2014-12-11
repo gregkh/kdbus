@@ -432,8 +432,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	struct kdbus_item *meta_items = NULL;
 	struct kdbus_item *items = NULL;
 	off_t payload_off = 0;
-	struct iovec iov[4];
-	size_t iov_count = 0;
+	struct kvec kvec[4];
+	size_t kvec_count = 0;
 	u64 attach_flags;
 	int ret;
 
@@ -466,23 +466,23 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 	entry->msg.size = 0;
 
-	kdbus_iovec_set(&iov[iov_count++], &entry->msg, sizeof(entry->msg),
+	kdbus_kvec_set(&kvec[kvec_count++], &entry->msg, sizeof(entry->msg),
 			&entry->msg.size);
 
 	if (entry->msg_extra_size)
-		kdbus_iovec_set(&iov[iov_count++], entry->msg_extra,
+		kdbus_kvec_set(&kvec[kvec_count++], entry->msg_extra,
 				entry->msg_extra_size, &entry->msg.size);
 
 	if (items_size)
-		kdbus_iovec_set(&iov[iov_count++], items, items_size,
+		kdbus_kvec_set(&kvec[kvec_count++], items, items_size,
 				&entry->msg.size);
 
 	if (meta_size)
-		kdbus_iovec_set(&iov[iov_count++], meta_items, meta_size,
+		kdbus_kvec_set(&kvec[kvec_count++], meta_items, meta_size,
 				&entry->msg.size);
 
 	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, entry->msg.size,
-					      iov, iov_count);
+					      kvec, kvec_count);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;
