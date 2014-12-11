@@ -742,9 +742,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 
 		kdbus_iovec_set(&iov[cnt++], &h, sizeof(h), &info.size);
 		kdbus_iovec_set(&iov[cnt++], e->name, slen, &info.size);
-
-		if (kdbus_iovec_pad(&iov[cnt], &info.size))
-			cnt++;
+		cnt += !!kdbus_iovec_pad(&iov[cnt], &info.size);
 	}
 
 	if (write) {

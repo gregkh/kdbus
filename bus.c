@@ -519,9 +519,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	kdbus_iovec_set(&iov[cnt++], &info, sizeof(info), &info.size);
 	kdbus_iovec_set(&iov[cnt++], &item, KDBUS_ITEM_HEADER_SIZE, &info.size);
 	kdbus_iovec_set(&iov[cnt++], bus->node.name, name_len, &info.size);
-
-	if (kdbus_iovec_pad(&iov[cnt], &info.size))
-		cnt++;
+	cnt += !!kdbus_iovec_pad(&iov[cnt], &info.size);
 
 	if (meta_items && meta_size)
 		kdbus_iovec_set(&iov[cnt++], meta_items, meta_size, &info.size);
