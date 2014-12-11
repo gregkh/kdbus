@@ -117,6 +117,21 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 	kfree(kmsg);
 }
 
+static int kdbus_kmsg_init(struct kdbus_kmsg *kmsg)
+{
+	int ret;
+
+	kmsg->meta = kdbus_meta_new();
+	if (IS_ERR(kmsg->meta)) {
+		ret = PTR_ERR(kmsg->meta);
+		kmsg->meta = NULL;
+		return ret;
+	}
+
+	kdbus_meta_add_timestamp(kmsg->meta);
+	return 0;
+}
+
 /**
  * kdbus_kmsg_new() - allocate message
  * @extra_size:		Additional size to reserve for data
@@ -127,6 +142,7 @@ struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 {
 	struct kdbus_kmsg *m;
 	size_t size;
+	int ret;
 
 	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	m = kzalloc(size, GFP_KERNEL);
@@ -135,6 +151,10 @@ struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 
 	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
+
+	ret = kdbus_kmsg_init(m);
+	if (ret < 0)
+		return ERR_PTR(ret);
 
 	return m;
 }
@@ -455,6 +475,10 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 		return ERR_PTR(-ENOMEM);
 
 	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
+
+	ret = kdbus_kmsg_init(m);
+	if (ret < 0)
+		goto exit_free;
 
 	if (copy_from_user(&m->msg, KDBUS_PTR(cmd_send->msg_address), size)) {
 		ret = -EFAULT;

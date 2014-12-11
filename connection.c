@@ -761,32 +761,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	BUG_ON(kmsg->seq > 0);
 	kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
 
-	/* non-kernel senders append credentials/metadata */
-	if (conn_src) {
-		/*
-		 * If a connection has installed faked credentials when it was
-		 * created, make sure only those are sent out as attachments
-		 * of messages, and nothing that is gathered at retrieved from
-		 * 'current' at the time of sending.
-		 *
-		 * Hence, in such cases, take a reference of the connection's
-		 * meta, and take care not to augment it by attaching any
-		 * new items.
-		 */
-		if (conn_src->faked_meta)
-			kmsg->meta = kdbus_meta_ref(conn_src->meta);
-		else
-			kmsg->meta = kdbus_meta_new();
-
-		if (IS_ERR(kmsg->meta)) {
-			ret = PTR_ERR(kmsg->meta);
-			kmsg->meta = NULL;
-			return ret;
-		}
-	}
-
-	kdbus_meta_add_timestamp(kmsg->meta);
-
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(bus, conn_src, kmsg);
 		return 0;
