@@ -206,7 +206,7 @@ struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta)
 }
 
 /**
- * kdbus_meta_fake() - Fill metadata from faked credentials
+ * kdbus_meta_add_fake() - Fill metadata from faked credentials
  * @meta:	Metadata
  * @creds:	Creds to set, may be %NULL
  * @pids:	PIDs to set, may be %NULL
@@ -214,19 +214,18 @@ struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta)
  *
  * This function takes information stored in @creds, @pids and @seclabel and
  * resolves them to kernel-representations, if possible. A call to this function
- * is considered an alternative to calling kdbus_meta_collect(), which derives
- * the same information from the 'current' task.
+ * is considered an alternative to calling kdbus_meta_add_current(), which
+ * derives the same information from the 'current' task.
  *
  * After the information has been recorded, @meta is locked and cannot be
- * augmented with any more information. IOW, kdbus_meta_collect() will become
- * a no-op.
+ * augmented with any more information.
  *
  * Return: 0 on success, negative error number otherwise.
  */
-int kdbus_meta_fake(struct kdbus_meta *meta,
-		    const struct kdbus_creds *creds,
-		    const struct kdbus_pids *pids,
-		    const char *seclabel)
+int kdbus_meta_add_fake(struct kdbus_meta *meta,
+			const struct kdbus_creds *creds,
+			const struct kdbus_pids *pids,
+			const char *seclabel)
 {
 	if (creds) {
 		struct user_namespace *ns = current_user_ns();
@@ -279,7 +278,7 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 }
 
 /**
- * kdbus_meta_collect() - collect metadata from current process
+ * kdbus_meta_add_current() - collect metadata from current process
  * @meta:		Metadata object
  * @seq:		Message sequence number
  * @which:		KDBUS_ATTACH_* mask
@@ -290,8 +289,7 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_meta_collect(struct kdbus_meta *meta,
-		       u64 seq, u64 which)
+int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 {
 	u64 mask;
 	int i;
@@ -514,29 +512,29 @@ u64 kdbus_meta_calc_attach_flags(const struct kdbus_conn *sender,
 }
 
 /*
- * kdbus_meta_collect_from_src() - collect metadata from source connection
- * @meta:		Metadata object
- * @conn_src:		Connection to get owned names and description from
+ * kdbus_meta_add_conn_info() - collect metadata from source connection
+ * @meta:	Metadata object
+ * @conn:	Connection to get owned names and description from
  *
  * Collect the data specified in @which from @src_conn.
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_meta_collect_src(struct kdbus_meta *meta,
-			   struct kdbus_conn *conn_src)
+int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
+			     struct kdbus_conn *conn)
 {
 	const struct kdbus_name_entry *e;
 	struct kdbus_item *item;
 	int ret = 0;
 	size_t len;
 
-	if (!conn_src)
+	if (!conn)
 		return 0;
 
-	mutex_lock(&conn_src->lock);
+	mutex_lock(&conn->lock);
 
 	len = 0;
-	list_for_each_entry(e, &conn_src->names_list, conn_entry)
+	list_for_each_entry(e, &conn->names_list, conn_entry)
 		len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
 				       strlen(e->name) + 1);
 
@@ -551,7 +549,7 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 		meta->owned_names_items = item;
 		meta->owned_names_size = len;
 
-		list_for_each_entry(e, &conn_src->names_list, conn_entry) {
+		list_for_each_entry(e, &conn->names_list, conn_entry) {
 			len = strlen(e->name) + 1;
 			kdbus_item_set(item, KDBUS_ITEM_OWNED_NAME, NULL,
 					      sizeof(struct kdbus_name) + len);
@@ -563,9 +561,9 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 		meta->collected |= KDBUS_ATTACH_NAMES;
 	}
 
-	if (conn_src->description) {
+	if (conn->description) {
 		kfree(meta->conn_description);
-		meta->conn_description = kstrdup(conn_src->description,
+		meta->conn_description = kstrdup(conn->description,
 						 GFP_KERNEL);
 		if (!meta->conn_description) {
 			ret = -ENOMEM;
@@ -576,7 +574,7 @@ int kdbus_meta_collect_src(struct kdbus_meta *meta,
 	}
 
 exit_unlock:
-	mutex_unlock(&conn_src->lock);
+	mutex_unlock(&conn->lock);
 	return ret;
 }
 

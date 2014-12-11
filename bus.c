@@ -196,18 +196,18 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
-	ret = kdbus_meta_collect(b->meta, 0,
-				 KDBUS_ATTACH_CREDS	|
-				 KDBUS_ATTACH_PIDS	|
-				 KDBUS_ATTACH_AUXGROUPS	|
-				 KDBUS_ATTACH_TID_COMM	|
-				 KDBUS_ATTACH_PID_COMM	|
-				 KDBUS_ATTACH_EXE	|
-				 KDBUS_ATTACH_CMDLINE	|
-				 KDBUS_ATTACH_CGROUP	|
-				 KDBUS_ATTACH_CAPS	|
-				 KDBUS_ATTACH_SECLABEL	|
-				 KDBUS_ATTACH_AUDIT);
+	ret = kdbus_meta_add_current(b->meta, 0,
+				     KDBUS_ATTACH_CREDS	|
+				     KDBUS_ATTACH_PIDS	|
+				     KDBUS_ATTACH_AUXGROUPS	|
+				     KDBUS_ATTACH_TID_COMM	|
+				     KDBUS_ATTACH_PID_COMM	|
+				     KDBUS_ATTACH_EXE	|
+				     KDBUS_ATTACH_CMDLINE	|
+				     KDBUS_ATTACH_CGROUP	|
+				     KDBUS_ATTACH_CAPS	|
+				     KDBUS_ATTACH_SECLABEL	|
+				     KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -418,8 +418,9 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * requested metadata. It's up to the receiver to drop
 			 * messages that lack expected metadata.
 			 */
-			kdbus_meta_collect(kmsg->meta, kmsg->seq, attach_flags);
-			kdbus_meta_collect_src(kmsg->meta, conn_src);
+			kdbus_meta_add_current(kmsg->meta, kmsg->seq,
+					       attach_flags);
+			kdbus_meta_add_conn_info(kmsg->meta, conn_src);
 		} else {
 			/*
 			 * Check if there is a policy db that prevents the
@@ -475,8 +476,9 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 
 			attach_flags = kdbus_meta_calc_attach_flags(conn_src,
 								    conn_dst);
-			kdbus_meta_collect(kmsg->meta, kmsg->seq, attach_flags);
-			kdbus_meta_collect_src(kmsg->meta, conn_src);
+			kdbus_meta_add_current(kmsg->meta, kmsg->seq,
+					       attach_flags);
+			kdbus_meta_add_conn_info(kmsg->meta, conn_src);
 		}
 
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);

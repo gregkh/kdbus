@@ -795,8 +795,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * Lock the destination name so it will not get dropped or
 		 * moved between activator/implementor while we try to queue a
 		 * message. We also rely on this to read-lock the entire
-		 * registry so kdbus_meta_collect() will have a consistent view
-		 * of all acquired names on both connections.
+		 * registry so kdbus_meta_add_current() will have a consistent
+		 * view of all acquired names on both connections.
 		 * If kdbus_name_lock() gets changed to a per-name lock, we
 		 * really need to read-lock the whole registry here.
 		 */
@@ -888,11 +888,12 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 
 		attach_flags = kdbus_meta_calc_attach_flags(conn_src, conn_dst);
 
-		ret = kdbus_meta_collect(kmsg->meta, kmsg->seq, attach_flags);
+		ret = kdbus_meta_add_current(kmsg->meta, kmsg->seq,
+					     attach_flags);
 		if (ret < 0)
 			goto exit_unref;
 
-		ret = kdbus_meta_collect_src(kmsg->meta, conn_src);
+		ret = kdbus_meta_add_conn_info(kmsg->meta, conn_src);
 		if (ret < 0)
 			goto exit_unref;
 
@@ -1376,7 +1377,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
-	ret = kdbus_meta_collect_src(owner_conn->meta, owner_conn);
+	ret = kdbus_meta_add_conn_info(owner_conn->meta, owner_conn);
 	if (ret < 0)
 		goto exit;
 
@@ -1735,24 +1736,24 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* privileged processes can impersonate somebody else */
 	if (creds || pids || seclabel) {
-		ret = kdbus_meta_fake(conn->meta, creds, pids, seclabel);
+		ret = kdbus_meta_add_fake(conn->meta, creds, pids, seclabel);
 		if (ret < 0)
 			goto exit_unref;
 
 		conn->faked_meta = true;
 	} else {
-		ret = kdbus_meta_collect(conn->meta, 0,
-					 KDBUS_ATTACH_CREDS	|
-					 KDBUS_ATTACH_PIDS	|
-					 KDBUS_ATTACH_AUXGROUPS	|
-					 KDBUS_ATTACH_TID_COMM	|
-					 KDBUS_ATTACH_PID_COMM	|
-					 KDBUS_ATTACH_EXE	|
-					 KDBUS_ATTACH_CMDLINE	|
-					 KDBUS_ATTACH_CGROUP	|
-					 KDBUS_ATTACH_CAPS	|
-					 KDBUS_ATTACH_SECLABEL	|
-					 KDBUS_ATTACH_AUDIT);
+		ret = kdbus_meta_add_current(conn->meta, 0,
+					     KDBUS_ATTACH_CREDS	|
+					     KDBUS_ATTACH_PIDS	|
+					     KDBUS_ATTACH_AUXGROUPS	|
+					     KDBUS_ATTACH_TID_COMM	|
+					     KDBUS_ATTACH_PID_COMM	|
+					     KDBUS_ATTACH_EXE	|
+					     KDBUS_ATTACH_CMDLINE	|
+					     KDBUS_ATTACH_CGROUP	|
+					     KDBUS_ATTACH_CAPS	|
+					     KDBUS_ATTACH_SECLABEL	|
+					     KDBUS_ATTACH_AUDIT);
 		if (ret < 0)
 			goto exit_unref;
 	}
