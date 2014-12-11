@@ -831,8 +831,6 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kmsg->dst_name_id = name_entry->name_id;
 
 	if (conn_src) {
-		u64 attach_flags;
-
 		/*
 		 * If we got here due to an interrupted system call, our reply
 		 * wait object is still queued on conn_dst, with the former
@@ -862,12 +860,16 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto wait_sync;
 		}
 
-		attach_flags = kdbus_meta_calc_attach_flags(conn_src, conn_dst);
+		if (!conn_src->faked_meta) {
+			u64 attach_flags =
+				kdbus_meta_calc_attach_flags(conn_src,
+							     conn_dst);
 
-		ret = kdbus_meta_add_current(kmsg->meta, kmsg->seq,
-					     attach_flags);
-		if (ret < 0)
-			goto exit_unref;
+			ret = kdbus_meta_add_current(kmsg->meta, kmsg->seq,
+						     attach_flags);
+			if (ret < 0)
+				goto exit_unref;
+		}
 
 		ret = kdbus_meta_add_conn_info(kmsg->meta, conn_src);
 		if (ret < 0)
