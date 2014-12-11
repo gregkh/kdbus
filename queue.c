@@ -190,7 +190,7 @@ static struct kdbus_pool_slice *
 kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 			  struct kdbus_pool *pool)
 {
-	char *zeros = "\0\0\0\0\0\0\0";
+	char __force __user *zeros = (char __force __user *) "\0\0\0\0\0\0\0";
 	struct kdbus_pool_slice *slice;
 	size_t i, n, want, have;
 	struct iovec *iov;

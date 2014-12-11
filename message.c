@@ -245,7 +245,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 		switch (item->type) {
 		case KDBUS_ITEM_PAYLOAD_VEC: {
 			struct kdbus_msg_data *d = res->data + res->data_count;
-			void *ptr = KDBUS_PTR(item->vec.address);
+			void __force __user *ptr = KDBUS_PTR(item->vec.address);
 			size_t size = item->vec.size;
 
 			if (vec_size + size < vec_size)
