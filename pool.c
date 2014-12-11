@@ -186,16 +186,20 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
 
 /**
  * kdbus_pool_slice_alloc() - allocate memory from a pool
- * @pool:		The receiver's pool
- * @size:		The number of bytes to allocate
+ * @pool:	The receiver's pool
+ * @size:	The number of bytes to allocate
+ * @iov:	iovec to copy into the new slice, may be %NULL
+ * @iov_len:	Number of elements in @iov
  *
  * The returned slice is used for kdbus_pool_slice_release() to
- * free the allocated memory.
+ * free the allocated memory. If @iov is non-NULL, the data will be copied
+ * from kernel memory into the new slice at offset 0.
  *
  * Return: the allocated slice on success, ERR_PTR on failure.
  */
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-						size_t size)
+						size_t size, struct iovec *iov,
+						size_t iov_count)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
 	struct rb_node *n, *found = NULL;
@@ -259,6 +263,14 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	s->child = NULL;
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
+
+	if (iov) {
+		ret = kdbus_pool_slice_copy(s, 0, iov, iov_count, size);
+		if (ret < 0) {
+			kdbus_pool_slice_release(s);
+			return ERR_PTR(ret);
+		}
+	}
 
 	return s;
 
@@ -690,7 +702,7 @@ int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
 	struct kdbus_pool_slice *slice_new;
 	int ret;
 
-	slice_new = kdbus_pool_slice_alloc(dst_pool, (*slice)->size);
+	slice_new = kdbus_pool_slice_alloc(dst_pool, (*slice)->size, NULL, 0);
 	if (IS_ERR(slice_new))
 		return PTR_ERR(slice_new);
 

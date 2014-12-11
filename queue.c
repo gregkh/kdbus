@@ -203,7 +203,7 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 		return ERR_PTR(-EXFULL);
 
 	/* allocate the needed space in the pool of the receiver */
-	slice = kdbus_pool_slice_alloc(pool, want);
+	slice = kdbus_pool_slice_alloc(pool, want, NULL, 0);
 	if (IS_ERR(slice))
 		return slice;
 
@@ -478,7 +478,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 		kdbus_iovec_set(&iov[iov_count++], meta_items, meta_size,
 				&entry->msg.size);
 
-	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, entry->msg.size);
+	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, entry->msg.size,
+					      iov, iov_count);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;
@@ -487,18 +488,11 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 	kdbus_pool_slice_set_child(entry->slice, entry->slice_vecs);
 
-	ret = kdbus_pool_slice_copy(entry->slice, 0, iov, iov_count,
-				    entry->msg.size);
-	if (ret < 0)
-		goto exit_free_slice;
-
 	kfree(meta_items);
 	kfree(items);
 
 	return 0;
 
-exit_free_slice:
-	kdbus_pool_slice_release(entry->slice);
 exit_free_items:
 	kfree(items);
 exit_free_meta:

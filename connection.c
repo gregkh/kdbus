@@ -1394,16 +1394,13 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	kdbus_iovec_set(&iov[0], &info, sizeof(info), &info.size);
 	kdbus_iovec_set(&iov[1], meta_items, meta_size, &info.size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size,
+				       iov, ARRAY_SIZE(iov));
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit;
 	}
-
-	ret = kdbus_pool_slice_copy(slice, 0, iov, ARRAY_SIZE(iov), info.size);
-	if (ret < 0)
-		goto exit;
 
 	/* write back the offset */
 	kdbus_pool_slice_publish(slice, &cmd_info->offset,
@@ -1411,7 +1408,6 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 	ret = 0;
 
 exit:
-	kdbus_pool_slice_release(slice);
 	kfree(meta_items);
 	kdbus_conn_unref(owner_conn);
 	kdbus_name_unlock(conn->ep->bus->name_registry, entry);

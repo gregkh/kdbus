@@ -880,21 +880,17 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	if (ret < 0)
 		goto exit_unlock;
 
-	slice = kdbus_pool_slice_alloc(conn->pool, pos);
-	if (IS_ERR(slice)) {
-		ret = PTR_ERR(slice);
-		slice = NULL;
-		goto exit_unlock;
-	}
-
 	/* copy the header, specifying the overall size */
 	list.size = pos;
 	iov.iov_base = &list;
 	iov.iov_len = sizeof(list);
 
-	ret = kdbus_pool_slice_copy(slice, 0, &iov, 1, list.size);
-	if (ret < 0)
+	slice = kdbus_pool_slice_alloc(conn->pool, list.size, &iov, 1);
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
+		slice = NULL;
 		goto exit_unlock;
+	}
 
 	/* copy the records */
 	pos = sizeof(struct kdbus_name_list);
