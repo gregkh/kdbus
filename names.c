@@ -708,7 +708,6 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 				 struct kdbus_name_entry *e,
 				 bool write)
 {
-	char *zeros = "\0\0\0\0\0\0\0";
 	struct iovec iov[4];
 	size_t iov_count = 0;
 	int ret;
@@ -738,9 +737,6 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 
 	/* append name */
 	if (e) {
-		size_t pad;
-		size_t slen = strlen(e->name) + 1;
-
 		h.size = offsetof(struct kdbus_item, name.name) +
 			 KDBUS_ALIGN8(strlen(e->name) + 1);
 		h.type = KDBUS_ITEM_OWNED_NAME;
@@ -752,17 +748,12 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		iov_count++;
 
 		iov[iov_count].iov_base = e->name;
-		iov[iov_count].iov_len = slen;
+		iov[iov_count].iov_len = strlen(e->name) + 1;
 		info.size += iov[iov_count].iov_len;
 		iov_count++;
 
-		pad = KDBUS_ALIGN8(slen) - slen;
-		if (pad) {
-			iov[iov_count].iov_base = zeros;
-			iov[iov_count].iov_len = pad;
-			info.size += pad;
+		if (kdbus_iovec_pad(iov + iov_count, &info.size))
 			iov_count++;
-		}
 	}
 
 	if (write) {

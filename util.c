@@ -18,6 +18,7 @@
 #include <linux/file.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
+#include <linux/uio.h>
 #include <linux/user_namespace.h>
 
 #include "limits.h"
@@ -257,4 +258,32 @@ int kdbus_sanitize_attach_flags(u64 flags, u64 *attach_flags)
 
 	*attach_flags = flags;
 	return 0;
+}
+
+static char * const zeros = "\0\0\0\0\0\0\0";
+
+/**
+ * kdbus_iovec_pad - conditionally write a padding iovec
+ * @iov:	iovec entry to use
+ * @len:	Total length used for iovec array
+ *
+ * Check if the current total byte length of the array in @len is aligned to
+ * 8 bytes. If it isn't, fill @iov with padding information and increase @len
+ * by the number of bytes stored in @iov.
+ *
+ * Return: the number of added padding bytes.
+ */
+size_t kdbus_iovec_pad(struct iovec *iov, u64 *len)
+{
+	size_t pad = KDBUS_ALIGN8(*len) - *len;
+
+	if (!pad)
+		return 0;
+
+	iov->iov_base = zeros;
+	iov->iov_len = pad;
+
+	*len += pad;
+
+	return pad;
 }

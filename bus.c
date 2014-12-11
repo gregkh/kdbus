@@ -34,6 +34,7 @@
 #include "metadata.h"
 #include "names.h"
 #include "policy.h"
+#include "util.h"
 
 static void kdbus_bus_free(struct kdbus_node *node)
 {
@@ -492,14 +493,12 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
 	size_t meta_size, name_len;
-	char *zeros = "\0\0\0\0\0\0\0";
 	struct kdbus_item *meta_items;
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
 	struct iovec iov[5];
 	size_t iov_count = 0;
 	u64 attach_flags;
-	size_t pad;
 	int ret;
 
 	info.id = bus->id;
@@ -538,12 +537,8 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	iov[iov_count].iov_len = name_len;
 	iov_count++;
 
-	pad = KDBUS_ALIGN8(name_len) - name_len;
-	if (pad) {
-		iov[iov_count].iov_base = zeros;
-		iov[iov_count].iov_len = pad;
+	if (kdbus_iovec_pad(iov + iov_count, &info.size))
 		iov_count++;
-	}
 
 	if (meta_items && meta_size) {
 		iov[iov_count].iov_base = meta_items;
