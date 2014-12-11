@@ -459,7 +459,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	if (m->msg.flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
+	if (m->msg.flags & KDBUS_MSG_EXPECT_REPLY) {
 		/* requests for replies need a timeout */
 		if (m->msg.timeout_ns == 0) {
 			ret = -EINVAL;
@@ -474,7 +474,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 	} else {
 		/*
 		 * KDBUS_SEND_SYNC_REPLY is only valid together with
-		 * KDBUS_MSG_FLAGS_EXPECT_REPLY
+		 * KDBUS_MSG_EXPECT_REPLY
 		 */
 		if (cmd_send->flags & KDBUS_SEND_SYNC_REPLY) {
 			ret = -EINVAL;

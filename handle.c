@@ -693,8 +693,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		ret = kdbus_check_and_write_flags(cmd_send->msg.flags, buf,
 				offsetof(struct kdbus_cmd_send,
 					 kernel_msg_flags),
-				KDBUS_MSG_FLAGS_EXPECT_REPLY |
-				KDBUS_MSG_FLAGS_NO_AUTO_START);
+				KDBUS_MSG_EXPECT_REPLY |
+				KDBUS_MSG_NO_AUTO_START);
 		if (ret < 0)
 			break;
 

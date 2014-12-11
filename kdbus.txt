@@ -716,7 +716,7 @@ struct kdbus_msg {
   __u64 flags;
     Flags for message delivery:
 
-    KDBUS_MSG_FLAGS_EXPECT_REPLY
+    KDBUS_MSG_EXPECT_REPLY
       Expect a reply from the remote peer to this message. With this bit set,
       the timeout_ns field must be set to a non-zero number of nanoseconds in
       which the receiving peer is expected to reply. If such a reply is not
@@ -732,12 +732,12 @@ struct kdbus_msg {
       connection, so the other peer is allowed to respond within the given
       time window.
 
-    KDBUS_MSG_FLAGS_SYNC_REPLY
+    KDBUS_MSG_SYNC_REPLY
       By default, all calls to kdbus are considered asynchronous,
       non-blocking. However, as there are many use cases that need to wait
       for a remote peer to answer a method call, there's a way to send a
       message and wait for a reply in a synchronous fashion. This is what
-      the KDBUS_MSG_FLAGS_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl
+      the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl
       will block until the reply has arrived, the timeout limit is reached,
       in case the remote connection was shut down, or if interrupted by
       a signal before any reply; see signal(7).
@@ -747,7 +747,7 @@ struct kdbus_msg {
       there is no need for another KDBUS_CMD_RECV ioctl or anything else
       to receive the reply.
 
-    KDBUS_MSG_FLAGS_NO_AUTO_START
+    KDBUS_MSG_NO_AUTO_START
       By default, when a message is sent to an activator connection, the
       activator notified and will start an implementor. This flag inhibits
       that behavior. With this bit set, and the remote being an activator,
@@ -972,7 +972,7 @@ the memory is no longer needed.
 7.5 Canceling messages synchronously waiting for replies
 --------------------------------------------------------
 
-When a connection sends a message with KDBUS_MSG_FLAGS_SYNC_REPLY and
+When a connection sends a message with KDBUS_MSG_SYNC_REPLY and
 blocks while waiting for the reply, the KDBUS_CMD_CANCEL ioctl can be
 used on the same file descriptor to cancel blocking wait, based on its cookie.
 If there are multiple messages with the same cookie that are all synchronously
@@ -1763,14 +1763,14 @@ For KDBUS_CMD_SEND:
 		file descriptors are either kdbus handles or unix domain
 		sockets. Both are currently unsupported
   -EINVAL	The submitted payload type is KDBUS_PAYLOAD_KERNEL,
-		KDBUS_MSG_FLAGS_EXPECT_REPLY was set without a timeout value,
-		KDBUS_MSG_FLAGS_SYNC_REPLY was set without
-		KDBUS_MSG_FLAGS_EXPECT_REPLY, an invalid item was supplied,
+		KDBUS_MSG_EXPECT_REPLY was set without a timeout value,
+		KDBUS_MSG_SYNC_REPLY was set without
+		KDBUS_MSG_EXPECT_REPLY, an invalid item was supplied,
 		src_id was != 0 and different from the current connection's ID,
 		a supplied memfd had a size of 0, a string was not properly
 		null-terminated
   -ENOTUNIQ	The supplied destination is KDBUS_DST_ID_BROADCAST, a file
-		descriptor was passed, KDBUS_MSG_FLAGS_EXPECT_REPLY was set,
+		descriptor was passed, KDBUS_MSG_EXPECT_REPLY was set,
 		or a timeout was given for a broadcast message
   -E2BIG	Too many items
   -EMSGSIZE	The size of the message header and items or the payload vector
@@ -1794,7 +1794,7 @@ For KDBUS_CMD_SEND:
   -EDESTADDRREQ	dst_id was set to KDBUS_DST_ID_NAME, but no KDBUS_ITEM_DST_NAME
 		was attached
   -ESRCH	The name to look up was not found in the name registry
-  -EADDRNOTAVAIL KDBUS_MSG_FLAGS_NO_AUTO_START was given but the destination
+  -EADDRNOTAVAIL KDBUS_MSG_NO_AUTO_START was given but the destination
 		 connection is an activator.
   -ENXIO	The passed numeric destination connection ID couldn't be found,
 		or is not connected

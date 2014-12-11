@@ -358,7 +358,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 
 		msg_sync_reply->timeout_ns = now.tv_sec * 1000000000ULL +
 					     now.tv_nsec + 100000000ULL;
-		msg_sync_reply->flags = KDBUS_MSG_FLAGS_EXPECT_REPLY;
+		msg_sync_reply->flags = KDBUS_MSG_EXPECT_REPLY;
 
 		cmd->flags = KDBUS_SEND_SYNC_REPLY;
 
@@ -374,7 +374,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 		 */
 		cookie++;
 		ret = kdbus_msg_send_sync(conn_dst, NULL, cookie,
-					  KDBUS_MSG_FLAGS_EXPECT_REPLY,
+					  KDBUS_MSG_EXPECT_REPLY,
 					  5000000000ULL, 0, conn_src->id);
 		ASSERT_EXIT(ret == -EREMOTEIO);
 

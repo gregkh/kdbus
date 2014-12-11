@@ -617,7 +617,7 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 	uint64_t cookie_reply = 0;
 	int ret = 0;
 
-	if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY)
+	if (msg->flags & KDBUS_MSG_EXPECT_REPLY)
 		timeout = msg->timeout_ns;
 	else
 		cookie_reply = msg->cookie_reply;

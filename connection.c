@@ -815,7 +815,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		else
 			conn_dst = kdbus_conn_ref(name_entry->conn);
 
-		if ((msg->flags & KDBUS_MSG_FLAGS_NO_AUTO_START) &&
+		if ((msg->flags & KDBUS_MSG_NO_AUTO_START) &&
 		     kdbus_conn_is_activator(conn_dst)) {
 			ret = -EADDRNOTAVAIL;
 			goto exit_unref;
@@ -883,7 +883,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		if (ret < 0)
 			goto exit_unref;
 
-		if (msg->flags & KDBUS_MSG_FLAGS_EXPECT_REPLY) {
+		if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
 			ret = kdbus_conn_check_access(ep, msg, conn_src,
 						      conn_dst, NULL);
 			if (ret < 0)

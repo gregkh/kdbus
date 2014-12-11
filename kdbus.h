@@ -385,17 +385,17 @@ struct kdbus_item {
 
 /**
  * enum kdbus_msg_flags - type of message
- * @KDBUS_MSG_FLAGS_EXPECT_REPLY:	Expect a reply message, used for
- *					method calls. The userspace-supplied
- *					cookie identifies the message and the
- *					respective reply carries the cookie
- *					in cookie_reply
- * @KDBUS_MSG_FLAGS_NO_AUTO_START:	Do not start a service, if the addressed
- *					name is not currently active
+ * @KDBUS_MSG_EXPECT_REPLY:	Expect a reply message, used for
+ *				method calls. The userspace-supplied
+ *				cookie identifies the message and the
+ *				respective reply carries the cookie
+ *				in cookie_reply
+ * @KDBUS_MSG_NO_AUTO_START:	Do not start a service, if the addressed
+ *				name is not currently active
  */
 enum kdbus_msg_flags {
-	KDBUS_MSG_FLAGS_EXPECT_REPLY	= 1ULL << 0,
-	KDBUS_MSG_FLAGS_NO_AUTO_START	= 1ULL << 1,
+	KDBUS_MSG_EXPECT_REPLY	= 1ULL << 0,
+	KDBUS_MSG_NO_AUTO_START	= 1ULL << 1,
 };
 
 /**
@@ -414,7 +414,7 @@ enum kdbus_payload_type {
 /**
  * struct kdbus_msg - the representation of a kdbus message
  * @size:		Total size of the message
- * @flags:		Message flags (KDBUS_MSG_FLAGS_*), userspace → kernel
+ * @flags:		Message flags (KDBUS_MSG_*), userspace → kernel
  * @priority:		Message queue priority value
  * @dst_id:		64-bit ID of the destination connection
  * @src_id:		64-bit ID of the source connection

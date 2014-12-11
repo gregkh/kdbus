@@ -213,11 +213,11 @@ static int test_priv_before_policy_upload(struct kdbus_test_env *env)
 
 	/*
 	 * First make sure that BROADCAST with msg flag
-	 * KDBUS_MSG_FLAGS_EXPECT_REPLY will fail with -ENOTUNIQ
+	 * KDBUS_MSG_EXPECT_REPLY will fail with -ENOTUNIQ
 	 */
 	ret = RUN_UNPRIVILEGED_CONN(unpriv, env->buspath, ({
 		ret = kdbus_msg_send(unpriv, NULL, 0xdeadbeef,
-				     KDBUS_MSG_FLAGS_EXPECT_REPLY,
+				     KDBUS_MSG_EXPECT_REPLY,
 				     5000000000ULL, 0,
 				     KDBUS_DST_ID_BROADCAST);
 		ASSERT_EXIT(ret == -ENOTUNIQ);
