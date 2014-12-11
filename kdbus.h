@@ -402,6 +402,9 @@ enum kdbus_msg_flags {
  * enum kdbus_payload_type - type of payload carried by message
  * @KDBUS_PAYLOAD_KERNEL:	Kernel-generated simple message
  * @KDBUS_PAYLOAD_DBUS:		D-Bus marshalling "DBusDBus"
+ *
+ * Any payload-type is accepted. Common types will get added here once
+ * established.
  */
 enum kdbus_payload_type {
 	KDBUS_PAYLOAD_KERNEL,
