@@ -518,7 +518,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 
 		if (cmd == KDBUS_CMD_CONN_INFO)
-			ret = kdbus_cmd_info(conn, cmd_info);
+			ret = kdbus_cmd_conn_info(conn, cmd_info);
 		else
 			ret = kdbus_cmd_bus_creator_info(conn, cmd_info);
 
