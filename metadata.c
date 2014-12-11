@@ -799,10 +799,10 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_AUDIT) {
-		struct kdbus_audit a;
-
-		a.loginuid  = from_kuid(user_ns, meta->audit_loginuid),
-		a.sessionid = meta->audit_sessionid,
+		struct kdbus_audit a = {
+			.loginuid = from_kuid(user_ns, meta->audit_loginuid),
+			.sessionid = meta->audit_sessionid,
+		};
 
 		kdbus_item_set(item, KDBUS_ITEM_AUDIT, &a, sizeof(a));
 		item = KDBUS_ITEM_NEXT(item);
