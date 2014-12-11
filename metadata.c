@@ -67,8 +67,6 @@
  * @caps:		Capabilites
  * @user_namespace:	User namespace that was active when @caps were recorded
  * @root_path:		Root path, pinned when @exe was recorded
- * @locked:		Meta object contains faked creds and should not be
- *			augmented.
  *
  * Data in this struct is only written by two functions:
  *
@@ -129,8 +127,6 @@ struct kdbus_meta {
 
 	struct user_namespace *user_namespace;
 	struct path root_path;
-
-	bool locked:1;
 };
 
 /**
@@ -217,9 +213,6 @@ struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta)
  * is considered an alternative to calling kdbus_meta_add_current(), which
  * derives the same information from the 'current' task.
  *
- * After the information has been recorded, @meta is locked and cannot be
- * augmented with any more information.
- *
  * Return: 0 on success, negative error number otherwise.
  */
 int kdbus_meta_add_fake(struct kdbus_meta *meta,
@@ -272,8 +265,6 @@ int kdbus_meta_add_fake(struct kdbus_meta *meta,
 			return -ENOMEM;
 	}
 
-	meta->locked = true;
-
 	return 0;
 }
 
@@ -313,13 +304,6 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 {
 	u64 mask;
 	int i;
-
-	/*
-	 * If our database is pre-filled with faked information, do
-	 * not add anything else.
-	 */
-	if (meta->locked)
-		return 0;
 
 	/* which metadata is wanted but not yet collected? */
 	mask = which & ~meta->collected;
