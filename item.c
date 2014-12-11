@@ -265,7 +265,7 @@ const char *kdbus_items_get_str(const struct kdbus_item *items,
  * @len:	Number of bytes in @data
  */
 void kdbus_item_set(struct kdbus_item *item, u64 type,
-			   const void *data, size_t len)
+		    const void *data, size_t len)
 {
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
