@@ -78,11 +78,11 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				kuid_t uid, kgid_t gid)
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;
-	const struct kdbus_item *item;
-	struct kdbus_bus *b;
-	const char *name = NULL;
 	const u64 *pattach_owner = NULL;
 	const u64 *pattach_recv = NULL;
+	const struct kdbus_item *item;
+	const char *name = NULL;
+	struct kdbus_bus *b;
 	u64 attach_owner;
 	u64 attach_recv;
 	int ret;
@@ -503,10 +503,10 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 {
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
-	size_t meta_size, name_len;
 	struct kdbus_item *meta_items;
 	struct kdbus_info info = {};
 	struct kdbus_item item = {};
+	size_t meta_size, name_len;
 	struct kvec kvec[5];
 	u64 attach_flags;
 	size_t cnt = 0;

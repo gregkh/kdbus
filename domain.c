@@ -242,9 +242,9 @@ static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
 struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 						kuid_t uid)
 {
-	int ret;
 	struct kdbus_domain_user *tmp_user;
 	struct kdbus_domain_user *u = NULL;
+	int ret;
 
 	mutex_lock(&domain->lock);
 

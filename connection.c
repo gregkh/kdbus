@@ -415,8 +415,7 @@ kdbus_conn_reply_find(struct kdbus_conn *conn_replying,
 		      struct kdbus_conn *conn_reply_dst,
 		      uint64_t cookie)
 {
-	struct kdbus_conn_reply *r;
-	struct kdbus_conn_reply *reply = NULL;
+	struct kdbus_conn_reply *r, *reply = NULL;
 
 	list_for_each_entry(r, &conn_replying->reply_list, entry) {
 		if (r->reply_dst == conn_reply_dst &&
@@ -748,13 +747,13 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_cmd_send *cmd_send,
 			 struct kdbus_kmsg *kmsg)
 {
+	bool sync = cmd_send && (cmd_send->flags & KDBUS_SEND_SYNC_REPLY);
 	struct kdbus_conn_reply *reply_wait = NULL;
 	struct kdbus_conn_reply *reply_wake = NULL;
 	struct kdbus_name_entry *name_entry = NULL;
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = ep->bus;
-	bool sync = cmd_send && (cmd_send->flags & KDBUS_SEND_SYNC_REPLY);
 	int ret = 0;
 
 	/* assign domain-global message sequence number */
@@ -1407,10 +1406,10 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			  const struct kdbus_cmd_update *cmd)
 {
 	struct kdbus_bus *bus = conn->ep->bus;
-	const struct kdbus_item *item;
-	bool policy_provided = false;
 	bool send_flags_provided = false;
 	bool recv_flags_provided = false;
+	bool policy_provided = false;
+	const struct kdbus_item *item;
 	u64 attach_send;
 	u64 attach_recv;
 	int ret;

@@ -488,8 +488,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       const char *name, u64 *flags)
 {
 	struct kdbus_name_entry *e = NULL;
-	u32 hash;
 	int ret = 0;
+	u32 hash;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->ep->bus->lock);
