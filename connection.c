@@ -1743,15 +1743,15 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		conn->faked_meta = true;
 	} else {
 		ret = kdbus_meta_add_current(conn->meta, 0,
-					     KDBUS_ATTACH_CREDS	|
-					     KDBUS_ATTACH_PIDS	|
+					     KDBUS_ATTACH_CREDS		|
+					     KDBUS_ATTACH_PIDS		|
 					     KDBUS_ATTACH_AUXGROUPS	|
 					     KDBUS_ATTACH_TID_COMM	|
 					     KDBUS_ATTACH_PID_COMM	|
-					     KDBUS_ATTACH_EXE	|
+					     KDBUS_ATTACH_EXE		|
 					     KDBUS_ATTACH_CMDLINE	|
 					     KDBUS_ATTACH_CGROUP	|
-					     KDBUS_ATTACH_CAPS	|
+					     KDBUS_ATTACH_CAPS		|
 					     KDBUS_ATTACH_SECLABEL	|
 					     KDBUS_ATTACH_AUDIT);
 		if (ret < 0)
