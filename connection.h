@@ -41,7 +41,7 @@
  * @attach_flags_send:	KDBUS_ATTACH_* flags for sending
  * @attach_flags_recv:	KDBUS_ATTACH_* flags for receiving
  * @description:	Human-readable connection description,
- * 			used for debugging
+ *			used for debugging
  * @ep:			The endpoint this connection belongs to
  * @lock:		Connection data lock
  * @msg_users:		Array to account the number of queued messages per

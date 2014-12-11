@@ -186,7 +186,7 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 
 	ep = kdbus_ep_new(handle->ep->bus, name,
 			  make->flags & (KDBUS_MAKE_ACCESS_WORLD |
-			                 KDBUS_MAKE_ACCESS_GROUP),
+					 KDBUS_MAKE_ACCESS_GROUP),
 			  current_euid(), current_egid(), true);
 	if (IS_ERR(ep)) {
 		ret = PTR_ERR(ep);

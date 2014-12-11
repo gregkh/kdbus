@@ -626,7 +626,7 @@ static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 	struct inode *i_dst = file_inode(f_dst);
 	struct address_space *mapping_dst = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping_dst->a_ops;
-	unsigned long off_dst= slice->off;
+	unsigned long off_dst = slice->off;
 	unsigned long rem = len;
 	int ret = 0;
 

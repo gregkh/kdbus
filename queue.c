@@ -330,7 +330,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 	if (res->dst_name)
 		size += KDBUS_ITEM_SIZE(strlen(res->dst_name) + 1);
 
-	items = (struct kdbus_item *) kzalloc(size, GFP_KERNEL);
+	items = kzalloc(size, GFP_KERNEL);
 	if (!items)
 		return ERR_PTR(-ENOMEM);
 

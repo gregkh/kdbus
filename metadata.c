@@ -64,7 +64,7 @@
  * @cgroup:		Cgroup path
  * @pid_comm:		COMM of the TGID
  * @tid_comm:		COMM of the PID
- * @caps:		Capabilites
+ * @caps:		Capabilities
  * @user_namespace:	User namespace that was active when @caps were recorded
  * @root_path:		Root path, pinned when @exe was recorded
  *
@@ -350,8 +350,9 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 		if (info->ngroups > 0) {
 			int i;
 
-			meta->auxgrps = kmalloc(info->ngroups * sizeof(kgid_t),
-						GFP_KERNEL);
+			meta->auxgrps = kmalloc_array(info->ngroups,
+						      sizeof(kgid_t),
+						      GFP_KERNEL);
 			if (!meta->auxgrps)
 				return -ENOMEM;
 
@@ -684,7 +685,7 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	 * Allocate memory and fill in the items.
 	 */
 
-	items = (struct kdbus_item *) kzalloc(size, GFP_KERNEL);
+	items = kzalloc(size, GFP_KERNEL);
 	if (!items) {
 		ret = -ENOMEM;
 		goto exit_free;

@@ -491,7 +491,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 
 	ret = kdbus_check_and_write_flags(m->msg.flags, buf,
 					  offsetof(struct kdbus_cmd_send,
-					           kernel_msg_flags),
+						   kernel_msg_flags),
 					  KDBUS_MSG_EXPECT_REPLY |
 					  KDBUS_MSG_NO_AUTO_START);
 	if (ret < 0)
