@@ -785,6 +785,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		}
 	}
 
+	kdbus_meta_add_timestamp(kmsg->meta);
+
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(bus, conn_src, kmsg);
 		return 0;

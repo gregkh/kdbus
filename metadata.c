@@ -278,6 +278,26 @@ int kdbus_meta_add_fake(struct kdbus_meta *meta,
 }
 
 /**
+ * kdbus_meta_add_timestamp() - record current time stamp
+ * @meta:	Metadata object
+ */
+void kdbus_meta_add_timestamp(struct kdbus_meta *meta)
+{
+	struct timespec ts;
+
+	if (meta->collected & KDBUS_ATTACH_TIMESTAMP)
+		return;
+
+	ktime_get_ts(&ts);
+	meta->ts_monotonic_ns = timespec_to_ns(&ts);
+
+	ktime_get_real_ts(&ts);
+	meta->ts_realtime_ns = timespec_to_ns(&ts);
+
+	meta->collected |= KDBUS_ATTACH_TIMESTAMP;
+}
+
+/**
  * kdbus_meta_add_current() - collect metadata from current process
  * @meta:		Metadata object
  * @seq:		Message sequence number
@@ -306,19 +326,7 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 	if (mask == 0)
 		return 0;
 
-	if (mask & KDBUS_ATTACH_TIMESTAMP) {
-		struct timespec ts;
-
-		ktime_get_ts(&ts);
-		meta->ts_monotonic_ns = timespec_to_ns(&ts);
-
-		ktime_get_real_ts(&ts);
-		meta->ts_realtime_ns = timespec_to_ns(&ts);
-
-		meta->seq = seq;
-
-		meta->collected |= KDBUS_ATTACH_TIMESTAMP;
-	}
+	meta->seq = seq;
 
 	if (mask & KDBUS_ATTACH_CREDS) {
 		meta->uid	= current_uid();

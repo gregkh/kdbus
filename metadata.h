@@ -26,6 +26,7 @@ struct kdbus_meta *kdbus_meta_new(void);
 struct kdbus_meta *kdbus_meta_ref(struct kdbus_meta *meta);
 struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta);
 
+void kdbus_meta_add_timestamp(struct kdbus_meta *meta);
 int kdbus_meta_add_current(struct kdbus_meta *meta,
 			   u64 seq, u64 which);
 int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
