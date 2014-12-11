@@ -192,6 +192,7 @@ struct kdbus_conn *
 kdbus_hello(const char *path, uint64_t flags,
 	    const struct kdbus_item *item, size_t item_size)
 {
+	struct kdbus_cmd_free cmd_free = { };
 	int fd, ret;
 	struct {
 		struct kdbus_cmd_hello hello;
@@ -242,6 +243,10 @@ kdbus_hello(const char *path, uint64_t flags,
 		     h.hello.id128[9],  h.hello.id128[10], h.hello.id128[11],
 		     h.hello.id128[12], h.hello.id128[13], h.hello.id128[14],
 		     h.hello.id128[15]);
+
+	cmd_free.size = sizeof(cmd_free);
+	cmd_free.offset = h.hello.offset;
+	ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {

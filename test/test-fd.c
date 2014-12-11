@@ -271,6 +271,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	struct kdbus_cmd_hello hello;
 	struct kdbus_conn *conn_src, *conn_dst, *conn_dummy;
 	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_free cmd_free = { };
 
 	conn_src = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn_src);
@@ -299,6 +300,11 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	ret = ioctl(connfd1, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == 0);
 
+	cmd_free.size = sizeof(cmd_free);
+	cmd_free.offset = hello.offset;
+	ret = ioctl(connfd1, KDBUS_CMD_FREE, &cmd_free);
+	ASSERT_RETURN(ret >= 0);
+
 	conn_dst->fd = connfd1;
 	conn_dst->id = hello.id;
 
@@ -309,6 +315,11 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 
 	ret = ioctl(connfd2, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == 0);
+
+	cmd_free.size = sizeof(cmd_free);
+	cmd_free.offset = hello.offset;
+	ret = ioctl(connfd2, KDBUS_CMD_FREE, &cmd_free);
+	ASSERT_RETURN(ret >= 0);
 
 	conn_dummy->fd = connfd2;
 	conn_dummy->id = hello.id;

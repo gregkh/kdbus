@@ -22,6 +22,7 @@
 
 int kdbus_test_hello(struct kdbus_test_env *env)
 {
+	struct kdbus_cmd_free cmd_free = { };
 	struct kdbus_cmd_hello hello;
 	int fd, ret;
 
@@ -82,6 +83,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -1 && errno == ECONNREFUSED);
 
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
+	hello.offset = (__u64)-1;
 
 	/* success test */
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
@@ -89,6 +91,13 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 
 	/* The kernel should have set KDBUS_FLAG_KERNEL */
 	ASSERT_RETURN(hello.attach_flags_send & KDBUS_FLAG_KERNEL);
+
+	/* The kernel should have returned some items */
+	ASSERT_RETURN(hello.offset != (__u64)-1);
+	cmd_free.size = sizeof(cmd_free);
+	cmd_free.offset = hello.offset;
+	ret = ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	ASSERT_RETURN(ret >= 0);
 
 	close(fd);
 
@@ -560,6 +569,7 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 
 int kdbus_test_writable_pool(struct kdbus_test_env *env)
 {
+	struct kdbus_cmd_free cmd_free = { };
 	struct kdbus_cmd_hello hello;
 	int fd, ret;
 	void *map;
@@ -573,10 +583,18 @@ int kdbus_test_writable_pool(struct kdbus_test_env *env)
 	hello.attach_flags_recv = _KDBUS_ATTACH_ALL;
 	hello.size = sizeof(struct kdbus_cmd_hello);
 	hello.pool_size = POOL_SIZE;
+	hello.offset = (__u64)-1;
 
 	/* success test */
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == 0);
+
+	/* The kernel should have returned some items */
+	ASSERT_RETURN(hello.offset != (__u64)-1);
+	cmd_free.size = sizeof(cmd_free);
+	cmd_free.offset = hello.offset;
+	ret = ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	ASSERT_RETURN(ret >= 0);
 
 	/* pools cannot be mapped writable */
 	map = mmap(NULL, POOL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

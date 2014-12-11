@@ -29,6 +29,7 @@ static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 					uint64_t attach_flags_send,
 					uint64_t attach_flags_recv)
 {
+	struct kdbus_cmd_free cmd_free = { };
 	int ret, fd;
 	struct kdbus_conn *conn;
 	struct {
@@ -71,6 +72,12 @@ static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 
 	kdbus_printf("-- New connection ID : %llu\n",
 		     (unsigned long long)h.hello.id);
+
+	cmd_free.size = sizeof(cmd_free);
+	cmd_free.offset = h.hello.offset;
+	ret = ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	if (ret < 0)
+		return NULL;
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {

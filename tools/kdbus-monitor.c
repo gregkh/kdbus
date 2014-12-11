@@ -63,6 +63,7 @@ static void usage(const char *argv0)
 #define POOL_SIZE (16 * 1024LU * 1024LU)
 static struct conn *kdbus_hello(const char *path, uint64_t flags)
 {
+	struct kdbus_cmd_free cmd_free = { };
 	int fd, ret;
 	struct {
 		struct kdbus_cmd_hello hello;
@@ -94,6 +95,14 @@ static struct conn *kdbus_hello(const char *path, uint64_t flags)
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
 	if (ret < 0) {
 		fprintf(stderr, "--- error when saying hello: %d (%m)\n", ret);
+		return NULL;
+	}
+
+	cmd_free.size = sizeof(cmd_free);
+	cmd_free.offset = h.hello.offset;
+	ret = ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	if (ret < 0) {
+		fprintf(stderr, "--- cannot free hello items: %d (%m)\n", ret);
 		return NULL;
 	}
 

@@ -1509,7 +1509,9 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	static struct lock_class_key __key;
 #endif
 	const struct kdbus_creds *creds = NULL;
+	struct kdbus_pool_slice *slice = NULL;
 	const struct kdbus_pids *pids = NULL;
+	struct kdbus_item_list items = { };
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
 	const char *conn_description = NULL;
@@ -1522,7 +1524,15 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	bool is_policy_holder;
 	bool is_activator;
 	bool is_monitor;
+	struct iovec iov[2];
 	int ret;
+
+	struct {
+		/* bloom item */
+		u64 size;
+		u64 type;
+		struct kdbus_bloom_parameter bloom;
+	} bloom_item;
 
 	is_monitor = hello->flags & KDBUS_HELLO_MONITOR;
 	is_activator = hello->flags & KDBUS_HELLO_ACTIVATOR;
@@ -1700,7 +1710,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* return properties of this connection to the caller */
 	hello->bus_flags = bus->bus_flags;
-	hello->bloom = bus->bloom;
 	hello->id = conn->id;
 
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
@@ -1762,9 +1771,27 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		goto exit_unref;
 	}
 
+	bloom_item.size = sizeof(bloom_item);
+	bloom_item.type = KDBUS_ITEM_BLOOM_PARAMETER;
+	bloom_item.bloom = bus->bloom;
+	kdbus_iovec_set(&iov[0], &items, sizeof(items), &items.size);
+	kdbus_iovec_set(&iov[1], &bloom_item, bloom_item.size, &items.size);
+
+	slice = kdbus_pool_slice_alloc(conn->pool, items.size, iov,
+				       ARRAY_SIZE(iov));
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
+		slice = NULL;
+		goto exit_unref;
+	}
+
+	kdbus_pool_slice_publish(slice, &hello->offset, &hello->items_size);
+	kdbus_pool_slice_release(slice);
+
 	return conn;
 
 exit_unref:
+	kdbus_pool_slice_release(slice);
 	kdbus_conn_unref(conn);
 	return ERR_PTR(ret);
 }
