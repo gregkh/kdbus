@@ -239,7 +239,7 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 			++n;
 	}
 
-	ret = kdbus_pool_slice_copy_user(slice, 0, iov, n, res->pool_size);
+	ret = kdbus_pool_slice_copy_iovec(slice, 0, iov, n, res->pool_size);
 	kfree(iov);
 	if (ret < 0)
 		goto exit_free_slice;

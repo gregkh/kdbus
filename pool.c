@@ -265,7 +265,7 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	mutex_unlock(&pool->lock);
 
 	if (kvec) {
-		ret = kdbus_pool_slice_copy(s, 0, kvec, kvec_count, size);
+		ret = kdbus_pool_slice_copy_kvec(s, 0, kvec, kvec_count, size);
 		if (ret < 0) {
 			kdbus_pool_slice_release(s);
 			return ERR_PTR(ret);
@@ -560,7 +560,7 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
 }
 
 /**
- * kdbus_pool_slice_copy_user() - copy user memory to a slice
+ * kdbus_pool_slice_copy_iovec() - copy user memory to a slice
  * @slice:		The slice to write to
  * @off:		Offset in the slice to write to
  * @iov:		iovec array, pointing to data to copy
@@ -572,8 +572,8 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t
-kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
-			   struct iovec *iov, size_t iov_len, size_t total_len)
+kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, size_t off,
+			    struct iovec *iov, size_t iov_len, size_t total_len)
 {
 	struct iov_iter iter;
 	struct file *f;
@@ -593,7 +593,7 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
 }
 
 /**
- * kdbus_pool_slice_copy() - copy kernel memory to a slice
+ * kdbus_pool_slice_copy_kvec() - copy kernel memory to a slice
  * @slice:		The slice to write to
  * @off:		Offset in the slice to write to
  * @kvec:		kvec array, pointing to data to copy
@@ -604,9 +604,9 @@ kdbus_pool_slice_copy_user(const struct kdbus_pool_slice *slice, size_t off,
  *
  * Return: the numbers of bytes copied, negative errno on failure.
  */
-ssize_t kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice, size_t off,
-			      struct kvec *kvec, size_t kvec_len,
-			      size_t total_len)
+ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
+				   size_t off, struct kvec *kvec,
+				   size_t kvec_len, size_t total_len)
 {
 	mm_segment_t old_fs;
 	struct iov_iter iter;

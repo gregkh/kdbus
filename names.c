@@ -746,7 +746,8 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	}
 
 	if (write) {
-		ret = kdbus_pool_slice_copy(slice, *pos, kvec, cnt, info.size);
+		ret = kdbus_pool_slice_copy_kvec(slice, *pos, kvec,
+						 cnt, info.size);
 		if (ret < 0)
 			return ret;
 	}
