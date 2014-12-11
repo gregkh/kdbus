@@ -27,27 +27,25 @@ static int send_reply(const struct kdbus_conn *conn,
 		      uint64_t reply_cookie,
 		      uint64_t dst_id)
 {
-	struct kdbus_cmd_send *cmd;
+	struct kdbus_cmd_send cmd = { };
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	struct kdbus_item *item;
 	uint64_t size;
 	int ret;
 
-	size = sizeof(struct kdbus_cmd_send);
+	size = sizeof(struct kdbus_msg);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
-	cmd = malloc(size);
-	if (!cmd) {
+	msg = malloc(size);
+	if (!msg) {
 		ret = -errno;
 		kdbus_printf("unable to malloc()!?\n");
 		return ret;
 	}
 
-	memset(cmd, 0, size);
-	cmd->size = size;
-	msg = &cmd->msg;
-	msg->size = cmd->size - offsetof(struct kdbus_cmd_send, msg);
+	memset(msg, 0, size);
+	msg->size = size;
 	msg->src_id = conn->id;
 	msg->dst_id = dst_id;
 	msg->cookie_reply = reply_cookie;
@@ -61,14 +59,17 @@ static int send_reply(const struct kdbus_conn *conn,
 	item->vec.size = sizeof(ref1);
 	item = KDBUS_ITEM_NEXT(item);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
 
-	free(cmd);
+	free(msg);
 
 	return 0;
 }

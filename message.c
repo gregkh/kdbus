@@ -429,22 +429,54 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 /**
  * kdbus_kmsg_new_from_cmd() - create kernel message from send payload
  * @conn:		Connection
+ * @buf:		The user-buffer location of @cmd
  * @cmd:		Payload of KDBUS_CMD_SEND
  *
  * Return: a new kdbus_kmsg on success, ERR_PTR on failure.
  */
 struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
+					   void __user *buf,
 					   struct kdbus_cmd_send *cmd_send)
 {
 	struct kdbus_kmsg *m;
+	u64 size;
 	int ret;
 
-	m = kmalloc(cmd_send->msg.size + KDBUS_KMSG_HEADER_SIZE, GFP_KERNEL);
+	ret = kdbus_copy_from_user(&size, KDBUS_PTR(cmd_send->msg_address),
+				   sizeof(size));
+	if (ret < 0)
+		return ERR_PTR(ret);
+
+	if (size < sizeof(struct kdbus_msg) || size > KDBUS_MSG_MAX_SIZE)
+		return ERR_PTR(-EINVAL);
+
+	m = kmalloc(size + KDBUS_KMSG_HEADER_SIZE, GFP_KERNEL);
 	if (!m)
 		return ERR_PTR(-ENOMEM);
 
 	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
-	memcpy(&m->msg, &cmd_send->msg, cmd_send->msg.size);
+
+	if (copy_from_user(&m->msg, KDBUS_PTR(cmd_send->msg_address), size)) {
+		ret = -EFAULT;
+		goto exit_free;
+	}
+	if (m->msg.size != size) {
+		ret = -EINVAL;
+		goto exit_free;
+	}
+
+	ret = kdbus_check_and_write_flags(m->msg.flags, buf,
+					  offsetof(struct kdbus_cmd_send,
+					           kernel_msg_flags),
+					  KDBUS_MSG_EXPECT_REPLY |
+					  KDBUS_MSG_NO_AUTO_START);
+	if (ret < 0)
+		goto exit_free;
+
+	ret = kdbus_items_validate(m->msg.items,
+				   KDBUS_ITEMS_SIZE(&m->msg, items));
+	if (ret < 0)
+		goto exit_free;
 
 	m->res = kdbus_msg_resources_new();
 	if (IS_ERR(m->res)) {

@@ -481,15 +481,9 @@ enum kdbus_send_flags {
  * @kernel_flags:	Supported send flags, kernel → userspace
  * @kernel_msg_flags:	Supported message flags, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
+ * @msg_address:	Storage address of the kdbus_msg to send
  * @reply:		Storage for message reply if KDBUS_SEND_SYNC_REPLY
  *			was given
- * @msg:		Message to transmit. The message itself may contain
- *			items as tail, as well as the kdbus_cmd_send object may
- *			contain them. You must append the items for the message
- *			first, then the additional items for kdbus_cmd_send.
- *			@msg.size must account for the message items, but not
- *			for the kdbus_cmd_send items. @size must account for
- *			both.
  * @items:		Additional items for this command
  */
 struct kdbus_cmd_send {
@@ -498,8 +492,8 @@ struct kdbus_cmd_send {
 	__u64 kernel_flags;
 	__u64 kernel_msg_flags;
 	__u64 return_flags;
+	__u64 msg_address;
 	struct kdbus_reply reply;
-	struct kdbus_msg msg;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 

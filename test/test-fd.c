@@ -25,23 +25,20 @@
 
 static int make_msg_payload_dbus(uint64_t src_id, uint64_t dst_id,
 				 uint64_t msg_size,
-				 struct kdbus_cmd_send **cmd_send)
+				 struct kdbus_msg **msg_dbus)
 {
-	struct kdbus_cmd_send *cmd;
 	struct kdbus_msg *msg;
 
-	cmd = malloc(msg_size + offsetof(struct kdbus_cmd_send, msg));
-	ASSERT_RETURN_VAL(cmd, -ENOMEM);
+	msg = malloc(msg_size);
+	ASSERT_RETURN_VAL(msg, -ENOMEM);
 
-	memset(cmd, 0, msg_size + offsetof(struct kdbus_cmd_send, msg));
-	cmd->size = msg_size + offsetof(struct kdbus_cmd_send, msg);
-	msg = &cmd->msg;
+	memset(msg, 0, msg_size);
 	msg->size = msg_size;
 	msg->src_id = src_id;
 	msg->dst_id = dst_id;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS;
 
-	*cmd_send = cmd;
+	*msg_dbus = msg;
 
 	return 0;
 }
@@ -92,7 +89,7 @@ static int memfd_write(const char *name, void *buf, size_t bufsize)
 static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 		       int *memfds_array, size_t memfd_count)
 {
-	struct kdbus_cmd_send *cmd;
+	struct kdbus_cmd_send cmd = { };
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	uint64_t size;
@@ -104,10 +101,9 @@ static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 
-	ret = make_msg_payload_dbus(conn->id, dst_id, size, &cmd);
+	ret = make_msg_payload_dbus(conn->id, dst_id, size, &msg);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
-	msg = &cmd->msg;
 	item = msg->items;
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
@@ -118,21 +114,24 @@ static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 
 	make_item_memfds(item, memfds_array, memfd_count);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
 
-	free(cmd);
+	free(msg);
 	return 0;
 }
 
 static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 		    int *fd_array, size_t fd_count)
 {
-	struct kdbus_cmd_send *cmd;
+	struct kdbus_cmd_send cmd = { };
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	uint64_t size;
@@ -144,10 +143,9 @@ static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 	if (dst_id == KDBUS_DST_ID_BROADCAST)
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 
-	ret = make_msg_payload_dbus(conn->id, dst_id, size, &cmd);
+	ret = make_msg_payload_dbus(conn->id, dst_id, size, &msg);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
-	msg = &cmd->msg;
 	item = msg->items;
 
 	if (dst_id == KDBUS_DST_ID_BROADCAST) {
@@ -158,14 +156,17 @@ static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 
 	make_item_fds(item, fd_array, fd_count);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
 
-	free(cmd);
+	free(msg);
 	return ret;
 }
 
@@ -173,7 +174,7 @@ static int send_fds_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 			   int *fds_array, size_t fd_count,
 			   int *memfds_array, size_t memfd_count)
 {
-	struct kdbus_cmd_send *cmd;
+	struct kdbus_cmd_send cmd = { };
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	uint64_t size;
@@ -183,24 +184,26 @@ static int send_fds_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 	size += memfd_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
 	size += KDBUS_ITEM_SIZE(sizeof(int) * fd_count);
 
-	ret = make_msg_payload_dbus(conn->id, dst_id, size, &cmd);
+	ret = make_msg_payload_dbus(conn->id, dst_id, size, &msg);
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
-	msg = &cmd->msg;
 	item = msg->items;
 
 	make_item_fds(item, fds_array, fd_count);
 	item = KDBUS_ITEM_NEXT(item);
 	make_item_memfds(item, memfds_array, memfd_count);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg;
+
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
 
-	free(cmd);
+	free(msg);
 	return ret;
 }
 
@@ -230,7 +233,7 @@ static unsigned int kdbus_item_get_nfds(struct kdbus_msg *msg)
 	return fds;
 }
 
-static struct kdbus_cmd_send*
+static struct kdbus_msg *
 get_kdbus_msg_with_fd(struct kdbus_conn *conn_src,
 		      uint64_t dst_id, uint64_t cookie, int fd)
 {
@@ -238,16 +241,14 @@ get_kdbus_msg_with_fd(struct kdbus_conn *conn_src,
 	uint64_t size;
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
-	struct kdbus_cmd_send *cmd;
 
 	size = sizeof(struct kdbus_msg);
 	if (fd >= 0)
 		size += KDBUS_ITEM_SIZE(sizeof(int));
 
-	ret = make_msg_payload_dbus(conn_src->id, dst_id, size, &cmd);
+	ret = make_msg_payload_dbus(conn_src->id, dst_id, size, &msg);
 	ASSERT_RETURN_VAL(ret == 0, NULL);
 
-	msg = &cmd->msg;
 	msg->cookie = cookie;
 
 	if (fd >= 0) {
@@ -256,7 +257,7 @@ get_kdbus_msg_with_fd(struct kdbus_conn *conn_src,
 		make_item_fds(item, (int *)&fd, 1);
 	}
 
-	return cmd;
+	return msg;
 }
 
 static int kdbus_test_no_fds(struct kdbus_test_env *env,
@@ -267,9 +268,9 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	uint64_t cookie;
 	int connfd1, connfd2;
 	struct kdbus_msg *msg, *msg_sync_reply;
-	struct kdbus_cmd_send *cmd;
 	struct kdbus_cmd_hello hello;
 	struct kdbus_conn *conn_src, *conn_dst, *conn_dummy;
+	struct kdbus_cmd_send cmd = { };
 
 	conn_src = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn_src);
@@ -347,11 +348,10 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 		 * A sync send/reply to a connection that do not
 		 * accept fds should fail if it contains an fd
 		 */
-		cmd = get_kdbus_msg_with_fd(conn_dst,
-					    conn_dummy->id,
-					    cookie, fds[0]);
-		ASSERT_EXIT(cmd);
-		msg_sync_reply = &cmd->msg;
+		msg_sync_reply = get_kdbus_msg_with_fd(conn_dst,
+						       conn_dummy->id,
+						       cookie, fds[0]);
+		ASSERT_EXIT(msg_sync_reply);
 
 		ret = clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
 		ASSERT_EXIT(ret == 0);
@@ -360,9 +360,12 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 					     now.tv_nsec + 100000000ULL;
 		msg_sync_reply->flags = KDBUS_MSG_EXPECT_REPLY;
 
-		cmd->flags = KDBUS_SEND_SYNC_REPLY;
+		memset(&cmd, 0, sizeof(cmd));
+		cmd.size = sizeof(cmd);
+		cmd.msg_address = (uintptr_t)msg_sync_reply;
+		cmd.flags = KDBUS_SEND_SYNC_REPLY;
 
-		ret = ioctl(conn_dst->fd, KDBUS_CMD_SEND, cmd);
+		ret = ioctl(conn_dst->fd, KDBUS_CMD_SEND, &cmd);
 		ASSERT_EXIT(ret < 0 && -errno == -ECOMM);
 
 		/*
@@ -383,7 +386,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 		ASSERT_EXIT(ret == 0);
 		ASSERT_EXIT(msg->cookie == cookie);
 
-		free(cmd);
+		free(msg_sync_reply);
 		kdbus_msg_free(msg);
 
 		_exit(EXIT_SUCCESS);
@@ -402,18 +405,21 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	 * Try to reply with a kdbus connection handle, this should
 	 * fail with -EOPNOTSUPP
 	 */
-	cmd = get_kdbus_msg_with_fd(conn_src,
-				    conn_dst->id,
-				    cookie, conn_dst->fd);
-	ASSERT_RETURN(cmd);
+	msg_sync_reply = get_kdbus_msg_with_fd(conn_src,
+					       conn_dst->id,
+					       cookie, conn_dst->fd);
+	ASSERT_RETURN(msg_sync_reply);
 
-	msg_sync_reply = &cmd->msg;
 	msg_sync_reply->cookie_reply = cookie;
 
-	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, cmd);
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg_sync_reply;
+
+	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, &cmd);
 	ASSERT_RETURN(ret < 0 && -errno == -EOPNOTSUPP);
 
-	free(cmd);
+	free(msg_sync_reply);
 
 	/*
 	 * Try to reply with a normal fd, this should fail even
@@ -421,18 +427,21 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	 *
 	 * From the sender view we fail with -ECOMM
 	 */
-	cmd = get_kdbus_msg_with_fd(conn_src,
-				    conn_dst->id,
-				    cookie, fds[0]);
-	ASSERT_RETURN(cmd);
+	msg_sync_reply = get_kdbus_msg_with_fd(conn_src,
+					       conn_dst->id,
+					       cookie, fds[0]);
+	ASSERT_RETURN(msg_sync_reply);
 
-	msg_sync_reply = &cmd->msg;
 	msg_sync_reply->cookie_reply = cookie;
 
-	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, cmd);
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg_sync_reply;
+
+	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, &cmd);
 	ASSERT_RETURN(ret < 0 && -errno == -ECOMM);
 
-	free(cmd);
+	free(msg_sync_reply);
 
 	/*
 	 * Resend another normal message and check if the queue

@@ -684,14 +684,6 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		free_ptr = cmd_send;
 
-		if (cmd_send->msg.size < sizeof(cmd_send->msg) ||
-		    cmd_send->msg.size > cmd_send->size -
-		                         offsetof(struct kdbus_cmd_send, msg) ||
-		    cmd_send->msg.size > KDBUS_MSG_MAX_SIZE) {
-			ret = -EINVAL;
-			break;
-		}
-
 		ret = kdbus_negotiate_flags(cmd_send, buf, typeof(*cmd_send),
 					    KDBUS_SEND_SYNC_REPLY);
 		if (ret < 0)
@@ -699,20 +691,12 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		cmd_send->return_flags = 0;
 
-		ret = kdbus_check_and_write_flags(cmd_send->msg.flags, buf,
-				offsetof(struct kdbus_cmd_send,
-					 kernel_msg_flags),
-				KDBUS_MSG_EXPECT_REPLY |
-				KDBUS_MSG_NO_AUTO_START);
-		if (ret < 0)
-			break;
-
 		ret = kdbus_items_validate(cmd_send->items,
 					   KDBUS_ITEMS_SIZE(cmd_send, items));
 		if (ret < 0)
 			break;
 
-		kmsg = kdbus_kmsg_new_from_cmd(conn, cmd_send);
+		kmsg = kdbus_kmsg_new_from_cmd(conn, buf, cmd_send);
 		if (IS_ERR(kmsg)) {
 			ret = PTR_ERR(kmsg);
 			break;
