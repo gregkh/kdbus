@@ -445,15 +445,16 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_NAME_LIST: {
-		struct kdbus_cmd_name_list cmd_list;
+		struct kdbus_cmd_name_list *cmd_list;
 
-		/* query current IDs and names */
-		if (kdbus_copy_from_user(&cmd_list, buf, sizeof(cmd_list))) {
-			ret = -EFAULT;
+		cmd_list = kdbus_memdup_user(buf, sizeof(*cmd_list),
+					     KDBUS_CMD_MAX_SIZE);
+		if (IS_ERR(cmd_list)) {
+			ret = PTR_ERR(cmd_list);
 			break;
 		}
 
-		ret = kdbus_negotiate_flags(&cmd_list, buf, typeof(cmd_list),
+		ret = kdbus_negotiate_flags(cmd_list, buf, typeof(*cmd_list),
 					    KDBUS_NAME_LIST_UNIQUE |
 					    KDBUS_NAME_LIST_NAMES |
 					    KDBUS_NAME_LIST_ACTIVATORS |
@@ -461,20 +462,25 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (ret < 0)
 			break;
 
-		ret = kdbus_cmd_name_list(conn->ep->bus->name_registry,
-					  conn, &cmd_list);
+		ret = kdbus_items_validate(cmd_list->items,
+					   KDBUS_ITEMS_SIZE(cmd_list, items));
 		if (ret < 0)
 			break;
 
-		cmd_list.return_flags = 0;
+		ret = kdbus_cmd_name_list(conn->ep->bus->name_registry,
+					  conn, cmd_list);
+		if (ret < 0)
+			break;
+
+		cmd_list->return_flags = 0;
 
 		/* return allocated data */
-		if (kdbus_member_set_user(&cmd_list.offset, buf,
+		if (kdbus_member_set_user(&cmd_list->offset, buf,
 					  struct kdbus_cmd_name_list, offset) ||
-		    kdbus_member_set_user(&cmd_list.list_size, buf,
+		    kdbus_member_set_user(&cmd_list->list_size, buf,
 					  struct kdbus_cmd_name_list,
 					  list_size) ||
-		    kdbus_member_set_user(&cmd_list.return_flags, buf,
+		    kdbus_member_set_user(&cmd_list->return_flags, buf,
 					  struct kdbus_cmd_name_list,
 					  return_flags))
 			ret = -EFAULT;

@@ -20,7 +20,7 @@
 static int conn_is_name_owner(const struct kdbus_conn *conn,
 			      const char *needle)
 {
-	struct kdbus_cmd_name_list cmd_list;
+	struct kdbus_cmd_name_list cmd_list = { .size = sizeof(cmd_list) };
 	struct kdbus_name_list *list;
 	struct kdbus_name_info *name;
 	bool found = false;

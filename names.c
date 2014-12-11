@@ -875,9 +875,18 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_policy_db *policy_db;
 	struct kdbus_name_list list = {};
+	const struct kdbus_item *item;
 	struct iovec iov;
 	size_t pos;
 	int ret;
+
+	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
+		/* no items supported so far */
+		switch (item->type) {
+		default:
+			return -EINVAL;
+		}
+	}
 
 	policy_db = &conn->ep->policy_db;
 

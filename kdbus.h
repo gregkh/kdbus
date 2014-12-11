@@ -847,11 +847,13 @@ enum kdbus_name_list_flags {
  * This structure is used with the KDBUS_CMD_NAME_LIST ioctl.
  */
 struct kdbus_cmd_name_list {
+	__u64 size;
 	__u64 flags;
 	__u64 kernel_flags;
 	__u64 return_flags;
 	__u64 offset;
 	__u64 list_size;
+	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
 /**

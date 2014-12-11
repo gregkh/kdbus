@@ -20,6 +20,9 @@
 /* maximum number of message items */
 #define KDBUS_MSG_MAX_ITEMS		128
 
+/* max size of ioctl command data */
+#define KDBUS_CMD_MAX_SIZE		SZ_8K
+
 /*
  * Maximum number of passed file descriptors
  * Number taken from AF_UNIX upper limits

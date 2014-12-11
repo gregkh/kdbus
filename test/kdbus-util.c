@@ -1065,6 +1065,7 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 	struct kdbus_name_info *name;
 	int ret;
 
+	cmd_list.size = sizeof(cmd_list);
 	cmd_list.flags = flags;
 
 	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);
