@@ -16,6 +16,7 @@
 #include <linux/ctype.h>
 #include <linux/err.h>
 #include <linux/file.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/uio.h>
@@ -154,6 +155,7 @@ int kdbus_copy_from_user(void *dest, void __user *user_ptr, size_t size)
  */
 void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max)
 {
+	void *ptr;
 	u64 size;
 	int ret;
 
@@ -167,7 +169,16 @@ void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max)
 	if (size > sz_max)
 		return ERR_PTR(-EMSGSIZE);
 
-	return memdup_user(user_ptr, size);
+	ptr = memdup_user(user_ptr, size);
+	if (IS_ERR(ptr))
+		return ptr;
+
+	if (*(u64*)ptr != size) {
+		kfree(ptr);
+		return ERR_PTR(-EINVAL);
+	}
+
+	return ptr;
 }
 
 /**
