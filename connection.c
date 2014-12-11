@@ -1510,7 +1510,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	const struct kdbus_creds *creds = NULL;
 	struct kdbus_pool_slice *slice = NULL;
 	const struct kdbus_pids *pids = NULL;
-	struct kdbus_item_list items = { };
+	struct kdbus_item_list items = {};
 	struct kdbus_bus *bus = ep->bus;
 	const struct kdbus_item *item;
 	const char *conn_description = NULL;

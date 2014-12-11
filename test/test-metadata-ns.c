@@ -24,7 +24,7 @@
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
-static const struct kdbus_creds privileged_creds = { };
+static const struct kdbus_creds privileged_creds = {};
 
 static const struct kdbus_creds unmapped_creds = {
 	.uid	= UNPRIV_UID,
@@ -37,7 +37,7 @@ static const struct kdbus_creds unmapped_creds = {
 	.fsgid	= UNPRIV_GID,
 };
 
-static const struct kdbus_pids unmapped_pids = { };
+static const struct kdbus_pids unmapped_pids = {};
 
 /* Get only the first item */
 static struct kdbus_item *kdbus_get_item(struct kdbus_msg *msg,

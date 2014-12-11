@@ -344,8 +344,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 
 	for (i = 0; i < res->data_count; ++i) {
 		struct kdbus_msg_data *d = res->data + i;
-		struct kdbus_memfd m = { };
-		struct kdbus_vec v = { };
+		struct kdbus_memfd m = {};
+		struct kdbus_vec v = {};
 
 		switch (d->type) {
 		case KDBUS_MSG_DATA_VEC:

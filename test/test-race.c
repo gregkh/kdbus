@@ -278,7 +278,7 @@ TEST_RACE2(kdbus_test_race_byebye_match, 10000,
 		return ioctl(env->conn->fd, KDBUS_CMD_BYEBYE, 0) ? -errno : 0;
 	}),
 	({
-		struct kdbus_cmd_match cmd = { };
+		struct kdbus_cmd_match cmd = {};
 		int ret;
 
 		cmd.size = sizeof(cmd);

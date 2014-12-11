@@ -27,7 +27,7 @@ static int send_reply(const struct kdbus_conn *conn,
 		      uint64_t reply_cookie,
 		      uint64_t dst_id)
 {
-	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_send cmd = {};
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	struct kdbus_item *item;

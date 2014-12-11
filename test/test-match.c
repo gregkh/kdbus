@@ -314,7 +314,7 @@ static int send_bloom_filter(const struct kdbus_conn *conn,
 			     size_t filter_size,
 			     uint64_t filter_generation)
 {
-	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_send cmd = {};
 	struct kdbus_msg *msg;
 	struct kdbus_item *item;
 	uint64_t size;

@@ -17,7 +17,7 @@
 int kdbus_test_free(struct kdbus_test_env *env)
 {
 	int ret;
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 
 	/* free an unallocated buffer */
 	cmd_free.size = sizeof(cmd_free);

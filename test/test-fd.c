@@ -89,7 +89,7 @@ static int memfd_write(const char *name, void *buf, size_t bufsize)
 static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 		       int *memfds_array, size_t memfd_count)
 {
-	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_send cmd = {};
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	uint64_t size;
@@ -131,7 +131,7 @@ static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 		    int *fd_array, size_t fd_count)
 {
-	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_send cmd = {};
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	uint64_t size;
@@ -174,7 +174,7 @@ static int send_fds_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 			   int *fds_array, size_t fd_count,
 			   int *memfds_array, size_t memfd_count)
 {
-	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_send cmd = {};
 	struct kdbus_item *item;
 	struct kdbus_msg *msg;
 	uint64_t size;
@@ -270,8 +270,8 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	struct kdbus_msg *msg, *msg_sync_reply;
 	struct kdbus_cmd_hello hello;
 	struct kdbus_conn *conn_src, *conn_dst, *conn_dummy;
-	struct kdbus_cmd_send cmd = { };
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_send cmd = {};
+	struct kdbus_cmd_free cmd_free = {};
 
 	conn_src = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(conn_src);

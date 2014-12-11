@@ -157,7 +157,7 @@ static int
 send_echo_request(struct kdbus_conn *conn, uint64_t dst_id,
 		  void *kdbus_msg, off_t memfd_item_offset)
 {
-	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_send cmd = {};
 	int memfd = -1;
 	int ret;
 

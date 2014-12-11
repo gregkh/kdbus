@@ -724,7 +724,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		__u64 size;
 		__u64 type;
 		__u64 flags;
-	} h = { };
+	} h = {};
 
 	if (e && kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
 							   e->name) < 0)

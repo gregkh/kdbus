@@ -192,7 +192,7 @@ struct kdbus_conn *
 kdbus_hello(const char *path, uint64_t flags,
 	    const struct kdbus_item *item, size_t item_size)
 {
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 	int fd, ret;
 	struct {
 		struct kdbus_cmd_hello hello;
@@ -447,7 +447,7 @@ static int __kdbus_msg_send(const struct kdbus_conn *conn,
 			    uint64_t dst_id,
 			    uint64_t cmd_flags)
 {
-	struct kdbus_cmd_send cmd = { };
+	struct kdbus_cmd_send cmd = {};
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	const char ref2[] = "0123456789_1";
@@ -979,7 +979,7 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 
 int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
 {
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 	int ret;
 
 	cmd_free.size = sizeof(cmd_free);

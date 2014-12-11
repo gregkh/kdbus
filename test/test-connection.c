@@ -22,7 +22,7 @@
 
 int kdbus_test_hello(struct kdbus_test_env *env)
 {
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 	struct kdbus_cmd_hello hello;
 	int fd, ret;
 
@@ -569,7 +569,7 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 
 int kdbus_test_writable_pool(struct kdbus_test_env *env)
 {
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 	struct kdbus_cmd_hello hello;
 	int fd, ret;
 	void *map;

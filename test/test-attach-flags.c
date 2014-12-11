@@ -29,7 +29,7 @@ static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 					uint64_t attach_flags_send,
 					uint64_t attach_flags_recv)
 {
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 	int ret, fd;
 	struct kdbus_conn *conn;
 	struct {

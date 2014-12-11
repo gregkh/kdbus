@@ -63,7 +63,7 @@ static void usage(const char *argv0)
 #define POOL_SIZE (16 * 1024LU * 1024LU)
 static struct conn *kdbus_hello(const char *path, uint64_t flags)
 {
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 	int fd, ret;
 	struct {
 		struct kdbus_cmd_hello hello;
@@ -132,7 +132,7 @@ static int dump_packet(struct conn *conn, int fd)
 	uint64_t size;
 	struct kdbus_msg *msg;
 	const struct kdbus_item *item;
-	struct kdbus_cmd_free cmd_free = { };
+	struct kdbus_cmd_free cmd_free = {};
 	struct timeval now;
 	struct pcap_entry entry;
 	uint64_t to_write;
