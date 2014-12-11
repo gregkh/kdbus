@@ -547,6 +547,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 				 &cmd_info->info_size);
 	ret = 0;
 
+	kdbus_pool_slice_release(slice);
 exit:
 	kfree(meta_items);
 	return ret;

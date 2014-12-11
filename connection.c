@@ -1408,6 +1408,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 				 &cmd_info->info_size);
 	ret = 0;
 
+	kdbus_pool_slice_release(slice);
 exit:
 	kfree(meta_items);
 	kdbus_conn_unref(owner_conn);
