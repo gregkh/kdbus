@@ -103,6 +103,7 @@ void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max);
 int kdbus_check_and_write_flags(u64 flags, void __user *buf,
 				off_t offset_out, u64 valid);
 
+void kdbus_iovec_set(struct iovec *iov, void *src, size_t len, u64 *total_len);
 size_t kdbus_iovec_pad(struct iovec *iov, u64 *len);
 
 #define kdbus_negotiate_flags(_s, _b, _t, _v)				\

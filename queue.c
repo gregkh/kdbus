@@ -461,11 +461,23 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 		}
 	}
 
-	/* Now that we know it, update the message size */
-	entry->msg.size = sizeof(entry->msg) + entry->msg_extra_size +
-			  meta_size + items_size;
+	entry->msg.size = 0;
 
-	/* Allocate the needed space in the pool of the receiver */
+	kdbus_iovec_set(&iov[iov_count++], &entry->msg, sizeof(entry->msg),
+			&entry->msg.size);
+
+	if (entry->msg_extra_size)
+		kdbus_iovec_set(&iov[iov_count++], entry->msg_extra,
+				entry->msg_extra_size, &entry->msg.size);
+
+	if (items_size)
+		kdbus_iovec_set(&iov[iov_count++], items, items_size,
+				&entry->msg.size);
+
+	if (meta_size)
+		kdbus_iovec_set(&iov[iov_count++], meta_items, meta_size,
+				&entry->msg.size);
+
 	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, entry->msg.size);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
@@ -475,30 +487,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 	kdbus_pool_slice_set_child(entry->slice, entry->slice_vecs);
 
-	iov[iov_count].iov_base = &entry->msg;
-	iov[iov_count].iov_len = sizeof(entry->msg);
-	iov_count++;
-
-	if (entry->msg_extra_size) {
-		iov[iov_count].iov_base = entry->msg_extra;
-		iov[iov_count].iov_len = entry->msg_extra_size;
-		iov_count++;
-	}
-
-	if (items_size) {
-		iov[iov_count].iov_base = items;
-		iov[iov_count].iov_len = items_size;
-		iov_count++;
-	}
-
-	if (meta_size) {
-		iov[iov_count].iov_base = meta_items;
-		iov[iov_count].iov_len = meta_size;
-		iov_count++;
-	}
-
-	ret = kdbus_pool_slice_copy(entry->slice, 0, iov,
-				    iov_count, entry->msg.size);
+	ret = kdbus_pool_slice_copy(entry->slice, 0, iov, iov_count,
+				    entry->msg.size);
 	if (ret < 0)
 		goto exit_free_slice;
 

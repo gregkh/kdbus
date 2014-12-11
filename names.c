@@ -709,7 +709,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 				 bool write)
 {
 	struct iovec iov[4];
-	size_t iov_count = 0;
+	size_t cnt = 0;
 	int ret;
 
 	/* info header */
@@ -730,10 +730,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 							   e->name) < 0)
 			return 0;
 
-	iov[iov_count].iov_base = &info;
-	iov[iov_count].iov_len = sizeof(info);
-	info.size += iov[iov_count].iov_len;
-	iov_count++;
+	kdbus_iovec_set(&iov[cnt++], &info, sizeof(info), &info.size);
 
 	/* append name */
 	if (e) {
@@ -743,23 +740,15 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		h.type = KDBUS_ITEM_OWNED_NAME;
 		h.flags = e->flags;
 
-		iov[iov_count].iov_base = &h;
-		iov[iov_count].iov_len = sizeof(h);
-		info.size += iov[iov_count].iov_len;
-		iov_count++;
+		kdbus_iovec_set(&iov[cnt++], &h, sizeof(h), &info.size);
+		kdbus_iovec_set(&iov[cnt++], e->name, slen, &info.size);
 
-		iov[iov_count].iov_base = e->name;
-		iov[iov_count].iov_len = slen;
-		info.size += iov[iov_count].iov_len;
-		iov_count++;
-
-		if (kdbus_iovec_pad(iov + iov_count, &info.size))
-			iov_count++;
+		if (kdbus_iovec_pad(&iov[cnt], &info.size))
+			cnt++;
 	}
 
 	if (write) {
-		ret = kdbus_pool_slice_copy(slice, *pos, iov,
-					    iov_count, info.size);
+		ret = kdbus_pool_slice_copy(slice, *pos, iov, cnt, info.size);
 		if (ret < 0)
 			return ret;
 	}

@@ -1387,7 +1387,8 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	info.size = sizeof(info) + meta_size;
+	kdbus_iovec_set(&iov[0], &info, sizeof(info), &info.size);
+	kdbus_iovec_set(&iov[1], meta_items, meta_size, &info.size);
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
@@ -1396,13 +1397,7 @@ int kdbus_cmd_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	iov[0].iov_base = &info;
-	iov[0].iov_len = sizeof(info);
-
-	iov[1].iov_base = meta_items;
-	iov[1].iov_len = meta_size;
-
-	ret = kdbus_pool_slice_copy(slice, 0, iov, 2, info.size);
+	ret = kdbus_pool_slice_copy(slice, 0, iov, ARRAY_SIZE(iov), info.size);
 	if (ret < 0)
 		goto exit;
 

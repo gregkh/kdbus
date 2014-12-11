@@ -271,6 +271,22 @@ int kdbus_sanitize_attach_flags(u64 flags, u64 *attach_flags)
 	return 0;
 }
 
+/**
+ * kdbus_iovec_set - helper utility to assemble iovec arrays
+ * @iov:	iovec entry to use
+ * @src:	Source address to set in @iov
+ * @len:	Number of bytes in @src
+ * @total_len:	Pointer to total length variable
+ *
+ * Set @src and @len in @iov, and increase @total_len by @len.
+ */
+void kdbus_iovec_set(struct iovec *iov, void *src, size_t len, u64 *total_len)
+{
+	iov->iov_base = src;
+	iov->iov_len = len;
+	*total_len += len;
+}
+
 static char * const zeros = "\0\0\0\0\0\0\0";
 
 /**
