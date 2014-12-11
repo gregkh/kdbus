@@ -246,9 +246,6 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 		goto exit;
 
 	hello->return_flags = 0;
-	if (kdbus_member_set_user(&hello->return_flags, buf,
-				  struct kdbus_cmd_hello, return_flags))
-		return -EFAULT;
 
 	ret = kdbus_items_validate(hello->items,
 				   KDBUS_ITEMS_SIZE(hello, items));
