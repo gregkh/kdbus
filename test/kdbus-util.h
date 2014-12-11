@@ -12,6 +12,7 @@
 #define BIT(X) (1 << (X))
 
 #include <time.h>
+#include <stdbool.h>
 #include "../kdbus.h"
 
 #define _STRINGIFY(x) #x
