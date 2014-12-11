@@ -20,6 +20,7 @@
 #include "util.h"
 #include "fs.h"
 #include "handle.h"
+#include "metadata.h"
 #include "node.h"
 
 /* kdbus mount-point /sys/fs/kdbus */
