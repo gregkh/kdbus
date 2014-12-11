@@ -454,6 +454,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
+		free_ptr = cmd_list;
+
 		ret = kdbus_negotiate_flags(cmd_list, buf, typeof(*cmd_list),
 					    KDBUS_NAME_LIST_UNIQUE |
 					    KDBUS_NAME_LIST_NAMES |
