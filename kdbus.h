@@ -804,6 +804,19 @@ struct kdbus_name_info {
 } __attribute__((aligned(8)));
 
 /**
+ * struct kdbus_name_list - information returned by KDBUS_CMD_NAME_LIST
+ * @size:		The total size of the structure
+ * @names:		A list of names
+ *
+ * Note that the user is responsible for freeing the allocated memory with
+ * the KDBUS_CMD_FREE ioctl.
+ */
+struct kdbus_name_list {
+	__u64 size;
+	struct kdbus_name_info names[0];
+};
+
+/**
  * enum kdbus_name_list_flags - what to include into the returned list
  * @KDBUS_NAME_LIST_UNIQUE:	All active connections
  * @KDBUS_NAME_LIST_NAMES:	All known well-known names
@@ -839,16 +852,20 @@ struct kdbus_cmd_name_list {
 } __attribute__((aligned(8)));
 
 /**
- * struct kdbus_name_list - information returned by KDBUS_CMD_NAME_LIST
- * @size:		The total size of the structure
- * @names:		A list of names
+ * struct kdbus_info - information returned by KDBUS_CMD_*_INFO
+ * @size:		The total size of the struct
+ * @id:			The connection's or bus' 64-bit ID
+ * @flags:		The connection's or bus' flags
+ * @items:		A list of struct kdbus_item
  *
  * Note that the user is responsible for freeing the allocated memory with
  * the KDBUS_CMD_FREE ioctl.
  */
-struct kdbus_name_list {
+struct kdbus_info {
 	__u64 size;
-	struct kdbus_name_info names[0];
+	__u64 id;
+	__u64 flags;
+	struct kdbus_item items[0];
 };
 
 /**
@@ -882,23 +899,6 @@ struct kdbus_cmd_info {
 	__u64 info_size;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
-
-/**
- * struct kdbus_info - information returned by KDBUS_CMD_*_INFO
- * @size:		The total size of the struct
- * @id:			The connection's or bus' 64-bit ID
- * @flags:		The connection's or bus' flags
- * @items:		A list of struct kdbus_item
- *
- * Note that the user is responsible for freeing the allocated memory with
- * the KDBUS_CMD_FREE ioctl.
- */
-struct kdbus_info {
-	__u64 size;
-	__u64 id;
-	__u64 flags;
-	struct kdbus_item items[0];
-};
 
 /**
  * struct kdbus_cmd_update - update flags of a connection
