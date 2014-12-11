@@ -824,7 +824,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_FREE: {
-		struct kdbus_cmd_free cmd_free;
+		struct kdbus_cmd_free *cmd_free;
+		const struct kdbus_item *item;
 
 		if (!kdbus_conn_is_ordinary(conn) &&
 		    !kdbus_conn_is_monitor(conn) &&
@@ -833,24 +834,44 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		/* free the memory used in the receiver's pool */
-		ret = kdbus_copy_from_user(&cmd_free, buf,
-					   sizeof(cmd_free));
-		if (ret < 0)
+		cmd_free = kdbus_memdup_user(buf, sizeof(*cmd_free),
+					     KDBUS_CMD_MAX_SIZE);
+		if (IS_ERR(cmd_free)) {
+			ret = PTR_ERR(cmd_free);
 			break;
+		}
 
-		ret = kdbus_negotiate_flags(&cmd_free, buf, typeof(cmd_free),
+		free_ptr = cmd_free;
+
+		ret = kdbus_negotiate_flags(cmd_free, buf, typeof(*cmd_free),
 					    0);
 		if (ret < 0)
 			break;
 
-		cmd_free.return_flags = 0;
-
-		ret = kdbus_pool_release_offset(conn->pool, cmd_free.offset);
+		ret = kdbus_items_validate(cmd_free->items,
+					   KDBUS_ITEMS_SIZE(cmd_free, items));
 		if (ret < 0)
 			break;
 
-		if (kdbus_member_set_user(&cmd_free.return_flags, buf,
+		KDBUS_ITEMS_FOREACH(item, cmd_free->items,
+				    KDBUS_ITEMS_SIZE(cmd_free, items)) {
+			/* no items supported so far */
+			switch (item->type) {
+			default:
+				ret = -EINVAL;
+				break;
+			}
+		}
+		if (ret < 0)
+			break;
+
+		cmd_free->return_flags = 0;
+
+		ret = kdbus_pool_release_offset(conn->pool, cmd_free->offset);
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_free->return_flags, buf,
 					  struct kdbus_cmd_free,
 					  return_flags))
 			ret = -EFAULT;

@@ -974,9 +974,10 @@ int kdbus_msg_recv_poll(struct kdbus_conn *conn,
 
 int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
 {
-	struct kdbus_cmd_free cmd_free;
+	struct kdbus_cmd_free cmd_free = { };
 	int ret;
 
+	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = offset;
 	cmd_free.flags = 0;
 

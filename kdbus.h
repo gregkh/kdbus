@@ -576,19 +576,23 @@ struct kdbus_cmd_cancel {
 
 /**
  * struct kdbus_cmd_free - struct to free a slice of memory in the pool
+ * @size:		Overall size of this structure
  * @offset:		The offset of the memory slice, as returned by other
  *			ioctls
  * @flags:		Flags for the free command, userspace → kernel
  * @return_flags:	Command return flags, kernel → userspace
  * @kernel_flags:	Supported flags of the free command, userspace → kernel
+ * @items:		Additional items to modify the behavior
  *
  * This struct is used with the KDBUS_CMD_FREE ioctl.
  */
 struct kdbus_cmd_free {
+	__u64 size;
 	__u64 offset;
 	__u64 flags;
 	__u64 kernel_flags;
 	__u64 return_flags;
+	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
 /**

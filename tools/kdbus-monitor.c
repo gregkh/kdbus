@@ -188,6 +188,7 @@ static int dump_packet(struct conn *conn, int fd)
 		}
 	}
 
+	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = recv.reply.offset;
 	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &cmd_free);
 	if (ret < 0) {
