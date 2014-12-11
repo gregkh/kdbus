@@ -84,6 +84,7 @@ struct kdbus_creds {
  * struct kdbus_pids - process identifiers
  * @pid:		Process ID
  * @tid:		Thread ID
+ * @ppid:		Parent process ID
  *
  * The PID and TID of a process.
  *
@@ -93,6 +94,7 @@ struct kdbus_creds {
 struct kdbus_pids {
 	__u64 pid;
 	__u64 tid;
+	__u64 ppid;
 };
 
 /**

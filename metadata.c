@@ -54,8 +54,9 @@
  * @seclabel:		LSM security label
  * @auxgrps:		Auxiliary groups of the task
  * @n_auxgrps:		Number of auxiliary groups
- * @pid:		Pinned GID
+ * @pid:		Pinned PID
  * @tgid:		Pinned TGID
+ * @ppid:		Pinned PPID
  * @ts_monotonic_ns:	Monotonic timestamp taken at collect time
  * @ts_realtime_ns:	Realtime timestamp taken at collect time
  * @exe:		Task's executable file, pinned
@@ -107,6 +108,7 @@ struct kdbus_meta {
 
 	struct pid *pid;
 	struct pid *tgid;
+	struct pid *ppid;
 
 	s64 ts_monotonic_ns;
 	s64 ts_realtime_ns;
@@ -159,6 +161,7 @@ static void __kdbus_meta_free(struct kref *kref)
 	}
 
 	put_user_ns(meta->user_namespace);
+	put_pid(meta->ppid);
 	put_pid(meta->tgid);
 	put_pid(meta->pid);
 
@@ -254,6 +257,13 @@ int kdbus_meta_fake(struct kdbus_meta *meta,
 	if (pids) {
 		meta->pid = get_pid(find_vpid(pids->tid));
 		meta->tgid = get_pid(find_vpid(pids->pid));
+		meta->ppid = get_pid(find_vpid(pids->ppid));
+
+		if ((pids->tid != 0 && !meta->pid) ||
+		    (pids->pid != 0 && !meta->tgid) ||
+		    (pids->ppid != 0 && !meta->ppid))
+			return -EINVAL;
+
 		meta->collected |= KDBUS_ATTACH_PIDS;
 	}
 
@@ -329,8 +339,16 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 	}
 
 	if (mask & KDBUS_ATTACH_PIDS) {
+		struct task_struct *parent;
+
 		meta->pid = get_pid(task_pid(current));
 		meta->tgid = get_pid(task_tgid(current));
+
+		rcu_read_lock();
+		parent = rcu_dereference(current->real_parent);
+		meta->ppid = get_pid(task_tgid(parent));
+		rcu_read_unlock();
+
 		meta->collected |= KDBUS_ATTACH_PIDS;
 	}
 
@@ -718,6 +736,7 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 		struct kdbus_pids pids = {
 			.pid = pid_vnr(meta->tgid),
 			.tid = pid_vnr(meta->pid),
+			.ppid = pid_vnr(meta->ppid),
 		};
 
 		kdbus_item_set(item, KDBUS_ITEM_PIDS, &pids, sizeof(pids));

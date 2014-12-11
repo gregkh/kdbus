@@ -211,6 +211,7 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 	struct kdbus_pids cached_pids = {
 		.pid	= getpid(),
 		.tid	= syscall(SYS_gettid),
+		.ppid	= getppid(),
 	};
 
 	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
@@ -276,7 +277,8 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 
 		/* Compare item->pids with cached PIDs */
 		ASSERT_RETURN(item->pids.pid == cached_pids.pid &&
-			      item->pids.tid == cached_pids.tid);
+			      item->pids.tid == cached_pids.tid &&
+			      item->pids.ppid == cached_pids.ppid);
 	} else {
 		ASSERT_RETURN(item == NULL);
 	}
