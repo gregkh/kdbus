@@ -433,18 +433,27 @@ kdbus_conn_reply_find(struct kdbus_conn *conn_replying,
  * kdbus_cmd_msg_cancel() - cancel all pending sync requests
  *			    with the given cookie
  * @conn:		The connection
- * @cookie:		The cookie
+ * @cmd:		The command payload
  *
  * Return: 0 on success, or -ENOENT if no pending request with that
  * cookie was found.
  */
 int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
-			 u64 cookie)
+			 struct kdbus_cmd_cancel *cmd)
 {
 	struct kdbus_conn_reply *reply;
+	const struct kdbus_item *item;
 	struct kdbus_conn *c;
 	int ret = -ENOENT;
 	int i;
+
+	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
+		/* no items supported so far */
+		switch (item->type) {
+		default:
+			return -EINVAL;
+		}
+	}
 
 	if (atomic_read(&conn->reply_count) == 0)
 		return -ENOENT;
@@ -456,7 +465,7 @@ int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
 			continue;
 
 		mutex_lock(&c->lock);
-		reply = kdbus_conn_reply_find(c, conn, cookie);
+		reply = kdbus_conn_reply_find(c, conn, cmd->cookie);
 		if (reply && reply->sync) {
 			kdbus_conn_reply_sync(reply, -ECANCELED);
 			ret = 0;

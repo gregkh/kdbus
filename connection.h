@@ -139,7 +139,7 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv);
 int kdbus_cmd_msg_cancel(struct kdbus_conn *conn,
-			 u64 cookie);
+			 struct kdbus_cmd_cancel *cmd);
 int kdbus_cmd_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_info *cmd_info);
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,

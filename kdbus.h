@@ -562,16 +562,22 @@ struct kdbus_cmd_recv {
 
 /**
  * struct kdbus_cmd_cancel - struct to cancel a synchronously pending message
- * @cookie:		The cookie of the pending message
+ * @size:		Overall size of this object
  * @flags:		Flags for the free command. Currently unused.
+ * @kernel_flags:	Supported flags of CANCEL, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
+ * @cookie:		The cookie of the pending message
+ * @items:		Items to modify the command behavior
  *
  * This struct is used with the KDBUS_CMD_CANCEL ioctl.
  */
 struct kdbus_cmd_cancel {
-	__u64 cookie;
+	__u64 size;
 	__u64 flags;
+	__u64 kernel_flags;
 	__u64 return_flags;
+	__u64 cookie;
+	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
 /**

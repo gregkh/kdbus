@@ -799,29 +799,39 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 	}
 
 	case KDBUS_CMD_CANCEL: {
-		struct kdbus_cmd_cancel cmd_cancel;
+		struct kdbus_cmd_cancel *cmd_cancel;
 
 		if (!kdbus_conn_is_ordinary(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
 
-		/* cancel sync message send requests by cookie */
-		ret = kdbus_copy_from_user(&cmd_cancel, buf,
-					   sizeof(cmd_cancel));
+		cmd_cancel = kdbus_memdup_user(buf, sizeof(*cmd_cancel),
+					       KDBUS_CMD_MAX_SIZE);
+		if (IS_ERR(cmd_cancel)) {
+			ret = PTR_ERR(cmd_cancel);
+			break;
+		}
+
+		free_ptr = cmd_cancel;
+
+		ret = kdbus_negotiate_flags(cmd_cancel, buf,
+					    typeof(*cmd_cancel), 0);
 		if (ret < 0)
 			break;
 
-		if (cmd_cancel.flags != 0)
-			return -EOPNOTSUPP;
-
-		cmd_cancel.return_flags = 0;
-
-		ret = kdbus_cmd_msg_cancel(conn, cmd_cancel.cookie);
+		ret = kdbus_items_validate(cmd_cancel->items,
+					   KDBUS_ITEMS_SIZE(cmd_cancel, items));
 		if (ret < 0)
 			break;
 
-		if (kdbus_member_set_user(&cmd_cancel.return_flags, buf,
+		cmd_cancel->return_flags = 0;
+
+		ret = kdbus_cmd_msg_cancel(conn, cmd_cancel);
+		if (ret < 0)
+			break;
+
+		if (kdbus_member_set_user(&cmd_cancel->return_flags, buf,
 					  struct kdbus_cmd_cancel,
 					  return_flags))
 			ret = -EFAULT;
