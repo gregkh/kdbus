@@ -30,13 +30,13 @@ int kdbus_meta_collect(struct kdbus_meta *meta,
 		       u64 seq, u64 which);
 int kdbus_meta_collect_src(struct kdbus_meta *meta,
 			   struct kdbus_conn *conn_src);
-int kdbus_meta_collect_dst(struct kdbus_meta *meta, u64 seq,
-			   const struct kdbus_conn *conn_dst);
 int kdbus_meta_fake(struct kdbus_meta *meta,
 		    const struct kdbus_creds *creds,
 		    const struct kdbus_pids *pids,
 		    const char *seclabel);
 struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 				     u64 mask, size_t *sz);
+u64 kdbus_meta_calc_attach_flags(const struct kdbus_conn *sender,
+				 const struct kdbus_conn *receiver);
 
 #endif

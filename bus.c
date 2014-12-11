@@ -397,6 +397,8 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			continue;
 
 		if (conn_src) {
+			u64 attach_flags;
+
 			/*
 			 * Anyone can send broadcasts, as they have no
 			 * destination. But a receiver needs TALK access to
@@ -408,12 +410,15 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			if (ret < 0)
 				continue;
 
+			attach_flags = kdbus_meta_calc_attach_flags(conn_src,
+								    conn_dst);
+
 			/*
 			 * Keep sending messages even if we cannot acquire the
 			 * requested metadata. It's up to the receiver to drop
 			 * messages that lack expected metadata.
 			 */
-			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
+			kdbus_meta_collect(kmsg->meta, kmsg->seq, attach_flags);
 			kdbus_meta_collect_src(kmsg->meta, conn_src);
 		} else {
 			/*
@@ -466,7 +471,11 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 		 * that lack data, than to skip it entirely.
 		 */
 		if (conn_src) {
-			kdbus_meta_collect_dst(kmsg->meta, kmsg->seq, conn_dst);
+			u64 attach_flags;
+
+			attach_flags = kdbus_meta_calc_attach_flags(conn_src,
+								    conn_dst);
+			kdbus_meta_collect(kmsg->meta, kmsg->seq, attach_flags);
 			kdbus_meta_collect_src(kmsg->meta, conn_src);
 		}
 
