@@ -1418,36 +1418,35 @@ int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_ATTACH_FLAGS_SEND:
-		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
 			/*
 			 * Only ordinary or monitor connections may update
 			 * their attach-flags-send. attach-flags-recv can
 			 * additionally be updated by activators.
 			 */
-			if (item->type == KDBUS_ITEM_ATTACH_FLAGS_SEND) {
-				if (!kdbus_conn_is_ordinary(conn) &&
-				    !kdbus_conn_is_monitor(conn))
-					return -EOPNOTSUPP;
+			if (!kdbus_conn_is_ordinary(conn) &&
+			    !kdbus_conn_is_monitor(conn))
+				return -EOPNOTSUPP;
 
-				ret = kdbus_sanitize_attach_flags(item->data64[0],
-								  &attach_send);
-				if (ret < 0)
-					return ret;
+			ret = kdbus_sanitize_attach_flags(item->data64[0],
+							  &attach_send);
+			if (ret < 0)
+				return ret;
 
-				send_flags_provided = true;
-			} else {
-				if (!kdbus_conn_is_ordinary(conn) &&
-				    !kdbus_conn_is_monitor(conn) &&
-				    !kdbus_conn_is_activator(conn))
-					return -EOPNOTSUPP;
+			send_flags_provided = true;
+			break;
 
-				ret = kdbus_sanitize_attach_flags(item->data64[0],
-								  &attach_recv);
-				if (ret < 0)
-					return ret;
+		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
+			if (!kdbus_conn_is_ordinary(conn) &&
+			    !kdbus_conn_is_monitor(conn) &&
+			    !kdbus_conn_is_activator(conn))
+				return -EOPNOTSUPP;
 
-				recv_flags_provided = true;
-			}
+			ret = kdbus_sanitize_attach_flags(item->data64[0],
+							  &attach_recv);
+			if (ret < 0)
+				return ret;
+
+			recv_flags_provided = true;
 			break;
 
 		case KDBUS_ITEM_NAME:
