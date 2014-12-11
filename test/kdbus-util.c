@@ -1075,9 +1075,9 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 
 	kdbus_printf("REGISTRY:\n");
 	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
-	if (list->size != cmd_list.size) {
+	if (list->size != cmd_list.list_size) {
 		kdbus_printf("%s(): size mismatch: %d != %d\n", __func__,
-				(int) list->size, (int) cmd_list.size);
+				(int) list->size, (int) cmd_list.list_size);
 		return -EIO;
 	}
 
