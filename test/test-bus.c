@@ -149,9 +149,23 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	ret = test_bus_creator_info(s);
 	ASSERT_RETURN(ret == 0);
 
-	/* can't use the same fd for bus make twice */
+	/* can't use the same fd for bus make twice, even though a different
+	 * bus name is used
+	 */
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-2", uid, name);
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+
+	/* create a new bus, with different fd and different bus name */
+	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-2", uid, name);
+	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
+	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+			     sizeof(bus_make.bs) + bus_make.n_size;
+	ret = ioctl(control_fd2, KDBUS_CMD_BUS_MAKE, &bus_make);
+	ASSERT_RETURN(ret == 0);
 
 	close(control_fd2);
 	free(name);
