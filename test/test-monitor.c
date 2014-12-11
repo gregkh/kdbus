@@ -21,18 +21,6 @@
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
 
-static bool kdbus_item_in_message(struct kdbus_msg *msg,
-				  uint64_t type)
-{
-	const struct kdbus_item *item;
-
-	KDBUS_ITEM_FOREACH(item, msg, items)
-		if (item->type == type)
-			return true;
-
-	return false;
-}
-
 int kdbus_test_monitor(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *monitor, *conn;

@@ -309,6 +309,17 @@ struct kdbus_conn *kdbus_hello_activator(const char *path, const char *name,
 				     KDBUS_HELLO_ACTIVATOR);
 }
 
+bool kdbus_item_in_message(struct kdbus_msg *msg, uint64_t type)
+{
+	const struct kdbus_item *item;
+
+	KDBUS_ITEM_FOREACH(item, msg, items)
+		if (item->type == type)
+			return true;
+
+	return false;
+}
+
 int kdbus_bus_creator_info(struct kdbus_conn *conn,
 			   uint64_t flags,
 			   uint64_t *offset)

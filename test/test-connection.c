@@ -502,7 +502,6 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 
 int kdbus_test_conn_update(struct kdbus_test_env *env)
 {
-	const struct kdbus_item *item;
 	struct kdbus_conn *conn;
 	struct kdbus_msg *msg;
 	int found = 0;
@@ -522,13 +521,10 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 	ret = kdbus_msg_recv(conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	KDBUS_ITEM_FOREACH(item, msg, items)
-		if (item->type == KDBUS_ITEM_TIMESTAMP)
-			found = 1;
+	found = kdbus_item_in_message(msg, KDBUS_ITEM_TIMESTAMP);
+	ASSERT_RETURN(found == 1);
 
 	kdbus_msg_free(msg);
-
-	ASSERT_RETURN(found == 1);
 
 	/*
 	 * Now, modify the attach flags and repeat the action. The item must
@@ -548,10 +544,7 @@ int kdbus_test_conn_update(struct kdbus_test_env *env)
 	ret = kdbus_msg_recv(conn, &msg, NULL);
 	ASSERT_RETURN(ret == 0);
 
-	KDBUS_ITEM_FOREACH(item, msg, items)
-		if (item->type == KDBUS_ITEM_TIMESTAMP)
-			found = 1;
-
+	found = kdbus_item_in_message(msg, KDBUS_ITEM_TIMESTAMP);
 	ASSERT_RETURN(found == 0);
 
 	/* Provide a bogus attach_flags value */
