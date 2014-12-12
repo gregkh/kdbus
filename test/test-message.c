@@ -334,8 +334,6 @@ static int kdbus_test_broadcast_quota(struct kdbus_test_env *env)
 	 */
 	ASSERT_RETURN(offset == 1);
 
-	kdbus_msg_free(msg);
-
 	/* Read our queue */
 	for (i = 0; i < MAX_USER_TOTAL_MSGS; i++) {
 		ret = kdbus_msg_recv_poll(privileged_a, 100, &msg, NULL);
