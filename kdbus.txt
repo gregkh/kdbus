@@ -359,6 +359,8 @@ struct kdbus_cmd_make {
       An optional item that contains a set of attach flags that are
       returned to connections when they query the bus creator metadata.
       If not set, no metadata is returned.
+
+    Unrecognized items are rejected, and the ioctl will fail with -EINVAL.
 };
 
 
