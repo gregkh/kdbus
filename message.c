@@ -450,7 +450,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
  * kdbus_kmsg_new_from_cmd() - create kernel message from send payload
  * @conn:		Connection
  * @buf:		The user-buffer location of @cmd
- * @cmd:		Payload of KDBUS_CMD_SEND
+ * @cmd_send:		Payload of KDBUS_CMD_SEND
  *
  * Return: a new kdbus_kmsg on success, ERR_PTR on failure.
  */

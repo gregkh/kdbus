@@ -412,7 +412,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
  *				 receiver's process
  * @entry:		The queue entry to install
  * @conn_dst:		The receiver connection
- * @return_flagss:	Pointer to store the return flags for userspace
+ * @return_flags:	Pointer to store the return flags for userspace
  * @install_fds:	Whether or not to install associated file descriptors
  *
  * This function will create a slice to transport the message header, the

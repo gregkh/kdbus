@@ -719,8 +719,6 @@ enum kdbus_attach_flags {
  *			kdbus_item_list are stored. They contain information
  *			about the bus and the newly created connection.
  * @items_size:		Copy of item_list.size stored in @offset.
- * @bloom:		The bloom properties of the bus, specified
- *			by the bus creator (kernel → userspace)
  * @id128:		Unique 128-bit ID of the bus (kernel → userspace)
  * @items:		A list of items
  *
@@ -861,7 +859,9 @@ enum kdbus_name_list_flags {
  * @offset:		The returned offset in the caller's pool buffer.
  *			The user must use KDBUS_CMD_FREE to free the
  *			allocated memory.
+ * @list_size:		Returned size of list in bytes
  * @size:		Output buffer to report size of data at @offset.
+ * @items:		Items for the command. Reserved for future use.
  *
  * This structure is used with the KDBUS_CMD_NAME_LIST ioctl.
  */

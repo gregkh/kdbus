@@ -189,7 +189,7 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * @pool:	The receiver's pool
  * @size:	The number of bytes to allocate
  * @kvec:	kvec to copy into the new slice, may be %NULL
- * @kvec_len:	Number of elements in @kvec
+ * @kvec_count:	Number of elements in @kvec
  *
  * The returned slice is used for kdbus_pool_slice_release() to
  * free the allocated memory. If @kvec is non-NULL, the data will be copied

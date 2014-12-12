@@ -248,8 +248,8 @@ u32 kdbus_from_kgid_keep(kgid_t gid)
 
 /**
  * kdbus_sanitize_attach_flags() - Sanitize attach flags from user-space
- * @flags		Attach flags provided by userspace
- * @attach_flags	A pointer where to store the valid attach flags
+ * @flags:		Attach flags provided by userspace
+ * @attach_flags:	A pointer where to store the valid attach flags
  *
  * Convert attach-flags provided by user-space into a valid mask. If the mask
  * is invalid, an error is returned. The sanitized attach flags are stored in
