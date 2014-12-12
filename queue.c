@@ -293,7 +293,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 	if (msg->src_id == KDBUS_SRC_ID_KERNEL) {
 		size_t extra_size = msg->size - sizeof(*msg);
 
-		entry->msg_extra = kmemdup((u8 *) msg + sizeof(*msg),
+		entry->msg_extra = kmemdup((u8 *)msg + sizeof(*msg),
 					   extra_size, GFP_KERNEL);
 		if (!entry->msg_extra) {
 			ret = -ENOMEM;
@@ -399,7 +399,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 	}
 
 	/* Make sure the sizes actually match */
-	BUG_ON((u8 *) item != (u8 *) items + size);
+	BUG_ON((u8 *)item != (u8 *)items + size);
 
 	if (incomplete_fds)
 		*return_flags |= KDBUS_RECV_RETURN_INCOMPLETE_FDS;

@@ -82,7 +82,7 @@ int kdbus_check_and_write_flags(u64 flags, void __user *buf,
 	 */
 	WARN_ON_ONCE(valid & KDBUS_FLAG_KERNEL);
 
-	if (copy_to_user(((u8 __user *) buf) + offset_out, &val, sizeof(val)))
+	if (copy_to_user(((u8 __user *)buf) + offset_out, &val, sizeof(val)))
 		return -EFAULT;
 
 	if (flags & ~valid)

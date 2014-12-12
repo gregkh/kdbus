@@ -805,11 +805,11 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	if (mask & KDBUS_ATTACH_NAMES) {
 		memcpy(item, meta->owned_names_items, meta->owned_names_size);
 		item = (struct kdbus_item *)
-			((u8 *) item + meta->owned_names_size);
+			((u8 *)item + meta->owned_names_size);
 	}
 
 	/* sanity check: the buffer should be completely written now */
-	WARN_ON((u8 *) item != (u8 *) items + size);
+	WARN_ON((u8 *)item != (u8 *)items + size);
 
 	*sz = size;
 

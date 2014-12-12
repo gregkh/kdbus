@@ -623,7 +623,7 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 	kiocb.ki_nbytes = total_len;
 
 	/* FIXME: replace with iov_iter_kvec() once 3.19-rc1 is out */
-	iov_iter_init(&iter, WRITE | ITER_KVEC, (struct iovec *) kvec,
+	iov_iter_init(&iter, WRITE | ITER_KVEC, (struct iovec *)kvec,
 		      kvec_len, total_len);
 
 	len = f->f_op->write_iter(&kiocb, &iter);
@@ -669,7 +669,7 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 			break;
 		}
 
-		kaddr = (char __force __user *) kmap(page) + page_off;
+		kaddr = (char __force __user *)kmap(page) + page_off;
 		n_read = f_src->f_op->read(f_src, kaddr, copy_len, &off_src);
 		kunmap(page);
 		mark_page_accessed(page);
