@@ -420,7 +420,8 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 */
 			kdbus_meta_add_current(kmsg->meta, kmsg->seq,
 					       attach_flags);
-			kdbus_meta_add_conn_info(kmsg->meta, conn_src);
+			kdbus_meta_add_conn_info(kmsg->meta,
+						 conn_src, attach_flags);
 		} else {
 			/*
 			 * Check if there is a policy db that prevents the
@@ -478,7 +479,8 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 								    conn_dst);
 			kdbus_meta_add_current(kmsg->meta, kmsg->seq,
 					       attach_flags);
-			kdbus_meta_add_conn_info(kmsg->meta, conn_src);
+			kdbus_meta_add_conn_info(kmsg->meta,
+						 conn_src, attach_flags);
 		}
 
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);

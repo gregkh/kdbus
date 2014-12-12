@@ -828,6 +828,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		kmsg->dst_name_id = name_entry->name_id;
 
 	if (conn_src) {
+		u64 attach_flags;
+
 		/*
 		 * If we got here due to an interrupted system call, our reply
 		 * wait object is still queued on conn_dst, with the former
@@ -857,18 +859,28 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto wait_sync;
 		}
 
-		if (!conn_src->faked_meta) {
-			u64 attach_flags =
-				kdbus_meta_calc_attach_flags(conn_src,
-							     conn_dst);
+		/* Calculate attach flags of conn_src & conn_dst */
+		attach_flags = kdbus_meta_calc_attach_flags(conn_src,
+							    conn_dst);
 
+		/*
+		 * If this connection did not fake its metadata then
+		 * lets augment its metadata by the current valid
+		 * metadata
+		 */
+		if (!conn_src->faked_meta) {
 			ret = kdbus_meta_add_current(kmsg->meta, kmsg->seq,
 						     attach_flags);
 			if (ret < 0)
 				goto exit_unref;
 		}
 
-		ret = kdbus_meta_add_conn_info(kmsg->meta, conn_src);
+		/*
+		 * If requested, then we always send the current
+		 * description and owned names of source connection
+		 */
+		ret = kdbus_meta_add_conn_info(kmsg->meta,
+					       conn_src, attach_flags);
 		if (ret < 0)
 			goto exit_unref;
 
@@ -1351,13 +1363,14 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	info.id = owner_conn->id;
 	info.flags = owner_conn->flags;
 
-	ret = kdbus_meta_add_conn_info(owner_conn->meta, owner_conn);
-	if (ret < 0)
-		goto exit;
-
 	/* mask out what information the connection wants to pass us */
 	attach_flags = cmd_info->flags &
 		       atomic64_read(&owner_conn->attach_flags_send);
+
+	ret = kdbus_meta_add_conn_info(owner_conn->meta, owner_conn,
+				       attach_flags);
+	if (ret < 0)
+		goto exit;
 
 	meta_items = kdbus_meta_export(owner_conn->meta, attach_flags,
 				       &meta_size);

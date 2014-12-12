@@ -513,40 +513,46 @@ u64 kdbus_meta_calc_attach_flags(const struct kdbus_conn *sender,
 }
 
 /*
- * kdbus_meta_add_conn_info() - collect connection description and owned
- *				names from source connection
+ * kdbus_meta_add_conn_info() - collect connection description and
+ *				owned names from source connection
  * @meta:	Metadata object where to store the collected info
  * @conn:	Connection to get owned names and description from
+ * @which:	KDBUS_ATTACH_* mask
  *
- * Collect the data specified in @which from @src_conn.
+ * This function collectes only KDBUS_ITEM_CONN_DESCRIPTION and
+ * KDBUS_ITEM_OWNED_NAMES. If the items were already collected then they
+ * are freed and added again. These items must always reflect the
+ * current information.
  *
  * Return: 0 on success, negative errno on failure.
  */
 int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
-			     struct kdbus_conn *conn)
+			     struct kdbus_conn *conn, u64 which)
 {
 	const struct kdbus_name_entry *e;
 	struct kdbus_item *item;
 	int ret = 0;
-	size_t len;
+	size_t len = 0;
 
 	if (!conn)
 		return 0;
 
 	mutex_lock(&conn->lock);
 
-	len = 0;
-	list_for_each_entry(e, &conn->names_list, conn_entry)
-		len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
-				       strlen(e->name) + 1);
+	/* Add owned names */
+	if (which & KDBUS_ATTACH_NAMES &&
+	    atomic_read(&conn->name_count) > 0) {
+		list_for_each_entry(e, &conn->names_list, conn_entry)
+			len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
+					       strlen(e->name) + 1);
 
-	if (len > 0) {
 		item = kzalloc(len, GFP_KERNEL);
 		if (!item) {
 			ret = -ENOMEM;
 			goto exit_unlock;
 		}
 
+		/* Free previous added names */
 		kfree(meta->owned_names_items);
 		meta->owned_names_items = item;
 		meta->owned_names_size = len;
@@ -563,7 +569,8 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 		meta->collected |= KDBUS_ATTACH_NAMES;
 	}
 
-	if (conn->description) {
+	if (which & KDBUS_ATTACH_CONN_DESCRIPTION && conn->description) {
+		/* free previous add connection description */
 		kfree(meta->conn_description);
 		meta->conn_description = kstrdup(conn->description,
 						 GFP_KERNEL);

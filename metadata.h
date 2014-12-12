@@ -30,7 +30,7 @@ void kdbus_meta_add_timestamp(struct kdbus_meta *meta);
 int kdbus_meta_add_current(struct kdbus_meta *meta,
 			   u64 seq, u64 which);
 int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
-			     struct kdbus_conn *conn_src);
+			     struct kdbus_conn *conn_src, u64 which);
 int kdbus_meta_add_fake(struct kdbus_meta *meta,
 			const struct kdbus_creds *creds,
 			const struct kdbus_pids *pids,
