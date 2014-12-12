@@ -563,7 +563,7 @@ struct kdbus_cmd_hello {
 At the offset returned in the 'offset' field of struct kdbus_cmd_hello, the
 kernel will store items of the following types:
 
-  KDBUS_ITEM_BLOOM_PARAMETER:
+  KDBUS_ITEM_BLOOM_PARAMETER
       Bloom filter parameter as defined by the bus creator (see below).
 
 The offset in the pool has to be freed with the KDBUS_CMD_FREE ioctl.
@@ -602,11 +602,11 @@ struct kdbus_cmd_info {
     Specify which metadata items should be attached to the answer.
     See section 13 for more details.
 
-    After the ioctl returns, this field will contain the current metadata
-    attach flags of the connection.
-
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
 
   __u64 id;
     The connection's numerical ID to retrieve information for. If set to
@@ -615,6 +615,10 @@ struct kdbus_cmd_info {
   __u64 offset;
     When the ioctl returns, this value will yield the offset of the connection
     information inside the caller's pool.
+
+  __u64 info_size;
+    The kernel will return the size of the returned information, so applications
+    can optionally mmap specific parts of the pool.
 
   struct kdbus_item items[0];
     The optional item list, containing the well-known name to look up as
@@ -634,9 +638,6 @@ struct kdbus_info {
 
   __u64 flags;
     The connection's flags as specified when it was created.
-
-  __u64 kernel_flags;
-    Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
     Depending on the 'flags' field in struct kdbus_cmd_info, items of
@@ -696,6 +697,15 @@ struct kdbus_cmd_update {
   __u64 size;
     The overall size of the struct, including all its items.
 
+  __u64 flags;
+    Currently no flags are supported. Reserved for future use.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
+
   struct kdbus_item items[0];
     Items to describe the connection details to be updated. The following item
     types are supported:
@@ -750,16 +760,61 @@ the specific destination connection or to all connections on the same bus.
 Sending messages across buses is not possible. Messages are always queued in
 the memory pool of the destination connection (see below).
 
-The KDBUS_CMD_SEND ioctl uses struct kdbus_msg to describe the message to be
-sent.
+The KDBUS_CMD_SEND ioctl uses struct kdbus_cmd_send to describe the message
+transfer.
 
-struct kdbus_msg {
+struct kdbus_cmd_send {
   __u64 size;
     The overall size of the struct, including the attached items.
 
   __u64 flags;
     Flags for message delivery:
 
+    KDBUS_SEND_SYNC_REPLY
+      By default, all calls to kdbus are considered asynchronous,
+      non-blocking. However, as there are many use cases that need to wait
+      for a remote peer to answer a method call, there's a way to send a
+      message and wait for a reply in a synchronous fashion. This is what
+      the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
+      until the reply has arrived, the timeout limit is reached, in case the
+      remote connection was shut down, or if interrupted by a signal before
+      any reply; see signal(7).
+
+      The offset of the reply message in the sender's pool is stored in in
+      'offset_reply' when the ioctl has returned without error. Hence, there
+      is no need for another KDBUS_CMD_RECV ioctl or anything else to receive
+      the reply.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call of
+    KDBUS_CMD_SEND.
+
+  __u64 kernel_msg_flags;
+    Valid bits for message flags, returned by the kernel upon each call of
+    KDBUS_CMD_SEND.
+
+  __u64 return_flags;
+    Kernel-provided flags, returning non-fatal errors that occured during
+    send. Currently unused.
+
+  __u64 msg_address;
+    Userspace has to provide a pointer to a message (struct kdbus_msg) to send.
+
+  struct kdbus_reply reply;
+    Only used for synchronous replies. See description of struct kdbus_cmd_recv
+    for more details.
+
+  struct kdbus_item items[0];
+    Items to specify further details for the send command. Currently unused.
+};
+
+The message referenced by 'msg_address' above has the following layout.
+
+struct kdbus_msg {
+  __u64 size;
+    The overall size of the struct, including the attached items.
+
+  __u64 flags;
     KDBUS_MSG_EXPECT_REPLY
       Expect a reply from the remote peer to this message. With this bit set,
       the timeout_ns field must be set to a non-zero number of nanoseconds in
@@ -776,30 +831,11 @@ struct kdbus_msg {
       connection, so the other peer is allowed to respond within the given
       time window.
 
-    KDBUS_MSG_SYNC_REPLY
-      By default, all calls to kdbus are considered asynchronous,
-      non-blocking. However, as there are many use cases that need to wait
-      for a remote peer to answer a method call, there's a way to send a
-      message and wait for a reply in a synchronous fashion. This is what
-      the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
-      until the reply has arrived, the timeout limit is reached, in case the
-      remote connection was shut down, or if interrupted by a signal before
-      any reply; see signal(7).
-
-      The offset of the reply message in the sender's pool is stored in in
-      'offset_reply' when the ioctl has returned without error. Hence, there
-      is no need for another KDBUS_CMD_RECV ioctl or anything else to receive
-      the reply.
-
     KDBUS_MSG_NO_AUTO_START
       By default, when a message is sent to an activator connection, the
       activator notified and will start an implementor. This flag inhibits
       that behavior. With this bit set, and the remote being an activator,
       -EADDRNOTAVAIL is returned from the ioctl.
-
-  __u64 kernel_flags;
-    Valid flags for this command, returned by the kernel upon each call of
-    KDBUS_MSG_SEND.
 
   __s64 priority;
     The priority of this message. Receiving messages (see below) may
@@ -836,11 +872,6 @@ struct kdbus_msg {
   __u64 cookie_reply;
     If the message sent is a reply to another message, this field must
     match the cookie of the formerly received message.
-
-  __u64 offset_reply;
-    If the message successfully got a synchronous reply (see above), this
-    field will yield the offset of the reply message in the sender's pool.
-    Is is what KDBUS_CMD_RECV usually does for asynchronous messages.
 
   struct kdbus_item items[0];
     A dynamically sized list of items to contain additional information.
@@ -956,6 +987,9 @@ messages are queued up to be received.
 With the KDBUS_CMD_RECV ioctl, a struct kdbus_cmd_recv is used.
 
 struct kdbus_cmd_recv {
+  __u64 size;
+    The overall size of the struct, including the attached items.
+
   __u64 flags;
     Flags to control the receive command.
 
@@ -974,26 +1008,53 @@ struct kdbus_cmd_recv {
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
 
-  __s64 priority;
-      With KDBUS_RECV_USE_PRIORITY set in flags, receive the next message in
-      the queue with at least the given priority. If no such message is waiting
-      in the queue, -ENOMSG is returned.
+  __u64 return_flags;
+    Kernel-provided flags, returning non-fatal errors that occured during
+    send. Currently unused.
 
-  __u64 offset;
-      Upon return of the ioctl, this field contains the offset in the
-      receiver's memory pool.
+  __s64 priority;
+    With KDBUS_RECV_USE_PRIORITY set in flags, receive the next message in
+    the queue with at least the given priority. If no such message is waiting
+    in the queue, -ENOMSG is returned.
 
   __u64 dropped_msgs;
-      If the CMD_RECV ioctl fails with EOVERFLOW, this field is filled by
-      the kernel with the number of messages that couldn't be transmitted to
-      this connection. In that case, the @offset member must not be accessed.
+    If the CMD_RECV ioctl fails with EOVERFLOW, this field is filled by
+    the kernel with the number of messages that couldn't be transmitted to
+    this connection. In that case, the @offset member must not be accessed.
+
+  struct kdbus_reply reply;
+   Embedded struct to be filled when the command succeeded (see below).
+
+  struct kdbus_item items[0];
+    Items to specify further details for the receive command. Currently unused.
+};
+
+Both 'struct kdbus_cmd_recv' and 'struct kdbus_cmd_send' embed 'struct
+kdbus_reply'. For the SEND ioctl, it is used to catch synchronous replies,
+if one was requested, and is unused otherwise.
+
+struct kdbus_reply {
+  __u64 offset;
+    Upon return of the ioctl, this field contains the offset in the receiver's
+    memory pool. The memory must be freed with KDBUS_CMD_FREE.
 
   __u64 msg_size;
-      Upon successful return of the ioctl, this field contains the size of the
-      allocated slice at offset @offset. It is the combination of the size of
-      the stored kdbus_msg object plus all appended VECs. You can use it in
-      combination with @offset to map a single message, instead of mapping the
-      whole pool.
+    Upon successful return of the ioctl, this field contains the size of the
+    allocated slice at offset @offset. It is the combination of the size of
+    the stored kdbus_msg object plus all appended VECs. You can use it in
+    combination with @offset to map a single message, instead of mapping the
+    whole pool.
+
+  __u64 return_flags;
+    Kernel-provided return flags. Currently, the following flags are defined.
+
+      KDBUS_RECV_RETURN_INCOMPLETE_FDS
+        The message contained file descriptors which couldn't be installed
+        into the receiver's task. Most probably that happened because the
+        maximum number of file descriptors for that task were exceeded.
+        The message is still delivered, so this is not a fatal condition.
+        File descriptors inside the KDBUS_ITEM_FDS item that could not be
+        installed will be set to -1.
 };
 
 Unless KDBUS_RECV_DROP was passed, and given that the ioctl succeeded, the
