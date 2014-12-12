@@ -466,14 +466,14 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 			 */
 		} else if (ret < 0) {
 			return ret;
-		} else {
-			meta->seclabel = kstrdup(ctx, GFP_KERNEL);
-			security_release_secctx(ctx, len);
-			if (!meta->seclabel)
-				return -ENOMEM;
-
-			meta->collected |= KDBUS_ATTACH_SECLABEL;
 		}
+
+		meta->seclabel = kstrdup(ctx, GFP_KERNEL);
+		security_release_secctx(ctx, len);
+		if (!meta->seclabel)
+			return -ENOMEM;
+
+		meta->collected |= KDBUS_ATTACH_SECLABEL;
 	}
 #endif
 

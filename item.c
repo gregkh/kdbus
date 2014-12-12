@@ -244,7 +244,7 @@ struct kdbus_item *kdbus_items_get(const struct kdbus_item *items,
 		}
 	}
 
-	return (struct kdbus_item*)found ? : ERR_PTR(-EBADMSG);
+	return (struct kdbus_item *)found ? : ERR_PTR(-EBADMSG);
 }
 
 /**

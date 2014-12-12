@@ -173,7 +173,7 @@ void *kdbus_memdup_user(void __user *user_ptr, size_t sz_min, size_t sz_max)
 	if (IS_ERR(ptr))
 		return ptr;
 
-	if (*(u64*)ptr != size) {
+	if (*(u64 *)ptr != size) {
 		kfree(ptr);
 		return ERR_PTR(-EINVAL);
 	}
@@ -307,7 +307,7 @@ size_t kdbus_kvec_pad(struct kvec *kvec, u64 *len)
 	if (!pad)
 		return 0;
 
-	kvec->iov_base = (void*)zeros;
+	kvec->iov_base = (void *)zeros;
 	kvec->iov_len = pad;
 
 	*len += pad;
