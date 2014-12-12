@@ -35,6 +35,7 @@
 
 #define _KDBUS_ATTACH_BITS_SET_NR  (__builtin_popcountll(_KDBUS_ATTACH_ALL))
 
+/* Sum of KDBUS_ITEM_* that reflects _KDBUS_ATTACH_ALL */
 #define KDBUS_ATTACH_ITEMS_TYPE_SUM \
 	((((_KDBUS_ATTACH_BITS_SET_NR - 1) * \
 	((_KDBUS_ATTACH_BITS_SET_NR - 1) + 1)) / 2 ) + \

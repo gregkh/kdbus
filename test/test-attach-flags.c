@@ -409,6 +409,7 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	char control_path[2048];
 	uint64_t attach_flags_mask;
 	struct kdbus_conn *conn;
+	unsigned long expected_items = 0;
 
 	snprintf(control_path, sizeof(control_path),
 		 "%s/control", env->root);
@@ -438,7 +439,7 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	attach_flags_mask = _KDBUS_ATTACH_ANY;
 
 	/*
-	 * All flags have been returned except for:
+	 * All flags will be returned except for:
 	 * KDBUS_ITEM_TIMESTAMP
 	 * KDBUS_ITEM_OWNED_NAME
 	 * KDBUS_ITEM_CONN_DESCRIPTION
@@ -446,34 +447,34 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	 * An extra flags is always returned KDBUS_ITEM_MAKE_NAME
 	 * which contains the bus name
 	 */
+	expected_items = KDBUS_TEST_ITEMS_SUM + KDBUS_ITEM_MAKE_NAME;
+	expected_items -= KDBUS_ITEM_TIMESTAMP +
+			  KDBUS_ITEM_OWNED_NAME +
+			  KDBUS_ITEM_CONN_DESCRIPTION;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     (KDBUS_TEST_ITEMS_SUM -
-					      KDBUS_ITEM_OWNED_NAME -
-					      KDBUS_ITEM_TIMESTAMP -
-					      KDBUS_ITEM_CONN_DESCRIPTION +
-					      KDBUS_ITEM_MAKE_NAME));
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/*
 	 * We should have:
 	 * KDBUS_ITEM_PIDS + KDBUS_ITEM_CREDS + KDBUS_ITEM_MAKE_NAME
 	 */
+	expected_items = KDBUS_ITEM_PIDS + KDBUS_ITEM_CREDS +
+			 KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     KDBUS_ATTACH_PIDS |
 					     KDBUS_ATTACH_CREDS,
-					     KDBUS_ITEM_PIDS +
-					     KDBUS_ITEM_CREDS +
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/* KDBUS_ITEM_MAKE_NAME is always returned */
+	expected_items = KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
-					     0,
-					     KDBUS_ITEM_MAKE_NAME);
+					     0, expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/*
@@ -486,11 +487,11 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	 * We should have:
 	 * KDBUS_ITEM_PIDS + KDBUS_ITEM_MAKE_NAME
 	 */
+	expected_items = KDBUS_ITEM_PIDS + KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     KDBUS_ITEM_PIDS +
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 
@@ -498,10 +499,11 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	attach_flags_mask = 0;
 
 	/* we should only see: KDBUS_ITEM_MAKE_NAME */
+	expected_items = KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_conn_free(conn);
@@ -536,20 +538,22 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	/*
 	 * We only get the KDBUS_ITEM_MAKE_NAME
 	 */
+	expected_items = KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/*
 	 * We still get only kdbus_ITEM_MAKE_NAME
 	 */
 	attach_flags_mask = 0;
+	expected_items = KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_conn_free(conn);
@@ -587,26 +591,26 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	 * We should have:
 	 * KDBUS_ITEM_PIDS + KDBUS_ITEM_CREDS + KDBUS_ITEM_MAKE_NAME
 	 */
+	expected_items = KDBUS_ITEM_PIDS + KDBUS_ITEM_CREDS +
+			 KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     KDBUS_ITEM_PIDS +
-					     KDBUS_ITEM_CREDS +
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
+	expected_items = KDBUS_ITEM_CREDS + KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     KDBUS_ATTACH_CREDS,
-					     KDBUS_ITEM_CREDS +
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/* KDBUS_ITEM_MAKE_NAME is always returned */
+	expected_items = KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
-					     0,
-					     KDBUS_ITEM_MAKE_NAME);
+					     0, expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/*
@@ -618,28 +622,30 @@ static int kdbus_test_bus_creator_info(struct kdbus_test_env *env)
 	 * We should have:
 	 * KDBUS_ITEM_PIDS + KDBUS_ITEM_MAKE_NAME
 	 */
+	expected_items = KDBUS_ITEM_PIDS + KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     KDBUS_ITEM_PIDS +
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/* No KDBUS_ATTACH_CREDS */
+	expected_items = KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     KDBUS_ATTACH_CREDS,
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 	/* system-wide mask to 0 */
 	attach_flags_mask = 0;
 
 	/* we should only see: KDBUS_ITEM_MAKE_NAME */
+	expected_items = KDBUS_ITEM_MAKE_NAME;
 	ret = kdbus_cmp_bus_creator_metadata(env, conn,
 					     attach_flags_mask,
 					     _KDBUS_ATTACH_ALL,
-					     KDBUS_ITEM_MAKE_NAME);
+					     expected_items);
 	ASSERT_RETURN(ret == 0);
 
 
