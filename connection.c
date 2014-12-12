@@ -541,8 +541,7 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
  * and attach it to the reply tracking object.
  * The connection's queue will never get to see it.
  */
-static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_src,
-					struct kdbus_conn *conn_dst,
+static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 					const struct kdbus_kmsg *kmsg,
 					struct kdbus_conn_reply *reply_wake)
 {
@@ -672,7 +671,6 @@ exit_unlock:
 static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
 				 struct kdbus_cmd_send *cmd_send,
-				 struct kdbus_msg *msg,
 				 struct kdbus_conn_reply *reply_wait,
 				 u64 timeout_ns)
 {
@@ -910,8 +908,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		 * queue item and attach it to the reply tracking object.
 		 * The connection's queue will never get to see it.
 		 */
-		ret = kdbus_conn_entry_sync_attach(conn_src, conn_dst,
-						   kmsg, reply_wake);
+		ret = kdbus_conn_entry_sync_attach(conn_dst, kmsg, reply_wake);
 		if (ret < 0)
 			goto exit_unref;
 	} else {
@@ -946,7 +943,7 @@ wait_sync:
 		else
 			timeout = msg->timeout_ns - now;
 
-		ret = kdbus_conn_wait_reply(conn_src, conn_dst, cmd_send, msg,
+		ret = kdbus_conn_wait_reply(conn_src, conn_dst, cmd_send,
 					    reply_wait, timeout);
 	}
 
