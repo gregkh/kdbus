@@ -757,7 +757,7 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 
 	if ((mask & KDBUS_ATTACH_EXE) && exe_pathname) {
 		kdbus_item_set(item, KDBUS_ITEM_EXE,
-				      exe_pathname, strlen(exe_pathname) + 1);
+			       exe_pathname, strlen(exe_pathname) + 1);
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
