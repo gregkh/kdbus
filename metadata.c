@@ -65,7 +65,8 @@
  * @pid_comm:		COMM of the TGID
  * @tid_comm:		COMM of the PID
  * @caps:		Capabilities
- * @user_namespace:	User namespace that was active when @caps were recorded
+ * @user_namespace:	User namespace, pinned when the metadata was
+ *			recorded
  * @root_path:		Root path, pinned when @exe was recorded
  *
  * Data in this struct is only written by two functions:
