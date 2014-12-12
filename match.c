@@ -210,7 +210,34 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 	 */
 
 	list_for_each_entry(r, &entry->rules_list, rules_entry) {
-		if (conn_src == NULL) {
+		if (conn_src) {
+			/* messages from userspace */
+
+			switch (r->type) {
+			case KDBUS_ITEM_BLOOM_MASK:
+				if (!kdbus_match_bloom(kmsg->bloom_filter,
+						       &r->bloom_mask,
+						       conn_src))
+					return false;
+				break;
+
+			case KDBUS_ITEM_ID:
+				if (r->src_id != conn_src->id &&
+				    r->src_id != KDBUS_MATCH_ID_ANY)
+					return false;
+
+				break;
+
+			case KDBUS_ITEM_NAME:
+				if (!kdbus_conn_has_name(conn_src, r->name))
+					return false;
+
+				break;
+
+			default:
+				return false;
+			}
+		} else {
 			/* kernel notifications */
 
 			if (kmsg->notify_type != r->type)
@@ -240,33 +267,6 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 				     r->new_id != kmsg->notify_new_id) ||
 				    (r->name && kmsg->notify_name &&
 				     strcmp(r->name, kmsg->notify_name) != 0))
-					return false;
-
-				break;
-
-			default:
-				return false;
-			}
-		} else {
-			/* messages from userspace */
-
-			switch (r->type) {
-			case KDBUS_ITEM_BLOOM_MASK:
-				if (!kdbus_match_bloom(kmsg->bloom_filter,
-						       &r->bloom_mask,
-						       conn_src))
-					return false;
-				break;
-
-			case KDBUS_ITEM_ID:
-				if (r->src_id != conn_src->id &&
-				    r->src_id != KDBUS_MATCH_ID_ANY)
-					return false;
-
-				break;
-
-			case KDBUS_ITEM_NAME:
-				if (!kdbus_conn_has_name(conn_src, r->name))
 					return false;
 
 				break;

@@ -407,6 +407,7 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 	*out_size = size;
 	return items;
 }
+
 /**
  * kdbus_queue_entry_install() - install message components into the
  *				 receiver's process
@@ -467,7 +468,7 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	entry->msg.size = 0;
 
 	kdbus_kvec_set(&kvec[kvec_count++], &entry->msg, sizeof(entry->msg),
-			&entry->msg.size);
+		       &entry->msg.size);
 
 	if (entry->msg_extra_size)
 		kdbus_kvec_set(&kvec[kvec_count++], entry->msg_extra,
@@ -475,11 +476,11 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 	if (items_size)
 		kdbus_kvec_set(&kvec[kvec_count++], items, items_size,
-				&entry->msg.size);
+			       &entry->msg.size);
 
 	if (meta_size)
 		kdbus_kvec_set(&kvec[kvec_count++], meta_items, meta_size,
-				&entry->msg.size);
+			       &entry->msg.size);
 
 	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, entry->msg.size,
 					      kvec, kvec_count);

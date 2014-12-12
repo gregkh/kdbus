@@ -72,7 +72,7 @@ int kdbus_sysname_is_valid(const char *name)
  * userspace submitted invalid bits in its mask.
  */
 int kdbus_check_and_write_flags(u64 flags, void __user *buf,
-			  off_t offset_out, u64 valid)
+				off_t offset_out, u64 valid)
 {
 	u64 val = valid | KDBUS_FLAG_KERNEL;
 

@@ -358,7 +358,6 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 
 			for (i = 0; i < info->ngroups; i++)
 				meta->auxgrps[i] = GROUP_AT(info, i);
-
 		}
 
 		meta->n_auxgrps = info->ngroups;
@@ -545,7 +544,7 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 		list_for_each_entry(e, &conn->names_list, conn_entry) {
 			len = strlen(e->name) + 1;
 			kdbus_item_set(item, KDBUS_ITEM_OWNED_NAME, NULL,
-					      sizeof(struct kdbus_name) + len);
+				       sizeof(struct kdbus_name) + len);
 			item->name.flags = e->flags;
 			memcpy(item->name.name, e->name, len);
 			item = KDBUS_ITEM_NEXT(item);

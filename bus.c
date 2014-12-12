@@ -488,7 +488,6 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 	up_read(&bus->conn_rwlock);
 }
 
-
 /**
  * kdbus_cmd_bus_creator_info() - get information on a bus creator
  * @conn:	The querying connection

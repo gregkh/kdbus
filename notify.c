@@ -63,7 +63,6 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 	return 0;
 }
 
-
 /**
  * kdbus_notify_reply_timeout() - queue a timeout reply
  * @bus:		Bus which queues the messages
