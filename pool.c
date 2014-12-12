@@ -633,8 +633,8 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 	return (len < 0) ? len : (len != total_len) ? -EFAULT : len;
 }
 
-static size_t kdbus_pool_copy(const struct kdbus_pool_slice *slice,
-			      struct file *f_src, loff_t off_src, size_t len)
+static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
+			   struct file *f_src, loff_t off_src, size_t len)
 {
 	struct file *f_dst = slice->pool->f;
 	struct inode *i_dst = file_inode(f_dst);
