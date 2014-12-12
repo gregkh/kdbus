@@ -324,7 +324,9 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 		meta->sgid	= current_sgid();
 		meta->fsgid	= current_fsgid();
 
-		meta->user_namespace = get_user_ns(current_user_ns());
+		/* If user_namespace was not pinned, pin it. */
+		if (!meta->user_namespace)
+			meta->user_namespace = get_user_ns(current_user_ns());
 
 		meta->collected |= KDBUS_ATTACH_CREDS;
 	}
@@ -445,6 +447,10 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 		for (i = 0; i < 4; i++)
 			meta->caps.set[i].caps[CAP_TO_INDEX(CAP_LAST_CAP)] &=
 						CAP_LAST_U32_VALID_MASK;
+
+		/* If metadata userns was not pinned, pin it */
+		if (!meta->user_namespace)
+			meta->user_namespace = get_user_ns(current_user_ns());
 
 		meta->collected |= KDBUS_ATTACH_CAPS;
 	}
@@ -610,6 +616,8 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	 * We currently have no sane way of translating a set of caps
 	 * between different user namespaces. Until that changes, we have
 	 * to drop such items.
+	 *
+	 * If meta was faked then meta->user_namespace is NULL.
 	 */
 	if (meta->user_namespace != user_ns)
 		mask &= ~KDBUS_ATTACH_CAPS;
