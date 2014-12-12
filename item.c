@@ -222,6 +222,32 @@ int kdbus_items_validate(const struct kdbus_item *items, size_t items_size)
 }
 
 /**
+ * kdbus_items_get() - Find unique item in item-array
+ * @items:		items to search through
+ * @items_size:		total size of item array
+ * @item_type:		item-type to find
+ *
+ * Return: Pointer to found item, ERR_PTR if not found or available multiple
+ *         times.
+ */
+struct kdbus_item *kdbus_items_get(const struct kdbus_item *items,
+				   size_t items_size,
+				   unsigned int item_type)
+{
+	const struct kdbus_item *iter, *found = NULL;
+
+	KDBUS_ITEMS_FOREACH(iter, items, items_size) {
+		if (iter->type == item_type) {
+			if (found)
+				return ERR_PTR(-EEXIST);
+			found = iter;
+		}
+	}
+
+	return (struct kdbus_item*)found ? : ERR_PTR(-EBADMSG);
+}
+
+/**
  * kdbus_items_get_str() - get string from a list of items
  * @items:		The items to walk
  * @items_size:		The size of all items
@@ -240,22 +266,9 @@ const char *kdbus_items_get_str(const struct kdbus_item *items,
 				unsigned int item_type)
 {
 	const struct kdbus_item *item;
-	const char *n = NULL;
 
-	KDBUS_ITEMS_FOREACH(item, items, items_size) {
-		if (item->type == item_type) {
-			if (n)
-				return ERR_PTR(-EEXIST);
-
-			n = item->str;
-			continue;
-		}
-	}
-
-	if (!n)
-		return ERR_PTR(-EBADMSG);
-
-	return n;
+	item = kdbus_items_get(items, items_size, item_type);
+	return IS_ERR(item) ? ERR_CAST(item) : item->str;
 }
 
 /**
