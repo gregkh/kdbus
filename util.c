@@ -287,7 +287,7 @@ void kdbus_kvec_set(struct kvec *kvec, void *src, size_t len, u64 *total_len)
 	*total_len += len;
 }
 
-static char * const zeros = "\0\0\0\0\0\0\0";
+static const char * const zeros = "\0\0\0\0\0\0\0";
 
 /**
  * kdbus_kvec_pad - conditionally write a padding kvec
@@ -307,7 +307,7 @@ size_t kdbus_kvec_pad(struct kvec *kvec, u64 *len)
 	if (!pad)
 		return 0;
 
-	kvec->iov_base = zeros;
+	kvec->iov_base = (void*)zeros;
 	kvec->iov_len = pad;
 
 	*len += pad;
