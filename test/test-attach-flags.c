@@ -355,6 +355,25 @@ static int kdbus_test_peers_info(struct kdbus_test_env *env)
 				       KDBUS_ITEM_OWNED_NAME -
 				       KDBUS_ITEM_TIMESTAMP));
 
+	kdbus_free(reader, offset);
+
+	/* Request only OWNED names */
+	ret = kdbus_conn_info(reader, conn->id, NULL,
+			      KDBUS_ATTACH_NAMES, &offset);
+	ASSERT_RETURN(ret == 0);
+
+	info = (struct kdbus_info *)(reader->buf + offset);
+	ASSERT_RETURN(info->id == conn->id);
+
+	attach_count = 0;
+	KDBUS_ITEM_FOREACH(item, info, items)
+		attach_count += item->type;
+
+	/* we should not get any metadata since we do not own names */
+	ASSERT_RETURN(attach_count == 0);
+
+	kdbus_free(reader, offset);
+
 	kdbus_conn_free(conn);
 	kdbus_conn_free(reader);
 
