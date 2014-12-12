@@ -94,9 +94,9 @@ struct kdbus_pool_slice {
 	struct rb_node rb_node;
 	struct kdbus_pool_slice *child;
 
-	bool free : 1;
-	bool ref_kernel : 1;
-	bool ref_user : 1;
+	bool free:1;
+	bool ref_kernel:1;
+	bool ref_user:1;
 };
 
 static struct kdbus_pool_slice *kdbus_pool_slice_new(struct kdbus_pool *pool,

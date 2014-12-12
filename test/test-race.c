@@ -271,8 +271,8 @@ TEST_RACE2(kdbus_test_race_byebye, 100, int,
  */
 TEST_RACE2(kdbus_test_race_byebye_match, 10000,
 	struct {
-		bool res1 : 1;
-		bool res2 : 1;
+		bool res1:1;
+		bool res2:1;
 	},
 	({
 		return ioctl(env->conn->fd, KDBUS_CMD_BYEBYE, 0) ? -errno : 0;

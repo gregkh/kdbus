@@ -106,8 +106,8 @@ struct kdbus_conn {
 	wait_queue_head_t wait;
 	struct kdbus_queue queue;
 
-	bool privileged : 1;
-	bool faked_meta : 1;
+	bool privileged:1;
+	bool faked_meta:1;
 };
 
 struct kdbus_kmsg;

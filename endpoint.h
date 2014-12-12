@@ -47,7 +47,7 @@ struct kdbus_ep {
 	struct kdbus_domain_user *user;
 	struct kdbus_policy_db policy_db;
 
-	bool has_policy : 1;
+	bool has_policy:1;
 };
 
 #define kdbus_ep_from_node(_node) container_of((_node), \
