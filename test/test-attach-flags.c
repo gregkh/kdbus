@@ -729,7 +729,7 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 
 	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
 					     &flags_mask);
-	ASSERT_RETURN(old_kdbus_flags_mask == flags_mask);
+	ASSERT_RETURN(ret == 0 && old_kdbus_flags_mask == flags_mask);
 
 	return TEST_OK;
 }

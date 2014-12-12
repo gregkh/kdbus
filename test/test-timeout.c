@@ -63,7 +63,7 @@ int kdbus_test_timeout(struct kdbus_test_env *env)
 	 * but never answer it.
 	 */
 	for (i = 0; i < n_msgs; i++) {
-		kdbus_printf("Sending message with cookie %u ...\n", i);
+		kdbus_printf("Sending message with cookie %d ...\n", i);
 		ASSERT_RETURN(kdbus_msg_send(conn_b, NULL, i,
 			      KDBUS_MSG_EXPECT_REPLY,
 			      (i + 1) * 100ULL * 1000000ULL, 0,

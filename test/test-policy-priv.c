@@ -22,7 +22,7 @@ static int test_policy_priv_by_id(const char *bus,
 				  int parent_status,
 				  int child_status)
 {
-	int ret;
+	int ret = 0;
 	uint64_t expected_cookie = time(NULL) ^ 0xdeadbeef;
 
 	ASSERT_RETURN(conn_dst);
@@ -47,8 +47,8 @@ static int test_policy_priv_by_broadcast(const char *bus,
 					 int parent_status,
 					 int child_status)
 {
-	int ret;
 	int efd;
+	int ret = 0;
 	eventfd_t event_status = 0;
 	struct kdbus_msg *msg = NULL;
 	uid_t second_uid = UNPRIV_UID;
@@ -180,7 +180,7 @@ static void nosig(int sig)
 
 static int test_priv_before_policy_upload(struct kdbus_test_env *env)
 {
-	int ret;
+	int ret = 0;
 	struct kdbus_conn *conn;
 
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);

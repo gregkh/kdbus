@@ -427,7 +427,7 @@ static int start_all_tests(struct kdbus_test_args *kdbus_args)
 		printf("\n");
 	}
 
-	printf("\nSUMMARY: %d tests passed, %d skipped, %d failed\n",
+	printf("\nSUMMARY: %u tests passed, %u skipped, %u failed\n",
 	       ok_cnt, skip_cnt, fail_cnt);
 
 	return fail_cnt > 0 ? TEST_ERR : TEST_OK;
