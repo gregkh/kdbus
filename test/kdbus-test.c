@@ -507,6 +507,27 @@ static void usage(const char *argv0)
 	exit(EXIT_FAILURE);
 }
 
+void print_metadata_support(void)
+{
+	bool no_meta_audit, no_meta_cgroups, no_meta_seclabel;
+
+	/*
+	 * KDBUS_ATTACH_CGROUP, KDBUS_ATTACH_AUDIT and
+	 * KDBUS_ATTACH_SECLABEL
+	 */
+	no_meta_audit = !config_auditsyscall_is_enabled();
+	no_meta_cgroups = !config_cgroups_is_enabled();
+	no_meta_seclabel = !config_security_is_enabled();
+
+	if (no_meta_audit | no_meta_cgroups | no_meta_seclabel)
+		printf("Starting tests without %s%s%s metadata support\n",
+		       no_meta_audit ? "AUDIT" : "",
+		       no_meta_cgroups ? "CGROUP" : "",
+		       no_meta_seclabel ? "SECLABEL" : "");
+	else
+		printf("Starting tests with full metadata support\n");
+}
+
 int start_tests(struct kdbus_test_args *kdbus_args)
 {
 	static char fspath[4096], parampath[4096], control[4096];
@@ -533,6 +554,8 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 			control);
 		return TEST_ERR;
 	}
+
+	print_metadata_support();
 
 	if (kdbus_args->test) {
 		ret = start_one_test(kdbus_args);
