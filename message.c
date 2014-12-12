@@ -484,6 +484,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 		ret = -EFAULT;
 		goto exit_free;
 	}
+
 	if (m->msg.size != size) {
 		ret = -EINVAL;
 		goto exit_free;
