@@ -153,8 +153,10 @@ struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
 	ret = kdbus_kmsg_init(m);
-	if (ret < 0)
+	if (ret < 0) {
+		kfree(m);
 		return ERR_PTR(ret);
+	}
 
 	return m;
 }
