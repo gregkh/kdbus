@@ -43,7 +43,8 @@ since v2:
     mostly reserved for future extensions.
 
   * Some fixes in kdbus.txt and tests, spotted by Harald Hoyer, Andy
-    Lutomirski, Michele Curti, Sergei Zviagintsev and Sheng Yong.
+    Lutomirski, Michele Curti, Sergei Zviagintsev, Sheng Yong and
+    Torstein Husebø.
 
   * Fixed compiler warnings on test-message by Michele Curti
 
