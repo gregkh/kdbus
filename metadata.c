@@ -69,10 +69,9 @@
  *			recorded
  * @root_path:		Root path, pinned when @exe was recorded
  *
- * Data in this struct is only written by two functions:
+ * Data in this struct is only written by the following functions:
  *
- *	kdbus_meta_collect() and
- *	kdbus_meta_fake()
+ *	kdbus_meta_add_*()
  *
  * All data is stored is the kernel-view of resources and translated into
  * namespaces when kdbus_meta_export() is called.
@@ -272,6 +271,9 @@ int kdbus_meta_add_fake(struct kdbus_meta *meta,
 /**
  * kdbus_meta_add_timestamp() - record current time stamp
  * @meta:	Metadata object
+ *
+ * This function does nothing if the time stamp was already recorded
+ * in the metadata object.
  */
 void kdbus_meta_add_timestamp(struct kdbus_meta *meta)
 {
@@ -501,7 +503,7 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
  * @receiver:		Receiving connection
  *
  * Return: the attach flags both the sender and the receiver have opted-in
- * for, also considering the module-parameter.
+ * for.
  */
 u64 kdbus_meta_calc_attach_flags(const struct kdbus_conn *sender,
 				 const struct kdbus_conn *receiver)
@@ -511,8 +513,9 @@ u64 kdbus_meta_calc_attach_flags(const struct kdbus_conn *sender,
 }
 
 /*
- * kdbus_meta_add_conn_info() - collect metadata from source connection
- * @meta:	Metadata object
+ * kdbus_meta_add_conn_info() - collect connection description and owned
+ *				names from source connection
+ * @meta:	Metadata object where to store the collected info
  * @conn:	Connection to get owned names and description from
  *
  * Collect the data specified in @which from @src_conn.
