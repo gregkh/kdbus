@@ -835,5 +835,8 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 exit_free:
 	free_page((unsigned long) tmp);
 
+	if (ret < 0)
+		return ERR_PTR(ret);
+
 	return items;
 }
