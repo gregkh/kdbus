@@ -1036,7 +1036,7 @@ struct kdbus_cmd_match {
 #define KDBUS_CMD_BYEBYE		_IO(KDBUS_IOCTL_MAGIC, 0x21)	\
 
 #define KDBUS_CMD_SEND			_IOWR(KDBUS_IOCTL_MAGIC, 0x30,	\
-					      struct kdbus_msg)
+					      struct kdbus_cmd_send)
 #define KDBUS_CMD_RECV			_IOWR(KDBUS_IOCTL_MAGIC, 0x31,	\
 					      struct kdbus_cmd_recv)
 #define KDBUS_CMD_CANCEL		_IOW(KDBUS_IOCTL_MAGIC, 0x32,	\
