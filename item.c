@@ -126,7 +126,7 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 		break;
 
 	case KDBUS_ITEM_AUXGROUPS:
-		if (payload_size % sizeof(u64) != 0)
+		if (payload_size % sizeof(u32) != 0)
 			return -EINVAL;
 		break;
 
