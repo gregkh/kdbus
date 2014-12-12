@@ -174,37 +174,44 @@ other userspace code that aims for compatibility to D-Bus might.
 3.2 Flags
 ---------
 
-All ioctls used in the communication with the driver contain two 64-bit fields,
-'flags' and 'kernel_flags'. In 'flags', the behavior of the command can be
-tweaked, whereas in 'kernel_flags', the kernel driver writes back the mask of
-supported bits upon each call, and sets the KDBUS_FLAGS_KERNEL bit. This is a
-way to probe possible kernel features and make code forward and backward
+All ioctls used in the communication with the driver contain three 64-bit
+fields: 'flags', 'kernel_flags' and 'return_flags'. All of them are specific
+to the ioctl used.
+
+In 'flags', the behavior of the command can be tweaked. All bits that are not
+recognized by the kernel in this field are rejected, and the ioctl fails with
+-EINVAL.
+
+In 'kernel_flags', the kernel driver writes back the mask of supported bits
+upon each call, and sets the KDBUS_FLAGS_KERNEL bit. This is a way to probe
+possible kernel features and make userspace code forward and backward
 compatible.
 
-All bits that are not recognized by the kernel in 'flags' are rejected, and the
-ioctl fails with -EINVAL.
+In 'return_flags', the kernel can return results of the command, in addition
+to the actual return value. This is mostly to inform userspace about non-fatal
+conditions that occured during the execution of the command.
 
 
 4. Items
 ===============================================================================
 
-To flexibly augment transport structures used by kdbus, data blobs of type
-struct kdbus_item are used. An item has a fixed-sized header that only stores
-the type of the item and the overall size. The total size is variable and is
-in some cases defined by the item type, in other cases, they can be of
-arbitrary length (for instance, a string).
+To flexibly augment transport structures, data blobs of type struct kdbus_item
+can be attached to the structs passed into the ioctls. Some ioctls make items
+of certain types mandatory, others are optional. Unsupported items will cause
+the ioctl to fail -EINVAL.
 
-In the external kernel API, items are used for many ioctls to transport
-optional information from userspace to kernelspace. They are also used for
-information stored in a connection's pool, such as messages, name lists or
-requested connection information.
+The total size of an item is variable and is in some cases defined by the item
+type. In other cases, they can be of arbitrary length (for instance, a string).
 
-In all such occasions where items are used as part of the kdbus kernel API,
-they are embedded in structs that have an overall size of their own, so there
-can be multiple items per ioctl.
+Items are also used for information stored in a connection's pool, such as
+received messages, name lists or requested connection or bus owner information.
+
+Whenever tems are used as part of the kdbus kernel API, they are embedded in
+structs that have an overall size of their own, so there can be multiple items
+per ioctl.
 
 The kernel expects all items to be aligned to 8-byte boundaries. Unaligned
-items are rejected.
+items or such that are unsupported by the ioctl are rejected.
 
 A simple iterator in userspace would iterate over the items until the items
 have reached the embedding structure's overall size. An example implementation
@@ -336,6 +343,9 @@ struct kdbus_cmd_make {
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
 
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
+
   struct kdbus_item items[0];
     A list of items that has specific meanings for KDBUS_CMD_BUS_MAKE
     and KDBUS_CMD_ENDPOINT_MAKE (see above).
@@ -460,7 +470,7 @@ struct kdbus_cmd_hello {
   __u64 size;
     The overall size of the struct, including all attached items.
 
-  __u64 conn_flags;
+  __u64 flags;
     Flags to apply to this connection:
 
     KDBUS_HELLO_ACCEPT_FD
@@ -483,6 +493,12 @@ struct kdbus_cmd_hello {
       unicast messages sent on the bus. To also receive broadcast messages,
       the connection has to upload appropriate matches as well.
       This flag is only valid for privileged bus connections.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
 
   __u64 attach_flags_send;
       Set the bits for metadata this connection permits to be sent to the
@@ -512,8 +528,9 @@ struct kdbus_cmd_hello {
       by calling mmap() on the file descriptor that was used to issue the
       KDBUS_CMD_HELLO ioctl.
 
-  struct kdbus_bloom_parameter bloom;
-      Bloom filter parameter (see below).
+  __u64 offset;
+      The kernel will return the offset in the pool where returned details
+      will be stored.
 
   __u8 id128[16];
       Upon successful completion of the ioctl, this member will contain the
@@ -543,6 +560,13 @@ struct kdbus_cmd_hello {
       Items of other types are rejected, and the ioctl will fail with -EINVAL.
 };
 
+At the offset returned in the 'offset' field of struct kdbus_cmd_hello, the
+kernel will store items of the following types:
+
+  KDBUS_ITEM_BLOOM_PARAMETER:
+      Bloom filter parameter as defined by the bus creator (see below).
+
+The offset in the pool has to be freed with the KDBUS_CMD_FREE ioctl.
 
 6.3 Activator and policy holder connection
 ------------------------------------------
