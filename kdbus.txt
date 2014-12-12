@@ -340,6 +340,8 @@ struct kdbus_cmd_make {
   struct kdbus_item items[0];
     A list of items, only used for creating custom endpoints. Has specific
     meanings for KDBUS_CMD_BUS_MAKE and KDBUS_CMD_ENDPOINT_MAKE (see above).
+
+    Unrecognized items are rejected, and the ioctl will fail with -EINVAL.
 };
 
 
@@ -515,14 +517,11 @@ struct kdbus_cmd_hello {
       KDBUS_ITEM_PIDS
       KDBUS_ITEM_SECLABEL
         Privileged bus users may submit these types in order to create
-        connections with faked credentials. The only real use case for this
-        is a proxy service which acts on behalf of some other tasks. For a
-        connection that runs in that mode, task-specific metadata items that
-        are attached to messages and that are revealed through
-        KDBUS_CMD_CONN_INFO will be limited to what's specified here.
-        See section 13 for more information.
+        connections with faked credentials. This information will be returned
+        when peer information is queried by KDBUS_CMD_CONN_INFO. See section
+        13 for more information.
 
-      Items of other types are silently ignored.
+      Items of other types are rejected, and the ioctl will fail with -EINVAL.
 };
 
 
@@ -577,7 +576,7 @@ struct kdbus_cmd_info {
   struct kdbus_item items[0];
     The optional item list, containing the well-known name to look up as
     a KDBUS_ITEM_OWNED_NAME. Only required if the 'id' field is set to 0.
-    All other items are currently ignored.
+    Items of other types are rejected, and the ioctl will fail with -EINVAL.
 };
 
 After the ioctl returns, the following struct will be stored in the caller's
@@ -625,10 +624,10 @@ struct kdbus_info {
     The overall size of the struct, including all its items.
 
   __u64 id;
-    The bus' ID
+    The bus ID
 
   __u64 flags;
-    The bus' flags as specified when it was created.
+    The bus flags as specified when it was created.
 
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
@@ -669,6 +668,8 @@ struct kdbus_cmd_update {
     KDBUS_ITEM_POLICY_ACCESS
       Policy holder connections may supply a new set of policy information
       with these items. For other connection types, -EOPNOTSUPP is returned.
+
+    Items of other types are rejected, and the ioctl will fail with -EINVAL.
 };
 
 
@@ -706,8 +707,8 @@ the specific destination connection or to all connections on the same bus.
 Sending messages across buses is not possible. Messages are always queued in
 the memory pool of the destination connection (see below).
 
-The KDBUS_CMD_SEND ioctl uses struct kdbus_msg to describe the message to
-be sent.
+The KDBUS_CMD_SEND ioctl uses struct kdbus_msg to describe the message to be
+sent.
 
 struct kdbus_msg {
   __u64 size;
@@ -737,15 +738,15 @@ struct kdbus_msg {
       non-blocking. However, as there are many use cases that need to wait
       for a remote peer to answer a method call, there's a way to send a
       message and wait for a reply in a synchronous fashion. This is what
-      the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl
-      will block until the reply has arrived, the timeout limit is reached,
-      in case the remote connection was shut down, or if interrupted by
-      a signal before any reply; see signal(7).
+      the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
+      until the reply has arrived, the timeout limit is reached, in case the
+      remote connection was shut down, or if interrupted by a signal before
+      any reply; see signal(7).
 
-      The offset of the reply message in the sender's pool is stored in
-      in 'offset_reply' when the ioctl has returned without error. Hence,
-      there is no need for another KDBUS_CMD_RECV ioctl or anything else
-      to receive the reply.
+      The offset of the reply message in the sender's pool is stored in in
+      'offset_reply' when the ioctl has returned without error. Hence, there
+      is no need for another KDBUS_CMD_RECV ioctl or anything else to receive
+      the reply.
 
     KDBUS_MSG_NO_AUTO_START
       By default, when a message is sent to an activator connection, the
@@ -905,9 +906,9 @@ hunks than it was sent as.
 7.4 Receiving messages
 ----------------------
 
-Messages are received by the client with the KDBUS_CMD_RECV ioctl. The
-endpoint file of the bus supports poll() to wake up the receiving process when
-new messages are queued up to be received.
+Messages are received by the client with the KDBUS_CMD_RECV ioctl. The endpoint
+file of the bus supports poll() to wake up the receiving process when new
+messages are queued up to be received.
 
 With the KDBUS_CMD_RECV ioctl, a struct kdbus_cmd_recv is used.
 
@@ -959,11 +960,11 @@ interpreted with the semantics described above.
 
 Also, if the connection allowed for file descriptor to be passed
 (KDBUS_HELLO_ACCEPT_FD), and if the message contained any, they will be
-installed into the receiving process after the KDBUS_CMD_RECV ioctl
-returns. The receiving task is obliged to close all of them appropriately.
-If KDBUS_RECV_PEEK is used, no file descriptors are installed. This allows for
-peeking at a message and dropping it via KDBUS_RECV_DROP, without ever
-installing the passed file descriptors into the receiving process.
+installed into the receiving process after the KDBUS_CMD_RECV ioctl returns.
+The receiving task is obliged to close all of them appropriately. If
+KDBUS_RECV_PEEK is set, no file descriptors are installed. This allows for
+peeking at a message and dropping it via KDBUS_RECV_DROP, without installing
+the passed file descriptors into the receiving process.
 
 The caller is obliged to call KDBUS_CMD_FREE with the returned offset when
 the memory is no longer needed.
@@ -972,13 +973,13 @@ the memory is no longer needed.
 7.5 Canceling messages synchronously waiting for replies
 --------------------------------------------------------
 
-When a connection sends a message with KDBUS_MSG_SYNC_REPLY and
-blocks while waiting for the reply, the KDBUS_CMD_CANCEL ioctl can be
-used on the same file descriptor to cancel blocking wait, based on its cookie.
-If there are multiple messages with the same cookie that are all synchronously
-waiting for a reply, all of them will be canceled. Obviously, this is only
-possible in multi-threaded applications. Note that the original message itself
-still ends up in the receiver's pool if the reply wait is cancelled.
+When a connection sends a message with KDBUS_MSG_SYNC_REPLY and blocks while
+waiting for the reply, the KDBUS_CMD_CANCEL ioctl can be used on the same file
+descriptor to cancel blocking wait, based on its cookie. If there are multiple
+messages with the same cookie that are all synchronously waiting for a reply,
+all of them will be canceled. Obviously, this is only possible in
+multi-threaded applications. Note that the original message itself still ends
+up in the receiver's pool if the reply wait is cancelled.
 
 
 8. Name registry
@@ -1045,6 +1046,7 @@ struct kdbus_cmd_name {
   struct kdbus_item items[0];
     Items to submit the name. Currently, one item of type KDBUS_ITEM_NAME is
     expected and allowed, and the contained string must be a valid bus name.
+    Items of other types are rejected, and the ioctl will fail with -EINVAL.
 };
 
 
@@ -1301,7 +1303,7 @@ struct kdbus_cmd_match {
       monitor one particular connection ID, or, when the id field is set to
       KDBUS_MATCH_ID_ANY, all of them.
 
-    Other item types are ignored.
+    Items of other types are rejected, and the ioctl will fail with -EINVAL.
 };
 
 
@@ -1384,7 +1386,7 @@ struct kdbus_cmd_match {
     Valid flags for this command, returned by the kernel upon each call.
 
   struct kdbus_item items[0];
-    Unused for this use case.
+    Unused und not allowed for this use case.
 };
 
 
@@ -1713,6 +1715,7 @@ For all ioctls:
   -ENOMEM	The kernel memory is exhausted
   -ENOTTY	Illegal ioctl command issued for the file descriptor
   -ENOSYS	The requested functionality is not available
+  -EINVAL	Unsupported item attached to command
 
 For all ioctls that carry a struct as payload:
 
