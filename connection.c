@@ -1513,7 +1513,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	const char *seclabel = NULL;
 	const char *name = NULL;
 	struct kdbus_conn *conn;
-	size_t seclabel_len = 0;
 	u64 attach_flags_send;
 	u64 attach_flags_recv;
 	bool is_policy_holder;
@@ -1589,7 +1588,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 				return ERR_PTR(-EPERM);
 
 			seclabel = item->str;
-			seclabel_len = item->size - KDBUS_ITEM_HEADER_SIZE;
 			break;
 
 		case KDBUS_ITEM_CONN_DESCRIPTION:
