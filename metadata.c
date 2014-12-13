@@ -531,17 +531,33 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 {
 	const struct kdbus_name_entry *e;
 	struct kdbus_item *item;
+	bool meta_names;
+	bool meta_description;
 	int ret = 0;
 	size_t len = 0;
 
 	if (!conn)
 		return 0;
 
+	/*
+	 * Before taking any lock, first check if:
+	 * 1) we are interested in the info
+	 * 2) connection do own names
+	 * 3) connection has a conn description field, this field
+	 *    is only writable when connections are created
+	 */
+	meta_names = (which & KDBUS_ATTACH_NAMES &&
+		      atomic_read(&conn->name_count) > 0);
+	meta_description = (which & KDBUS_ATTACH_CONN_DESCRIPTION &&
+			    conn->description);
+
+	if (!meta_names && !meta_description)
+		return 0;
+
 	mutex_lock(&conn->lock);
 
 	/* Add owned names */
-	if (which & KDBUS_ATTACH_NAMES &&
-	    atomic_read(&conn->name_count) > 0) {
+	if (meta_names) {
 		list_for_each_entry(e, &conn->names_list, conn_entry)
 			len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
 					       strlen(e->name) + 1);
@@ -569,7 +585,7 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 		meta->collected |= KDBUS_ATTACH_NAMES;
 	}
 
-	if (which & KDBUS_ATTACH_CONN_DESCRIPTION && conn->description) {
+	if (meta_description) {
 		/* free previous add connection description */
 		kfree(meta->conn_description);
 		meta->conn_description = kstrdup(conn->description,
