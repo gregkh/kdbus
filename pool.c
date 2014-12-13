@@ -268,7 +268,7 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 		ret = kdbus_pool_slice_copy_kvec(s, 0, kvec, kvec_count, size);
 		if (ret < 0) {
 			kdbus_pool_slice_release(s);
-			return ERR_PTR(ret);
+			goto exit_unlock;
 		}
 	}
 
