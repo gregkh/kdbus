@@ -190,10 +190,8 @@ static struct kdbus_pool_slice *
 kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 			  struct kdbus_pool *pool)
 {
-	char __force __user *zeros = (char __force __user *) "\0\0\0\0\0\0\0";
 	struct kdbus_pool_slice *slice;
-	size_t i, n, want, have;
-	struct iovec *iov;
+	size_t want, have;
 	int ret;
 
 	/* do not give out more than half of the remaining space */
@@ -207,40 +205,8 @@ kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
 	if (IS_ERR(slice))
 		return slice;
 
-	/* FIXME: move this iov to message resources */
-	iov = kcalloc(res->data_count, sizeof(*iov), GFP_KERNEL);
-	if (!iov) {
-		ret = -ENOMEM;
-		goto exit_free_slice;
-	}
-
-	n = 0;
-	for (i = 0; i < res->data_count; i++) {
-		struct kdbus_msg_data *d = res->data + i;
-
-		switch (d->type) {
-		case KDBUS_MSG_DATA_VEC:
-			if (d->vec.off != ~0ULL) {
-				iov[n].iov_base = d->vec.src_addr;
-				iov[n].iov_len = d->size;
-			} else {
-				iov[n].iov_base = zeros;
-				iov[n].iov_len = d->size % 8;
-			}
-			break;
-
-		case KDBUS_MSG_DATA_MEMFD:
-			iov[n].iov_base = zeros;
-			iov[n].iov_len = d->size % 8;
-			break;
-		}
-
-		if (iov[n].iov_len > 0)
-			++n;
-	}
-
-	ret = kdbus_pool_slice_copy_iovec(slice, 0, iov, n, res->pool_size);
-	kfree(iov);
+	ret = kdbus_pool_slice_copy_iovec(slice, 0, res->iov, res->vec_count,
+					  res->pool_size);
 	if (ret < 0)
 		goto exit_free_slice;
 

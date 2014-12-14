@@ -41,7 +41,6 @@ struct kdbus_msg_data {
 	union {
 		struct {
 			u64 off;
-			void __user *src_addr;
 		} vec;
 		struct {
 			u64 start;
@@ -70,6 +69,7 @@ struct kdbus_msg_resources {
 	unsigned int fds_count;
 
 	struct kdbus_msg_data *data;
+	struct iovec *iov;
 	size_t vec_count;
 	size_t memfd_count;
 	size_t data_count;

@@ -69,6 +69,7 @@ static void __kdbus_msg_resources_free(struct kref *kref)
 		}
 	}
 
+	kfree(r->iov);
 	kfree(r->data);
 
 	kdbus_fput_files(r->fds, r->fds_count);
@@ -188,6 +189,8 @@ static int kdbus_handle_check_file(struct file *file)
 	return 0;
 }
 
+static const char * const zeros = "\0\0\0\0\0\0\0";
+
 /*
  * kdbus_msg_scan_items() - validate incoming data and prepare parsing
  * @kmsg:		Message
@@ -233,6 +236,10 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 		res->data = kcalloc(n, sizeof(*res->data), GFP_KERNEL);
 		if (!res->data)
 			return -ENOMEM;
+
+		res->iov = kcalloc(n, sizeof(*res->iov), GFP_KERNEL);
+		if (!res->iov)
+			return -ENOMEM;
 	}
 
 	/* import data payloads */
@@ -240,6 +247,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	vec_size = 0;
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
+		struct iovec *iov = res->iov + res->vec_count;
 
 		if (++n > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
@@ -259,21 +267,26 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (!ptr && res->pool_size + size % 8 < res->pool_size)
 				return -EMSGSIZE;
 
-			++res->data_count;
-			++res->vec_count;
-			vec_size += size;
-
 			d->type = KDBUS_MSG_DATA_VEC;
 			d->size = size;
-			d->vec.src_addr = ptr;
 
 			if (ptr) {
 				d->vec.off = res->pool_size;
-				res->pool_size += d->size;
+				iov->iov_base = ptr;
+				iov->iov_len = size;
 			} else {
 				d->vec.off = ~0ULL;
-				res->pool_size += d->size % 8;
+				iov->iov_base = (char __user *)zeros;
+				iov->iov_len = size % 8;
 			}
+
+			if (iov->iov_len > 0) {
+				res->pool_size += iov->iov_len;
+				++res->vec_count;
+			}
+
+			++res->data_count;
+			vec_size += size;
 
 			break;
 		}
@@ -296,6 +309,14 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			f = fget(item->memfd.fd);
 			if (!f)
 				return -EBADF;
+
+			if (size % 8) {
+				iov->iov_base = (char __user *)zeros;
+				iov->iov_len = size % 8;
+
+				res->pool_size += iov->iov_len;
+				++res->vec_count;
+			}
 
 			++res->data_count;
 			++res->memfd_count;
