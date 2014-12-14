@@ -380,12 +380,11 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	off_t payload_off = 0;
 	struct kvec kvec[4];
 	size_t kvec_count = 0;
-	u64 attach_flags;
 	int ret;
 
-	attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
-
 	if (entry->meta) {
+		u64 attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
+
 		meta_items = kdbus_meta_export(entry->meta, attach_flags,
 					       &meta_size);
 		if (IS_ERR(meta_items))
