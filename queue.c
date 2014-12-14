@@ -374,9 +374,9 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			      struct kdbus_conn *conn_dst,
 			      u64 *return_flags, bool install_fds)
 {
-	size_t meta_size = 0, items_size = 0;
+	size_t meta_size = 0, payload_items_size = 0;
+	struct kdbus_item *payload_items = NULL;
 	struct kdbus_item *meta_items = NULL;
-	struct kdbus_item *items = NULL;
 	off_t payload_off = 0;
 	struct kvec kvec[4];
 	size_t kvec_count = 0;
@@ -403,12 +403,13 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 		payload_off = kdbus_pool_slice_offset(entry->slice_vecs);
 
 	if (entry->msg_res) {
-		items = kdbus_msg_make_items(entry->msg_res, payload_off,
-					     install_fds, return_flags,
-					     &items_size);
-		if (IS_ERR(items)) {
-			ret = PTR_ERR(items);
-			items = NULL;
+		payload_items = kdbus_msg_make_items(entry->msg_res,
+						     payload_off,
+						     install_fds, return_flags,
+						     &payload_items_size);
+		if (IS_ERR(payload_items)) {
+			ret = PTR_ERR(payload_items);
+			payload_items = NULL;
 			goto exit_free;
 		}
 	}
@@ -422,9 +423,9 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 		kdbus_kvec_set(&kvec[kvec_count++], entry->msg_extra,
 			       entry->msg_extra_size, &entry->msg.size);
 
-	if (items_size)
-		kdbus_kvec_set(&kvec[kvec_count++], items, items_size,
-			       &entry->msg.size);
+	if (payload_items_size)
+		kdbus_kvec_set(&kvec[kvec_count++], payload_items,
+			       payload_items_size, &entry->msg.size);
 
 	if (meta_size)
 		kdbus_kvec_set(&kvec[kvec_count++], meta_items, meta_size,
@@ -441,8 +442,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	kdbus_pool_slice_set_child(entry->slice, entry->slice_vecs);
 
 exit_free:
+	kfree(payload_items);
 	kfree(meta_items);
-	kfree(items);
 
 	return ret;
 }
