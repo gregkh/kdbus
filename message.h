@@ -117,7 +117,6 @@ struct kdbus_kmsg {
 	struct kdbus_msg msg;
 };
 
-struct kdbus_ep;
 struct kdbus_conn;
 
 struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size);
