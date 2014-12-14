@@ -30,9 +30,10 @@ enum kdbus_msg_data_type {
 /**
  * struct kdbus_msg_data - Data payload as stored by messages
  * @type:	Type of payload (KDBUS_MSG_DATA_*)
+ * @size:	Size of the described payload
  * @off:	The offset, relative to the vec slice
- * @size:	The number of bytes to store
- * @src_addr:	Source address in userspace
+ * @start:	Offset inside the memfd
+ * @file:	Backing file referenced by the memfd
  */
 struct kdbus_msg_data {
 	unsigned int type;
@@ -56,10 +57,11 @@ struct kdbus_msg_data {
  * @fds:		Array of file descriptors to pass
  * @fds_count:		Number of file descriptors to pass
  * @data:		Array of data payloads
- * @vec_count:		Number of VEC entries in @data
+ * @iov:		Array of iovec, describing the payload to copy
+ * @vec_count:		Number of VEC entries in @iov
  * @memfd_count:	Number of MEMFD entries in @data
  * @data_count:		Sum of @vec_count + @memfd_count
- * @pool_size:		Overall size of inlined data (VECs + alignment)
+ * @pool_size:		Overall size of inlined data referenced by @iov
  */
 struct kdbus_msg_resources {
 	struct kref kref;
