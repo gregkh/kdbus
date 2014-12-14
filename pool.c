@@ -678,8 +678,11 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 		status = aops->write_end(f_dst, mapping_dst, off_dst, copy_len,
 					 copy_len, page, fsdata);
 
-		if (n_read < 0)
+		if (n_read < 0) {
+			ret = n_read;
 			break;
+		}
+
 		if (n_read != status) {
 			ret = -EFAULT;
 			break;
