@@ -575,21 +575,26 @@ ssize_t
 kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, size_t off,
 			    struct iovec *iov, size_t iov_len, size_t total_len)
 {
+	struct file *f = slice->pool->f;
 	struct iov_iter iter;
-	struct file *f;
 	struct kiocb kiocb;
 	ssize_t len;
 
 	BUG_ON(off + total_len > slice->size);
 
-	f = slice->pool->f;
 	init_sync_kiocb(&kiocb, f);
 	kiocb.ki_pos = slice->off + off;
 	kiocb.ki_nbytes = total_len;
 	iov_iter_init(&iter, WRITE, iov, iov_len, total_len);
 
 	len = f->f_op->write_iter(&kiocb, &iter);
-	return (len < 0) ? len : (len != total_len) ? -EFAULT : len;
+	if (len < 0)
+		return len;
+
+	if (len != total_len)
+		return -EFAULT;
+
+	return len;
 }
 
 /**
@@ -608,16 +613,15 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 				   size_t off, struct kvec *kvec,
 				   size_t kvec_len, size_t total_len)
 {
-	mm_segment_t old_fs;
+	struct file *f = slice->pool->f;
 	struct iov_iter iter;
-	struct file *f;
+	mm_segment_t old_fs;
 	struct kiocb kiocb;
 	ssize_t len;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	f = slice->pool->f;
 	init_sync_kiocb(&kiocb, f);
 	kiocb.ki_pos = slice->off + off;
 	kiocb.ki_nbytes = total_len;
@@ -627,10 +631,15 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 		      kvec_len, total_len);
 
 	len = f->f_op->write_iter(&kiocb, &iter);
-
 	set_fs(old_fs);
 
-	return (len < 0) ? len : (len != total_len) ? -EFAULT : len;
+	if (len < 0)
+		return len;
+
+	if (len != total_len)
+		return -EFAULT;
+
+	return len;
 }
 
 static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
