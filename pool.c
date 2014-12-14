@@ -699,33 +699,33 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 
 /**
  * kdbus_pool_slice_move() - move memory from one pool into another one
- * @src_pool:		The receiver's pool to copy from
- * @dst_pool:		The receiver's pool to copy to
+ * @pool_src:		The receiver's pool to copy from
+ * @pool_dst:		The receiver's pool to copy to
  * @slice:		Reference to the slice to copy from the source;
  *			updated with the newly allocated slice in the
  *			destination
  *
- * Move memory from one pool to another. Memory will be allocated in the
- * destination pool, the memory copied over, and the free()d in source
- * pool.
+ * Move memory from one pool to another. A slice will be allocated in the
+ * destination pool, the original memory from the existing slice is copied
+ * over, and the existing slice in @pool_src will be released.
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative error number on failure.
  */
-int kdbus_pool_slice_move(struct kdbus_pool *src_pool,
-			  struct kdbus_pool *dst_pool,
+int kdbus_pool_slice_move(struct kdbus_pool *pool_src,
+			  struct kdbus_pool *pool_dst,
 			  struct kdbus_pool_slice **slice)
 {
 	mm_segment_t old_fs;
 	struct kdbus_pool_slice *slice_new;
 	int ret;
 
-	slice_new = kdbus_pool_slice_alloc(dst_pool, (*slice)->size, NULL, 0);
+	slice_new = kdbus_pool_slice_alloc(pool_dst, (*slice)->size, NULL, 0);
 	if (IS_ERR(slice_new))
 		return PTR_ERR(slice_new);
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_copy(slice_new, src_pool->f,
+	ret = kdbus_pool_copy(slice_new, pool_src->f,
 			      (*slice)->off, (*slice)->size);
 	set_fs(old_fs);
 	if (ret < 0)
