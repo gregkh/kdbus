@@ -380,15 +380,18 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	off_t payload_off = 0;
 	struct kvec kvec[4];
 	size_t kvec_count = 0;
-	int ret;
+	int ret = 0;
 
 	if (entry->meta) {
 		u64 attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
 
 		meta_items = kdbus_meta_export(entry->meta, attach_flags,
 					       &meta_size);
-		if (IS_ERR(meta_items))
-			return PTR_ERR(meta_items);
+		if (IS_ERR(meta_items)) {
+			ret = PTR_ERR(meta_items);
+			meta_items = NULL;
+			goto exit_free;
+		}
 	}
 
 	/*
@@ -405,7 +408,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 					     &items_size);
 		if (IS_ERR(items)) {
 			ret = PTR_ERR(items);
-			goto exit_free_meta;
+			items = NULL;
+			goto exit_free;
 		}
 	}
 
@@ -431,20 +435,14 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;
-		goto exit_free_items;
+		goto exit_free;
 	}
 
 	kdbus_pool_slice_set_child(entry->slice, entry->slice_vecs);
 
+exit_free:
 	kfree(meta_items);
 	kfree(items);
-
-	return 0;
-
-exit_free_items:
-	kfree(items);
-exit_free_meta:
-	kfree(meta_items);
 
 	return ret;
 }
