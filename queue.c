@@ -186,37 +186,6 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 	}
 }
 
-static struct kdbus_pool_slice *
-kdbus_kmsg_make_vec_slice(const struct kdbus_msg_resources *res,
-			  struct kdbus_pool *pool)
-{
-	struct kdbus_pool_slice *slice;
-	size_t want, have;
-	int ret;
-
-	/* do not give out more than half of the remaining space */
-	want = res->pool_size;
-	have = kdbus_pool_remain(pool);
-	if (want < have && want > have / 2)
-		return ERR_PTR(-EXFULL);
-
-	/* allocate the needed space in the pool of the receiver */
-	slice = kdbus_pool_slice_alloc(pool, want, NULL, 0);
-	if (IS_ERR(slice))
-		return slice;
-
-	ret = kdbus_pool_slice_copy_iovec(slice, 0, res->iov, res->vec_count,
-					  res->pool_size);
-	if (ret < 0)
-		goto exit_free_slice;
-
-	return slice;
-
-exit_free_slice:
-	kdbus_pool_slice_release(slice);
-	return ERR_PTR(ret);
-}
-
 /**
  * kdbus_queue_entry_alloc() - allocate a queue entry
  * @pool:	The pool to allocate the slice in
@@ -231,6 +200,7 @@ exit_free_slice:
 struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 						  const struct kdbus_kmsg *kmsg)
 {
+	struct kdbus_msg_resources *res = kmsg->res;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_queue_entry *entry;
 	int ret = 0;
@@ -240,20 +210,34 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 		return ERR_PTR(-ENOMEM);
 
 	INIT_LIST_HEAD(&entry->entry);
-	entry->msg_res = kdbus_msg_resources_ref(kmsg->res);
+	entry->msg_res = kdbus_msg_resources_ref(res);
 	entry->meta = kdbus_meta_ref(kmsg->meta);
 	memcpy(&entry->msg, msg, sizeof(*msg));
 
-	if (kmsg->res && kmsg->res->vec_count) {
-		struct kdbus_pool_slice *slice;
+	if (res && res->vec_count) {
+		size_t pool_avail = kdbus_pool_remain(pool);
 
-		slice = kdbus_kmsg_make_vec_slice(kmsg->res, pool);
-		if (IS_ERR(slice)) {
-			ret = PTR_ERR(slice);
+		/* do not give out more than half of the remaining space */
+		if (res->pool_size < pool_avail &&
+		    res->pool_size > pool_avail / 2) {
+			ret = -EXFULL;
 			goto exit_free_entry;
 		}
 
-		entry->slice_vecs = slice;
+		/* allocate the needed space in the pool of the receiver */
+		entry->slice_vecs = kdbus_pool_slice_alloc(pool, res->pool_size,
+							   NULL, 0);
+		if (IS_ERR(entry->slice_vecs)) {
+			ret = PTR_ERR(entry->slice_vecs);
+			entry->slice_vecs = NULL;
+			goto exit_free_entry;
+		}
+
+		ret = kdbus_pool_slice_copy_iovec(entry->slice_vecs, 0,
+						  res->iov, res->vec_count,
+						  res->pool_size);
+		if (ret < 0)
+			goto exit_free_slice;
 	}
 
 	if (msg->src_id == KDBUS_SRC_ID_KERNEL) {
