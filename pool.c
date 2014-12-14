@@ -189,22 +189,28 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * @pool:	The receiver's pool
  * @size:	The number of bytes to allocate
  * @kvec:	kvec to copy into the new slice, may be %NULL
- * @kvec_count:	Number of elements in @kvec
+ * @iovec:	iovec to copy into the new slice, may be %NULL
+ * @vec_count:	Number of elements in @kvec or @iovec
  *
  * The returned slice is used for kdbus_pool_slice_release() to
- * free the allocated memory. If @kvec is non-NULL, the data will be copied
- * from kernel memory into the new slice at offset 0.
+ * free the allocated memory. If either @kvec or æiovec is non-NULL, the data
+ * will be copied from kernel or userspace memory into the new slice at
+ * offset 0.
  *
  * Return: the allocated slice on success, ERR_PTR on failure.
  */
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-						size_t size, struct kvec *kvec,
-						size_t kvec_count)
+						size_t size,
+						struct kvec *kvec,
+						struct iovec *iovec,
+						size_t vec_count)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
 	struct rb_node *n, *found = NULL;
 	struct kdbus_pool_slice *s;
 	int ret = 0;
+
+	BUG_ON(kvec && iovec);
 
 	/* search a free slice with the closest matching size */
 	mutex_lock(&pool->lock);
@@ -264,12 +270,15 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
 
-	if (kvec) {
-		ret = kdbus_pool_slice_copy_kvec(s, 0, kvec, kvec_count, size);
-		if (ret < 0) {
-			kdbus_pool_slice_release(s);
-			return ERR_PTR(ret);
-		}
+	if (kvec)
+		ret = kdbus_pool_slice_copy_kvec(s, 0, kvec, vec_count, size);
+
+	if (iovec)
+		ret = kdbus_pool_slice_copy_iovec(s, 0, iovec, vec_count, size);
+
+	if (ret < 0) {
+		kdbus_pool_slice_release(s);
+		return ERR_PTR(ret);
 	}
 
 	return s;
@@ -730,7 +739,8 @@ int kdbus_pool_slice_move(struct kdbus_pool *pool_src,
 	struct kdbus_pool_slice *slice_new;
 	int ret;
 
-	slice_new = kdbus_pool_slice_alloc(pool_dst, (*slice)->size, NULL, 0);
+	slice_new = kdbus_pool_slice_alloc(pool_dst, (*slice)->size,
+					   NULL, NULL, 0);
 	if (IS_ERR(slice_new))
 		return PTR_ERR(slice_new);
 

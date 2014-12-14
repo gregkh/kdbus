@@ -1383,7 +1383,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	kdbus_kvec_set(&kvec[1], meta_items, meta_size, &info.size);
 
 	slice = kdbus_pool_slice_alloc(conn->pool, info.size,
-				       kvec, ARRAY_SIZE(kvec));
+				       kvec, NULL, ARRAY_SIZE(kvec));
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
@@ -1783,7 +1783,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	kdbus_kvec_set(&kvec[0], &items, sizeof(items), &items.size);
 	kdbus_kvec_set(&kvec[1], &bloom_item, bloom_item.size, &items.size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, items.size, kvec,
+	slice = kdbus_pool_slice_alloc(conn->pool, items.size, kvec, NULL,
 				       ARRAY_SIZE(kvec));
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);

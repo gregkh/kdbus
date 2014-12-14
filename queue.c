@@ -226,18 +226,13 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 
 		/* allocate the needed space in the pool of the receiver */
 		entry->slice_vecs = kdbus_pool_slice_alloc(pool, res->pool_size,
-							   NULL, 0);
+							   NULL, res->iov,
+							   res->vec_count);
 		if (IS_ERR(entry->slice_vecs)) {
 			ret = PTR_ERR(entry->slice_vecs);
 			entry->slice_vecs = NULL;
 			goto exit_free_entry;
 		}
-
-		ret = kdbus_pool_slice_copy_iovec(entry->slice_vecs, 0,
-						  res->iov, res->vec_count,
-						  res->pool_size);
-		if (ret < 0)
-			goto exit_free_slice;
 	}
 
 	if (msg->src_id == KDBUS_SRC_ID_KERNEL) {
@@ -433,7 +428,7 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			       &entry->msg.size);
 
 	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, entry->msg.size,
-					      kvec, kvec_count);
+					      kvec, NULL, kvec_count);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;

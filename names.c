@@ -886,7 +886,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	kvec.iov_base = &list;
 	kvec.iov_len = sizeof(list);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, list.size, &kvec, 1);
+	slice = kdbus_pool_slice_alloc(conn->pool, list.size, &kvec, NULL, 1);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
