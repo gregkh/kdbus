@@ -304,8 +304,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 			if (v.offset != ~0ULL)
 				v.offset += payload_off;
 
-			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_OFF, &v,
-				       sizeof(v));
+			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_OFF,
+				       &v, sizeof(v));
 			item = KDBUS_ITEM_NEXT(item);
 			break;
 
@@ -322,8 +322,8 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 					incomplete_fds = true;
 			}
 
-			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD, &m,
-				       sizeof(m));
+			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD,
+				       &m, sizeof(m));
 			item = KDBUS_ITEM_NEXT(item);
 			break;
 		}
