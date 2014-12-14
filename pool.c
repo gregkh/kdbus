@@ -565,7 +565,7 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
  * @off:		Offset in the slice to write to
  * @iov:		iovec array, pointing to data to copy
  * @iov_len:		Number of elements in @iov
- * @total_len:		Total number of bytes described in @iov_len
+ * @total_len:		Total number of bytes described in members of @iov
  *
  * User memory referenced by @iov will be copied into @slice at offset @off.
  *
@@ -603,7 +603,7 @@ kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, size_t off,
  * @off:		Offset in the slice to write to
  * @kvec:		kvec array, pointing to data to copy
  * @kvec_len:		Number of elements in @kvec
- * @total_len:		Total number of bytes described in @iov_len
+ * @total_len:		Total number of bytes described in members of @kvec
  *
  * Kernel memory referenced by @kvec will be copied into @slice at offset @off.
  *
