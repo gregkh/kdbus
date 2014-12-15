@@ -286,8 +286,8 @@ void kdbus_item_set(struct kdbus_item *item, u64 type,
 
 	if (data) {
 		memcpy(item->data, data, len);
-		memzero_explicit(item->data + len, KDBUS_ALIGN8(len) - len);
+		memset(item->data + len, 0, KDBUS_ALIGN8(len) - len);
 	} else {
-		memzero_explicit(item->data, len);
+		memset(item->data, 0, len);
 	}
 }
