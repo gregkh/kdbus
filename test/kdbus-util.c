@@ -1279,6 +1279,63 @@ int kdbus_add_match_empty(struct kdbus_conn *conn)
 	return ret;
 }
 
+static int all_ids_are_mapped(const char *path)
+{
+	int ret;
+	FILE *file;
+	uint32_t inside_id, length;
+
+	file = fopen(path, "r");
+	if (!file) {
+		ret = -errno;
+		kdbus_printf("error fopen() %s: %d (%m)\n",
+			     path, ret);
+		return ret;
+	}
+
+	ret = fscanf(file, "%u\t%*u\t%u", &inside_id, &length);
+	if (ret != 2) {
+		if (ferror(file))
+			ret = -errno;
+		else
+			ret = -EIO;
+
+		kdbus_printf("--- error fscanf(): %d\n", ret);
+		fclose(file);
+		return ret;
+	}
+
+	/*
+	 * If length is 4294967295 which means the invalid uid
+	 * (uid_t) -1 then we are able to map all uid/gids
+	 */
+	if (inside_id == 0 && length == (uid_t) -1)
+		return 1;
+
+	fclose(file);
+
+	return 0;
+}
+
+int all_uids_gids_are_mapped()
+{
+	int ret;
+
+	ret = all_ids_are_mapped("/proc/self/uid_map");
+	if (ret <= 0) {
+		kdbus_printf("--- error not all uids are mapped\n");
+		return 0;
+	}
+
+	ret = all_ids_are_mapped("/proc/self/gid_map");
+	if (ret <= 0) {
+		kdbus_printf("--- error not all gids are mapped\n");
+		return 0;
+	}
+
+	return 1;
+}
+
 int drop_privileges(uid_t uid, gid_t gid)
 {
 	int ret;

@@ -198,6 +198,7 @@ int kdbus_add_match_id(struct kdbus_conn *conn, uint64_t cookie,
 		       uint64_t type, uint64_t id);
 int kdbus_add_match_empty(struct kdbus_conn *conn);
 
+int all_uids_gids_are_mapped();
 int drop_privileges(uid_t uid, gid_t gid);
 uint64_t now(clockid_t clock);
 char *unique_name(const char *prefix);
