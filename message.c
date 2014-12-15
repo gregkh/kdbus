@@ -69,7 +69,6 @@ static void __kdbus_msg_resources_free(struct kref *kref)
 		}
 	}
 
-	kfree(r->iov);
 	kfree(r->data);
 
 	kdbus_fput_files(r->fds, r->fds_count);
@@ -115,6 +114,7 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
 	kdbus_msg_resources_unref(kmsg->res);
 	kdbus_meta_unref(kmsg->meta);
+	kfree(kmsg->iov);
 	kfree(kmsg);
 }
 
@@ -237,8 +237,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 		if (!res->data)
 			return -ENOMEM;
 
-		res->iov = kcalloc(n, sizeof(*res->iov), GFP_KERNEL);
-		if (!res->iov)
+		kmsg->iov = kcalloc(n, sizeof(*kmsg->iov), GFP_KERNEL);
+		if (!kmsg->iov)
 			return -ENOMEM;
 	}
 
@@ -247,7 +247,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	vec_size = 0;
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
-		struct iovec *iov = res->iov + res->vec_count;
+		struct iovec *iov = kmsg->iov + res->vec_count;
 
 		if (++n > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
@@ -262,16 +262,16 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				return -EMSGSIZE;
 			if (vec_size + size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
-			if (ptr && res->pool_size + size < res->pool_size)
+			if (ptr && kmsg->pool_size + size < kmsg->pool_size)
 				return -EMSGSIZE;
-			if (!ptr && res->pool_size + size % 8 < res->pool_size)
+			if (!ptr && kmsg->pool_size + size % 8 < kmsg->pool_size)
 				return -EMSGSIZE;
 
 			d->type = KDBUS_MSG_DATA_VEC;
 			d->size = size;
 
 			if (ptr) {
-				d->vec.off = res->pool_size;
+				d->vec.off = kmsg->pool_size;
 				iov->iov_base = ptr;
 				iov->iov_len = size;
 			} else {
@@ -281,7 +281,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			}
 
 			if (iov->iov_len > 0) {
-				res->pool_size += iov->iov_len;
+				kmsg->pool_size += iov->iov_len;
 				++res->vec_count;
 			}
 
@@ -298,7 +298,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			int seals, mask;
 			struct file *f;
 
-			if (res->pool_size + size % 8 < res->pool_size)
+			if (kmsg->pool_size + size % 8 < kmsg->pool_size)
 				return -EMSGSIZE;
 			if (start + size < start)
 				return -EMSGSIZE;
@@ -314,7 +314,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				iov->iov_base = (char __user *)zeros;
 				iov->iov_len = size % 8;
 
-				res->pool_size += iov->iov_len;
+				kmsg->pool_size += iov->iov_len;
 				++res->vec_count;
 			}
 
@@ -327,7 +327,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			d->memfd.file = f;
 
 			/* memfd-alignment affects following VECs */
-			res->pool_size += size % 8;
+			kmsg->pool_size += size % 8;
 
 			/*
 			 * We only accept a sealed memfd file whose content

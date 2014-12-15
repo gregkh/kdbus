@@ -218,15 +218,16 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 		size_t pool_avail = kdbus_pool_remain(pool);
 
 		/* do not give out more than half of the remaining space */
-		if (res->pool_size < pool_avail &&
-		    res->pool_size > pool_avail / 2) {
+		if (kmsg->pool_size < pool_avail &&
+		    kmsg->pool_size > pool_avail / 2) {
 			ret = -EXFULL;
 			goto exit_free_entry;
 		}
 
 		/* allocate the needed space in the pool of the receiver */
-		entry->slice_vecs = kdbus_pool_slice_alloc(pool, res->pool_size,
-							   NULL, res->iov,
+		entry->slice_vecs = kdbus_pool_slice_alloc(pool,
+							   kmsg->pool_size,
+							   NULL, kmsg->iov,
 							   res->vec_count);
 		if (IS_ERR(entry->slice_vecs)) {
 			ret = PTR_ERR(entry->slice_vecs);

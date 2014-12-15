@@ -57,11 +57,9 @@ struct kdbus_msg_data {
  * @fds:		Array of file descriptors to pass
  * @fds_count:		Number of file descriptors to pass
  * @data:		Array of data payloads
- * @iov:		Array of iovec, describing the payload to copy
- * @vec_count:		Number of VEC entries in @iov
+ * @vec_count:		Number of VEC entries
  * @memfd_count:	Number of MEMFD entries in @data
  * @data_count:		Sum of @vec_count + @memfd_count
- * @pool_size:		Overall size of inlined data referenced by @iov
  */
 struct kdbus_msg_resources {
 	struct kref kref;
@@ -71,11 +69,9 @@ struct kdbus_msg_resources {
 	unsigned int fds_count;
 
 	struct kdbus_msg_data *data;
-	struct iovec *iov;
 	size_t vec_count;
 	size_t memfd_count;
 	size_t data_count;
-	u64 pool_size;
 };
 
 struct kdbus_msg_resources *
@@ -94,6 +90,8 @@ kdbus_msg_resources_unref(struct kdbus_msg_resources *r);
  * @bloom_filter:	Bloom filter to match message properties
  * @bloom_generation:	Generation of bloom element set
  * @notify_entry:	List of kernel-generated notifications
+ * @iov:		Array of iovec, describing the payload to copy
+ * @pool_size:		Overall size of inlined data referenced by @iov
  * @meta:		Appended SCM-like metadata of the sending process
  * @res:		Message resources
  * @msg:		Message from or to userspace
@@ -109,6 +107,9 @@ struct kdbus_kmsg {
 	const struct kdbus_bloom_filter *bloom_filter;
 	u64 bloom_generation;
 	struct list_head notify_entry;
+
+	struct iovec *iov;
+	u64 pool_size;
 
 	struct kdbus_meta *meta;
 	struct kdbus_msg_resources *res;
