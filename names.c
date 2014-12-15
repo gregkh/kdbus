@@ -605,6 +605,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	mutex_lock(&conn->lock);
 	if (!kdbus_conn_active(conn)) {
 		mutex_unlock(&conn->lock);
+		kfree(e->name);
 		kfree(e);
 		ret = -ECONNRESET;
 		goto exit_unlock;
