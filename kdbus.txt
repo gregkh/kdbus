@@ -1756,7 +1756,9 @@ Metadata is collected in the following circumstances:
 
   * When a message is sent (KDBUS_CMD_SEND), information about the sending task
     and the sending connection are collected. This metadata will be attached
-    to the message when it arrives in the receiver's pool.
+    to the message when it arrives in the receiver's pool. If the connection
+    sending the message installed faked credentials (see above), the message
+    will not be augmented by any information about the currently sending task.
 
 Which metadata items are actually delivered depends on the following sets and
 masks:
