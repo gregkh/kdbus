@@ -729,9 +729,9 @@ struct kdbus_cmd_update {
 6.6 Termination
 ---------------
 
-A connection can be terminated by simply closing the file descriptor that was
-used to start the connection. All pending incoming messages will be discarded,
-and the memory in the pool will be freed.
+A connection can be terminated by simply closing its file descriptor. All
+pending incoming messages will be discarded, and the memory in the pool will
+be freed.
 
 An alternative way of closing down a connection is calling the KDBUS_CMD_BYEBYE
 ioctl on it, which will only succeed if the message queue of the connection is
@@ -1147,6 +1147,9 @@ struct kdbus_cmd_name {
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
 
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
+
   struct kdbus_item items[0];
     Items to submit the name. Currently, one item of type KDBUS_ITEM_NAME is
     expected and allowed, and the contained string must be a valid bus name.
@@ -1172,6 +1175,13 @@ struct kdbus_cmd_name {
     terminator.
 
   __u64 flags;
+    Flags to the command. Currently unused.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
 
   struct kdbus_item items[0];
     Items to submit the name. Currently, one item of type KDBUS_ITEM_NAME is
@@ -1204,6 +1214,12 @@ struct kdbus_cmd_name_list {
     KDBUS_NAME_LIST_QUEUED
       List connections that are not yet owning a name but are waiting for it
       to become available.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
 
   __u64 offset;
     When the ioctl returns successfully, the offset to the name registry dump
@@ -1270,15 +1286,17 @@ The kernel will notify its users of the following events.
     specified timeout window, connection A will receive a message with an item
     of type KDBUS_ITEM_REPLY_TIMEOUT.
 
-  * When a connection is created on or removed from a bus, messages with an
-    item of type KDBUS_ITEM_ID_ADD or KDBUS_ITEM_ID_REMOVE, respectively, are
-    sent to all bus members that match these messages through their match
-    database.
+  * When an ordinary connection (not a monitor) is created on or removed from
+    a bus, messages with an item of type KDBUS_ITEM_ID_ADD or
+    KDBUS_ITEM_ID_REMOVE, respectively, are sent to all bus members that match
+    these messages through their match database. Eavesdroppers (monitor
+    connections) do not cause such notifications to be sent. They are invisible
+    on the bus.
 
-  * When a connection owns or loses a name, or a name is moved from one
-    connection to another, messages with an item of type KDBUS_ITEM_NAME_ADD,
-    KDBUS_ITEM_NAME_REMOVE or KDBUS_ITEM_NAME_CHANGE are sent to all bus
-    members that match these messages through their match database.
+  * When a connection gains or loses ownership of a name, messages with an item
+    of type KDBUS_ITEM_NAME_ADD, KDBUS_ITEM_NAME_REMOVE or
+    KDBUS_ITEM_NAME_CHANGE are sent to all bus members that match these
+    messages through their match database.
 
 A kernel notification is a regular kdbus message with the following details.
 
@@ -1286,6 +1304,8 @@ A kernel notification is a regular kdbus message with the following details.
   * kdbus_msg.dst_id == KDBUS_DST_ID_BROADCAST
   * kdbus_msg.payload_type == KDBUS_PAYLOAD_KERNEL
   * Has exactly one of the aforementioned items attached
+
+Kernel notifications have an item of type KDBUS_ITEM_TIMESTAMP attached.
 
 
 10. Message Matching, Bloom filters
@@ -1372,6 +1392,12 @@ struct kdbus_cmd_match {
     KDBUS_MATCH_REPLACE:
       Remove all entries with the given cookie before installing the new one.
       This allows for race-free replacement of matches.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
 
   struct kdbus_item items[0];
     Items to define the actual rules of the matches. The following item types
@@ -1488,6 +1514,9 @@ struct kdbus_cmd_match {
 
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused.
 
   struct kdbus_item items[0];
     Unused und not allowed for this use case.
@@ -1654,9 +1683,12 @@ Custom endpoints have stricter policies. The following rules apply:
 ===============================================================================
 
 A pool for data received from the kernel is installed for every connection of
-the bus, and is sized according to kdbus_cmd_hello.pool_size. It is accessed
-when one of the following ioctls is issued:
+the bus, and is sized according to the information stored in the
+KDBUS_ITEM_BLOOM_PARAMETER item that is returned by KDBUS_CMD_HELLO.
 
+The pool is written to by the kernel when one of the following ioctls is issued:
+
+  * KDBUS_CMD_HELLO, to receive details about the bus the connection was made to
   * KDBUS_CMD_RECV, to receive a message
   * KDBUS_CMD_NAME_LIST, to dump the name registry
   * KDBUS_CMD_CONN_INFO, to retrieve information on a connection
@@ -1670,11 +1702,15 @@ this:
 
   /*
    * POOL_SIZE has to be a multiple of PAGE_SIZE, and it must match the
-   * value that was previously passed in the .pool_size field of struct
-   * kdbus_cmd_hello.
+   * value that was previously returned through the KDBUS_ITEM_BLOOM_PARAMETER
+   * item field when the KDBUS_CMD_HELLO ioctl returned.
    */
 
   buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
+
+Alternatively, instead of mapping the entire pool buffer, only parts of it can
+be mapped. The length of the response is returned by the kernel along with the
+offset for each of the ioctls listed above.
 
 
 13. Metadata
@@ -1731,8 +1767,8 @@ The following attach flags are currently supported.
 
   KDBUS_ATTACH_PIDS
     Attaches an item of type KDBUS_ITEM_PIDS, containing information on the
-    process. In particular, the PID (process ID) and TID (thread ID), along
-    with the start time of the process to detect re-used PIDs.
+    process. In particular, the PID (process ID), TID (thread ID), and PPID
+    (PID of the parent process).
 
   KDBUS_ATTACH_AUXGROUPS
     Attaches an item of type KDBUS_ITEM_AUXGROUPS, containing a dynamic
@@ -1800,11 +1836,7 @@ The following attach flags are currently supported.
 ----------------------------
 
 Metadata such as PIDs, UIDs or GIDs are automatically translated to the
-namespaces of the domain that is used to send a message over. The namespaces
-of a domain are pinned at creation time, which is when the filesystem has been
-mounted.
-
-Metadata items that cannot be translated are dropped.
+namespaces of the task that receives them.
 
 
 14. Error codes
