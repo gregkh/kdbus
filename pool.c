@@ -653,23 +653,25 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 	return len;
 }
 
-static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
-			   struct file *f_src, loff_t off_src,
-			   unsigned long total_len)
+static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
+			   const struct kdbus_pool_slice *slice_src)
 {
-	struct file *f_dst = slice->pool->f;
+	struct file *f_src = slice_src->pool->f;
+	struct file *f_dst = slice_dst->pool->f;
 	struct inode *i_dst = file_inode(f_dst);
 	struct address_space *mapping_dst = f_dst->f_mapping;
 	const struct address_space_operations *aops = mapping_dst->a_ops;
-	unsigned long off_dst = slice->off;
+	unsigned long len = slice_src->size;
+	loff_t off_src = slice_src->off;
+	loff_t off_dst = slice_dst->off;
 	int ret = 0;
 
-	BUG_ON(off_dst + total_len > slice->size);
-	BUG_ON(slice->free);
+	BUG_ON(slice_src->size != slice_dst->size);
+	BUG_ON(slice_src->free || slice_dst->free);
 
 	mutex_lock(&i_dst->i_mutex);
 
-	while (total_len > 0) {
+	while (len > 0) {
 		unsigned long page_off;
 		unsigned long copy_len;
 		char __user *kaddr;
@@ -680,7 +682,7 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 
 		page_off = off_dst & (PAGE_CACHE_SIZE - 1);
 		copy_len = min_t(unsigned long,
-				 PAGE_CACHE_SIZE - page_off, total_len);
+				 PAGE_CACHE_SIZE - page_off, len);
 
 		status = aops->write_begin(f_dst, mapping_dst, off_dst,
 					   copy_len, 0, &page, &fsdata);
@@ -709,7 +711,7 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 		}
 
 		off_dst += copy_len;
-		total_len -= copy_len;
+		len -= copy_len;
 	}
 
 	mutex_unlock(&i_dst->i_mutex);
@@ -719,7 +721,6 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
 
 /**
  * kdbus_pool_slice_move() - move memory from one pool into another one
- * @pool_src:		The receiver's pool to copy from
  * @pool_dst:		The receiver's pool to copy to
  * @slice:		Reference to the slice to copy from the source;
  *			updated with the newly allocated slice in the
@@ -727,12 +728,11 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice,
  *
  * Move memory from one pool to another. A slice will be allocated in the
  * destination pool, the original memory from the existing slice is copied
- * over, and the existing slice in @pool_src will be released.
+ * over, and the existing slice will be released.
  *
  * Return: 0 on success, negative error number on failure.
  */
-int kdbus_pool_slice_move(struct kdbus_pool *pool_src,
-			  struct kdbus_pool *pool_dst,
+int kdbus_pool_slice_move(struct kdbus_pool *pool_dst,
 			  struct kdbus_pool_slice **slice)
 {
 	mm_segment_t old_fs;
@@ -746,8 +746,7 @@ int kdbus_pool_slice_move(struct kdbus_pool *pool_src,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = kdbus_pool_copy(slice_new, pool_src->f,
-			      (*slice)->off, (*slice)->size);
+	ret = kdbus_pool_copy(slice_new, *slice);
 	set_fs(old_fs);
 	if (ret < 0)
 		goto exit_free;

@@ -464,8 +464,7 @@ int kdbus_queue_entry_move(struct kdbus_conn *conn_src,
 	int ret = 0;
 
 	if (entry->slice_vecs)
-		ret = kdbus_pool_slice_move(conn_src->pool, conn_dst->pool,
-					    &entry->slice_vecs);
+		ret = kdbus_pool_slice_move(conn_dst->pool, &entry->slice_vecs);
 
 	if (ret < 0)
 		kdbus_queue_entry_free(entry);
