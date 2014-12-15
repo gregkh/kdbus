@@ -1716,38 +1716,50 @@ offset for each of the ioctls listed above.
 13. Metadata
 ===============================================================================
 
-When a message is delivered to a receiver connection, it is augmented by
-metadata items in accordance to the destination's current attach flags. The
-information stored in those metadata items refer to the sender task at the
-time of sending the message, so even if any detail of the sender task has
-already changed upon message reception (or if the sender task does not exist
-anymore), the information is still preserved and won't be modified until the
-message is freed.
+kdbus records data about the system in certain situations. Such metadata can
+refer to the currently actvive process (creds, PIDs, current user groups,
+process names and executable, cgroup membership, capabilities, security label
+and audit information), connection information (description string, currently
+owned names) and the timestamp.
 
-Note that there are two exceptions to the above rules:
+Metadata is collected in the following circumstances:
 
-  a) Kernel generated messages don't have a source connection, so they won't be
-     augmented.
+  * When a bus is created (KDBUS_CMD_MAKE), information about the calling task
+    is collected. This data is returned by the kernel via the
+    KDBUS_CMD_BUS_CREATOR_INFO call-
 
-  b) If a connection was created with faked credentials (see section 6.2),
-     the only attached metadata items are the ones provided by the connection
-     itself. Other bits in the destination's attach_flags_recv won't have any
-     effect in such cases.
+  * When a connection is created (KDBUS_CMD_HELLO), information about the
+    calling task is collected. Alternatively, a privileged connection may
+    provide 'faked' information about credentials, PIDs and a security labels
+    which will be taken instead. This data is returned by the kernel as
+    information on a connection (KDBUS_CMD_CONN_INFO).
 
-Also, there are two things to be considered by userspace programs regarding
-those metadata items:
+  * When a message is sent (KDBUS_CMD_SEND), information about the sending task
+    and the sending connection are collected. This metadata will be attached
+    to the message when it arrives in the receiver's pool.
 
-  a) Userspace must cope with the fact that it might get more metadata than
-     they requested. That happens, for example, when a broadcast message is
-     sent and receivers have different attach flags. Items that haven't been
-     requested should hence be silently ignored.
+Which metadata items are actually delivered depends on the following sets and
+masks:
 
-  b) Userspace might not always get all requested metadata items that it
-     requested. That is because some of those items are only added if a
-     corresponding kernel feature has been enabled, or if the sender and
-     receiver are in different namespaces, see section 13.2 ("Metadata
-     and namespaces"). Also, the two exceptions described above will as
-     well lead to less items be attached than requested.
+    (a) the system-wide kmod creds mask (module parameter 'attach_flags_mask')
+    (b) the per-connection send creds mask, set by the connecting client
+    (c) the per-connection receive creds mask, set by the connecting client
+    (d) the per-bus minimal creds mask, set by the bus creator
+    (e) the per-bus owner creds mask, set by the bus creator
+    (f) the mask specified when querying creds of a bus peer
+    (g) the mask specified when querying creds of a bus owner
+
+With the following rules:
+
+    [1] The creds attached to messages are determined as (a & b & c).
+    [2] When connecting to a bus (KDBUS_CMD_HELLO), and (~b & d) != 0, the call
+        will fail, the connection is refused.
+    [3] When querying creds of a bus peer, the creds returned are  (a & b & f)
+    [4] When querying creds of a bus owner, the creds returned are (a & e & g)
+    [5] When creating a new bus, and (d & ~a) != 0, then bus creation will fail
+
+Hence, userspace might not always get all requested metadata items that it
+requested. Code must be written so that it can cope with this fact.
 
 
 13.1 Known item types
