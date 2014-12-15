@@ -408,7 +408,7 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
  * kdbus_pool_slice_publish() - publish slice to user-space
  * @slice:		The slice
  * @out_offset:		Output storage for offset, or NULL
- * @out_size:		Output stoarge for size, or NULL
+ * @out_size:		Output storage for size, or NULL
  *
  * This prepares a slice to be published to user-space.
  *
