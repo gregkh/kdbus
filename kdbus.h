@@ -1022,7 +1022,7 @@ struct kdbus_cmd_match {
  *				a connection is attached to.
  * KDBUS_CMD_ENDPOINT_UPDATE:	Update the properties of a custom enpoint. Used
  *				to update the policy.
- * KDBUS_CMD_MATCH_ADD:	Install a match which broadcast messages should
+ * KDBUS_CMD_MATCH_ADD:		Install a match which broadcast messages should
  *				be delivered to the connection.
  * KDBUS_CMD_MATCH_REMOVE:	Remove a current match for broadcast messages.
  */
