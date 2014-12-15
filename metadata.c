@@ -65,7 +65,7 @@
  * @pid_comm:		COMM of the TGID
  * @tid_comm:		COMM of the PID
  * @caps:		Capabilities
- * @user_namespace:	User namespace, pinned when the metadata was
+ * @caps_namespace:	User namespace, pinned when the metadata was
  *			recorded
  * @root_path:		Root path, pinned when @exe was recorded
  *
@@ -119,13 +119,14 @@ struct kdbus_meta {
 	char tid_comm[TASK_COMM_LEN];
 
 	struct caps {
+		/* binary compatible to kdbus_caps */
 		u32 last_cap;
 		struct {
 			u32 caps[_KERNEL_CAPABILITY_U32S];
 		} set[4];
 	} caps;
+	struct user_namespace *caps_namespace;
 
-	struct user_namespace *user_namespace;
 	struct path root_path;
 };
 
@@ -156,7 +157,7 @@ static void __kdbus_meta_free(struct kref *kref)
 		path_put(&meta->root_path);
 	}
 
-	put_user_ns(meta->user_namespace);
+	put_user_ns(meta->caps_namespace);
 	put_pid(meta->ppid);
 	put_pid(meta->tgid);
 	put_pid(meta->pid);
@@ -326,10 +327,6 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 		meta->sgid	= current_sgid();
 		meta->fsgid	= current_fsgid();
 
-		/* If user_namespace was not pinned, pin it. */
-		if (!meta->user_namespace)
-			meta->user_namespace = get_user_ns(current_user_ns());
-
 		meta->collected |= KDBUS_ATTACH_CREDS;
 	}
 
@@ -437,6 +434,7 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 		const struct cred *c = current_cred();
 
 		meta->caps.last_cap = CAP_LAST_CAP;
+		meta->caps_namespace = get_user_ns(current_user_ns());
 
 		CAP_FOR_EACH_U32(i) {
 			meta->caps.set[0].caps[i] = c->cap_inheritable.cap[i];
@@ -449,10 +447,6 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 		for (i = 0; i < 4; i++)
 			meta->caps.set[i].caps[CAP_TO_INDEX(CAP_LAST_CAP)] &=
 						CAP_LAST_U32_VALID_MASK;
-
-		/* If metadata userns was not pinned, pin it */
-		if (!meta->user_namespace)
-			meta->user_namespace = get_user_ns(current_user_ns());
 
 		meta->collected |= KDBUS_ATTACH_CAPS;
 	}
@@ -642,10 +636,8 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	 * We currently have no sane way of translating a set of caps
 	 * between different user namespaces. Until that changes, we have
 	 * to drop such items.
-	 *
-	 * If meta was faked then meta->user_namespace is NULL.
 	 */
-	if (meta->user_namespace != user_ns)
+	if (meta->caps_namespace != user_ns)
 		mask &= ~KDBUS_ATTACH_CAPS;
 
 	/* First, determine the overall size of all items */
