@@ -239,7 +239,7 @@ int kdbus_test_activator(struct kdbus_test_env *env)
 	struct kdbus_policy_access access[2];
 
 	access[0].type = KDBUS_POLICY_ACCESS_USER;
-	access[0].id = 1001;
+	access[0].id = getuid();
 	access[0].access = KDBUS_POLICY_OWN;
 
 	access[1].type = KDBUS_POLICY_ACCESS_WORLD;
