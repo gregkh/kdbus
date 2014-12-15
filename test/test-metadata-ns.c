@@ -422,8 +422,19 @@ wait:
 	kdbus_printf("\n\nMonitor queue:\n");
 	do {
 		ret = kdbus_msg_recv_poll(monitor, 100, &msg, NULL);
-		if (ret == 0)
+		if (ret == 0) {
+			if (msg->payload_type == KDBUS_PAYLOAD_DBUS) {
+				/*
+				 * Parent pidns should see all the
+				 * pids
+				 */
+				ret = kdbus_cmp_kdbus_pids(msg,
+							   &unmapped_pids);
+				ASSERT_RETURN(ret != 0);
+			}
+
 			kdbus_msg_free(msg);
+		}
 	} while (ret == 0);
 
 	kdbus_conn_free(monitor);
