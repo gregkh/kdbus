@@ -489,8 +489,10 @@ struct kdbus_cmd_hello {
       the well-known name this connection should hold a policy for.
 
     KDBUS_HELLO_MONITOR
-      Make this connection an eaves-dropping connection that receives all
-      unicast messages sent on the bus. To also receive broadcast messages,
+      Make this connection an eaves-dropping connection. See section 6.8 for
+      more information.
+
+To also receive broadcast messages,
       the connection has to upload appropriate matches as well.
       This flag is only valid for privileged bus connections.
 
@@ -726,7 +728,7 @@ struct kdbus_cmd_update {
 };
 
 
-6.6 Termination
+6.7 Termination
 ---------------
 
 A connection can be terminated by simply closing its file descriptor. All
@@ -740,6 +742,24 @@ empty at the time of closing, otherwise, -EBUSY is returned.
 When this ioctl returns successfully, the connection has been terminated and
 won't accept any new messages from remote peers. This way, a connection can
 be terminated race-free, without losing any messages.
+
+
+6.8 Monitor connections ('eavesdropper')
+----------------------------------------
+
+Eavesdropping connections are created by setting the KDBUS_HELLO_MONITOR flag
+in struct kdbus_hello.flags. Such connections have all properties of any other,
+regular connection, except for the following details:
+
+  * They will get every message sent over the bus, both unicasts and broadcasts
+
+  * Installing matches for broadcast messages is neither necessary nor allowed
+
+  * They cannot send messages or be directly addressed as receiver
+
+  * Their creation and destruction will not cause KDBUS_ITEM_ID_{ADD,REMOVE}
+    notifications to be generated, so other connections cannot detect the
+    presence of an eavesdropper.
 
 
 7. Messages
