@@ -1737,8 +1737,8 @@ offset for each of the ioctls listed above.
 ===============================================================================
 
 kdbus records data about the system in certain situations. Such metadata can
-refer to the currently actvive process (creds, PIDs, current user groups,
-process names and executable, cgroup membership, capabilities, security label
+refer to the currently active process (creds, PIDs, current user groups, process
+names and its executable path, cgroup membership, capabilities, security label
 and audit information), connection information (description string, currently
 owned names) and the timestamp.
 
