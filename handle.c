@@ -707,10 +707,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		if (kdbus_member_set_user(&cmd_send->return_flags, buf,
 					  struct kdbus_cmd_send,
-					  return_flags)) {
+					  return_flags))
 			ret = -EFAULT;
-			break;
-		}
 
 		/* store the reply back to userspace */
 		if (cmd_send->flags & KDBUS_SEND_SYNC_REPLY) {
