@@ -383,8 +383,7 @@ void kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
  * verifies the slice is available and public, and then drops it. It ensures
  * correct locking and barriers against queues.
  *
- * Return: 0 on success, ENXIO if the offset is invalid, EINVAL if the offset is
- * valid but not public.
+ * Return: 0 on success, ENXIO if the offset is invalid or not public.
  */
 int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
 {
