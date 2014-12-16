@@ -32,6 +32,7 @@ struct kdbus_test_args {
 	int loop;
 	int wait;
 	int fork;
+	int tap_output;
 	char *module;
 	char *root;
 	char *test;
@@ -269,8 +270,9 @@ static const struct kdbus_test tests[] = {
 		.func	= kdbus_test_attach_flags,
 		.flags	= 0,
 	},
-	{ NULL } /* sentinel */
 };
+
+#define N_TESTS ((int) (sizeof(tests) / sizeof(tests[0])))
 
 static int test_prepare_env(const struct kdbus_test *t,
 			    const struct kdbus_test_args *args,
@@ -400,15 +402,23 @@ static int start_all_tests(struct kdbus_test_args *kdbus_args)
 	unsigned int skip_cnt = 0;
 	unsigned int ok_cnt = 0;
 	unsigned int i;
-	const struct kdbus_test *t;
+
+	if (kdbus_args->tap_output)
+		printf("1..%d\n", N_TESTS);
 
 	kdbus_util_verbose = false;
 
-	for (t = tests; t->name; t++) {
-		printf("Testing %s (%s) ", t->desc, t->name);
-		for (i = 0; i < 60 - strlen(t->desc) - strlen(t->name); i++)
-			printf(".");
-		printf(" ");
+	for (i = 0; i < N_TESTS; i++) {
+		const struct kdbus_test *t = tests + i;
+
+		if (!kdbus_args->tap_output) {
+			unsigned int n;
+
+			printf("Testing %s (%s) ", t->desc, t->name);
+			for (n = 0; n < 60 - strlen(t->desc) - strlen(t->name); n++)
+				printf(".");
+			printf(" ");
+		}
 
 		ret = test_run_forked(t, kdbus_args, 0);
 		switch (ret) {
@@ -423,23 +433,35 @@ static int start_all_tests(struct kdbus_test_args *kdbus_args)
 			break;
 		}
 
-		print_test_result(ret);
-		printf("\n");
+		if (kdbus_args->tap_output) {
+			printf("%sok %d - %s%s (%s)\n",
+			       (ret != TEST_OK) ? "not " : "", i + 1,
+			       (ret == TEST_SKIP) ? "# SKIP " : "",
+			       t->desc, t->name);
+		} else {
+			print_test_result(ret);
+			printf("\n");
+		}
 	}
 
-	printf("\nSUMMARY: %u tests passed, %u skipped, %u failed\n",
-	       ok_cnt, skip_cnt, fail_cnt);
+	if (kdbus_args->tap_output)
+		printf("Failed %d/%d tests, %.2f%% okay\n", fail_cnt, N_TESTS,
+		       100.0 - (fail_cnt * 100.0) / ((float) N_TESTS));
+	else
+		printf("\nSUMMARY: %u tests passed, %u skipped, %u failed\n",
+		       ok_cnt, skip_cnt, fail_cnt);
 
 	return fail_cnt > 0 ? TEST_ERR : TEST_OK;
 }
 
 static int start_one_test(struct kdbus_test_args *kdbus_args)
 {
-	int ret;
+	int i, ret;
 	bool test_found = false;
-	const struct kdbus_test *t;
 
-	for (t = tests; t->name; t++) {
+	for (i = 0; i < N_TESTS; i++) {
+		const struct kdbus_test *t = tests + i;
+
 		if (strcmp(t->name, kdbus_args->test))
 			continue;
 
@@ -473,7 +495,6 @@ static int start_one_test(struct kdbus_test_args *kdbus_args)
 
 static void usage(const char *argv0)
 {
-	const struct kdbus_test *t;
 	unsigned int i;
 
 	printf("Usage: %s [options]\n"
@@ -486,12 +507,15 @@ static void usage(const char *argv0)
 	       "\t-t, --test <test-id>	Run one specific test only, in verbose mode\n"
 	       "\t-b, --bus <busname>	Instead of generating a random bus name, take <busname>.\n"
 	       "\t-w, --wait <secs>	Wait <secs> before actually starting test\n"
+	       "\t-a, --tap		Output test results in TAP format\n"
 	       "\n", argv0);
 
 	printf("By default, all test are run once, and a summary is printed.\n"
 	       "Available tests for --test:\n\n");
 
-	for (t = tests; t->name; t++) {
+	for (i = 0; i < N_TESTS; i++) {
+		const struct kdbus_test *t = tests + i;
+
 		printf("\t%s", t->name);
 
 		for (i = 0; i < 24 - strlen(t->name); i++)
@@ -520,12 +544,12 @@ void print_metadata_support(void)
 	no_meta_seclabel = !config_security_is_enabled();
 
 	if (no_meta_audit | no_meta_cgroups | no_meta_seclabel)
-		printf("Starting tests without %s%s%s metadata support\n",
+		printf("# Starting tests without %s%s%s metadata support\n",
 		       no_meta_audit ? "AUDIT" : "",
 		       no_meta_cgroups ? "CGROUP" : "",
 		       no_meta_seclabel ? "SECLABEL" : "");
 	else
-		printf("Starting tests with full metadata support\n");
+		printf("# Starting tests with full metadata support\n");
 }
 
 int start_tests(struct kdbus_test_args *kdbus_args)
@@ -592,12 +616,13 @@ int main(int argc, char *argv[])
 		{ "wait",	required_argument,	NULL, 'w' },
 		{ "fork",	no_argument,		NULL, 'f' },
 		{ "module",	required_argument,	NULL, 'm' },
+		{ "tap",	no_argument,		NULL, 'a' },
 		{}
 	};
 
 	srand(time(NULL));
 
-	while ((t = getopt_long(argc, argv, "hxfm:r:t:b:w:", options, NULL)) >= 0) {
+	while ((t = getopt_long(argc, argv, "hxfm:r:t:b:w:a", options, NULL)) >= 0) {
 		switch (t) {
 		case 'x':
 			kdbus_args->loop = 1;
@@ -625,6 +650,10 @@ int main(int argc, char *argv[])
 
 		case 'f':
 			kdbus_args->fork = 1;
+			break;
+
+		case 'a':
+			kdbus_args->tap_output = 1;
 			break;
 
 		default:
