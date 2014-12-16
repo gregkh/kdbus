@@ -267,6 +267,8 @@ int kdbus_meta_add_fake(struct kdbus_meta *meta,
 		meta->seclabel = kstrdup(seclabel, GFP_KERNEL);
 		if (!meta->seclabel)
 			return -ENOMEM;
+
+		meta->collected |= KDBUS_ATTACH_SECLABEL;
 	}
 
 	return 0;
