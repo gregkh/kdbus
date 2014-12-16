@@ -193,7 +193,7 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * @vec_count:	Number of elements in @kvec or @iovec
  *
  * The returned slice is used for kdbus_pool_slice_release() to
- * free the allocated memory. If either @kvec or æiovec is non-NULL, the data
+ * free the allocated memory. If either @kvec or @iovec is non-NULL, the data
  * will be copied from kernel or userspace memory into the new slice at
  * offset 0.
  *
