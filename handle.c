@@ -49,7 +49,7 @@ enum kdbus_handle_ep_type {
 };
 
 /**
- * struct handle_ep - an endpoint handle to the kdbus system
+ * struct kdbus_handle_ep - an endpoint handle to the kdbus system
  * @lock:		Handle lock
  * @ep:			The endpoint for this handle
  * @type:		Type of this handle (KDBUS_HANDLE_EP_*)
