@@ -1132,13 +1132,14 @@ static void __kdbus_conn_free(struct kref *kref)
 
 /**
  * kdbus_conn_ref() - take a connection reference
- * @conn:		Connection
+ * @conn:		Connection, may be %NULL
  *
  * Return: the connection itself
  */
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
 {
-	kref_get(&conn->kref);
+	if (conn)
+		kref_get(&conn->kref);
 	return conn;
 }
 
