@@ -22,8 +22,8 @@
 
 struct kdbus_kmsg;
 
-/*
- * struct kdbus_endpoint - enpoint to access a bus
+/**
+ * struct kdbus_ep - enpoint to access a bus
  * @node:		The kdbus node
  * @bus:		Bus behind this endpoint
  * @id:			ID of this endpoint on the bus
@@ -31,7 +31,6 @@ struct kdbus_kmsg;
  * @lock:		Endpoint data lock
  * @user:		Custom enpoints account against an anonymous user
  * @policy_db:		Uploaded policy
- * @disconnected:	Invalidated data
  * @has_policy:		The policy-db is valid and should be used
  *
  * An enpoint offers access to a bus; the default endpoint node name is "bus".
