@@ -68,6 +68,7 @@
  * @caps_namespace:	User namespace, pinned when the metadata was
  *			recorded
  * @root_path:		Root path, pinned when @exe was recorded
+ * @tmp:		Temporary buffer
  *
  * Data in this struct is only written by the following functions:
  *
@@ -128,6 +129,8 @@ struct kdbus_meta {
 	struct user_namespace *caps_namespace;
 
 	struct path root_path;
+
+	char tmp[PAGE_SIZE];
 };
 
 /**
@@ -414,10 +417,9 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 #ifdef CONFIG_CGROUPS
 	/* attach the path of the one group hierarchy specified for the bus */
 	if (mask & KDBUS_ATTACH_CGROUP) {
-		char tmp[256];
 		char *s;
 
-		s = task_cgroup_path(current, tmp, sizeof(tmp));
+		s = task_cgroup_path(current, meta->tmp, sizeof(meta->tmp));
 		if (s) {
 			meta->cgroup = kstrdup(s, GFP_KERNEL);
 			if (!meta->cgroup)
@@ -614,7 +616,7 @@ exit_unlock:
  * Return: An array of items on success, ERR_PTR value on errors. On success,
  * @sz is also set to the number of bytes returned in the items array.
  */
-struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
+struct kdbus_item *kdbus_meta_export(struct kdbus_meta *meta,
 				     u64 mask, size_t *sz)
 {
 	struct user_namespace *user_ns = current_user_ns();
@@ -622,11 +624,6 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	char *exe_pathname = NULL;
 	size_t size = 0;
 	int ret = 0;
-	u8 *tmp;
-
-	tmp = (char *)__get_free_page(GFP_TEMPORARY | __GFP_ZERO);
-	if (!tmp)
-		return ERR_PTR(-ENOMEM);
 
 	mask &= meta->collected & kdbus_meta_attach_mask;
 
@@ -671,8 +668,8 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 
 		get_fs_root(current->fs, &p);
 		if (path_equal(&p, &meta->root_path)) {
-			exe_pathname = d_path(&meta->exe->f_path, tmp,
-					      PAGE_SIZE);
+			exe_pathname = d_path(&meta->exe->f_path,
+					      meta->tmp, sizeof(meta->tmp));
 			if (IS_ERR(exe_pathname)) {
 				ret = PTR_ERR(exe_pathname);
 				goto exit_free;
@@ -839,8 +836,6 @@ struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 	*sz = size;
 
 exit_free:
-	free_page((unsigned long) tmp);
-
 	if (ret < 0)
 		return ERR_PTR(ret);
 
