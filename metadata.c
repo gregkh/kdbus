@@ -350,8 +350,6 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 		info = get_current_groups();
 
 		if (info->ngroups > 0) {
-			int i;
-
 			meta->auxgrps = kmalloc_array(info->ngroups,
 						      sizeof(kgid_t),
 						      GFP_KERNEL);
@@ -525,10 +523,10 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 {
 	const struct kdbus_name_entry *e;
 	struct kdbus_item *item;
-	bool meta_names;
 	bool meta_description;
-	int ret = 0;
+	bool meta_names;
 	size_t len = 0;
+	int ret = 0;
 
 	if (!conn)
 		return 0;
@@ -614,7 +612,7 @@ exit_unlock:
  * longer needed.
  *
  * Return: An array of items on success, ERR_PTR value on errors. On success,
- * @sz is also set to the number of bytes stored in the items array.
+ * @sz is also set to the number of bytes returned in the items array.
  */
 struct kdbus_item *kdbus_meta_export(const struct kdbus_meta *meta,
 				     u64 mask, size_t *sz)
