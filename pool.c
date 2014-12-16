@@ -235,16 +235,10 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	}
 
 	/* no exact match, use the closest one */
-	if (!n)
-		s = rb_entry(found, struct kdbus_pool_slice, rb_node);
-
-	/* move slice from free to the busy tree */
-	rb_erase(found, &pool->slices_free);
-	kdbus_pool_add_busy_slice(pool, s);
-
-	/* we got a slice larger than what we asked for? */
-	if (s->size > slice_size) {
+	if (!n) {
 		struct kdbus_pool_slice *s_new;
+
+		s = rb_entry(found, struct kdbus_pool_slice, rb_node);
 
 		/* split-off the remainder of the size to its own slice */
 		s_new = kdbus_pool_slice_new(pool, s->off + slice_size,
@@ -260,6 +254,10 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 		/* adjust our size now that we split-off another slice */
 		s->size = slice_size;
 	}
+
+	/* move slice from free to the busy tree */
+	rb_erase(found, &pool->slices_free);
+	kdbus_pool_add_busy_slice(pool, s);
 
 	WARN_ON(s->ref_kernel || s->ref_user);
 
