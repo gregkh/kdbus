@@ -25,7 +25,6 @@
 /**
  * struct kdbus_bus - bus in a domain
  * @node:		kdbus_node
- * @disconnected:	Invalidated data
  * @domain:		Domain of this bus
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
