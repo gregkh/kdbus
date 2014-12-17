@@ -13,6 +13,7 @@
 
 #include <linux/ctype.h>
 #include <linux/fs.h>
+#include <linux/signal.h>
 #include <linux/string.h>
 
 #include "item.h"
@@ -128,6 +129,11 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 
 	case KDBUS_ITEM_AUXGROUPS:
 		if (payload_size % sizeof(u32) != 0)
+			return -EINVAL;
+		break;
+
+	case KDBUS_ITEM_SIGMASK:
+		if (payload_size != sizeof(sigset_t))
 			return -EINVAL;
 		break;
 

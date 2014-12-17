@@ -301,6 +301,7 @@ enum kdbus_item_type {
 	KDBUS_ITEM_ATTACH_FLAGS_RECV,
 	KDBUS_ITEM_ID,
 	KDBUS_ITEM_NAME,
+	KDBUS_ITEM_SIGMASK,
 
 	/* keep these item types in sync with KDBUS_ATTACH_* flags */
 	_KDBUS_ITEM_ATTACH_BASE	= 0x1000,
@@ -380,6 +381,7 @@ struct kdbus_item {
 		struct kdbus_notify_name_change name_change;
 		struct kdbus_notify_id_change id_change;
 		struct kdbus_policy_access policy_access;
+		__u64 sigmask;
 	};
 };
 

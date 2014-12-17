@@ -621,6 +621,8 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 u64 timeout_ns)
 {
 	struct kdbus_queue_entry *entry;
+	struct kdbus_item *sigmask_item;
+	sigset_t sigsaved;
 	int r, ret;
 
 	if (WARN_ON(!reply_wait))
@@ -631,6 +633,16 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	 * by the timeout scans that might be conducted for other,
 	 * asynchronous replies of conn_src.
 	 */
+
+	sigmask_item = kdbus_items_get(cmd_send->items,
+				       KDBUS_ITEMS_SIZE(cmd_send, items),
+				       KDBUS_ITEM_SIGMASK);
+	if (sigmask_item) {
+		sigset_t sigmask;
+		memcpy(&sigmask, &sigmask_item->sigmask, sizeof(sigmask));
+		sigprocmask(SIG_SETMASK, &sigmask, &sigsaved);
+	}
+
 	r = wait_event_interruptible_timeout(reply_wait->reply_dst->wait,
 		!reply_wait->waiting || !kdbus_conn_active(conn_src),
 		nsecs_to_jiffies(timeout_ns));
@@ -649,6 +661,9 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 
 		return r;
 	}
+
+	if (sigmask_item)
+		sigprocmask(SIG_SETMASK, &sigsaved, NULL);
 
 	if (r == 0)
 		ret = -ETIMEDOUT;
