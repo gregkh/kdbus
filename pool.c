@@ -334,7 +334,8 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 
 	if (child) {
 		/* Only allow one level of recursion */
-		BUG_ON(child->child);
+		WARN_ON(child->child);
+		WARN_ON(!child->ref_kernel);
 		child->ref_kernel = false;
 		__kdbus_pool_slice_release(child);
 	}
