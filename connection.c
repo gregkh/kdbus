@@ -930,8 +930,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst,
 					      kmsg, reply_wait);
 		if (ret < 0) {
-			if (reply_wait)
-				kdbus_conn_reply_unref(reply_wait);
+			kdbus_conn_reply_unref(reply_wait);
 			goto exit_unref;
 		}
 	}
