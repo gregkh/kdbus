@@ -49,9 +49,8 @@ struct kdbus_ep {
 	bool has_policy:1;
 };
 
-#define kdbus_ep_from_node(_node) container_of((_node), \
-					       struct kdbus_ep, \
-					       node)
+#define kdbus_ep_from_node(_node) \
+	container_of((_node), struct kdbus_ep, node)
 
 struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 			      unsigned int access, kuid_t uid, kgid_t gid,

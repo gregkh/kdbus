@@ -66,8 +66,8 @@ exit_free:
 
 static void kdbus_domain_free(struct kdbus_node *node)
 {
-	struct kdbus_domain *domain = container_of(node, struct kdbus_domain,
-						   node);
+	struct kdbus_domain *domain =
+		container_of(node, struct kdbus_domain, node);
 
 	BUG_ON(!hash_empty(domain->user_hash));
 

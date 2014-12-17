@@ -63,9 +63,8 @@ struct kdbus_domain_user {
 	atomic_t connections;
 };
 
-#define kdbus_domain_from_node(_node) container_of((_node), \
-						   struct kdbus_domain, \
-						   node)
+#define kdbus_domain_from_node(_node) \
+	container_of((_node), struct kdbus_domain, node)
 
 struct kdbus_domain *kdbus_domain_new(unsigned int access);
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
