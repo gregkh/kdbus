@@ -311,7 +311,7 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *mdb,
 }
 
 static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
-					  uint64_t cookie)
+					  u64 cookie)
 {
 	struct kdbus_match_entry *entry, *tmp;
 	bool found = false;

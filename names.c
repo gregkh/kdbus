@@ -722,9 +722,9 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 
 	/* fake the header of a kdbus_name item */
 	struct {
-		__u64 size;
-		__u64 type;
-		__u64 flags;
+		u64 size;
+		u64 type;
+		u64 flags;
 	} h = {};
 
 	if (e && kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,

@@ -413,7 +413,7 @@ exit_unlock:
 static struct kdbus_conn_reply *
 kdbus_conn_reply_find(struct kdbus_conn *conn_replying,
 		      struct kdbus_conn *conn_reply_dst,
-		      uint64_t cookie)
+		      u64 cookie)
 {
 	struct kdbus_conn_reply *r, *reply = NULL;
 
