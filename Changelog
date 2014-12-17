@@ -18,6 +18,12 @@ since v2:
   * Add {e,s,fs}{u,g}id to KDBUS_ITEM_CREDS, so users have a way to
     get more fine-grained credential information.
 
+  * Removed KDBUS_CMD_CANCEL. The interface was not usable from
+    threaded userspace implementation due to inherit races. Instead,
+    add an item type KDBUS_ITEM_SIGMASK to store a sigmask that is
+    set before the sync SEND ioctl puts the task to sleep, and restore
+    it afterwards, similar to ppoll().
+
   * Dropped startttime from KDBUS_ITEM_PIDS
 
   * Restrict names of custom endpoints to names with a "<uid>-" prefix,
