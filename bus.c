@@ -40,8 +40,8 @@ static void kdbus_bus_free(struct kdbus_node *node)
 {
 	struct kdbus_bus *bus = container_of(node, struct kdbus_bus, node);
 
-	BUG_ON(!list_empty(&bus->monitors_list));
-	BUG_ON(!hash_empty(bus->conn_hash));
+	WARN_ON(!list_empty(&bus->monitors_list));
+	WARN_ON(!hash_empty(bus->conn_hash));
 
 	kdbus_notify_free(bus);
 
