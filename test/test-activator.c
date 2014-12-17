@@ -299,6 +299,10 @@ int kdbus_test_activator(struct kdbus_test_env *env)
 		}
 	}
 
+	/* Check if all uids/gids are mapped */
+	if (!all_uids_gids_are_mapped())
+		return TEST_SKIP;
+
 	/* Check now capabilities, so we run the previous tests */
 	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
 	ASSERT_RETURN(ret >= 0);
