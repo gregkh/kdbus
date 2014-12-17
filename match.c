@@ -476,6 +476,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
 
+	if (ret < 0)
+		goto exit;
+
 	down_write(&mdb->mdb_rwlock);
 
 	/* Remove any entry that has the same cookie as the current one. */
@@ -489,14 +492,15 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	if (++mdb->entries_count > KDBUS_MATCH_MAX) {
 		--mdb->entries_count;
 		ret = -EMFILE;
+	} else {
+		list_add_tail(&entry->list_entry, &mdb->entries_list);
 	}
 
-	if (ret == 0)
-		list_add_tail(&entry->list_entry, &mdb->entries_list);
-	else
-		kdbus_match_entry_free(entry);
-
 	up_write(&mdb->mdb_rwlock);
+
+exit:
+	if (ret < 0)
+		kdbus_match_entry_free(entry);
 
 	return ret;
 }
