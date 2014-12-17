@@ -94,6 +94,9 @@ struct kdbus_match_rule {
 
 static void kdbus_match_rule_free(struct kdbus_match_rule *rule)
 {
+	if (!rule)
+		return;
+
 	switch (rule->type) {
 	case KDBUS_ITEM_BLOOM_MASK:
 		kfree(rule->bloom_mask.data);
@@ -389,6 +392,8 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			break;
 		}
 
+		rule->type = item->type;
+
 		switch (item->type) {
 		/* First matches for userspace messages */
 		case KDBUS_ITEM_BLOOM_MASK: {
@@ -467,11 +472,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		}
 
 		if (ret < 0) {
-			kfree(rule);
+			kdbus_match_rule_free(rule);
 			break;
 		}
-
-		rule->type = item->type;
 
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
