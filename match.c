@@ -393,6 +393,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		}
 
 		rule->type = item->type;
+		INIT_LIST_HEAD(&rule->rules_entry);
 
 		switch (item->type) {
 		/* First matches for userspace messages */
