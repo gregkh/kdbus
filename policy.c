@@ -144,8 +144,6 @@ void kdbus_policy_db_clear(struct kdbus_policy_db *db)
 	struct hlist_node *tmp;
 	unsigned int i;
 
-	BUG_ON(!db);
-
 	/* purge entries */
 	down_write(&db->entries_rwlock);
 	hash_for_each_safe(db->entries_hash, i, tmp, e, hentry) {
