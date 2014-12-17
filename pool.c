@@ -260,11 +260,10 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	kdbus_pool_add_busy_slice(pool, s);
 
 	WARN_ON(s->ref_kernel || s->ref_user);
+	WARN_ON(s->child);
 
 	s->ref_kernel = true;
-	s->ref_user = false;
 	s->free = false;
-	s->child = NULL;
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
 
@@ -326,7 +325,6 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 			s->size += slice->size;
 			kfree(slice);
 			slice = s;
-			slice->child = child;
 		}
 	}
 
