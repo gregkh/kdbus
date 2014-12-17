@@ -69,7 +69,7 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	struct kdbus_domain *domain =
 		container_of(node, struct kdbus_domain, node);
 
-	BUG_ON(!hash_empty(domain->user_hash));
+	WARN_ON(!hash_empty(domain->user_hash));
 
 	put_user_ns(domain->user_namespace);
 	idr_destroy(&domain->user_idr);
@@ -303,8 +303,8 @@ static void __kdbus_domain_user_free(struct kref *kref)
 	struct kdbus_domain_user *user =
 		container_of(kref, struct kdbus_domain_user, kref);
 
-	BUG_ON(atomic_read(&user->buses) > 0);
-	BUG_ON(atomic_read(&user->connections) > 0);
+	WARN_ON(atomic_read(&user->buses) > 0);
+	WARN_ON(atomic_read(&user->connections) > 0);
 
 	/*
 	 * Lookups ignore objects with a ref-count of 0. Therefore, we can
