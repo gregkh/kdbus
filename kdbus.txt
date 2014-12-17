@@ -1094,18 +1094,6 @@ The caller is obliged to call KDBUS_CMD_FREE with the returned offset when
 the memory is no longer needed.
 
 
-7.5 Canceling messages synchronously waiting for replies
---------------------------------------------------------
-
-When a connection sends a message with KDBUS_MSG_SYNC_REPLY and blocks while
-waiting for the reply, the KDBUS_CMD_CANCEL ioctl can be used on the same file
-descriptor to cancel blocking wait, based on its cookie. If there are multiple
-messages with the same cookie that are all synchronously waiting for a reply,
-all of them will be canceled. Obviously, this is only possible in
-multi-threaded applications. Note that the original message itself still ends
-up in the receiver's pool if the reply wait is cancelled.
-
-
 8. Name registry
 ===============================================================================
 
@@ -1977,7 +1965,6 @@ For KDBUS_CMD_SEND:
   -EPIPE	When sending a message, a synchronous reply from the receiving
 		connection was expected but the connection died before
 		answering
-  -ECANCELED	A synchronous message sending was cancelled
   -ENOBUFS	Too many pending messages on the receiver side
   -EREMCHG	Both a well-known name and a unique name (ID) was given, but
 		the name is not currently owned by that connection.
@@ -1991,11 +1978,6 @@ For KDBUS_CMD_RECV:
   -EAGAIN	No message found in the queue
   -ENOMSG	No message of the requested priority found
   -EOVERFLOW	Broadcast messages have been lost
-
-For KDBUS_CMD_CANCEL:
-
-  -EINVAL	Invalid flags
-  -ENOENT	Pending message with the supplied cookie not found
 
 For KDBUS_CMD_FREE:
 

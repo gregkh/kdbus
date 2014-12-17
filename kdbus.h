@@ -565,26 +565,6 @@ struct kdbus_cmd_recv {
 } __attribute__((aligned(8)));
 
 /**
- * struct kdbus_cmd_cancel - struct to cancel a synchronously pending message
- * @size:		Overall size of this object
- * @flags:		Flags for the free command. Currently unused.
- * @kernel_flags:	Supported flags of CANCEL, kernel → userspace
- * @return_flags:	Command return flags, kernel → userspace
- * @cookie:		The cookie of the pending message
- * @items:		Items to modify the command behavior
- *
- * This struct is used with the KDBUS_CMD_CANCEL ioctl.
- */
-struct kdbus_cmd_cancel {
-	__u64 size;
-	__u64 flags;
-	__u64 kernel_flags;
-	__u64 return_flags;
-	__u64 cookie;
-	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
-
-/**
  * struct kdbus_cmd_free - struct to free a slice of memory in the pool
  * @size:		Overall size of this structure
  * @offset:		The offset of the memory slice, as returned by other
@@ -998,9 +978,6 @@ struct kdbus_cmd_match {
  *				the kernel.
  * KDBUS_CMD_RECV:		Receive a message from the kernel which is
  *				placed in the receiver's pool.
- * KDBUS_CMD_CANCEL:		Cancel a pending request of a message that
- *				blocks while waiting for a reply. The parameter
- *				denotes the cookie of the message in flight.
  * KDBUS_CMD_FREE:		Release the allocated memory in the receiver's
  *				pool.
  * KDBUS_CMD_NAME_ACQUIRE:	Request a well-known bus name to associate with
@@ -1039,8 +1016,6 @@ struct kdbus_cmd_match {
 					      struct kdbus_cmd_send)
 #define KDBUS_CMD_RECV			_IOWR(KDBUS_IOCTL_MAGIC, 0x31,	\
 					      struct kdbus_cmd_recv)
-#define KDBUS_CMD_CANCEL		_IOW(KDBUS_IOCTL_MAGIC, 0x32,	\
-					     struct kdbus_cmd_cancel)
 #define KDBUS_CMD_FREE			_IOW(KDBUS_IOCTL_MAGIC, 0x33,	\
 					     struct kdbus_cmd_free)
 

@@ -777,47 +777,6 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_CANCEL: {
-		struct kdbus_cmd_cancel *cmd_cancel;
-
-		if (!kdbus_conn_is_ordinary(conn)) {
-			ret = -EOPNOTSUPP;
-			break;
-		}
-
-		cmd_cancel = kdbus_memdup_user(buf, sizeof(*cmd_cancel),
-					       KDBUS_CMD_MAX_SIZE);
-		if (IS_ERR(cmd_cancel)) {
-			ret = PTR_ERR(cmd_cancel);
-			break;
-		}
-
-		free_ptr = cmd_cancel;
-
-		ret = kdbus_negotiate_flags(cmd_cancel, buf,
-					    typeof(*cmd_cancel), 0);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(cmd_cancel->items,
-					   KDBUS_ITEMS_SIZE(cmd_cancel, items));
-		if (ret < 0)
-			break;
-
-		cmd_cancel->return_flags = 0;
-
-		ret = kdbus_cmd_msg_cancel(conn, cmd_cancel);
-		if (ret < 0)
-			break;
-
-		if (kdbus_member_set_user(&cmd_cancel->return_flags, buf,
-					  struct kdbus_cmd_cancel,
-					  return_flags))
-			ret = -EFAULT;
-
-		break;
-	}
-
 	case KDBUS_CMD_FREE: {
 		struct kdbus_cmd_free *cmd_free;
 		const struct kdbus_item *item;
