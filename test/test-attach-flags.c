@@ -690,6 +690,18 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 	if (!ret)
 		return TEST_SKIP;
 
+	/*
+	 * We need to be able to write to
+	 * "/sys/module/kdbus/parameters/attach_flags_mask"
+	 * perhaps we are unprvileged/privileged in its userns
+	 */
+	ret = access(env->mask_param_path, W_OK);
+	if (ret < 0) {
+		kdbus_printf("--- access() '%s' failed: %d (%m)\n",
+			     env->mask_param_path, -errno);
+		return TEST_SKIP;
+	}
+
 	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
 					     &old_kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
