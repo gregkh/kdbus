@@ -751,6 +751,7 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 {
 	int ret;
 	bool namespaces;
+	uint64_t kdbus_param_mask;
 	static char fspath[4096], parampath[4096];
 
 	namespaces = (kdbus_args->mntns || kdbus_args->pidns ||
@@ -791,6 +792,14 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 		 "/sys/module/%s/parameters/attach_flags_mask",
 		 kdbus_args->module);
 	kdbus_args->mask_param_path = parampath;
+
+	ret = kdbus_sysfs_get_parameter_mask(kdbus_args->mask_param_path,
+					     &kdbus_param_mask);
+	if (ret < 0)
+		return TEST_ERR;
+
+	printf("# Starting tests with an attach_flags_mask=0x%llx\n",
+		(unsigned long long)kdbus_param_mask);
 
 	/* Start tests */
 	if (namespaces)
