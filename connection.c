@@ -671,6 +671,9 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	struct kdbus_queue_entry *entry;
 	int r, ret;
 
+	if (WARN_ON(!reply_wait))
+		return -EIO;
+
 	/*
 	 * Block until the reply arrives. reply_wait is left untouched
 	 * by the timeout scans that might be conducted for other,
@@ -939,23 +942,17 @@ wait_sync:
 
 	if (sync) {
 		struct timespec64 ts;
-		u64 now, timeout;
-
-		if (WARN_ON(!reply_wait)) {
-			ret = -EIO;
-			goto exit_unref;
-		}
+		u64 now;
 
 		ktime_get_ts64(&ts);
 		now = timespec64_to_ns(&ts);
 
-		if (unlikely(msg->timeout_ns <= now))
-			timeout = 0;
+		if (likely(msg->timeout_ns > now))
+			ret = kdbus_conn_wait_reply(conn_src, conn_dst,
+						    cmd_send, reply_wait,
+						    msg->timeout_ns - now);
 		else
-			timeout = msg->timeout_ns - now;
-
-		ret = kdbus_conn_wait_reply(conn_src, conn_dst, cmd_send,
-					    reply_wait, timeout);
+			ret = -ETIMEDOUT;
 	}
 
 exit_unref:
