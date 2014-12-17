@@ -10,7 +10,13 @@
 #include <assert.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <signal.h>
+#include <sys/mount.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
+#include <sys/syscall.h>
+#include <sys/eventfd.h>
+#include <linux/sched.h>
 
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -29,6 +35,11 @@ struct kdbus_test {
 };
 
 struct kdbus_test_args {
+	bool mntns;
+	bool pidns;
+	bool userns;
+	char *uid_map;
+	char *gid_map;
 	int loop;
 	int wait;
 	int fork;
@@ -499,6 +510,7 @@ static void usage(const char *argv0)
 
 	printf("Usage: %s [options]\n"
 	       "Options:\n"
+	       "\t-a, --tap		Output test results in TAP format\n"
 	       "\t-m, --module <module>	Kdbus module name\n"
 	       "\t-x, --loop		Run in a loop\n"
 	       "\t-f, --fork		Fork before running a test\n"
@@ -507,7 +519,11 @@ static void usage(const char *argv0)
 	       "\t-t, --test <test-id>	Run one specific test only, in verbose mode\n"
 	       "\t-b, --bus <busname>	Instead of generating a random bus name, take <busname>.\n"
 	       "\t-w, --wait <secs>	Wait <secs> before actually starting test\n"
-	       "\t-a, --tap		Output test results in TAP format\n"
+	       "\t    --mntns		New mount namespace\n"
+	       "\t    --pidns		New PID namespace\n"
+	       "\t    --userns		New user namespace\n"
+	       "\t    --uidns uid_map	UID map for user namespace\n"
+	       "\t    --gidns gid_map	GID map for user namespace\n"
 	       "\n", argv0);
 
 	printf("By default, all test are run once, and a summary is printed.\n"
@@ -531,6 +547,18 @@ static void usage(const char *argv0)
 	exit(EXIT_FAILURE);
 }
 
+void print_kdbus_test_args(struct kdbus_test_args *args)
+{
+	if (args->userns || args->pidns || args->mntns)
+		printf("# Starting tests in new %s%s%s namespaces%s\n",
+			args->userns ? "USER " : "",
+			args->pidns ? "PID " : "",
+			args->mntns ? "MNT " : "",
+			args->mntns ? ", kdbusfs will be remounted" : "");
+	else
+		printf("# Starting tests in the same namespaces\n");
+}
+
 void print_metadata_support(void)
 {
 	bool no_meta_audit, no_meta_cgroups, no_meta_seclabel;
@@ -545,31 +573,17 @@ void print_metadata_support(void)
 
 	if (no_meta_audit | no_meta_cgroups | no_meta_seclabel)
 		printf("# Starting tests without %s%s%s metadata support\n",
-		       no_meta_audit ? "AUDIT" : "",
-		       no_meta_cgroups ? "CGROUP" : "",
-		       no_meta_seclabel ? "SECLABEL" : "");
+		       no_meta_audit ? "AUDIT " : "",
+		       no_meta_cgroups ? "CGROUP " : "",
+		       no_meta_seclabel ? "SECLABEL " : "");
 	else
 		printf("# Starting tests with full metadata support\n");
 }
 
-int start_tests(struct kdbus_test_args *kdbus_args)
+int run_tests(struct kdbus_test_args *kdbus_args)
 {
-	static char fspath[4096], parampath[4096], control[4096];
 	int ret;
-
-	if (!kdbus_args->module)
-		kdbus_args->module = "kdbus";
-
-	if (!kdbus_args->root) {
-		snprintf(fspath, sizeof(fspath), "/sys/fs/%s",
-			 kdbus_args->module);
-		kdbus_args->root = fspath;
-	}
-
-	snprintf(parampath, sizeof(parampath),
-		 "/sys/module/%s/parameters/attach_flags_mask",
-		 kdbus_args->module);
-	kdbus_args->mask_param_path = parampath;
+	static char control[4096];
 
 	snprintf(control, sizeof(control), "%s/control", kdbus_args->root);
 
@@ -578,8 +592,6 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 			control);
 		return TEST_ERR;
 	}
-
-	print_metadata_support();
 
 	if (kdbus_args->test) {
 		ret = start_one_test(kdbus_args);
@@ -594,10 +606,150 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 	return ret;
 }
 
+static void nop_handler(int sig) {}
+
+int run_tests_in_namespaces(struct kdbus_test_args *kdbus_args)
+{
+	int ret;
+	int efd = -1;
+	int status;
+	pid_t pid, rpid;
+	struct sigaction sa = {
+		.sa_handler = nop_handler,
+		.sa_flags = SA_NOCLDSTOP,
+	};
+
+	efd = eventfd(0, EFD_CLOEXEC);
+	if (efd < 0) {
+		ret = -errno;
+		printf("eventfd() failed: %d (%m)\n", ret);
+		return TEST_ERR;
+	}
+
+	ret = sigaction(SIGCHLD, &sa, NULL);
+	if (ret < 0) {
+		ret = -errno;
+		printf("sigaction() failed: %d (%m)\n", ret);
+		return TEST_ERR;
+	}
+
+	/* setup namespaces */
+	pid = syscall(__NR_clone, SIGCHLD|
+		      (kdbus_args->userns ? CLONE_NEWUSER : 0) |
+		      (kdbus_args->mntns ? CLONE_NEWNS : 0) |
+		      (kdbus_args->pidns ? CLONE_NEWPID : 0), NULL);
+	if (pid < 0) {
+		printf("clone() failed: %d (%m)\n", -errno);
+		return TEST_ERR;
+	}
+
+	if (pid == 0) {
+		eventfd_t event_status = 0;
+
+		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
+		ASSERT_EXIT(ret == 0);
+
+		if (kdbus_args->mntns) {
+		}
+
+		ret = eventfd_read(efd, &event_status);
+		if (ret < 0 || event_status != 1) {
+			printf("error eventfd_read()\n");
+			_exit(EXIT_FAILURE);
+		}
+
+		ret = run_tests(kdbus_args);
+		_exit(ret);
+	}
+
+	/* Setup userns mapping */
+	if (kdbus_args->userns) {
+		ret = userns_map_uid_gid(pid, kdbus_args->uid_map,
+					 kdbus_args->gid_map);
+		if (ret < 0) {
+			printf("error mapping uid and gid in userns\n");
+			eventfd_write(efd, 2);
+			return TEST_ERR;
+		}
+	}
+
+	ret = eventfd_write(efd, 1);
+	if (ret < 0) {
+		ret = -errno;
+		printf("error eventfd_write(): %d (%m)\n", ret);
+		return TEST_ERR;
+	}
+
+	rpid = waitpid(pid, &status, 0);
+	ASSERT_RETURN_VAL(rpid == pid, TEST_ERR);
+
+	close(efd);
+
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+		return TEST_ERR;
+
+	return TEST_OK;
+}
+
+int start_tests(struct kdbus_test_args *kdbus_args)
+{
+	int ret;
+	bool namespaces;
+	static char fspath[4096], parampath[4096];
+
+	print_kdbus_test_args(kdbus_args);
+	print_metadata_support();
+
+	namespaces = (kdbus_args->mntns || kdbus_args->pidns ||
+		      kdbus_args->userns);
+
+	if (kdbus_args->userns) {
+		if (!config_user_ns_is_enabled()) {
+			printf("User namespace not supported\n");
+			return TEST_ERR;
+		}
+
+		if (!kdbus_args->uid_map || !kdbus_args->gid_map) {
+			printf("Failed: please specify uid or gid mapping\n");
+			return TEST_ERR;
+		}
+	}
+
+	/* setup kdbus paths */
+	if (!kdbus_args->module)
+		kdbus_args->module = "kdbus";
+
+	if (!kdbus_args->root) {
+		snprintf(fspath, sizeof(fspath), "/sys/fs/%s",
+			 kdbus_args->module);
+		kdbus_args->root = fspath;
+	}
+
+	snprintf(parampath, sizeof(parampath),
+		 "/sys/module/%s/parameters/attach_flags_mask",
+		 kdbus_args->module);
+	kdbus_args->mask_param_path = parampath;
+
+	/* Start tests */
+	if (namespaces)
+		ret = run_tests_in_namespaces(kdbus_args);
+	else
+		ret = run_tests(kdbus_args);
+
+	return ret;
+}
+
 int main(int argc, char *argv[])
 {
 	int t, ret = 0;
 	struct kdbus_test_args *kdbus_args;
+	enum {
+		ARG_MNTNS = 0x100,
+		ARG_PIDNS,
+		ARG_USERNS,
+		ARG_UIDNS,
+		ARG_GIDNS,
+	};
 
 	kdbus_args = malloc(sizeof(*kdbus_args));
 	if (!kdbus_args) {
@@ -617,6 +769,11 @@ int main(int argc, char *argv[])
 		{ "fork",	no_argument,		NULL, 'f' },
 		{ "module",	required_argument,	NULL, 'm' },
 		{ "tap",	no_argument,		NULL, 'a' },
+		{ "mntns",	no_argument,		NULL, ARG_MNTNS },
+		{ "pidns",	no_argument,		NULL, ARG_PIDNS },
+		{ "userns",	no_argument,		NULL, ARG_USERNS },
+		{ "uidns",	required_argument,	NULL, ARG_UIDNS },
+		{ "gidns",	required_argument,	NULL, ARG_GIDNS },
 		{}
 	};
 
@@ -654,6 +811,26 @@ int main(int argc, char *argv[])
 
 		case 'a':
 			kdbus_args->tap_output = 1;
+			break;
+
+		case ARG_MNTNS:
+			kdbus_args->mntns = true;
+			break;
+
+		case ARG_PIDNS:
+			kdbus_args->pidns = true;
+			break;
+
+		case ARG_USERNS:
+			kdbus_args->userns = true;
+			break;
+
+		case ARG_UIDNS:
+			kdbus_args->uid_map = optarg;
+			break;
+
+		case ARG_GIDNS:
+			kdbus_args->gid_map = optarg;
 			break;
 
 		default:

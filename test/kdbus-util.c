@@ -1413,6 +1413,20 @@ static int do_userns_map_id(pid_t pid,
 {
 	int ret;
 	int fd;
+	char *map;
+	unsigned int i;
+
+	map = strndupa(map_id, strlen(map_id));
+	if (!map) {
+		ret = -errno;
+		kdbus_printf("error strndupa %s: %d (%m)\n",
+			map_file, ret);
+		return ret;
+	}
+
+	for (i = 0; i < strlen(map); i++)
+		if (map[i] == ',')
+			map[i] = '\n';
 
 	fd = open(map_file, O_RDWR);
 	if (fd < 0) {
@@ -1422,7 +1436,7 @@ static int do_userns_map_id(pid_t pid,
 		return ret;
 	}
 
-	ret = write(fd, map_id, strlen(map_id));
+	ret = write(fd, map, strlen(map));
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error write to %s: %d (%m)\n",

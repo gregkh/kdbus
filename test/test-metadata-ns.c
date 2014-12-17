@@ -454,8 +454,12 @@ int kdbus_test_metadata_ns(struct kdbus_test_env *env)
 		.access = KDBUS_POLICY_TALK,
 	};
 
-	/* we require user-namespaces */
-	if (!config_user_ns_is_enabled())
+	/*
+	 * We require user-namespaces and all uids/gids
+	 * should be mapped (we can just require the necessary ones)
+	 */
+	if (!config_user_ns_is_enabled() ||
+	    !all_uids_gids_are_mapped())
 		return TEST_SKIP;
 
 	ret = test_is_capable(CAP_SETUID, CAP_SETGID, CAP_SYS_ADMIN, -1);
