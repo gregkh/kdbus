@@ -504,9 +504,9 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 {
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
+	struct kdbus_item_header item_hdr;
 	struct kdbus_item *meta_items;
 	struct kdbus_info info = {};
-	struct kdbus_item item = {};
 	size_t meta_size, name_len;
 	struct kvec kvec[5];
 	u64 attach_flags;
@@ -525,11 +525,11 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	if (IS_ERR(meta_items))
 		return PTR_ERR(meta_items);
 
-	item.type = KDBUS_ITEM_MAKE_NAME;
-	item.size = KDBUS_ITEM_HEADER_SIZE + name_len;
+	item_hdr.type = KDBUS_ITEM_MAKE_NAME;
+	item_hdr.size = KDBUS_ITEM_HEADER_SIZE + name_len;
 
 	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &info.size);
-	kdbus_kvec_set(&kvec[cnt++], &item, KDBUS_ITEM_HEADER_SIZE, &info.size);
+	kdbus_kvec_set(&kvec[cnt++], &item_hdr, sizeof(item_hdr), &info.size);
 	kdbus_kvec_set(&kvec[cnt++], bus->node.name, name_len, &info.size);
 	cnt += !!kdbus_kvec_pad(&kvec[cnt], &info.size);
 

@@ -32,6 +32,16 @@
 	       ((u8 *)(_i) >= (u8 *)(_is));				\
 	     _i = KDBUS_ITEM_NEXT(_i))
 
+/**
+ * struct kdbus_item_header - Describes the fix part of an item
+ * @size:	The total size of the item
+ * @type:	The item type, one of KDBUS_ITEM_*
+ */
+struct kdbus_item_header {
+	u64 size;
+	u64 type;
+};
+
 int kdbus_item_validate_name(const struct kdbus_item *item);
 int kdbus_items_validate(const struct kdbus_item *items, size_t items_size);
 struct kdbus_item *kdbus_items_get(const struct kdbus_item *items,
