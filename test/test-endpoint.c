@@ -322,8 +322,10 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
 	ASSERT_RETURN(ret >= 0);
 
-	/* we can drop privileges */
-	if (ret) {
+	/*
+	 * All uids/gids are mapped and we have the necessary caps
+	 */
+	if (ret && all_uids_gids_are_mapped()) {
 		ret = unpriv_test_custom_ep(env->buspath);
 		ASSERT_RETURN(ret == 0);
 	}

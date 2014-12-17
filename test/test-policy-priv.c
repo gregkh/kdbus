@@ -682,6 +682,10 @@ static int test_policy_priv(struct kdbus_test_env *env)
 	if (!ret)
 		return TEST_SKIP;
 
+	/* make sure that uids and gids are mapped */
+	if (!all_uids_gids_are_mapped())
+		return TEST_SKIP;
+
 	/*
 	 * Setup:
 	 *  conn_a: policy holder for com.example.a

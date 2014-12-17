@@ -29,6 +29,7 @@
 #include <sys/ioctl.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>
+#include <sys/capability.h>
 #include <linux/sched.h>
 
 #include "kdbus-test.h"
@@ -518,14 +519,19 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	struct kdbus_conn *policy_holder = NULL;
 	char *bus = env->buspath;
 
-	if (geteuid() > 0) {
-		kdbus_printf("error geteuid() != 0, %s() needs root\n",
-			     __func__);
+	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
+	ASSERT_RETURN(ret >= 0);
+
+	/* no enough privileges, SKIP test */
+	if (!ret)
 		return TEST_SKIP;
-	}
 
 	/* we require user-namespaces */
 	if (access("/proc/self/uid_map", F_OK) != 0)
+		return TEST_SKIP;
+
+	/* uids/gids must be mapped */
+	if (!all_uids_gids_are_mapped())
 		return TEST_SKIP;
 
 	conn_db = calloc(MAX_CONN, sizeof(struct kdbus_conn *));

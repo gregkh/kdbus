@@ -556,7 +556,7 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	ret = kdbus_test_notify_kernel_quota(env);
 	ASSERT_RETURN(ret == 0);
 
-	if (geteuid() == 0) {
+	if (geteuid() == 0 && all_uids_gids_are_mapped()) {
 		ret = kdbus_test_multi_users_quota(env);
 		ASSERT_RETURN(ret == 0);
 

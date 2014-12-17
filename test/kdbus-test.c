@@ -639,8 +639,7 @@ static int test_prepare_mounts(struct kdbus_test_args *kdbus_args)
 		    MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL);
 	if (ret < 0) {
 		ret = -errno;
-		printf("error mount() %s :%d (%m)\n",
-			kdbus_args->module, ret);
+		printf("error mount() %s :%d (%m)\n", kdbusfs, ret);
 		_exit(TEST_ERR);
 	}
 

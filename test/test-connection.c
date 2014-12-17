@@ -486,6 +486,9 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 	ret = kdbus_conn_info(env->conn, 0, "non.existent.name", 0, NULL);
 	ASSERT_RETURN(ret == -ESRCH);
 
+	if (!all_uids_gids_are_mapped())
+		return TEST_SKIP;
+
 	/* Test for caps here, so we run the previous test */
 	have_caps = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
 	ASSERT_RETURN(have_caps >= 0);
