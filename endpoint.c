@@ -35,7 +35,7 @@ static void kdbus_ep_free(struct kdbus_node *node)
 {
 	struct kdbus_ep *ep = container_of(node, struct kdbus_ep, node);
 
-	BUG_ON(!list_empty(&ep->conn_list));
+	WARN_ON(!list_empty(&ep->conn_list));
 
 	kdbus_policy_db_clear(&ep->policy_db);
 	kdbus_bus_unref(ep->bus);

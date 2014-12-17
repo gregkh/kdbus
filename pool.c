@@ -294,7 +294,8 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 	if (slice->ref_kernel || slice->ref_user)
 		return;
 
-	BUG_ON(slice->free);
+	if (WARN_ON(slice->free))
+		return;
 
 	rb_erase(&slice->rb_node, &pool->slices_busy);
 	pool->busy -= slice->size;
@@ -452,7 +453,9 @@ off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 void kdbus_pool_slice_set_child(struct kdbus_pool_slice *slice,
 				struct kdbus_pool_slice *child)
 {
-	BUG_ON(child && slice->pool != child->pool);
+	if (WARN_ON(child && slice->pool != child->pool))
+		return;
+
 	WARN_ON(slice->child);
 	slice->child = child;
 }

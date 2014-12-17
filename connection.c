@@ -749,7 +749,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	int ret = 0;
 
 	/* assign domain-global message sequence number */
-	BUG_ON(kmsg->seq > 0);
+	if (WARN_ON(kmsg->seq > 0))
+		return -EINVAL;
+
 	kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
@@ -939,7 +941,10 @@ wait_sync:
 		struct timespec64 ts;
 		u64 now, timeout;
 
-		BUG_ON(!reply_wait);
+		if (WARN_ON(!reply_wait)) {
+			ret = -EIO;
+			goto exit_unref;
+		}
 
 		ktime_get_ts64(&ts);
 		now = timespec64_to_ns(&ts);
@@ -1106,12 +1111,12 @@ static void __kdbus_conn_free(struct kref *kref)
 {
 	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
 
-	BUG_ON(kdbus_conn_active(conn));
-	BUG_ON(delayed_work_pending(&conn->work));
-	BUG_ON(!list_empty(&conn->queue.msg_list));
-	BUG_ON(!list_empty(&conn->names_list));
-	BUG_ON(!list_empty(&conn->names_queue_list));
-	BUG_ON(!list_empty(&conn->reply_list));
+	WARN_ON(kdbus_conn_active(conn));
+	WARN_ON(delayed_work_pending(&conn->work));
+	WARN_ON(!list_empty(&conn->queue.msg_list));
+	WARN_ON(!list_empty(&conn->names_list));
+	WARN_ON(!list_empty(&conn->names_queue_list));
+	WARN_ON(!list_empty(&conn->reply_list));
 
 	if (conn->user) {
 		atomic_dec(&conn->user->connections);
