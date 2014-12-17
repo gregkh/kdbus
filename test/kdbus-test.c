@@ -198,7 +198,7 @@ static const struct kdbus_test tests[] = {
 	},
 	{
 		.name	= "metadata-ns",
-		.desc	= "metadata in user namespaces",
+		.desc	= "metadata in different namespaces",
 		.func	= kdbus_test_metadata_ns,
 		.flags	= TEST_CREATE_BUS | TEST_CREATE_CONN,
 	},
@@ -551,9 +551,9 @@ void print_kdbus_test_args(struct kdbus_test_args *args)
 {
 	if (args->userns || args->pidns || args->mntns)
 		printf("# Starting tests in new %s%s%s namespaces%s\n",
-			args->userns ? "USER " : "",
+			args->mntns ? "MOUNT " : "",
 			args->pidns ? "PID " : "",
-			args->mntns ? "MNT " : "",
+			args->userns ? "USER " : "",
 			args->mntns ? ", kdbusfs will be remounted" : "");
 	else
 		printf("# Starting tests in the same namespaces\n");
@@ -608,12 +608,52 @@ int run_tests(struct kdbus_test_args *kdbus_args)
 
 static void nop_handler(int sig) {}
 
+static int test_prepare_mounts(struct kdbus_test_args *kdbus_args)
+{
+	int ret;
+	char kdbusfs[64] = {'\0'};
+
+	snprintf(kdbusfs, sizeof(kdbusfs), "%sfs", kdbus_args->module);
+
+	/* make current mount slave */
+	ret = mount(NULL, "/", NULL, MS_SLAVE|MS_REC, NULL);
+	if (ret < 0) {
+		ret = -errno;
+		printf("error mount() root: %d (%m)\n", ret);
+		_exit(TEST_ERR);
+	}
+
+	/* Remount procfs since we need it in our tests */
+	if (kdbus_args->pidns) {
+		ret = mount("proc", "/proc", "proc",
+			    MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL);
+		if (ret < 0) {
+			ret = -errno;
+			printf("error mount() /proc : %d (%m)\n", ret);
+			_exit(TEST_ERR);
+		}
+	}
+
+	/* Remount kdbusfs */
+	ret = mount(kdbusfs, kdbus_args->root, kdbusfs,
+		    MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL);
+	if (ret < 0) {
+		ret = -errno;
+		printf("error mount() %s :%d (%m)\n",
+			kdbus_args->module, ret);
+		_exit(TEST_ERR);
+	}
+
+	return 0;
+}
+
 int run_tests_in_namespaces(struct kdbus_test_args *kdbus_args)
 {
 	int ret;
 	int efd = -1;
 	int status;
 	pid_t pid, rpid;
+	struct sigaction oldsa;
 	struct sigaction sa = {
 		.sa_handler = nop_handler,
 		.sa_flags = SA_NOCLDSTOP,
@@ -626,7 +666,7 @@ int run_tests_in_namespaces(struct kdbus_test_args *kdbus_args)
 		return TEST_ERR;
 	}
 
-	ret = sigaction(SIGCHLD, &sa, NULL);
+	ret = sigaction(SIGCHLD, &sa, &oldsa);
 	if (ret < 0) {
 		ret = -errno;
 		printf("sigaction() failed: %d (%m)\n", ret);
@@ -647,15 +687,32 @@ int run_tests_in_namespaces(struct kdbus_test_args *kdbus_args)
 		eventfd_t event_status = 0;
 
 		ret = prctl(PR_SET_PDEATHSIG, SIGKILL);
-		ASSERT_EXIT(ret == 0);
+		if (ret < 0) {
+			ret = -errno;
+			printf("error prctl(): %d (%m)\n", ret);
+			_exit(TEST_ERR);
+		}
 
-		if (kdbus_args->mntns) {
+		/* reset sighandlers of childs */
+		ret = sigaction(SIGCHLD, &oldsa, NULL);
+		if (ret < 0) {
+			ret = -errno;
+			printf("sigaction() failed: %d (%m)\n", ret);
+			return TEST_ERR;
 		}
 
 		ret = eventfd_read(efd, &event_status);
 		if (ret < 0 || event_status != 1) {
 			printf("error eventfd_read()\n");
-			_exit(EXIT_FAILURE);
+			_exit(TEST_ERR);
+		}
+
+		if (kdbus_args->mntns) {
+			ret = test_prepare_mounts(kdbus_args);
+			if (ret < 0) {
+				printf("error preparing mounts\n");
+				_exit(TEST_ERR);
+			}
 		}
 
 		ret = run_tests(kdbus_args);
@@ -697,11 +754,14 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 	bool namespaces;
 	static char fspath[4096], parampath[4096];
 
-	print_kdbus_test_args(kdbus_args);
-	print_metadata_support();
-
 	namespaces = (kdbus_args->mntns || kdbus_args->pidns ||
 		      kdbus_args->userns);
+
+	/* for pidns we need mntns set */
+	if (kdbus_args->pidns && !kdbus_args->mntns) {
+		printf("Failed: please set both pid and mnt namesapces\n");
+		return TEST_ERR;
+	}
 
 	if (kdbus_args->userns) {
 		if (!config_user_ns_is_enabled()) {
@@ -714,6 +774,9 @@ int start_tests(struct kdbus_test_args *kdbus_args)
 			return TEST_ERR;
 		}
 	}
+
+	print_kdbus_test_args(kdbus_args);
+	print_metadata_support();
 
 	/* setup kdbus paths */
 	if (!kdbus_args->module)

@@ -1,4 +1,9 @@
 /*
+ * Test metadata and policies in new namespaces. Even if our tests
+ * can run in a namespaced setup, this test is necessary so we can
+ * inspect policies on the same kdbusfs but between multiple
+ * namespaces.
+ *
  * Copyright (C) 2014 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under

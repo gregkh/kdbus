@@ -1,4 +1,8 @@
-/* Test metadata in new namespaces */
+/*
+ * Test metadata in new namespaces. Even if our tests can run
+ * in a namespaced setup, this test is necessary so we can inspect
+ * metadata on the same kdbusfs but between multiple namespaces
+ */
 
 #include <stdio.h>
 #include <string.h>
