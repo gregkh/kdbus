@@ -495,7 +495,7 @@ static int start_one_test(struct kdbus_test_args *kdbus_args)
 
 static void usage(const char *argv0)
 {
-	unsigned int i;
+	unsigned int i, j;
 
 	printf("Usage: %s [options]\n"
 	       "Options:\n"
@@ -518,7 +518,7 @@ static void usage(const char *argv0)
 
 		printf("\t%s", t->name);
 
-		for (i = 0; i < 24 - strlen(t->name); i++)
+		for (j = 0; j < 24 - strlen(t->name); j++)
 			printf(" ");
 
 		printf("Test %s\n", t->desc);
