@@ -724,11 +724,21 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = ep->bus;
+	struct kdbus_item *item;
 	int ret = 0;
 
 	/* assign domain-global message sequence number */
 	if (WARN_ON(kmsg->seq > 0))
 		return -EINVAL;
+
+	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
+		switch (item->type) {
+		case KDBUS_ITEM_SIGMASK:
+			break;
+		default:
+			return -EINVAL;
+		}
+	}
 
 	kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
 
