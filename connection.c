@@ -661,6 +661,12 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		schedule_delayed_work(&conn_dst->work, 0);
 		mutex_unlock(&conn_dst->lock);
 
+		if (sigmask_item) {
+			memcpy(&current->saved_sigmask,
+			       &sigsaved, sizeof(sigsaved));
+			set_restore_sigmask();
+		}
+
 		return r;
 	}
 
