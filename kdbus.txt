@@ -825,7 +825,15 @@ struct kdbus_cmd_send {
     for more details.
 
   struct kdbus_item items[0];
-    Items to specify further details for the send command. Currently unused.
+    The following items are currently recognized:
+
+    KDBUS_ITEM_SIGMASK
+      When this optional item is passed in, and the call is executed as SYNC
+      call, the sigmask described will be applied on the calling task before
+      putting it to sleep, and restored afterwards. For asynchronous message
+      sending, this item is accepted but ignored.
+
+    All other items are rejected, and the ioctl will fail with -EINVAL.
 };
 
 The message referenced by 'msg_address' above has the following layout.
