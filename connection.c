@@ -707,17 +707,17 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
  * kdbus_conn_kmsg_send() - send a message
  * @ep:			Endpoint to send from
  * @conn_src:		Connection, kernel-generated messages do not have one
- * @cmd_send:		Payload of SEND command or NULL
+ * @cmd:		Payload of SEND command
  * @kmsg:		Message to send
  *
  * Return: 0 on success, negative errno on failure
  */
 int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			 struct kdbus_conn *conn_src,
-			 struct kdbus_cmd_send *cmd_send,
+			 struct kdbus_cmd_send *cmd,
 			 struct kdbus_kmsg *kmsg)
 {
-	bool sync = cmd_send && (cmd_send->flags & KDBUS_SEND_SYNC_REPLY);
+	bool sync = cmd->flags & KDBUS_SEND_SYNC_REPLY;
 	struct kdbus_conn_reply *reply_wait = NULL;
 	struct kdbus_conn_reply *reply_wake = NULL;
 	struct kdbus_name_entry *name_entry = NULL;
@@ -923,7 +923,7 @@ wait_sync:
 
 		if (likely(msg->timeout_ns > now))
 			ret = kdbus_conn_wait_reply(conn_src, conn_dst,
-						    cmd_send, reply_wait,
+						    cmd, reply_wait,
 						    msg->timeout_ns - now);
 		else
 			ret = -ETIMEDOUT;
