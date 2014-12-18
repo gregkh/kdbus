@@ -622,8 +622,8 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 {
 	struct kdbus_queue_entry *entry;
 	struct kdbus_item *sigmask_item;
-	sigset_t sigsaved;
-	sigset_t sigmask;
+	sigset_t ksigsaved;
+	sigset_t ksigmask;
 	int r, ret;
 
 	if (WARN_ON(!reply_wait))
@@ -641,8 +641,9 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	if (IS_ERR(sigmask_item)) {
 		sigmask_item = NULL;
 	} else {
-		memcpy(&sigmask, &sigmask_item->sigmask, sizeof(sigmask));
-		sigprocmask(SIG_SETMASK, &sigmask, &sigsaved);
+		memcpy(&ksigmask, &sigmask_item->sigmask, sizeof(ksigmask));
+		sigdelsetmask(&ksigmask, sigmask(SIGKILL)|sigmask(SIGSTOP));
+		sigprocmask(SIG_SETMASK, &ksigmask, &ksigsaved);
 	}
 
 	r = wait_event_interruptible_timeout(reply_wait->reply_dst->wait,
@@ -663,7 +664,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 
 		if (sigmask_item) {
 			memcpy(&current->saved_sigmask,
-			       &sigsaved, sizeof(sigsaved));
+			       &ksigsaved, sizeof(ksigsaved));
 			set_restore_sigmask();
 		}
 
@@ -671,7 +672,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	}
 
 	if (sigmask_item)
-		sigprocmask(SIG_SETMASK, &sigsaved, NULL);
+		sigprocmask(SIG_SETMASK, &ksigsaved, NULL);
 
 	if (r == 0)
 		ret = -ETIMEDOUT;
