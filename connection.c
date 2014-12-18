@@ -623,6 +623,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	struct kdbus_queue_entry *entry;
 	struct kdbus_item *sigmask_item;
 	sigset_t sigsaved;
+	sigset_t sigmask;
 	int r, ret;
 
 	if (WARN_ON(!reply_wait))
@@ -637,8 +638,9 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	sigmask_item = kdbus_items_get(cmd_send->items,
 				       KDBUS_ITEMS_SIZE(cmd_send, items),
 				       KDBUS_ITEM_SIGMASK);
-	if (sigmask_item) {
-		sigset_t sigmask;
+	if (IS_ERR(sigmask_item)) {
+		sigmask_item = NULL;
+	} else {
 		memcpy(&sigmask, &sigmask_item->sigmask, sizeof(sigmask));
 		sigprocmask(SIG_SETMASK, &sigmask, &sigsaved);
 	}
