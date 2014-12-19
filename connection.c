@@ -1906,11 +1906,12 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
  */
 int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 {
+	unsigned int hash = kdbus_str_hash(name);
 	int ret;
 
 	if (conn->ep->has_policy) {
-		ret = kdbus_policy_check_own_access(&conn->ep->policy_db,
-						    conn->cred, name);
+		ret = kdbus_policy_query(&conn->ep->policy_db, conn->cred,
+					 KDBUS_POLICY_OWN, name, hash);
 		if (ret < 0)
 			return ret;
 	}
@@ -1918,8 +1919,8 @@ int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 	if (conn->privileged)
 		return 0;
 
-	return kdbus_policy_check_own_access(&conn->ep->bus->policy_db,
-					     conn->cred, name);
+	return kdbus_policy_query(&conn->ep->bus->policy_db, conn->cred,
+				  KDBUS_POLICY_OWN, name, hash);
 }
 
 /**
@@ -1977,8 +1978,9 @@ int kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 	if (!conn->ep->has_policy)
 		return 0;
 
-	ret = kdbus_policy_check_see_access_unlocked(&conn->ep->policy_db,
-						     conn->cred, name);
+	ret = kdbus_policy_query_unlocked(&conn->ep->policy_db, conn->cred,
+					  KDBUS_POLICY_SEE, name,
+					  kdbus_str_hash(name));
 
 	/* don't leak hints whether a name exists on a custom endpoint. */
 	return (ret == -EPERM) ? -ENOENT : ret;

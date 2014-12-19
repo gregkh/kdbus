@@ -218,24 +218,47 @@ static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
 }
 
 /**
- * kdbus_policy_check_own_access() - check whether a connection is allowed
- *				     to own a name
- * @db:		The policy database
- * @cred:	The creds to check against
- * @name:	The name to check
+ * kdbus_policy_query_unlocked() - Query the policy database
+ * @db:		Policy database
+ * @cred:	Credentials to test against
+ * @type:	Access type to test for
+ * @name:	Name to query
+ * @hash:	Hash value of @name
  *
- * Return: 0 if the connection is allowed to own the name, -EPERM otherwise
+ * Same as kdbus_policy_query() but requires the caller to lock the policy
+ * database against concurrent writes.
+ *
+ * Return: 0 if access is granted, -EPERM otherwise.
  */
-int kdbus_policy_check_own_access(struct kdbus_policy_db *db,
-				  const struct cred *cred,
-				  const char *name)
+int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
+				const struct cred *cred, unsigned int type,
+				const char *name, unsigned int hash)
 {
-	const struct kdbus_policy_db_entry *e;
+	return kdbus_policy_check_access(kdbus_policy_lookup(db, name, hash,
+							     true),
+					 cred, type);
+}
+
+/**
+ * kdbus_policy_query() - Query the policy database
+ * @db:		Policy database
+ * @cred:	Credentials to test against
+ * @type:	Access type to test for
+ * @name:	Name to query
+ * @hash:	Hash value of @name
+ *
+ * Query the policy database @db whether @cred is allowed access of type
+ * @type to the target name given as @name.
+ *
+ * Return: 0 if access is granted, -EPERM otherwise.
+ */
+int kdbus_policy_query(struct kdbus_policy_db *db, const struct cred *cred,
+		       unsigned int type, const char *name, unsigned int hash)
+{
 	int ret;
 
 	down_read(&db->entries_rwlock);
-	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
-	ret = kdbus_policy_check_access(e, cred, KDBUS_POLICY_OWN);
+	ret = kdbus_policy_query_unlocked(db, cred, type, name, hash);
 	up_read(&db->entries_rwlock);
 
 	return ret;
@@ -318,25 +341,6 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 	up_read(&db->entries_rwlock);
 
 	return ret;
-}
-
-/**
- * kdbus_policy_check_see_access_unlocked() - Check whether a connection is
- *					      allowed to see a given name
- * @db:		The policy database
- * @cred:	The cred to check against
- * @name:	The name
- *
- * Return: 0 if permission to see the name is granted, -EPERM otherwise
- */
-int kdbus_policy_check_see_access_unlocked(struct kdbus_policy_db *db,
-					   const struct cred *cred,
-					   const char *name)
-{
-	const struct kdbus_policy_db_entry *e;
-
-	e = kdbus_policy_lookup(db, name, kdbus_str_hash(name), true);
-	return kdbus_policy_check_access(e, cred, KDBUS_POLICY_SEE);
 }
 
 static void __kdbus_policy_remove_owner_cache(struct kdbus_policy_db *db,
