@@ -152,88 +152,97 @@ void kdbus_policy_db_init(struct kdbus_policy_db *db)
 }
 
 static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
-				     const struct cred *cred,
-				     unsigned int access)
+				     const struct cred *cred)
 {
 	struct kdbus_policy_db_entry_access *a;
-	struct group_info *group_info;
-	int i;
+	int i, highest = -EPERM;
 
 	if (!e)
 		return -EPERM;
 
-	group_info = cred->group_info;
-
 	list_for_each_entry(a, &e->access_list, list) {
-		if (a->access >= access) {
-			switch (a->type) {
-			case KDBUS_POLICY_ACCESS_USER:
-				if (uid_eq(cred->uid, a->uid))
-					return 0;
+		if ((int)a->access <= highest)
+			continue;
+
+		switch (a->type) {
+		case KDBUS_POLICY_ACCESS_USER:
+			if (uid_eq(cred->uid, a->uid))
+				highest = a->access;
+			break;
+		case KDBUS_POLICY_ACCESS_GROUP:
+			if (gid_eq(cred->gid, a->gid)) {
+				highest = a->access;
 				break;
-			case KDBUS_POLICY_ACCESS_GROUP:
-				if (gid_eq(cred->gid, a->gid))
-					return 0;
-
-				for (i = 0; i < group_info->ngroups; i++) {
-					kgid_t gid = GROUP_AT(group_info, i);
-
-					if (gid_eq(gid, a->gid))
-						return 0;
-				}
-
-				break;
-			case KDBUS_POLICY_ACCESS_WORLD:
-				return 0;
 			}
+
+			for (i = 0; i < cred->group_info->ngroups; i++) {
+				kgid_t gid = GROUP_AT(cred->group_info, i);
+
+				if (gid_eq(gid, a->gid)) {
+					highest = a->access;
+					break;
+				}
+			}
+
+			break;
+		case KDBUS_POLICY_ACCESS_WORLD:
+			highest = a->access;
+			break;
 		}
+
+		/* OWN is the highest possible policy */
+		if (highest >= KDBUS_POLICY_OWN)
+			break;
 	}
 
-	return -EPERM;
+	return highest;
 }
 
 /**
  * kdbus_policy_query_unlocked() - Query the policy database
  * @db:		Policy database
  * @cred:	Credentials to test against
- * @type:	Access type to test for
  * @name:	Name to query
  * @hash:	Hash value of @name
  *
  * Same as kdbus_policy_query() but requires the caller to lock the policy
  * database against concurrent writes.
  *
- * Return: 0 if access is granted, -EPERM otherwise.
+ * Return: The highest KDBUS_POLICY_* access type found, or -EPERM if none.
  */
 int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
-				const struct cred *cred, unsigned int type,
-				const char *name, unsigned int hash)
+				const struct cred *cred, const char *name,
+				unsigned int hash)
 {
 	return kdbus_policy_check_access(kdbus_policy_lookup(db, name, hash,
 							     true),
-					 cred, type);
+					 cred);
 }
 
 /**
  * kdbus_policy_query() - Query the policy database
  * @db:		Policy database
  * @cred:	Credentials to test against
- * @type:	Access type to test for
  * @name:	Name to query
  * @hash:	Hash value of @name
  *
- * Query the policy database @db whether @cred is allowed access of type
- * @type to the target name given as @name.
+ * Query the policy database @db for the access rights of @cred to the name
+ * @name. The access rights of @cred are returned, or -EPERM if no access is
+ * granted.
  *
- * Return: 0 if access is granted, -EPERM otherwise.
+ * This call effectively searches for the highest access-right granted to
+ * @cred. The caller should really cache those as policy lookups are rather
+ * expensive.
+ *
+ * Return: The highest KDBUS_POLICY_* access type found, or -EPERM if none.
  */
 int kdbus_policy_query(struct kdbus_policy_db *db, const struct cred *cred,
-		       unsigned int type, const char *name, unsigned int hash)
+		       const char *name, unsigned int hash)
 {
 	int ret;
 
 	down_read(&db->entries_rwlock);
-	ret = kdbus_policy_query_unlocked(db, cred, type, name, hash);
+	ret = kdbus_policy_query_unlocked(db, cred, name, hash);
 	up_read(&db->entries_rwlock);
 
 	return ret;

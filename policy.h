@@ -34,10 +34,10 @@ void kdbus_policy_db_init(struct kdbus_policy_db *db);
 void kdbus_policy_db_clear(struct kdbus_policy_db *db);
 
 int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
-				const struct cred *cred, unsigned int type,
-				const char *name, unsigned int hash);
+				const struct cred *cred, const char *name,
+				unsigned int hash);
 int kdbus_policy_query(struct kdbus_policy_db *db, const struct cred *cred,
-		       unsigned int type, const char *name, unsigned int hash);
+		       const char *name, unsigned int hash);
 
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 			       const void *owner);

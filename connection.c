@@ -1891,16 +1891,15 @@ static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 {
 	struct kdbus_name_entry *ne;
 	bool pass = false;
-	int ret;
+	int res;
 
 	down_read(&db->entries_rwlock);
 	mutex_lock(&whom->lock);
 
 	list_for_each_entry(ne, &whom->names_list, conn_entry) {
-		ret = kdbus_policy_query_unlocked(db, conn->cred, access,
-						  ne->name,
+		res = kdbus_policy_query_unlocked(db, conn->cred, ne->name,
 						  kdbus_str_hash(ne->name));
-		if (ret >= 0) {
+		if (res >= (int)access) {
 			pass = true;
 			break;
 		}
@@ -1924,21 +1923,21 @@ static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 bool kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 {
 	unsigned int hash = kdbus_str_hash(name);
-	int ret;
+	int res;
 
 	if (conn->ep->has_policy) {
-		ret = kdbus_policy_query(&conn->ep->policy_db, conn->cred,
-					 KDBUS_POLICY_OWN, name, hash);
-		if (ret < 0)
+		res = kdbus_policy_query(&conn->ep->policy_db, conn->cred,
+					 name, hash);
+		if (res < KDBUS_POLICY_OWN)
 			return false;
 	}
 
 	if (conn->privileged)
 		return true;
 
-	ret = kdbus_policy_query(&conn->ep->bus->policy_db, conn->cred,
-				 KDBUS_POLICY_OWN, name, hash);
-	return ret >= 0;
+	res = kdbus_policy_query(&conn->ep->bus->policy_db, conn->cred,
+				 name, hash);
+	return res >= KDBUS_POLICY_OWN;
 }
 
 /**
@@ -1980,7 +1979,7 @@ bool kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
 bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 					 const char *name)
 {
-	int ret;
+	int res;
 
 	/*
 	 * By default, all names are visible on a bus. SEE policies can only be
@@ -1989,10 +1988,9 @@ bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 	if (!conn->ep->has_policy)
 		return true;
 
-	ret = kdbus_policy_query_unlocked(&conn->ep->policy_db, conn->cred,
-					  KDBUS_POLICY_SEE, name,
-					  kdbus_str_hash(name));
-	return ret >= 0;
+	res = kdbus_policy_query_unlocked(&conn->ep->policy_db, conn->cred,
+					  name, kdbus_str_hash(name));
+	return res >= KDBUS_POLICY_SEE;
 }
 
 /**
