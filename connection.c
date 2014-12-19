@@ -692,7 +692,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 			unsigned int r;
 
 			r = cancel_fd->f_op->poll(cancel_fd, NULL);
-			if (r & POLLOUT) {
+			if (r & POLLIN) {
 				ret = -ECANCELED;
 				break;
 			}
