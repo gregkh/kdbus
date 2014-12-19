@@ -445,35 +445,3 @@ int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
 	return kdbus_policy_check_talk_access(&ep->bus->policy_db,
 					      conn_src, conn_dst);
 }
-
-/**
- * kdbus_ep_policy_check_own_access() - verify a connection can own the passed
- *					name
- * @ep:			Endpoint to operate on
- * @conn:		Connection that acquires a name
- * @name:		Name that is about to be acquired
- *
- * This verifies that @conn is allowed to acquire the well-known name @name via
- * the endpoint @ep.
- *
- * Return: 0 if allowed, negative error code if not.
- */
-int kdbus_ep_policy_check_own_access(struct kdbus_ep *ep,
-				     const struct kdbus_conn *conn,
-				     const char *name)
-{
-	int ret;
-
-	if (ep->has_policy) {
-		ret = kdbus_policy_check_own_access(&ep->policy_db,
-						    conn->cred, name);
-		if (ret < 0)
-			return ret;
-	}
-
-	if (conn->privileged)
-		return 0;
-
-	return kdbus_policy_check_own_access(&ep->bus->policy_db,
-					     conn->cred, name);
-}

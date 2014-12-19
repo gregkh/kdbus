@@ -657,7 +657,7 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto out_dec;
 	}
 
-	ret = kdbus_ep_policy_check_own_access(conn->ep, conn, name);
+	ret = kdbus_conn_policy_own_name(conn, name);
 	if (ret < 0)
 		goto out_dec;
 

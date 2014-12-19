@@ -1900,3 +1900,30 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 
 	return match;
 }
+
+/**
+ * kdbus_conn_policy_own_name() - verify a connection can own the given name
+ * @conn:		Connection
+ * @name:		Name
+ *
+ * This verifies that @conn is allowed to acquire the well-known name @name.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
+{
+	int ret;
+
+	if (conn->ep->has_policy) {
+		ret = kdbus_policy_check_own_access(&conn->ep->policy_db,
+						    conn->cred, name);
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn->privileged)
+		return 0;
+
+	return kdbus_policy_check_own_access(&conn->ep->bus->policy_db,
+					     conn->cred, name);
+}
