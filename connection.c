@@ -1305,24 +1305,21 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		if (!kdbus_name_is_valid(name, false))
 			return -EINVAL;
 
-		if (!kdbus_conn_policy_see_name(conn, name))
-			return -ENOENT;
-
 		entry = kdbus_name_lock(conn->ep->bus->name_registry, name);
-		if (!entry)
-			return -ESRCH;
-		else if (entry->conn)
+		if (!entry || !kdbus_conn_policy_see_name(conn, name)) {
+			/* pretend a name doesn't exist if you cannot see it */
+			ret = -ESRCH;
+			goto exit;
+		}
+
+		if (entry->conn)
 			owner_conn = kdbus_conn_ref(entry->conn);
 	} else {
 		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
 						       cmd_info->id);
-		if (!owner_conn) {
+		if (!owner_conn || !kdbus_conn_policy_see(conn, owner_conn)) {
+			/* pretend an id doesn't exist if you cannot see it */
 			ret = -ENXIO;
-			goto exit;
-		}
-
-		if (!kdbus_conn_policy_see(conn, owner_conn)) {
-			ret = -ENOENT;
 			goto exit;
 		}
 	}

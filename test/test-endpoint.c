@@ -275,10 +275,16 @@ int kdbus_test_custom_endpoint(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -EAGAIN);
 
 	ret = kdbus_conn_info(ep_conn, 0, name, 0, NULL);
-	ASSERT_RETURN(ret == -ENOENT);
+	ASSERT_RETURN(ret == -ESRCH);
+
+	ret = kdbus_conn_info(ep_conn, 0, "random.crappy.name", 0, NULL);
+	ASSERT_RETURN(ret == -ESRCH);
 
 	ret = kdbus_conn_info(ep_conn, env->conn->id, NULL, 0, NULL);
-	ASSERT_RETURN(ret == -ENOENT);
+	ASSERT_RETURN(ret == -ENXIO);
+
+	ret = kdbus_conn_info(ep_conn, 0x0fffffffffffffffULL, NULL, 0, NULL);
+	ASSERT_RETURN(ret == -ENXIO);
 
 	/* Check that the reader did not receive anything */
 	ret = kdbus_msg_recv(reader, NULL, NULL);
