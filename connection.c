@@ -461,7 +461,10 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 	}
 
 	/* ... otherwise, ask the policy DBs for permission */
-	return kdbus_conn_policy_talk(conn_src, conn_dst);
+	if (!kdbus_conn_policy_talk(conn_src, conn_dst))
+		return -EPERM;
+
+	return 0;
 }
 
 /* Callers should take the conn_dst lock */
@@ -1302,9 +1305,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		if (!kdbus_name_is_valid(name, false))
 			return -EINVAL;
 
-		ret = kdbus_conn_policy_see_name(conn, name);
-		if (ret < 0)
-			return ret;
+		if (!kdbus_conn_policy_see_name(conn, name))
+			return -ENOENT;
 
 		entry = kdbus_name_lock(conn->ep->bus->name_registry, name);
 		if (!entry)
@@ -1319,9 +1321,10 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			goto exit;
 		}
 
-		ret = kdbus_conn_policy_see(conn, owner_conn);
-		if (ret < 0)
+		if (!kdbus_conn_policy_see(conn, owner_conn)) {
+			ret = -ENOENT;
 			goto exit;
+		}
 	}
 
 	info.id = owner_conn->id;
@@ -1884,13 +1887,14 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 }
 
 /* query the policy-database for all names of @whom */
-static int kdbus_conn_policy_query_all(struct kdbus_conn *conn,
-				       struct kdbus_policy_db *db,
-				       struct kdbus_conn *whom,
-				       unsigned int access)
+static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
+					struct kdbus_policy_db *db,
+					struct kdbus_conn *whom,
+					unsigned int access)
 {
 	struct kdbus_name_entry *ne;
-	int ret = -EPERM;
+	bool pass = false;
+	int ret;
 
 	down_read(&db->entries_rwlock);
 	mutex_lock(&whom->lock);
@@ -1900,7 +1904,7 @@ static int kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 						  ne->name,
 						  kdbus_str_hash(ne->name));
 		if (ret >= 0) {
-			ret = 0;
+			pass = true;
 			break;
 		}
 	}
@@ -1908,7 +1912,7 @@ static int kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 	mutex_unlock(&whom->lock);
 	up_read(&db->entries_rwlock);
 
-	return ret;
+	return pass;
 }
 
 /**
@@ -1918,9 +1922,9 @@ static int kdbus_conn_policy_query_all(struct kdbus_conn *conn,
  *
  * This verifies that @conn is allowed to acquire the well-known name @name.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: true if allowed, false if not.
  */
-int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
+bool kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 {
 	unsigned int hash = kdbus_str_hash(name);
 	int ret;
@@ -1929,14 +1933,15 @@ int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 		ret = kdbus_policy_query(&conn->ep->policy_db, conn->cred,
 					 KDBUS_POLICY_OWN, name, hash);
 		if (ret < 0)
-			return ret;
+			return false;
 	}
 
 	if (conn->privileged)
-		return 0;
+		return true;
 
-	return kdbus_policy_query(&conn->ep->bus->policy_db, conn->cred,
-				  KDBUS_POLICY_OWN, name, hash);
+	ret = kdbus_policy_query(&conn->ep->bus->policy_db, conn->cred,
+				 KDBUS_POLICY_OWN, name, hash);
+	return ret >= 0;
 }
 
 /**
@@ -1946,26 +1951,19 @@ int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
  *
  * This verifies that @conn is allowed to talk to @to.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: true if allowed, false if not.
  */
-int kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
+bool kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
 {
-	int ret;
-
-	if (conn->ep->has_policy) {
-		ret = kdbus_conn_policy_query_all(conn, &conn->ep->policy_db,
-						  to, KDBUS_POLICY_TALK);
-		/* Don't leak hints whether a name exists on a custom ep */
-		if (ret == -EPERM)
-			ret = -ENOENT;
-		if (ret < 0)
-			return ret;
-	}
+	if (conn->ep->has_policy &&
+	    !kdbus_conn_policy_query_all(conn, &conn->ep->policy_db, to,
+					 KDBUS_POLICY_TALK))
+		return false;
 
 	if (conn->privileged)
-		return 0;
+		return true;
 	if (uid_eq(conn->cred->fsuid, to->cred->uid))
-		return 0;
+		return true;
 
 	return kdbus_conn_policy_query_all(conn, &conn->ep->bus->policy_db, to,
 					   KDBUS_POLICY_TALK);
@@ -1980,10 +1978,10 @@ int kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
  * This verifies that @conn is allowed to see the well-known name @name. Caller
  * must hold policy-lock.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: true if allowed, false if not.
  */
-int kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
-					const char *name)
+bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
+					 const char *name)
 {
 	int ret;
 
@@ -1992,14 +1990,12 @@ int kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 	 * installed on custom endpoints, where by default no name is visible.
 	 */
 	if (!conn->ep->has_policy)
-		return 0;
+		return true;
 
 	ret = kdbus_policy_query_unlocked(&conn->ep->policy_db, conn->cred,
 					  KDBUS_POLICY_SEE, name,
 					  kdbus_str_hash(name));
-
-	/* don't leak hints whether a name exists on a custom endpoint. */
-	return (ret == -EPERM) ? -ENOENT : ret;
+	return ret >= 0;
 }
 
 /**
@@ -2009,17 +2005,17 @@ int kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
  *
  * This verifies that @conn is allowed to see the well-known name @name.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: true if allowed, false if not.
  */
-int kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
+bool kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
 {
-	int ret;
+	bool res;
 
 	down_read(&conn->ep->policy_db.entries_rwlock);
-	ret = kdbus_conn_policy_see_name_unlocked(conn, name);
+	res = kdbus_conn_policy_see_name_unlocked(conn, name);
 	up_read(&conn->ep->policy_db.entries_rwlock);
 
-	return ret;
+	return res;
 }
 
 /**
@@ -2029,12 +2025,10 @@ int kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
  *
  * This checks whether @conn is able to see @whom.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: true if allowed, false if not.
  */
-int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
+bool kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
 {
-	int ret;
-
 	/*
 	 * By default, all names are visible on a bus, so a connection can
 	 * always see other connections. SEE policies can only be installed on
@@ -2042,12 +2036,9 @@ int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
 	 * peers from each other, unless you see at least _one_ name of the
 	 * peer.
 	 */
-	if (!conn->ep->has_policy)
-		return 0;
-
-	ret = kdbus_conn_policy_query_all(conn, &conn->ep->policy_db, whom,
-					  KDBUS_POLICY_SEE);
-	return (ret == -EPERM) ? -ENOENT : ret;
+	return !conn->ep->has_policy ||
+	       kdbus_conn_policy_query_all(conn, &conn->ep->policy_db, whom,
+					   KDBUS_POLICY_SEE);
 }
 
 /**
@@ -2058,15 +2049,13 @@ int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
  *
  * This checks whether @conn is allowed to see the kernel notification @kmsg.
  *
- * Return: 0 if allowed, negative error code if not.
+ * Return: true if allowed, false if not.
  */
-int kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
-				       const struct kdbus_kmsg *kmsg)
+bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
+					const struct kdbus_kmsg *kmsg)
 {
-	int ret = 0;
-
 	if (WARN_ON(kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL))
-		return 0;
+		return false;
 
 	/*
 	 * Depending on the notification type, broadcasted kernel notifications
@@ -2086,24 +2075,15 @@ int kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 	case KDBUS_ITEM_NAME_ADD:
 	case KDBUS_ITEM_NAME_REMOVE:
 	case KDBUS_ITEM_NAME_CHANGE:
-		if (conn->ep->has_policy)
-			ret = kdbus_conn_policy_see_name(conn,
-							 kmsg->notify_name);
-
-		break;
+		return kdbus_conn_policy_see_name(conn, kmsg->notify_name);
 
 	case KDBUS_ITEM_ID_ADD:
 	case KDBUS_ITEM_ID_REMOVE:
-		if (conn->ep->has_policy)
-			ret = -ENOENT;
-
-		break;
+		return !conn->ep->has_policy;
 
 	default:
 		WARN(1, "Invalid type for notification broadcast: %llu\n",
 		     (unsigned long long)kmsg->notify_type);
-		break;
+		return false;
 	}
-
-	return ret;
 }

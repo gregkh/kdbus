@@ -642,9 +642,10 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 		goto out_dec;
 	}
 
-	ret = kdbus_conn_policy_own_name(conn, name);
-	if (ret < 0)
+	if (!kdbus_conn_policy_own_name(conn, name)) {
+		ret = -EPERM;
 		goto out_dec;
+	}
 
 	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags);
 
@@ -708,7 +709,7 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		u64 flags;
 	} h = {};
 
-	if (e && kdbus_conn_policy_see_name_unlocked(conn, e->name) < 0)
+	if (e && !kdbus_conn_policy_see_name_unlocked(conn, e->name))
 		return 0;
 
 	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &info.size);
