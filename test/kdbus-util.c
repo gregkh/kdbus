@@ -456,9 +456,10 @@ static int __kdbus_msg_send(const struct kdbus_conn *conn,
 			    uint64_t timeout,
 			    int64_t priority,
 			    uint64_t dst_id,
-			    uint64_t cmd_flags)
+			    uint64_t cmd_flags,
+			    int cancel_fd)
 {
-	struct kdbus_cmd_send cmd = {};
+	struct kdbus_cmd_send *cmd;
 	struct kdbus_msg *msg;
 	const char ref1[1024 * 128 + 3] = "0123456789_0";
 	const char ref2[] = "0123456789_1";
@@ -468,7 +469,7 @@ static int __kdbus_msg_send(const struct kdbus_conn *conn,
 	int memfd = -1;
 	int ret;
 
-	size = sizeof(struct kdbus_msg);
+	size = sizeof(*msg);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
@@ -566,11 +567,25 @@ static int __kdbus_msg_send(const struct kdbus_conn *conn,
 	}
 	item = KDBUS_ITEM_NEXT(item);
 
-	cmd.size = sizeof(cmd);
-	cmd.flags = cmd_flags;
-	cmd.msg_address = (uintptr_t)msg;
+	size = sizeof(*cmd);
+	if (cancel_fd != -1)
+		size += KDBUS_ITEM_SIZE(sizeof(cancel_fd));
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
+	cmd = malloc(size);
+	cmd->size = size;
+	cmd->flags = cmd_flags;
+	cmd->msg_address = (uintptr_t)msg;
+
+	item = cmd->items;
+
+	if (cancel_fd != -1) {
+		item->type = KDBUS_ITEM_CANCEL_FD;
+		item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(cancel_fd);
+		item->fds[0] = cancel_fd;
+		item = KDBUS_ITEM_NEXT(item);
+	}
+
+	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
 	if (memfd >= 0)
 		close(memfd);
 
@@ -583,18 +598,19 @@ static int __kdbus_msg_send(const struct kdbus_conn *conn,
 	if (cmd_flags & KDBUS_SEND_SYNC_REPLY) {
 		struct kdbus_msg *reply;
 
-		kdbus_printf("SYNC REPLY @offset %llu:\n", cmd.reply.offset);
-		reply = (struct kdbus_msg *)(conn->buf + cmd.reply.offset);
+		kdbus_printf("SYNC REPLY @offset %llu:\n", cmd->reply.offset);
+		reply = (struct kdbus_msg *)(conn->buf + cmd->reply.offset);
 		kdbus_msg_dump(conn, reply);
 
 		kdbus_msg_free(reply);
 
-		ret = kdbus_free(conn, cmd.reply.offset);
+		ret = kdbus_free(conn, cmd->reply.offset);
 		if (ret < 0)
 			return ret;
 	}
 
 	free(msg);
+	free(cmd);
 
 	return 0;
 }
@@ -604,15 +620,15 @@ int kdbus_msg_send(const struct kdbus_conn *conn, const char *name,
 		   int64_t priority, uint64_t dst_id)
 {
 	return __kdbus_msg_send(conn, name, cookie, flags, timeout, priority,
-				dst_id, 0);
+				dst_id, 0, -1);
 }
 
 int kdbus_msg_send_sync(const struct kdbus_conn *conn, const char *name,
 			uint64_t cookie, uint64_t flags, uint64_t timeout,
-			int64_t priority, uint64_t dst_id)
+			int64_t priority, uint64_t dst_id, int cancel_fd)
 {
 	return __kdbus_msg_send(conn, name, cookie, flags, timeout, priority,
-				dst_id, KDBUS_SEND_SYNC_REPLY);
+				dst_id, KDBUS_SEND_SYNC_REPLY, cancel_fd);
 }
 
 static char *msg_id(uint64_t id, char *buf)

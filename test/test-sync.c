@@ -95,7 +95,7 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 
 		ret = kdbus_msg_send_sync(conn_dst, NULL, cookie,
 					  KDBUS_MSG_EXPECT_REPLY,
-					  100000000ULL, 0, conn_src->id);
+					  100000000ULL, 0, conn_src->id, -1);
 		ASSERT_EXIT(ret == -ETIMEDOUT);
 
 		_exit(EXIT_SUCCESS);
@@ -164,7 +164,7 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 
 	ret = kdbus_msg_send_sync(conn_b, NULL, cookie,
 				  KDBUS_MSG_EXPECT_REPLY,
-				  5000000000ULL, 0, conn_a->id);
+				  5000000000ULL, 0, conn_a->id, -1);
 
 	pthread_join(thread, (void *) &status);
 	ASSERT_RETURN(status == 0);
@@ -228,7 +228,7 @@ int kdbus_test_sync_byebye(struct kdbus_test_env *env)
 
 	ret = kdbus_msg_send_sync(conn_b, NULL, cookie,
 				  KDBUS_MSG_EXPECT_REPLY,
-				  5000000000ULL, 0, conn_a->id);
+				  5000000000ULL, 0, conn_a->id, -1);
 
 	ASSERT_RETURN(ret == -ECONNRESET);
 
@@ -245,7 +245,7 @@ int kdbus_test_sync_byebye(struct kdbus_test_env *env)
 
 	ret = kdbus_msg_send_sync(conn_b, NULL, cookie,
 				  KDBUS_MSG_EXPECT_REPLY,
-				  5000000000ULL, 0, conn_a->id);
+				  5000000000ULL, 0, conn_a->id, -1);
 
 	ASSERT_RETURN(ret == -EPIPE);
 

@@ -389,7 +389,7 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 		cookie++;
 		ret = kdbus_msg_send_sync(conn_dst, NULL, cookie,
 					  KDBUS_MSG_EXPECT_REPLY,
-					  5000000000ULL, 0, conn_src->id);
+					  5000000000ULL, 0, conn_src->id, -1);
 		ASSERT_EXIT(ret == -EREMOTEIO);
 
 		cookie++;
