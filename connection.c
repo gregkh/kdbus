@@ -619,23 +619,41 @@ exit_unlock:
 static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
 				 struct kdbus_cmd_send *cmd_send,
+				 struct file *ioctl_file,
 				 struct kdbus_conn_reply *reply_wait,
-				 u64 timeout_ns)
+				 ktime_t expire)
 {
-	struct kdbus_queue_entry *entry;
+	struct kdbus_item *cancel_fd_item;
 	struct kdbus_item *sigmask_item;
+	struct kdbus_queue_entry *entry;
+	struct file *cancel_fd = NULL;
+	struct poll_wqueues pwq = {};
 	sigset_t ksigsaved;
 	sigset_t ksigmask;
-	int r, ret;
+	int ret;
 
 	if (WARN_ON(!reply_wait))
 		return -EIO;
+
+	poll_initwait(&pwq);
+	poll_wait(ioctl_file, &conn_src->wait, &pwq.pt);
 
 	/*
 	 * Block until the reply arrives. reply_wait is left untouched
 	 * by the timeout scans that might be conducted for other,
 	 * asynchronous replies of conn_src.
 	 */
+
+	cancel_fd_item = kdbus_items_get(cmd_send->items,
+					 KDBUS_ITEMS_SIZE(cmd_send, items),
+					 KDBUS_ITEM_CANCEL_FD);
+	if (!IS_ERR(cancel_fd_item)) {
+		cancel_fd = fget(cancel_fd_item->fds[0]);
+		if (IS_ERR(cancel_fd))
+			return PTR_ERR(cancel_fd);
+
+		cancel_fd->f_op->poll(cancel_fd, &pwq.pt);
+	}
 
 	sigmask_item = kdbus_items_get(cmd_send->items,
 				       KDBUS_ITEMS_SIZE(cmd_send, items),
@@ -648,16 +666,64 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		sigprocmask(SIG_SETMASK, &ksigmask, &ksigsaved);
 	}
 
-	r = wait_event_interruptible_timeout(reply_wait->reply_dst->wait,
-		!reply_wait->waiting || !kdbus_conn_active(conn_src),
-		nsecs_to_jiffies(timeout_ns));
-	if (r < 0) {
+	for (;;) {
 		/*
-		 * Interrupted system call. Unref the reply object, and
-		 * pass the return value down the chain. Mark the reply as
-		 * interrupted, so the cleanup work can remove it, but do
-		 * not unlink it from the list. Once the syscall restarts,
-		 * we'll pick it up and wait on it again.
+		 * The following condition will stop our sync receive sleep.
+		 *
+		 * a) The remote peer closed down
+		 * b) The remote peer answered, setting reply_wait->waiting = 0
+		 * c) The cancel FD was written to
+		 * d) A signal was received
+		 * e) The specified timeout was reached, and none of the above
+		 *    conditions kicked in.
+		 */
+
+		if (!kdbus_conn_active(conn_src)) {
+			ret = -ECONNRESET;
+			break;
+		}
+
+		if (!reply_wait->waiting) {
+			ret = reply_wait->err;
+			break;
+		}
+
+		if (cancel_fd) {
+			unsigned int r;
+
+			r = cancel_fd->f_op->poll(cancel_fd, NULL);
+			if (r & POLLOUT) {
+				ret = -ECANCELED;
+				break;
+			}
+		}
+
+		if (signal_pending(current)) {
+			ret = -EINTR;
+			break;
+		}
+
+		if (!poll_schedule_timeout(&pwq, TASK_INTERRUPTIBLE,
+					   &expire, 0)) {
+			ret = -ETIMEDOUT;
+			break;
+		}
+
+		init_poll_funcptr(&pwq.pt, NULL);
+	}
+
+	if (cancel_fd)
+		fput(cancel_fd);
+
+	poll_freewait(&pwq);
+
+	if (ret == -EINTR) {
+		/*
+		 * Interrupted system call. Unref the reply object, and pass
+		 * the return value down the chain. Mark the reply as
+		 * interrupted, so the cleanup work can remove it, but do not
+		 * unlink it from the list. Once the syscall restarts, we'll
+		 * pick it up and wait on it again.
 		 */
 		mutex_lock(&conn_dst->lock);
 		reply_wait->interrupted = true;
@@ -670,18 +736,11 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 			set_restore_sigmask();
 		}
 
-		return r;
+		return -ERESTARTSYS;
 	}
 
 	if (sigmask_item)
 		sigprocmask(SIG_SETMASK, &ksigsaved, NULL);
-
-	if (r == 0)
-		ret = -ETIMEDOUT;
-	else if (!kdbus_conn_active(conn_src))
-		ret = -ECONNRESET;
-	else
-		ret = reply_wait->err;
 
 	mutex_lock(&conn_dst->lock);
 	list_del_init(&reply_wait->entry);
@@ -737,6 +796,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_SIGMASK:
+		case KDBUS_ITEM_CANCEL_FD:
 			break;
 		default:
 			return -EINVAL;
@@ -928,16 +988,13 @@ wait_sync:
 	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
 
 	if (sync) {
-		struct timespec64 ts;
-		u64 now;
+		ktime_t now = ktime_get();
+		ktime_t expire = ns_to_ktime(msg->timeout_ns);
 
-		ktime_get_ts64(&ts);
-		now = timespec64_to_ns(&ts);
-
-		if (likely(msg->timeout_ns > now))
-			ret = kdbus_conn_wait_reply(conn_src, conn_dst,
-						    cmd, reply_wait,
-						    msg->timeout_ns - now);
+		if (likely(ktime_compare(now, expire) < 0))
+			ret = kdbus_conn_wait_reply(conn_src, conn_dst, cmd,
+						    ioctl_file, reply_wait,
+						    expire);
 		else
 			ret = -ETIMEDOUT;
 	}
