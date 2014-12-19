@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/eventfd.h>
 
 #include "kdbus-test.h"
 #include "kdbus-util.h"
@@ -121,6 +122,49 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
 }
 
+static int cancel_sync(struct kdbus_conn *conn_src,
+			  struct kdbus_conn *conn_dst)
+{
+	pid_t pid;
+	int cancel_fd;
+	int ret, status;
+	uint64_t counter = 1;
+	struct kdbus_msg *msg = NULL;
+
+	cancel_fd = eventfd(0, 0);
+	ASSERT_RETURN_VAL(cancel_fd >= 0, cancel_fd);
+
+	cookie++;
+	pid = fork();
+	ASSERT_RETURN_VAL(pid >= 0, pid);
+
+	if (pid == 0) {
+		ret = kdbus_msg_send_sync(conn_dst, NULL, cookie,
+					  KDBUS_MSG_EXPECT_REPLY,
+					  100000000ULL, 0, conn_src->id,
+					  cancel_fd);
+		ASSERT_EXIT(ret == -ECANCELED);
+
+		_exit(EXIT_SUCCESS);
+	}
+
+	ret = kdbus_msg_recv_poll(conn_src, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
+
+	kdbus_msg_free(msg);
+
+	ret = write(cancel_fd, &counter, sizeof(counter));
+	ASSERT_RETURN(ret == sizeof(counter));
+
+	ret = waitpid(pid, &status, 0);
+	ASSERT_RETURN_VAL(ret >= 0, ret);
+
+	if (WIFSIGNALED(status))
+		return TEST_ERR;
+
+	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
+}
+
 static void *run_thread_reply(void *data)
 {
 	int ret;
@@ -171,6 +215,9 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	ret = interrupt_sync(conn_a, conn_b);
+	ASSERT_RETURN(ret == 0);
+
+	ret = cancel_sync(conn_a, conn_b);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_printf("-- closing bus connections\n");
