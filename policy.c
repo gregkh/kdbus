@@ -81,41 +81,39 @@ static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 }
 
 static const struct kdbus_policy_db_entry *
-kdbus_policy_lookup(struct kdbus_policy_db *db,
-		    const char *name, u32 hash, bool wildcard)
+kdbus_policy_lookup(struct kdbus_policy_db *db, const char *name, u32 hash)
 {
 	struct kdbus_policy_db_entry *e, *found = NULL;
+	const char *tmp;
+	char *dot;
 
+	/* find exact match */
 	hash_for_each_possible(db->entries_hash, e, hentry, hash)
 		if (strcmp(e->name, name) == 0 && !e->wildcard)
 			return e;
 
-	if (wildcard) {
-		const char *tmp;
-		char *dot;
+	/* find wildcard match */
 
-		tmp = kstrdup(name, GFP_KERNEL);
-		if (!tmp)
-			return NULL;
+	tmp = kstrdup(name, GFP_KERNEL);
+	if (!tmp)
+		return NULL;
 
-		dot = strrchr(tmp, '.');
-		if (!dot)
+	dot = strrchr(tmp, '.');
+	if (!dot)
+		goto exit_free;
+
+	*dot = '\0';
+	hash = kdbus_str_hash(tmp);
+
+	hash_for_each_possible(db->entries_hash, e, hentry, hash)
+		if (e->wildcard && strcmp(e->name, tmp) == 0) {
+			found = e;
+			/* never "break;" in hash_for_each() */
 			goto exit_free;
-
-		*dot = '\0';
-		hash = kdbus_str_hash(tmp);
-
-		hash_for_each_possible(db->entries_hash, e, hentry, hash)
-			if (strcmp(e->name, tmp) == 0 && e->wildcard) {
-				found = e;
-				/* never "break;" in hash_for_each() */
-				goto exit_free;
-			}
+		}
 
 exit_free:
-		kfree(tmp);
-	}
-
+	kfree(tmp);
 	return found;
 }
 
@@ -171,7 +169,7 @@ int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
 	const struct kdbus_policy_db_entry *e;
 	int i, highest = -EPERM;
 
-	e = kdbus_policy_lookup(db, name, hash, true);
+	e = kdbus_policy_lookup(db, name, hash);
 	if (!e)
 		return -EPERM;
 
