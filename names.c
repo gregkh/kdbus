@@ -247,8 +247,8 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 {
 	struct kdbus_name_queue_item *q_tmp, *q;
 	struct kdbus_name_entry *e = NULL;
+	int ret = -ESRCH;
 	u32 hash;
-	int ret = 0;
 
 	hash = kdbus_str_hash(name);
 
@@ -257,10 +257,8 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	down_write(&reg->rwlock);
 
 	e = kdbus_name_lookup(reg, hash, name);
-	if (!e) {
-		ret = -ESRCH;
+	if (!e)
 		goto exit_unlock;
-	}
 
 	/* Is the connection already the real owner of the name? */
 	if (e->conn == conn) {
@@ -270,9 +268,6 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 		 * Otherwise, walk the list of queued entries and search
 		 * for items for connection.
 		 */
-
-		/* In case the name belongs to somebody else */
-		ret = -EADDRINUSE;
 
 		list_for_each_entry_safe(q, q_tmp,
 					 &e->queue_list,
@@ -683,10 +678,6 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 
 	if (!kdbus_name_is_valid(name, false))
 		return -EINVAL;
-
-	ret = kdbus_conn_policy_see_name(conn, name);
-	if (ret < 0)
-		return ret;
 
 	ret = kdbus_name_release(reg, conn, name);
 
