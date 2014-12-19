@@ -151,12 +151,27 @@ void kdbus_policy_db_init(struct kdbus_policy_db *db)
 	init_rwsem(&db->entries_rwlock);
 }
 
-static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
-				     const struct cred *cred)
+/**
+ * kdbus_policy_query_unlocked() - Query the policy database
+ * @db:		Policy database
+ * @cred:	Credentials to test against
+ * @name:	Name to query
+ * @hash:	Hash value of @name
+ *
+ * Same as kdbus_policy_query() but requires the caller to lock the policy
+ * database against concurrent writes.
+ *
+ * Return: The highest KDBUS_POLICY_* access type found, or -EPERM if none.
+ */
+int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
+				const struct cred *cred, const char *name,
+				unsigned int hash)
 {
 	struct kdbus_policy_db_entry_access *a;
+	const struct kdbus_policy_db_entry *e;
 	int i, highest = -EPERM;
 
+	e = kdbus_policy_lookup(db, name, hash, true);
 	if (!e)
 		return -EPERM;
 
@@ -196,27 +211,6 @@ static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
 	}
 
 	return highest;
-}
-
-/**
- * kdbus_policy_query_unlocked() - Query the policy database
- * @db:		Policy database
- * @cred:	Credentials to test against
- * @name:	Name to query
- * @hash:	Hash value of @name
- *
- * Same as kdbus_policy_query() but requires the caller to lock the policy
- * database against concurrent writes.
- *
- * Return: The highest KDBUS_POLICY_* access type found, or -EPERM if none.
- */
-int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
-				const struct cred *cred, const char *name,
-				unsigned int hash)
-{
-	return kdbus_policy_check_access(kdbus_policy_lookup(db, name, hash,
-							     true),
-					 cred);
 }
 
 /**
