@@ -833,6 +833,15 @@ struct kdbus_cmd_send {
       putting it to sleep, and restored afterwards. For asynchronous message
       sending, this item is accepted but ignored.
 
+    KDBUS_ITEM_CANCEL_FD
+      When this optional item is passed in, and the call is executed as SYNC
+      call, the passed in file descriptor can be used as alternative
+      cancellation point. The kernel will call poll() on this file descriptor,
+      and if it reports any incoming bytes, the blocking send operation will
+      be canceled, and the call will return -ECANCELED. Any type of file
+      descriptor that implements poll() can be used as payload to this item.
+      For asynchronous message sending, this item is accepted but ignored.
+
     All other items are rejected, and the ioctl will fail with -EINVAL.
 };
 
