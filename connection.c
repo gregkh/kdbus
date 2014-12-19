@@ -651,6 +651,10 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		cancel_fd = fget(cancel_fd_item->fds[0]);
 		if (IS_ERR(cancel_fd))
 			return PTR_ERR(cancel_fd);
+		if (!cancel_fd->f_op->poll) {
+			fput(cancel_fd);
+			return -EINVAL;
+		}
 
 		cancel_fd->f_op->poll(cancel_fd, &pwq.pt);
 	}
