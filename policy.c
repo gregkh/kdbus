@@ -83,9 +83,9 @@ static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 static const struct kdbus_policy_db_entry *
 kdbus_policy_lookup(struct kdbus_policy_db *db, const char *name, u32 hash)
 {
-	struct kdbus_policy_db_entry *e, *found = NULL;
-	const char *tmp;
-	char *dot;
+	struct kdbus_policy_db_entry *e;
+	const char *dot;
+	size_t len;
 
 	/* find exact match */
 	hash_for_each_possible(db->entries_hash, e, hentry, hash)
@@ -94,27 +94,19 @@ kdbus_policy_lookup(struct kdbus_policy_db *db, const char *name, u32 hash)
 
 	/* find wildcard match */
 
-	tmp = kstrdup(name, GFP_KERNEL);
-	if (!tmp)
+	dot = strrchr(name, '.');
+	if (!dot)
 		return NULL;
 
-	dot = strrchr(tmp, '.');
-	if (!dot)
-		goto exit_free;
-
-	*dot = '\0';
-	hash = kdbus_strhash(tmp);
+	len = dot - name;
+	hash = kdbus_strnhash(name, len);
 
 	hash_for_each_possible(db->entries_hash, e, hentry, hash)
-		if (e->wildcard && strcmp(e->name, tmp) == 0) {
-			found = e;
-			/* never "break;" in hash_for_each() */
-			goto exit_free;
-		}
+		if (e->wildcard && !strncmp(e->name, name, len) &&
+		    !e->name[len])
+			return e;
 
-exit_free:
-	kfree(tmp);
-	return found;
+	return NULL;
 }
 
 /**
