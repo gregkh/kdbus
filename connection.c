@@ -710,12 +710,14 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
  * kdbus_cmd_msg_send() - send a message
  * @conn_src:		Connection
  * @cmd:		Payload of SEND command
+ * @ioctl_file:		struct file used to issue this ioctl
  * @kmsg:		Message to send
  *
  * Return: 0 on success, negative errno on failure
  */
 int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		       struct kdbus_cmd_send *cmd,
+		       struct file *ioctl_file,
 		       struct kdbus_kmsg *kmsg)
 {
 	bool sync = cmd->flags & KDBUS_SEND_SYNC_REPLY;

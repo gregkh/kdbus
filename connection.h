@@ -143,6 +143,7 @@ bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 /* command dispatcher */
 int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		       struct kdbus_cmd_send *cmd_send,
+		       struct file *ioctl_file,
 		       struct kdbus_kmsg *kmsg);
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv);
