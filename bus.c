@@ -426,8 +426,7 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * destination connection from receiving this kernel
 			 * notification
 			 */
-			ret = kdbus_ep_policy_check_notification(conn_dst->ep,
-								 conn_dst,
+			ret = kdbus_conn_policy_see_notification(conn_dst,
 								 kmsg);
 			if (ret < 0)
 				continue;

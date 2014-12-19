@@ -64,8 +64,4 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 			const struct kdbus_item *items,
 			size_t items_size);
 
-int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
-				       struct kdbus_conn *conn,
-				       const struct kdbus_kmsg *kmsg);
-
 #endif

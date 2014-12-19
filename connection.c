@@ -2048,3 +2048,61 @@ int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
 
 	return ret;
 }
+
+/**
+ * kdbus_conn_policy_see_notification() - verify a connection is allowed to
+ *					  receive a given kernel notification
+ * @conn:		Connection
+ * @kmsg:		The message carrying the notification
+ *
+ * This checks whether @conn is allowed to see the kernel notification @kmsg.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
+				       const struct kdbus_kmsg *kmsg)
+{
+	int ret = 0;
+
+	if (WARN_ON(kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL))
+		return 0;
+
+	/*
+	 * Depending on the notification type, broadcasted kernel notifications
+	 * have to be filtered:
+	 *
+	 * KDBUS_ITEM_NAME_{ADD,REMOVE,CHANGE}: This notification is forwarded
+	 *     to a peer if, and only if, that peer can see the name this
+	 *     notification is for.
+	 *
+	 * KDBUS_ITEM_ID_{ADD,REMOVE}: As new peers cannot have names, and all
+	 *     names are dropped before a peer is removed, those notifications
+	 *     cannot be seen on custom endpoints. Thus, we only pass them
+	 *     through on default endpoints.
+	 */
+
+	switch (kmsg->notify_type) {
+	case KDBUS_ITEM_NAME_ADD:
+	case KDBUS_ITEM_NAME_REMOVE:
+	case KDBUS_ITEM_NAME_CHANGE:
+		if (conn->ep->has_policy)
+			ret = kdbus_conn_policy_see_name(conn,
+							 kmsg->notify_name);
+
+		break;
+
+	case KDBUS_ITEM_ID_ADD:
+	case KDBUS_ITEM_ID_REMOVE:
+		if (conn->ep->has_policy)
+			ret = -ENOENT;
+
+		break;
+
+	default:
+		WARN(1, "Invalid type for notification broadcast: %llu\n",
+		     (unsigned long long)kmsg->notify_type);
+		break;
+	}
+
+	return ret;
+}
