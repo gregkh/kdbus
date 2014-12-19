@@ -39,9 +39,6 @@ int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
 int kdbus_policy_query(struct kdbus_policy_db *db, const struct cred *cred,
 		       unsigned int type, const char *name, unsigned int hash);
 
-int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
-				   struct kdbus_conn *conn_src,
-				   struct kdbus_conn *conn_dst);
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 			       const void *owner);
 int kdbus_policy_set(struct kdbus_policy_db *db,

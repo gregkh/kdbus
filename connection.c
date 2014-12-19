@@ -1883,6 +1883,34 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 	return match;
 }
 
+/* query the policy-database for all names of @whom */
+static int kdbus_conn_policy_query_all(struct kdbus_conn *conn,
+				       struct kdbus_policy_db *db,
+				       struct kdbus_conn *whom,
+				       unsigned int access)
+{
+	struct kdbus_name_entry *ne;
+	int ret = -EPERM;
+
+	down_read(&db->entries_rwlock);
+	mutex_lock(&whom->lock);
+
+	list_for_each_entry(ne, &whom->names_list, conn_entry) {
+		ret = kdbus_policy_query_unlocked(db, conn->cred, access,
+						  ne->name,
+						  kdbus_str_hash(ne->name));
+		if (ret >= 0) {
+			ret = 0;
+			break;
+		}
+	}
+
+	mutex_unlock(&whom->lock);
+	up_read(&db->entries_rwlock);
+
+	return ret;
+}
+
 /**
  * kdbus_conn_policy_own_name() - verify a connection can own the given name
  * @conn:		Connection
@@ -1925,8 +1953,8 @@ int kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
 	int ret;
 
 	if (conn->ep->has_policy) {
-		ret = kdbus_policy_check_talk_access(&conn->ep->policy_db,
-						     conn, to);
+		ret = kdbus_conn_policy_query_all(conn, &conn->ep->policy_db,
+						  to, KDBUS_POLICY_TALK);
 		/* Don't leak hints whether a name exists on a custom ep */
 		if (ret == -EPERM)
 			ret = -ENOENT;
@@ -1939,8 +1967,8 @@ int kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
 	if (uid_eq(conn->cred->fsuid, to->cred->uid))
 		return 0;
 
-	return kdbus_policy_check_talk_access(&conn->ep->bus->policy_db,
-					      conn, to);
+	return kdbus_conn_policy_query_all(conn, &conn->ep->bus->policy_db, to,
+					   KDBUS_POLICY_TALK);
 }
 
 /**
@@ -2005,8 +2033,7 @@ int kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
  */
 int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
 {
-	struct kdbus_name_entry *e;
-	int ret = -ENOENT;
+	int ret;
 
 	/*
 	 * By default, all names are visible on a bus, so a connection can
@@ -2018,25 +2045,9 @@ int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
 	if (!conn->ep->has_policy)
 		return 0;
 
-	down_read(&conn->ep->policy_db.entries_rwlock);
-
-	/*
-	 * If conn_dst is allowed to see one name of conn_src then
-	 * return success, otherwise fail even if conn_src does not
-	 * own any name, this will block any leak from conn_src to
-	 * conn_dst
-	 */
-	mutex_lock(&whom->lock);
-	list_for_each_entry(e, &whom->names_list, conn_entry) {
-		ret = kdbus_conn_policy_see_name_unlocked(conn, e->name);
-		if (ret == 0)
-			break;
-	}
-	mutex_unlock(&whom->lock);
-
-	up_read(&conn->ep->policy_db.entries_rwlock);
-
-	return ret;
+	ret = kdbus_conn_policy_query_all(conn, &conn->ep->policy_db, whom,
+					  KDBUS_POLICY_SEE);
+	return (ret == -EPERM) ? -ENOENT : ret;
 }
 
 /**

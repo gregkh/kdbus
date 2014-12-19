@@ -239,44 +239,6 @@ int kdbus_policy_query(struct kdbus_policy_db *db, const struct cred *cred,
 	return ret;
 }
 
-/**
- * kdbus_policy_check_talk_access() - check if one connection is allowed
- *				       to send a message to another connection
- * @db:			The policy database
- * @conn_src:		The source connection
- * @conn_dst:		The destination connection
- *
- * Return: 0 if access is granted, -EPERM if not, negative errno on failure
- */
-int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
-				   struct kdbus_conn *conn_src,
-				   struct kdbus_conn *conn_dst)
-{
-	struct kdbus_name_entry *name_entry;
-	int ret;
-
-	down_read(&db->entries_rwlock);
-
-	ret = -EPERM;
-	mutex_lock(&conn_dst->lock);
-	list_for_each_entry(name_entry, &conn_dst->names_list, conn_entry) {
-		u32 hash = kdbus_str_hash(name_entry->name);
-		const struct kdbus_policy_db_entry *e;
-
-		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
-		if (kdbus_policy_check_access(e, conn_src->cred,
-					      KDBUS_POLICY_TALK) == 0) {
-			ret = 0;
-			break;
-		}
-	}
-	mutex_unlock(&conn_dst->lock);
-
-	up_read(&db->entries_rwlock);
-
-	return ret;
-}
-
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 					const void *owner)
 {
