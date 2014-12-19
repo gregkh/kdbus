@@ -139,16 +139,15 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name);
 
 /* command dispatcher */
+int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
+		       struct kdbus_cmd_send *cmd_send,
+		       struct kdbus_kmsg *kmsg);
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv);
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_info *cmd_info);
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
 			  const struct kdbus_cmd_update *cmd_update);
-int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
-			 struct kdbus_conn *conn_src,
-			 struct kdbus_cmd_send *cmd_send,
-			 struct kdbus_kmsg *kmsg);
 
 /**
  * kdbus_conn_is_ordinary() - Check if connection is ordinary

@@ -705,18 +705,16 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 }
 
 /**
- * kdbus_conn_kmsg_send() - send a message
- * @ep:			Endpoint to send from
- * @conn_src:		Connection, kernel-generated messages do not have one
+ * kdbus_cmd_msg_send() - send a message
+ * @conn_src:		Connection
  * @cmd:		Payload of SEND command
  * @kmsg:		Message to send
  *
  * Return: 0 on success, negative errno on failure
  */
-int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
-			 struct kdbus_conn *conn_src,
-			 struct kdbus_cmd_send *cmd,
-			 struct kdbus_kmsg *kmsg)
+int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
+		       struct kdbus_cmd_send *cmd,
+		       struct kdbus_kmsg *kmsg)
 {
 	bool sync = cmd->flags & KDBUS_SEND_SYNC_REPLY;
 	struct kdbus_conn_reply *reply_wait = NULL;
@@ -724,7 +722,7 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 	struct kdbus_name_entry *name_entry = NULL;
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
-	struct kdbus_bus *bus = ep->bus;
+	struct kdbus_bus *bus = conn_src->ep->bus;
 	struct kdbus_item *item;
 	int ret = 0;
 
@@ -870,8 +868,8 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 			goto exit_unref;
 
 		if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
-			ret = kdbus_conn_check_access(ep, msg, conn_src,
-						      conn_dst, NULL);
+			ret = kdbus_conn_check_access(conn_src->ep, msg,
+						      conn_src, conn_dst, NULL);
 			if (ret < 0)
 				goto exit_unref;
 
@@ -882,8 +880,9 @@ int kdbus_conn_kmsg_send(struct kdbus_ep *ep,
 				goto exit_unref;
 			}
 		} else {
-			ret = kdbus_conn_check_access(ep, msg, conn_src,
-						      conn_dst, &reply_wake);
+			ret = kdbus_conn_check_access(conn_src->ep, msg,
+						      conn_src, conn_dst,
+						      &reply_wake);
 			if (ret < 0)
 				goto exit_unref;
 		}

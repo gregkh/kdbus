@@ -699,7 +699,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = kdbus_conn_kmsg_send(conn->ep, conn, cmd_send, kmsg);
+		ret = kdbus_cmd_msg_send(conn, cmd_send, kmsg);
 		if (ret < 0) {
 			kdbus_kmsg_free(kmsg);
 			break;
