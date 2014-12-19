@@ -895,8 +895,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 */
 		if (sync && atomic_read(&conn_src->reply_count) > 0) {
 			mutex_lock(&conn_dst->lock);
-			reply_wait = kdbus_conn_reply_find(conn_dst,
-							   conn_src,
+			reply_wait = kdbus_conn_reply_find(conn_dst, conn_src,
 							   kmsg->msg.cookie);
 			if (reply_wait) {
 				/* It was interrupted */
@@ -912,8 +911,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		}
 
 		/* Calculate attach flags of conn_src & conn_dst */
-		attach_flags = kdbus_meta_calc_attach_flags(conn_src,
-							    conn_dst);
+		attach_flags = kdbus_meta_calc_attach_flags(conn_src, conn_dst);
 
 		/*
 		 * If this connection did not fake its metadata then
