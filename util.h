@@ -59,12 +59,12 @@
 })
 
 /**
- * kdbus_str_hash - calculate a hash
+ * kdbus_strhash - calculate a hash
  * @str:		String
  *
  * Return: hash value
  */
-static inline unsigned int kdbus_str_hash(const char *str)
+static inline unsigned int kdbus_strhash(const char *str)
 {
 	unsigned long hash = init_name_hash();
 

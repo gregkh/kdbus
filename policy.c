@@ -103,7 +103,7 @@ kdbus_policy_lookup(struct kdbus_policy_db *db, const char *name, u32 hash)
 		goto exit_free;
 
 	*dot = '\0';
-	hash = kdbus_str_hash(tmp);
+	hash = kdbus_strhash(tmp);
 
 	hash_for_each_possible(db->entries_hash, e, hentry, hash)
 		if (e->wildcard && strcmp(e->name, tmp) == 0) {
@@ -179,7 +179,7 @@ int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
 
 		switch (a->type) {
 		case KDBUS_POLICY_ACCESS_USER:
-			if (uid_eq(cred->uid, a->uid))
+			if (uid_eq(cred->euid, a->uid))
 				highest = a->access;
 			break;
 		case KDBUS_POLICY_ACCESS_GROUP:
@@ -449,7 +449,7 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 
 	hlist_for_each_entry_safe(e, tmp, &entries, hentry) {
 		/* prevent duplicates */
-		hash = kdbus_str_hash(e->name);
+		hash = kdbus_strhash(e->name);
 		hash_for_each_possible(db->entries_hash, p, hentry, hash)
 			if (strcmp(e->name, p->name) == 0 &&
 			    e->wildcard == p->wildcard) {
@@ -470,7 +470,7 @@ restore:
 	hlist_for_each_entry_safe(e, tmp, &restore, hentry) {
 		hlist_del(&e->hentry);
 		if (ret < 0) {
-			hash = kdbus_str_hash(e->name);
+			hash = kdbus_strhash(e->name);
 			hash_add(db->entries_hash, &e->hentry, hash);
 		} else {
 			kdbus_policy_entry_free(e);

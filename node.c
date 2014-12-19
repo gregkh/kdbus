@@ -249,7 +249,7 @@ static unsigned int kdbus_node_name_hash(const char *name)
 	unsigned int hash;
 
 	/* reserve hash numbers 0, 1 and >=INT_MAX for magic directories */
-	hash = kdbus_str_hash(name) & INT_MAX;
+	hash = kdbus_strhash(name) & INT_MAX;
 	if (hash < 2)
 		hash += 2;
 	if (hash >= INT_MAX)

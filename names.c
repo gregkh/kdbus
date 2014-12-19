@@ -250,7 +250,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	int ret = -ESRCH;
 	u32 hash;
 
-	hash = kdbus_str_hash(name);
+	hash = kdbus_strhash(name);
 
 	/* lock order: domain -> bus -> ep -> names -> connection */
 	mutex_lock(&conn->ep->bus->lock);
@@ -350,7 +350,7 @@ struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
 					 const char *name)
 {
 	struct kdbus_name_entry *e = NULL;
-	u32 hash = kdbus_str_hash(name);
+	u32 hash = kdbus_strhash(name);
 
 	down_read(&reg->rwlock);
 	e = kdbus_name_lookup(reg, hash, name);
@@ -480,7 +480,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	mutex_lock(&conn->ep->bus->lock);
 	down_write(&reg->rwlock);
 
-	hash = kdbus_str_hash(name);
+	hash = kdbus_strhash(name);
 	e = kdbus_name_lookup(reg, hash, name);
 	if (e) {
 		/* connection already owns that name */

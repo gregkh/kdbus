@@ -1898,7 +1898,7 @@ static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 
 	list_for_each_entry(ne, &whom->names_list, conn_entry) {
 		res = kdbus_policy_query_unlocked(db, conn->cred, ne->name,
-						  kdbus_str_hash(ne->name));
+						  kdbus_strhash(ne->name));
 		if (res >= (int)access) {
 			pass = true;
 			break;
@@ -1922,7 +1922,7 @@ static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
  */
 bool kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 {
-	unsigned int hash = kdbus_str_hash(name);
+	unsigned int hash = kdbus_strhash(name);
 	int res;
 
 	if (conn->ep->has_policy) {
@@ -1989,7 +1989,7 @@ bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 		return true;
 
 	res = kdbus_policy_query_unlocked(&conn->ep->policy_db, conn->cred,
-					  name, kdbus_str_hash(name));
+					  name, kdbus_strhash(name));
 	return res >= KDBUS_POLICY_SEE;
 }
 
