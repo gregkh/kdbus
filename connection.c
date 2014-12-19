@@ -461,8 +461,7 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 	}
 
 	/* ... otherwise, ask the policy DBs for permission */
-	return kdbus_ep_policy_check_talk_access(conn_src->ep, conn_src,
-						 conn_dst);
+	return kdbus_conn_policy_talk(conn_src, conn_dst);
 }
 
 /* Callers should take the conn_dst lock */
@@ -1924,4 +1923,36 @@ int kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 
 	return kdbus_policy_check_own_access(&conn->ep->bus->policy_db,
 					     conn->cred, name);
+}
+
+/**
+ * kdbus_conn_policy_talk() - verify a connection can talk to a given peer
+ * @conn:		Connection that tries to talk
+ * @to:			Connection that is talked to
+ *
+ * This verifies that @conn is allowed to talk to @to.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
+{
+	int ret;
+
+	if (conn->ep->has_policy) {
+		ret = kdbus_policy_check_talk_access(&conn->ep->policy_db,
+						     conn, to);
+		/* Don't leak hints whether a name exists on a custom ep */
+		if (ret == -EPERM)
+			ret = -ENOENT;
+		if (ret < 0)
+			return ret;
+	}
+
+	if (conn->privileged)
+		return 0;
+	if (uid_eq(conn->cred->fsuid, to->cred->uid))
+		return 0;
+
+	return kdbus_policy_check_talk_access(&conn->ep->bus->policy_db,
+					      conn, to);
 }

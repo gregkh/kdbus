@@ -404,9 +404,7 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * destination. But a receiver needs TALK access to
 			 * the sender in order to receive broadcasts.
 			 */
-			ret = kdbus_ep_policy_check_talk_access(conn_dst->ep,
-								conn_dst,
-								conn_src);
+			ret = kdbus_conn_policy_talk(conn_dst, conn_src);
 			if (ret < 0)
 				continue;
 

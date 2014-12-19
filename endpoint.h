@@ -76,8 +76,5 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 				    struct kdbus_conn *conn_src,
 				    struct kdbus_conn *conn_dst);
-int kdbus_ep_policy_check_talk_access(struct kdbus_ep *ep,
-				      struct kdbus_conn *conn_src,
-				      struct kdbus_conn *conn_dst);
 
 #endif
