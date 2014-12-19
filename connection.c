@@ -428,10 +428,9 @@ kdbus_conn_reply_find(struct kdbus_conn *conn_replying,
 	return reply;
 }
 
-static int kdbus_conn_check_access(struct kdbus_ep *ep,
-				   const struct kdbus_msg *msg,
-				   struct kdbus_conn *conn_src,
+static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst,
+				   const struct kdbus_msg *msg,
 				   struct kdbus_conn_reply **reply_wake)
 {
 	/*
@@ -462,7 +461,8 @@ static int kdbus_conn_check_access(struct kdbus_ep *ep,
 	}
 
 	/* ... otherwise, ask the policy DBs for permission */
-	return kdbus_ep_policy_check_talk_access(ep, conn_src, conn_dst);
+	return kdbus_ep_policy_check_talk_access(conn_src->ep, conn_src,
+						 conn_dst);
 }
 
 /* Callers should take the conn_dst lock */
@@ -868,8 +868,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			goto exit_unref;
 
 		if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
-			ret = kdbus_conn_check_access(conn_src->ep, msg,
-						      conn_src, conn_dst, NULL);
+			ret = kdbus_conn_check_access(conn_src, conn_dst, msg,
+						      NULL);
 			if (ret < 0)
 				goto exit_unref;
 
@@ -880,8 +880,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 				goto exit_unref;
 			}
 		} else {
-			ret = kdbus_conn_check_access(conn_src->ep, msg,
-						      conn_src, conn_dst,
+			ret = kdbus_conn_check_access(conn_src, conn_dst, msg,
 						      &reply_wake);
 			if (ret < 0)
 				goto exit_unref;
