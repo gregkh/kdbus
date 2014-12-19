@@ -25,6 +25,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/user_namespace.h>
 #include <linux/version.h>
 
 #include "bus.h"
