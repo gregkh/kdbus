@@ -1331,9 +1331,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			goto exit;
 		}
 
-		/* check if 'conn' is allowed to see any of owner_conn's names*/
-		ret = kdbus_ep_policy_check_src_names(conn->ep, owner_conn,
-						      conn);
+		ret = kdbus_conn_policy_see(conn, owner_conn);
 		if (ret < 0)
 			goto exit;
 	}
@@ -2001,6 +1999,51 @@ int kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
 
 	down_read(&conn->ep->policy_db.entries_rwlock);
 	ret = kdbus_conn_policy_see_name_unlocked(conn, name);
+	up_read(&conn->ep->policy_db.entries_rwlock);
+
+	return ret;
+}
+
+/**
+ * kdbus_conn_policy_see() - verify a connection can see a given peer
+ * @conn:		Connection to verify whether it sees a peer
+ * @whom:		Peer destination that is to be 'seen'
+ *
+ * This checks whether @conn is able to see @whom.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
+{
+	struct kdbus_name_entry *e;
+	int ret = -ENOENT;
+
+	/*
+	 * By default, all names are visible on a bus, so a connection can
+	 * always see other connections. SEE policies can only be installed on
+	 * custom endpoints, where by default no name is visible and we hide
+	 * peers from each other, unless you see at least _one_ name of the
+	 * peer.
+	 */
+	if (!conn->ep->has_policy)
+		return 0;
+
+	down_read(&conn->ep->policy_db.entries_rwlock);
+
+	/*
+	 * If conn_dst is allowed to see one name of conn_src then
+	 * return success, otherwise fail even if conn_src does not
+	 * own any name, this will block any leak from conn_src to
+	 * conn_dst
+	 */
+	mutex_lock(&whom->lock);
+	list_for_each_entry(e, &whom->names_list, conn_entry) {
+		ret = kdbus_conn_policy_see_name_unlocked(conn, e->name);
+		if (ret == 0)
+			break;
+	}
+	mutex_unlock(&whom->lock);
+
 	up_read(&conn->ep->policy_db.entries_rwlock);
 
 	return ret;

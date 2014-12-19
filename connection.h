@@ -141,6 +141,7 @@ int kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to);
 int kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 					const char *name);
 int kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name);
+int kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom);
 
 /* command dispatcher */
 int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
