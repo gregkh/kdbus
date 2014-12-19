@@ -1314,8 +1314,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 		if (!kdbus_name_is_valid(name, false))
 			return -EINVAL;
 
-		/* check if 'conn' is allowed to see 'name' */
-		ret = kdbus_ep_policy_check_see_access(conn->ep, conn, name);
+		ret = kdbus_conn_policy_see_name(conn, name);
 		if (ret < 0)
 			return ret;
 
@@ -1955,4 +1954,56 @@ int kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
 
 	return kdbus_policy_check_talk_access(&conn->ep->bus->policy_db,
 					      conn, to);
+}
+
+/**
+ * kdbus_conn_policy_see_name_unlocked() - verify a connection can see a given
+ *					   name
+ * @conn:		Connection
+ * @name:		Name
+ *
+ * This verifies that @conn is allowed to see the well-known name @name. Caller
+ * must hold policy-lock.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
+					const char *name)
+{
+	int ret;
+
+	/*
+	 * By default, all names are visible on a bus. SEE policies can only be
+	 * installed on custom endpoints, where by default no name is visible.
+	 */
+	if (!conn->ep->has_policy)
+		return 0;
+
+	ret = kdbus_policy_check_see_access_unlocked(&conn->ep->policy_db,
+						     conn->cred, name);
+
+	/* don't leak hints whether a name exists on a custom endpoint. */
+	return (ret == -EPERM) ? -ENOENT : ret;
+}
+
+/**
+ * kdbus_conn_policy_see_name() - verify a connection can see a given name
+ * @conn:		Connection
+ * @name:		Name
+ *
+ * This verifies that @conn is allowed to see the well-known name @name.
+ *
+ * Return: 0 if allowed, negative error code if not.
+ */
+int kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
+{
+	int ret;
+
+	down_read(&conn->ep->policy_db.entries_rwlock);
+	mutex_lock(&conn->lock);
+	ret = kdbus_conn_policy_see_name_unlocked(conn, name);
+	mutex_unlock(&conn->lock);
+	up_read(&conn->ep->policy_db.entries_rwlock);
+
+	return ret;
 }

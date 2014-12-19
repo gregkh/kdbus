@@ -232,78 +232,6 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 }
 
 /**
- * kdbus_ep_policy_check_see_access_unlocked() - verify a connection can see
- *						 the passed name
- * @ep:			Endpoint to operate on
- * @conn:		Connection that lists names
- * @name:		Name that is tried to be listed
- *
- * This verifies that @conn is allowed to see the well-known name @name via the
- * endpoint @ep.
- *
- * Return: 0 if allowed, negative error code if not.
- */
-int kdbus_ep_policy_check_see_access_unlocked(struct kdbus_ep *ep,
-					      struct kdbus_conn *conn,
-					      const char *name)
-{
-	int ret;
-
-	/*
-	 * Check policy, if the endpoint of the connection has a db.
-	 * Note that policy DBs instanciated along with connections
-	 * don't have SEE rules, so it's sufficient to check the
-	 * endpoint's database.
-	 *
-	 * The lock for the policy db is held across all calls of
-	 * kdbus_name_list_all(), so the entries in both writing
-	 * and non-writing runs of kdbus_name_list_write() are the
-	 * same.
-	 */
-
-	if (!ep->has_policy)
-		return 0;
-
-	ret = kdbus_policy_check_see_access_unlocked(&ep->policy_db,
-						     conn->cred, name);
-
-	/* don't leak hints whether a name exists on a custom endpoint. */
-	if (ret == -EPERM)
-		return -ENOENT;
-
-	return ret;
-}
-
-/**
- * kdbus_ep_policy_check_see_access() - verify a connection can see
- *					the passed name
- * @ep:			Endpoint to operate on
- * @conn:		Connection that lists names
- * @name:		Name that is tried to be listed
- *
- * This verifies that @conn is allowed to see the well-known name @name via the
- * endpoint @ep.
- *
- * Return: 0 if allowed, negative error code if not.
- */
-int kdbus_ep_policy_check_see_access(struct kdbus_ep *ep,
-				     struct kdbus_conn *conn,
-				     const char *name)
-{
-	int ret;
-
-	down_read(&ep->policy_db.entries_rwlock);
-	mutex_lock(&conn->lock);
-
-	ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn, name);
-
-	mutex_unlock(&conn->lock);
-	up_read(&ep->policy_db.entries_rwlock);
-
-	return ret;
-}
-
-/**
  * kdbus_ep_policy_check_notification() - verify a connection is allowed to see
  *					  the name in a notification
  * @ep:			Endpoint to operate on
@@ -346,8 +274,7 @@ int kdbus_ep_policy_check_notification(struct kdbus_ep *ep,
 	case KDBUS_ITEM_NAME_ADD:
 	case KDBUS_ITEM_NAME_REMOVE:
 	case KDBUS_ITEM_NAME_CHANGE:
-		ret = kdbus_ep_policy_check_see_access(ep, conn,
-						       kmsg->notify_name);
+		ret = kdbus_conn_policy_see_name(conn, kmsg->notify_name);
 		break;
 	default:
 		break;
@@ -394,8 +321,7 @@ int kdbus_ep_policy_check_src_names(struct kdbus_ep *ep,
 	 * conn_dst
 	 */
 	list_for_each_entry(e, &conn_src->names_list, conn_entry) {
-		ret = kdbus_ep_policy_check_see_access_unlocked(ep, conn_dst,
-								e->name);
+		ret = kdbus_conn_policy_see_name_unlocked(conn_dst, e->name);
 		if (ret == 0)
 			break;
 	}

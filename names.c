@@ -692,7 +692,7 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	if (!kdbus_name_is_valid(name, false))
 		return -EINVAL;
 
-	ret = kdbus_ep_policy_check_see_access(conn->ep, conn, name);
+	ret = kdbus_conn_policy_see_name(conn, name);
 	if (ret < 0)
 		return ret;
 
@@ -727,9 +727,8 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 		u64 flags;
 	} h = {};
 
-	if (e && kdbus_ep_policy_check_see_access_unlocked(conn->ep, conn,
-							   e->name) < 0)
-			return 0;
+	if (e && kdbus_conn_policy_see_name_unlocked(conn, e->name) < 0)
+		return 0;
 
 	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &info.size);
 
@@ -854,7 +853,6 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 			struct kdbus_cmd_name_list *cmd)
 {
 	struct kdbus_pool_slice *slice = NULL;
-	struct kdbus_policy_db *policy_db;
 	struct kdbus_name_list list = {};
 	const struct kdbus_item *item;
 	struct kvec kvec;
@@ -869,12 +867,10 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 		}
 	}
 
-	policy_db = &conn->ep->policy_db;
-
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_read(&reg->rwlock);
 	down_read(&conn->ep->bus->conn_rwlock);
-	down_read(&policy_db->entries_rwlock);
+	down_read(&conn->ep->policy_db.entries_rwlock);
 
 	/* size of header + records */
 	pos = sizeof(struct kdbus_name_list);
@@ -905,7 +901,7 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 
 exit_unlock:
 	kdbus_pool_slice_release(slice);
-	up_read(&policy_db->entries_rwlock);
+	up_read(&conn->ep->policy_db.entries_rwlock);
 	up_read(&conn->ep->bus->conn_rwlock);
 	up_read(&reg->rwlock);
 	return ret;
