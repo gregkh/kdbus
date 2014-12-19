@@ -2000,9 +2000,7 @@ int kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
 	int ret;
 
 	down_read(&conn->ep->policy_db.entries_rwlock);
-	mutex_lock(&conn->lock);
 	ret = kdbus_conn_policy_see_name_unlocked(conn, name);
-	mutex_unlock(&conn->lock);
 	up_read(&conn->ep->policy_db.entries_rwlock);
 
 	return ret;
