@@ -655,8 +655,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 			fput(cancel_fd);
 			return -EINVAL;
 		}
-
-		cancel_fd->f_op->poll(cancel_fd, &pwq.pt);
 	}
 
 	sigmask_item = kdbus_items_get(cmd_send->items,
@@ -696,7 +694,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		if (cancel_fd) {
 			unsigned int r;
 
-			r = cancel_fd->f_op->poll(cancel_fd, NULL);
+			r = cancel_fd->f_op->poll(cancel_fd, &pwq.pt);
 			if (r & POLLIN) {
 				ret = -ECANCELED;
 				break;
