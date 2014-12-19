@@ -15,7 +15,6 @@
 #define __KDBUS_POLICY_H
 
 #include <linux/hashtable.h>
-#include <linux/mutex.h>
 #include <linux/rwsem.h>
 
 struct kdbus_conn;
@@ -24,15 +23,11 @@ struct kdbus_item;
 /**
  * struct kdbus_policy_db - policy database
  * @entries_hash:	Hashtable of entries
- * @talk_access_hash:	Hashtable of send access elements
  * @entries_lock:	Mutex to protect the database's access entries
- * @cache_lock:		Mutex to protect the database's cache
  */
 struct kdbus_policy_db {
 	DECLARE_HASHTABLE(entries_hash, 6);
-	DECLARE_HASHTABLE(talk_access_hash, 6);
 	struct rw_semaphore entries_rwlock;
-	struct mutex cache_lock;
 };
 
 void kdbus_policy_db_init(struct kdbus_policy_db *db);
@@ -47,8 +42,6 @@ int kdbus_policy_query(struct kdbus_policy_db *db, const struct cred *cred,
 int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst);
-void kdbus_policy_purge_cache(struct kdbus_policy_db *db,
-			      const struct kdbus_conn *conn);
 void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 			       const void *owner);
 int kdbus_policy_set(struct kdbus_policy_db *db,

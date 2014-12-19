@@ -30,20 +30,6 @@
 #define KDBUS_POLICY_HASH_SIZE	64
 
 /**
- * struct kdbus_policy_db_cache_entry - a cached entry
- * @conn_a:		Connection A
- * @conn_b:		Connection B
- * @owner:		Owner of policy-entry that produced this cache-entry
- * @hentry:		The hash table entry for the database's entries_hash
- */
-struct kdbus_policy_db_cache_entry {
-	struct kdbus_conn *conn_a;
-	struct kdbus_conn *conn_b;
-	const void *owner;
-	struct hlist_node hentry;
-};
-
-/**
  * struct kdbus_policy_db_entry_access - a database entry access item
  * @type:		One of KDBUS_POLICY_ACCESS_* types
  * @access:		Access to grant. One of KDBUS_POLICY_*
@@ -139,7 +125,6 @@ exit_free:
  */
 void kdbus_policy_db_clear(struct kdbus_policy_db *db)
 {
-	struct kdbus_policy_db_cache_entry *ce;
 	struct kdbus_policy_db_entry *e;
 	struct hlist_node *tmp;
 	unsigned int i;
@@ -151,14 +136,6 @@ void kdbus_policy_db_clear(struct kdbus_policy_db *db)
 		kdbus_policy_entry_free(e);
 	}
 	up_write(&db->entries_rwlock);
-
-	/* purge cache */
-	mutex_lock(&db->cache_lock);
-	hash_for_each_safe(db->talk_access_hash, i, tmp, ce, hentry) {
-		hash_del(&ce->hentry);
-		kfree(ce);
-	}
-	mutex_unlock(&db->cache_lock);
 }
 
 /**
@@ -171,9 +148,7 @@ void kdbus_policy_db_clear(struct kdbus_policy_db *db)
 void kdbus_policy_db_init(struct kdbus_policy_db *db)
 {
 	hash_init(db->entries_hash);
-	hash_init(db->talk_access_hash);
 	init_rwsem(&db->entries_rwlock);
-	mutex_init(&db->cache_lock);
 }
 
 static int kdbus_policy_check_access(const struct kdbus_policy_db_entry *e,
@@ -277,31 +252,8 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 				   struct kdbus_conn *conn_src,
 				   struct kdbus_conn *conn_dst)
 {
-	struct kdbus_policy_db_cache_entry *ce;
 	struct kdbus_name_entry *name_entry;
-	unsigned int hash = 0;
-	const void *owner;
 	int ret;
-
-	/*
-	 * If there was a positive match for these two connections before,
-	 * there's an entry in the hash table for them.
-	 */
-	hash ^= hash_ptr(conn_src, KDBUS_POLICY_HASH_SIZE);
-	hash ^= hash_ptr(conn_dst, KDBUS_POLICY_HASH_SIZE);
-
-	mutex_lock(&db->cache_lock);
-	hash_for_each_possible(db->talk_access_hash, ce, hentry, hash)
-		if (ce->conn_a == conn_src && ce->conn_b == conn_dst) {
-			mutex_unlock(&db->cache_lock);
-			return 0;
-		}
-	mutex_unlock(&db->cache_lock);
-
-	/*
-	 * Otherwise, walk the connection list and store a hash-table entry if
-	 * send access is granted.
-	 */
 
 	down_read(&db->entries_rwlock);
 
@@ -314,49 +266,15 @@ int kdbus_policy_check_talk_access(struct kdbus_policy_db *db,
 		e = kdbus_policy_lookup(db, name_entry->name, hash, true);
 		if (kdbus_policy_check_access(e, conn_src->cred,
 					      KDBUS_POLICY_TALK) == 0) {
-			owner = e->owner;
 			ret = 0;
 			break;
 		}
 	}
 	mutex_unlock(&conn_dst->lock);
 
-	if (ret >= 0) {
-		ret = -ENOMEM;
-		ce = kmalloc(sizeof(*ce), GFP_KERNEL);
-		if (ce) {
-			ce->conn_a = conn_src;
-			ce->conn_b = conn_dst;
-			ce->owner = owner;
-			INIT_HLIST_NODE(&ce->hentry);
-
-			mutex_lock(&db->cache_lock);
-			hash_add(db->talk_access_hash, &ce->hentry, hash);
-			mutex_unlock(&db->cache_lock);
-
-			ret = 0;
-		}
-	}
-
 	up_read(&db->entries_rwlock);
 
 	return ret;
-}
-
-static void __kdbus_policy_remove_owner_cache(struct kdbus_policy_db *db,
-					      const void *owner)
-{
-	struct kdbus_policy_db_cache_entry *ce;
-	struct hlist_node *tmp;
-	int i;
-
-	mutex_lock(&db->cache_lock);
-	hash_for_each_safe(db->talk_access_hash, i, tmp, ce, hentry)
-		if (ce->owner == owner) {
-			hash_del(&ce->hentry);
-			kfree(ce);
-		}
-	mutex_unlock(&db->cache_lock);
 }
 
 static void __kdbus_policy_remove_owner(struct kdbus_policy_db *db,
@@ -383,30 +301,7 @@ void kdbus_policy_remove_owner(struct kdbus_policy_db *db,
 {
 	down_write(&db->entries_rwlock);
 	__kdbus_policy_remove_owner(db, owner);
-	__kdbus_policy_remove_owner_cache(db, owner);
 	up_write(&db->entries_rwlock);
-}
-
-/**
- * kdbus_policy_purge_cache_for_conn() - remove all cached entries related to
- *				a connection
- * @db:		The policy database
- * @conn:	The connection which items to remove
- */
-void kdbus_policy_purge_cache(struct kdbus_policy_db *db,
-			      const struct kdbus_conn *conn)
-{
-	struct kdbus_policy_db_cache_entry *ce;
-	struct hlist_node *tmp;
-	int i;
-
-	mutex_lock(&db->cache_lock);
-	hash_for_each_safe(db->talk_access_hash, i, tmp, ce, hentry)
-		if (ce->conn_a == conn || ce->conn_b == conn) {
-			hash_del(&ce->hentry);
-			kfree(ce);
-		}
-	mutex_unlock(&db->cache_lock);
 }
 
 /*
@@ -603,11 +498,8 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 		hash_add(db->entries_hash, &e->hentry, hash);
 	}
 
-	/* purge all cache-entries produced by previous rules */
-	__kdbus_policy_remove_owner_cache(db, owner);
-
 restore:
-	/* if we failed, flush all entries we added so far, but keep cache */
+	/* if we failed, flush all entries we added so far */
 	if (ret < 0)
 		__kdbus_policy_remove_owner(db, owner);
 
