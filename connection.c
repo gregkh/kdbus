@@ -672,7 +672,8 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 
 	for (;;) {
 		/*
-		 * The following condition will stop our sync receive sleep.
+		 * Any of the following conditions will stop our synchronously
+		 * blocking SEND command:
 		 *
 		 * a) The remote peer closed down
 		 * b) The remote peer answered, setting reply_wait->waiting = 0
