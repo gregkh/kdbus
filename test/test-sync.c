@@ -165,6 +165,50 @@ static int cancel_sync(struct kdbus_conn *conn_src,
 	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
 }
 
+static int no_cancel_sync(struct kdbus_conn *conn_src,
+			  struct kdbus_conn *conn_dst)
+{
+	pid_t pid;
+	int cancel_fd;
+	int ret, status;
+	struct kdbus_msg *msg = NULL;
+
+	/* pass eventfd, but never signal it so it shouldn't have any effect */
+
+	cancel_fd = eventfd(0, 0);
+	ASSERT_RETURN_VAL(cancel_fd >= 0, cancel_fd);
+
+	cookie++;
+	pid = fork();
+	ASSERT_RETURN_VAL(pid >= 0, pid);
+
+	if (pid == 0) {
+		ret = kdbus_msg_send_sync(conn_dst, NULL, cookie,
+					  KDBUS_MSG_EXPECT_REPLY,
+					  100000000ULL, 0, conn_src->id,
+					  cancel_fd);
+		ASSERT_EXIT(ret == 0);
+
+		_exit(EXIT_SUCCESS);
+	}
+
+	ret = kdbus_msg_recv_poll(conn_src, 100, &msg, NULL);
+	ASSERT_RETURN_VAL(ret == 0 && msg->cookie == cookie, -1);
+
+	kdbus_msg_free(msg);
+
+	ret = send_reply(conn_src, cookie, conn_dst->id);
+	ASSERT_RETURN_VAL(ret >= 0, ret);
+
+	ret = waitpid(pid, &status, 0);
+	ASSERT_RETURN_VAL(ret >= 0, ret);
+
+	if (WIFSIGNALED(status))
+		return -1;
+
+	return (status == EXIT_SUCCESS) ? 0 : -1;
+}
+
 static void *run_thread_reply(void *data)
 {
 	int ret;
@@ -218,6 +262,9 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	ret = cancel_sync(conn_a, conn_b);
+	ASSERT_RETURN(ret == 0);
+
+	ret = no_cancel_sync(conn_a, conn_b);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_printf("-- closing bus connections\n");
