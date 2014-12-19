@@ -245,7 +245,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 			      struct kdbus_conn *conn,
 			      const char *name)
 {
-	struct kdbus_name_queue_item *q_tmp, *q;
+	struct kdbus_name_queue_item *tmp, *q;
 	struct kdbus_name_entry *e = NULL;
 	int ret = -ESRCH;
 	u32 hash;
@@ -269,9 +269,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 		 * for items for connection.
 		 */
 
-		list_for_each_entry_safe(q, q_tmp,
-					 &e->queue_list,
-					 entry_entry) {
+		list_for_each_entry_safe(q, tmp, &e->queue_list, entry_entry) {
 			if (q->conn != conn)
 				continue;
 
