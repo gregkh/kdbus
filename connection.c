@@ -709,6 +709,11 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 			break;
 		}
 
+		/*
+		 * Reset the poll worker func, so the waitqueues are not
+		 * added to the poll table again. We just reuse what we've
+		 * collected earlier for further iterations.
+		 */
 		init_poll_funcptr(&pwq.pt, NULL);
 	}
 
