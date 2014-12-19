@@ -88,6 +88,11 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 			return -EINVAL;
 		break;
 
+	case KDBUS_ITEM_CANCEL_FD:
+		if (payload_size != sizeof(int))
+			return -EINVAL;
+		break;
+
 	case KDBUS_ITEM_BLOOM_PARAMETER:
 		if (payload_size != sizeof(struct kdbus_bloom_parameter))
 			return -EINVAL;

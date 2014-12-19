@@ -229,6 +229,9 @@ struct kdbus_policy_access {
  * @KDBUS_ITEM_PAYLOAD_OFF:		Data at returned offset to message head
  * @KDBUS_ITEM_PAYLOAD_MEMFD:		Data as sealed memfd
  * @KDBUS_ITEM_FDS:			Attached file descriptors
+ * @KDBUS_ITEM_CANCEL_FD:		FD used to cancel a synchronous
+ *					operation by writing to it from
+ *					userspace
  * @KDBUS_ITEM_BLOOM_PARAMETER:		Bus-wide bloom parameters, used with
  *					KDBUS_CMD_BUS_MAKE, carries a
  *					struct kdbus_bloom_parameter
@@ -292,6 +295,7 @@ enum kdbus_item_type {
 	KDBUS_ITEM_PAYLOAD_OFF,
 	KDBUS_ITEM_PAYLOAD_MEMFD,
 	KDBUS_ITEM_FDS,
+	KDBUS_ITEM_CANCEL_FD,
 	KDBUS_ITEM_BLOOM_PARAMETER,
 	KDBUS_ITEM_BLOOM_FILTER,
 	KDBUS_ITEM_BLOOM_MASK,
