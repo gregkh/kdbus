@@ -146,7 +146,13 @@ kdbus_conn_reply_unref(struct kdbus_conn_reply *r)
 	return NULL;
 }
 
-static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
+/*
+ * Remove the synchronous reply object from its connection
+ * reply_list, and wakeup remote peer (method origin) with the
+ * appropriate synchronous reply code
+ */
+static void kdbus_sync_reply_wakeup(struct kdbus_conn_reply *reply,
+				    int err)
 {
 	if (WARN_ON(!reply->sync))
 		return;
@@ -331,7 +337,8 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 		if (reply_found) {
 			if (entry->reply->sync) {
-				kdbus_conn_reply_sync(entry->reply, -EPIPE);
+				kdbus_sync_reply_wakeup(entry->reply,
+							-EPIPE);
 			} else {
 				list_del_init(&entry->reply->entry);
 				kdbus_conn_reply_unref(entry->reply);
@@ -535,7 +542,7 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 	if (ret == -ECOMM)
 		remote_ret = -EREMOTEIO;
 
-	kdbus_conn_reply_sync(reply_wake, remote_ret);
+	kdbus_sync_reply_wakeup(reply_wake, remote_ret);
 	kdbus_conn_reply_unref(reply_wake);
 
 	mutex_unlock(&conn_dst->lock);
@@ -1108,7 +1115,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 
 	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry) {
 		if (reply->sync) {
-			kdbus_conn_reply_sync(reply, -EPIPE);
+			kdbus_sync_reply_wakeup(reply, -EPIPE);
 			continue;
 		}
 
