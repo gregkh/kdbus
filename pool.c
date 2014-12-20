@@ -210,7 +210,8 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	struct kdbus_pool_slice *s;
 	int ret = 0;
 
-	BUG_ON(kvec && iovec);
+	if (WARN_ON(kvec && iovec))
+		return ERR_PTR(-EINVAL);
 
 	/* search a free slice with the closest matching size */
 	mutex_lock(&pool->lock);

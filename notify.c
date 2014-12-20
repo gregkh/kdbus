@@ -40,7 +40,7 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 {
 	struct kdbus_kmsg *kmsg = NULL;
 
-	BUG_ON(id == 0);
+	WARN_ON(id == 0);
 
 	kmsg = kdbus_kmsg_new(0);
 	if (IS_ERR(kmsg))

@@ -321,8 +321,11 @@ int kdbus_node_link(struct kdbus_node *node, struct kdbus_node *parent,
 {
 	int ret;
 
-	BUG_ON(node->type != KDBUS_NODE_DOMAIN && !parent);
-	BUG_ON(parent && !name);
+	if (WARN_ON(node->type != KDBUS_NODE_DOMAIN && !parent))
+		return -EINVAL;
+
+	if (WARN_ON(parent && !name))
+		return -EINVAL;
 
 	if (name) {
 		node->name = kstrdup(name, GFP_KERNEL);
