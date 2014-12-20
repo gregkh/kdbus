@@ -620,7 +620,7 @@ static int test_prepare_mounts(struct kdbus_test_args *kdbus_args)
 	if (ret < 0) {
 		ret = -errno;
 		printf("error mount() root: %d (%m)\n", ret);
-		_exit(TEST_ERR);
+		return ret;
 	}
 
 	/* Remount procfs since we need it in our tests */
@@ -630,7 +630,7 @@ static int test_prepare_mounts(struct kdbus_test_args *kdbus_args)
 		if (ret < 0) {
 			ret = -errno;
 			printf("error mount() /proc : %d (%m)\n", ret);
-			_exit(TEST_ERR);
+			return ret;
 		}
 	}
 
@@ -640,7 +640,7 @@ static int test_prepare_mounts(struct kdbus_test_args *kdbus_args)
 	if (ret < 0) {
 		ret = -errno;
 		printf("error mount() %s :%d (%m)\n", kdbusfs, ret);
-		_exit(TEST_ERR);
+		return ret;
 	}
 
 	return 0;
@@ -697,7 +697,7 @@ int run_tests_in_namespaces(struct kdbus_test_args *kdbus_args)
 		if (ret < 0) {
 			ret = -errno;
 			printf("sigaction() failed: %d (%m)\n", ret);
-			return TEST_ERR;
+			_exit(TEST_ERR);
 		}
 
 		ret = eventfd_read(efd, &event_status);
