@@ -635,9 +635,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	if (WARN_ON(!reply_wait))
 		return -EIO;
 
-	poll_initwait(&pwq);
-	poll_wait(ioctl_file, &conn_src->wait, &pwq.pt);
-
 	/*
 	 * Block until the reply arrives. reply_wait is left untouched
 	 * by the timeout scans that might be conducted for other,
@@ -649,13 +646,10 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 					 KDBUS_ITEM_CANCEL_FD);
 	if (!IS_ERR(cancel_fd_item)) {
 		cancel_fd = fget(cancel_fd_item->fds[0]);
-		if (IS_ERR(cancel_fd)) {
-			poll_freewait(&pwq);
+		if (IS_ERR(cancel_fd))
 			return PTR_ERR(cancel_fd);
-		}
 
 		if (!cancel_fd->f_op->poll) {
-			poll_freewait(&pwq);
 			fput(cancel_fd);
 			return -EINVAL;
 		}
@@ -671,6 +665,9 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		sigdelsetmask(&ksigmask, sigmask(SIGKILL)|sigmask(SIGSTOP));
 		sigprocmask(SIG_SETMASK, &ksigmask, &ksigsaved);
 	}
+
+	poll_initwait(&pwq);
+	poll_wait(ioctl_file, &conn_src->wait, &pwq.pt);
 
 	for (;;) {
 		/*
