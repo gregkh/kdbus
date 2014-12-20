@@ -124,8 +124,11 @@ static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
  */
 static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 {
-	BUG_ON(!e->conn);
-	BUG_ON(!mutex_is_locked(&e->conn->lock));
+	if (WARN_ON(!e->conn))
+		return;
+
+	if (WARN_ON(!mutex_is_locked(&e->conn->lock)))
+		return;
 
 	atomic_dec(&e->conn->name_count);
 	list_del(&e->conn_entry);
@@ -135,8 +138,11 @@ static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 				       struct kdbus_conn *conn)
 {
-	BUG_ON(e->conn);
-	BUG_ON(!mutex_is_locked(&conn->lock));
+	if (WARN_ON(e->conn))
+		return;
+
+	if (WARN_ON(!mutex_is_locked(&conn->lock)))
+		return;
 
 	e->conn = kdbus_conn_ref(conn);
 	atomic_inc(&conn->name_count);
@@ -149,8 +155,11 @@ static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
 	struct kdbus_conn *conn_old = kdbus_conn_ref(e->conn);
 	int ret;
 
-	BUG_ON(conn == conn_old);
-	BUG_ON(!conn_old);
+	if (WARN_ON(conn == conn_old))
+		return -EALREADY;
+
+	if (WARN_ON(!conn_old))
+		return -EINVAL;
 
 	/* take lock of both connections in a defined order */
 	if (conn < conn_old) {

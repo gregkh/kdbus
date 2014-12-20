@@ -148,7 +148,8 @@ kdbus_conn_reply_unref(struct kdbus_conn_reply *r)
 
 static void kdbus_conn_reply_sync(struct kdbus_conn_reply *reply, int err)
 {
-	BUG_ON(!reply->sync);
+	if (WARN_ON(!reply->sync))
+		return;
 
 	list_del_init(&reply->entry);
 	reply->waiting = false;
@@ -1284,8 +1285,11 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	LIST_HEAD(msg_list);
 	int ret = 0;
 
-	BUG_ON(!mutex_is_locked(&conn_dst->ep->bus->lock));
-	BUG_ON(conn_src == conn_dst);
+	if (WARN_ON(!mutex_is_locked(&conn_dst->ep->bus->lock)))
+		return -EINVAL;
+
+	if (WARN_ON(conn_src == conn_dst))
+		return -EINVAL;
 
 	/* remove all messages from the source */
 	mutex_lock(&conn_src->lock);
