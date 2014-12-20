@@ -247,7 +247,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	vec_size = 0;
 	KDBUS_ITEMS_FOREACH(item, msg->items, KDBUS_ITEMS_SIZE(msg, items)) {
 		size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
-		struct iovec *iov = kmsg->iov + res->vec_count;
+		struct iovec *iov = kmsg->iov + kmsg->iov_count;
 
 		if (++n > KDBUS_MSG_MAX_ITEMS)
 			return -E2BIG;
@@ -280,11 +280,9 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				iov->iov_len = size % 8;
 			}
 
-			if (iov->iov_len > 0) {
-				kmsg->pool_size += iov->iov_len;
-				++res->vec_count;
-			}
-
+			kmsg->pool_size += iov->iov_len;
+			++kmsg->iov_count;
+			++res->vec_count;
 			++res->data_count;
 			vec_size += size;
 
@@ -315,7 +313,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				iov->iov_len = size % 8;
 
 				kmsg->pool_size += iov->iov_len;
-				++res->vec_count;
+				++kmsg->iov_count;
 			}
 
 			++res->data_count;

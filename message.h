@@ -91,6 +91,7 @@ kdbus_msg_resources_unref(struct kdbus_msg_resources *r);
  * @bloom_generation:	Generation of bloom element set
  * @notify_entry:	List of kernel-generated notifications
  * @iov:		Array of iovec, describing the payload to copy
+ * @iov_count:		Number of array members in @iov
  * @pool_size:		Overall size of inlined data referenced by @iov
  * @meta:		Appended SCM-like metadata of the sending process
  * @res:		Message resources
@@ -109,6 +110,7 @@ struct kdbus_kmsg {
 	struct list_head notify_entry;
 
 	struct iovec *iov;
+	size_t iov_count;
 	u64 pool_size;
 
 	struct kdbus_meta *meta;

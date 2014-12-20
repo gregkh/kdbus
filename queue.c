@@ -214,7 +214,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 	entry->meta = kdbus_meta_ref(kmsg->meta);
 	memcpy(&entry->msg, msg, sizeof(*msg));
 
-	if (res && res->vec_count) {
+	if (kmsg->iov_count) {
 		size_t pool_avail = kdbus_pool_remain(pool);
 
 		/* do not give out more than half of the remaining space */
@@ -228,7 +228,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 		entry->slice_vecs = kdbus_pool_slice_alloc(pool,
 							   kmsg->pool_size,
 							   NULL, kmsg->iov,
-							   res->vec_count);
+							   kmsg->iov_count);
 		if (IS_ERR(entry->slice_vecs)) {
 			ret = PTR_ERR(entry->slice_vecs);
 			entry->slice_vecs = NULL;
