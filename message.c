@@ -225,6 +225,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			break;
 		case KDBUS_ITEM_PAYLOAD_MEMFD:
 			++n_memfds;
+			if (item->memfd.size % 8)
+				++n_vecs;
 			break;
 		default:
 			break;
@@ -236,8 +238,10 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 		res->data = kcalloc(n, sizeof(*res->data), GFP_KERNEL);
 		if (!res->data)
 			return -ENOMEM;
+	}
 
-		kmsg->iov = kcalloc(n, sizeof(*kmsg->iov), GFP_KERNEL);
+	if (n_vecs > 0) {
+		kmsg->iov = kcalloc(n_vecs, sizeof(*kmsg->iov), GFP_KERNEL);
 		if (!kmsg->iov)
 			return -ENOMEM;
 	}
@@ -293,6 +297,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			struct kdbus_msg_data *d = res->data + res->data_count;
 			u64 start = item->memfd.start;
 			u64 size = item->memfd.size;
+			size_t pad = size % 8;
 			int seals, mask;
 			struct file *f;
 
@@ -308,11 +313,11 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (!f)
 				return -EBADF;
 
-			if (size % 8) {
+			if (pad) {
 				iov->iov_base = (char __user *)zeros;
-				iov->iov_len = size % 8;
+				iov->iov_len = pad;
 
-				kmsg->pool_size += iov->iov_len;
+				kmsg->pool_size += pad;
 				++kmsg->iov_count;
 			}
 
