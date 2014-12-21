@@ -628,13 +628,12 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
 				 struct kdbus_cmd_send *cmd_send,
 				 struct file *ioctl_file,
+				 struct file *cancel_fd,
 				 struct kdbus_conn_reply *reply_wait,
 				 ktime_t expire)
 {
-	struct kdbus_item *cancel_fd_item;
 	struct kdbus_item *sigmask_item;
 	struct kdbus_queue_entry *entry;
-	struct file *cancel_fd = NULL;
 	struct poll_wqueues pwq = {};
 	sigset_t ksigsaved;
 	sigset_t ksigmask;
@@ -648,20 +647,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	 * by the timeout scans that might be conducted for other,
 	 * asynchronous replies of conn_src.
 	 */
-
-	cancel_fd_item = kdbus_items_get(cmd_send->items,
-					 KDBUS_ITEMS_SIZE(cmd_send, items),
-					 KDBUS_ITEM_CANCEL_FD);
-	if (!IS_ERR(cancel_fd_item)) {
-		cancel_fd = fget(cancel_fd_item->fds[0]);
-		if (IS_ERR(cancel_fd))
-			return PTR_ERR(cancel_fd);
-
-		if (!cancel_fd->f_op->poll) {
-			fput(cancel_fd);
-			return -EINVAL;
-		}
-	}
 
 	sigmask_item = kdbus_items_get(cmd_send->items,
 				       KDBUS_ITEMS_SIZE(cmd_send, items),
@@ -728,9 +713,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		 */
 		init_poll_funcptr(&pwq.pt, NULL);
 	}
-
-	if (cancel_fd)
-		fput(cancel_fd);
 
 	poll_freewait(&pwq);
 
@@ -803,6 +785,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = conn_src->ep->bus;
+	struct file *cancel_fd = NULL;
 	struct kdbus_item *item;
 	int ret = 0;
 
@@ -813,10 +796,22 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_SIGMASK:
-		case KDBUS_ITEM_CANCEL_FD:
 			break;
+
+		case KDBUS_ITEM_CANCEL_FD:
+			cancel_fd = fget(item->fds[0]);
+			if (IS_ERR(cancel_fd))
+				return PTR_ERR(cancel_fd);
+
+			if (!cancel_fd->f_op->poll) {
+				ret = -EINVAL;
+				goto exit_put_cancelfd;
+			}
+			break;
+
 		default:
-			return -EINVAL;
+			ret = -EINVAL;
+			goto exit_put_cancelfd;
 		}
 	}
 
@@ -824,7 +819,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(bus, conn_src, kmsg);
-		return 0;
+		goto exit_put_cancelfd;
 	}
 
 	if (kmsg->res && kmsg->res->dst_name) {
@@ -839,8 +834,10 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 */
 		name_entry = kdbus_name_lock(bus->name_registry,
 					     kmsg->res->dst_name);
-		if (!name_entry)
-			return -ESRCH;
+		if (!name_entry) {
+			ret = -ESRCH;
+			goto exit_put_cancelfd;
+		}
 
 		/*
 		 * If both a name and a connection ID are given as destination
@@ -1008,8 +1005,8 @@ wait_sync:
 
 		if (likely(ktime_compare(now, expire) < 0))
 			ret = kdbus_conn_wait_reply(conn_src, conn_dst, cmd,
-						    ioctl_file, reply_wait,
-						    expire);
+						    ioctl_file, cancel_fd,
+						    reply_wait, expire);
 		else
 			ret = -ETIMEDOUT;
 	}
@@ -1018,6 +1015,9 @@ exit_unref:
 	kdbus_conn_unref(conn_dst);
 exit_name_unlock:
 	kdbus_name_unlock(bus->name_registry, name_entry);
+exit_put_cancelfd:
+	if (cancel_fd)
+		fput(cancel_fd);
 
 	return ret;
 }
