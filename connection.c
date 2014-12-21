@@ -799,6 +799,11 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			break;
 
 		case KDBUS_ITEM_CANCEL_FD:
+			if (cancel_fd) {
+				ret = -EEXIST;
+				goto exit_put_cancelfd;
+			}
+
 			cancel_fd = fget(item->fds[0]);
 			if (IS_ERR(cancel_fd))
 				return PTR_ERR(cancel_fd);
