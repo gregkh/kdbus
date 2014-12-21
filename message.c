@@ -329,9 +329,6 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			d->memfd.start = start;
 			d->memfd.file = f;
 
-			/* memfd-alignment affects following VECs */
-			kmsg->pool_size += size % 8;
-
 			/*
 			 * We only accept a sealed memfd file whose content
 			 * cannot be altered by the sender or anybody else
