@@ -12,6 +12,7 @@
  */
 
 #include <linux/backing-dev.h>
+#include <linux/dcache.h>
 #include <linux/fs.h>
 #include <linux/fsnotify.h>
 #include <linux/init.h>
@@ -313,6 +314,9 @@ static int fs_super_fill(struct super_block *sb)
 	sb->s_root->d_fsdata = &domain->node;
 	sb->s_d_op = &fs_super_dops;
 
+	/* sb holds root reference */
+	domain->dentry = sb->s_root;
+
 	ret = kdbus_domain_activate(domain);
 	if (ret < 0)
 		return ret;
@@ -327,6 +331,7 @@ static void fs_super_kill(struct super_block *sb)
 
 	if (domain) {
 		kdbus_domain_deactivate(domain);
+		domain->dentry = NULL;
 	}
 
 	kill_anon_super(sb);

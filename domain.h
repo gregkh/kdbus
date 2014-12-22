@@ -14,6 +14,7 @@
 #ifndef __KDBUS_DOMAIN_H
 #define __KDBUS_DOMAIN_H
 
+#include <linux/fs.h>
 #include <linux/hashtable.h>
 #include <linux/idr.h>
 #include <linux/kref.h>
@@ -31,6 +32,7 @@
  * @user_hash:		Accounting of user resources
  * @user_idr:		Map of all users; smallest possible index
  * @user_namespace:	User namespace, pinned at creation time
+ * @dentry:		Root dentry of VFS mount (dont use outside of kdbusfs)
  */
 struct kdbus_domain {
 	struct kdbus_node node;
@@ -41,6 +43,7 @@ struct kdbus_domain {
 	DECLARE_HASHTABLE(user_hash, 6);
 	struct idr user_idr;
 	struct user_namespace *user_namespace;
+	struct dentry *dentry;
 };
 
 /**
