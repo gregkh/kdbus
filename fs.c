@@ -290,6 +290,7 @@ static int fs_super_fill(struct super_block *sb)
 {
 	struct kdbus_domain *domain = sb->s_fs_info;
 	struct inode *inode;
+	int ret;
 
 	sb->s_blocksize = PAGE_CACHE_SIZE;
 	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
@@ -311,8 +312,12 @@ static int fs_super_fill(struct super_block *sb)
 	/* sb holds domain reference */
 	sb->s_root->d_fsdata = &domain->node;
 	sb->s_d_op = &fs_super_dops;
-	sb->s_flags |= MS_ACTIVE;
 
+	ret = kdbus_domain_activate(domain);
+	if (ret < 0)
+		return ret;
+
+	sb->s_flags |= MS_ACTIVE;
 	return 0;
 }
 
@@ -320,12 +325,14 @@ static void fs_super_kill(struct super_block *sb)
 {
 	struct kdbus_domain *domain = sb->s_fs_info;
 
-	kill_anon_super(sb);
-
 	if (domain) {
 		kdbus_domain_deactivate(domain);
-		kdbus_domain_unref(domain);
 	}
+
+	kill_anon_super(sb);
+
+	if (domain)
+		kdbus_domain_unref(domain);
 }
 
 static int fs_super_set(struct super_block *sb, void *data)
@@ -350,10 +357,6 @@ static struct dentry *fs_super_mount(struct file_system_type *fs_type,
 	domain = kdbus_domain_new(KDBUS_MAKE_ACCESS_WORLD);
 	if (IS_ERR(domain))
 		return ERR_CAST(domain);
-
-	ret = kdbus_domain_activate(domain);
-	if (ret < 0)
-		goto exit_domain;
 
 	sb = sget(fs_type, NULL, fs_super_set, flags, domain);
 	if (IS_ERR(sb)) {
