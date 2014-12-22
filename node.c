@@ -484,6 +484,27 @@ bool kdbus_node_is_active(struct kdbus_node *node)
 }
 
 /**
+ * kdbus_node_is_deactivated() - test whether a node was already deactivated
+ * @node:	node to test
+ *
+ * This checks whether kdbus_node_deactivate() was called on @node. Note that
+ * this might be true even if you never deactivated the node directly, but only
+ * one of its ancestors.
+ *
+ * Note that even if this returns 'false', the node might get deactivated
+ * immediately after the call returns.
+ *
+ * Return: true if @node was already deactivated, false if not
+ */
+bool kdbus_node_is_deactivated(struct kdbus_node *node)
+{
+	int v;
+
+	v = atomic_read(&node->active);
+	return v != KDBUS_NODE_NEW && v < 0;
+}
+
+/**
  * kdbus_node_activate() - activate a node
  * @node:	node to activate
  *
