@@ -51,12 +51,12 @@ struct kdbus_node {
 	char *name;
 	unsigned int hash;
 	unsigned int id;
+	struct kdbus_node *parent; /* may be NULL */
 
 	/* valid iff active */
 	struct mutex lock;
 	struct rb_node rb;
 	struct rb_root children;
-	struct kdbus_node *parent;
 };
 
 #define kdbus_node_from_rb(_node) rb_entry((_node), struct kdbus_node, rb)

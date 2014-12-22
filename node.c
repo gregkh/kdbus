@@ -199,8 +199,9 @@
  *
  *     * node->lock:     lock to protect node->children, node->rb, node->parent
  *     * node->parent: Reference to parent node. This is set during LINK time
- *                     and is dropped during deactivation. You must not access
- *                     it unless you hold an active reference to the node.
+ *                     and is dropped during destruction. You must not access
+ *                     it unless you hold an active reference to the node or if
+ *                     you know the node is dead.
  *     * node->children: rb-tree of all linked children of this node. You must
  *                       not access this directly, but use one of the iterator
  *                       or lookup helpers.
@@ -450,6 +451,12 @@ struct kdbus_node *kdbus_node_unref(struct kdbus_node *node)
 		up_write(&kdbus_node_idr_lock);
 
 		kfree(safe.name);
+
+		/*
+		 * kdbusfs relies on the parent to be available even after the
+		 * node was deactivated and unlinked. Therefore, we pin it
+		 * until a node is destroyed.
+		 */
 		kdbus_node_unref(safe.parent);
 	}
 
