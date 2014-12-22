@@ -429,3 +429,96 @@ void kdbus_fs_exit(void)
 {
 	unregister_filesystem(&fs_type);
 }
+
+/* acquire domain of @node, making sure all ancestors are active */
+static struct kdbus_domain *fs_acquire_domain(struct kdbus_node *node)
+{
+	struct kdbus_domain *domain;
+	struct kdbus_node *iter;
+
+	/* caller must guarantee that @node is linked */
+	for (iter = node; iter->parent; iter = iter->parent)
+		if (!kdbus_node_is_active(iter->parent))
+			return NULL;
+
+	/* root nodes are always domains */
+	if (WARN_ON(iter->type != KDBUS_NODE_DOMAIN))
+		return NULL;
+
+	domain = kdbus_domain_from_node(iter);
+	if (!kdbus_node_acquire(&domain->node))
+		return NULL;
+
+	return domain;
+}
+
+/**
+ * kdbus_fs_flush() - flush dcache entries of a node
+ * @node:		Node to flush entries of
+ *
+ * This flushes all VFS filesystem cache entries for a node and all its
+ * children. This should be called whenever a node is destroyed during
+ * runtime. It will flush the cache entries so the linked objects can be
+ * deallocated.
+ *
+ * This is a no-op if you call it on active nodes (they really should stay in
+ * cache) or on nodes with deactivated parents (flushing the parent is enough).
+ * Furthermore, there is no need to call it on nodes whose lifetime is bound to
+ * their parents'. In those cases, the parent-flush will always also flush the
+ * children.
+ */
+void kdbus_fs_flush(struct kdbus_node *node)
+{
+	struct dentry *dentry, *parent_dentry = NULL;
+	struct kdbus_domain *domain;
+	struct qstr name;
+
+	/* active nodes should remain in cache */
+	if (!kdbus_node_is_deactivated(node))
+		return;
+
+	/* nodes that were never linked were never instantiated */
+	if (!node->parent)
+		return;
+
+	/* acquire domain and verify all ancestors are active */
+	domain = fs_acquire_domain(node);
+	if (!domain)
+		return;
+
+	switch (node->type) {
+	case KDBUS_NODE_ENDPOINT:
+		if (WARN_ON(!node->parent || !node->parent->name))
+			goto exit;
+
+		name.name = node->parent->name;
+		name.len = strlen(node->parent->name);
+		parent_dentry = d_hash_and_lookup(domain->dentry, &name);
+		if (IS_ERR_OR_NULL(parent_dentry))
+			goto exit;
+
+		/* fallthrough */
+	case KDBUS_NODE_BUS:
+		if (WARN_ON(!node->name))
+			goto exit;
+
+		name.name = node->name;
+		name.len = strlen(node->name);
+		dentry = d_hash_and_lookup(parent_dentry ? : domain->dentry,
+					   &name);
+		if (!IS_ERR_OR_NULL(dentry)) {
+			d_invalidate(dentry);
+			dput(dentry);
+		}
+
+		dput(parent_dentry);
+		break;
+
+	default:
+		/* all other types are bound to their parent lifetime */
+		break;
+	}
+
+exit:
+	kdbus_node_release(&domain->node);
+}

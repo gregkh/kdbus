@@ -24,6 +24,7 @@
 #include "bus.h"
 #include "domain.h"
 #include "endpoint.h"
+#include "fs.h"
 #include "handle.h"
 #include "node.h"
 #include "util.h"
@@ -644,6 +645,9 @@ void kdbus_node_deactivate(struct kdbus_node *node)
 			/* mark as DRAINED */
 			atomic_set(&pos->active, KDBUS_NODE_DRAINED);
 			wake_up_all(&pos->waitq);
+
+			/* drop VFS cache */
+			kdbus_fs_flush(pos);
 
 			/*
 			 * If the node was activated and somone subtracted BIAS

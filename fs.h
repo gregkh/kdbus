@@ -16,7 +16,10 @@
 
 #include <linux/kernel.h>
 
+struct kdbus_node;
+
 int kdbus_fs_init(void);
 void kdbus_fs_exit(void);
+void kdbus_fs_flush(struct kdbus_node *node);
 
 #endif
