@@ -471,7 +471,7 @@ int kdbus_queue_entry_move(struct kdbus_conn *conn_src,
 	else
 		kdbus_queue_entry_add(&conn_dst->queue, entry);
 
-	return 0;
+	return ret;
 }
 
 /**
