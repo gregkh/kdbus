@@ -678,7 +678,7 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
 		struct page *page;
 		ssize_t n_read;
 		void *fsdata;
-		int status;
+		long status;
 
 		page_off = off_dst & (PAGE_CACHE_SIZE - 1);
 		copy_len = min_t(unsigned long,
@@ -686,8 +686,8 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
 
 		status = aops->write_begin(f_dst, mapping_dst, off_dst,
 					   copy_len, 0, &page, &fsdata);
-		if (status) {
-			ret = -EFAULT;
+		if (unlikely(status < 0)) {
+			ret = status;
 			break;
 		}
 
@@ -697,15 +697,14 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
 		mark_page_accessed(page);
 		flush_dcache_page(page);
 
-		status = aops->write_end(f_dst, mapping_dst, off_dst,
-					 copy_len, copy_len, page, fsdata);
-
-		if (n_read < 0) {
-			ret = n_read;
+		if (unlikely(n_read != copy_len)) {
+			ret = -EFAULT;
 			break;
 		}
 
-		if (n_read != status) {
+		status = aops->write_end(f_dst, mapping_dst, off_dst,
+					 copy_len, copy_len, page, fsdata);
+		if (unlikely(status != copy_len)) {
 			ret = -EFAULT;
 			break;
 		}
