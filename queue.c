@@ -451,14 +451,12 @@ exit_free:
 
 /**
  * kdbus_queue_entry_move() - move an entry from one queue to another
- * @conn_src:	Connection holding the queue to copy from
  * @conn_dst:	Connection holding the queue to copy to
  * @entry:	The queue entry to move
  *
  * Return: 0 on success, nagative error otherwise
  */
-int kdbus_queue_entry_move(struct kdbus_conn *conn_src,
-			   struct kdbus_conn *conn_dst,
+int kdbus_queue_entry_move(struct kdbus_conn *conn_dst,
 			   struct kdbus_queue_entry *entry)
 {
 	int ret = 0;

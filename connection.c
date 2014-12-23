@@ -1344,7 +1344,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	}
 
 	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
-		ret = kdbus_queue_entry_move(conn_src, conn_dst, q);
+		ret = kdbus_queue_entry_move(conn_dst, q);
 		if (ret < 0)
 			break;
 	}
