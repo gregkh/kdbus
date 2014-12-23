@@ -2030,7 +2030,7 @@ For KDBUS_CMD_CONN_INFO:
   -EINVAL	Invalid flags, or neither an ID nor a name was provided,
 		or the name is invalid.
   -ESRCH	Connection lookup by name failed
-  -ENXIO	No connection with the provided number connection ID found
+  -ENXIO	No connection with the provided connection ID found
 
 For KDBUS_CMD_CONN_UPDATE:
 

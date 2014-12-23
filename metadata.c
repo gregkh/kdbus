@@ -530,7 +530,6 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 	struct kdbus_item *item;
 	bool meta_description;
 	bool meta_names;
-	size_t len = 0;
 	int ret = 0;
 
 	if (!conn)
@@ -555,11 +554,13 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 
 	/* Add owned names */
 	if (meta_names) {
-		list_for_each_entry(e, &conn->names_list, conn_entry)
-			len += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
-					       strlen(e->name) + 1);
+		size_t size = 0;
 
-		item = kzalloc(len, GFP_KERNEL);
+		list_for_each_entry(e, &conn->names_list, conn_entry)
+			size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
+					        strlen(e->name) + 1);
+
+		item = kzalloc(size, GFP_KERNEL);
 		if (!item) {
 			ret = -ENOMEM;
 			goto exit_unlock;
@@ -568,14 +569,15 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 		/* Free previous added names */
 		kfree(meta->owned_names_items);
 		meta->owned_names_items = item;
-		meta->owned_names_size = len;
+		meta->owned_names_size = size;
 
 		list_for_each_entry(e, &conn->names_list, conn_entry) {
-			len = strlen(e->name) + 1;
+			size_t slen = strlen(e->name) + 1;
+
 			kdbus_item_set(item, KDBUS_ITEM_OWNED_NAME, NULL,
-				       sizeof(struct kdbus_name) + len);
+				       sizeof(struct kdbus_name) + slen);
 			item->name.flags = e->flags;
-			memcpy(item->name.name, e->name, len);
+			memcpy(item->name.name, e->name, slen);
 			item = KDBUS_ITEM_NEXT(item);
 		}
 
