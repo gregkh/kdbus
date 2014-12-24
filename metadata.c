@@ -436,6 +436,7 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 	if (mask & KDBUS_ATTACH_CAPS) {
 		const struct cred *c = current_cred();
 
+		/* ABI: "last_cap" equals /proc/sys/kernel/cap_last_cap */
 		meta->caps.last_cap = CAP_LAST_CAP;
 		meta->caps_namespace = get_user_ns(current_user_ns());
 
