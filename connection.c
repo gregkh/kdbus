@@ -692,8 +692,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		 * Any of the following conditions will stop our synchronously
 		 * blocking SEND command:
 		 *
-		 * a) The origin sender closed its connection with
-		 *    KDBUS_CMD_BYEBYE
+		 * a) The origin sender closed its connection
 		 * b) The remote peer answered, setting reply_wait->waiting = 0
 		 * c) The cancel FD was written to
 		 * d) A signal was received
