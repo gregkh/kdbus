@@ -63,8 +63,9 @@
  * @user:		Owner of the connection
  * @cred:		The credentials of the connection at creation time
  * @name_count:		Number of owned well-known names
- * @reply_count:	Number of requests this connection has issued, and
- *			waits for replies from other peers
+ * @request_count:	Number of pending requests issued by this
+ *			connection that are waiting for replies from
+ *			other peers
  * @lost_count:		Number of lost broadcast messages
  * @wait:		Wake up this endpoint
  * @queue:		The message queue associated with this connection
@@ -100,7 +101,7 @@ struct kdbus_conn {
 	struct kdbus_domain_user *user;
 	const struct cred *cred;
 	atomic_t name_count;
-	atomic_t reply_count;
+	atomic_t request_count;
 	atomic_t lost_count;
 	wait_queue_head_t wait;
 	struct kdbus_queue queue;

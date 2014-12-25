@@ -55,7 +55,7 @@
  * @kref:		Ref-count of this object
  * @entry:		The entry of the connection's reply_list
  * @reply_dst:		The connection the reply will be sent to (method origin)
- * @queue_entry:	The queue enty item that is prepared by the replying
+ * @queue_entry:	The queue entry item that is prepared by the replying
  *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
  * @cookie:		The cookie of the requesting message
@@ -88,16 +88,16 @@ kdbus_conn_reply_new(struct kdbus_conn *reply_dst,
 	struct kdbus_conn_reply *r;
 	int ret = 0;
 
-	if (atomic_inc_return(&reply_dst->reply_count) >
+	if (atomic_inc_return(&reply_dst->request_count) >
 	    KDBUS_CONN_MAX_REQUESTS_PENDING) {
 		ret = -EMLINK;
-		goto exit_dec_reply_count;
+		goto exit_dec_request_count;
 	}
 
 	r = kzalloc(sizeof(*r), GFP_KERNEL);
 	if (!r) {
 		ret = -ENOMEM;
-		goto exit_dec_reply_count;
+		goto exit_dec_request_count;
 	}
 
 	kref_init(&r->kref);
@@ -111,9 +111,9 @@ kdbus_conn_reply_new(struct kdbus_conn *reply_dst,
 		r->waiting = true;
 	}
 
-exit_dec_reply_count:
+exit_dec_request_count:
 	if (ret < 0) {
-		atomic_dec(&reply_dst->reply_count);
+		atomic_dec(&reply_dst->request_count);
 		return ERR_PTR(ret);
 	}
 
@@ -125,7 +125,7 @@ static void __kdbus_conn_reply_free(struct kref *kref)
 	struct kdbus_conn_reply *reply =
 		container_of(kref, struct kdbus_conn_reply, kref);
 
-	atomic_dec(&reply->reply_dst->reply_count);
+	atomic_dec(&reply->reply_dst->request_count);
 	kdbus_conn_unref(reply->reply_dst);
 	kfree(reply);
 }
@@ -412,7 +412,7 @@ exit_unlock:
  * Lookup a reply object that should be sent as a reply by
  * @conn_replying to @conn_reply_dst with the given cookie.
  *
- * For optimizations, callers should first check 'reply_count' of
+ * For optimizations, callers should first check 'request_count' of
  * @conn_reply_dst to see if the connection has issued any requests
  * that are waiting for replies, before calling this function.
  *
@@ -447,7 +447,7 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 	 * message will be denied.
 	 */
 	if (reply_wake && msg->cookie_reply > 0 &&
-	    atomic_read(&conn_dst->reply_count) > 0) {
+	    atomic_read(&conn_dst->request_count) > 0) {
 		struct kdbus_conn_reply *r;
 		bool allowed = false;
 
@@ -907,7 +907,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 * canceled on the way before looking up any reply
 		 * object.
 		 */
-		if (sync && atomic_read(&conn_src->reply_count) > 0) {
+		if (sync && atomic_read(&conn_src->request_count) > 0) {
 			mutex_lock(&conn_dst->lock);
 			reply_wait = kdbus_conn_reply_find(conn_dst, conn_src,
 							   kmsg->msg.cookie);
@@ -1713,7 +1713,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	INIT_LIST_HEAD(&conn->names_queue_list);
 	INIT_LIST_HEAD(&conn->reply_list);
 	atomic_set(&conn->name_count, 0);
-	atomic_set(&conn->reply_count, 0);
+	atomic_set(&conn->request_count, 0);
 	atomic_set(&conn->lost_count, 0);
 	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
 	conn->cred = get_current_cred();
