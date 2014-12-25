@@ -561,7 +561,8 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 }
 
 /**
- * kdbus_conn_entry_insert - enqueue a message into the receiver's pool
+ * kdbus_conn_entry_insert() - enqueue a message into the receiver's
+ *			       pool
  * @conn_src:		The sending connection
  * @conn_dst:		The connection to queue into
  * @kmsg:		The kmag to queue
@@ -634,6 +635,20 @@ exit_unlock:
 	return ret;
 }
 
+/**
+ * kdbus_conn_wait_reply() - Wait for the reply of a synchronous send
+ *			     operation
+ * @conn_src:		The sending connection (origin)
+ * @conn_dst:		The replying connection
+ * @cmd_send:		Payload of SEND command
+ * @ioctl_file:		struct file used to issue this ioctl
+ * @cancel_fd:		Pinned file that reflects KDBUS_ITEM_CANCEL_FD
+ *			item, used to cancel the blocking send call
+ * @reply_wait:		The tracked reply that we are waiting for.
+ * @expire:		Reply timeout
+ *
+ * Return: 0 on success. negative error otherwise.
+ */
 static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn *conn_dst,
 				 struct kdbus_cmd_send *cmd_send,
@@ -677,7 +692,8 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		 * Any of the following conditions will stop our synchronously
 		 * blocking SEND command:
 		 *
-		 * a) The remote peer closed down
+		 * a) The origin sender closed its connection with
+		 *    KDBUS_CMD_BYEBYE
 		 * b) The remote peer answered, setting reply_wait->waiting = 0
 		 * c) The cancel FD was written to
 		 * d) A signal was received
@@ -685,11 +701,22 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		 *    conditions kicked in.
 		 */
 
+		/*
+		 * We have already acquired an active reference when
+		 * entering here, but another thread may call
+		 * KDBUS_CMD_BYEBYE which does not acquire an active
+		 * reference, therefore kdbus_conn_disconnect() will
+		 * not wait for us.
+		 */
 		if (!kdbus_conn_active(conn_src)) {
 			ret = -ECONNRESET;
 			break;
 		}
 
+		/*
+		 * After the replying peer unset the waiting variable
+		 * it will wake up us.
+		 */
 		if (!reply_wait->waiting) {
 			ret = reply_wait->err;
 			break;
