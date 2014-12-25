@@ -122,7 +122,71 @@ static int interrupt_sync(struct kdbus_conn *conn_src,
 	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
 }
 
-static int cancel_sync(struct kdbus_conn *conn_src,
+static int close_epipe_sync(const char *bus)
+{
+	pid_t pid;
+	int ret, status;
+	struct kdbus_conn *conn_src;
+	struct kdbus_conn *conn_dst;
+	struct kdbus_msg *msg = NULL;
+
+	conn_src = kdbus_hello(bus, 0, NULL, 0);
+	ASSERT_RETURN(conn_src);
+
+	ret = kdbus_add_match_empty(conn_src);
+	ASSERT_RETURN(ret == 0);
+
+	conn_dst = kdbus_hello(bus, 0, NULL, 0);
+	ASSERT_RETURN(conn_dst);
+
+	cookie++;
+	pid = fork();
+	ASSERT_RETURN_VAL(pid >= 0, pid);
+
+	if (pid == 0) {
+		uint64_t dst_id;
+
+		/* close our reference */
+		dst_id = conn_dst->id;
+		kdbus_conn_free(conn_dst);
+
+		ret = kdbus_msg_recv_poll(conn_src, 100, &msg, NULL);
+		ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
+		ASSERT_RETURN(msg->src_id == dst_id);
+
+		cookie++;
+		ret = kdbus_msg_send_sync(conn_src, NULL, cookie,
+					  KDBUS_MSG_EXPECT_REPLY,
+					  100000000ULL, 0, dst_id, -1);
+		ASSERT_EXIT(ret == -EPIPE);
+
+		_exit(EXIT_SUCCESS);
+	}
+
+	ret = kdbus_msg_send(conn_dst, NULL, cookie, 0, 0, 0,
+			     KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	cookie++;
+	ret = kdbus_msg_recv_poll(conn_dst, 100, &msg, NULL);
+	ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
+
+	kdbus_msg_free(msg);
+
+	/* destroy connection */
+	kdbus_conn_free(conn_dst);
+	kdbus_conn_free(conn_src);
+
+	ret = waitpid(pid, &status, 0);
+	ASSERT_RETURN_VAL(ret >= 0, ret);
+
+	if (!WIFEXITED(status))
+		return TEST_ERR;
+
+	return (status == EXIT_SUCCESS) ? TEST_OK : TEST_ERR;
+}
+
+static int cancel_fd_sync(struct kdbus_conn *conn_src,
 			  struct kdbus_conn *conn_dst)
 {
 	pid_t pid;
@@ -261,7 +325,10 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 	ret = interrupt_sync(conn_a, conn_b);
 	ASSERT_RETURN(ret == 0);
 
-	ret = cancel_sync(conn_a, conn_b);
+	ret = close_epipe_sync(env->buspath);
+	ASSERT_RETURN(ret == 0);
+
+	ret = cancel_fd_sync(conn_a, conn_b);
 	ASSERT_RETURN(ret == 0);
 
 	ret = no_cancel_sync(conn_a, conn_b);
