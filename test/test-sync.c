@@ -151,8 +151,8 @@ static int close_epipe_sync(const char *bus)
 		kdbus_conn_free(conn_dst);
 
 		ret = kdbus_msg_recv_poll(conn_src, 100, &msg, NULL);
-		ASSERT_RETURN(ret == 0 && msg->cookie == cookie);
-		ASSERT_RETURN(msg->src_id == dst_id);
+		ASSERT_EXIT(ret == 0 && msg->cookie == cookie);
+		ASSERT_EXIT(msg->src_id == dst_id);
 
 		cookie++;
 		ret = kdbus_msg_send_sync(conn_src, NULL, cookie,
