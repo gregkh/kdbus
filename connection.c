@@ -416,6 +416,8 @@ exit_unlock:
  * @conn_reply_dst to see if the connection has issued any requests
  * that are waiting for replies, before calling this function.
  *
+ * Callers must take the @conn_replying lock.
+ *
  * Return: the corresponding reply object or NULL if not found
  */
 static struct kdbus_conn_reply *
