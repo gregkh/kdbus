@@ -446,10 +446,18 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 	 * of the connection's expected replies. Otherwise, access to send the
 	 * message will be denied.
 	 */
-	if (reply_wake && msg->cookie_reply > 0 &&
-	    atomic_read(&conn_dst->request_count) > 0) {
+	if (reply_wake && msg->cookie_reply > 0) {
 		struct kdbus_conn_reply *r;
 		bool allowed = false;
+
+		/*
+		 * The connection that we are replying to has not
+		 * issued any request or perhaps we have already
+		 * replied, in anycase the supplied cookie_reply is
+		 * no more valid, so fail.
+		 */
+		if (atomic_read(&conn_dst->request_count) == 0)
+			return -EPERM;
 
 		mutex_lock(&conn_src->lock);
 		r = kdbus_conn_reply_find(conn_src, conn_dst,
