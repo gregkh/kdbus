@@ -56,28 +56,32 @@ static struct kdbus_item *kdbus_get_item(struct kdbus_msg *msg,
 	return NULL;
 }
 
-static int kdbus_cmp_kdbus_creds(struct kdbus_msg *msg,
-				 const struct kdbus_creds *expected_creds)
+static int kdbus_match_kdbus_creds(struct kdbus_msg *msg,
+				   const struct kdbus_creds *expected_creds)
 {
 	struct kdbus_item *item;
 
 	item = kdbus_get_item(msg, KDBUS_ITEM_CREDS);
 	ASSERT_RETURN(item);
 
-	return memcmp(&item->creds, expected_creds,
-		      sizeof(struct kdbus_creds));
+	ASSERT_RETURN(memcmp(&item->creds, expected_creds,
+			     sizeof(struct kdbus_creds)) == 0);
+
+	return 0;
 }
 
-static int kdbus_cmp_kdbus_pids(struct kdbus_msg *msg,
-				const struct kdbus_pids *expected_pids)
+static int kdbus_match_kdbus_pids(struct kdbus_msg *msg,
+				  const struct kdbus_pids *expected_pids)
 {
 	struct kdbus_item *item;
 
 	item = kdbus_get_item(msg, KDBUS_ITEM_PIDS);
 	ASSERT_RETURN(item);
 
-	return memcmp(&item->pids, expected_pids,
-		      sizeof(struct kdbus_pids));
+	ASSERT_RETURN(memcmp(&item->pids, expected_pids,
+			     sizeof(struct kdbus_pids)) == 0);
+
+	return 0;
 }
 
 static int __kdbus_clone_userns_test(const char *bus,
@@ -170,14 +174,14 @@ static int __kdbus_clone_userns_test(const char *bus,
 		ASSERT_EXIT(item == NULL);
 
 		/* uid/gid not mapped, so we have unpriv cached creds */
-		ret = kdbus_cmp_kdbus_creds(msg, &unmapped_creds);
+		ret = kdbus_match_kdbus_creds(msg, &unmapped_creds);
 		ASSERT_EXIT(ret == 0);
 
 		/*
 		 * Diffent pid namepsaces. This is the child pidns
 		 * so it should not see its parent kdbus_pids
 		 */
-		ret = kdbus_cmp_kdbus_pids(msg, &unmapped_pids);
+		ret = kdbus_match_kdbus_pids(msg, &unmapped_pids);
 		ASSERT_EXIT(ret == 0);
 
 		kdbus_msg_free(msg);
@@ -198,14 +202,14 @@ static int __kdbus_clone_userns_test(const char *bus,
 		ASSERT_EXIT(item == NULL);
 
 		/* uid/gid not mapped, so we have unpriv cached creds */
-		ret = kdbus_cmp_kdbus_creds(msg, &unmapped_creds);
+		ret = kdbus_match_kdbus_creds(msg, &unmapped_creds);
 		ASSERT_EXIT(ret == 0);
 
 		/*
 		 * Diffent pid namepsaces. This is the child pidns
 		 * so it should not see its parent kdbus_pids
 		 */
-		ret = kdbus_cmp_kdbus_pids(msg, &unmapped_pids);
+		ret = kdbus_match_kdbus_pids(msg, &unmapped_pids);
 		ASSERT_EXIT(ret == 0);
 
 		kdbus_msg_free(msg);
@@ -241,11 +245,11 @@ static int __kdbus_clone_userns_test(const char *bus,
 	ASSERT_EXIT(msg->dst_id == unpriv_conn->id);
 
 	/* will get the privileged creds */
-	ret = kdbus_cmp_kdbus_creds(msg, &privileged_creds);
+	ret = kdbus_match_kdbus_creds(msg, &privileged_creds);
 	ASSERT_EXIT(ret == 0);
 
 	/* Same pidns so will get the kdbus_pids */
-	ret = kdbus_cmp_kdbus_pids(msg, &parent_pids);
+	ret = kdbus_match_kdbus_pids(msg, &parent_pids);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_msg_free(msg);
@@ -261,10 +265,10 @@ static int __kdbus_clone_userns_test(const char *bus,
 	ASSERT_EXIT(msg->dst_id == KDBUS_DST_ID_BROADCAST);
 
 	/* will get the privileged creds */
-	ret = kdbus_cmp_kdbus_creds(msg, &privileged_creds);
+	ret = kdbus_match_kdbus_creds(msg, &privileged_creds);
 	ASSERT_EXIT(ret == 0);
 
-	ret = kdbus_cmp_kdbus_pids(msg, &parent_pids);
+	ret = kdbus_match_kdbus_pids(msg, &parent_pids);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_msg_free(msg);
@@ -327,7 +331,7 @@ static int kdbus_clone_userns_test(const char *bus,
 	unpriv_conn_id = msg->src_id;
 
 	/* Unprivileged user */
-	ret = kdbus_cmp_kdbus_creds(msg, &unmapped_creds);
+	ret = kdbus_match_kdbus_creds(msg, &unmapped_creds);
 	ASSERT_RETURN(ret == 0);
 
 	/* Set the expected creds_pids */
@@ -336,7 +340,7 @@ static int kdbus_clone_userns_test(const char *bus,
 		.tid = pid,
 		.ppid = getpid(),
 	};
-	ret = kdbus_cmp_kdbus_pids(msg, &expected_pids);
+	ret = kdbus_match_kdbus_pids(msg, &expected_pids);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_msg_free(msg);
@@ -366,21 +370,23 @@ static int kdbus_clone_userns_test(const char *bus,
 	 * Compare received items, creds must be translated into
 	 * the receiver user namespace, so the user is unprivileged
 	 */
-	ret = kdbus_cmp_kdbus_creds(msg, &unmapped_creds);
+	ret = kdbus_match_kdbus_creds(msg, &unmapped_creds);
 	ASSERT_RETURN(ret == 0);
 
 	/*
 	 * We should have the kdbus_pids since we are the parent
 	 * pidns
 	 */
-	ret = kdbus_cmp_kdbus_pids(msg, &unmapped_pids);
-	ASSERT_RETURN(ret != 0);
+	item = kdbus_get_item(msg, KDBUS_ITEM_PIDS);
+	ASSERT_RETURN(item);
+
+	ASSERT_RETURN(memcmp(&item->pids, &unmapped_pids,
+			     sizeof(struct kdbus_pids)) != 0);
 
 	/*
 	 * Parent pid of the unprivileged/privileged in its userns
 	 * is the unprivileged child pid that was forked here.
 	 */
-	item = kdbus_get_item(msg, KDBUS_ITEM_PIDS);
 	ASSERT_RETURN((uint64_t)pid == item->pids.ppid);
 
 	kdbus_msg_free(msg);
@@ -424,22 +430,26 @@ wait:
 
 	/* Dump monitor queue */
 	kdbus_printf("\n\nMonitor queue:\n");
-	do {
+	for (;;) {
 		ret = kdbus_msg_recv_poll(monitor, 100, &msg, NULL);
-		if (ret == 0) {
-			if (msg->payload_type == KDBUS_PAYLOAD_DBUS) {
-				/*
-				 * Parent pidns should see all the
-				 * pids
-				 */
-				ret = kdbus_cmp_kdbus_pids(msg,
-							   &unmapped_pids);
-				ASSERT_RETURN(ret != 0);
-			}
+		if (ret < 0)
+			break;
 
-			kdbus_msg_free(msg);
+		if (msg->payload_type == KDBUS_PAYLOAD_DBUS) {
+			/*
+			 * Parent pidns should see all the
+			 * pids
+			 */
+			item = kdbus_get_item(msg, KDBUS_ITEM_PIDS);
+			ASSERT_RETURN(item);
+
+			ASSERT_RETURN(item->pids.pid != 0 &&
+				      item->pids.tid != 0 &&
+				      item->pids.ppid != 0);
 		}
-	} while (ret == 0);
+
+		kdbus_msg_free(msg);
+	}
 
 	kdbus_conn_free(monitor);
 	close(efd);
