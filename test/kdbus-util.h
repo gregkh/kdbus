@@ -171,6 +171,9 @@ int kdbus_msg_send(const struct kdbus_conn *conn, const char *name,
 int kdbus_msg_send_sync(const struct kdbus_conn *conn, const char *name,
 			uint64_t cookie, uint64_t flags, uint64_t timeout,
 			int64_t priority, uint64_t dst_id, int cancel_fd);
+int kdbus_msg_send_reply(const struct kdbus_conn *conn,
+			 uint64_t reply_cookie,
+			 uint64_t dst_id);
 struct kdbus_conn *kdbus_hello(const char *path, uint64_t hello_flags,
 			       const struct kdbus_item *item,
 			       size_t item_size);

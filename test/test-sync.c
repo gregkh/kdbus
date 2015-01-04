@@ -24,57 +24,6 @@ static unsigned int cookie = 0xdeadbeef;
 
 static void nop_handler(int sig) {}
 
-static int send_reply(const struct kdbus_conn *conn,
-		      uint64_t reply_cookie,
-		      uint64_t dst_id)
-{
-	struct kdbus_cmd_send cmd = {};
-	struct kdbus_msg *msg;
-	const char ref1[1024 * 128 + 3] = "0123456789_0";
-	struct kdbus_item *item;
-	uint64_t size;
-	int ret;
-
-	size = sizeof(struct kdbus_msg);
-	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-
-	msg = malloc(size);
-	if (!msg) {
-		ret = -errno;
-		kdbus_printf("unable to malloc()!?\n");
-		return ret;
-	}
-
-	memset(msg, 0, size);
-	msg->size = size;
-	msg->src_id = conn->id;
-	msg->dst_id = dst_id;
-	msg->cookie_reply = reply_cookie;
-	msg->payload_type = KDBUS_PAYLOAD_DBUS;
-
-	item = msg->items;
-
-	item->type = KDBUS_ITEM_PAYLOAD_VEC;
-	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
-	item->vec.address = (uintptr_t)&ref1;
-	item->vec.size = sizeof(ref1);
-	item = KDBUS_ITEM_NEXT(item);
-
-	cmd.size = sizeof(cmd);
-	cmd.msg_address = (uintptr_t)msg;
-
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
-	if (ret < 0) {
-		ret = -errno;
-		kdbus_printf("error sending message: %d (%m)\n", ret);
-		return ret;
-	}
-
-	free(msg);
-
-	return 0;
-}
-
 static int interrupt_sync(struct kdbus_conn *conn_src,
 			  struct kdbus_conn *conn_dst)
 {
@@ -261,7 +210,7 @@ static int no_cancel_sync(struct kdbus_conn *conn_src,
 
 	kdbus_msg_free(msg);
 
-	ret = send_reply(conn_src, cookie, conn_dst->id);
+	ret = kdbus_msg_send_reply(conn_src, cookie, conn_dst->id);
 	ASSERT_RETURN_VAL(ret >= 0, ret);
 
 	ret = waitpid(pid, &status, 0);
@@ -285,13 +234,13 @@ static void *run_thread_reply(void *data)
 	kdbus_printf("Thread received message, sending reply ...\n");
 
 	/* using an unknown cookie must fail */
-	ret = send_reply(conn_a, ~cookie, conn_b->id);
+	ret = kdbus_msg_send_reply(conn_a, ~cookie, conn_b->id);
 	if (ret != -EPERM) {
 		status = TEST_ERR;
 		goto exit_thread;
 	}
 
-	ret = send_reply(conn_a, cookie, conn_b->id);
+	ret = kdbus_msg_send_reply(conn_a, cookie, conn_b->id);
 	if (ret != 0) {
 		status = TEST_ERR;
 		goto exit_thread;
