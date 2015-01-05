@@ -329,6 +329,7 @@ static int send_bloom_filter(const struct kdbus_conn *conn,
 	msg->size = size;
 	msg->src_id = conn->id;
 	msg->dst_id = KDBUS_DST_ID_BROADCAST;
+	msg->flags = KDBUS_MSG_SIGNAL;
 	msg->payload_type = KDBUS_PAYLOAD_DBUS;
 	msg->cookie = cookie;
 

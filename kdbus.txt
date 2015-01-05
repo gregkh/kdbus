@@ -1467,16 +1467,16 @@ struct kdbus_cmd_match {
 
 Bloom filters allow checking whether a given word is present in a dictionary.
 This allows connections to set up a mask for information it is interested in,
-and will be delivered broadcast messages that have a matching filter.
+and will be delivered signal messages that have a matching filter.
 
 For general information on bloom filters, see
 
   https://en.wikipedia.org/wiki/Bloom_filter
 
 The size of the bloom filter is defined per bus when it is created, in
-kdbus_bloom_parameter.size. All bloom filters attached to broadcast messages
-on the bus must match this size, and all bloom filter matches uploaded by
-connections must also match the size, or a multiple thereof (see below).
+kdbus_bloom_parameter.size. All bloom filters attached to signals on the bus
+must match this size, and all bloom filter matches uploaded by connections must
+also match the size, or a multiple thereof (see below).
 
 The calculation of the mask has to be done on the userspace side. The kernel
 just checks the bitmasks to decide whether or not to let the message pass. All
@@ -1486,11 +1486,11 @@ matches are expected to happen, and userspace must deal with that fact.
 
 Masks are entities that are always passed to the kernel as part of a match
 (with an item of type KDBUS_ITEM_BLOOM_MASK), and filters can be attached to
-broadcast messages (with an item of type KDBUS_ITEM_BLOOM_FILTER).
+signals, with an item of type KDBUS_ITEM_BLOOM_FILTER.
 
-For a broadcast to match, all set bits in the filter have to be set in the
-installed match mask as well. For example, consider a bus has a bloom size
-of 8 bytes, and the following mask/filter combinations:
+For a filter to match, all its bits have to be set in the match mask as well.
+For example, consider a bus has a bloom size of 8 bytes, and the following
+mask/filter combinations:
 
     filter  0x0101010101010101
     mask    0x0101010101010101
@@ -1511,11 +1511,10 @@ Uploaded matches may contain multiple masks, each of which in the size of the
 bloom size defined by the bus. Each block of a mask is called a 'generation',
 starting at index 0.
 
-At match time, when a broadcast message is about to be delivered, a bloom
-mask generation is passed, which denotes which of the bloom masks the filter
-should be matched against. This allows userspace to provide backward compatible
-masks at upload time, while older clients can still match against older
-versions of filters.
+At match time, when a signal is about to be delivered, a bloom mask generation
+is passed, which denotes which of the bloom masks the filter should be matched
+against. This allows userspace to provide backward compatible masks at upload
+time, while older clients can still match against older versions of filters.
 
 
 10.5 Removing a match

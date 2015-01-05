@@ -213,7 +213,12 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	bool has_bloom = false;
 	bool has_name = false;
 	bool has_fds = false;
+	bool is_broadcast;
+	bool is_signal;
 	u64 vec_size;
+
+	is_broadcast = (msg->dst_id == KDBUS_DST_ID_BROADCAST);
+	is_signal = !!(msg->flags & KDBUS_MSG_SIGNAL);
 
 	/* count data payloads */
 	n_vecs = 0;
@@ -359,8 +364,8 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				return -EEXIST;
 			has_fds = true;
 
-			/* do not allow to broadcast file descriptors */
-			if (msg->dst_id == KDBUS_DST_ID_BROADCAST)
+			/* Do not allow to broadcast file descriptors */
+			if (is_broadcast)
 				return -ENOTUNIQ;
 
 			if (fds_count > KDBUS_MSG_MAX_FDS)
@@ -448,22 +453,25 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 	if (msg->dst_id == KDBUS_DST_ID_NAME && !has_name)
 		return -EDESTADDRREQ;
 
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		/* broadcasts can't take names */
+	if (is_broadcast) {
+		/* Broadcasts can't take names */
 		if (has_name)
 			return -EBADMSG;
 
-		/* broadcast messages require a bloom filter */
-		if (!has_bloom)
+		/* All broadcasts have to be signals */
+		if (!is_signal)
 			return -EBADMSG;
 
-		/* timeouts are not allowed for broadcasts */
+		/* Timeouts are not allowed for broadcasts */
 		if (msg->timeout_ns > 0)
 			return -ENOTUNIQ;
 	}
 
-	/* bloom filters are for undirected messages only */
-	if (has_name && has_bloom)
+	/*
+	 * Signal messages require a bloom filter, and bloom filters are
+	 * only valid with signals.
+	 */
+	if (is_signal ^ has_bloom)
 		return -EBADMSG;
 
 	return 0;
@@ -516,8 +524,9 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 	ret = kdbus_check_and_write_flags(m->msg.flags, buf,
 					  offsetof(struct kdbus_cmd_send,
 						   kernel_msg_flags),
-					  KDBUS_MSG_EXPECT_REPLY |
-					  KDBUS_MSG_NO_AUTO_START);
+					  KDBUS_MSG_EXPECT_REPLY	|
+					  KDBUS_MSG_NO_AUTO_START	|
+					  KDBUS_MSG_SIGNAL);
 	if (ret < 0)
 		goto exit_free;
 
@@ -549,6 +558,12 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 		/* replies may not be expected for broadcasts */
 		if (m->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
 			ret = -ENOTUNIQ;
+			goto exit_free;
+		}
+
+		/* replies may not be expected for signals */
+		if (m->msg.flags & KDBUS_MSG_SIGNAL) {
+			ret = -EINVAL;
 			goto exit_free;
 		}
 	} else {

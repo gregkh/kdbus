@@ -110,6 +110,8 @@ static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 		item->type = KDBUS_ITEM_BLOOM_FILTER;
 		item->size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 		item = KDBUS_ITEM_NEXT(item);
+
+		msg->flags |= KDBUS_MSG_SIGNAL;
 	}
 
 	make_item_memfds(item, memfds_array, memfd_count);
@@ -152,6 +154,8 @@ static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 		item->type = KDBUS_ITEM_BLOOM_FILTER;
 		item->size = KDBUS_ITEM_SIZE(sizeof(struct kdbus_bloom_filter)) + 64;
 		item = KDBUS_ITEM_NEXT(item);
+
+		msg->flags |= KDBUS_MSG_SIGNAL;
 	}
 
 	make_item_fds(item, fd_array, fd_count);

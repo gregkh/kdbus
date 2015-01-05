@@ -509,6 +509,9 @@ static int __kdbus_msg_send(const struct kdbus_conn *conn,
 		return ret;
 	}
 
+	if (dst_id == KDBUS_DST_ID_BROADCAST)
+		flags |= KDBUS_MSG_SIGNAL;
+
 	memset(msg, 0, size);
 	msg->flags = flags;
 	msg->priority = priority;
