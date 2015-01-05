@@ -1024,7 +1024,7 @@ struct kdbus_cmd_match {
 					      struct kdbus_cmd_send)
 #define KDBUS_CMD_RECV			_IOWR(KDBUS_IOCTL_MAGIC, 0x31,	\
 					      struct kdbus_cmd_recv)
-#define KDBUS_CMD_FREE			_IOW(KDBUS_IOCTL_MAGIC, 0x33,	\
+#define KDBUS_CMD_FREE			_IOW(KDBUS_IOCTL_MAGIC, 0x32,	\
 					     struct kdbus_cmd_free)
 
 #define KDBUS_CMD_NAME_ACQUIRE		_IOWR(KDBUS_IOCTL_MAGIC, 0x40,	\
