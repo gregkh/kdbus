@@ -989,8 +989,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			goto exit_unref;
 
 		if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
-			ret = kdbus_conn_check_access(conn_src, conn_dst, msg,
-						      NULL);
+			ret = kdbus_conn_check_access(conn_src, conn_dst,
+						      msg, NULL);
 			if (ret < 0)
 				goto exit_unref;
 
@@ -1000,9 +1000,20 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 				ret = PTR_ERR(reply_wait);
 				goto exit_unref;
 			}
+		} else if (msg->flags & KDBUS_MSG_SIGNAL) {
+			ret = kdbus_conn_check_access(conn_dst, conn_src,
+						      msg, NULL);
+			if (ret < 0)
+				goto exit_unref;
+
+			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
+						       conn_src, kmsg)) {
+				ret = -EPERM;
+				goto exit_unref;
+			}
 		} else {
-			ret = kdbus_conn_check_access(conn_src, conn_dst, msg,
-						      &reply_wake);
+			ret = kdbus_conn_check_access(conn_src, conn_dst,
+						      msg, &reply_wake);
 			if (ret < 0)
 				goto exit_unref;
 		}
