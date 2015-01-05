@@ -1001,6 +1001,10 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 				goto exit_unref;
 			}
 		} else if (msg->flags & KDBUS_MSG_SIGNAL) {
+			/*
+			 * A receiver needs TALK access to the sender
+			 * in order to receive signals.
+			 */
 			ret = kdbus_conn_check_access(conn_dst, conn_src,
 						      msg, NULL);
 			if (ret < 0)
