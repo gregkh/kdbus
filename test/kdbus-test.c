@@ -522,8 +522,8 @@ static void usage(const char *argv0)
 	       "\t    --mntns		New mount namespace\n"
 	       "\t    --pidns		New PID namespace\n"
 	       "\t    --userns		New user namespace\n"
-	       "\t    --uidns uid_map	UID map for user namespace\n"
-	       "\t    --gidns gid_map	GID map for user namespace\n"
+	       "\t    --uidmap uid_map	UID map for user namespace\n"
+	       "\t    --gidmap gid_map	GID map for user namespace\n"
 	       "\n", argv0);
 
 	printf("By default, all test are run once, and a summary is printed.\n"
@@ -818,8 +818,8 @@ int main(int argc, char *argv[])
 		ARG_MNTNS = 0x100,
 		ARG_PIDNS,
 		ARG_USERNS,
-		ARG_UIDNS,
-		ARG_GIDNS,
+		ARG_UIDMAP,
+		ARG_GIDMAP,
 	};
 
 	kdbus_args = malloc(sizeof(*kdbus_args));
@@ -843,8 +843,8 @@ int main(int argc, char *argv[])
 		{ "mntns",	no_argument,		NULL, ARG_MNTNS },
 		{ "pidns",	no_argument,		NULL, ARG_PIDNS },
 		{ "userns",	no_argument,		NULL, ARG_USERNS },
-		{ "uidns",	required_argument,	NULL, ARG_UIDNS },
-		{ "gidns",	required_argument,	NULL, ARG_GIDNS },
+		{ "uidmap",	required_argument,	NULL, ARG_UIDMAP },
+		{ "gidmap",	required_argument,	NULL, ARG_GIDMAP },
 		{}
 	};
 
@@ -896,11 +896,11 @@ int main(int argc, char *argv[])
 			kdbus_args->userns = true;
 			break;
 
-		case ARG_UIDNS:
+		case ARG_UIDMAP:
 			kdbus_args->uid_map = optarg;
 			break;
 
-		case ARG_GIDNS:
+		case ARG_GIDMAP:
 			kdbus_args->gid_map = optarg;
 			break;
 
