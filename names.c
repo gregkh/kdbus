@@ -233,8 +233,7 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 
 	/* release the name */
 	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_REMOVE,
-				 e->conn->id, 0,
-				 e->flags, 0, e->name);
+				 e->conn->id, 0, e->flags, 0, e->name);
 
 	conn = kdbus_conn_ref(e->conn);
 	mutex_lock(&conn->lock);
