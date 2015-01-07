@@ -51,7 +51,7 @@
 #define KDBUS_CONN_ACTIVE_NEW	(INT_MIN + 1)
 
 /**
- * struct kdbus_conn_reply - an entry of kdbus_conn's list of replies
+ * struct kdbus_reply - an entry of kdbus_conn's list of replies
  * @kref:		Ref-count of this object
  * @entry:		The entry of the connection's reply_list
  * @reply_dst:		The connection the reply will be sent to (method origin)
@@ -65,7 +65,7 @@
  * @interrupted:	The sync reply was left in an interrupted state
  * @err:		The error code for the synchronous reply
  */
-struct kdbus_conn_reply {
+struct kdbus_reply {
 	struct kref kref;
 	struct list_head entry;
 	struct kdbus_conn *reply_dst;
@@ -79,13 +79,13 @@ struct kdbus_conn_reply {
 	int err;
 };
 
-static struct kdbus_conn_reply *
-kdbus_conn_reply_new(struct kdbus_conn *reply_dst,
-		     const struct kdbus_msg *msg,
-		     struct kdbus_name_entry *name_entry,
-		     bool sync)
+static struct kdbus_reply *
+kdbus_reply_new(struct kdbus_conn *reply_dst,
+		const struct kdbus_msg *msg,
+		struct kdbus_name_entry *name_entry,
+		bool sync)
 {
-	struct kdbus_conn_reply *r;
+	struct kdbus_reply *r;
 	int ret = 0;
 
 	if (atomic_inc_return(&reply_dst->request_count) >
@@ -120,29 +120,29 @@ exit_dec_request_count:
 	return r;
 }
 
-static void __kdbus_conn_reply_free(struct kref *kref)
+static void __kdbus_reply_free(struct kref *kref)
 {
-	struct kdbus_conn_reply *reply =
-		container_of(kref, struct kdbus_conn_reply, kref);
+	struct kdbus_reply *reply =
+		container_of(kref, struct kdbus_reply, kref);
 
 	atomic_dec(&reply->reply_dst->request_count);
 	kdbus_conn_unref(reply->reply_dst);
 	kfree(reply);
 }
 
-static struct kdbus_conn_reply*
-kdbus_conn_reply_ref(struct kdbus_conn_reply *r)
+static struct kdbus_reply*
+kdbus_reply_ref(struct kdbus_reply *r)
 {
 	if (r)
 		kref_get(&r->kref);
 	return r;
 }
 
-static struct kdbus_conn_reply*
-kdbus_conn_reply_unref(struct kdbus_conn_reply *r)
+static struct kdbus_reply*
+kdbus_reply_unref(struct kdbus_reply *r)
 {
 	if (r)
-		kref_put(&r->kref, __kdbus_conn_reply_free);
+		kref_put(&r->kref, __kdbus_reply_free);
 	return NULL;
 }
 
@@ -151,7 +151,7 @@ kdbus_conn_reply_unref(struct kdbus_conn_reply *r)
  * reply_list, and wakeup remote peer (method origin) with the
  * appropriate synchronous reply code
  */
-static void kdbus_sync_reply_wakeup(struct kdbus_conn_reply *reply,
+static void kdbus_sync_reply_wakeup(struct kdbus_reply *reply,
 				    int err)
 {
 	if (WARN_ON(!reply->sync))
@@ -219,7 +219,7 @@ static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
 static void kdbus_conn_work(struct work_struct *work)
 {
 	struct kdbus_conn *conn;
-	struct kdbus_conn_reply *reply, *reply_tmp;
+	struct kdbus_reply *reply, *reply_tmp;
 	u64 deadline = ~0ULL;
 	struct timespec64 ts;
 	u64 now;
@@ -263,7 +263,7 @@ static void kdbus_conn_work(struct work_struct *work)
 						   reply->cookie);
 
 		list_del_init(&reply->entry);
-		kdbus_conn_reply_unref(reply);
+		kdbus_reply_unref(reply);
 	}
 
 	/* rearm delayed work with next timeout */
@@ -317,7 +317,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		bool reply_found = false;
 
 		if (entry->reply) {
-			struct kdbus_conn_reply *r;
+			struct kdbus_reply *r;
 
 			/*
 			 * Walk the list of pending replies and see if the
@@ -341,7 +341,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 							-EPIPE);
 			} else {
 				list_del_init(&entry->reply->entry);
-				kdbus_conn_reply_unref(entry->reply);
+				kdbus_reply_unref(entry->reply);
 				kdbus_notify_reply_dead(conn->ep->bus,
 							entry->msg.src_id,
 							entry->msg.cookie);
@@ -403,32 +403,32 @@ exit_unlock:
 }
 
 /**
- * kdbus_conn_reply_find() - Find the corresponding reply object
- * @conn_replying:	The replying connection
- * @conn_reply_dst:	The connection the reply will be sent to
+ * kdbus_reply_find() - Find the corresponding reply object
+ * @replying:	The replying connection
+ * @reply_dst:	The connection the reply will be sent to
  *			(method origin)
  * @cookie:		The cookie of the requesting message
  *
  * Lookup a reply object that should be sent as a reply by
- * @conn_replying to @conn_reply_dst with the given cookie.
+ * @replying to @reply_dst with the given cookie.
  *
  * For optimizations, callers should first check 'request_count' of
- * @conn_reply_dst to see if the connection has issued any requests
+ * @reply_dst to see if the connection has issued any requests
  * that are waiting for replies, before calling this function.
  *
- * Callers must take the @conn_replying lock.
+ * Callers must take the @replying lock.
  *
  * Return: the corresponding reply object or NULL if not found
  */
-static struct kdbus_conn_reply *
-kdbus_conn_reply_find(struct kdbus_conn *conn_replying,
-		      struct kdbus_conn *conn_reply_dst,
-		      u64 cookie)
+static struct kdbus_reply *
+kdbus_reply_find(struct kdbus_conn *replying,
+		 struct kdbus_conn *reply_dst,
+		 u64 cookie)
 {
-	struct kdbus_conn_reply *r, *reply = NULL;
+	struct kdbus_reply *r, *reply = NULL;
 
-	list_for_each_entry(r, &conn_replying->reply_list, entry) {
-		if (r->reply_dst == conn_reply_dst &&
+	list_for_each_entry(r, &replying->reply_list, entry) {
+		if (r->reply_dst == reply_dst &&
 		    r->cookie == cookie) {
 			reply = r;
 			break;
@@ -442,7 +442,7 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 				   const struct cred *conn_src_creds,
 				   struct kdbus_conn *conn_dst,
 				   const struct kdbus_msg *msg,
-				   struct kdbus_conn_reply **reply_wake)
+				   struct kdbus_reply **reply_wake)
 {
 	/*
 	 * If the message is a reply, its cookie_reply field must match any
@@ -450,7 +450,7 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 	 * message will be denied.
 	 */
 	if (reply_wake && msg->cookie_reply > 0) {
-		struct kdbus_conn_reply *r;
+		struct kdbus_reply *r;
 		bool allowed = false;
 
 		/*
@@ -463,14 +463,14 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 			return -EPERM;
 
 		mutex_lock(&conn_src->lock);
-		r = kdbus_conn_reply_find(conn_src, conn_dst,
+		r = kdbus_reply_find(conn_src, conn_dst,
 					  msg->cookie_reply);
 		if (r) {
 			list_del_init(&r->entry);
 			if (r->sync)
-				*reply_wake = kdbus_conn_reply_ref(r);
+				*reply_wake = kdbus_reply_ref(r);
 			else
-				kdbus_conn_reply_unref(r);
+				kdbus_reply_unref(r);
 
 			allowed = true;
 		}
@@ -510,7 +510,7 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
  */
 static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 					const struct kdbus_kmsg *kmsg,
-					struct kdbus_conn_reply *reply_wake)
+					struct kdbus_reply *reply_wake)
 {
 	struct kdbus_queue_entry *entry;
 	int remote_ret;
@@ -554,7 +554,7 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 		remote_ret = -EREMOTEIO;
 
 	kdbus_sync_reply_wakeup(reply_wake, remote_ret);
-	kdbus_conn_reply_unref(reply_wake);
+	kdbus_reply_unref(reply_wake);
 
 	mutex_unlock(&conn_dst->lock);
 
@@ -574,7 +574,7 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 			    struct kdbus_conn *conn_dst,
 			    const struct kdbus_kmsg *kmsg,
-			    struct kdbus_conn_reply *reply)
+			    struct kdbus_reply *reply)
 {
 	struct kdbus_queue_entry *entry;
 	int ret;
@@ -655,7 +655,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_cmd_send *cmd_send,
 				 struct file *ioctl_file,
 				 struct file *cancel_fd,
-				 struct kdbus_conn_reply *reply_wait,
+				 struct kdbus_reply *reply_wait,
 				 ktime_t expire)
 {
 	struct kdbus_queue_entry *entry;
@@ -773,7 +773,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	}
 	mutex_unlock(&conn_src->lock);
 
-	kdbus_conn_reply_unref(reply_wait);
+	kdbus_reply_unref(reply_wait);
 
 	return ret;
 }
@@ -793,9 +793,9 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		       struct kdbus_kmsg *kmsg)
 {
 	bool sync = cmd->flags & KDBUS_SEND_SYNC_REPLY;
-	struct kdbus_conn_reply *reply_wait = NULL;
-	struct kdbus_conn_reply *reply_wake = NULL;
 	struct kdbus_name_entry *name_entry = NULL;
+	struct kdbus_reply *reply_wait = NULL;
+	struct kdbus_reply *reply_wake = NULL;
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = conn_src->ep->bus;
@@ -925,8 +925,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 */
 		if (sync && atomic_read(&conn_src->request_count) > 0) {
 			mutex_lock(&conn_dst->lock);
-			reply_wait = kdbus_conn_reply_find(conn_dst, conn_src,
-							   kmsg->msg.cookie);
+			reply_wait = kdbus_reply_find(conn_dst, conn_src,
+						      kmsg->msg.cookie);
 			if (reply_wait) {
 				/* It was interrupted */
 				if (reply_wait->interrupted)
@@ -969,8 +969,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			if (ret < 0)
 				goto exit_unref;
 
-			reply_wait = kdbus_conn_reply_new(conn_src, msg,
-							  name_entry, sync);
+			reply_wait = kdbus_reply_new(conn_src, msg,
+						     name_entry, sync);
 			if (IS_ERR(reply_wait)) {
 				ret = PTR_ERR(reply_wait);
 				goto exit_unref;
@@ -1026,7 +1026,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst,
 					      kmsg, reply_wait);
 		if (ret < 0) {
-			kdbus_conn_reply_unref(reply_wait);
+			kdbus_reply_unref(reply_wait);
 			goto exit_unref;
 		}
 	}
@@ -1072,7 +1072,7 @@ exit_put_cancelfd:
  */
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 {
-	struct kdbus_conn_reply *reply, *reply_tmp;
+	struct kdbus_reply *reply, *reply_tmp;
 	struct kdbus_queue_entry *entry, *tmp;
 	LIST_HEAD(reply_list);
 	int v;
@@ -1160,7 +1160,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 					reply->cookie);
 
 		list_del(&reply->entry);
-		kdbus_conn_reply_unref(reply);
+		kdbus_reply_unref(reply);
 	}
 
 	if (!kdbus_conn_is_monitor(conn))
@@ -1323,7 +1323,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     u64 name_id)
 {
 	struct kdbus_queue_entry *q, *q_tmp;
-	struct kdbus_conn_reply *r, *r_tmp;
+	struct kdbus_reply *r, *r_tmp;
 	LIST_HEAD(reply_list);
 	LIST_HEAD(msg_list);
 	int ret = 0;
@@ -1363,14 +1363,14 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	/* insert messages into destination */
 	mutex_lock(&conn_dst->lock);
 	if (!kdbus_conn_active(conn_dst)) {
-		struct kdbus_conn_reply *r, *r_tmp;
+		struct kdbus_reply *r, *r_tmp;
 
 		/* our destination connection died, just drop all messages */
 		mutex_unlock(&conn_dst->lock);
 		list_for_each_entry_safe(q, q_tmp, &msg_list, entry)
 			kdbus_queue_entry_free(q);
 		list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
-			kdbus_conn_reply_unref(r);
+			kdbus_reply_unref(r);
 		return -ECONNRESET;
 	}
 

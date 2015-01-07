@@ -76,7 +76,7 @@ struct kdbus_queue_entry {
 
 	struct kdbus_msg_resources *msg_res;
 	struct kdbus_meta *meta;
-	struct kdbus_conn_reply *reply;
+	struct kdbus_reply *reply;
 	struct kdbus_domain_user *user;
 };
 
