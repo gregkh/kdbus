@@ -153,7 +153,7 @@ static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
 				    struct kdbus_conn *conn, u64 flags)
 {
 	struct kdbus_conn *conn_old = kdbus_conn_ref(e->conn);
-	int ret;
+	int ret = 0;
 
 	if (WARN_ON(conn == conn_old))
 		return -EALREADY;
