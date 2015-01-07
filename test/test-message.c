@@ -81,6 +81,10 @@ int kdbus_test_message_basic(struct kdbus_test_env *env)
 			     0, 0, conn->id);
 	ASSERT_RETURN(ret == -EINVAL);
 
+	/* Faked replies with a valid reply cookie are rejected */
+	ret = kdbus_msg_send_reply(conn, time(NULL) ^ cookie, sender->id);
+	ASSERT_RETURN(ret == -EPERM);
+
 	ret = kdbus_free(conn, offset);
 	ASSERT_RETURN(ret == 0);
 
