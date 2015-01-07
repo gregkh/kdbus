@@ -35,6 +35,9 @@
 /* maximum number of queued messages in a connection */
 #define KDBUS_CONN_MAX_MSGS			256
 
+/* maximum number of queued requests waiting for a reply */
+#define KDBUS_CONN_MAX_REQUESTS_PENDING		128
+
 int kdbus_test_message_basic(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *conn;
@@ -375,6 +378,54 @@ static int kdbus_test_broadcast_quota(struct kdbus_test_env *env)
 	return 0;
 }
 
+static int kdbus_test_expected_reply_quota(struct kdbus_test_env *env)
+{
+	int ret;
+	unsigned int i, n;
+	unsigned int count;
+	uint64_t cookie = 0x1234abcd5678eeff;
+	struct kdbus_conn *conn;
+	struct kdbus_conn *connections[9];
+
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn);
+
+	for (i = 0; i < 9; i++) {
+		connections[i] = kdbus_hello(env->buspath, 0, NULL, 0);
+		ASSERT_RETURN(connections[i]);
+	}
+
+	count = 0;
+	/* Send 16 messages to 8 different connections */
+	for (i = 0; i < 8; i++) {
+		for (n = 0; n < KDBUS_CONN_MAX_MSGS_PER_USER; n++, count++) {
+			ret = kdbus_msg_send(conn, NULL, cookie++,
+					     KDBUS_MSG_EXPECT_REPLY,
+					     100000000ULL, 0,
+					     connections[i]->id);
+			ASSERT_RETURN(ret == 0);
+		}
+	}
+
+	ASSERT_RETURN(count == KDBUS_CONN_MAX_REQUESTS_PENDING);
+
+	/*
+	 * Now try to send a message to the last connection,
+	 * if we have reached KDBUS_CONN_MAX_REQUESTS_PENDING
+	 * no further requests are allowed
+	 */
+	ret = kdbus_msg_send(conn, NULL, cookie++, KDBUS_MSG_EXPECT_REPLY,
+			     1000000000ULL, 0, connections[i]->id);
+	ASSERT_RETURN(ret == -EMLINK);
+
+	for (i = 0; i < 9; i++)
+		kdbus_conn_free(connections[i]);
+
+	kdbus_conn_free(conn);
+
+	return 0;
+}
+
 static int kdbus_test_multi_users_quota(struct kdbus_test_env *env)
 {
 	int ret, efd1, efd2;
@@ -554,6 +605,9 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	int i;
 
 	ret = kdbus_test_notify_kernel_quota(env);
+	ASSERT_RETURN(ret == 0);
+
+	ret = kdbus_test_expected_reply_quota(env);
 	ASSERT_RETURN(ret == 0);
 
 	if (geteuid() == 0 && all_uids_gids_are_mapped()) {
