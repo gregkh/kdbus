@@ -827,12 +827,6 @@ struct kdbus_cmd_send {
   struct kdbus_item items[0];
     The following items are currently recognized:
 
-    KDBUS_ITEM_SIGMASK
-      When this optional item is passed in, and the call is executed as SYNC
-      call, the sigmask described will be applied on the calling task before
-      putting it to sleep, and restored afterwards. For asynchronous message
-      sending, this item is accepted but ignored.
-
     KDBUS_ITEM_CANCEL_FD
       When this optional item is passed in, and the call is executed as SYNC
       call, the passed in file descriptor can be used as alternative

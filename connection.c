@@ -657,11 +657,8 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_conn_reply *reply_wait,
 				 ktime_t expire)
 {
-	struct kdbus_item *sigmask_item;
 	struct kdbus_queue_entry *entry;
 	struct poll_wqueues pwq = {};
-	sigset_t ksigsaved;
-	sigset_t ksigmask;
 	int ret;
 
 	if (WARN_ON(!reply_wait))
@@ -672,17 +669,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	 * by the timeout scans that might be conducted for other,
 	 * asynchronous replies of conn_src.
 	 */
-
-	sigmask_item = kdbus_items_get(cmd_send->items,
-				       KDBUS_ITEMS_SIZE(cmd_send, items),
-				       KDBUS_ITEM_SIGMASK);
-	if (IS_ERR(sigmask_item)) {
-		sigmask_item = NULL;
-	} else {
-		memcpy(&ksigmask, &sigmask_item->sigmask, sizeof(ksigmask));
-		sigdelsetmask(&ksigmask, sigmask(SIGKILL)|sigmask(SIGSTOP));
-		sigprocmask(SIG_SETMASK, &ksigmask, &ksigsaved);
-	}
 
 	poll_initwait(&pwq);
 	poll_wait(ioctl_file, &conn_src->wait, &pwq.pt);
@@ -765,17 +751,8 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		schedule_delayed_work(&conn_dst->work, 0);
 		mutex_unlock(&conn_dst->lock);
 
-		if (sigmask_item) {
-			memcpy(&current->saved_sigmask,
-			       &ksigsaved, sizeof(ksigsaved));
-			set_restore_sigmask();
-		}
-
 		return -ERESTARTSYS;
 	}
-
-	if (sigmask_item)
-		sigprocmask(SIG_SETMASK, &ksigsaved, NULL);
 
 	mutex_lock(&conn_dst->lock);
 	list_del_init(&reply_wait->entry);
@@ -831,9 +808,6 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
-		case KDBUS_ITEM_SIGMASK:
-			break;
-
 		case KDBUS_ITEM_CANCEL_FD:
 			/* install cancel_fd only if synchronous */
 			if (!sync)

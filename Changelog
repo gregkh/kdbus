@@ -19,13 +19,11 @@ since v2:
     get more fine-grained credential information.
 
   * Removed KDBUS_CMD_CANCEL. The interface was not usable from
-    threaded userspace implementation due to inherit races. Instead,
-    add an item type KDBUS_ITEM_SIGMASK to store a sigmask that is
-    set before the sync SEND ioctl puts the task to sleep, and restore
-    it afterwards, similar to ppoll(). Also add an item type CANCEL_FD
-    which can be used to pass a file descriptor to the CMD_SEND ioctl.
-    When the SEND is done synchronously, writing to this fd from
-    another thread will cancel the blocking operation.
+    threaded userspace implementation due to inherent races. Instead,
+    add an item type CANCEL_FD which can be used to pass a file
+    descriptor to the CMD_SEND ioctl. When the SEND is done
+    synchronously, it will get cancelled as soon as the passed
+    FD signals POLLIN.
 
   * Dropped startttime from KDBUS_ITEM_PIDS
 
