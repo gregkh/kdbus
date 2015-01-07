@@ -836,6 +836,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	}
 
 	kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
+	kdbus_meta_add_timestamp(kmsg->meta, kmsg->seq);
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(bus, conn_src, kmsg);
@@ -948,8 +949,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 * metadata
 		 */
 		if (!conn_src->faked_meta) {
-			ret = kdbus_meta_add_current(kmsg->meta, kmsg->seq,
-						     attach_flags);
+			ret = kdbus_meta_add_current(kmsg->meta, attach_flags);
 			if (ret < 0)
 				goto exit_unref;
 		}
@@ -1818,7 +1818,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 		conn->faked_meta = true;
 	} else {
-		ret = kdbus_meta_add_current(conn->meta, 0,
+		ret = kdbus_meta_add_current(conn->meta,
 					     KDBUS_ATTACH_CREDS		|
 					     KDBUS_ATTACH_PIDS		|
 					     KDBUS_ATTACH_AUXGROUPS	|

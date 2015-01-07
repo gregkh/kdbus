@@ -38,7 +38,6 @@
  * struct kdbus_meta - metadata buffer
  * @kref:		Reference counter
  * @collected:		Flags for already collected and valid data
- * @seq:		Sequence number passed in at collect time
  * @uid:		Task uid
  * @euid:		Task euid
  * @suid:		Task suid
@@ -60,6 +59,7 @@
  * @ppid:		Pinned PPID
  * @ts_monotonic_ns:	Monotonic timestamp taken at collect time
  * @ts_realtime_ns:	Realtime timestamp taken at collect time
+ * @seq:		Sequence number passed in at collect time
  * @exe:		Task's executable file, pinned
  * @cmdline:		Task's cmdline
  * @cgroup:		Cgroup path
@@ -82,8 +82,6 @@ struct kdbus_meta {
 	struct kref kref;
 
 	u64 collected;
-
-	u64 seq;
 
 	kuid_t uid;
 	kuid_t euid;
@@ -112,6 +110,7 @@ struct kdbus_meta {
 
 	s64 ts_monotonic_ns;
 	s64 ts_realtime_ns;
+	u64 seq;
 
 	struct file *exe;
 	char *cmdline;
@@ -282,7 +281,7 @@ int kdbus_meta_add_fake(struct kdbus_meta *meta,
  * This function does nothing if the time stamp was already recorded
  * in the metadata object.
  */
-void kdbus_meta_add_timestamp(struct kdbus_meta *meta)
+void kdbus_meta_add_timestamp(struct kdbus_meta *meta, u64 seq)
 {
 	struct timespec ts;
 
@@ -295,13 +294,14 @@ void kdbus_meta_add_timestamp(struct kdbus_meta *meta)
 	ktime_get_real_ts(&ts);
 	meta->ts_realtime_ns = timespec_to_ns(&ts);
 
+	meta->seq = seq;
+
 	meta->collected |= KDBUS_ATTACH_TIMESTAMP;
 }
 
 /**
  * kdbus_meta_add_current() - collect metadata from current process
  * @meta:		Metadata object
- * @seq:		Message sequence number
  * @which:		KDBUS_ATTACH_* mask
  *
  * Collect the data specified in @which from the 'current', and store the
@@ -310,7 +310,7 @@ void kdbus_meta_add_timestamp(struct kdbus_meta *meta)
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
+int kdbus_meta_add_current(struct kdbus_meta *meta, u64 which)
 {
 	u64 mask;
 	int i;
@@ -319,8 +319,6 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 seq, u64 which)
 	mask = which & ~meta->collected;
 	if (mask == 0)
 		return 0;
-
-	meta->seq = seq;
 
 	if (mask & KDBUS_ATTACH_CREDS) {
 		meta->uid	= current_uid();

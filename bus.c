@@ -196,7 +196,7 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 	}
 
-	ret = kdbus_meta_add_current(b->meta, 0,
+	ret = kdbus_meta_add_current(b->meta,
 				     KDBUS_ATTACH_CREDS		|
 				     KDBUS_ATTACH_PIDS		|
 				     KDBUS_ATTACH_AUXGROUPS	|
@@ -415,8 +415,7 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * requested metadata. It's up to the receiver to drop
 			 * messages that lack expected metadata.
 			 */
-			kdbus_meta_add_current(kmsg->meta, kmsg->seq,
-					       attach_flags);
+			kdbus_meta_add_current(kmsg->meta, attach_flags);
 			kdbus_meta_add_conn_info(kmsg->meta,
 						 conn_src, attach_flags);
 		} else {
@@ -472,8 +471,7 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 
 			attach_flags = kdbus_meta_calc_attach_flags(conn_src,
 								    conn_dst);
-			kdbus_meta_add_current(kmsg->meta, kmsg->seq,
-					       attach_flags);
+			kdbus_meta_add_current(kmsg->meta, attach_flags);
 			kdbus_meta_add_conn_info(kmsg->meta,
 						 conn_src, attach_flags);
 		}
