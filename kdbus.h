@@ -463,12 +463,12 @@ struct kdbus_msg {
 } __attribute__((aligned(8)));
 
 /**
- * struct kdbus_reply - reply container
+ * struct kdbus_msg_info - returned message container
  * @offset:		Offset of kdbus_msg slice in pool
  * @msg_size:		Copy of the kdbus_msg.size field
  * @return_flags:	Command return flags, kernel → userspace
  */
-struct kdbus_reply {
+struct kdbus_msg_info {
 	__u64 offset;
 	__u64 msg_size;
 	__u64 return_flags;
@@ -509,7 +509,7 @@ struct kdbus_cmd_send {
 	__u64 kernel_msg_flags;
 	__u64 return_flags;
 	__u64 msg_address;
-	struct kdbus_reply reply;
+	struct kdbus_msg_info reply;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
@@ -566,7 +566,7 @@ struct kdbus_cmd_recv {
 	__u64 return_flags;
 	__s64 priority;
 	__u64 dropped_msgs;
-	struct kdbus_reply reply;
+	struct kdbus_msg_info reply;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
