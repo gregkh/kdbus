@@ -404,7 +404,7 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * destination. But a receiver needs TALK access to
 			 * the sender in order to receive broadcasts.
 			 */
-			if (!kdbus_conn_policy_talk(conn_dst, conn_src))
+			if (!kdbus_conn_policy_talk(conn_dst, NULL, conn_src))
 				continue;
 
 			attach_flags = kdbus_meta_calc_attach_flags(conn_src,
@@ -425,7 +425,8 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * destination connection from receiving this kernel
 			 * notification
 			 */
-			if (!kdbus_conn_policy_see_notification(conn_dst, kmsg))
+			if (!kdbus_conn_policy_see_notification(conn_dst, NULL,
+								kmsg))
 				continue;
 		}
 

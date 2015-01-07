@@ -132,13 +132,24 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     u64 name_id);
 bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 
-bool kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name);
-bool kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to);
+/* policy */
+bool kdbus_conn_policy_own_name(struct kdbus_conn *conn,
+				const struct cred *conn_creds,
+				const char *name);
+bool kdbus_conn_policy_talk(struct kdbus_conn *conn,
+			    const struct cred *conn_creds,
+			    struct kdbus_conn *to);
 bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
+					 const struct cred *curr_creds,
 					 const char *name);
-bool kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name);
-bool kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom);
+bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
+				const struct cred *curr_creds,
+				const char *name);
+bool kdbus_conn_policy_see(struct kdbus_conn *conn,
+			   const struct cred *curr_creds,
+			   struct kdbus_conn *whom);
 bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
+					const struct cred *curr_creds,
 					const struct kdbus_kmsg *kmsg);
 
 /* command dispatcher */

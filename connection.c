@@ -439,6 +439,7 @@ kdbus_conn_reply_find(struct kdbus_conn *conn_replying,
 }
 
 static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
+				   const struct cred *conn_src_creds,
 				   struct kdbus_conn *conn_dst,
 				   const struct kdbus_msg *msg,
 				   struct kdbus_conn_reply **reply_wake)
@@ -479,7 +480,7 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 	}
 
 	/* ... otherwise, ask the policy DBs for permission */
-	if (!kdbus_conn_policy_talk(conn_src, conn_dst))
+	if (!kdbus_conn_policy_talk(conn_src, conn_src_creds, conn_dst))
 		return -EPERM;
 
 	return 0;
@@ -963,8 +964,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			goto exit_unref;
 
 		if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
-			ret = kdbus_conn_check_access(conn_src, conn_dst,
-						      msg, NULL);
+			ret = kdbus_conn_check_access(conn_src, current_cred(),
+						      conn_dst, msg, NULL);
 			if (ret < 0)
 				goto exit_unref;
 
@@ -985,13 +986,14 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			 * A receiver needs TALK access to the sender
 			 * in order to receive signals.
 			 */
-			ret = kdbus_conn_check_access(conn_dst, conn_src,
+			ret = kdbus_conn_check_access(conn_dst, NULL, conn_src,
 						      msg, NULL);
 			if (ret < 0)
 				goto exit_unref;
 		} else {
-			ret = kdbus_conn_check_access(conn_src, conn_dst,
-						      msg, &reply_wake);
+			ret = kdbus_conn_check_access(conn_src, current_cred(),
+						      conn_dst, msg,
+						      &reply_wake);
 			if (ret < 0)
 				goto exit_unref;
 		}
@@ -1420,7 +1422,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			return -EINVAL;
 
 		entry = kdbus_name_lock(conn->ep->bus->name_registry, name);
-		if (!entry || !kdbus_conn_policy_see_name(conn, name)) {
+		if (!entry || !kdbus_conn_policy_see_name(conn, current_cred(),
+							  name)) {
 			/* pretend a name doesn't exist if you cannot see it */
 			ret = -ESRCH;
 			goto exit;
@@ -1431,7 +1434,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	} else {
 		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
 						       cmd_info->id);
-		if (!owner_conn || !kdbus_conn_policy_see(conn, owner_conn)) {
+		if (!owner_conn || !kdbus_conn_policy_see(conn, current_cred(),
+							  owner_conn)) {
 			/* pretend an id doesn't exist if you cannot see it */
 			ret = -ENXIO;
 			goto exit;
@@ -1999,6 +2003,7 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 
 /* query the policy-database for all names of @whom */
 static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
+					const struct cred *conn_creds,
 					struct kdbus_policy_db *db,
 					struct kdbus_conn *whom,
 					unsigned int access)
@@ -2011,7 +2016,8 @@ static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 	mutex_lock(&whom->lock);
 
 	list_for_each_entry(ne, &whom->names_list, conn_entry) {
-		res = kdbus_policy_query_unlocked(db, conn->cred, ne->name,
+		res = kdbus_policy_query_unlocked(db, conn_creds ? : conn->cred,
+						  ne->name,
 						  kdbus_strhash(ne->name));
 		if (res >= (int)access) {
 			pass = true;
@@ -2028,19 +2034,25 @@ static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 /**
  * kdbus_conn_policy_own_name() - verify a connection can own the given name
  * @conn:		Connection
+ * @conn_creds:		Credentials of @conn to use for policy check
  * @name:		Name
  *
  * This verifies that @conn is allowed to acquire the well-known name @name.
  *
  * Return: true if allowed, false if not.
  */
-bool kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
+bool kdbus_conn_policy_own_name(struct kdbus_conn *conn,
+				const struct cred *conn_creds,
+				const char *name)
 {
 	unsigned int hash = kdbus_strhash(name);
 	int res;
 
+	if (!conn_creds)
+		conn_creds = conn->cred;
+
 	if (conn->ep->has_policy) {
-		res = kdbus_policy_query(&conn->ep->policy_db, conn->cred,
+		res = kdbus_policy_query(&conn->ep->policy_db, conn_creds,
 					 name, hash);
 		if (res < KDBUS_POLICY_OWN)
 			return false;
@@ -2049,7 +2061,7 @@ bool kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 	if (conn->privileged)
 		return true;
 
-	res = kdbus_policy_query(&conn->ep->bus->policy_db, conn->cred,
+	res = kdbus_policy_query(&conn->ep->bus->policy_db, conn_creds,
 				 name, hash);
 	return res >= KDBUS_POLICY_OWN;
 }
@@ -2057,25 +2069,32 @@ bool kdbus_conn_policy_own_name(struct kdbus_conn *conn, const char *name)
 /**
  * kdbus_conn_policy_talk() - verify a connection can talk to a given peer
  * @conn:		Connection that tries to talk
+ * @conn_creds:		Credentials of @conn to use for policy check
  * @to:			Connection that is talked to
  *
  * This verifies that @conn is allowed to talk to @to.
  *
  * Return: true if allowed, false if not.
  */
-bool kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
+bool kdbus_conn_policy_talk(struct kdbus_conn *conn,
+			    const struct cred *conn_creds,
+			    struct kdbus_conn *to)
 {
+	if (!conn_creds)
+		conn_creds = conn->cred;
+
 	if (conn->ep->has_policy &&
-	    !kdbus_conn_policy_query_all(conn, &conn->ep->policy_db, to,
-					 KDBUS_POLICY_TALK))
+	    !kdbus_conn_policy_query_all(conn, conn_creds, &conn->ep->policy_db,
+					 to, KDBUS_POLICY_TALK))
 		return false;
 
 	if (conn->privileged)
 		return true;
-	if (uid_eq(conn->cred->fsuid, to->cred->uid))
+	if (uid_eq(conn_creds->euid, to->cred->uid))
 		return true;
 
-	return kdbus_conn_policy_query_all(conn, &conn->ep->bus->policy_db, to,
+	return kdbus_conn_policy_query_all(conn, conn_creds,
+					   &conn->ep->bus->policy_db, to,
 					   KDBUS_POLICY_TALK);
 }
 
@@ -2083,6 +2102,7 @@ bool kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
  * kdbus_conn_policy_see_name_unlocked() - verify a connection can see a given
  *					   name
  * @conn:		Connection
+ * @conn_creds:		Credentials of @conn to use for policy check
  * @name:		Name
  *
  * This verifies that @conn is allowed to see the well-known name @name. Caller
@@ -2091,6 +2111,7 @@ bool kdbus_conn_policy_talk(struct kdbus_conn *conn, struct kdbus_conn *to)
  * Return: true if allowed, false if not.
  */
 bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
+					 const struct cred *conn_creds,
 					 const char *name)
 {
 	int res;
@@ -2102,7 +2123,8 @@ bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 	if (!conn->ep->has_policy)
 		return true;
 
-	res = kdbus_policy_query_unlocked(&conn->ep->policy_db, conn->cred,
+	res = kdbus_policy_query_unlocked(&conn->ep->policy_db,
+					  conn_creds ? : conn->cred,
 					  name, kdbus_strhash(name));
 	return res >= KDBUS_POLICY_SEE;
 }
@@ -2110,18 +2132,21 @@ bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 /**
  * kdbus_conn_policy_see_name() - verify a connection can see a given name
  * @conn:		Connection
+ * @conn_creds:		Credentials of @conn to use for policy check
  * @name:		Name
  *
  * This verifies that @conn is allowed to see the well-known name @name.
  *
  * Return: true if allowed, false if not.
  */
-bool kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
+bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
+				const struct cred *conn_creds,
+				const char *name)
 {
 	bool res;
 
 	down_read(&conn->ep->policy_db.entries_rwlock);
-	res = kdbus_conn_policy_see_name_unlocked(conn, name);
+	res = kdbus_conn_policy_see_name_unlocked(conn, conn_creds, name);
 	up_read(&conn->ep->policy_db.entries_rwlock);
 
 	return res;
@@ -2130,13 +2155,16 @@ bool kdbus_conn_policy_see_name(struct kdbus_conn *conn, const char *name)
 /**
  * kdbus_conn_policy_see() - verify a connection can see a given peer
  * @conn:		Connection to verify whether it sees a peer
+ * @conn_creds:		Credentials of @conn to use for policy check
  * @whom:		Peer destination that is to be 'seen'
  *
  * This checks whether @conn is able to see @whom.
  *
  * Return: true if allowed, false if not.
  */
-bool kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
+bool kdbus_conn_policy_see(struct kdbus_conn *conn,
+			   const struct cred *conn_creds,
+			   struct kdbus_conn *whom)
 {
 	/*
 	 * By default, all names are visible on a bus, so a connection can
@@ -2146,7 +2174,8 @@ bool kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
 	 * peer.
 	 */
 	return !conn->ep->has_policy ||
-	       kdbus_conn_policy_query_all(conn, &conn->ep->policy_db, whom,
+	       kdbus_conn_policy_query_all(conn, conn_creds,
+					   &conn->ep->policy_db, whom,
 					   KDBUS_POLICY_SEE);
 }
 
@@ -2154,6 +2183,7 @@ bool kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
  * kdbus_conn_policy_see_notification() - verify a connection is allowed to
  *					  receive a given kernel notification
  * @conn:		Connection
+ * @conn_creds:		Credentials of @conn to use for policy check
  * @kmsg:		The message carrying the notification
  *
  * This checks whether @conn is allowed to see the kernel notification @kmsg.
@@ -2161,6 +2191,7 @@ bool kdbus_conn_policy_see(struct kdbus_conn *conn, struct kdbus_conn *whom)
  * Return: true if allowed, false if not.
  */
 bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
+					const struct cred *conn_creds,
 					const struct kdbus_kmsg *kmsg)
 {
 	if (WARN_ON(kmsg->msg.src_id != KDBUS_SRC_ID_KERNEL))
@@ -2184,7 +2215,8 @@ bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 	case KDBUS_ITEM_NAME_ADD:
 	case KDBUS_ITEM_NAME_REMOVE:
 	case KDBUS_ITEM_NAME_CHANGE:
-		return kdbus_conn_policy_see_name(conn, kmsg->notify_name);
+		return kdbus_conn_policy_see_name(conn, conn_creds,
+						  kmsg->notify_name);
 
 	case KDBUS_ITEM_ID_ADD:
 	case KDBUS_ITEM_ID_REMOVE:
