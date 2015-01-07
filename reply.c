@@ -101,8 +101,8 @@ void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
  * kdbus_reply_find() - Find the corresponding reply object
  * @replying:	The replying connection
  * @reply_dst:	The connection the reply will be sent to
- *			(method origin)
- * @cookie:		The cookie of the requesting message
+ *		(method origin)
+ * @cookie:	The cookie of the requesting message
  *
  * Lookup a reply object that should be sent as a reply by
  * @replying to @reply_dst with the given cookie.
