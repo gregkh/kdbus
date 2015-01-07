@@ -175,11 +175,9 @@ static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
 		goto exit_unlock;
 	}
 
-	ret = kdbus_notify_name_change(conn->ep->bus, KDBUS_ITEM_NAME_CHANGE,
-				       e->conn->id, conn->id,
-				       e->flags, flags, e->name);
-	if (ret < 0)
-		goto exit_unlock;
+	kdbus_notify_name_change(conn->ep->bus, KDBUS_ITEM_NAME_CHANGE,
+				 e->conn->id, conn->id,
+				 e->flags, flags, e->name);
 
 	/* hand over name ownership */
 	kdbus_name_entry_remove_owner(e);
@@ -197,11 +195,11 @@ exit_unlock:
 static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 {
 	struct kdbus_conn *conn;
+	int ret;
 
 	/* give it to first active waiter in the queue */
 	while (!list_empty(&e->queue_list)) {
 		struct kdbus_name_queue_item *q;
-		int ret;
 
 		q = list_first_entry(&e->queue_list,
 				     struct kdbus_name_queue_item,
@@ -218,7 +216,6 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 	/* hand it back to an active activator connection */
 	if (e->activator && e->activator != e->conn) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
-		int ret;
 
 		/*
 		 * Move messages still queued in the old connection
