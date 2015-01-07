@@ -17,11 +17,10 @@
 #include "reply.h"
 #include "util.h"
 
-struct kdbus_reply *
-kdbus_reply_new(struct kdbus_conn *reply_dst,
-		const struct kdbus_msg *msg,
-		struct kdbus_name_entry *name_entry,
-		bool sync)
+struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_dst,
+				    const struct kdbus_msg *msg,
+				    struct kdbus_name_entry *name_entry,
+				    bool sync)
 {
 	struct kdbus_reply *r;
 	int ret = 0;
@@ -68,16 +67,14 @@ static void __kdbus_reply_free(struct kref *kref)
 	kfree(reply);
 }
 
-struct kdbus_reply *
-kdbus_reply_ref(struct kdbus_reply *r)
+struct kdbus_reply *kdbus_reply_ref(struct kdbus_reply *r)
 {
 	if (r)
 		kref_get(&r->kref);
 	return r;
 }
 
-struct kdbus_reply *
-kdbus_reply_unref(struct kdbus_reply *r)
+struct kdbus_reply *kdbus_reply_unref(struct kdbus_reply *r)
 {
 	if (r)
 		kref_put(&r->kref, __kdbus_reply_free);
@@ -118,10 +115,9 @@ void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
  *
  * Return: the corresponding reply object or NULL if not found
  */
-struct kdbus_reply *
-kdbus_reply_find(struct kdbus_conn *replying,
-		 struct kdbus_conn *reply_dst,
-		 u64 cookie)
+struct kdbus_reply * kdbus_reply_find(struct kdbus_conn *replying,
+				      struct kdbus_conn *reply_dst,
+				      u64 cookie)
 {
 	struct kdbus_reply *r, *reply = NULL;
 
