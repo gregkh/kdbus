@@ -175,7 +175,7 @@ int kdbus_policy_query_unlocked(struct kdbus_policy_db *db,
 				highest = a->access;
 			break;
 		case KDBUS_POLICY_ACCESS_GROUP:
-			if (gid_eq(cred->gid, a->gid)) {
+			if (gid_eq(cred->egid, a->gid)) {
 				highest = a->access;
 				break;
 			}
