@@ -161,14 +161,7 @@ static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
 	if (WARN_ON(!conn_old))
 		return -EINVAL;
 
-	/* take lock of both connections in a defined order */
-	if (conn < conn_old) {
-		mutex_lock(&conn->lock);
-		mutex_lock_nested(&conn_old->lock, 1);
-	} else {
-		mutex_lock(&conn_old->lock);
-		mutex_lock_nested(&conn->lock, 1);
-	}
+	kdbus_conn_lock2(conn, conn_old);
 
 	if (!kdbus_conn_active(conn)) {
 		ret = -ECONNRESET;
@@ -185,9 +178,7 @@ static int kdbus_name_replace_owner(struct kdbus_name_entry *e,
 	e->flags = flags;
 
 exit_unlock:
-	mutex_unlock(&conn_old->lock);
-	mutex_unlock(&conn->lock);
-
+	kdbus_conn_unlock2(conn, conn_old);
 	kdbus_conn_unref(conn_old);
 	return ret;
 }
