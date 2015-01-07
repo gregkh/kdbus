@@ -53,7 +53,17 @@ since v2:
     Lutomirski, Michele Curti, Sergei Zviagintsev, Sheng Yong, Torstein
     Husebø and Hristo Venev.
 
-  * Fixed compiler warnings on test-message by Michele Curti
+  * Fixed compiler warnings in test-message by Michele Curti
+
+  * Unexpected items are now rejected with -EINVAL
+
+  * Split signal and broadcast handling. Unicast signals are now
+    supported, and messages have a new KDBUS_MSG_SIGNAL flag.
+
+  * KDBUS_CMD_MSG_SEND was renamed to KDBUS_CMD_SEND, and now takes
+    a struct kdbus_cmd_send instead of a kdbus_msg.
+
+  * KDBUS_CMD_MSG_RECV was renamed to KDBUS_CMD_RECV.
 
   * Test case memory leak plugged, and various other cleanups and
     fixes, by Rui Miguel Silva.
