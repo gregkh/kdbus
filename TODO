@@ -1,6 +1,0 @@
-Features:
-  - attach seclabel to well-known names
-
-  - also attach queued names to message metadata?
-
-  - test message budget limits
