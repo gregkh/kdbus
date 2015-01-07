@@ -84,6 +84,12 @@ since v2:
 
   * New test case for kernel notification quota
 
+  * Switched back to enums for the list of ioctls. This has advantages
+    for userspace code as gdb, for instance, is able to resolve the
+    numbers into names. Added features can easily be detected with
+    autotools, and new iotcls can get #defines as well. Having #defines
+    for the initial set of ioctls is uncecessary.
+
 
 since RFC v1:
 
