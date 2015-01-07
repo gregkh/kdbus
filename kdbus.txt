@@ -1934,8 +1934,8 @@ For KDBUS_CMD_SEND:
 		file descriptors are either kdbus handles or unix domain
 		sockets. Both are currently unsupported
   -EINVAL	The submitted payload type is KDBUS_PAYLOAD_KERNEL,
-		KDBUS_MSG_EXPECT_REPLY was set without a timeout value,
-		KDBUS_MSG_SYNC_REPLY was set without
+		KDBUS_MSG_EXPECT_REPLY was set without timeout or cookie
+		values, KDBUS_MSG_SYNC_REPLY was set without
 		KDBUS_MSG_EXPECT_REPLY, an invalid item was supplied,
 		src_id was != 0 and different from the current connection's ID,
 		a supplied memfd had a size of 0, a string was not properly

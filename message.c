@@ -549,8 +549,8 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 	}
 
 	if (m->msg.flags & KDBUS_MSG_EXPECT_REPLY) {
-		/* requests for replies need a timeout */
-		if (m->msg.timeout_ns == 0) {
+		/* requests for replies need timeout and cookie */
+		if (m->msg.timeout_ns == 0 || m->msg.cookie == 0) {
 			ret = -EINVAL;
 			goto exit_free;
 		}

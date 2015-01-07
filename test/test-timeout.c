@@ -51,6 +51,7 @@ int kdbus_test_timeout(struct kdbus_test_env *env)
 	struct pollfd fd;
 	int ret, i, n_msgs = 4;
 	uint64_t expected = 0;
+	uint64_t cookie = 0xdeadbeef;
 
 	conn_a = kdbus_hello(env->buspath, 0, NULL, 0);
 	conn_b = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -62,13 +63,14 @@ int kdbus_test_timeout(struct kdbus_test_env *env)
 	 * send messages that expect a reply (within 100 msec),
 	 * but never answer it.
 	 */
-	for (i = 0; i < n_msgs; i++) {
-		kdbus_printf("Sending message with cookie %d ...\n", i);
-		ASSERT_RETURN(kdbus_msg_send(conn_b, NULL, i,
+	for (i = 0; i < n_msgs; i++, cookie++) {
+		kdbus_printf("Sending message with cookie %llu ...\n",
+			     (unsigned long long)cookie);
+		ASSERT_RETURN(kdbus_msg_send(conn_b, NULL, cookie,
 			      KDBUS_MSG_EXPECT_REPLY,
 			      (i + 1) * 100ULL * 1000000ULL, 0,
 			      conn_a->id) == 0);
-		expected |= 1ULL << i;
+		expected |= 1ULL << cookie;
 	}
 
 	for (;;) {

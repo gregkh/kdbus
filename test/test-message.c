@@ -76,6 +76,11 @@ int kdbus_test_message_basic(struct kdbus_test_env *env)
 
 	kdbus_msg_free(msg);
 
+	/* Msgs that expect a reply must have timeout and cookie */
+	ret = kdbus_msg_send(sender, NULL, 0, KDBUS_MSG_EXPECT_REPLY,
+			     0, 0, conn->id);
+	ASSERT_RETURN(ret == -EINVAL);
+
 	ret = kdbus_free(conn, offset);
 	ASSERT_RETURN(ret == 0);
 
