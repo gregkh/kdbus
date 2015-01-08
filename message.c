@@ -393,10 +393,6 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				return -EEXIST;
 			has_bloom = true;
 
-			/* bloom filters are only for broadcast messages */
-			if (msg->dst_id != KDBUS_DST_ID_BROADCAST)
-				return -EBADMSG;
-
 			bloom_size = payload_size -
 				     offsetof(struct kdbus_bloom_filter, data);
 
