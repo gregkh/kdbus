@@ -219,11 +219,15 @@ static inline int kdbus_conn_is_monitor(const struct kdbus_conn *conn)
 static inline void kdbus_conn_lock2(struct kdbus_conn *a, struct kdbus_conn *b)
 {
 	if (a < b) {
-		mutex_lock(&a->lock);
-		mutex_lock_nested(&b->lock, 1);
+		if (a)
+			mutex_lock(&a->lock);
+		if (b)
+			mutex_lock_nested(&b->lock, 1);
 	} else {
-		mutex_lock(&b->lock);
-		mutex_lock_nested(&a->lock, 1);
+		if (b)
+			mutex_lock(&b->lock);
+		if (a)
+			mutex_lock_nested(&a->lock, 1);
 	}
 }
 
@@ -237,8 +241,10 @@ static inline void kdbus_conn_lock2(struct kdbus_conn *a, struct kdbus_conn *b)
 static inline void kdbus_conn_unlock2(struct kdbus_conn *a,
 				      struct kdbus_conn *b)
 {
-	mutex_unlock(&a->lock);
-	mutex_unlock(&b->lock);
+	if (a)
+		mutex_unlock(&a->lock);
+	if (b)
+		mutex_unlock(&b->lock);
 }
 
 #endif
