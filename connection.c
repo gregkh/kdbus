@@ -242,7 +242,6 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 	 */
 	if (reply_wake && msg->cookie_reply > 0) {
 		struct kdbus_reply *r;
-		bool allowed = false;
 
 		/*
 		 * The connection that we are replying to has not
@@ -261,12 +260,10 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 				*reply_wake = kdbus_reply_ref(r);
 			else
 				kdbus_reply_unref(r);
-
-			allowed = true;
 		}
 		mutex_unlock(&conn_dst->lock);
 
-		return allowed ? 0 : -EPERM;
+		return r ? 0 : -EPERM;
 	}
 
 	/* ... otherwise, ask the policy DBs for permission */
