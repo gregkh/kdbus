@@ -221,13 +221,21 @@ static inline void kdbus_conn_lock2(struct kdbus_conn *a, struct kdbus_conn *b)
 	if (a < b) {
 		if (a)
 			mutex_lock(&a->lock);
-		if (b)
-			mutex_lock_nested(&b->lock, 1);
+		if (b) {
+			if (a)
+				mutex_lock_nested(&b->lock, 1);
+			else
+				mutex_lock(&b->lock);
+		}
 	} else {
 		if (b)
 			mutex_lock(&b->lock);
-		if (a)
-			mutex_lock_nested(&a->lock, 1);
+		if (a) {
+			if (b)
+				mutex_lock_nested(&a->lock, 1);
+			else
+				mutex_lock(&a->lock);
+		}
 	}
 }
 
