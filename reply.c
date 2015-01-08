@@ -17,7 +17,8 @@
 #include "reply.h"
 #include "util.h"
 
-struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_dst,
+struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_src,
+				    struct kdbus_conn *reply_dst,
 				    const struct kdbus_msg *msg,
 				    struct kdbus_name_entry *name_entry,
 				    bool sync)
@@ -38,6 +39,7 @@ struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_dst,
 	}
 
 	kref_init(&r->kref);
+	r->reply_src = kdbus_conn_ref(reply_src);
 	r->reply_dst = kdbus_conn_ref(reply_dst);
 	r->cookie = msg->cookie;
 	r->name_id = name_entry ? name_entry->name_id : 0;
@@ -63,6 +65,7 @@ static void __kdbus_reply_free(struct kref *kref)
 		container_of(kref, struct kdbus_reply, kref);
 
 	atomic_dec(&reply->reply_dst->request_count);
+	kdbus_conn_unref(reply->reply_src);
 	kdbus_conn_unref(reply->reply_dst);
 	kfree(reply);
 }
@@ -111,7 +114,7 @@ void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
  * @reply_dst to see if the connection has issued any requests
  * that are waiting for replies, before calling this function.
  *
- * Callers must take the @replying lock.
+ * Callers must take the @reply_dst lock.
  *
  * Return: the corresponding reply object or NULL if not found
  */
@@ -121,8 +124,8 @@ struct kdbus_reply * kdbus_reply_find(struct kdbus_conn *replying,
 {
 	struct kdbus_reply *r, *reply = NULL;
 
-	list_for_each_entry(r, &replying->reply_list, entry) {
-		if (r->reply_dst == reply_dst &&
+	list_for_each_entry(r, &reply_dst->reply_list, entry) {
+		if (r->reply_src == replying &&
 		    r->cookie == cookie) {
 			reply = r;
 			break;
@@ -157,6 +160,8 @@ void kdbus_reply_list_scan(struct kdbus_conn *conn)
 		if (reply->sync && !reply->interrupted)
 			continue;
 
+		WARN_ON(reply->reply_dst != conn);
+
 		if (reply->deadline_ns > now) {
 			/* remember next timeout */
 			if (deadline > reply->deadline_ns)
@@ -172,8 +177,7 @@ void kdbus_reply_list_scan(struct kdbus_conn *conn)
 		 * left in an interrupted syscall state.
 		 */
 		if (reply->deadline_ns != 0 && !reply->interrupted)
-			kdbus_notify_reply_timeout(conn->ep->bus,
-						   reply->reply_dst->id,
+			kdbus_notify_reply_timeout(conn->ep->bus, conn->id,
 						   reply->cookie);
 
 		list_del_init(&reply->entry);

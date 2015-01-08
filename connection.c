@@ -150,47 +150,38 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		bool reply_found = false;
-
-		if (entry->reply) {
-			struct kdbus_reply *r;
-
-			/*
-			 * Walk the list of pending replies and see if the
-			 * one attached to this entry item is stil there.
-			 * It might have been removed by an incoming reply,
-			 * and we currently don't track reply entries in that
-			 * direction in order to prevent potentially dangling
-			 * pointers.
-			 */
-			list_for_each_entry(r, &conn->reply_list, entry) {
-				if (r == entry->reply) {
-					reply_found = true;
-					break;
-				}
-			}
-		}
-
-		if (reply_found) {
-			if (entry->reply->sync) {
-				kdbus_sync_reply_wakeup(entry->reply,
-							-EPIPE);
-			} else {
-				list_del_init(&entry->reply->entry);
-				kdbus_reply_unref(entry->reply);
-				kdbus_notify_reply_dead(conn->ep->bus,
-							entry->msg.src_id,
-							entry->msg.cookie);
-			}
-		}
+		struct kdbus_reply *reply = entry->reply;
 
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
 
-		/* Free the resources of this entry */
+		mutex_unlock(&conn->lock);
+
+		if (reply) {
+			/*
+			 * See if the reply object is still linked in
+			 * reply_dst, and kill it. Notify the waiting peer
+			 * that there won't be an answer (-EPIPE).
+			 */
+			mutex_lock(&reply->reply_dst->lock);
+			if (!list_empty(&reply->entry)) {
+				if (reply->sync) {
+					kdbus_sync_reply_wakeup(reply, -EPIPE);
+				} else {
+					list_del_init(&reply->entry);
+					kdbus_notify_reply_dead(conn->ep->bus,
+							entry->msg.src_id,
+							entry->msg.cookie);
+				}
+			}
+			mutex_unlock(&reply->reply_dst->lock);
+			kdbus_reply_unref(reply);
+		}
+
+		kdbus_notify_flush(conn->ep->bus);
 		kdbus_queue_entry_free(entry);
 
-		goto exit_unlock;
+		return 0;
 	}
 
 	/*
@@ -262,9 +253,8 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 		if (atomic_read(&conn_dst->request_count) == 0)
 			return -EPERM;
 
-		mutex_lock(&conn_src->lock);
-		r = kdbus_reply_find(conn_src, conn_dst,
-					  msg->cookie_reply);
+		mutex_lock(&conn_dst->lock);
+		r = kdbus_reply_find(conn_src, conn_dst, msg->cookie_reply);
 		if (r) {
 			list_del_init(&r->entry);
 			if (r->sync)
@@ -274,7 +264,7 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 
 			allowed = true;
 		}
-		mutex_unlock(&conn_src->lock);
+		mutex_unlock(&conn_dst->lock);
 
 		return allowed ? 0 : -EPERM;
 	}
@@ -316,7 +306,7 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 	int remote_ret;
 	int ret = 0;
 
-	mutex_lock(&conn_dst->lock);
+	mutex_lock(&reply_wake->reply_dst->lock);
 
 	/*
 	 * If we are still waiting then proceed, allocate a queue
@@ -354,16 +344,14 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 		remote_ret = -EREMOTEIO;
 
 	kdbus_sync_reply_wakeup(reply_wake, remote_ret);
+	mutex_unlock(&reply_wake->reply_dst->lock);
 	kdbus_reply_unref(reply_wake);
-
-	mutex_unlock(&conn_dst->lock);
 
 	return ret;
 }
 
 /**
- * kdbus_conn_entry_insert() - enqueue a message into the receiver's
- *			       pool
+ * kdbus_conn_entry_insert() - enqueue a message into the receiver's pool
  * @conn_src:		The sending connection
  * @conn_dst:		The connection to queue into
  * @kmsg:		The kmag to queue
@@ -379,7 +367,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	struct kdbus_queue_entry *entry;
 	int ret;
 
-	mutex_lock(&conn_dst->lock);
+	kdbus_conn_lock2(conn_src, conn_dst);
 
 	/*
 	 * Limit the maximum number of queued messages. This applies
@@ -412,12 +400,12 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	 * move the reply entry's connection when a connection moves from an
 	 * activator to an implementor.
 	 */
-	entry->reply = reply;
+	entry->reply = kdbus_reply_ref(reply);
 
 	if (reply) {
-		list_add(&reply->entry, &conn_dst->reply_list);
+		list_add(&reply->entry, &conn_src->reply_list);
 		if (!reply->sync)
-			schedule_delayed_work(&conn_dst->work, 0);
+			schedule_delayed_work(&conn_src->work, 0);
 	}
 
 	/* link the message into the receiver's entry */
@@ -432,7 +420,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 exit_queue_free:
 	kdbus_queue_entry_free(entry);
 exit_unlock:
-	mutex_unlock(&conn_dst->lock);
+	kdbus_conn_unlock2(conn_src, conn_dst);
 	return ret;
 }
 
@@ -547,19 +535,16 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		 * unlink it from the list. Once the syscall restarts, we'll
 		 * pick it up and wait on it again.
 		 */
-		mutex_lock(&conn_dst->lock);
+		mutex_lock(&conn_src->lock);
 		reply_wait->interrupted = true;
-		schedule_delayed_work(&conn_dst->work, 0);
-		mutex_unlock(&conn_dst->lock);
+		schedule_delayed_work(&conn_src->work, 0);
+		mutex_unlock(&conn_src->lock);
 
 		return -ERESTARTSYS;
 	}
 
-	mutex_lock(&conn_dst->lock);
-	list_del_init(&reply_wait->entry);
-	mutex_unlock(&conn_dst->lock);
-
 	mutex_lock(&conn_src->lock);
+	list_del_init(&reply_wait->entry);
 	reply_wait->waiting = false;
 	entry = reply_wait->queue_entry;
 	if (entry) {
@@ -572,8 +557,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		kdbus_queue_entry_free(entry);
 	}
 	mutex_unlock(&conn_src->lock);
-
-	kdbus_reply_unref(reply_wait);
 
 	return ret;
 }
@@ -724,17 +707,16 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 * object.
 		 */
 		if (sync && atomic_read(&conn_src->request_count) > 0) {
-			mutex_lock(&conn_dst->lock);
+			mutex_lock(&conn_src->lock);
 			reply_wait = kdbus_reply_find(conn_dst, conn_src,
 						      kmsg->msg.cookie);
 			if (reply_wait) {
-				/* It was interrupted */
 				if (reply_wait->interrupted)
 					reply_wait->interrupted = false;
 				else
 					reply_wait = NULL;
 			}
-			mutex_unlock(&conn_dst->lock);
+			mutex_unlock(&conn_src->lock);
 
 			if (reply_wait)
 				goto wait_sync;
@@ -769,10 +751,11 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			if (ret < 0)
 				goto exit_unref;
 
-			reply_wait = kdbus_reply_new(conn_src, msg,
+			reply_wait = kdbus_reply_new(conn_dst, conn_src, msg,
 						     name_entry, sync);
 			if (IS_ERR(reply_wait)) {
 				ret = PTR_ERR(reply_wait);
+				reply_wait = NULL;
 				goto exit_unref;
 			}
 		} else if (msg->flags & KDBUS_MSG_SIGNAL) {
@@ -825,10 +808,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 */
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst,
 					      kmsg, reply_wait);
-		if (ret < 0) {
-			kdbus_reply_unref(reply_wait);
+		if (ret < 0)
 			goto exit_unref;
-		}
 	}
 
 wait_sync:
@@ -848,6 +829,7 @@ wait_sync:
 	}
 
 exit_unref:
+	kdbus_reply_unref(reply_wait);
 	kdbus_conn_unref(conn_dst);
 exit_name_unlock:
 	kdbus_name_unlock(bus->name_registry, name_entry);
@@ -872,10 +854,11 @@ exit_put_cancelfd:
  */
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 {
-	struct kdbus_reply *reply, *reply_tmp;
 	struct kdbus_queue_entry *entry, *tmp;
-	LIST_HEAD(reply_list);
-	int v;
+	struct kdbus_bus *bus = conn->ep->bus;
+	struct kdbus_reply *r, *r_tmp;
+	struct kdbus_conn *c;
+	int i, v;
 
 	mutex_lock(&conn->lock);
 	v = atomic_read(&conn->active);
@@ -918,56 +901,67 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->ep->lock);
-	down_write(&conn->ep->bus->conn_rwlock);
+	down_write(&bus->conn_rwlock);
 
 	/* remove from bus and endpoint */
 	hash_del(&conn->hentry);
 	list_del(&conn->monitor_entry);
 	list_del(&conn->ep_entry);
 
-	up_write(&conn->ep->bus->conn_rwlock);
+	up_write(&bus->conn_rwlock);
 	mutex_unlock(&conn->ep->lock);
 
 	/*
 	 * Remove all names associated with this connection; this possibly
 	 * moves queued messages back to the activator connection.
 	 */
-	kdbus_name_remove_by_conn(conn->ep->bus->name_registry, conn);
+	kdbus_name_remove_by_conn(bus->name_registry, conn);
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
 		if (entry->reply)
-			kdbus_notify_reply_dead(conn->ep->bus,
-						entry->msg.src_id,
+			kdbus_notify_reply_dead(bus, entry->msg.src_id,
 						entry->msg.cookie);
 
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
 	}
-	list_splice_init(&conn->reply_list, &reply_list);
+
+	list_for_each_entry_safe(r, r_tmp, &conn->reply_list, entry) {
+		list_del_init(&r->entry);
+		kdbus_reply_unref(r);
+	}
 	mutex_unlock(&conn->lock);
 
-	list_for_each_entry_safe(reply, reply_tmp, &reply_list, entry) {
-		if (reply->sync) {
-			kdbus_sync_reply_wakeup(reply, -EPIPE);
-			continue;
+	/* lock order: domain -> bus -> ep -> names -> conn */
+	down_read(&bus->conn_rwlock);
+	hash_for_each(bus->conn_hash, i, c, hentry) {
+		mutex_lock(&c->lock);
+		list_for_each_entry_safe(r, r_tmp, &c->reply_list, entry) {
+			if (r->reply_src == conn) {
+				if (r->sync) {
+					kdbus_sync_reply_wakeup(r, -EPIPE);
+					continue;
+				}
+
+				/* send a 'connection dead' notification */
+				kdbus_notify_reply_dead(bus, c->id, r->cookie);
+
+				list_del_init(&r->entry);
+				kdbus_reply_unref(r);
+			}
 		}
-
-		/* send a 'connection dead' notification */
-		kdbus_notify_reply_dead(conn->ep->bus, reply->reply_dst->id,
-					reply->cookie);
-
-		list_del(&reply->entry);
-		kdbus_reply_unref(reply);
+		mutex_unlock(&c->lock);
 	}
+	up_read(&bus->conn_rwlock);
 
 	if (!kdbus_conn_is_monitor(conn))
-		kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_REMOVE,
+		kdbus_notify_id_change(bus, KDBUS_ITEM_ID_REMOVE,
 				       conn->id, conn->flags);
 
-	kdbus_notify_flush(conn->ep->bus);
+	kdbus_notify_flush(bus);
 
 	return 0;
 }
@@ -1124,9 +1118,10 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 {
 	struct kdbus_queue_entry *q, *q_tmp;
 	struct kdbus_reply *r, *r_tmp;
-	LIST_HEAD(reply_list);
+	struct kdbus_bus *bus;
+	struct kdbus_conn *c;
 	LIST_HEAD(msg_list);
-	int ret = 0;
+	int i, ret = 0;
 
 	if (WARN_ON(!mutex_is_locked(&conn_dst->ep->bus->lock)))
 		return -EINVAL;
@@ -1134,15 +1129,31 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	if (WARN_ON(conn_src == conn_dst))
 		return -EINVAL;
 
-	/* remove all messages from the source */
-	mutex_lock(&conn_src->lock);
-	list_for_each_entry_safe(r, r_tmp, &conn_src->reply_list, entry) {
-		/* filter messages for a specific name */
-		if (name_id > 0 && r->name_id != name_id)
+	bus = conn_src->ep->bus;
+
+	/* lock order: domain -> bus -> ep -> names -> conn */
+	down_read(&bus->conn_rwlock);
+	hash_for_each(bus->conn_hash, i, c, hentry) {
+		if (c == conn_src || c == conn_dst)
 			continue;
 
-		list_move_tail(&r->entry, &reply_list);
+		mutex_lock(&c->lock);
+		list_for_each_entry_safe(r, r_tmp, &c->reply_list, entry) {
+			if (r->reply_src != conn_src)
+				continue;
+
+			/* filter messages for a specific name */
+			if (name_id > 0 && r->name_id != name_id)
+				continue;
+
+			kdbus_conn_unref(r->reply_src);
+			r->reply_src = kdbus_conn_ref(conn_dst);
+		}
+		mutex_unlock(&c->lock);
 	}
+	up_read(&bus->conn_rwlock);
+
+	kdbus_conn_lock2(conn_src, conn_dst);
 	list_for_each_entry_safe(q, q_tmp, &conn_src->queue.msg_list, entry) {
 		/* filter messages for a specific name */
 		if (name_id > 0 && q->dst_name_id != name_id)
@@ -1156,32 +1167,13 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			continue;
 		}
 
-		list_add_tail(&q->entry, &msg_list);
-	}
-	mutex_unlock(&conn_src->lock);
-
-	/* insert messages into destination */
-	mutex_lock(&conn_dst->lock);
-	if (!kdbus_conn_active(conn_dst)) {
-		struct kdbus_reply *r, *r_tmp;
-
-		/* our destination connection died, just drop all messages */
-		mutex_unlock(&conn_dst->lock);
-		list_for_each_entry_safe(q, q_tmp, &msg_list, entry)
-			kdbus_queue_entry_free(q);
-		list_for_each_entry_safe(r, r_tmp, &reply_list, entry)
-			kdbus_reply_unref(r);
-		return -ECONNRESET;
-	}
-
-	list_for_each_entry_safe(q, q_tmp, &msg_list, entry) {
 		ret = kdbus_queue_entry_move(conn_dst, q);
-		if (ret < 0)
-			break;
+		if (ret < 0) {
+			atomic_inc(&conn_dst->lost_count);
+			kdbus_queue_entry_free(q);
+		}
 	}
-
-	list_splice(&reply_list, &conn_dst->reply_list);
-	mutex_unlock(&conn_dst->lock);
+	kdbus_conn_unlock2(conn_src, conn_dst);
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn_dst->wait);

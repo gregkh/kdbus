@@ -19,7 +19,8 @@
  * struct kdbus_reply - an entry of kdbus_conn's list of replies
  * @kref:		Ref-count of this object
  * @entry:		The entry of the connection's reply_list
- * @reply_dst:		The connection the reply will be sent to (method origin)
+ * @reply_src:		The connection the reply will be sent from
+ * @reply_dst:		The connection the reply will be sent to
  * @queue_entry:	The queue entry item that is prepared by the replying
  *			connection
  * @deadline_ns:	The deadline of the reply, in nanoseconds
@@ -33,6 +34,7 @@
 struct kdbus_reply {
 	struct kref kref;
 	struct list_head entry;
+	struct kdbus_conn *reply_src;
 	struct kdbus_conn *reply_dst;
 	struct kdbus_queue_entry *queue_entry;
 	u64 deadline_ns;
@@ -44,7 +46,8 @@ struct kdbus_reply {
 	int err;
 };
 
-struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_dst,
+struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_src,
+				    struct kdbus_conn *reply_dst,
 				    const struct kdbus_msg *msg,
 				    struct kdbus_name_entry *name_entry,
 				    bool sync);
