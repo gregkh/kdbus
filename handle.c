@@ -687,6 +687,9 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 
 		cmd_send->return_flags = 0;
+		cmd_send->reply.offset = 0;
+		cmd_send->reply.msg_size = 0;
+		cmd_send->reply.return_flags = 0;
 
 		ret = kdbus_items_validate(cmd_send->items,
 					   KDBUS_ITEMS_SIZE(cmd_send, items));
@@ -749,6 +752,10 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 
 		cmd_recv->return_flags = 0;
+		cmd_recv->dropped_msgs = 0;
+		cmd_recv->reply.offset = 0;
+		cmd_recv->reply.msg_size = 0;
+		cmd_recv->reply.return_flags = 0;
 
 		ret = kdbus_items_validate(cmd_recv->items,
 					   KDBUS_ITEMS_SIZE(cmd_recv, items));
