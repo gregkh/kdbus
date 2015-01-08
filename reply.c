@@ -17,6 +17,18 @@
 #include "reply.h"
 #include "util.h"
 
+/**
+ * kdbus_reply_new() - Allocate and set up a new kdbus_reply object
+ * @reply_src:		The connection a reply is expected from
+ * @reply_dst:		The connection this reply object belongs to
+ * @msg:		Message associated with the reply
+ * @name_entry:		Name entry used to send the message
+ * @sync:		Whether or not to make this reply synchronous
+ *
+ * Allocate and fill a new kdbus_reply object.
+ *
+ * Return: New kdbus_conn object on success, ERR_PTR on error.
+ */
 struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_src,
 				    struct kdbus_conn *reply_dst,
 				    const struct kdbus_msg *msg,
@@ -70,6 +82,12 @@ static void __kdbus_reply_free(struct kref *kref)
 	kfree(reply);
 }
 
+/**
+ * kdbus_reply_ref() - Increase reference on kdbus_reply
+ * @r:		The reply, may be %NULL
+ *
+ * Return: The reply object with an extra reference
+ */
 struct kdbus_reply *kdbus_reply_ref(struct kdbus_reply *r)
 {
 	if (r)
@@ -77,6 +95,12 @@ struct kdbus_reply *kdbus_reply_ref(struct kdbus_reply *r)
 	return r;
 }
 
+/**
+ * kdbus_reply_unref() - Decrease reference on kdbus_reply
+ * @r:		The reply, may be %NULL
+ *
+ * Return: NULL
+ */
 struct kdbus_reply *kdbus_reply_unref(struct kdbus_reply *r)
 {
 	if (r)
@@ -84,10 +108,14 @@ struct kdbus_reply *kdbus_reply_unref(struct kdbus_reply *r)
 	return NULL;
 }
 
-/*
- * Remove the synchronous reply object from its connection
- * reply_list, and wakeup remote peer (method origin) with the
- * appropriate synchronous reply code
+/**
+ * kdbus_sync_reply_wakeup() - Wake a synchronously blocking reply
+ * @reply:	The reply object
+ * @err:	Error code to set on the remote side
+ *
+ * Remove the synchronous reply object from its connection reply_list, and
+ * wake up remote peer (method origin) with the appropriate synchronous reply
+ * code.
  */
 void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
 {
@@ -118,9 +146,9 @@ void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
  *
  * Return: the corresponding reply object or NULL if not found
  */
-struct kdbus_reply * kdbus_reply_find(struct kdbus_conn *replying,
-				      struct kdbus_conn *reply_dst,
-				      u64 cookie)
+struct kdbus_reply *kdbus_reply_find(struct kdbus_conn *replying,
+				     struct kdbus_conn *reply_dst,
+				     u64 cookie)
 {
 	struct kdbus_reply *r, *reply = NULL;
 
@@ -135,6 +163,15 @@ struct kdbus_reply * kdbus_reply_find(struct kdbus_conn *replying,
 	return reply;
 }
 
+/**
+ * kdbus_reply_list_scan() - Scan the replies of a connection
+ * @conn:		Connection to scan
+ *
+ * Walk the list of replies stored with a connection and look for entries
+ * that have exceeded their timeout. If such an entry is found, a timeout
+ * notification is sent to the waiting peer, and the reply is removed from
+ * the list.
+ */
 void kdbus_reply_list_scan(struct kdbus_conn *conn)
 {
 	struct kdbus_reply *reply, *reply_tmp;
