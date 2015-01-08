@@ -277,6 +277,7 @@ int kdbus_meta_add_fake(struct kdbus_meta *meta,
 /**
  * kdbus_meta_add_timestamp() - record current time stamp
  * @meta:	Metadata object
+ * @seq:	Message sequence number
  *
  * This function does nothing if the time stamp was already recorded
  * in the metadata object.
