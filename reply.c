@@ -51,6 +51,7 @@ struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_src,
 	}
 
 	kref_init(&r->kref);
+	INIT_LIST_HEAD(&r->entry);
 	r->reply_src = kdbus_conn_ref(reply_src);
 	r->reply_dst = kdbus_conn_ref(reply_dst);
 	r->cookie = msg->cookie;
@@ -109,6 +110,31 @@ struct kdbus_reply *kdbus_reply_unref(struct kdbus_reply *r)
 }
 
 /**
+ * kdbus_reply_link() - Link reply object into target connection
+ * @r:		Reply to link
+ */
+void kdbus_reply_link(struct kdbus_reply *r)
+{
+	if (WARN_ON(!list_empty(&r->entry)))
+		return;
+
+	list_add(&r->entry, &r->reply_dst->reply_list);
+	kdbus_reply_ref(r);
+}
+
+/**
+ * kdbus_reply_unlink() - Unlink reply object from target connection
+ * @r:		Reply to unlink
+ */
+void kdbus_reply_unlink(struct kdbus_reply *r)
+{
+	if (!list_empty(&r->entry)) {
+		list_del_init(&r->entry);
+		kdbus_reply_unref(r);
+	}
+}
+
+/**
  * kdbus_sync_reply_wakeup() - Wake a synchronously blocking reply
  * @reply:	The reply object
  * @err:	Error code to set on the remote side
@@ -122,7 +148,6 @@ void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
 	if (WARN_ON(!reply->sync))
 		return;
 
-	list_del_init(&reply->entry);
 	reply->waiting = false;
 	reply->err = err;
 	wake_up_interruptible(&reply->reply_dst->wait);
@@ -217,8 +242,7 @@ void kdbus_reply_list_scan(struct kdbus_conn *conn)
 			kdbus_notify_reply_timeout(conn->ep->bus, conn->id,
 						   reply->cookie);
 
-		list_del_init(&reply->entry);
-		kdbus_reply_unref(reply);
+		kdbus_reply_unlink(reply);
 	}
 
 	/* rearm delayed work with next timeout */

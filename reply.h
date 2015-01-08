@@ -55,6 +55,9 @@ struct kdbus_reply *kdbus_reply_new(struct kdbus_conn *reply_src,
 struct kdbus_reply *kdbus_reply_ref(struct kdbus_reply *r);
 struct kdbus_reply *kdbus_reply_unref(struct kdbus_reply *r);
 
+void kdbus_reply_link(struct kdbus_reply *r);
+void kdbus_reply_unlink(struct kdbus_reply *r);
+
 struct kdbus_reply *kdbus_reply_find(struct kdbus_conn *replying,
 				     struct kdbus_conn *reply_dst,
 				     u64 cookie);

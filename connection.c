@@ -165,17 +165,15 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 			 */
 			mutex_lock(&reply->reply_dst->lock);
 			if (!list_empty(&reply->entry)) {
-				if (reply->sync) {
+				kdbus_reply_unlink(reply);
+				if (reply->sync)
 					kdbus_sync_reply_wakeup(reply, -EPIPE);
-				} else {
-					list_del_init(&reply->entry);
+				else
 					kdbus_notify_reply_dead(conn->ep->bus,
 							entry->msg.src_id,
 							entry->msg.cookie);
-				}
 			}
 			mutex_unlock(&reply->reply_dst->lock);
-			kdbus_reply_unref(reply);
 		}
 
 		kdbus_notify_flush(conn->ep->bus);
@@ -255,11 +253,9 @@ static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
 		mutex_lock(&conn_dst->lock);
 		r = kdbus_reply_find(conn_src, conn_dst, msg->cookie_reply);
 		if (r) {
-			list_del_init(&r->entry);
 			if (r->sync)
 				*reply_wake = kdbus_reply_ref(r);
-			else
-				kdbus_reply_unref(r);
+			kdbus_reply_unlink(r);
 		}
 		mutex_unlock(&conn_dst->lock);
 
@@ -341,8 +337,8 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 		remote_ret = -EREMOTEIO;
 
 	kdbus_sync_reply_wakeup(reply_wake, remote_ret);
+	kdbus_reply_unlink(reply_wake);
 	mutex_unlock(&reply_wake->reply_dst->lock);
-	kdbus_reply_unref(reply_wake);
 
 	return ret;
 }
@@ -400,7 +396,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	entry->reply = kdbus_reply_ref(reply);
 
 	if (reply) {
-		list_add(&reply->entry, &conn_src->reply_list);
+		kdbus_reply_link(reply);
 		if (!reply->sync)
 			schedule_delayed_work(&conn_src->work, 0);
 	}
@@ -541,7 +537,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	}
 
 	mutex_lock(&conn_src->lock);
-	list_del_init(&reply_wait->entry);
 	reply_wait->waiting = false;
 	entry = reply_wait->queue_entry;
 	if (entry) {
@@ -553,6 +548,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
 	}
+	kdbus_reply_unlink(reply_wait);
 	mutex_unlock(&conn_src->lock);
 
 	return ret;
@@ -708,10 +704,12 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			reply_wait = kdbus_reply_find(conn_dst, conn_src,
 						      kmsg->msg.cookie);
 			if (reply_wait) {
-				if (reply_wait->interrupted)
+				if (reply_wait->interrupted) {
+					kdbus_reply_ref(reply_wait);
 					reply_wait->interrupted = false;
-				else
+				} else {
 					reply_wait = NULL;
+				}
 			}
 			mutex_unlock(&conn_src->lock);
 
@@ -827,6 +825,7 @@ wait_sync:
 
 exit_unref:
 	kdbus_reply_unref(reply_wait);
+	kdbus_reply_unref(reply_wake);
 	kdbus_conn_unref(conn_dst);
 exit_name_unlock:
 	kdbus_name_unlock(bus->name_registry, name_entry);
@@ -926,10 +925,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 		kdbus_queue_entry_free(entry);
 	}
 
-	list_for_each_entry_safe(r, r_tmp, &conn->reply_list, entry) {
-		list_del_init(&r->entry);
-		kdbus_reply_unref(r);
-	}
+	list_for_each_entry_safe(r, r_tmp, &conn->reply_list, entry)
+		kdbus_reply_unlink(r);
 	mutex_unlock(&conn->lock);
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
@@ -940,14 +937,13 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 			if (r->reply_src == conn) {
 				if (r->sync) {
 					kdbus_sync_reply_wakeup(r, -EPIPE);
+					kdbus_reply_unlink(r);
 					continue;
 				}
 
 				/* send a 'connection dead' notification */
 				kdbus_notify_reply_dead(bus, c->id, r->cookie);
-
-				list_del_init(&r->entry);
-				kdbus_reply_unref(r);
+				kdbus_reply_unlink(r);
 			}
 		}
 		mutex_unlock(&c->lock);

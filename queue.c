@@ -35,6 +35,7 @@
 #include "message.h"
 #include "metadata.h"
 #include "queue.h"
+#include "reply.h"
 
 /**
  * kdbus_queue_entry_add() - Add an queue entry to a queue
@@ -483,6 +484,7 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
 	kdbus_msg_resources_unref(entry->msg_res);
 	kdbus_meta_unref(entry->meta);
+	kdbus_reply_unref(entry->reply);
 	kfree(entry->msg_extra);
 	kfree(entry);
 }
