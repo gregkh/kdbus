@@ -150,7 +150,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
-		struct kdbus_reply *reply = entry->reply;
+		struct kdbus_reply *reply = kdbus_reply_ref(entry->reply);
 
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
@@ -178,6 +178,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 
 		kdbus_notify_flush(conn->ep->bus);
 		kdbus_queue_entry_free(entry);
+		kdbus_reply_unref(reply);
 
 		return 0;
 	}
