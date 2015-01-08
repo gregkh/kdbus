@@ -201,7 +201,6 @@ struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta)
 {
 	if (meta)
 		kref_put(&meta->kref, __kdbus_meta_free);
-
 	return NULL;
 }
 
