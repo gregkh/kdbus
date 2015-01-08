@@ -404,12 +404,10 @@ int kdbus_meta_add_current(struct kdbus_meta *meta, u64 which)
 
 			s = (const char __user *)mm->arg_start;
 			meta->cmdline = strndup_user(s, len);
-			if (!meta->cmdline) {
-				mmput(mm);
-				return -ENOMEM;
-			}
-
 			mmput(mm);
+
+			if (!meta->cmdline)
+				return -ENOMEM;
 		}
 
 		meta->collected |= KDBUS_ATTACH_CMDLINE;
