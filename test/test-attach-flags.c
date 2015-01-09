@@ -720,23 +720,27 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 	 * Test the connection creation attach flags
 	 */
 	ret = kdbus_test_peers_creation(env);
+	/* Restore previous kdbus mask */
+	kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+				       old_kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
 	/*
 	 * Test the CONN_INFO ioctl attach flags
 	 */
 	ret = kdbus_test_peers_info(env);
+	/* Restore previous kdbus mask */
+	kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+				       old_kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
 	/*
 	 * Test the Bus creator info and its attach flags
 	 */
 	ret = kdbus_test_bus_creator_info(env);
-	ASSERT_RETURN(ret == 0);
-
 	/* Restore previous kdbus mask */
-	ret = kdbus_sysfs_set_parameter_mask(env->mask_param_path,
-					     old_kdbus_flags_mask);
+	kdbus_sysfs_set_parameter_mask(env->mask_param_path,
+				       old_kdbus_flags_mask);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_sysfs_get_parameter_mask(env->mask_param_path,
