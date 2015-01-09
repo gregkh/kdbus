@@ -862,12 +862,16 @@ int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
 	kvec.iov_base = &list;
 	kvec.iov_len = sizeof(list);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, list.size, &kvec, NULL, 1);
+	slice = kdbus_pool_slice_alloc(conn->pool, list.size, NULL, NULL, 0);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit_unlock;
 	}
+
+	ret = kdbus_pool_slice_copy_kvec(slice, 0, &kvec, 1, kvec.iov_len);
+	if (ret < 0)
+		goto exit_unlock;
 
 	/* copy the records */
 	pos = sizeof(struct kdbus_name_list);
