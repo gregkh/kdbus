@@ -210,46 +210,40 @@ static inline int kdbus_conn_is_monitor(const struct kdbus_conn *conn)
 
 /**
  * kdbus_conn_lock2() - Lock two connections
- * @a:		connection A to lock
- * @b:		connection B to lock
+ * @a:		connection A to lock or NULL
+ * @b:		connection B to lock or NULL
  *
  * Lock two connections at once. As we need to have a stable locking order, we
  * always lock the connection with lower memory address first.
  */
 static inline void kdbus_conn_lock2(struct kdbus_conn *a, struct kdbus_conn *b)
 {
-	if (a == b)
-		b = NULL;
-
 	if (a < b) {
 		if (a)
 			mutex_lock(&a->lock);
-		if (b)
+		if (b && b != a)
 			mutex_lock_nested(&b->lock, !!a);
 	} else {
 		if (b)
 			mutex_lock(&b->lock);
-		if (a)
+		if (a && a != b)
 			mutex_lock_nested(&a->lock, !!b);
 	}
 }
 
 /**
  * kdbus_conn_unlock2() - Unlock two connections
- * @a:		connection A to unlock
- * @b:		connection B to unlock
+ * @a:		connection A to unlock or NULL
+ * @b:		connection B to unlock or NULL
  *
  * Unlock two connections at once. See kdbus_conn_lock2().
  */
 static inline void kdbus_conn_unlock2(struct kdbus_conn *a,
 				      struct kdbus_conn *b)
 {
-	if (a == b)
-		b = NULL;
-
 	if (a)
 		mutex_unlock(&a->lock);
-	if (b)
+	if (b && b != a)
 		mutex_unlock(&b->lock);
 }
 
