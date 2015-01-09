@@ -555,7 +555,7 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 
 		list_for_each_entry(e, &conn->names_list, conn_entry)
 			size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
-					        strlen(e->name) + 1);
+						strlen(e->name) + 1);
 
 		item = kzalloc(size, GFP_KERNEL);
 		if (!item) {
