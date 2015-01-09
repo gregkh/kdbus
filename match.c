@@ -372,7 +372,7 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 	struct kdbus_item *item;
 	int ret = 0;
 
-	lockdep_assert_held(conn);
+	kdbus_conn_assert_active(conn);
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
@@ -525,7 +525,7 @@ int kdbus_match_db_remove(struct kdbus_conn *conn,
 	struct kdbus_match_db *mdb = conn->match_db;
 	int ret;
 
-	lockdep_assert_held(conn);
+	kdbus_conn_assert_active(conn);
 
 	down_write(&mdb->mdb_rwlock);
 	ret = kdbus_match_db_remove_unlocked(mdb, cmd->cookie);

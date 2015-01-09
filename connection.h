@@ -247,4 +247,16 @@ static inline void kdbus_conn_unlock2(struct kdbus_conn *a,
 		mutex_unlock(&b->lock);
 }
 
+/**
+ * kdbus_conn_assert_active() - lockdep assert on active lock
+ * @conn:	connection that shall be active
+ *
+ * This verifies via lockdep that the caller holds an active reference to the
+ * given connection.
+ */
+static inline void kdbus_conn_assert_active(struct kdbus_conn *conn)
+{
+	lockdep_assert_held(conn);
+}
+
 #endif
