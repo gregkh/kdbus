@@ -255,10 +255,6 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				return -EMSGSIZE;
 			if (vec_size + size > KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE)
 				return -EMSGSIZE;
-			if (ptr && kmsg->pool_size + size < kmsg->pool_size)
-				return -EMSGSIZE;
-			if (!ptr && kmsg->pool_size + size % 8 < kmsg->pool_size)
-				return -EMSGSIZE;
 
 			d->type = KDBUS_MSG_DATA_VEC;
 			d->size = size;
@@ -272,6 +268,9 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 				iov->iov_base = (char __user *)zeros;
 				iov->iov_len = size % 8;
 			}
+
+			if (kmsg->pool_size + iov->iov_len < kmsg->pool_size)
+				return -EMSGSIZE;
 
 			kmsg->pool_size += iov->iov_len;
 			++kmsg->iov_count;
