@@ -189,7 +189,7 @@ compatible.
 
 In 'return_flags', the kernel can return results of the command, in addition
 to the actual return value. This is mostly to inform userspace about non-fatal
-conditions that occured during the execution of the command.
+conditions that occurred during the execution of the command.
 
 
 4. Items
@@ -206,7 +206,7 @@ type. In other cases, they can be of arbitrary length (for instance, a string).
 Items are also used for information stored in a connection's pool, such as
 received messages, name lists or requested connection or bus owner information.
 
-Whenever tems are used as part of the kdbus kernel API, they are embedded in
+Whenever items are used as part of the kdbus kernel API, they are embedded in
 structs that have an overall size of their own, so there can be multiple items
 per ioctl.
 
@@ -233,9 +233,9 @@ the kdbusfs. If you mount kdbusfs multiple times, each will have its own kdbus
 domain internally. Operations performed on one domain do not affect any
 other domain.
 
-The full kdbusfs hierarchy, any subdirectory, or file can be bind-mounted to an
-external mount point and will remain fully functional. The kdbus domain and any
-linked resources stay available until the original mount and all subsequent
+The full kdbusfs hierarchy, any sub-directory, or file can be bind-mounted to
+an external mount point and will remain fully functional. The kdbus domain and
+any linked resources stay available until the original mount and all subsequent
 bind-mounts have been unmounted.
 
 During creation, domains pin the user-namespace of the creator and use
@@ -574,7 +574,7 @@ The offset in the pool has to be freed with the KDBUS_CMD_FREE ioctl.
 ------------------------------------------
 
 An activator connection is a placeholder for a well-known name. Messages sent
-to such a connection can be used by userspace to start an implementor
+to such a connection can be used by userspace to start an implementer
 connection, which will then get all the messages from the activator copied
 over. An activator connection cannot be used to send any message.
 
@@ -814,7 +814,7 @@ struct kdbus_cmd_send {
     KDBUS_CMD_SEND.
 
   __u64 return_flags;
-    Kernel-provided flags, returning non-fatal errors that occured during
+    Kernel-provided flags, returning non-fatal errors that occurred during
     send. Currently unused.
 
   __u64 msg_address;
@@ -864,7 +864,7 @@ struct kdbus_msg {
 
     KDBUS_MSG_NO_AUTO_START
       By default, when a message is sent to an activator connection, the
-      activator notified and will start an implementor. This flag inhibits
+      activator notified and will start an implementer. This flag inhibits
       that behavior. With this bit set, and the remote being an activator,
       -EADDRNOTAVAIL is returned from the ioctl.
 
@@ -1040,7 +1040,7 @@ struct kdbus_cmd_recv {
     Valid flags for this command, returned by the kernel upon each call.
 
   __u64 return_flags;
-    Kernel-provided flags, returning non-fatal errors that occured during
+    Kernel-provided flags, returning non-fatal errors that occurred during
     send. Currently unused.
 
   __s64 priority;
@@ -1180,7 +1180,7 @@ struct kdbus_cmd_name {
 --------------------
 
 A connection may release a name explicitly with the KDBUS_CMD_NAME_RELEASE
-ioctl. If the connection was an implementor of an activatable name, its
+ioctl. If the connection was an implementer of an activatable name, its
 pending messages are moved back to the activator. If there are any connections
 queued up as waiters for the name, the oldest one of them will become the new
 owner. The same happens implicitly for all names once a connection terminates.
@@ -1275,14 +1275,14 @@ struct kdbus_name_info {
       currently waiting for it to become available.
 
     KDBUS_NAME_ACTIVATOR (list)
-      An activator connection owns a name as a placeholder for an implementor,
+      An activator connection owns a name as a placeholder for an implementer,
       which is started on demand as soon as the first message arrives. There's
       some more information on this topic below. In contrast to
       KDBUS_NAME_REPLACE_EXISTING, when a name is taken over from an activator
       connection, all the messages that have been queued in the activator
       connection will be moved over to the new owner. The activator connection
       will still be tracked for the name and will take control again if the
-      implementor connection terminates.
+      implementer connection terminates.
       This flag can not be used when acquiring a name, but is implicitly set
       through KDBUS_CMD_HELLO with KDBUS_HELLO_ACTIVATOR set in
       kdbus_cmd_hello.conn_flags.
@@ -1611,7 +1611,7 @@ and are translated back and forth on the ioctl level accordingly.
 11.2 Wildcard names
 -------------------
 
-Policy holder connections may upload names that contain the wildcard suffix
+Policy holder connections may upload names that contain the wild card suffix
 (".*"). That way, a policy can be uploaded that is effective for every
 well-known name that extends the provided name by exactly one more level.
 

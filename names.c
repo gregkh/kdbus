@@ -335,7 +335,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
  * with NULL as name. In this case, it's a no-op as nothing was locked.
  *
  * The *_lock() + *_unlock() logic is only required for callers that need to
- * protect their code against concurrent activator/implementor name changes.
+ * protect their code against concurrent activator/implementer name changes.
  * Multiple readers can lock names concurrently. However, you may not change
  * name-ownership while holding a name-lock.
  *

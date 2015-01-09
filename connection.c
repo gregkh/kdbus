@@ -384,7 +384,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	/*
 	 * Remember the the reply associated with this queue entry, so we can
 	 * move the reply entry's connection when a connection moves from an
-	 * activator to an implementor.
+	 * activator to an implementer.
 	 */
 	entry->reply = kdbus_reply_ref(reply);
 
@@ -615,7 +615,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	if (kmsg->res && kmsg->res->dst_name) {
 		/*
 		 * Lock the destination name so it will not get dropped or
-		 * moved between activator/implementor while we try to queue a
+		 * moved between activator/implementer while we try to queue a
 		 * message. We also rely on this to read-lock the entire
 		 * registry so kdbus_meta_add_current() will have a consistent
 		 * view of all acquired names on both connections.
@@ -1093,7 +1093,7 @@ void kdbus_conn_release(struct kdbus_conn *conn)
  *			name, 0 means no filtering.
  *
  * Move all messages from one connection to another. This is used when
- * an implementor connection is taking over/giving back a well-known name
+ * an implementer connection is taking over/giving back a well-known name
  * from/to an activator connection.
  *
  * Return: 0 on success, negative errno on failure.
