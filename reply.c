@@ -189,16 +189,22 @@ struct kdbus_reply *kdbus_reply_find(struct kdbus_conn *replying,
 }
 
 /**
- * kdbus_reply_list_scan() - Scan the replies of a connection
- * @conn:		Connection to scan
+ * kdbus_reply_list_scan_work() - Worker callback to scan the replies of a
+ *				  connection for exceeded timeouts
+ * @work:		Work struct of the connection to scan
  *
  * Walk the list of replies stored with a connection and look for entries
  * that have exceeded their timeout. If such an entry is found, a timeout
  * notification is sent to the waiting peer, and the reply is removed from
  * the list.
+ *
+ * The work is rescheduled to the nearest timeout found during the list
+ * iteration.
  */
-void kdbus_reply_list_scan(struct kdbus_conn *conn)
+void kdbus_reply_list_scan_work(struct work_struct *work)
 {
+	struct kdbus_conn *conn =
+		container_of(work, struct kdbus_conn, work.work);
 	struct kdbus_reply *reply, *reply_tmp;
 	u64 deadline = ~0ULL;
 	struct timespec64 ts;

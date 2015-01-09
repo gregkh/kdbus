@@ -63,6 +63,6 @@ struct kdbus_reply *kdbus_reply_find(struct kdbus_conn *replying,
 				     u64 cookie);
 
 void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err);
-void kdbus_reply_list_scan(struct kdbus_conn *conn);
+void kdbus_reply_list_scan_work(struct work_struct *work);
 
 #endif /* __KDBUS_REPLY_H */

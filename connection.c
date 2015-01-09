@@ -104,14 +104,6 @@ static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
 	return 0;
 }
 
-static void kdbus_conn_work(struct work_struct *work)
-{
-	struct kdbus_conn *conn =
-		container_of(work, struct kdbus_conn, work.work);
-
-	kdbus_reply_list_scan(conn);
-}
-
 /**
  * kdbus_cmd_msg_recv() - receive a message from the queue
  * @conn:		Connection to work on
@@ -1534,7 +1526,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	atomic_set(&conn->name_count, 0);
 	atomic_set(&conn->request_count, 0);
 	atomic_set(&conn->lost_count, 0);
-	INIT_DELAYED_WORK(&conn->work, kdbus_conn_work);
+	INIT_DELAYED_WORK(&conn->work, kdbus_reply_list_scan_work);
 	conn->cred = get_current_cred();
 	init_waitqueue_head(&conn->wait);
 	kdbus_queue_init(&conn->queue);
