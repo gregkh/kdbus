@@ -1373,14 +1373,14 @@ static int all_ids_are_mapped(const char *path)
 		return ret;
 	}
 
+	fclose(file);
+
 	/*
 	 * If length is 4294967295 which means the invalid uid
 	 * (uid_t) -1 then we are able to map all uid/gids
 	 */
 	if (inside_id == 0 && length == (uid_t) -1)
 		return 1;
-
-	fclose(file);
 
 	return 0;
 }
