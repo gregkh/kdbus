@@ -1523,7 +1523,7 @@ int userns_map_uid_gid(pid_t pid,
 		       const char *map_uid,
 		       const char *map_gid)
 {
-	int ret;
+	int fd, ret;
 	char file_id[128] = {'\0'};
 
 	snprintf(file_id, sizeof(file_id), "/proc/%ld/uid_map",
@@ -1532,6 +1532,15 @@ int userns_map_uid_gid(pid_t pid,
 	ret = do_userns_map_id(pid, file_id, map_uid);
 	if (ret < 0)
 		return ret;
+
+	snprintf(file_id, sizeof(file_id), "/proc/%ld/setgroups",
+		 (long) pid);
+
+	fd = open(file_id, O_WRONLY);
+	if (fd >= 0) {
+		write(fd, "deny\n", 5);
+		close(fd);
+	}
 
 	snprintf(file_id, sizeof(file_id), "/proc/%ld/gid_map",
 		 (long) pid);
