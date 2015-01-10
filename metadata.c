@@ -578,6 +578,9 @@ int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
 			item = KDBUS_ITEM_NEXT(item);
 		}
 
+		/* sanity check: the buffer should be completely written now */
+		WARN_ON((u8 *)item != (u8 *)meta->owned_names_items + size);
+
 		meta->collected |= KDBUS_ATTACH_NAMES;
 	}
 
