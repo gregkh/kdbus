@@ -415,7 +415,9 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * requested metadata. It's up to the receiver to drop
 			 * messages that lack expected metadata.
 			 */
-			kdbus_meta_proc_collect(kmsg->proc_meta, attach_flags);
+			if (!conn_src->faked_meta)
+				kdbus_meta_proc_collect(kmsg->proc_meta,
+							attach_flags);
 			kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
 						attach_flags);
 		} else {
@@ -471,7 +473,9 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 
 			attach_flags = kdbus_meta_calc_attach_flags(conn_src,
 								    conn_dst);
-			kdbus_meta_proc_collect(kmsg->proc_meta, attach_flags);
+			if (!conn_src->faked_meta)
+				kdbus_meta_proc_collect(kmsg->proc_meta,
+							attach_flags);
 			kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
 						attach_flags);
 		}
