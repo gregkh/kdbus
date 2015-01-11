@@ -15,27 +15,37 @@
 #ifndef __KDBUS_METADATA_H
 #define __KDBUS_METADATA_H
 
-struct kdbus_meta;
 struct kdbus_conn;
 struct kdbus_domain;
+struct kdbus_kmsg;
 struct kdbus_pool_slice;
+
+struct kdbus_meta_proc;
+struct kdbus_meta_conn;
 
 extern unsigned long long kdbus_meta_attach_mask;
 
-struct kdbus_meta *kdbus_meta_new(void);
-struct kdbus_meta *kdbus_meta_ref(struct kdbus_meta *meta);
-struct kdbus_meta *kdbus_meta_unref(struct kdbus_meta *meta);
+struct kdbus_meta_proc *kdbus_meta_proc_new(void);
+struct kdbus_meta_proc *kdbus_meta_proc_ref(struct kdbus_meta_proc *mp);
+struct kdbus_meta_proc *kdbus_meta_proc_unref(struct kdbus_meta_proc *mp);
+int kdbus_meta_proc_collect(struct kdbus_meta_proc *mp, u64 what);
+int kdbus_meta_proc_fake(struct kdbus_meta_proc *mp,
+			 const struct kdbus_creds *creds,
+			 const struct kdbus_pids *pids,
+			 const char *seclabel);
 
-void kdbus_meta_add_timestamp(struct kdbus_meta *meta, u64 seq);
-int kdbus_meta_add_current(struct kdbus_meta *meta, u64 which);
-int kdbus_meta_add_conn_info(struct kdbus_meta *meta,
-			     struct kdbus_conn *conn_src, u64 which);
-int kdbus_meta_add_fake(struct kdbus_meta *meta,
-			const struct kdbus_creds *creds,
-			const struct kdbus_pids *pids,
-			const char *seclabel);
-struct kdbus_item *kdbus_meta_export(struct kdbus_meta *meta,
-				     u64 mask, size_t *sz);
+struct kdbus_meta_conn *kdbus_meta_conn_new(void);
+struct kdbus_meta_conn *kdbus_meta_conn_ref(struct kdbus_meta_conn *mc);
+struct kdbus_meta_conn *kdbus_meta_conn_unref(struct kdbus_meta_conn *mc);
+int kdbus_meta_conn_collect(struct kdbus_meta_conn *mc,
+			    struct kdbus_kmsg *kmsg,
+			    struct kdbus_conn *conn,
+			    u64 what);
+
+struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
+				     struct kdbus_meta_conn *mc,
+				     u64 mask,
+				     size_t *sz);
 u64 kdbus_meta_calc_attach_flags(const struct kdbus_conn *sender,
 				 const struct kdbus_conn *receiver);
 

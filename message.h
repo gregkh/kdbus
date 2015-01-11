@@ -93,7 +93,8 @@ kdbus_msg_resources_unref(struct kdbus_msg_resources *r);
  * @iov:		Array of iovec, describing the payload to copy
  * @iov_count:		Number of array members in @iov
  * @pool_size:		Overall size of inlined data referenced by @iov
- * @meta:		Appended SCM-like metadata of the sending process
+ * @proc_meta:		Appended SCM-like metadata of the sending process
+ * @conn_meta:		Appended SCM-like metadata of the sending connection
  * @res:		Message resources
  * @msg:		Message from or to userspace
  */
@@ -113,7 +114,8 @@ struct kdbus_kmsg {
 	size_t iov_count;
 	u64 pool_size;
 
-	struct kdbus_meta *meta;
+	struct kdbus_meta_proc *proc_meta;
+	struct kdbus_meta_conn *conn_meta;
 	struct kdbus_msg_resources *res;
 
 	/* variable size, must be the last member */

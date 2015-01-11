@@ -49,7 +49,7 @@ static void kdbus_bus_free(struct kdbus_node *node)
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
-	kdbus_meta_unref(bus->meta);
+	kdbus_meta_proc_unref(bus->creator_meta);
 	kfree(bus);
 }
 
@@ -189,25 +189,25 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 		goto exit_unref;
 
 	/* cache the metadata/credentials of the creator */
-	b->meta = kdbus_meta_new();
-	if (IS_ERR(b->meta)) {
-		ret = PTR_ERR(b->meta);
-		b->meta = NULL;
+	b->creator_meta = kdbus_meta_proc_new();
+	if (IS_ERR(b->creator_meta)) {
+		ret = PTR_ERR(b->creator_meta);
+		b->creator_meta = NULL;
 		goto exit_unref;
 	}
 
-	ret = kdbus_meta_add_current(b->meta,
-				     KDBUS_ATTACH_CREDS		|
-				     KDBUS_ATTACH_PIDS		|
-				     KDBUS_ATTACH_AUXGROUPS	|
-				     KDBUS_ATTACH_TID_COMM	|
-				     KDBUS_ATTACH_PID_COMM	|
-				     KDBUS_ATTACH_EXE		|
-				     KDBUS_ATTACH_CMDLINE	|
-				     KDBUS_ATTACH_CGROUP	|
-				     KDBUS_ATTACH_CAPS		|
-				     KDBUS_ATTACH_SECLABEL	|
-				     KDBUS_ATTACH_AUDIT);
+	ret = kdbus_meta_proc_collect(b->creator_meta,
+				      KDBUS_ATTACH_CREDS |
+				      KDBUS_ATTACH_PIDS |
+				      KDBUS_ATTACH_AUXGROUPS |
+				      KDBUS_ATTACH_TID_COMM |
+				      KDBUS_ATTACH_PID_COMM |
+				      KDBUS_ATTACH_EXE |
+				      KDBUS_ATTACH_CMDLINE |
+				      KDBUS_ATTACH_CGROUP |
+				      KDBUS_ATTACH_CAPS |
+				      KDBUS_ATTACH_SECLABEL |
+				      KDBUS_ATTACH_AUDIT);
 	if (ret < 0)
 		goto exit_unref;
 
@@ -415,9 +415,9 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 * requested metadata. It's up to the receiver to drop
 			 * messages that lack expected metadata.
 			 */
-			kdbus_meta_add_current(kmsg->meta, attach_flags);
-			kdbus_meta_add_conn_info(kmsg->meta,
-						 conn_src, attach_flags);
+			kdbus_meta_proc_collect(kmsg->proc_meta, attach_flags);
+			kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
+						attach_flags);
 		} else {
 			/*
 			 * Check if there is a policy db that prevents the
@@ -471,9 +471,9 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 
 			attach_flags = kdbus_meta_calc_attach_flags(conn_src,
 								    conn_dst);
-			kdbus_meta_add_current(kmsg->meta, attach_flags);
-			kdbus_meta_add_conn_info(kmsg->meta,
-						 conn_src, attach_flags);
+			kdbus_meta_proc_collect(kmsg->proc_meta, attach_flags);
+			kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
+						attach_flags);
 		}
 
 		ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, NULL);
@@ -514,7 +514,8 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	/* mask out what information the bus owner wants to pass us */
 	attach_flags = cmd_info->flags & bus->attach_flags_owner;
 
-	meta_items = kdbus_meta_export(bus->meta, attach_flags, &meta_size);
+	meta_items = kdbus_meta_export(bus->creator_meta, NULL, attach_flags,
+				       &meta_size);
 	if (IS_ERR(meta_items))
 		return PTR_ERR(meta_items);
 

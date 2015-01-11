@@ -46,7 +46,7 @@
  * @conn_rwlock:	Read/Write lock for all lists of child connections
  * @conn_hash:		Map of connection IDs
  * @monitors_list:	Connections that monitor this bus
- * @meta:		Meta information about the bus creator
+ * @meta_proc:		Meta information about the bus creator
  *
  * A bus provides a "bus" endpoint node.
  *
@@ -78,7 +78,7 @@ struct kdbus_bus {
 	DECLARE_HASHTABLE(conn_hash, 8);
 	struct list_head monitors_list;
 
-	struct kdbus_meta *meta;
+	struct kdbus_meta_proc *creator_meta;
 };
 
 struct kdbus_kmsg;

@@ -605,7 +605,6 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	}
 
 	kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
-	kdbus_meta_add_timestamp(kmsg->meta, kmsg->seq);
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(bus, conn_src, kmsg);
@@ -617,7 +616,7 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 * Lock the destination name so it will not get dropped or
 		 * moved between activator/implementer while we try to queue a
 		 * message. We also rely on this to read-lock the entire
-		 * registry so kdbus_meta_add_current() will have a consistent
+		 * registry so kdbus_meta_conn_collect() will have a consistent
 		 * view of all acquired names on both connections.
 		 * If kdbus_name_lock() gets changed to a per-name lock, we
 		 * really need to read-lock the whole registry here.
@@ -719,7 +718,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 * metadata
 		 */
 		if (!conn_src->faked_meta) {
-			ret = kdbus_meta_add_current(kmsg->meta, attach_flags);
+			ret = kdbus_meta_proc_collect(kmsg->proc_meta,
+						      attach_flags);
 			if (ret < 0)
 				goto exit_unref;
 		}
@@ -728,8 +728,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 * If requested, then we always send the current
 		 * description and owned names of source connection
 		 */
-		ret = kdbus_meta_add_conn_info(kmsg->meta,
-					       conn_src, attach_flags);
+		ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
+					      attach_flags);
 		if (ret < 0)
 			goto exit_unref;
 
@@ -986,7 +986,7 @@ static void __kdbus_conn_free(struct kref *kref)
 
 	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
 
-	kdbus_meta_unref(conn->meta);
+	kdbus_meta_proc_unref(conn->meta);
 	kdbus_match_db_free(conn->match_db);
 	kdbus_pool_free(conn->pool);
 	kdbus_ep_unref(conn->ep);
@@ -1177,6 +1177,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_info *cmd_info)
 {
+	struct kdbus_meta_conn *conn_meta = NULL;
 	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_name_entry *entry = NULL;
 	struct kdbus_conn *owner_conn = NULL;
@@ -1227,15 +1228,23 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	attach_flags = cmd_info->flags &
 		       atomic64_read(&owner_conn->attach_flags_send);
 
-	ret = kdbus_meta_add_conn_info(owner_conn->meta, owner_conn,
-				       attach_flags);
+	conn_meta = kdbus_meta_conn_new();
+	if (IS_ERR(conn_meta)) {
+		ret = PTR_ERR(conn_meta);
+		conn_meta = NULL;
+		goto exit;
+	}
+
+	ret = kdbus_meta_conn_collect(conn_meta, NULL, owner_conn,
+				      attach_flags);
 	if (ret < 0)
 		goto exit;
 
-	meta_items = kdbus_meta_export(owner_conn->meta, attach_flags,
-				       &meta_size);
+	meta_items = kdbus_meta_export(owner_conn->meta, conn_meta,
+				       attach_flags, &meta_size);
 	if (IS_ERR(meta_items)) {
 		ret = PTR_ERR(meta_items);
+		meta_items = NULL;
 		goto exit;
 	}
 
@@ -1258,6 +1267,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 	kdbus_pool_slice_release(slice);
 exit:
 	kfree(meta_items);
+	kdbus_meta_conn_unref(conn_meta);
 	kdbus_conn_unref(owner_conn);
 	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
 
@@ -1581,7 +1591,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
 	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
 
-	conn->meta = kdbus_meta_new();
+	conn->meta = kdbus_meta_proc_new();
 	if (IS_ERR(conn->meta)) {
 		ret = PTR_ERR(conn->meta);
 		conn->meta = NULL;
@@ -1590,24 +1600,24 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 
 	/* privileged processes can impersonate somebody else */
 	if (creds || pids || seclabel) {
-		ret = kdbus_meta_add_fake(conn->meta, creds, pids, seclabel);
+		ret = kdbus_meta_proc_fake(conn->meta, creds, pids, seclabel);
 		if (ret < 0)
 			goto exit_unref;
 
 		conn->faked_meta = true;
 	} else {
-		ret = kdbus_meta_add_current(conn->meta,
-					     KDBUS_ATTACH_CREDS		|
-					     KDBUS_ATTACH_PIDS		|
-					     KDBUS_ATTACH_AUXGROUPS	|
-					     KDBUS_ATTACH_TID_COMM	|
-					     KDBUS_ATTACH_PID_COMM	|
-					     KDBUS_ATTACH_EXE		|
-					     KDBUS_ATTACH_CMDLINE	|
-					     KDBUS_ATTACH_CGROUP	|
-					     KDBUS_ATTACH_CAPS		|
-					     KDBUS_ATTACH_SECLABEL	|
-					     KDBUS_ATTACH_AUDIT);
+		ret = kdbus_meta_proc_collect(conn->meta,
+					      KDBUS_ATTACH_CREDS |
+					      KDBUS_ATTACH_PIDS |
+					      KDBUS_ATTACH_AUXGROUPS |
+					      KDBUS_ATTACH_TID_COMM |
+					      KDBUS_ATTACH_PID_COMM |
+					      KDBUS_ATTACH_EXE |
+					      KDBUS_ATTACH_CMDLINE |
+					      KDBUS_ATTACH_CGROUP |
+					      KDBUS_ATTACH_CAPS |
+					      KDBUS_ATTACH_SECLABEL |
+					      KDBUS_ATTACH_AUDIT);
 		if (ret < 0)
 			goto exit_unref;
 	}

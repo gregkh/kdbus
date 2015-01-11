@@ -96,7 +96,7 @@ struct kdbus_conn {
 	struct delayed_work work;
 	struct kdbus_name_entry *activator_of;
 	struct kdbus_match_db *match_db;
-	struct kdbus_meta *meta;
+	struct kdbus_meta_proc *meta;
 	struct kdbus_pool *pool;
 	struct kdbus_domain_user *user;
 	const struct cred *cred;

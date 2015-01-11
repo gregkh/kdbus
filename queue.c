@@ -212,7 +212,8 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 
 	INIT_LIST_HEAD(&entry->entry);
 	entry->msg_res = kdbus_msg_resources_ref(res);
-	entry->meta = kdbus_meta_ref(kmsg->meta);
+	entry->proc_meta = kdbus_meta_proc_ref(kmsg->proc_meta);
+	entry->conn_meta = kdbus_meta_conn_ref(kmsg->conn_meta);
 	memcpy(&entry->msg, msg, sizeof(*msg));
 
 	if (kmsg->iov_count) {
@@ -384,10 +385,12 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	size_t kvec_count = 0;
 	int ret = 0;
 
-	if (entry->meta) {
+	if (entry->proc_meta || entry->conn_meta) {
 		u64 attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
 
-		meta_items = kdbus_meta_export(entry->meta, attach_flags,
+		meta_items = kdbus_meta_export(entry->proc_meta,
+					       entry->conn_meta,
+					       attach_flags,
 					       &meta_size);
 		if (IS_ERR(meta_items)) {
 			ret = PTR_ERR(meta_items);
@@ -483,7 +486,8 @@ int kdbus_queue_entry_move(struct kdbus_conn *conn_dst,
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
 	kdbus_msg_resources_unref(entry->msg_res);
-	kdbus_meta_unref(entry->meta);
+	kdbus_meta_conn_unref(entry->conn_meta);
+	kdbus_meta_proc_unref(entry->proc_meta);
 	kdbus_reply_unref(entry->reply);
 	kfree(entry->msg_extra);
 	kfree(entry);

@@ -113,7 +113,8 @@ kdbus_msg_resources_unref(struct kdbus_msg_resources *r)
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
 	kdbus_msg_resources_unref(kmsg->res);
-	kdbus_meta_unref(kmsg->meta);
+	kdbus_meta_conn_unref(kmsg->conn_meta);
+	kdbus_meta_proc_unref(kmsg->proc_meta);
 	kfree(kmsg->iov);
 	kfree(kmsg);
 }
@@ -128,6 +129,7 @@ struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 {
 	struct kdbus_kmsg *m;
 	size_t size;
+	int ret;
 
 	size = sizeof(struct kdbus_kmsg) + KDBUS_ITEM_SIZE(extra_size);
 	m = kzalloc(size, GFP_KERNEL);
@@ -137,13 +139,23 @@ struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
-	m->meta = kdbus_meta_new();
-	if (IS_ERR(m->meta)) {
-		kfree(m);
-		return ERR_CAST(m->meta);
+	m->proc_meta = kdbus_meta_proc_new();
+	if (IS_ERR(m->proc_meta)) {
+		ret = PTR_ERR(m->proc_meta);
+		goto exit;
+	}
+
+	m->conn_meta = kdbus_meta_conn_new();
+	if (IS_ERR(m->conn_meta)) {
+		ret = PTR_ERR(m->conn_meta);
+		goto exit;
 	}
 
 	return m;
+
+exit:
+	kdbus_kmsg_free(m);
+	return ERR_PTR(ret);
 }
 
 static int kdbus_handle_check_file(struct file *file)
@@ -486,10 +498,17 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 
 	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
 
-	m->meta = kdbus_meta_new();
-	if (IS_ERR(m->meta)) {
-		ret = PTR_ERR(m->meta);
-		m->meta = NULL;
+	m->proc_meta = kdbus_meta_proc_new();
+	if (IS_ERR(m->proc_meta)) {
+		ret = PTR_ERR(m->proc_meta);
+		m->proc_meta = NULL;
+		goto exit_free;
+	}
+
+	m->conn_meta = kdbus_meta_conn_new();
+	if (IS_ERR(m->conn_meta)) {
+		ret = PTR_ERR(m->conn_meta);
+		m->conn_meta = NULL;
 		goto exit_free;
 	}
 

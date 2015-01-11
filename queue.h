@@ -55,7 +55,8 @@ struct kdbus_queue {
  * @fds_count:		Number of elements in @fds_fp
  * @dst_name_id:	The sequence number of the name this message is
  *			addressed to, 0 for messages sent to an ID
- * @meta:		Metadata, captured at message arrival
+ * @proc_meta:		Process metadata, captured at message arrival
+ * @conn_meta:		Connection metadata, captured at message arrival
  * @reply:		The reply block if a reply to this message is expected.
  * @user:		Index in per-user message counter, -1 for unused
  */
@@ -75,7 +76,8 @@ struct kdbus_queue_entry {
 	u64 dst_name_id;
 
 	struct kdbus_msg_resources *msg_res;
-	struct kdbus_meta *meta;
+	struct kdbus_meta_proc *proc_meta;
+	struct kdbus_meta_conn *conn_meta;
 	struct kdbus_reply *reply;
 	struct kdbus_domain_user *user;
 };

@@ -205,7 +205,8 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 
 	list_for_each_entry_safe(kmsg, tmp, &notify_list, notify_entry) {
 		kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
-		kdbus_meta_add_timestamp(kmsg->meta, kmsg->seq);
+		kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, NULL,
+					KDBUS_ATTACH_TIMESTAMP);
 
 		if (kmsg->msg.dst_id != KDBUS_DST_ID_BROADCAST) {
 			struct kdbus_conn *conn;
