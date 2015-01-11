@@ -50,6 +50,7 @@ struct kdbus_item *kdbus_items_get(const struct kdbus_item *items,
 const char *kdbus_items_get_str(const struct kdbus_item *items,
 				size_t items_size,
 				unsigned int item_type);
-void kdbus_item_set(struct kdbus_item *item, u64 type,
-		    const void *data, size_t len);
+struct kdbus_item *kdbus_item_set(struct kdbus_item *item, u64 type,
+				  const void *data, size_t len);
+
 #endif

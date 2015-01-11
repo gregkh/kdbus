@@ -282,9 +282,17 @@ const char *kdbus_items_get_str(const struct kdbus_item *items,
  * @type:	The item type to set (KDBUS_ITEM_*)
  * @data:	Data to copy to item->data, may be %NULL
  * @len:	Number of bytes in @data
+ *
+ * This sets type, size and data fields of an item. If @data is NULL, the data
+ * memory is cleared.
+ *
+ * Note that you must align your @data memory to 8 bytes. Trailing padding (in
+ * case @len is not 8byte aligned) is cleared by this call.
+ *
+ * Returns: Pointer to the following item.
  */
-void kdbus_item_set(struct kdbus_item *item, u64 type,
-		    const void *data, size_t len)
+struct kdbus_item *kdbus_item_set(struct kdbus_item *item, u64 type,
+				  const void *data, size_t len)
 {
 	item->type = type;
 	item->size = KDBUS_ITEM_HEADER_SIZE + len;
@@ -293,6 +301,8 @@ void kdbus_item_set(struct kdbus_item *item, u64 type,
 		memcpy(item->data, data, len);
 		memset(item->data + len, 0, KDBUS_ALIGN8(len) - len);
 	} else {
-		memset(item->data, 0, len);
+		memset(item->data, 0, KDBUS_ALIGN8(len));
 	}
+
+	return KDBUS_ITEM_NEXT(item);
 }
