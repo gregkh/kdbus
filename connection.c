@@ -1539,8 +1539,7 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	conn->cred = get_current_cred();
 	init_waitqueue_head(&conn->wait);
 	kdbus_queue_init(&conn->queue);
-	conn->privileged = privileged &&
-			   !(hello->flags & KDBUS_HELLO_UNPRIVILEGED);
+	conn->privileged = privileged;
 	conn->ep = kdbus_ep_ref(ep);
 	conn->id = atomic64_inc_return(&bus->conn_seq_last);
 	conn->flags = hello->flags;
