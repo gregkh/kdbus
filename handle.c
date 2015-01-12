@@ -267,6 +267,23 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 	if (ret < 0)
 		goto exit_conn;
 
+	ret = kdbus_conn_acquire(conn);
+	if (ret < 0)
+		goto exit_conn;
+
+	if (kdbus_conn_is_activator(conn) || kdbus_conn_is_policy_holder(conn))
+		ret = kdbus_policy_set(&conn->ep->bus->policy_db, hello->items,
+				       KDBUS_ITEMS_SIZE(hello, items),
+				       1, kdbus_conn_is_policy_holder(conn),
+				       conn);
+	else
+		ret = 0;
+
+	kdbus_conn_release(conn);
+
+	if (ret < 0)
+		goto exit_conn;
+
 	if (copy_to_user(buf, hello, sizeof(*hello))) {
 		ret = -EFAULT;
 		goto exit_conn;

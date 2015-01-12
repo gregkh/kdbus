@@ -887,6 +887,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 #endif
 
 	cancel_delayed_work_sync(&conn->work);
+	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	mutex_lock(&conn->ep->lock);
@@ -983,8 +984,6 @@ static void __kdbus_conn_free(struct kref *kref)
 		atomic_dec(&conn->user->connections);
 		kdbus_domain_user_unref(conn->user);
 	}
-
-	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
 
 	kdbus_meta_proc_unref(conn->meta);
 	kdbus_match_db_free(conn->match_db);
@@ -1570,18 +1569,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 		ret = PTR_ERR(conn->match_db);
 		conn->match_db = NULL;
 		goto exit_unref;
-	}
-
-	if (is_activator || is_policy_holder) {
-		/*
-		 * Policy holders may install one name, and are
-		 * allowed to use wildcards.
-		 */
-		ret = kdbus_policy_set(&bus->policy_db, hello->items,
-				       KDBUS_ITEMS_SIZE(hello, items),
-				       1, is_policy_holder, conn);
-		if (ret < 0)
-			goto exit_unref;
 	}
 
 	/* return properties of this connection to the caller */
