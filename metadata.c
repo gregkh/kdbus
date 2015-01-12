@@ -332,7 +332,7 @@ static int kdbus_meta_proc_collect_cgroup(struct kdbus_meta_proc *mp)
 	void *page;
 	char *s;
 
-	page = (void*)__get_free_page(GFP_TEMPORARY);
+	page = (void *)__get_free_page(GFP_TEMPORARY);
 	if (!page)
 		return -ENOMEM;
 
@@ -879,7 +879,7 @@ struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
 
 		get_fs_root(current->fs, &p);
 		if (path_equal(&p, &mp->root_path)) {
-			exe_page = (void*)__get_free_page(GFP_TEMPORARY);
+			exe_page = (void *)__get_free_page(GFP_TEMPORARY);
 			if (!exe_page) {
 				path_put(&p);
 				ret = -ENOMEM;
