@@ -72,6 +72,10 @@ since v2:
 
   * Test case fix for 32bit archs
 
+  * The test framework learned a --tap command line parameter to
+    format its output in the "Test Anything Protocol". This format
+    is chosen by default when "make kselftest" is invoked.
+
   * Fixed buses and custom endpoints name validation, reported by
     Andy Lutomirski.
 
