@@ -286,15 +286,16 @@ static void kdbus_meta_proc_collect_exe(struct kdbus_meta_proc *mp)
 	if (!mm)
 		return;
 
-	get_fs_root(current->fs, &mp->root_path);
-
 	down_read(&mm->mmap_sem);
-	mp->exe_path = mm->exe_file->f_path;
-	path_get(&mp->exe_path);
+	if (mm->exe_file) {
+		mp->exe_path = mm->exe_file->f_path;
+		path_get(&mp->exe_path);
+		get_fs_root(current->fs, &mp->root_path);
+		mp->valid |= KDBUS_ATTACH_EXE;
+	}
 	up_read(&mm->mmap_sem);
 
 	mmput(mm);
-	mp->valid |= KDBUS_ATTACH_EXE;
 }
 
 static int kdbus_meta_proc_collect_cmdline(struct kdbus_meta_proc *mp)
