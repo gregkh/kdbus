@@ -28,7 +28,7 @@ int timeout_msg_recv(struct kdbus_conn *conn, uint64_t *expected)
 		return -errno;
 	}
 
-	msg = (struct kdbus_msg *)(conn->buf + recv.reply.offset);
+	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);
 
 	ASSERT_RETURN_VAL(msg->payload_type == KDBUS_PAYLOAD_KERNEL, -EINVAL);
 	ASSERT_RETURN_VAL(msg->src_id == KDBUS_SRC_ID_KERNEL, -EINVAL);
@@ -38,7 +38,7 @@ int timeout_msg_recv(struct kdbus_conn *conn, uint64_t *expected)
 	kdbus_printf("Got message timeout for cookie %llu\n",
 		     msg->cookie_reply);
 
-	ret = kdbus_free(conn, recv.reply.offset);
+	ret = kdbus_free(conn, recv.msg.offset);
 	if (ret < 0)
 		return ret;
 

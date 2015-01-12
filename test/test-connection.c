@@ -143,7 +143,7 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_free(conn, recv.reply.offset);
+	ret = kdbus_free(conn, recv.msg.offset);
 	ASSERT_RETURN(ret == 0);
 
 	/* and try again */

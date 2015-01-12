@@ -148,7 +148,7 @@ static int dump_packet(struct conn *conn, int fd)
 		return EXIT_FAILURE;
 	}
 
-	msg = (struct kdbus_msg *)(conn->buf + recv.reply.offset);
+	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);
 	item = msg->items;
 	size = msg->size;
 
@@ -198,7 +198,7 @@ static int dump_packet(struct conn *conn, int fd)
 	}
 
 	cmd_free.size = sizeof(cmd_free);
-	cmd_free.offset = recv.reply.offset;
+	cmd_free.offset = recv.msg.offset;
 	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &cmd_free);
 	if (ret < 0) {
 		fprintf(stderr, "error free message: %d (%m)\n", ret);

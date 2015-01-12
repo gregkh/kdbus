@@ -205,7 +205,7 @@ handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 	if (!use_memfd)
 		goto out;
 
-	msg = (struct kdbus_msg *)(conn->buf + recv.reply.offset);
+	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);
 
 	KDBUS_ITEM_FOREACH(item, msg, items) {
 		switch (item->type) {
@@ -235,7 +235,7 @@ out:
 	if (!has_memfd)
 		add_stats(send_ns);
 
-	ret = kdbus_free(conn, recv.reply.offset);
+	ret = kdbus_free(conn, recv.msg.offset);
 	ASSERT_RETURN_VAL(ret == 0, -errno);
 
 	return 0;

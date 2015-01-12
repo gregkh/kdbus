@@ -566,7 +566,7 @@ struct kdbus_cmd_recv {
 	__u64 return_flags;
 	__s64 priority;
 	__u64 dropped_msgs;
-	struct kdbus_msg_info reply;
+	struct kdbus_msg_info msg;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 

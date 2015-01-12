@@ -112,7 +112,7 @@ static int msg_recv_prio(struct kdbus_conn *conn,
 		return -errno;
 	}
 
-	msg = (struct kdbus_msg *)(conn->buf + recv.reply.offset);
+	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);
 	kdbus_msg_dump(conn, msg);
 
 	if (msg->priority != expected_prio) {
@@ -123,7 +123,7 @@ static int msg_recv_prio(struct kdbus_conn *conn,
 	}
 
 	kdbus_msg_free(msg);
-	ret = kdbus_free(conn, recv.reply.offset);
+	ret = kdbus_free(conn, recv.msg.offset);
 	if (ret < 0)
 		return ret;
 

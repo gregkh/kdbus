@@ -770,9 +770,9 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 		cmd_recv->return_flags = 0;
 		cmd_recv->dropped_msgs = 0;
-		cmd_recv->reply.offset = 0;
-		cmd_recv->reply.msg_size = 0;
-		cmd_recv->reply.return_flags = 0;
+		cmd_recv->msg.offset = 0;
+		cmd_recv->msg.msg_size = 0;
+		cmd_recv->msg.return_flags = 0;
 
 		ret = kdbus_items_validate(cmd_recv->items,
 					   KDBUS_ITEMS_SIZE(cmd_recv, items));
@@ -791,8 +791,8 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (kdbus_member_set_user(&cmd_recv->dropped_msgs, buf,
 					  struct kdbus_cmd_recv,
 					  dropped_msgs) ||
-		    kdbus_member_set_user(&cmd_recv->reply, buf,
-					  struct kdbus_cmd_recv, reply) ||
+		    kdbus_member_set_user(&cmd_recv->msg, buf,
+					  struct kdbus_cmd_recv, msg) ||
 		    kdbus_member_set_user(&cmd_recv->return_flags, buf,
 					  struct kdbus_cmd_recv,
 					  return_flags))
