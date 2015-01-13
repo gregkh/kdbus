@@ -820,7 +820,7 @@ struct kdbus_cmd_send {
   __u64 msg_address;
     Userspace has to provide a pointer to a message (struct kdbus_msg) to send.
 
-  struct kdbus_reply reply;
+  struct kdbus_msg_info reply;
     Only used for synchronous replies. See description of struct kdbus_cmd_recv
     for more details.
 
@@ -1053,7 +1053,7 @@ struct kdbus_cmd_recv {
     the kernel with the number of messages that couldn't be transmitted to
     this connection. In that case, the @offset member must not be accessed.
 
-  struct kdbus_reply reply;
+  struct kdbus_msg_info msg;
    Embedded struct to be filled when the command succeeded (see below).
 
   struct kdbus_item items[0];
@@ -1061,10 +1061,10 @@ struct kdbus_cmd_recv {
 };
 
 Both 'struct kdbus_cmd_recv' and 'struct kdbus_cmd_send' embed 'struct
-kdbus_reply'. For the SEND ioctl, it is used to catch synchronous replies,
+kdbus_msg_info'. For the SEND ioctl, it is used to catch synchronous replies,
 if one was requested, and is unused otherwise.
 
-struct kdbus_reply {
+struct kdbus_msg_info {
   __u64 offset;
     Upon return of the ioctl, this field contains the offset in the receiver's
     memory pool. The memory must be freed with KDBUS_CMD_FREE.
