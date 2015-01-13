@@ -554,7 +554,7 @@ enum kdbus_recv_return_flags {
  *			-EOVERFLOW, this field will contain the number of
  *			broadcast messages that have been lost since the
  *			last call.
- * @reply:		Return storage for received message.
+ * @msg:		Return storage for received message.
  * @items:		Additional items for this command.
  *
  * This struct is used with the KDBUS_CMD_RECV ioctl.
