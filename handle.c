@@ -278,8 +278,6 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 				       KDBUS_ITEMS_SIZE(hello, items),
 				       1, kdbus_conn_is_policy_holder(conn),
 				       conn);
-	else
-		ret = 0;
 
 	kdbus_conn_release(conn);
 
