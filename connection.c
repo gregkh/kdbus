@@ -382,7 +382,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 		goto exit_queue_free;
 
 	/*
-	 * Remember the the reply associated with this queue entry, so we can
+	 * Remember the reply associated with this queue entry, so we can
 	 * move the reply entry's connection when a connection moves from an
 	 * activator to an implementer.
 	 */
