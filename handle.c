@@ -165,8 +165,10 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 
 	make->return_flags = 0;
 	if (kdbus_member_set_user(&make->return_flags, buf,
-				  struct kdbus_cmd_make, return_flags))
-		return -EFAULT;
+				  struct kdbus_cmd_make, return_flags)) {
+		ret = -EFAULT;
+		goto exit;
+	}
 
 	ret = kdbus_negotiate_flags(make, buf, struct kdbus_cmd_make,
 				    KDBUS_MAKE_ACCESS_GROUP |
