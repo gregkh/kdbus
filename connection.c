@@ -340,7 +340,7 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
  * kdbus_conn_entry_insert() - enqueue a message into the receiver's pool
  * @conn_src:		The sending connection
  * @conn_dst:		The connection to queue into
- * @kmsg:		The kmag to queue
+ * @kmsg:		The kmsg to queue
  * @reply:		The reply tracker to attach to the queue entry
  *
  * Return: 0 on success. negative error otherwise.
