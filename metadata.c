@@ -515,7 +515,7 @@ exit_unlock:
 
 /**
  * kdbus_meta_proc_fake() - Fill process metadata from faked credentials
- * @meta:	Metadata
+ * @mp:		Metadata
  * @creds:	Creds to set, may be %NULL
  * @pids:	PIDs to set, may be %NULL
  * @seclabel:	Seclabel to set, may be %NULL
