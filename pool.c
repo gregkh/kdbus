@@ -346,7 +346,7 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 
 /**
  * kdbus_pool_slice_release() - drop kernel-reference on allocated slice
- * @slice:		Slice allocated from the the pool
+ * @slice:		Slice allocated from the pool
  *
  * This releases the kernel-reference on the given slice. If the
  * kernel-reference and the user-reference on a slice are dropped, the slice is

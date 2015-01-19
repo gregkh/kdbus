@@ -1184,7 +1184,7 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 			}
 
 		kdbus_printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n",
-			     name->owner_id, (unsigned long long )flags,
+			     name->owner_id, (unsigned long long) flags,
 			     name->conn_flags, n);
 	}
 	kdbus_printf("\n");

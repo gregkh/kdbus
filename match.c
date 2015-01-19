@@ -356,7 +356,7 @@ static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
  *				kdbus_notify_id_change
  *
  * For kdbus_notify_{id,name}_change structs, only the ID and name fields
- * are looked at at when adding an entry. The flags are unused.
+ * are looked at when adding an entry. The flags are unused.
  *
  * Also note that KDBUS_ITEM_BLOOM_MASK, KDBUS_ITEM_NAME and KDBUS_ITEM_ID
  * are used to match messages from userspace, while the others apply to

@@ -864,7 +864,7 @@ struct kdbus_msg {
 
     KDBUS_MSG_NO_AUTO_START
       By default, when a message is sent to an activator connection, the
-      activator notified and will start an implementer. This flag inhibits
+      activator is notified and will start an implementer. This flag inhibits
       that behavior. With this bit set, and the remote being an activator,
       -EADDRNOTAVAIL is returned from the ioctl.
 
@@ -2010,7 +2010,7 @@ For KDBUS_CMD_NAME_ACQUIRE:
 For KDBUS_CMD_NAME_RELEASE:
 
   -EINVAL	Invalid command flags, or invalid name provided
-  -ESRCH	Name is not found found in the registry
+  -ESRCH	Name is not found in the registry
   -EADDRINUSE	Name is owned by a different connection and can't be released
 
 For KDBUS_CMD_NAME_LIST:
@@ -2057,7 +2057,7 @@ For KDBUS_CMD_MATCH_REMOVE:
 This is a simplified outline of the internal kdbus object relations, for
 those interested in the inner life of the driver implementation.
 
-From the a mount point's (domain's) perspective:
+From a mount point's (domain's) perspective:
 
 struct kdbus_domain
   |» struct kdbus_domain_user *user (many, owned)

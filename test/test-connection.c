@@ -75,8 +75,8 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 
 	/*
 	 * The connection created by the core requires ALL meta flags
-	 * to be sent. An attempt to send less that that should result
-	 * in -ECONNREFUSED.
+	 * to be sent. An attempt to send less than that should result in
+	 * -ECONNREFUSED.
 	 */
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL & ~KDBUS_ATTACH_TIMESTAMP;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);

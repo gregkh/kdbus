@@ -401,8 +401,8 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	}
 
 	/*
-	 * The offsets stored in the slice are relative to the the start
-	 * of the payload slice. When exporting them, they need to become
+	 * The offsets stored in the slice are relative to the start of
+	 * the payload slice. When exporting them, they need to become
 	 * relative to the pool, so get the payload slice's offset first.
 	 */
 	if (entry->slice_vecs)
