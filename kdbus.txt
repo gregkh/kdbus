@@ -1047,7 +1047,8 @@ struct kdbus_cmd_recv {
       pool slice. This a short-cut for KDBUS_RECV_PEEK and KDBUS_CMD_FREE.
 
     KDBUS_RECV_USE_PRIORITY
-      Use the priority field (see below).
+      Dequeue the messages ordered by their priority, and filtering them with
+      the priority field (see below).
 
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
@@ -1058,8 +1059,10 @@ struct kdbus_cmd_recv {
     the kernel.
 
   __s64 priority;
-    With KDBUS_RECV_USE_PRIORITY set in flags, receive the next message in
-    the queue with at least the given priority. If no such message is waiting
+    With KDBUS_RECV_USE_PRIORITY set in flags, messages will be dequeued
+    ordered by their priority, starting with the highest value. Also, messages
+    will be filtered by the value given in this field, so the returned message
+    will at least have the requested priority. If no such message is waiting
     in the queue, -ENOMSG is returned.
 
   __u64 dropped_msgs;
