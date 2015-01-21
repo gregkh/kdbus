@@ -284,7 +284,7 @@ TEST_RACE2(kdbus_test_race_byebye_match, 10000,
 		cmd.size = sizeof(cmd);
 		cmd.cookie = 0xdeadbeef;
 		ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_REMOVE, &cmd);
-		if (ret == 0 || errno == ENOENT)
+		if (ret == 0 || errno == EBADSLT)
 			return 0;
 
 		return -errno;

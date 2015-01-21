@@ -326,7 +326,7 @@ static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
 			found = true;
 		}
 
-	return found ? 0 : -ENOENT;
+	return found ? 0 : -EBADSLT;
 }
 
 /**

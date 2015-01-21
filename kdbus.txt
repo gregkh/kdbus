@@ -2104,7 +2104,7 @@ For KDBUS_CMD_MATCH_ADD:
 For KDBUS_CMD_MATCH_REMOVE:
 
   -EINVAL	Illegal flags
-  -ENOENT	A match entry with the given cookie could not be found.
+  -EBADSLT	A match entry with the given cookie could not be found.
 
 
 15. Internal object relations
