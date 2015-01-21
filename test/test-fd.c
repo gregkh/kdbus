@@ -544,10 +544,13 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 			      memfds, 100);
 	ASSERT_RETURN(ret == -EMFILE);
 
-	/* Combine multiple 253 fds and 128 + 1 memfds */
+	/*
+	 * Combine multiple 253 fds and (128 - 1) + 1 memfds,
+	 * all fds take one item, while each memfd takes one item
+	 */
 	ret = send_fds_memfds(conn_src, conn_dst->id,
 			      fds, KDBUS_MSG_MAX_FDS,
-			      memfds, KDBUS_MSG_MAX_ITEMS + 1);
+			      memfds, (KDBUS_MSG_MAX_ITEMS - 1) + 1);
 	ASSERT_RETURN(ret == -E2BIG);
 
 	ret = send_fds_memfds(conn_src, conn_dst->id,
