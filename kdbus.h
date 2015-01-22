@@ -915,7 +915,7 @@ struct kdbus_cmd_info {
  * @return_flags:	Command return flags, kernel → userspace
  * @items:		A list of struct kdbus_item
  *
- * This struct is used with the KDBUS_CMD_CONN_UPDATE ioctl.
+ * This struct is used with the KDBUS_CMD_UPDATE ioctl.
  */
 struct kdbus_cmd_update {
 	__u64 size;
@@ -960,29 +960,46 @@ struct kdbus_cmd_match {
 
 /**
  * Ioctl API
+ *
  * KDBUS_CMD_BUS_MAKE:		After opening the "control" node, this command
  *				creates a new bus with the specified
  *				name. The bus is immediately shut down and
  *				cleaned up when the opened file descriptor is
  *				closed.
+ *
  * KDBUS_CMD_ENDPOINT_MAKE:	Creates a new named special endpoint to talk to
  *				the bus. Such endpoints usually carry a more
  *				restrictive policy and grant restricted access
  *				to specific applications.
+ * KDBUS_CMD_ENDPOINT_UPDATE:	Update the properties of a custom enpoint. Used
+ *				to update the policy.
+ *
  * KDBUS_CMD_HELLO:		By opening the bus node, a connection is
  *				created. After a HELLO the opened connection
  *				becomes an active peer on the bus.
+ * KDBUS_CMD_UPDATE:		Update the properties of a connection. Used to
+ *				update the metadata subscription mask and
+ *				policy.
  * KDBUS_CMD_BYEBYE:		Disconnect a connection. If there are no
  *				messages queued up in the connection's pool,
  *				the call succeeds, and the handle is rendered
  *				unusable. Otherwise, -EBUSY is returned without
  *				any further side-effects.
+ * KDBUS_CMD_FREE:		Release the allocated memory in the receiver's
+ *				pool.
+ * KDBUS_CMD_CONN_INFO:		Retrieve credentials and properties of the
+ *				initial creator of the connection. The data was
+ *				stored at registration time and does not
+ *				necessarily represent the connected process or
+ *				the actual state of the process.
+ * KDBUS_CMD_BUS_CREATOR_INFO:	Retrieve information of the creator of the bus
+ *				a connection is attached to.
+ *
  * KDBUS_CMD_SEND:		Send a message and pass data from userspace to
  *				the kernel.
  * KDBUS_CMD_RECV:		Receive a message from the kernel which is
  *				placed in the receiver's pool.
- * KDBUS_CMD_FREE:		Release the allocated memory in the receiver's
- *				pool.
+ *
  * KDBUS_CMD_NAME_ACQUIRE:	Request a well-known bus name to associate with
  *				the connection. Well-known names are used to
  *				address a peer on the bus.
@@ -990,59 +1007,50 @@ struct kdbus_cmd_match {
  *				currently owns.
  * KDBUS_CMD_NAME_LIST:		Retrieve the list of all currently registered
  *				well-known and unique names.
- * KDBUS_CMD_CONN_INFO:		Retrieve credentials and properties of the
- *				initial creator of the connection. The data was
- *				stored at registration time and does not
- *				necessarily represent the connected process or
- *				the actual state of the process.
- * KDBUS_CMD_CONN_UPDATE:	Update the properties of a connection. Used to
- *				update the metadata subscription mask and
- *				policy.
- * KDBUS_CMD_BUS_CREATOR_INFO:	Retrieve information of the creator of the bus
- *				a connection is attached to.
- * KDBUS_CMD_ENDPOINT_UPDATE:	Update the properties of a custom enpoint. Used
- *				to update the policy.
+ *
  * KDBUS_CMD_MATCH_ADD:		Install a match which broadcast messages should
  *				be delivered to the connection.
  * KDBUS_CMD_MATCH_REMOVE:	Remove a current match for broadcast messages.
  */
 enum kdbus_ioctl_type {
+	/* bus owner (00-0f) */
 	KDBUS_CMD_BUS_MAKE =		_IOW(KDBUS_IOCTL_MAGIC, 0x00,
 					     struct kdbus_cmd_make),
+
+	/* endpoint owner (10-1f) */
 	KDBUS_CMD_ENDPOINT_MAKE =	_IOW(KDBUS_IOCTL_MAGIC, 0x10,
 					     struct kdbus_cmd_make),
+	KDBUS_CMD_ENDPOINT_UPDATE =	_IOW(KDBUS_IOCTL_MAGIC, 0x11,
+					     struct kdbus_cmd_update),
 
-	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOCTL_MAGIC, 0x20,
+	/* connection owner (80-ff) */
+	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOCTL_MAGIC, 0x80,
 					      struct kdbus_cmd_hello),
-	KDBUS_CMD_BYEBYE =		_IO(KDBUS_IOCTL_MAGIC, 0x21),
-
-	KDBUS_CMD_SEND =		_IOWR(KDBUS_IOCTL_MAGIC, 0x30,
-					      struct kdbus_cmd_send),
-	KDBUS_CMD_RECV =		_IOWR(KDBUS_IOCTL_MAGIC, 0x31,
-					      struct kdbus_cmd_recv),
-	KDBUS_CMD_FREE =		_IOW(KDBUS_IOCTL_MAGIC, 0x32,
+	KDBUS_CMD_UPDATE =		_IOW(KDBUS_IOCTL_MAGIC, 0x81,
+					     struct kdbus_cmd_update),
+	KDBUS_CMD_BYEBYE =		_IO(KDBUS_IOCTL_MAGIC, 0x82),
+	KDBUS_CMD_FREE =		_IOW(KDBUS_IOCTL_MAGIC, 0x83,
 					     struct kdbus_cmd_free),
+	KDBUS_CMD_CONN_INFO =		_IOR(KDBUS_IOCTL_MAGIC, 0x84,
+					     struct kdbus_cmd_info),
+	KDBUS_CMD_BUS_CREATOR_INFO =	_IOR(KDBUS_IOCTL_MAGIC, 0x85,
+					     struct kdbus_cmd_info),
 
-	KDBUS_CMD_NAME_ACQUIRE =	_IOWR(KDBUS_IOCTL_MAGIC, 0x40,
-					      struct kdbus_cmd_name),
-	KDBUS_CMD_NAME_RELEASE =	_IOW(KDBUS_IOCTL_MAGIC, 0x41,
+	KDBUS_CMD_SEND =		_IOW(KDBUS_IOCTL_MAGIC, 0x90,
+					     struct kdbus_cmd_send),
+	KDBUS_CMD_RECV =		_IOR(KDBUS_IOCTL_MAGIC, 0x91,
+					     struct kdbus_cmd_recv),
+
+	KDBUS_CMD_NAME_ACQUIRE =	_IOW(KDBUS_IOCTL_MAGIC, 0xa0,
 					     struct kdbus_cmd_name),
-	KDBUS_CMD_NAME_LIST =		_IOWR(KDBUS_IOCTL_MAGIC, 0x42,
-					      struct kdbus_cmd_name_list),
+	KDBUS_CMD_NAME_RELEASE =	_IOW(KDBUS_IOCTL_MAGIC, 0xa1,
+					     struct kdbus_cmd_name),
+	KDBUS_CMD_NAME_LIST =		_IOR(KDBUS_IOCTL_MAGIC, 0xa2,
+					     struct kdbus_cmd_name_list),
 
-	KDBUS_CMD_CONN_INFO =		_IOWR(KDBUS_IOCTL_MAGIC, 0x50,
-					      struct kdbus_cmd_info),
-	KDBUS_CMD_CONN_UPDATE =		_IOW(KDBUS_IOCTL_MAGIC, 0x51,
-					     struct kdbus_cmd_update),
-	KDBUS_CMD_BUS_CREATOR_INFO =	_IOWR(KDBUS_IOCTL_MAGIC, 0x52,
-					      struct kdbus_cmd_info),
-
-	KDBUS_CMD_ENDPOINT_UPDATE =	_IOW(KDBUS_IOCTL_MAGIC, 0x61,
-					     struct kdbus_cmd_update),
-
-	KDBUS_CMD_MATCH_ADD =		_IOW(KDBUS_IOCTL_MAGIC, 0x70,
+	KDBUS_CMD_MATCH_ADD =		_IOW(KDBUS_IOCTL_MAGIC, 0xb0,
 					     struct kdbus_cmd_match),
-	KDBUS_CMD_MATCH_REMOVE =	_IOW(KDBUS_IOCTL_MAGIC, 0x71,
+	KDBUS_CMD_MATCH_REMOVE =	_IOW(KDBUS_IOCTL_MAGIC, 0xb1,
 					     struct kdbus_cmd_match),
 };
 

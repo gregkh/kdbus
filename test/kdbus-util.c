@@ -1228,7 +1228,7 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn,
 	item->data64[0] = attach_flags_recv;
 	item = KDBUS_ITEM_NEXT(item);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_CONN_UPDATE, update);
+	ret = ioctl(conn->fd, KDBUS_CMD_UPDATE, update);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error conn update: %d (%m)\n", ret);
@@ -1281,7 +1281,7 @@ int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_CONN_UPDATE, update);
+	ret = ioctl(conn->fd, KDBUS_CMD_UPDATE, update);
 	if (ret < 0) {
 		ret = -errno;
 		kdbus_printf("error conn update: %d (%m)\n", ret);

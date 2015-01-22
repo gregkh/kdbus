@@ -551,7 +551,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	case KDBUS_CMD_CONN_UPDATE: {
+	case KDBUS_CMD_UPDATE: {
 		/* update the properties of a connection */
 		struct kdbus_cmd_update *cmd_update;
 
