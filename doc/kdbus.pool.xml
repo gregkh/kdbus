@@ -1,0 +1,210 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.pool">
+
+  <refentryinfo>
+    <title>kdbus.pool</title>
+    <productname>kdbus.pool</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.pool</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.pool</refname>
+    <refpurpose>kdbus pool</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      A pool for data received from the kernel is installed for every
+      <emphasis>connection</emphasis> of the <emphasis>bus</emphasis>, and
+      is sized according to the information stored in the
+      <varname>KDBUS_ITEM_BLOOM_PARAMETER</varname> item that is returned by
+      <varname>KDBUS_CMD_HELLO</varname>.
+    </para>
+
+    <para>
+      The pool is written to by the kernel when one of the following
+      <emphasis>ioctls</emphasis> is issued:
+
+      <variablelist>
+        <varlistentry>
+          <term><varname>KDBUS_CMD_HELLO</varname></term>
+          <listitem><para>
+            ... to receive details about the bus the connection was made to
+          </para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><varname>KDBUS_CMD_RECV</varname></term>
+          <listitem><para>
+            ... to receive a message
+          </para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><varname>KDBUS_CMD_NAME_LIST</varname></term>
+          <listitem><para>
+            ... to dump the name registry
+          </para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><varname>KDBUS_CMD_CONN_INFO</varname></term>
+          <listitem><para>
+            ... to retrieve information on a connection
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+
+    </para>
+    <para>
+      The offsets returned by either one of the aforementioned ioctls describe offsets
+      inside the pool. In order to make the slice available for subsequent calls,
+      KDBUS_CMD_FREE has to be called on the offset (see below).
+
+      To access the memory, the caller is expected to 
+      <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      it, like this:
+    </para>
+    <programlisting>
+/*
+ * POOL_SIZE has to be a multiple of PAGE_SIZE, and it must match the
+ * value that was previously returned through the KDBUS_ITEM_BLOOM_PARAMETER
+ * item field when the KDBUS_CMD_HELLO ioctl returned.
+ */
+
+buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
+    </programlisting>
+
+    <para>
+        Alternatively, instead of mapping the entire pool buffer, only parts of it can
+        be mapped. The length of the response is returned by the kernel along with the
+        offset for each of the ioctls listed above.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      TODO: some words about how slices are alllocated ...
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Freeing pool slices</title>
+    <para>
+      The <varname>KDBUS_CMD_FREE</varname> ioctl is used to free a slice
+      inside the pool, described an offset that was returned in an 'offset'
+      field of another ioctl struct. The command takes a
+      <varname>struct kdbus_cmd_free</varname> as argument:
+    </para>
+
+<programlisting>
+struct kdbus_cmd_free {
+  __u64 size;
+  __u64 offset;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+</programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>offset</varname></term>
+        <listitem><para>
+          The offset to free, as returned by other ioctls that allocated
+          memory for returned information.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem><para>
+          Items to specify further details for the receive command.
+          Currently unused. All items will be rejected with -EINVAL.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all metioned ioctl commands return 0.
+    </para>
+
+    <para>
+      <varname>KDBUS_CMD_FREE</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-ENXIO</varname></term>
+        <listitem><para>
+          No pool slice found at given offset.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Invalid flags provided.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          The offset is valid, but the user is not allowed to free the slice.
+          This happens, for example, if the offset was retrieved with
+          <varname>KDBUS_RECV_PEEK</varname>.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>

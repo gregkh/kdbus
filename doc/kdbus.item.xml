@@ -1,0 +1,351 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus">
+
+  <refentryinfo>
+    <title>kdbus.item</title>
+    <productname>kdbus item</productname>
+
+    <authorgroup>
+      <author>
+        <contrib>Developer</contrib>
+        <firstname>David</firstname>
+        <surname>Herrmann</surname>
+        <email>dh.herrmann@gmail.com</email>
+      </author>
+      <author>
+        <contrib>Developer</contrib>
+        <firstname>Daniel</firstname>
+        <surname>Mack</surname>
+        <email>kdbus@zonque.org</email>
+      </author>
+    </authorgroup>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.item</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.item</refname>
+    <refpurpose>Kernel item structure</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      To flexibly augment transport structures, data blobs of type
+      <varname>struct kdbus_item</varname>
+      can be attached to the structs passed into the ioctls. Some ioctls make items
+      of certain types mandatory, others are optional. Items that are unsupported
+      by ioctls they are sent to will cause the ioctl to fail 
+      <varname>-EINVAL.</varname>
+      Items are also used for information stored in a connection's
+      <emphasis>pool</emphasis>, such as received messages, name lists or
+      requested connection or bus owner information. Depending on the type of
+      an item, its total size is either fixed or variable.
+      The kernel expects all items to be aligned to 8-byte boundaries. Unaligned
+      items or items that are unsupported by the ioctl are rejected.
+    </para>
+
+    <para>Whenever items are used as part of the kdbus kernel API, they are embedded in
+      structs that are embedded inside structs that themselves include a size field
+      containing the overall size of the structure. This allows multiple items to
+      be chained up.
+    </para>
+
+    <refsect2>
+      <title>Iterating items</title>
+        <para>A simple iterator in userspace would iterate over the items until the items
+          have reached the embedding structure's overall size. An example implementation
+          is shown below.
+        </para>
+
+      <programlisting><![CDATA[
+#define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
+
+#define KDBUS_ITEM_NEXT(item) \
+    (typeof(item))(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
+
+#define KDBUS_ITEM_FOREACH(item, head, first)                      \
+    for (item = (head)->first;                                     \
+         ((uint8_t *)(item) < (uint8_t *)(head) + (head)->size) && \
+           ((uint8_t *)(item) >= (uint8_u *)(head));               \
+         item = KDBUS_ITEM_NEXT(item))
+      ]]></programlisting>
+    </refsect2>
+
+    <refsect2>
+      <title>Item layout</title>
+      <para>A <varname>struct kdbus_item</varname> consists of a
+        <varname>size</varname> field, describing its overall size,
+        and a <varname>type</varname> field, both 64 bit wide. They are followed by
+        a union to store information that is specific to the item's type.
+        A shortened version is shown below.
+      </para>
+
+      <programlisting>
+struct kdbus_item {
+  __u64 size;
+  __u64 type;
+  union {
+    /* item type specific payload - see below */
+  };
+};
+      </programlisting>
+
+      <para><varname>struct kdbus_item</varname> should never be
+      used to allocate an item instance, as its size may grow in future
+      releases of the API. Instead, it should be manually assembled by storing
+      the <varname>size</varname>, <varname>type</varname>
+      and payload to a struct of its own.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Item types</title>
+
+        <para>Items exchanged between userspace and kernel</para>
+        <variablelist>
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_PAYLOAD_VEC</varname></term>
+            <listitem><para>
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_PAYLOAD_OFF</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_PAYLOAD_MEMFD</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_FDS</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_CANCEL_FD</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_BLOOM_PARAMETER</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_BLOOM_FILTER</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_BLOOM_MASK</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_DST_NAME</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_MAKE_NAME</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_ATTACH_FLAGS_SEND</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_ATTACH_FLAGS_RECV</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_ID</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_NAME</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+        </variablelist>
+
+        <para>Items attached by the kernel as metadata</para>
+
+        <variablelist>
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_TIMESTAMP</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_CREDS</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_PIDS</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_AUXGROUPS</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_OWNED_NAME</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_TID_COMM</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_PID_COMM</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_EXE</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_CMDLINE</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_CGROUP</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_CAPS</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_SECLABEL</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_AUDIT</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_CONN_DESCRIPTION</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+        </variablelist>
+
+        <para>Items used for policy entries, matches and notifications</para>
+
+        <variablelist>
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_NAME_ADD</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_NAME_REMOVE</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_NAME_CHANGE</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_ID_ADD</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_ID_REMOVE</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_REPLY_TIMEOUT</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+
+          <varlistentry>
+            <term><varname>KDBUS_ITEM_REPLY_DEAD</varname></term>
+            <listitem><para>TODO
+            </para></listitem>
+          </varlistentry>
+        </variablelist>
+    </refsect2>
+
+  </refsect1>
+
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+
+</refentry>

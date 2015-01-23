@@ -1,0 +1,210 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.endpoint">
+
+  <refentryinfo>
+    <title>kdbus.endpoint</title>
+    <productname>kdbus.endpoint</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.endpoint</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.endpoint</refname>
+    <refpurpose>kdbus endpoint</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      Endpoints are entry points to a bus (see
+      <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
+      By default, each bus has a default
+      endpoint called 'bus'. The bus owner has the ability to create custom
+      endpoints with specific names, permissions, and policy databases (see below).
+      An endpoint is presented as file underneath the directory of the parent bus.
+    </para>
+    <para>
+      To create a custom endpoint, open the default endpoint ('bus') and use the
+      KDBUS_CMD_ENDPOINT_MAKE ioctl with "struct kdbus_cmd_make". Custom endpoints
+      always have a policy database that, by default, forbids any operation. You have
+      to explicitly install policy entries to allow any operation on this endpoint.
+    </para>
+    <para>
+      Once KDBUS_CMD_ENDPOINT_MAKE succeeded, the new endpoint will appear in the
+      filesystem 
+      (<citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
+      and the used file descriptor will manage the
+      newly created endpoint resource. It cannot be used to manage further resources
+      and must be kept open as long as the endpoint is needed. The endpoint will be
+      terminated as soon as the file descriptor is closed.
+    </para>
+    <para>
+      Endpoint names may be chosen freely except for one restriction: the name must
+      be prefixed with the numeric effective UID of the creator and a dash. This is
+      required to avoid namespace clashes between different users. When creating an
+      endpoint, the name that is passed in must be properly formatted or the kernel
+      will refuse creation of the endpoint. Example: "1047-foobar" is an acceptable
+      name for an endpoint registered by a user with UID 1047. However,
+      "1024-my-endpoint" is not, and neither is "my-endpoint". The UID must be
+      provided in the user-namespace of the parent domain.
+    </para>
+    <para>
+      To create connections to a bus, use KDBUS_CMD_HELLO on a file descriptor returned by
+      <citerefentry><refentrytitle>open</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      on an endpoint node.
+      See <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for further details.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Creating custom endpoints</title>
+    <para>
+      To create a new endpoint, the <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>
+      command is used. It takes a <varname>struct kdbus_cmd_make</varname> argument.
+    </para>
+    <programlisting>
+struct kdbus_cmd_make {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>The flags for creation.</para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_MAKE_ACCESS_GROUP</varname></term>
+              <listitem>
+                <para>Make the endpoint file group-accessible</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_MAKE_ACCESS_WORLD</varname></term>
+              <listitem>
+                <para>Make the endpoint file world-accessible</para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            The following items are expected for 
+            <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_MAKE_NAME</varname></term>
+              <listitem>
+                <para>Contains a string to identify the endpoint name.</para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Updating endpoints</title>
+    <para>
+      TODO!! Document KDBUS_CMD_ENPOINT_UPDATE
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all mentioned ioctl commands return 0.
+    </para>
+
+    <para>
+      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          The flags supplied in the <varname>struct kdbus_cmd_make</varname>
+          are invalid.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EEXIST</varname></term>
+        <listitem><para>
+          An endpoint of that name already exists.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EPERM</varname></term>
+        <listitem><para>
+          The calling user is not privileged. See
+          <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          for information about privileged users.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>

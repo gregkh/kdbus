@@ -45,7 +45,12 @@ clean:
 check:
 	test/kdbus-test
 
-doc:
+mandoc:	
+	$(MAKE) -C doc mandoc
+
+doc:	mandoc
+
+kerneldoc_check:
 	$(KERNELDIR)/scripts/kernel-doc *.c kdbus.h >/dev/null | grep "^Warning"
 
 install: module

@@ -1,0 +1,74 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus_fs">
+
+  <refentryinfo>
+    <title>kdbus.fs</title>
+    <productname>kdbus.fs</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.fs</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.fs</refname>
+    <refpurpose>kdbus file system</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>File-system Layout</title>
+
+    <para>The <emphasis>kdbusfs</emphasis>
+    pseudo file-system provides access to internal kdbus entities,
+    including buses and endpoints. Each time you mount it, a new
+    instance (called <emphasis>domain</emphasis>) will be created
+    which is independent of the other domains.</para>
+
+    <para>Following, you can see an example layout of the
+    <emphasis>kdbusfs</emphasis> file-system:</para>
+
+<programlisting>
+        /sys/fs/kdbus/                          ; mount-point
+        |-- 0-system                            ; bus directory
+        |   |-- bus                             ; default endpoint
+        |   `-- 1017-custom                     ; custom endpoint
+        |-- 1000-user                           ; bus directory
+        |   |-- bus                             ; default endpoint
+        |   |-- 1000-service-A                  ; custom endpoint
+        |   `-- 1000-service-B                  ; custom endpoint
+        `-- control                             ; control file
+</programlisting>
+  </refsect1>
+
+  <refsect1>
+    <title>Mounting instances</title>
+    <para>In order to get a new and separate kdbus environment, new instance
+    of <emphasis>kdbusfs</emphasis> can be mounted like this:
+<programlisting>
+    # mount -t kdbusfs kdbusfs /tmp/new_kdbus/
+</programlisting>
+    </para>
+
+    <para>Busses created in this new instance will be entirely separated and
+    not influence any other kdbus instances on the system.</para>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>mount</refentrytitle><manvolnum>8</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>

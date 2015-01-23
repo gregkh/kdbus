@@ -1,0 +1,582 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.names">
+
+  <refentryinfo>
+    <title>kdbus.names</title>
+    <productname>kdbus.names</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.names</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.names</refname>
+    <refpurpose>kdbus names</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      Each
+      <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      instantiates a name registry to resolve well-known names into unique
+      connection IDs for message delivery. The registry will be queried when a
+      message is sent with <varname>kdbus_msg.dst_id</varname> set to
+      <varname>KDBUS_DST_ID_NAME</varname>, or when a registry dump is
+      requested.
+    </para>
+
+    <para>
+      All of the below is subject to policy rules for SEE and OWN permissions.
+      See
+      <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Name validity</title>
+    <para>
+      A name has to comply with the following rules to be considered valid.
+    </para>
+
+    <itemizedlist mark='opencircle'>
+      <listitem><para>
+        The name has two or more elements separated by a period ('.') character
+      </para></listitem>
+      <listitem><para>
+        All elements must contain at least one character
+      </para></listitem>
+      <listitem><para>
+        Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_"
+        and must not begin with a digit
+      </para></listitem>
+      <listitem><para>
+        The name must contain at least one '.' (period) character
+        (and thus at least two elements)
+      </para></listitem>
+      <listitem><para>
+        The name must not begin with a '.' (period) character
+      </para></listitem>
+      <listitem><para>
+        The name must not exceed KDBUS_NAME_MAX_LEN (255)
+      </para></listitem>
+    </itemizedlist>
+  </refsect1>
+
+  <refsect1>
+    <title>Acquiring a name</title>
+    <para>
+      To acquire a name, a client uses the
+      <varname>KDBUS_CMD_NAME_ACQUIRE</varname> ioctl with the following data
+      structure.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_name {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>Flags to control details in the name acquisition.</para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_NAME_REPLACE_EXISTING</varname></term>
+              <listitem>
+                <para>
+                  Acquiring a name that is already present usually fails,
+                  unless this flag is set in the call, and
+                  <varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname> (see below)
+                  was set when the current owner of the name acquired it, or
+                  if the current owner is an activator connection (see
+                  <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname></term>
+              <listitem>
+                <para>
+                  Allow other connections to take over this name. When this
+                  happens, the former owner of the connection will be notified
+                  of the name loss.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_NAME_QUEUE</varname></term>
+              <listitem>
+                <para>
+                  A name that is already acquired by a connection, and which
+                  wasn't requested with the
+                  <varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname> flag set can
+                  not be acquired again. However, a connection can put itself
+                  in a queue of connections waiting for the name to be released.
+                  Once that happens, the first connection in that queue becomes
+                  the new owner and is notified accordingly.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            Items to submit the name. Currently, one item of type
+            <varname>KDBUS_ITEM_NAME</varname> is expected and allowed, and
+            the contained string must be a valid bus name.
+          </para>
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Releasing a name</title>
+    <para>
+      A connection may release a name explicitly with the
+      <varname>KDBUS_CMD_NAME_RELEASE</varname> ioctl. If the connection was
+      an implementer of an activatable name, its pending messages are moved
+      back to the activator. If there are any connections queued up as waiters
+      for the name, the first one in the queue (the oldest entry) will become
+      the new owner. The same happens implicitly for all names once a
+      connection terminates. See 
+      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information on connections.
+    </para>
+    <para>
+      The <varname>KDBUS_CMD_NAME_RELEASE</varname> ioctl uses the same data
+      structure as the acquisition call (<varname>KDBUS_CMD_NAME_ACQUIRE</varname>),
+      but with slightly different field usage.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_name {
+  __u64 size;
+    The overall size of this struct, including the null-terminated name string.
+
+  __u64 flags;
+    Flags to the command. Currently unused and must be zero.
+
+  __u64 kernel_flags;
+    Valid flags for this command, returned by the kernel upon each call.
+    See section 3.2 for more details.
+
+  __u64 return_flags;
+    Flags returned by the kernel. Currently unused and always set to zero by
+    the kernel.
+
+  struct kdbus_item items[0];
+    Items to submit the name. Currently, one item of type KDBUS_ITEM_NAME is
+    expected and allowed, and the contained string must be a valid bus name.
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          Flags to the command. Currently unused and must be zero.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            Items to submit the name. Currently, one item of type
+            <varname>KDBUS_ITEM_NAME</varname> is expected and allowed, and
+            the contained string must be a valid bus name.
+          </para>
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Dumping the name registry</title>
+    <para>
+      A connection may request a complete or filtered dump of currently active
+      bus names with the <varname>KDBUS_CMD_NAME_LIST</varname> ioctl, which
+      takes a <varname>struct kdbus_cmd_name_list</varname> as argument.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_name_list {
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  __u64 offset;
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem>
+          <para>
+            Any combination of flags to specify which names should be dumped.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_NAME_LIST_UNIQUE</varname></term>
+              <listitem>
+                <para>
+                  List the unique (numeric) IDs of the connection, whether it
+                  owns a name or not.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_NAME_LIST_NAMES</varname></term>
+              <listitem>
+                <para>
+                  List well-known names stored in the database which are
+                  actively owned by a real connection (not an activator).
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_NAME_LIST_ACTIVATORS</varname></term>
+              <listitem>
+                <para>
+                  List names that are owned by an activator.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_NAME_LIST_QUEUED</varname></term>
+              <listitem>
+                <para>
+                  List connections that are not yet owning a name but are
+                  waiting for it to become available.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>offset</varname></term>
+        <listitem><para>
+          When the ioctl returns successfully, the offset to the name registry
+          dump inside the connection's pool will be stored in this field.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      The returned list of names is stored in a
+      <varname>struct kdbus_name_list</varname> that in turn
+      contains a dynamic number of
+      <varname>struct kdbus_cmd_name</varname> that carry the actual
+      information. The fields inside that
+      <varname>struct kdbus_cmd_name</varname> is described next.
+    </para>
+
+    <programlisting>
+struct kdbus_name_info {
+  __u64 size;
+  __u64 owner_id;
+  __u64 conn_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>owner_id</varname></term>
+        <listitem><para>
+          The owning connection's unique ID.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>conn_flags</varname></term>
+        <listitem><para>
+          The flags of the owning connection.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem>
+          <para>
+            Items containing the actual name. Currently, one item of type
+            <varname>KDBUS_ITEM_OWNED_NAME</varname> will be attached,
+            including the name's flags. In that item, the flags field of the
+            name may carry the following bits:
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname></term>
+              <listitem>
+                <para>
+                  Other connections are allowed to take over this name from the
+                  connection that owns it.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_NAME_IN_QUEUE</varname></term>
+              <listitem>
+                <para>
+                  When retrieving a list of currently acquired names in the
+                  registry, this flag indicates whether the connection
+                  actually owns the name or is currently waiting for it to
+                  become available.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_NAME_ACTIVATOR</varname></term>
+              <listitem>
+                <para>
+                  An activator connection owns a name as a placeholder for an
+                  implementer, which is started on demand by userspace as soon
+                  as the first message arrives. There's some more information
+                  on this topic in 
+                  <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+                  .
+                </para>
+                <para>
+                  In contrast to <varname>KDBUS_NAME_REPLACE_EXISTING</varname>,
+                  when a name is taken over from an activator connection, all
+                  the messages that have been queued in the activator
+                  connection will be moved over to the new owner. The activator
+                  connection will still be tracked for the name and will take
+                  control again if the implementer connection terminates.
+                </para>
+                <para>
+                  This flag can not be used when acquiring a name, but is implicitly set
+                  through <varname>KDBUS_CMD_HELLO</varname> with
+                  <varname>KDBUS_HELLO_ACTIVATOR</varname> set in
+                  <varname>kdbus_cmd_hello.conn_flags</varname>.
+                </para>
+              </listitem>
+            </varlistentry>
+
+          </variablelist>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      The returned buffer must be freed with the KDBUS_CMD_FREE ioctl when the user
+      is finished with it. See
+      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all metioned ioctl commands return 0.
+    </para>
+
+    <para>
+      <varname>KDBUS_CMD_NAME_ACQUIRE</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Illegal command flags, illegal name provided, or an activator
+          tried to acquire a second name.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EPERM</varname></term>
+        <listitem><para>
+          Policy prohibited name ownership.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EALREADY</varname></term>
+        <listitem><para>
+          Connection already owns that name.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EEXIST</varname></term>
+        <listitem><para>
+          The name already exists and can not be taken over.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-E2BIG</varname></term>
+        <listitem><para>
+          The maximum number of well-known names per connection is exhausted.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      <varname>KDBUS_CMD_NAME_RELEASE</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Invalid command flags, or invalid name provided.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ESRCH</varname></term>
+        <listitem><para>
+          Name is not found in the registry.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EADDRINUSE</varname></term>
+        <listitem><para>
+          Name is owned by a different connection and can't be released.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      <varname>KDBUS_CMD_NAME_LIST</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Invalid command flags
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ENOBUFS</varname></term>
+        <listitem><para>
+          No available memory in the connection's pool.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>

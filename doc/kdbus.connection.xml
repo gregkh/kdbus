@@ -1,0 +1,970 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.connection">
+
+  <refentryinfo>
+    <title>kdbus.connection</title>
+    <productname>kdbus.connection</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.connection</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.connection</refname>
+    <refpurpose>kdbus connection</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      Connections are identified by their <emphasis>connection ID</emphasis>,
+      internally implemented as a <varname>uint64_t</varname> counter.
+      The IDs of every newly created bus start at 1, and every new
+      connection will increment the counter by 1. The IDs are not reused.
+    </para>
+    <para>
+      In higher level tools, the user visible representation of a connection is
+      defined by the D-Bus protocol specification as
+      <emphasis>":1.&lt;ID&gt;"</emphasis>.
+    </para>
+    <para>
+      Messages with a specific <varname>uint64_t</varname> destination ID are
+      directly delivered to the connection with the corresponding ID. Messages
+      with the special destination ID <varname>KDBUS_DST_ID_BROADCAST</varname>
+      are broadcast messages and are potentially delivered to all currently
+      active connections on the bus. However, in order to receive any broadcast
+      messages, clients must subscribe to the specific messages in which they are
+      interested in.
+    </para>
+    <para>
+      Messages synthesized and sent directly by the kernel will carry the special
+      source ID <varname>KDBUS_SRC_ID_KERNEL</varname> (0).
+    </para>
+    <para>
+      In addition to the unique <varname>uint64_t</varname> connection ID,
+      established connections can request the ownership of
+      <emphasis>well-known names</emphasis>, under which they can be found and
+      addressed by other bus clients. A well-known name is associated with one
+      and only one connection at a time. See
+      <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      on name acquisition, the name registry, and the validity of names.
+    </para>
+    <para>
+      Messages can specify the special destination ID 0 and carry a well-known name
+      in the message data. Such a message is delivered to the destination connection
+      which owns that well-known name.
+    </para>
+
+    <programlisting><![CDATA[
+  +-------------------------------------------------------------------------+
+  | +---------------+     +---------------------------+                     |
+  | | Connection    |     | Message                   | -----------------+  |
+  | | :1.22         | --> | src: 22                   |                  |  |
+  | |               |     | dst: 25                   |                  |  |
+  | |               |     |                           |                  |  |
+  | |               |     |                           |                  |  |
+  | |               |     +---------------------------+                  |  |
+  | |               |                                                    |  |
+  | |               | <--------------------------------------+           |  |
+  | +---------------+                                        |           |  |
+  |                                                          |           |  |
+  | +---------------+     +---------------------------+      |           |  |
+  | | Connection    |     | Message                   | -----+           |  |
+  | | :1.25         | --> | src: 25                   |                  |  |
+  | |               |     | dst: 0xffffffffffffffff   | -------------+   |  |
+  | |               |     |  (KDBUS_DST_ID_BROADCAST) |              |   |  |
+  | |               |     |                           | ---------+   |   |  |
+  | |               |     +---------------------------+          |   |   |  |
+  | |               |                                            |   |   |  |
+  | |               | <--------------------------------------------------+  |
+  | +---------------+                                            |   |      |
+  |                                                              |   |      |
+  | +---------------+     +---------------------------+          |   |      |
+  | | Connection    |     | Message                   | --+      |   |      |
+  | | :1.55         | --> | src: 55                   |   |      |   |      |
+  | |               |     | dst: 0 / org.foo.bar      |   |      |   |      |
+  | |               |     |                           |   |      |   |      |
+  | |               |     |                           |   |      |   |      |
+  | |               |     +---------------------------+   |      |   |      |
+  | |               |                                     |      |   |      |
+  | |               | <------------------------------------------+   |      |
+  | +---------------+                                     |          |      |
+  |                                                       |          |      |
+  | +---------------+                                     |          |      |
+  | | Connection    |                                     |          |      |
+  | | :1.81         |                                     |          |      |
+  | | org.foo.bar   |                                     |          |      |
+  | |               |                                     |          |      |
+  | |               |                                     |          |      |
+  | |               | <-----------------------------------+          |      |
+  | |               |                                                |      |
+  | |               | <----------------------------------------------+      |
+  | +---------------+                                                       |
+  +-------------------------------------------------------------------------+
+    ]]></programlisting>
+  </refsect1>
+
+  <refsect1>
+    <title>Creating connections</title>
+    <para>
+      A connection to a bus is created by opening an endpoint file of a bus and
+      becoming an active client with the <varname>KDBUS_CMD_HELLO</varname>
+      ioctl. Every connected client connection has a unique identifier on the
+      bus and can address messages to every other connection on the same bus
+      by using the peer's connection ID as the destination.
+    </para>
+    <para>
+      The KDBUS_CMD_HELLO ioctl takes the following struct as argument.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_hello {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  __u64 attach_flags_send;
+  __u64 attach_flags_recv;
+  __u64 bus_flags;
+  __u64 id;
+  __u64 pool_size;
+  __u64 offset;
+  __u8 id128[16];
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>Flags to apply to this connection</para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_HELLO_ACCEPT_FD</varname></term>
+              <listitem>
+                <para>
+                  When this flag is set, the connection can be sent file
+                  descriptors as message payload. If it's not set, an attempt
+                  to send file descriptors results in <varname>-ECOMM</varname>
+                  on the sender's side.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_HELLO_ACTIVATOR</varname></term>
+              <listitem>
+                <para>
+                  Make this connection an activator (see below). With this bit
+                  set, an item of type <varname>KDBUS_ITEM_NAME</varname> has
+                  to be attached. This item describes the well-known name this
+                  connection should be an activator for.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_HELLO_POLICY_HOLDER</varname></term>
+              <listitem>
+                <para>
+                  Make this connection a policy holder (see below). With this
+                  bit set, an item of type <varname>KDBUS_ITEM_NAME</varname>
+                  has to be attached. This item describes the well-known name
+                  this connection should hold a policy for.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_HELLO_MONITOR</varname></term>
+              <listitem>
+                <para>
+                  Make this connection an monitor (eavesdropping) connection.
+                  See the section below more information.
+                </para>
+                <para>
+                  This flag can only be set by privileged bus connections. See
+                  below.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>attach_flags_send</varname></term>
+        <listitem><para>
+          Set the bits for metadata this connection permits to be sent to the
+          receiving peer. Only metadata items that are both allowed to be sent
+          by the sender and that are requested by the receiver will effectively
+          be attached to the message. Note, however, that the bus may
+          optionally require some of those bits to be set. If the match fails,
+          <varname>-ECONNREFUSED</varname> will be returned. In either case,
+          this field will be set to the mask of metadata items that are
+          enforced by the bus. The <varname>KDBUS_FLAGS_KERNEL</varname> bit
+          will as well be set.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>attach_flags_recv</varname></term>
+        <listitem><para>
+          Request the attachment of metadata for each message received by this
+          connection. See XXX TODO XXX for more details.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>bus_flags</varname></term>
+        <listitem><para>
+          Upon successful completion of the ioctl, this member will contain the
+          flags of the bus it connected to.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>id</varname></term>
+        <listitem><para>
+          Upon successful completion of the command, this member will contain
+          the numerical ID of the new connection.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>pool_size</varname></term>
+        <listitem><para>
+          The size of the communication pool, in bytes. The pool can be
+          accessed by calling
+          <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+          on the file descriptor that was used to issue the
+          <varname>KDBUS_CMD_HELLO</varname> ioctl.
+        </para>
+        <para>
+          See 
+          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          for further information.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>offset</varname></term>
+        <listitem><para>
+          The kernel will return the offset in the pool where returned details
+          will be stored. See below.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>id128</varname></term>
+        <listitem><para>
+          Upon successful completion of the ioctl, this member will contain the
+          <emphasis>128-bit UUID</emphasis> of the connected bus.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            Variable list of items containing optional additional information.
+            The following items are currently expected/valid:
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_CONN_DESCRIPTION</varname></term>
+              <listitem>
+                <para>
+                  Contains a string that describes this connection, so it can
+                  be identified later.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_NAME</varname></term>
+              <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+              <listitem>
+                <para>
+                  For activators and policy holders only, combinations of
+                  these two items describe policy access entries. See XXX TODO XXX.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_CREDS</varname></term>
+              <term><varname>KDBUS_ITEM_PIDS</varname></term>
+              <term><varname>KDBUS_ITEM_SECLABEL</varname></term>
+              <listitem>
+                <para>
+                  Privileged bus users may submit these types in order to
+                  create connections with faked credentials. This information
+                  will be returned when peer information is queried by
+                  <varname>KDBUS_CMD_CONN_INFO</varname>. See below for more
+                  information on retrieving information on connections.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with 
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      At the offset returned in the <varname>offset</varname> field of
+      <varname>struct kdbus_cmd_hello</varname>, the kernel will store items
+      of the following types:
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>KDBUS_ITEM_BLOOM_PARAMETER</varname></term>
+        <listitem>
+          <para>
+            Bloom filter parameter as defined by the bus creator.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      The offset in the pool has to be freed with the
+      <varname>KDBUS_CMD_FREE</varname> ioctl. See
+      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for further information.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Privileged connections</title>
+    <para>
+      A connection is considered <emphasis>privileged</emphasis> if the user
+      it was created by is the same that created the bus, or if the creating
+      task had <varname>CAP_IPC_OWNER</varname> set when it called
+      <varname>KDBUS_CMD_HELLO</varname>.
+    </para>
+    <para>
+      Privileged connections have permission to employ certain restricted
+      functions and commands, which are explained below and in other kdbus
+      manpages.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Activator and policy holder connection</title>
+    <para>
+      An <emphasis>activator</emphasis> connection is a placeholder for a
+      <emphasis>well-known name</emphasis>. Messages sent to such a connection
+      can be used by userspace to start an implementer connection, which will
+      then get all the messages from the activator copied over. An activator
+      connection cannot be used to send any message.
+    </para>
+    <para>
+      A <emphasis>policy holder</emphasis> connection only installs a policy
+      for one or more names. These policy entries are kept active as long as
+      the connection is alive, and are removed once it terminates. Such a
+      policy connection type can be used to deploy restrictions for names that
+      are not yet active on the bus. A policy holder connection cannot be used
+      to send any message.
+    </para>
+    <para>
+      The creation of activator, policy holder or monitor (eavesdropping)
+      connections is an operation restricted to privileged users on the bus.
+      See the section below on privileged connections.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Retrieving information on a connection</title>
+    <para>
+      The <varname>KDBUS_CMD_CONN_INFO</varname> ioctl can be used to retrieve
+      credentials and properties of the initial creator of a connection. This
+      ioctl uses the following struct.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_info {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  __u64 id;
+  __u64 offset;
+  __u64 info_size;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          Specifies which metadata items should be attached to the answer.
+          See
+          <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>id</varname></term>
+        <listitem><para>
+          The numerical ID of the connection for which information is to be
+          retrieved. If set to a non-zero value, the
+          <varname>KDBUS_ITEM_OWNED_NAME</varname> item is ignored.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>offset</varname></term>
+        <listitem><para>
+          When the ioctl returns, this field will contain the offset of the
+          connection information inside the caller's pool. See
+          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          for futher information.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname></varname></term>
+        <listitem><para>
+          The kernel will return the size of the returned information, so applications
+          can optionally
+          <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+          specific parts of the pool. See
+          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          for futher information.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            The following items are expected for 
+            <varname>KDBUS_CMD_CONN_INFO</varname>.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_OWNED_NAME</varname></term>
+              <listitem>
+                <para>
+                  Contains the well-known name of the connection to look up as.
+                  This item is mandatory if the <varname>id</varname> field is
+                  set to 0.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      When the ioctl returns, the following struct will be stored in the
+      caller's pool at <varname>offset</varname>. The fields in this struct
+      are described below.
+    </para>
+
+    <programlisting>
+struct kdbus_info {
+  __u64 size;
+  __u64 id;
+  __u64 flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>id</varname></term>
+        <listitem><para>
+          The connection's unique ID.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          The connection's flags as specified when it was created.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            Depending on the <varname>flags</varname> field in
+            <varname>struct kdbus_cmd_info</varname>, items of types
+            <varname>KDBUS_ITEM_OWNED_NAME</varname> and
+            <varname>KDBUS_ITEM_CONN_DESCRIPTION</varname> may follow here.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      Once the caller is finished with parsing the return buffer, it needs to
+      employ the <varname>KDBUS_CMD_FREE</varname> command for the offset, in
+      order to free the buffer part. See
+      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for futher information.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Getting information about a connection's bus creator</title>
+    <para>
+      The <varname>KDBUS_CMD_BUS_CREATOR_INFO</varname> ioctl takes the same
+      struct as <varname>KDBUS_CMD_CONN_INFO</varname>, but is used to retrieve
+      information about the creator of the bus the connection is attached to.
+      The metadata returned by this call is collected during the creation of
+      the bus and is never altered afterwards, so it provides pristine
+      information on the task that created the bus, at the moment when it
+      did so.
+    </para>
+    <para>
+      In response to this call, a slice in the connection's pool is allocated and
+      filled with an object of type <varname>struct kdbus_info</varname>,
+      pointed to by the ioctl's <varname>offset</varname> field.
+    </para>
+
+    <programlisting>
+struct kdbus_info {
+  __u64 size;
+  __u64 id;
+  __u64 flags;
+  __u64 kernel_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>id</varname></term>
+        <listitem><para>
+          The bus ID.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          The bus flags as specified when it was created.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            Metadata information is stored in items here. The item list
+            contains a <varname>KDBUS_ITEM_MAKE_NAME</varname> item that
+            indicates the bus name of the calling connection.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      Once the caller is finished with parsing the return buffer, it needs to
+      employ the <varname>KDBUS_CMD_FREE</varname> command for the offset, in
+      order to free the buffer part. See
+      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for futher information.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Updating connection details</title>
+    <para>
+      Some of a connection's details can be updated with the 
+      <varname>KDBUS_CMD_CONN_UPDATE</varname> ioctl, using the file
+      descriptor that was used to create the connection. The update command
+      uses the following struct.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_update {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+           Currently, no flags are supported. Reserved for future use.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            Items to describe the connection details to be updated. The
+            following item types are supported.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_ATTACH_FLAGS_SEND</varname></term>
+              <listitem>
+                <para>
+                  Supply a new set of items that this connection permits to be
+                  sent along with messages.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_ATTACH_FLAGS_RECV</varname></term>
+              <listitem>
+                <para>
+                  Supply a new set of items to be attached to each message.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_NAME</varname></term>
+              <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+              <listitem>
+                <para>
+                  Policy holder connections may supply a new set of policy
+                  information with these items. For other connection types,
+                  <varname>-EOPNOTSUPP</varname> is returned.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Monitor connections ('eavesdropper')</title>
+    <para>
+      Eavesdropping connections are created by setting the
+      <varname>KDBUS_HELLO_MONITOR</varname> flag in
+      <varname>struct kdbus_hello.flags</varname>.
+      Such connections have all properties of any other, regular connection,
+      except for the following details:
+    </para>
+
+    <itemizedlist mark='opencircle'>
+      <listitem><para>
+        They will get every message sent over the bus, both unicasts and
+        broadcasts.
+      </para></listitem>
+
+      <listitem><para>
+        Installing matches for signal messages is neither necessary
+        nor allowed.
+      </para></listitem>
+
+      <listitem><para>
+        They cannot send messages or be directly addressed as receiver
+      </para></listitem>
+
+      <listitem><para>
+        Their creation and destruction will not cause
+        <varname>KDBUS_ITEM_ID_{ADD,REMOVE}</varname> notifications to be
+        generated, so other connections cannot detect the presence of an
+        eavesdropper.
+      </para></listitem>
+    </itemizedlist>
+  </refsect1>
+
+  <refsect1>
+    <title>Termination of connections</title>
+    <para>
+      A connection can be terminated by simply calling
+      <citerefentry><refentrytitle>close</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      on its file descriptor. All pending incoming messages will be discarded,
+      and the memory allocated by the pool will be freed.
+    </para>
+
+    <para>
+      An alternative way of closing down a connection is via the
+      <varname>KDBUS_CMD_BYEBYE</varname> ioctl. This ioctl will succeed only
+      if the message queue of the connection is empty at the time of closing;
+      otherwise, <varname>-EBUSY</varname> is returned. When this ioctl returns
+      successfully, the connection has been terminated and won't accept any new
+      messages from remote peers. This way, a connection can be terminated
+      race-free, without losing any messages.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all metioned ioctl commands return 0.
+    </para>
+
+    <para>
+      <varname>KDBUS_CMD_HELLO</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EFAULT</varname></term>
+        <listitem><para>
+          The supplied pool size was 0 or not a multiple of the page size.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          The flags supplied in <varname>struct kdbus_cmd_make</varname> are
+          invalid, or an illegal combination of
+          <varname>KDBUS_HELLO_MONITOR</varname>,
+          <varname>KDBUS_HELLO_ACTIVATOR</varname> and
+          <varname>KDBUS_HELLO_POLICY_HOLDER</varname> was passed in the flags,
+          or an invalid set of items was supplied.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ECONNREFUSED</varname></term>
+        <listitem><para>
+          The attach_flags_send field did not satisfy the requirements of
+          the bus.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EPERM</varname></term>
+        <listitem><para>
+          A <varname>KDBUS_ITEM_CREDS</varname> items was supplied, but the
+          current user is not privileged.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ESHUTDOWN</varname></term>
+        <listitem><para>
+          The bus you were trying to connect to has already been shut down.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EMFILE</varname></term>
+        <listitem><para>
+          The maximum number of connections on the bus has been reached.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EOPNOTSUPP</varname></term>
+        <listitem><para>
+          The endpoint does not support the connection flags supplied in
+          <varname>struct kdbus_cmd_hello</varname>.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      <varname>KDBUS_CMD_BYEBYE</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EALREADY</varname></term>
+        <listitem><para>
+          The connection has already been shut down.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EBUSY</varname></term>
+        <listitem><para>
+          There are still messages queued up in the connection's pool.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      <varname>KDBUS_CMD_CONN_INFO</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Invalid flags, or neither an ID nor a name was provided, or the
+          name is invalid.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ESRCH</varname></term>
+        <listitem><para>
+          Connection lookup by name failed.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ENXIO</varname></term>
+        <listitem><para>
+          No connection with the provided connection ID found.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      <varname>KDBUS_CMD_CONN_UPDATE</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Illegal flags or items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Wildcards submitted in policy entries, or illegal sequence
+          of policy items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EOPNOTSUPP</varname></term>
+        <listitem><para>
+          Operation not supported by connection.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-E2BIG</varname></term>
+        <listitem><para>
+          Too many policy items attached.
+        </para></listitem>
+      </varlistentry>
+
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>

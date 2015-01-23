@@ -1,0 +1,624 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus">
+
+  <refentryinfo>
+    <title>kdbus</title>
+    <productname>kdbus</productname>
+
+    <authorgroup>
+      <author>
+        <contrib>Developer</contrib>
+        <firstname>David</firstname>
+        <surname>Herrmann</surname>
+        <email>dh.herrmann@gmail.com</email>
+      </author>
+    </authorgroup>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus</refname>
+    <refpurpose>Kernel Message Bus</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      kdbus is an inter-process communication bus system
+      controlled by the kernel. It provides user-space with a bus API
+      to send unicast and multicast messages to one, or many, peers
+      connected to the same bus.
+      It does not enforce any layout on the transmitted data, but
+      only provides the transport layer used for message interchange
+      between peers.
+    </para>
+
+    <para>
+      kdbus provides a pseudo file-system called
+      <emphasis>kdbusfs</emphasis>, which is usually mounted on
+      <filename>/sys/fs/kdbus</filename>. Buses and their endpoints
+      can be accessed as sub-directories and files underneath this
+      mount-point. Any advanced operations are done via
+      <function>ioctl()</function> on files created by
+      <emphasis>kdbusfs</emphasis>. Multiple mount-points of
+      <emphasis>kdbusfs</emphasis> are independent of each other.
+      This allows namespacing of kdbus by mounting a new instance of
+      <emphasis>kdbusfs</emphasis> in a mount-namespace. kdbus calls
+      these domains and each mount has its own kdbus domain, with
+      each bus being linked to exactly one parent domain.
+    </para>
+
+    <para>
+      Please note that kdbus was designed as transport layer for D-Bus, but is
+      in no way limited, nor controlled by the D-Bus protocol specification.
+      The D-Bus protocol is one possible application layer on top of kdbus.
+    </para>
+
+    <para>
+      For the general D-Bus protocol specification, the payload format, the
+      marshaling, and the communication semantics, please refer to the
+      <ulink url="http://dbus.freedesktop.org/doc/dbus-specification.html">
+      D-Bus specification</ulink>.
+    </para>
+
+  </refsect1>
+
+  <refsect1>
+    <title>Terminology</title>
+
+    <refsect2>
+      <title>Bus</title>
+      <para>
+        A bus is a named object inside a domain. Clients exchange messages
+        over a bus. Multiple buses themselves have no connection to each other;
+        messages can only be exchanged on the same bus. The default endpoint of
+        a bus, to which clients establish connections to, is the "bus" file
+        /sys/fs/kdbus/&lt;bus name&gt;/bus.
+        Common operating system setups create one "system bus" per system,
+        and one "user bus" for every logged-in user. Applications or services
+        may create their own private buses. The kernel driver does not
+        distinguish between different bus types, they are all handled the same
+        way.
+        See
+        <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Endpoint</title>
+      <para>
+        An endpoint provides a file to talk to a bus. Opening an endpoint
+        creates a new connection to the bus to which the endpoint belongs. All
+        endpoints have unique names and are accessible as files underneath the
+        directory of a bus, e.g., /sys/fs/kdbus/&lt;bus&gt;/&lt;endpoint&gt;
+        Every bus has a default endpoint called "bus".
+        A bus can optionally offer additional endpoints with custom names
+        to provide restricted access to the bus. Custom endpoints carry
+        additional policy which can be used to create sandboxes with
+        locked-down, limited, filtered access to a bus.
+        See
+        <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Connection</title>
+      <para>
+        A connection to a bus is created by opening an endpoint file of a
+        bus and becoming an active client with the <varname>HELLO</varname>
+        exchange. Every ordinary client connection has a unique identifier on
+        the bus and can address messages to every other connection on the same
+        bus by using the peer's connection ID as the destination.
+        See
+        <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Pool</title>
+      <para>
+        Each connection allocates a piece of shmem-backed memory that is
+        used to receive messages and answers to ioctl commands from the kernel.
+        It is never used to send anything to the kernel. In order to access that
+        memory, a userspace application must mmap() it into its address space.
+        See section 12 for more details.
+        See
+        <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Well-known Name</title>
+      <para>A connection can, in addition to its implicit unique connection ID, request
+        the ownership of a textual well-known name. Well-known names are noted in
+        reverse-domain notation, such as com.example.service1. A connection that
+        offers a service on a bus is usually reached by its well-known name. The
+        analogy of connection ID and well-known name is an IP address and a DNS
+        name associated with that address.
+        See
+        <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Message</title>
+      <para>
+        Connections can exchange messages with other connections by addressing
+        the peers with their connection ID or well-known name. A message consists
+        of a message header with information on how to route the message, and the
+        message payload, which is a logical byte stream of arbitrary size.
+        Messages can carry additional file descriptors to be passed from one
+        connection to another, just like passing file descriptors over UNIX domain
+        sockets. Every connection can specify which set of metadata the kernel
+        should attach to the message when it is delivered to the receiving
+        connection. Metadata contains information like: system timestamps, UID, GID,
+        TID, proc-starttime, well-known names, process comm, process exe, process
+        argv, cgroup, capabilities, seclabel, audit session, loginuid and the
+        connection's human-readable name. See section 7 and 13 for more details.
+        See
+        <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Item</title>
+      <para>
+        The API of kdbus implements the notion of items, submitted through and
+        returned by most ioctls, and stored inside data structures in the
+        connection's pool. See section 4 for more details.
+        See
+        <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Broadcast, signal, filter, match</title>
+      <para>
+        Signals are messages that a receiver opts in for by installing a blob of
+        bytes, called a 'match'. Signal messages must always carry a counter-part
+        blob, called a 'filter', and signals are only delivered to peers which have
+        a match that whitelists the message's filter.
+        Senders of signal messages can use either a single connection ID as
+        receiver, or KDBUS_DST_ID_BROADCAST to potentially send it to all
+        connections of a bus, following the logic described above.
+        See
+        <citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
+        <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Policy</title>
+      <para>
+        A policy is a set of rules that define which connections can see, talk to,
+        or register a well-known name on the bus. A policy is attached to buses and
+        custom endpoints, and modified by policy holder connections or owners of
+        custom endpoints. See section 11 for more details.
+        See
+        <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Privileged bus users</title>
+      <para>
+        A user connecting to the bus is considered privileged if it is either the
+        creator of the bus, or if it has the CAP_IPC_OWNER capability flag set.
+        See
+        <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more details.
+      </para>
+    </refsect2>
+
+  </refsect1>
+
+  <refsect1>
+    <title>The ioctl interface</title>
+
+    <para>kdbus exposes its functions exclusively through
+      <citerefentry><refentrytitle>ioctl</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      through file descriptors returned by
+      <citerefentry><refentrytitle>open</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      on pseudo files exposed by
+      <citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+    </para>
+    <para>
+      Following is a list of all the ioctls.
+    </para>
+    <programlisting>
+0x40209500     KDBUS_CMD_BUS_MAKE           struct kdbus_cmd_make *
+0x40209510     KDBUS_CMD_ENDPOINT_MAKE      struct kdbus_cmd_make *
+0xc0689520     KDBUS_CMD_HELLO              struct kdbus_cmd_hello *
+0x00009521     KDBUS_CMD_BYEBYE
+0xc0489530     KDBUS_CMD_SEND               struct kdbus_cmd_send *
+0xc0489531     KDBUS_CMD_RECV               struct kdbus_cmd_recv *
+0x40289532     KDBUS_CMD_FREE               struct kdbus_cmd_free *
+0xc0209540     KDBUS_CMD_NAME_ACQUIRE       struct kdbus_cmd_name *
+0x40209541     KDBUS_CMD_NAME_RELEASE       struct kdbus_cmd_name *
+0xc0309542     KDBUS_CMD_NAME_LIST          struct kdbus_cmd_name_list *
+0xc0389550     KDBUS_CMD_CONN_INFO          struct kdbus_cmd_info *
+0x40209551     KDBUS_CMD_CONN_UPDATE        struct kdbus_cmd_update *
+0xc0389552     KDBUS_CMD_BUS_CREATOR_INFO   struct kdbus_cmd_info *
+0x40209561     KDBUS_CMD_ENDPOINT_UPDATE    struct kdbus_cmd_update *
+0x40289570     KDBUS_CMD_MATCH_ADD          struct kdbus_cmd_match *
+0x40289571     KDBUS_CMD_MATCH_REMOVE       struct kdbus_cmd_match *
+    </programlisting>
+
+    <para>
+      These ioctls, along with the structs they transport, are explained in
+      detail in the other documents linked to in the 'see also' section below.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Data structures and interconnections</title>
+    <programlisting><![CDATA[
+  +--------------------------------------------------------------------------+
+  | Domain (Mount Point)                                                     |
+  | /sys/fs/kdbus/control                                                    |
+  | +----------------------------------------------------------------------+ |
+  | | Bus (System Bus)                                                     | |
+  | | /sys/fs/kdbus/0-system/                                              | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | | Endpoint                      | | Endpoint                       | | |
+  | | | /sys/fs/kdbus/0-system/bus    | | /sys/fs/kdbus/0-system/ep.app  | | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
+  | | | Connection   | | Connection   | | Connection   | | Connection    | | |
+  | | | :1.22        | | :1.25        | | :1.55        | | :1.81         | | |
+  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
+  | +----------------------------------------------------------------------+ |
+  |                                                                          |
+  | +----------------------------------------------------------------------+ |
+  | | Bus (User Bus for UID 2702)                                          | |
+  | | /sys/fs/kdbus/2702-user/                                             | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | | Endpoint                      | | Endpoint                       | | |
+  | | | /sys/fs/kdbus/2702-user/bus   | | /sys/fs/kdbus/2702-user/ep.app | | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
+  | | | Connection   | | Connection   | | Connection   | | Connection    | | |
+  | | | :1.22        | | :1.25        | | :1.55        | | :1.81         | | |
+  | | +--------------+ +--------------+ +--------------------------------+ | |
+  | +----------------------------------------------------------------------+ |
+  +--------------------------------------------------------------------------+
+    ]]></programlisting>
+  </refsect1>
+
+  <refsect1>
+    <title>Bus Layout</title>
+
+    <para>A bus
+      (<citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
+      provides and defines an environment that peers can connect to
+      for message interchange. A bus is created via the kdbus
+      control interface and can be modified by the bus creator. It
+      applies the policy that control all bus operations. The bus
+      creator itself does not participate as a peer.
+      To establish a peer connection
+      (<citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
+      you have to open one of the endpoints
+      (<citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
+      of a bus. Each bus provides a default endpoint, but further
+      endpoints can be created on-demand. Endpoints are used to apply
+      additional policies for all connections on this endpoint. Thus,
+      they provide additional filters to further restrict access of
+      specific connections to the bus.
+    </para>
+
+    <para>
+      Following, you can see an example bus layout:
+    </para>
+
+    <programlisting><![CDATA[
+                                          Bus Creator
+                                               |
+                                               |
+                                            +-----+
+                                            | Bus |
+                                            +-----+
+                                               |
+                    __________________________/ \__________________________
+                   /                                                       \
+                   |                                                       |
+             +----------+                                             +----------+
+             | Endpoint |                                             | Endpoint |
+             +----------+                                             +----------+
+         _________/|\_________                                   _________/|\_________
+        /          |          \                                 /          |          \
+        |          |          |                                 |          |          |
+        |          |          |                                 |          |          |
+   Connection  Connection  Connection                      Connection  Connection  Connection
+    ]]></programlisting>
+
+  </refsect1>
+
+  <refsect1>
+    <title>Metadata</title>
+    <para>
+      kdbus records data about the system in certain situations. Such metadata
+      can refer to the currently active process (creds, PIDs, current user
+      groups, process names and its executable path, cgroup membership,
+      capabilities, security label and audit information), connection
+      information (description string, currently owned names) and timestamps.
+    </para>
+    <para>
+      Metadata is collected in the following circumstances.
+    </para>
+
+    <itemizedlist mark='opencircle'>
+      <listitem><para>
+        When a bus is created (<varname>KDBUS_CMD_MAKE</varname>), information
+        about the calling task is collected. This data is returned by the
+        kernel via the <varname>KDBUS_CMD_BUS_CREATOR_INFO</varname> call.
+      </para></listitem>
+
+      <listitem><para>
+        When a connection is created (<varname>KDBUS_CMD_HELLO</varname>),
+        information about the calling task is collected. Alternatively, a
+        privileged connection may provide 'faked' information about credentials,
+        PIDs and security labels which will be taken instead. This data is
+        returned by the kernel as information on a connection
+        (<varname>KDBUS_CMD_CONN_INFO</varname>).
+      </para></listitem>
+
+      <listitem><para>
+        When a message is sent (<varname>KDBUS_CMD_SEND</varname>), information
+        about the sending task and the sending connection are collected.
+        This metadata will be attached to the message when it arrives in the
+        receiver's pool. If the connection sending the message installed faked
+        credentials (see 
+        <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
+        the message will not be augmented by any information about the
+        currently sending task.
+      </para></listitem>
+    </itemizedlist>
+
+    <para>
+      Which metadata items are actually delivered depends on the following
+      sets and masks:
+    </para>
+
+    <itemizedlist mark='none'>
+      <listitem><para>
+        (a) the system-wide kmod creds mask
+        (module parameter <varname>attach_flags_mask</varname>)
+      </para></listitem>
+
+      <listitem><para>
+        (b) the per-connection send creds mask, set by the connecting client
+      </para></listitem>
+
+      <listitem><para>
+        (c) the per-connection receive creds mask, set by the connecting client
+      </para></listitem>
+
+      <listitem><para>
+        (d) the per-bus minimal creds mask, set by the bus creator
+      </para></listitem>
+
+      <listitem><para>
+        (e) the per-bus owner creds mask, set by the bus creator
+      </para></listitem>
+
+      <listitem><para>
+        (f) the mask specified when querying creds of a bus peer
+      </para></listitem>
+
+      <listitem><para>
+        (g) the mask specified when querying creds of a bus owner
+      </para></listitem>
+    </itemizedlist>
+
+    <para>
+      With the following rules:
+    </para>
+
+    <itemizedlist mark='none'>
+      <listitem><para>
+        [1] The creds attached to messages are determined as
+        (a &amp; b &amp; c).
+      </para></listitem>
+
+      <listitem><para>
+        [2] When connecting to a bus (<varname>KDBUS_CMD_HELLO</varname>), and
+        (~b &amp; d) != 0, the call will fail, the connection is refused.
+      </para></listitem>
+
+      <listitem><para>
+        [3] When querying creds of a bus peer, the creds returned are
+        (a &amp; b &amp; f)
+      </para></listitem>
+
+      <listitem><para>
+        [4] When querying creds of a bus owner, the creds returned are
+        (a &amp; e &amp; g)
+      </para></listitem>
+
+      <listitem><para>
+        [5] When creating a new bus, and (d &amp; ~a) != 0, then bus creation
+        will fail
+      </para></listitem>
+    </itemizedlist>
+
+    <para>
+      Hence, userspace might not always get all requested metadata items that
+      it requested. Code must be written so that it can cope with this fact.
+    </para>
+
+    <refsect2>
+      <title>Known metadata item types</title>
+      <para>
+        To let the kernel know which metadata information to attach as items
+        to the afformentioned commands, it uses a bitmask. In those, the
+        following <emphasis>attach flags</emphasis> are currently supported.
+      </para>
+
+      <variablelist>
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_TIMESTAMP</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_TIMESTAMP</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_CREDS</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_CREDS</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_PIDS</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_PIDS</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_AUXGROUPS</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_AUXGROUPS</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_NAMES</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_OWNED_NAME</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_TID_COMM [*]</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_TID_COMM</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_PID_COMM [*]</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_PID_COMM</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_EXE [*]</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_EXE</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_CMDLINE</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_CMDLINE</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_CGROUP</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_CGROUP</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_CAPS</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_CAPS</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_SECLABEL</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_SECLABEL</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_AUDIT</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_AUDIT</varname>.
+            </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>KDBUS_ATTACH_CONN_DESCRIPTION</varname></term>
+            <listitem><para>
+              Requests the attachment of an item of type
+              <varname>KDBUS_ITEM_CONN_DESCRIPTION</varname>.
+            </para></listitem>
+        </varlistentry>
+      </variablelist>
+
+      <para>
+        Please refer to
+        <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for detailed information about the layout any payload of items.
+      </para>
+
+      <para>
+        [*] Note that the content stored in these items can easily be tampered
+        by the sending tasks. Therefore, they should <emphasis>not</emphasis>
+        be used for any sort of security relevant assumptions. The only reason
+        why they are transmitted is to let receivers know about details that
+        were set when metadata was collected, even though the task they were
+        collected from is not active any longer when the items are received.
+      </para>
+    </refsect2>
+
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>ioctl</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>open</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>close</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><ulink url="http://freedesktop.org/wiki/Software/dbus">D-Bus</ulink></member>
+    </simplelist>
+  </refsect1>
+
+</refentry>

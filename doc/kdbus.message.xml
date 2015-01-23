@@ -1,0 +1,1030 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.message">
+
+  <refentryinfo>
+    <title>kdbus.message</title>
+    <productname>kdbus.message</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.message</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.message</refname>
+    <refpurpose>kdbus message</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      Messages are passed to the kernel with the <varname>KDBUS_CMD_SEND</varname>
+      ioctl. Depending on the destination address of the message, the kernel
+      delivers the message to the specific destination connection, or to all
+      connections on the same bus.
+      Sending messages across buses is not possible. Messages are always queued in
+      the memory pool of the destination connection (see below).
+    </para>
+
+    <para>
+      The <varname>KDBUS_CMD_SEND</varname> ioctl uses a
+      <varname>struct kdbus_cmd_send</varname> to describe the message
+      transfer.
+    </para>
+    <programlisting>
+struct kdbus_cmd_send {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 kernel_msg_flags;
+  __u64 return_flags;
+  __u64 msg_address;
+  struct kdbus_msg_info reply;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>Flags for message delivery</para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_SEND_SYNC_REPLY</varname></term>
+              <listitem>
+                <para>
+                  By default, all calls to kdbus are considered asynchronous,
+                  non-blocking. However, as there are many use cases that need to wait
+                  for a remote peer to answer a method call, there's a way to send a
+                  message and wait for a reply in a synchronous fashion. This is what
+                  the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
+                  until the reply has arrived, the timeout limit is reached, in case the
+                  remote connection was shut down, or if interrupted by a signal before
+                  any reply; see signal(7).
+
+                  The offset of the reply message in the sender's pool is stored in in
+                  'offset_reply' when the ioctl has returned without error. Hence, there
+                  is no need for another KDBUS_CMD_RECV ioctl or anything else to receive
+                  the reply.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>msg_address</varname></term>
+        <listitem><para>
+          In this field, userspace has to provide a pointer to a message
+          (<varname>struct kdbus_msg</varname>) to send. See below for a
+          detailed description.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>reply</varname></term>
+        <listitem><para>
+          Only used for synchronous replies. See description of
+          <varname>struct kdbus_cmd_recv</varname> for more details.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            The following items are currently recognized.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_CANCEL_FD</varname></term>
+              <listitem>
+                <para>
+                  When this optional item is passed in, and the call is executed as SYNC
+                  call, the passed in file descriptor can be used as alternative
+                  cancellation point. The kernel will call poll() on this file descriptor,
+                  and if it reports any incoming bytes, the blocking send operation will
+                  be canceled, and the call will return -ECANCELED. Any type of file
+                  descriptor that implements poll() can be used as payload to this item.
+                  For asynchronous message sending, this item is accepted but ignored.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+          <para>
+            All other items are rejected, and the ioctl will fail with -EINVAL.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      The fields in this struct are described below.
+      The message referenced the <varname>msg_address</varname> above has
+      the following layout.
+    </para>
+
+    <programlisting>
+struct kdbus_msg {
+  __u64 size;
+  __u64 flags;
+  __s64 priority;
+  __u64 dst_id;
+  __u64 src_id;
+  __u64 payload_type;
+  __u64 cookie;
+  __u64 timeout_ns;
+  __u64 cookie_reply;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>Flags to describe message details.</para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_MSG_EXPECT_REPLY</varname></term>
+              <listitem>
+                <para>
+                  Expect a reply to this message from the remote peer. With this bit set,
+                  the timeout_ns field must be set to a non-zero number of nanoseconds in
+                  which the receiving peer is expected to reply. If such a reply is not
+                  received in time, the sender will be notified with a timeout message
+                  (see below). The value must be an absolute value, in nanoseconds and
+                  based on <varname>CLOCK_MONOTONIC</varname>.
+                </para><para>
+                  For a message to be accepted as reply, it must be a direct message to
+                  the original sender (not a broadcast), and its kdbus_msg.reply_cookie
+                  must match the previous message's kdbus_msg.cookie.
+                </para><para>
+                  Expected replies also temporarily open the policy of the sending
+                  connection, so the other peer is allowed to respond within the given
+                  time window.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_MSG_NO_AUTO_START</varname></term>
+              <listitem>
+                <para>
+                  By default, when a message is sent to an activator connection, the
+                  activator is notified and will start an implementer. This flag inhibits
+                  that behavior. With this bit set, and the remote being an activator,
+                  <varname>-EADDRNOTAVAIL</varname> is returned from the ioctl.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>priority</varname></term>
+        <listitem><para>
+          The priority of this message. Receiving messages (see below) may
+          optionally be constrained to messages of a minimal priority. This
+          allows for use cases where timing critical data is interleaved with
+          control data on the same connection. If unused, the priority field
+          should be set to zero.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>dst_id</varname></term>
+        <listitem><para>
+          The numeric ID of the destination connection, or
+          <varname>KDBUS_DST_ID_BROADCAST</varname>
+          (~0ULL) to address every peer on the bus, or
+          <varname>KDBUS_DST_ID_NAME</varname> (0) to look
+          it up dynamically from the bus' name registry.
+          In the latter case, an item of type
+          <varname>KDBUS_ITEM_DST_NAME</varname> is mandatory.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>src_id</varname></term>
+        <listitem><para>
+          Upon return of the ioctl, this member will contain the sending
+          connection's numerical ID. Should be 0 at send time.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>payload_type</varname></term>
+        <listitem><para>
+          Type of the payload in the actual data records. Currently, only
+          <varname>KDBUS_PAYLOAD_DBUS</varname> is accepted as input value
+          of this field. When receiving messages that are generated by the
+          kernel (notifications), this field will contain
+          <varname>KDBUS_PAYLOAD_KERNEL</varname>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>cookie</varname></term>
+        <listitem><para>
+          Cookie of this message, for later recognition. Also, when replying
+          to a message (see above), the <varname>cookie_reply</varname>
+          field must match this value.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>timeout_ns</varname></term>
+        <listitem><para>
+          If the message sent requires a reply from the remote peer (see above),
+          this field contains the timeout in absolute nanoseconds based on
+          <varname>CLOCK_MONOTONIC</varname>. Also see
+          <citerefentry><refentrytitle>clock_gettime</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>cookie_reply</varname></term>
+        <listitem><para>
+          If the message sent is a reply to another message, this field must
+          match the cookie of the formerly received message.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            A dynamically sized list of items to contain additional information.
+            The following items are expected/valid:
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_PAYLOAD_VEC</varname></term>
+              <term><varname>KDBUS_ITEM_PAYLOAD_MEMFD</varname></term>
+              <term><varname>KDBUS_ITEM_FDS</varname></term>
+              <listitem>
+                <para>
+                  Actual data records containing the payload. See section
+                  "Passing of Payload Data".
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_BLOOM_FILTER</varname></term>
+              <listitem>
+                <para>
+                  Bloom filter for matches (see below).
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_DST_NAME</varname></term>
+              <listitem>
+                <para>
+                  Well-known name to send this message to. Required if
+                  <varname>dst_id</varname> is set to
+                  <varname>KDBUS_DST_ID_NAME</varname>.
+                  If a connection holding the given name can't be found,
+                  <varname>-ESRCH</varname> is returned.
+                </para>
+                <para>
+                  For messages to a unique name (ID), this item is optional. If present,
+                  the kernel will make sure the name owner matches the given unique name.
+                  This allows userspace tie the message sending to the condition that a
+                  name is currently owned by a certain unique name.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      The message will be augmented by the requested metadata items when
+      queued into the receiver's pool. See TODO!
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Message layout</title>
+
+    <para>The layout of a message is shown below.</para>
+
+    <programlisting>
+  +-------------------------------------------------------------------------+
+  | Message                                                                 |
+  | +---------------------------------------------------------------------+ |
+  | | Header                                                              | |
+  | | size:          overall message size, including the data records     | |
+  | | destination:   connection ID of the receiver                        | |
+  | | source:        connection ID of the sender (set by kernel)          | |
+  | | payload_type:  "DBusDBus" textual identifier stored as uint64_t     | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | Data Record                                                         | |
+  | | size:  overall record size (without padding)                        | |
+  | | type:  type of data                                                 | |
+  | | data:  reference to data (address or file descriptor)               | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | padding bytes to the next 8 byte alignment                          | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | Data Record                                                         | |
+  | | size:  overall record size (without padding)                        | |
+  | | ...                                                                 | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | padding bytes to the next 8 byte alignment                          | |
+  | +---------------------------------------------------------------------+ |
+  | +---------------------------------------------------------------------+ |
+  | | Data Record                                                         | |
+  | | size:  overall record size                                          | |
+  | | ...                                                                 | |
+  | +---------------------------------------------------------------------+ |
+  |   ... further data records ...                                          |
+  +-------------------------------------------------------------------------+
+    </programlisting>
+  </refsect1>
+
+  <refsect1>
+    <title>Passing of Payload Data</title>
+
+    <para>
+      When connecting to the bus, receivers request a memory pool of a given size,
+      large enough to carry all backlog of data enqueued for the connection. The
+      pool is internally backed by a shared memory file which can be mmap()ed by
+      the receiver.
+    </para>
+    <para>
+      See
+      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information.
+    </para>
+
+    <para>
+      The following items are used to carry the actual data payload of a message.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>KDBUS_MSG_PAYLOAD_VEC</varname></term>
+        <listitem>
+          <para>
+            Messages are directly copied by the sending process into the receiver's pool.
+            This way, two peers can exchange data by effectively doing a single-copy from
+            one process to another; the kernel will not buffer the data anywhere else.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>KDBUS_MSG_PAYLOAD_MEMFD</varname></term>
+        <listitem>
+          <para>
+            Messages can reference <emphasis>memfd</emphasis> files which contain the data.
+            memfd files are tmpfs-backed files that allow sealing of the content of the
+            file, which prevents all writable access to the file content.
+          </para>
+          <para>
+            Only memfds that have
+            <varname>(F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_WRITE|F_SEAL_SEAL)</varname>
+            set are accepted as payload data, which enforces reliable passing of data.
+            The receiver can assume that neither the sender nor anyone else can alter the
+            content after the message is sent.
+          </para>
+          <para>
+            Apart from the sender filling-in the content into memfd files, the data will
+            be passed as zero-copy from one process to another, read-only, shared between
+            the peers.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      The sender must not make any assumptions on the type in which data is received
+      by the remote peer. The kernel is free to re-pack multiple VEC and MEMFD
+      payloads. For instance, the kernel may decide to merge multiple VECs into a
+      single VEC, inline MEMFD payloads into memory or merge all passed VECs into a
+      single MEMFD. However, the kernel preserves the order of passed data. This
+      means that the order of all VEC and MEMFD items is not changed in respect to
+      each other.
+    </para>
+    <para>
+      In other words: All passed VEC and MEMFD data payloads are treated as a single
+      stream of data that may be received by the remote peer in a different set of
+      hunks than it was sent as.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Receiving messages</title>
+
+    <para>
+      Messages are received by the client with the KDBUS_CMD_RECV ioctl.
+      The endpoint file of the bus supports <emphasis>poll/epoll/select</emphasis>
+      to wake up the receiving process when new messages are queued up to be received.
+    </para>
+
+    <para>
+      With the KDBUS_CMD_RECV ioctl, a <varname>struct kdbus_cmd_recv</varname> is used.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_recv {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  __s64 priority;
+  __u64 dropped_msgs;
+  struct kdbus_msg_info msg;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>Flags to control the receive command.</para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_RECV_PEEK</varname></term>
+              <listitem>
+                <para>
+                  Just return the location of the next message. Do not install 
+                  file descriptors or anything else. This is usually used to
+                  determine the sender of the next queued message.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_RECV_DROP</varname></term>
+              <listitem>
+                <para>
+                  Drop the next message without doing anything else with it,
+                  and free the pool slice. This a short-cut for
+                  <varname>KDBUS_RECV_PEEK</varname> and
+                  <varname>KDBUS_CMD_FREE</varname>.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_RECV_USE_PRIORITY</varname></term>
+              <listitem>
+                <para>
+                  Dequeue the messages ordered by their priority, and filtering
+                  them with the priority field (see below).
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>priority</varname></term>
+        <listitem><para>
+          With <varname>KDBUS_RECV_USE_PRIORITY</varname> set in
+          <varname>flags</varname>, messages will be dequeued ordered by their
+          priority, starting with the highest value. Also, messages will be
+          filtered by the value given in this field, so the returned message
+          will at least have the requested priority. If no such message is
+          waiting in the queue, <varname>-ENOMSG</varname> is returned.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>dropped_msgs</varname></term>
+        <listitem><para>
+          If the <varname>CMD_RECV</varname> ioctl fails with 
+          <varname>-EOVERFLOW</varname>, this field is filled by
+          the kernel with the number of messages that couldn't be transmitted
+          to this receiving connection. In that case, the
+          <varname>offset</varname> member must not be accessed.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>msg</varname></term>
+        <listitem><para>
+          Embedded struct containing information on the received message when
+          this command succeeded (see below).
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem><para>
+          Items to specify further details for the receive command.
+          Currently unused, and all items will be rejected with
+          <varname>-EINVAL</varname>,
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      Both <varname>struct kdbus_cmd_recv</varname> and 
+      <varname>struct kdbus_cmd_send</varname> embed 
+      <varname>struct kdbus_msg_info</varname>.
+      For the <varname>KDBUS_CMD_SEND</varname> ioctl, it is used to catch
+      synchronous replies, if one was requested, and is unused otherwise.
+    </para>
+
+    <programlisting>
+struct kdbus_msg_info {
+  __u64 offset;
+  __u64 msg_size;
+  __u64 return_flags;
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>offset</varname></term>
+        <listitem><para>
+          Upon return of the ioctl, this field contains the offset in the receiver's
+          memory pool. The memory must be freed with
+          <varname>KDBUS_CMD_FREE</varname>. See
+          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          for further details.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>msg_size</varname></term>
+        <listitem><para>
+          Upon successful return of the ioctl, this field contains the size of the
+          allocated slice at offset <varname>offset</varname>.
+          It is the combination of the size of the stored
+          <varname>struct kdbus_msg</varname> object plus all appended VECs.
+          You can use it in combination with <varname>offset</varname> to map
+          a single message, instead of mapping the entire pool. See
+          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          for further details.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem>
+          <para>
+            Kernel-provided return flags. Currently, the following flags are defined.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_RECV_RETURN_INCOMPLETE_FDS</varname></term>
+              <listitem>
+                <para>
+                  The message contained file descriptors which couldn't be installed
+                  into the receiver's task. Most probably that happened because the
+                  maximum number of file descriptors for that task were exceeded.
+                  The message is still delivered, so this is not a fatal condition.
+                  File descriptors inside the <varname>KDBUS_ITEM_FDS</varname>
+                  item that could not be installed will be set to -1.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      Unless <varname>KDBUS_RECV_DROP</varname> was passed after a successful+
+      <varname>KDBUS_CMD_RECV</varname> ioctl, the <varname>offset</varname>
+      field contains the location of the new message inside the receiver's
+      pool. The message is stored as <varname>struct kdbus_msg</varname> at
+      this offset, and can be interpreted with the semantics described above.
+    </para>
+    <para>
+      Also, if the connection allowed for file descriptor to be passed
+      (<varname>KDBUS_HELLO_ACCEPT_FD</varname>), and if the message contained
+      any, they will be installed into the receiving process when the
+      <varname>KDBUS_CMD_RECV</varname> ioctl is called.
+      The receiving task is obliged to close all of them appropriately. If
+      <varname>KDBUS_RECV_PEEK</varname> is set, no file descriptors are
+      installed. This allows for peeking at a message and dropping it via
+      <varname>KDBUS_RECV_DROP</varname>, without installing the passed file
+      descriptors into the receiving process.
+    </para>
+    <para>
+      The caller is obliged to call the <varname>KDBUS_CMD_FREE</varname>
+      ioctl with the returned offset when the memory is no longer needed.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Notifications</title>
+    <para>
+      A kernel notification is a regular kdbus message with the following
+      details.
+    </para>
+
+    <itemizedlist mark='opencircle'>
+      <listitem><para>kdbus_msg.src_id == KDBUS_SRC_ID_KERNEL</para></listitem>
+      <listitem><para>kdbus_msg.dst_id == KDBUS_DST_ID_BROADCAST</para></listitem>
+      <listitem><para>kdbus_msg.payload_type == KDBUS_PAYLOAD_KERNEL</para></listitem>
+      <listitem><para>Has exactly one of the aforementioned items attached</para></listitem>
+    </itemizedlist>
+
+    <para>
+      Kernel notifications have an item of type KDBUS_ITEM_TIMESTAMP attached.
+    </para>
+
+    <para>
+      The kernel will notify its users of the following events.
+    </para>
+
+    <itemizedlist mark='opencircle'>
+      <listitem><para>
+        When connection A is terminated while connection B is waiting for a
+        reply from it, connection B is notified with a message with an item of
+        type <varname>KDBUS_ITEM_REPLY_DEAD</varname>.
+      </para></listitem>
+
+      <listitem><para>
+        When connection A does not receive a reply from connection B within the
+        specified timeout window, connection A will receive a message with an
+        item of type <varname>KDBUS_ITEM_REPLY_TIMEOUT</varname>.
+      </para></listitem>
+
+      <listitem><para>
+        When an ordinary connection (not a monitor) is created on or removed
+        from a bus, messages with an item of type
+        <varname>KDBUS_ITEM_ID_ADD</varname> or
+        <varname>KDBUS_ITEM_ID_REMOVE</varname>, respectively, are delivered
+        to all bus members that match these messages through their match
+        database. Eavesdroppers (monitor connections) do not cause such
+        notifications to be sent. They are invisible on the bus.
+      </para></listitem>
+
+      <listitem><para>
+        When a connection gains or loses ownership of a name, messages with an
+        item of type <varname>KDBUS_ITEM_NAME_ADD</varname>,
+        <varname>KDBUS_ITEM_NAME_REMOVE</varname> or
+        <varname>KDBUS_ITEM_NAME_CHANGE</varname> are delivered to all bus
+        members that match these messages through their match database.
+      </para></listitem>
+    </itemizedlist>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all metioned ioctl commands return 0.
+    </para>
+
+    <para>
+      <varname>KDBUS_CMD_SEND</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EOPNOTSUPP</varname></term>
+        <listitem><para>
+          The connection is not an ordinary connection, or the passed
+          file descriptors are either kdbus handles or unix domain
+          sockets. Both are currently unsupported.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          The submitted payload type is <varname>KDBUS_PAYLOAD_KERNEL</varname>,
+          <varname>KDBUS_MSG_EXPECT_REPLY</varname> was set without timeout or
+          cookie values, <varname>KDBUS_SEND_SYNC_REPLY</varname> was set
+          without <varname>KDBUS_MSG_EXPECT_REPLY</varname>, an invalid item
+          was supplied, <varname>src_id</varname> was non-zero and was
+          different from the current connection's ID, a supplied memfd had a
+          size of 0, or a string was not properly null-terminated.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ENOTUNIQ</varname></term>
+        <listitem><para>
+          The supplied destination is <varname>KDBUS_DST_ID_BROADCAST</varname>,
+          a file descriptor was passed, <varname>KDBUS_MSG_EXPECT_REPLY</varname>
+          was set, or a timeout was given for a broadcast message.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-E2BIG</varname></term>
+        <listitem><para>
+          Too many items
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EMSGSIZE</varname></term>
+        <listitem><para>
+          The size of the message header and items or the payload vector
+          is excessive.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EEXIST</varname></term>
+        <listitem><para>
+          Multiple <varname>KDBUS_ITEM_FDS</varname>,
+          <varname>KDBUS_ITEM_BLOOM_FILTER</varname> or
+          <varname>KDBUS_ITEM_DST_NAME</varname> items were supplied.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EBADF</varname></term>
+        <listitem><para>
+          The supplied <varname>KDBUS_ITEM_FDS</varname> or
+          <varname>KDBUS_ITEM_PAYLOAD_MEMFD</varname> items
+          contained an illegal file descriptor.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EMEDIUMTYPE</varname></term>
+        <listitem><para>
+          The supplied memfd is not a sealed kdbus memfd.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EMFILE</varname></term>
+        <listitem><para>
+          Too many file descriptors inside a <varname>KDBUS_ITEM_FDS</varname>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EBADMSG</varname></term>
+        <listitem><para>
+          An item had illegal size, both a <varname>dst_id</varname> and a
+          <varname>KDBUS_ITEM_DST_NAME</varname> was given, or both a name
+          and a bloom filter was given.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ETXTBSY</varname></term>
+        <listitem><para>
+          The supplied kdbus memfd file cannot be sealed or the seal
+          was removed, because it is shared with other processes or
+          still mapped with
+          <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ECOMM</varname></term>
+        <listitem><para>
+          A peer does not accept the file descriptors addressed to it.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EFAULT</varname></term>
+        <listitem><para>
+          The supplied bloom filter size was not 64-bit aligned or memory
+          supplied by userspace could not be accessed by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EDOM</varname></term>
+        <listitem><para>
+          The supplied bloom filter size did not match the bloom filter
+          size of the bus.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EDESTADDRREQ</varname></term>
+        <listitem><para>
+          <varname>dst_id</varname> was set to
+          <varname>KDBUS_DST_ID_NAME</varname>, but no
+          <varname>KDBUS_ITEM_DST_NAME</varname> was attached.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ESRCH</varname></term>
+        <listitem><para>
+          The name to look up was not found in the name registry.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EADDRNOTAVAIL</varname></term>
+        <listitem><para>
+          <varname>KDBUS_MSG_NO_AUTO_START</varname> was given but the
+          destination connection is an activator.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ENXIO</varname></term>
+        <listitem><para>
+          The passed numeric destination connection ID couldn't be found,
+          or is not connected.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ECONNRESET</varname></term>
+        <listitem><para>
+          The destination connection is no longer active.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ETIMEDOUT</varname></term>
+        <listitem><para>
+          Timeout while synchronously waiting for a reply.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EINTR</varname></term>
+        <listitem><para>
+          Interrupted system call  while synchronously waiting for a reply.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EPIPE</varname></term>
+        <listitem><para>
+          When sending a message, a synchronous reply from the receiving
+          connection was expected but the connection died before answering.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ENOBUFS</varname></term>
+        <listitem><para>
+          Too many pending messages on the receiver side.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EREMCHG</varname></term>
+        <listitem><para>
+          Both a well-known name and a unique name (ID) was given, but
+          the name is not currently owned by that connection.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EXFULL</varname></term>
+        <listitem><para>
+          The memory pool of the receiver is full.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EREMOTEIO</varname></term>
+        <listitem><para>
+          While synchronously waiting for a reply, the remote peer
+          failed with an I/O error.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      <varname>KDBUS_CMD_RECV</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EOPNOTSUPP</varname></term>
+        <listitem><para>
+          The connection is not an ordinary connection, or the passed
+          file descriptors are either kdbus handles or unix domain
+          sockets. Both are currently unsupported.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Invalid flags or offset.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EAGAIN</varname></term>
+        <listitem><para>
+          No message found in the queue
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-ENOMSG</varname></term>
+        <listitem><para>
+          No message of the requested priority found.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EOVERFLOW</varname></term>
+        <listitem><para>
+          Some messages have been lost.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>clock_gettime</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>ioctl</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>select</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>epoll</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>
