@@ -991,12 +991,12 @@ large enough to carry all backlog of data enqueued for the connection. The
 pool is internally backed by a shared memory file which can be mmap()ed by
 the receiver.
 
-KDBUS_MSG_PAYLOAD_VEC:
+KDBUS_ITEM_PAYLOAD_VEC:
   Messages are directly copied by the sending process into the receiver's pool.
   This way, two peers can exchange data by effectively doing a single-copy from
   one process to another; the kernel will not buffer the data anywhere else.
 
-KDBUS_MSG_PAYLOAD_MEMFD:
+KDBUS_ITEM_PAYLOAD_MEMFD:
   Messages can reference memfd files which contain the data.
   memfd files are tmpfs-backed files that allow sealing of the content of the
   file, which prevents all writable access to the file content.
@@ -2003,7 +2003,7 @@ For KDBUS_CMD_SEND:
 		is too big.
   -EEXIST	Multiple KDBUS_ITEM_FDS, KDBUS_ITEM_BLOOM_FILTER or
 		KDBUS_ITEM_DST_NAME items were supplied
-  -EBADF	The supplied KDBUS_ITEM_FDS or KDBUS_MSG_PAYLOAD_MEMFD items
+  -EBADF	The supplied KDBUS_ITEM_FDS or KDBUS_ITEM_PAYLOAD_MEMFD items
 		contained an illegal file descriptor
   -EMEDIUMTYPE	The supplied memfd is not a sealed kdbus memfd
   -EMFILE	Too many file descriptors inside a KDBUS_ITEM_FDS
