@@ -807,7 +807,7 @@ struct kdbus_cmd_send {
       non-blocking. However, as there are many use cases that need to wait
       for a remote peer to answer a method call, there's a way to send a
       message and wait for a reply in a synchronous fashion. This is what
-      the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
+      the KDBUS_SEND_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
       until the reply has arrived, the timeout limit is reached, in case the
       remote connection was shut down, or if interrupted by a signal before
       any reply; see signal(7).
@@ -1990,7 +1990,7 @@ For KDBUS_CMD_SEND:
 		sockets. Both are currently unsupported
   -EINVAL	The submitted payload type is KDBUS_PAYLOAD_KERNEL,
 		KDBUS_MSG_EXPECT_REPLY was set without timeout or cookie
-		values, KDBUS_MSG_SYNC_REPLY was set without
+		values, KDBUS_SEND_SYNC_REPLY was set without
 		KDBUS_MSG_EXPECT_REPLY, an invalid item was supplied,
 		src_id was non-zero and was different from the current
 		connection's ID, a supplied memfd had a size of 0, a string was
