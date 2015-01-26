@@ -230,6 +230,10 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	const char *name;
 	int ret;
 
+	lockdep_assert_held(&handle->lock);
+	if (WARN_ON(handle->type != KDBUS_HANDLE_EP_NONE))
+		return -EBADFD;
+
 	/* creating custom endpoints is a privileged operation */
 	if (!handle->privileged)
 		return -EPERM;
@@ -266,14 +270,8 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 		goto exit;
 
 	/* protect against parallel ioctls */
-	mutex_lock(&handle->lock);
-	if (handle->type != KDBUS_HANDLE_EP_NONE) {
-		ret = -EBADFD;
-	} else {
-		handle->type = KDBUS_HANDLE_EP_OWNER;
-		handle->ep_owner = ep;
-	}
-	mutex_unlock(&handle->lock);
+	handle->type = KDBUS_HANDLE_EP_OWNER;
+	handle->ep_owner = ep;
 
 exit:
 	if (ret < 0) {
@@ -289,6 +287,10 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 	struct kdbus_conn *conn = NULL;
 	struct kdbus_cmd_hello *hello;
 	int ret;
+
+	lockdep_assert_held(&handle->lock);
+	if (WARN_ON(handle->type != KDBUS_HANDLE_EP_NONE))
+		return -EBADFD;
 
 	hello = kdbus_enter_cmd(buf, struct kdbus_cmd_hello,
 				KDBUS_HELLO_ACCEPT_FD |
@@ -335,14 +337,8 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 	}
 
 	/* protect against parallel ioctls */
-	mutex_lock(&handle->lock);
-	if (handle->type != KDBUS_HANDLE_EP_NONE) {
-		ret = -EBADFD;
-	} else {
-		handle->type = KDBUS_HANDLE_EP_CONNECTED;
-		handle->conn = conn;
-	}
-	mutex_unlock(&handle->lock);
+	handle->type = KDBUS_HANDLE_EP_CONNECTED;
+	handle->conn = conn;
 
 exit:
 	if (ret < 0 && conn) {
@@ -716,27 +712,25 @@ static long handle_ep_ioctl(struct file *file, unsigned int cmd,
 			    unsigned long arg)
 {
 	struct kdbus_handle_ep *handle = file->private_data;
-	void __user *argp = (void __user *)arg;
 	enum kdbus_handle_ep_type type;
+	int ret = -EBADFD;
 
-	/* lock while accessing handle->type to enforce barriers */
+	/* While no type is set for this handle, we perform all ioctls locked.
+	 * Once a type is fixed, it will never change again, so we only need
+	 * the implicit memory-barrier provided by the mutex. */
+
 	mutex_lock(&handle->lock);
 	type = handle->type;
+	if (type == KDBUS_HANDLE_EP_NONE)
+		ret = handle_ep_ioctl_none(file, cmd, (void __user *)arg);
 	mutex_unlock(&handle->lock);
 
-	switch (type) {
-	case KDBUS_HANDLE_EP_NONE:
-		return handle_ep_ioctl_none(file, cmd, argp);
+	if (type == KDBUS_HANDLE_EP_CONNECTED)
+		ret = handle_ep_ioctl_connected(file, cmd, (void __user *)arg);
+	else if (type == KDBUS_HANDLE_EP_OWNER)
+		ret = handle_ep_ioctl_owner(file, cmd, (void __user *)arg);
 
-	case KDBUS_HANDLE_EP_CONNECTED:
-		return handle_ep_ioctl_connected(file, cmd, argp);
-
-	case KDBUS_HANDLE_EP_OWNER:
-		return handle_ep_ioctl_owner(file, cmd, argp);
-
-	default:
-		return -EBADFD;
-	}
+	return ret;
 }
 
 static unsigned int handle_ep_poll(struct file *file,
