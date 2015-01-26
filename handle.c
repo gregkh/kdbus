@@ -342,27 +342,35 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 {
 	struct kdbus_handle_ep *handle = file->private_data;
 	struct kdbus_conn *conn = handle->conn;
+	struct kdbus_conn *release_conn = NULL;
 	void *free_ptr = NULL;
 	long ret = 0;
-
-	/*
-	 * BYEBYE is special; we must not acquire a connection when
-	 * calling into kdbus_conn_disconnect() or we will deadlock,
-	 * because kdbus_conn_disconnect() will wait for all acquired
-	 * references to be dropped.
-	 */
-	if (cmd == KDBUS_CMD_BYEBYE) {
-		if (!kdbus_conn_is_ordinary(conn))
-			return -EOPNOTSUPP;
-
-		return kdbus_conn_disconnect(conn, true);
-	}
 
 	ret = kdbus_conn_acquire(conn);
 	if (ret < 0)
 		return ret;
 
+	release_conn = conn;
+
 	switch (cmd) {
+	case KDBUS_CMD_BYEBYE: {
+		if (!kdbus_conn_is_ordinary(conn)) {
+			ret = -EOPNOTSUPP;
+			break;
+		}
+
+		/*
+		 * BYEBYE is special; we must not acquire a connection when
+		 * calling into kdbus_conn_disconnect() or we will deadlock,
+		 * because kdbus_conn_disconnect() will wait for all acquired
+		 * references to be dropped.
+		 */
+		kdbus_conn_release(release_conn);
+		release_conn = NULL;
+
+		return kdbus_conn_disconnect(conn, true);
+	}
+
 	case KDBUS_CMD_NAME_ACQUIRE: {
 		/* acquire a well-known name */
 		struct kdbus_cmd_name *cmd_name;
@@ -862,7 +870,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kdbus_conn_release(conn);
+	kdbus_conn_release(release_conn);
 	kfree(free_ptr);
 	return ret;
 }

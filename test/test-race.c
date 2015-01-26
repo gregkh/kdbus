@@ -240,7 +240,7 @@ static int race_thread(int (*init_fn) (struct kdbus_test_env *env, void *ctx),
 
 /*
  * We run BYEBYE in parallel in two threads. Only one of them is allowed to
- * succeed, the other one *MUST* return -EALREADY.
+ * succeed, the other one *MUST* return -ECONNRESET.
  */
 TEST_RACE2(kdbus_test_race_byebye, 100, int,
 	({
@@ -254,8 +254,8 @@ TEST_RACE2(kdbus_test_race_byebye, 100, int,
 		ASSERT_RETURN(env->conn);
 	}),
 	({
-		ASSERT_RETURN((ret[0] == 0 && ret[1] == -EALREADY) ||
-			      (ret[1] == 0 && ret[0] == -EALREADY));
+		ASSERT_RETURN((ret[0] == 0 && ret[1] == -ECONNRESET) ||
+			      (ret[1] == 0 && ret[0] == -ECONNRESET));
 		kdbus_conn_free(env->conn);
 		env->conn = NULL;
 	}),

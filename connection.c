@@ -859,7 +859,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	if (v < 0) {
 		/* already dead */
 		mutex_unlock(&conn->lock);
-		return -EALREADY;
+		return -ECONNRESET;
 	}
 	if (ensure_queue_empty && !list_empty(&conn->queue.msg_list)) {
 		/* still busy */

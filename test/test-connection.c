@@ -150,9 +150,9 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
 	ASSERT_RETURN(ret == 0);
 
-	/* a 2nd try should result in -EALREADY */
+	/* a 2nd try should result in -ECONNRESET */
 	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
-	ASSERT_RETURN(ret == -1 && errno == EALREADY);
+	ASSERT_RETURN(ret == -1 && errno == ECONNRESET);
 
 	kdbus_conn_free(conn);
 
