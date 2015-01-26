@@ -296,6 +296,7 @@ int kdbus_test_sync_reply(struct kdbus_test_env *env)
 
 static void *run_thread_byebye(void *data)
 {
+	struct kdbus_cmd cmd_byebye = { .size = sizeof(cmd_byebye) };
 	int ret;
 
 	ret = kdbus_msg_recv_poll(conn_a, 3000, NULL, NULL);
@@ -303,9 +304,9 @@ static void *run_thread_byebye(void *data)
 		kdbus_printf("Thread received message, invoking BYEBYE ...\n");
 		kdbus_msg_recv(conn_a, NULL, NULL);
 		if (data == BYEBYE_ME)
-			ioctl(conn_b->fd, KDBUS_CMD_BYEBYE, 0);
+			ioctl(conn_b->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
 		else if (data == BYEBYE_THEM)
-			ioctl(conn_a->fd, KDBUS_CMD_BYEBYE, 0);
+			ioctl(conn_a->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
 	}
 
 	pthread_exit(NULL);

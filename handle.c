@@ -399,6 +399,12 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int command,
 			break;
 		}
 
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd, 0, false);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
+			break;
+		}
+
 		/*
 		 * BYEBYE is special; we must not acquire a connection when
 		 * calling into kdbus_conn_disconnect() or we will deadlock,

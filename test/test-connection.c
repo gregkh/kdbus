@@ -118,6 +118,7 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *conn;
 	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
+	struct kdbus_cmd cmd_byebye = { .size = sizeof(cmd_byebye) };
 	int ret;
 
 	/* create a 2nd connection */
@@ -136,7 +137,7 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* say byebye on the 2nd, which must fail */
-	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
+	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
 	ASSERT_RETURN(ret == -1 && errno == EBUSY);
 
 	/* receive the message */
@@ -147,11 +148,11 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* and try again */
-	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
+	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
 	ASSERT_RETURN(ret == 0);
 
 	/* a 2nd try should result in -ECONNRESET */
-	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, 0);
+	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
 	ASSERT_RETURN(ret == -1 && errno == ECONNRESET);
 
 	kdbus_conn_free(conn);
