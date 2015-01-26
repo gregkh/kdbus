@@ -75,8 +75,6 @@ int kdbus_test_name_queue(struct kdbus_test_env *env);
 int kdbus_test_policy(struct kdbus_test_env *env);
 int kdbus_test_policy_ns(struct kdbus_test_env *env);
 int kdbus_test_policy_priv(struct kdbus_test_env *env);
-int kdbus_test_race_byebye(struct kdbus_test_env *env);
-int kdbus_test_race_byebye_match(struct kdbus_test_env *env);
 int kdbus_test_sync_byebye(struct kdbus_test_env *env);
 int kdbus_test_sync_reply(struct kdbus_test_env *env);
 int kdbus_test_timeout(struct kdbus_test_env *env);

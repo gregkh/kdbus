@@ -38,7 +38,6 @@ OBJS= \
 	test-policy.o		\
 	test-policy-ns.o	\
 	test-policy-priv.o	\
-	test-race.o		\
 	test-sync.o		\
 	test-timeout.o
 
