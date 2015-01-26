@@ -33,7 +33,7 @@
 struct kdbus_notify_id_change {
 	__u64 id;
 	__u64 flags;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_notify_name_change - name registry change message
@@ -53,7 +53,7 @@ struct kdbus_notify_name_change {
 	struct kdbus_notify_id_change old_id;
 	struct kdbus_notify_id_change new_id;
 	char name[0];
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_creds - process credentials
@@ -78,7 +78,7 @@ struct kdbus_creds {
 	__u32 egid;
 	__u32 sgid;
 	__u32 fsgid;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_pids - process identifiers
@@ -95,7 +95,7 @@ struct kdbus_pids {
 	__u64 pid;
 	__u64 tid;
 	__u64 ppid;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_caps - process capabilities
@@ -110,7 +110,7 @@ struct kdbus_pids {
 struct kdbus_caps {
 	__u32 last_cap;
 	__u32 caps[0];
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_audit - audit information
@@ -123,7 +123,7 @@ struct kdbus_caps {
 struct kdbus_audit {
 	__u32 sessionid;
 	__u32 loginuid;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_timestamp
@@ -138,7 +138,7 @@ struct kdbus_timestamp {
 	__u64 seqnum;
 	__u64 monotonic_ns;
 	__u64 realtime_ns;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_vec - I/O vector for kdbus payload items
@@ -156,7 +156,7 @@ struct kdbus_vec {
 		__u64 address;
 		__u64 offset;
 	};
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_bloom_parameter - bus-wide bloom parameters
@@ -166,7 +166,7 @@ struct kdbus_vec {
 struct kdbus_bloom_parameter {
 	__u64 size;
 	__u64 n_hash;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_bloom_filter - bloom filter containing n elements
@@ -176,7 +176,7 @@ struct kdbus_bloom_parameter {
 struct kdbus_bloom_filter {
 	__u64 generation;
 	__u64 data[0];
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_memfd - a kdbus memfd
@@ -193,7 +193,7 @@ struct kdbus_memfd {
 	__u64 size;
 	int fd;
 	__u32 __pad;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_name - a registered well-known name with its flags
@@ -206,7 +206,7 @@ struct kdbus_memfd {
 struct kdbus_name {
 	__u64 flags;
 	char name[0];
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_policy_access - policy access item
@@ -219,7 +219,7 @@ struct kdbus_policy_access {
 	__u64 type;	/* USER, GROUP, WORLD */
 	__u64 access;	/* OWN, TALK, SEE */
 	__u64 id;	/* uid, gid, 0 */
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_item_type - item types to chain data in a list
@@ -385,7 +385,7 @@ struct kdbus_item {
 		struct kdbus_notify_id_change id_change;
 		struct kdbus_policy_access policy_access;
 	};
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_item_list - A list of items
@@ -395,7 +395,7 @@ struct kdbus_item {
 struct kdbus_item_list {
 	__u64 size;
 	struct kdbus_item items[0];
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_msg_flags - type of message
@@ -460,7 +460,7 @@ struct kdbus_msg {
 		__u64 cookie_reply;
 	};
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_msg_info - returned message container
@@ -472,7 +472,7 @@ struct kdbus_msg_info {
 	__u64 offset;
 	__u64 msg_size;
 	__u64 return_flags;
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_send_flags - flags for sending messages
@@ -511,7 +511,7 @@ struct kdbus_cmd_send {
 	__u64 msg_address;
 	struct kdbus_msg_info reply;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_recv_flags - flags for de-queuing messages
@@ -568,7 +568,7 @@ struct kdbus_cmd_recv {
 	__u64 dropped_msgs;
 	struct kdbus_msg_info msg;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_cmd_free - struct to free a slice of memory in the pool
@@ -589,7 +589,7 @@ struct kdbus_cmd_free {
 	__u64 return_flags;
 	__u64 offset;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_policy_access_type - permissions of a policy record
@@ -721,7 +721,7 @@ struct kdbus_cmd_hello {
 	__u64 items_size;
 	__u8 id128[16];
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_make_flags - Flags for KDBUS_CMD_{BUS,EP,NS}_MAKE
@@ -764,7 +764,7 @@ struct kdbus_name_info {
 	__u64 conn_flags;
 	__u64 owner_id;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_name_list - information returned by KDBUS_CMD_NAME_LIST
@@ -777,7 +777,7 @@ struct kdbus_name_info {
 struct kdbus_name_list {
 	__u64 size;
 	struct kdbus_name_info names[0];
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_name_list_flags - what to include into the returned list
@@ -816,7 +816,7 @@ struct kdbus_cmd_name_list {
 	__u64 offset;
 	__u64 list_size;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_info - information returned by KDBUS_CMD_*_INFO
@@ -833,7 +833,7 @@ struct kdbus_info {
 	__u64 id;
 	__u64 flags;
 	struct kdbus_item items[0];
-};
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_cmd_info - struct used for KDBUS_CMD_CONN_INFO ioctl
@@ -865,7 +865,7 @@ struct kdbus_cmd_info {
 	__u64 offset;
 	__u64 info_size;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * enum kdbus_cmd_match_flags - flags to control the KDBUS_CMD_MATCH_ADD ioctl
@@ -898,7 +898,7 @@ struct kdbus_cmd_match {
 	__u64 return_flags;
 	__u64 cookie;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * struct kdbus_cmd - generic ioctl payload
@@ -917,7 +917,7 @@ struct kdbus_cmd {
 	__u64 kernel_flags;
 	__u64 return_flags;
 	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
+} __attribute__((__aligned__(8)));
 
 /**
  * Ioctl API
