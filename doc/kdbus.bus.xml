@@ -137,14 +137,14 @@ struct kdbus_cmd_make {
         <term><varname>items</varname></term>
         <listitem>
           <para>
-            The following items are expected for 
-            <varname>KDBUS_CMD_BUS_MAKE</varname>.
+            The following items (see <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
+            are expected for <varname>KDBUS_CMD_BUS_MAKE</varname>.
           </para>
           <variablelist>
             <varlistentry>
               <term><varname>KDBUS_ITEM_MAKE_NAME</varname></term>
               <listitem>
-                <para>Contains a string to identify the bus name.</para>
+                <para>Contains a null-terminated string that identifies the bus. The name must be unique across the kdbus domain and must start with the effective UID of the caller followed by a '-'. This item is mandatory.</para>
               </listitem>
             </varlistentry>
 
@@ -153,7 +153,8 @@ struct kdbus_cmd_make {
               <listitem>
                 <para>Bus-wide bloom parameters passed in a
                   <varname>struct kdbus_bloom_parameter</varname>. These
-                  settings are copied back to new connections verbatim.
+                  settings are copied back to new connections verbatim. This item is mandatory.
+TODO: document the bloom_parameter struct and reference that from here (maybe kdbus.bloom.7?)
                 </para>
               </listitem>
             </varlistentry>
@@ -201,6 +202,13 @@ struct kdbus_cmd_make {
     </para>
 
     <variablelist>
+      <varlistentry>
+        <term><varname>-EBADMSG</varname></term>
+        <listitem><para>
+          A mandatory item is missing.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry>
         <term><varname>-EINVAL</varname></term>
         <listitem><para>

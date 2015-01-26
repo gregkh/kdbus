@@ -205,7 +205,6 @@ struct kdbus_cmd_name {
 
   __u64 kernel_flags;
     Valid flags for this command, returned by the kernel upon each call.
-    See section 3.2 for more details.
 
   __u64 return_flags;
     Flags returned by the kernel. Currently unused and always set to zero by
