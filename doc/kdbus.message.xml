@@ -694,9 +694,9 @@ struct kdbus_msg_info {
     </para>
 
     <itemizedlist mark='opencircle'>
-      <listitem><para>kdbus_msg.src_id == KDBUS_SRC_ID_KERNEL</para></listitem>
-      <listitem><para>kdbus_msg.dst_id == KDBUS_DST_ID_BROADCAST</para></listitem>
-      <listitem><para>kdbus_msg.payload_type == KDBUS_PAYLOAD_KERNEL</para></listitem>
+      <listitem><para>kdbus_msg.src_id == <varname>KDBUS_SRC_ID_KERNEL</varname></para></listitem>
+      <listitem><para>kdbus_msg.dst_id == <varname>KDBUS_DST_ID_BROADCAST</varname></para></listitem>
+      <listitem><para>kdbus_msg.payload_type == <varname>KDBUS_PAYLOAD_KERNEL</varname></para></listitem>
       <listitem><para>Has exactly one of the aforementioned items attached</para></listitem>
     </itemizedlist>
 

@@ -1,0 +1,341 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.policy">
+
+  <refentryinfo>
+    <title>kdbus.policy</title>
+    <productname>kdbus.policy</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.policy</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.policy</refname>
+    <refpurpose>kdbus policy</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      A kdbus policy restricts the possibilities of connections to own, see and
+      talk to well-known names. A policy can be associated with a bus (through a
+      policy holder connection) or a custom endpoint. kdbus stores its policy
+      information in a database that can be accessed through the following
+      ioctl commands:
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>KDBUS_CMD_HELLO</varname></term>
+        <listitem><para>
+          When creating, or updating, a policy holder connection. See
+          <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>KDBUS_CMD_ENDPOINT_MAKE</varname></term>
+        <term><varname>KDBUS_CMD_ENDPOINT_UPDATE</varname></term>
+        <listitem><para>
+          When creating, or updating, a bus custom endpoint. See
+          <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      In all cases, the name and policy access information is stored in items
+      of type <varname>KDBUS_ITEM_NAME</varname> and
+      <varname>KDBUS_ITEM_POLICY_ACCESS</varname>. For this transport, the
+      following rules apply.
+    </para>
+
+    <itemizedlist mark="open-circle">
+      <listitem>
+        <para>
+          An item of type <varname>KDBUS_ITEM_NAME</varname> must be followed
+          by at least one <varname>KDBUS_ITEM_POLICY_ACCESS</varname> item.
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          An item of type <varname>KDBUS_ITEM_NAME</varname> can be followed
+          by an arbitrary number of <varname>KDBUS_ITEM_POLICY_ACCESS</varname>
+          items.
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          An arbitrary number of groups of names and access levels can be given.
+        </para>
+      </listitem>
+    </itemizedlist>
+
+    <para>
+      Names passed in items of type <varname>KDBUS_ITEM_NAME</varname> must
+      comply to the rules of valid kdbus names. See
+      <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information.
+
+      The payload of an item of type <varname>KDBUS_ITEM_POLICY_ACCESS</varname>
+      is defined by the following struct. For more information on the layout
+      of items, please refer to
+      <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+    </para>
+
+    <programlisting>
+struct kdbus_policy_access {
+  __u64 type;
+  __u64 access;
+  __u64 id;
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>type</varname></term>
+        <listitem>
+          <para>
+            One of the following.
+          </para>
+
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_POLICY_ACCESS_USER</varname></term>
+              <listitem><para>
+                Grant access to a user with the UID stored in the
+                <varname>id</varname> field.
+              </para></listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_POLICY_ACCESS_GROUP</varname></term>
+              <listitem><para>
+                Grant access to a user with the GID stored in the
+                <varname>id</varname> field.
+              </para></listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_POLICY_ACCESS_WORLD</varname></term>
+              <listitem><para>
+                Grant access to everyone. The <varname>id</varname> field
+                is ignored.
+              </para></listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>access</varname></term>
+        <listitem>
+          <para>
+            The access to grant. One of the following.
+          </para>
+
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_POLICY_SEE</varname></term>
+              <listitem><para>
+                Allow the name to be seen.
+              </para></listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_POLICY_TALK</varname></term>
+              <listitem><para>
+                Allow the name to be talked to.
+              </para></listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_POLICY_OWN</varname></term>
+              <listitem><para>
+                Allow the name to be owned.
+              </para></listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>id</varname></term>
+        <listitem><para>
+           For <varname>KDBUS_POLICY_ACCESS_USER</varname>, stores the UID.
+           For <varname>KDBUS_POLICY_ACCESS_GROUP</varname>, stores the GID.
+        </para></listitem>
+      </varlistentry>
+
+    </variablelist>
+
+    <para>
+      All endpoints of buses have an empty policy database by default.
+      Therefore, unless policy rules are added, all operations will also be
+      denied by default. Also see
+      <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Wildcard names</title>
+    <para>
+      Policy holder connections may upload names that contain the wildcard suffix
+      <varname>(".*")</varname>. Such a policy entry is effective for every
+      well-known name that extends the provided name by exactly one more level.
+
+      For example, the name "foo.bar.*" matches both "foo.bar.baz" and
+      "foo.bar.bazbaz" are, but not "foo.bar.baz.baz".
+
+      This allows connections to take control over multiple names that the
+      policy holder doesn't need to know about when uploading the policy.
+
+      Such wildcard entries are not allowed for custom endpoints.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Privileged connections</title>
+    <para>
+      The policy database is overruled when action is taken by a privileged
+      connection. Please refer to
+      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information on what makes a connection privileged.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Examples</title>
+    <para>
+      For instance, a set of policy rules may look like this:
+    </para>
+
+    <programlisting>
+KDBUS_ITEM_NAME: str='org.foo.bar'
+KDBUS_ITEM_POLICY_ACCESS: type=USER, access=OWN, ID=1000
+KDBUS_ITEM_POLICY_ACCESS: type=USER, access=TALK, ID=1001
+KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=SEE
+
+KDBUS_ITEM_NAME: str='org.blah.baz'
+KDBUS_ITEM_POLICY_ACCESS: type=USER, access=OWN, ID=0
+KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
+    </programlisting>
+
+    <para>
+      That means that 'org.foo.bar' may only be owned by UID 1000, but every
+      user on the bus is allowed to see the name. However, only UID 1001 may
+      actually send a message to the connection and receive a reply from it.
+
+      The second rule allows 'org.blah.baz' to be owned by UID 0 only, but
+      every user may talk to it.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>TALK access and multiple well-known names per connection</title>
+    <para>
+      Note that TALK access is checked against all names of a connection.
+      For example, if a connection owns both 'org.foo.bar' and 'org.blah.baz', and
+      the policy database allows 'org.blah.baz' to be talked to by WORLD, then this
+      permission is also granted to 'org.foo.bar'. That might sound illogical, but
+      after all, we allow messages to be directed to either the ID or a well-known
+      name, and policy is applied to the connection, not the name. In other words,
+      the effective TALK policy for a connection is the most permissive of all names
+      the connection owns.
+
+      For broadcast messages, the receiver needs TALK permissions to the sender to
+      receive the broadcast.
+    </para>
+    <para>
+      Both the endpoint and the bus policy databases are consulted to allow
+      name registry listing, owning a well-known name and message delivery.
+      If either one fails, the operation is failed with
+      <varname>-EPERM</varname>.
+
+      For best practices, connections that own names with a restricted TALK
+      access should not install matches. This avoids cases where the sent
+      message may pass the bloom filter due to false-positives and may also
+      satisfy the policy rules.
+
+      Also see
+      <citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Implicit policies</title>
+    <para>
+      Depending on the type of the endpoint, a set of implicit rules that
+      override installed policies might be enforced.
+
+      On default endpoints, the following set is enforced and checked before
+      any user-supplied policy is checked.
+    </para>
+
+    <itemizedlist>
+      <listitem>
+        <para>
+          Privileged connections always override any installed policy. Those
+          connections could easily install their own policies, so there is no
+          reason to enforce installed policies.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Connections can always talk to connections of the same user. This
+          includes broadcast messages.
+        </para>
+      </listitem>
+    </itemizedlist>
+
+    <para>
+      Custom endpoints have stricter policies. The following rules apply:
+    </para>
+
+    <itemizedlist>
+      <listitem>
+        <para>
+          Policy rules are always enforced, even if the connection is a privileged
+          connection.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Policy rules are always enforced for <varname>TALK</varname> access,
+          even if both ends are running under the same user. This includes
+          broadcast messages.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          To restrict the set of names that can be seen, endpoint policies can
+          install <varname>SEE</varname> policies.
+        </para>
+      </listitem>
+    </itemizedlist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>

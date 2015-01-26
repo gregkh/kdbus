@@ -7,6 +7,7 @@ docs=	\
 	kdbus.item.xml		\
 	kdbus.message.xml	\
 	kdbus.names.xml		\
+	kdbus.policy.xml	\
 	kdbus.pool.xml
 
 manpages=$(docs:.xml=.7)
