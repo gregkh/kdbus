@@ -211,7 +211,8 @@ int kdbus_ep_activate(struct kdbus_ep *ep)
  */
 void kdbus_ep_deactivate(struct kdbus_ep *ep)
 {
-	kdbus_node_deactivate(&ep->node);
+	if (ep)
+		kdbus_node_deactivate(&ep->node);
 }
 
 /**

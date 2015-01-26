@@ -324,7 +324,8 @@ int kdbus_bus_activate(struct kdbus_bus *bus)
  */
 void kdbus_bus_deactivate(struct kdbus_bus *bus)
 {
-	kdbus_node_deactivate(&bus->node);
+	if (bus)
+		kdbus_node_deactivate(&bus->node);
 }
 
 /**

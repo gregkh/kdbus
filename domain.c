@@ -192,7 +192,8 @@ int kdbus_domain_activate(struct kdbus_domain *domain)
  */
 void kdbus_domain_deactivate(struct kdbus_domain *domain)
 {
-	kdbus_node_deactivate(&domain->node);
+	if (domain)
+		kdbus_node_deactivate(&domain->node);
 }
 
 /**

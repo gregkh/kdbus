@@ -1073,6 +1073,9 @@ void kdbus_conn_release(struct kdbus_conn *conn)
 {
 	int v;
 
+	if (!conn)
+		return;
+
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	rwsem_release(&conn->dep_map, 1, _RET_IP_);
 #endif
