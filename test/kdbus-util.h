@@ -29,7 +29,8 @@
 	(typeof(item))(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
 #define KDBUS_ITEM_FOREACH(item, head, first)				\
 	for (item = (head)->first;					\
-	     (uint8_t *)(item) < (uint8_t *)(head) + (head)->size;	\
+	     ((uint8_t *)(item) < (uint8_t *)(head) + (head)->size) &&	\
+	       ((uint8_t *)(item) >= (uint8_t *)(head));	\
 	     item = KDBUS_ITEM_NEXT(item))
 
 
