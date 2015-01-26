@@ -356,9 +356,6 @@ int kdbus_policy_set(struct kdbus_policy_db *db,
 	int i, ret = 0;
 	u32 hash;
 
-	if (items_size > KDBUS_POLICY_MAX_SIZE)
-		return -E2BIG;
-
 	/* Walk the list of items and look for new policies */
 	e = NULL;
 	KDBUS_ITEMS_FOREACH(item, items, items_size) {

@@ -147,11 +147,86 @@ static int handle_ep_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static void *__kdbus_enter_cmd(void __user *ucmd, size_t cmd_size,
+			       size_t off_items, u64 cmd_allowed_flags,
+			       bool cmd_has_items) {
+	struct kdbus_cmd __user *ucmdt = ucmd;
+	struct kdbus_item *items, *item;
+	struct kdbus_cmd *cmd = NULL;
+	int ret;
+
+	WARN_ON_ONCE(cmd_allowed_flags & KDBUS_FLAG_KERNEL);
+
+	cmd = kdbus_memdup_user(ucmd, cmd_size, KDBUS_CMD_MAX_SIZE);
+	if (IS_ERR(cmd))
+		return ERR_CAST(cmd);
+
+	items = (void*)((u8 *)cmd + off_items);
+	cmd->kernel_flags = cmd_allowed_flags | KDBUS_FLAG_KERNEL;
+	cmd->return_flags = 0;
+
+	if (put_user(cmd->kernel_flags, &ucmdt->kernel_flags)) {
+		ret = -EFAULT;
+		goto error;
+	}
+
+	if (cmd->flags & ~cmd_allowed_flags) {
+		ret = -EINVAL;
+		goto error;
+	}
+
+	ret = kdbus_items_validate(items, cmd->size - off_items);
+	if (ret < 0)
+		goto error;
+
+	if (!cmd_has_items) {
+		KDBUS_ITEMS_FOREACH(item, items, cmd->size - off_items) {
+			ret = -EINVAL;
+			goto error;
+		}
+	}
+
+	return cmd;
+
+error:
+	kfree(cmd);
+	return ERR_PTR(ret);
+}
+
+#define kdbus_enter_cmd(_ucmd, _cmd_type, _cmd_flags, _cmd_has_items)   \
+	({                                                              \
+		BUILD_BUG_ON(offsetof(_cmd_type, size) !=               \
+			     offsetof(struct kdbus_cmd, size));         \
+		BUILD_BUG_ON(offsetof(_cmd_type, flags) !=              \
+			     offsetof(struct kdbus_cmd, flags));        \
+		BUILD_BUG_ON(offsetof(_cmd_type, kernel_flags) !=       \
+			     offsetof(struct kdbus_cmd, kernel_flags)); \
+		BUILD_BUG_ON(offsetof(_cmd_type, return_flags) !=       \
+			     offsetof(struct kdbus_cmd, return_flags)); \
+		__kdbus_enter_cmd((_ucmd), sizeof(_cmd_type),           \
+				  offsetof(_cmd_type, items),           \
+				  (_cmd_flags), (_cmd_has_items));      \
+	})
+
+static int kdbus_leave_cmd(void __user *ucmd, void *cmd, int ret) {
+	struct kdbus_cmd __user *ucmdt = ucmd;
+	struct kdbus_cmd *cmdt = cmd;
+
+	if (IS_ERR_OR_NULL(cmd))
+		return ret;
+
+	if (put_user(cmdt->return_flags, &ucmdt->return_flags))
+		ret = -EFAULT;
+
+	kfree(cmd);
+	return ret;
+}
+
 static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 					 void __user *buf)
 {
-	struct kdbus_cmd_make *make;
-	struct kdbus_ep *ep;
+	struct kdbus_cmd *cmd;
+	struct kdbus_ep *ep = NULL;
 	const char *name;
 	int ret;
 
@@ -159,28 +234,13 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	if (!handle->privileged)
 		return -EPERM;
 
-	make = kdbus_memdup_user(buf, sizeof(*make), KDBUS_MAKE_MAX_SIZE);
-	if (IS_ERR(make))
-		return PTR_ERR(make);
+	cmd = kdbus_enter_cmd(buf, struct kdbus_cmd,
+			      KDBUS_MAKE_ACCESS_GROUP |
+			      KDBUS_MAKE_ACCESS_WORLD, true);
+	if (IS_ERR(cmd))
+		return PTR_ERR(cmd);
 
-	make->return_flags = 0;
-	if (kdbus_member_set_user(&make->return_flags, buf,
-				  struct kdbus_cmd_make, return_flags)) {
-		ret = -EFAULT;
-		goto exit;
-	}
-
-	ret = kdbus_negotiate_flags(make, buf, struct kdbus_cmd_make,
-				    KDBUS_MAKE_ACCESS_GROUP |
-				    KDBUS_MAKE_ACCESS_WORLD);
-	if (ret < 0)
-		goto exit;
-
-	ret = kdbus_items_validate(make->items, KDBUS_ITEMS_SIZE(make, items));
-	if (ret < 0)
-		goto exit;
-
-	name = kdbus_items_get_str(make->items, KDBUS_ITEMS_SIZE(make, items),
+	name = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
 				   KDBUS_ITEM_MAKE_NAME);
 	if (IS_ERR(name)) {
 		ret = PTR_ERR(name);
@@ -188,22 +248,22 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	}
 
 	ep = kdbus_ep_new(handle->ep->bus, name,
-			  make->flags & (KDBUS_MAKE_ACCESS_WORLD |
-					 KDBUS_MAKE_ACCESS_GROUP),
+			  cmd->flags & (KDBUS_MAKE_ACCESS_WORLD |
+			                KDBUS_MAKE_ACCESS_GROUP),
 			  current_euid(), current_egid(), true);
 	if (IS_ERR(ep)) {
 		ret = PTR_ERR(ep);
+		ep = NULL;
 		goto exit;
 	}
 
 	ret = kdbus_ep_activate(ep);
 	if (ret < 0)
-		goto exit_ep_unref;
+		goto exit;
 
-	ret = kdbus_ep_policy_set(ep, make->items,
-				  KDBUS_ITEMS_SIZE(make, items));
+	ret = kdbus_ep_policy_set(ep, cmd->items, KDBUS_ITEMS_SIZE(cmd, items));
 	if (ret < 0)
-		goto exit_ep_unref;
+		goto exit;
 
 	/* protect against parallel ioctls */
 	mutex_lock(&handle->lock);
@@ -215,44 +275,28 @@ static int handle_ep_ioctl_endpoint_make(struct kdbus_handle_ep *handle,
 	}
 	mutex_unlock(&handle->lock);
 
-	if (ret < 0)
-		goto exit_ep_unref;
-
-	goto exit;
-
-exit_ep_unref:
-	kdbus_ep_deactivate(ep);
-	kdbus_ep_unref(ep);
 exit:
-	kfree(make);
-	return ret;
+	if (ret < 0) {
+		kdbus_ep_deactivate(ep);
+		kdbus_ep_unref(ep);
+	}
+	return kdbus_leave_cmd(buf, cmd, ret);
 }
 
 static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 				 void __user *buf)
 {
-	struct kdbus_conn *conn;
+	struct kdbus_conn *conn = NULL;
 	struct kdbus_cmd_hello *hello;
 	int ret;
 
-	hello = kdbus_memdup_user(buf, sizeof(*hello), KDBUS_HELLO_MAX_SIZE);
+	hello = kdbus_enter_cmd(buf, struct kdbus_cmd_hello,
+				KDBUS_HELLO_ACCEPT_FD |
+				KDBUS_HELLO_ACTIVATOR |
+				KDBUS_HELLO_POLICY_HOLDER |
+				KDBUS_HELLO_MONITOR, true);
 	if (IS_ERR(hello))
 		return PTR_ERR(hello);
-
-	ret = kdbus_negotiate_flags(hello, buf, typeof(*hello),
-				    KDBUS_HELLO_ACCEPT_FD |
-				    KDBUS_HELLO_ACTIVATOR |
-				    KDBUS_HELLO_POLICY_HOLDER |
-				    KDBUS_HELLO_MONITOR);
-	if (ret < 0)
-		goto exit;
-
-	hello->return_flags = 0;
-
-	ret = kdbus_items_validate(hello->items,
-				   KDBUS_ITEMS_SIZE(hello, items));
-	if (ret < 0)
-		goto exit;
 
 	if (!hello->pool_size || !IS_ALIGNED(hello->pool_size, PAGE_SIZE)) {
 		ret = -EFAULT;
@@ -262,31 +306,32 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 	conn = kdbus_conn_new(handle->ep, hello, handle->privileged);
 	if (IS_ERR(conn)) {
 		ret = PTR_ERR(conn);
+		conn = NULL;
 		goto exit;
 	}
 
 	ret = kdbus_conn_connect(conn, hello);
 	if (ret < 0)
-		goto exit_conn;
+		goto exit;
 
-	ret = kdbus_conn_acquire(conn);
-	if (ret < 0)
-		goto exit_conn;
+	if (kdbus_conn_is_activator(conn) ||
+	    kdbus_conn_is_policy_holder(conn)) {
+		ret = kdbus_conn_acquire(conn);
+		if (ret < 0)
+			goto exit;
 
-	if (kdbus_conn_is_activator(conn) || kdbus_conn_is_policy_holder(conn))
 		ret = kdbus_policy_set(&conn->ep->bus->policy_db, hello->items,
 				       KDBUS_ITEMS_SIZE(hello, items),
 				       1, kdbus_conn_is_policy_holder(conn),
 				       conn);
-
-	kdbus_conn_release(conn);
-
-	if (ret < 0)
-		goto exit_conn;
+		kdbus_conn_release(conn);
+		if (ret < 0)
+			goto exit;
+	}
 
 	if (copy_to_user(buf, hello, sizeof(*hello))) {
 		ret = -EFAULT;
-		goto exit_conn;
+		goto exit;
 	}
 
 	/* protect against parallel ioctls */
@@ -299,17 +344,12 @@ static int handle_ep_ioctl_hello(struct kdbus_handle_ep *handle,
 	}
 	mutex_unlock(&handle->lock);
 
-	if (ret < 0)
-		goto exit_conn;
-
-	goto exit;
-
-exit_conn:
-	kdbus_conn_disconnect(conn, false);
-	kdbus_conn_unref(conn);
 exit:
-	kfree(hello);
-	return ret;
+	if (ret < 0 && conn) {
+		kdbus_conn_disconnect(conn, false);
+		kdbus_conn_unref(conn);
+	}
+	return kdbus_leave_cmd(buf, hello, ret);
 }
 
 /* kdbus endpoint make commands */
@@ -337,14 +377,14 @@ static long handle_ep_ioctl_none(struct file *file, unsigned int cmd,
 }
 
 /* kdbus endpoint commands for connected peers */
-static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
+static long handle_ep_ioctl_connected(struct file *file, unsigned int command,
 				      void __user *buf)
 {
 	struct kdbus_handle_ep *handle = file->private_data;
 	struct kdbus_conn *conn = handle->conn;
 	struct kdbus_conn *release_conn = NULL;
-	void *free_ptr = NULL;
-	long ret = 0;
+	void *cmd = NULL;
+	int ret = 0;
 
 	ret = kdbus_conn_acquire(conn);
 	if (ret < 0)
@@ -352,7 +392,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 	release_conn = conn;
 
-	switch (cmd) {
+	switch (command) {
 	case KDBUS_CMD_BYEBYE: {
 		if (!kdbus_conn_is_ordinary(conn)) {
 			ret = -EOPNOTSUPP;
@@ -368,145 +408,77 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		kdbus_conn_release(release_conn);
 		release_conn = NULL;
 
-		return kdbus_conn_disconnect(conn, true);
+		ret = kdbus_conn_disconnect(conn, true);
+		break;
 	}
 
 	case KDBUS_CMD_NAME_ACQUIRE: {
-		/* acquire a well-known name */
-		struct kdbus_cmd_name *cmd_name;
-
 		if (!kdbus_conn_is_ordinary(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
 
-		cmd_name = kdbus_memdup_user(buf, sizeof(*cmd_name),
-					     sizeof(*cmd_name) +
-						KDBUS_ITEM_HEADER_SIZE +
-						KDBUS_NAME_MAX_LEN + 1);
-		if (IS_ERR(cmd_name)) {
-			ret = PTR_ERR(cmd_name);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd,
+				      KDBUS_NAME_REPLACE_EXISTING |
+				      KDBUS_NAME_ALLOW_REPLACEMENT |
+				      KDBUS_NAME_QUEUE, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
-
-		free_ptr = cmd_name;
-
-		cmd_name->return_flags = 0;
-		if (kdbus_member_set_user(&cmd_name->return_flags, buf,
-					  struct kdbus_cmd_name,
-					  return_flags)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_negotiate_flags(cmd_name, buf, typeof(*cmd_name),
-					    KDBUS_NAME_REPLACE_EXISTING |
-					    KDBUS_NAME_ALLOW_REPLACEMENT |
-					    KDBUS_NAME_QUEUE);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(cmd_name->items,
-					   KDBUS_ITEMS_SIZE(cmd_name, items));
-		if (ret < 0)
-			break;
 
 		ret = kdbus_cmd_name_acquire(conn->ep->bus->name_registry,
-					     conn, cmd_name);
+					     conn, cmd);
 		if (ret < 0)
 			break;
 
-		/* return flags to the caller */
-		if (copy_to_user(buf, cmd_name, cmd_name->size))
+		if (copy_to_user(buf, cmd, ((struct kdbus_cmd*)cmd)->size))
 			ret = -EFAULT;
 
 		break;
 	}
 
 	case KDBUS_CMD_NAME_RELEASE: {
-		/* release a well-known name */
-		struct kdbus_cmd_name *cmd_name;
-
 		if (!kdbus_conn_is_ordinary(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
 
-		cmd_name = kdbus_memdup_user(buf, sizeof(*cmd_name),
-					     sizeof(*cmd_name) +
-						KDBUS_ITEM_HEADER_SIZE +
-						KDBUS_NAME_MAX_LEN + 1);
-		if (IS_ERR(cmd_name)) {
-			ret = PTR_ERR(cmd_name);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd, 0, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
-
-		free_ptr = cmd_name;
-
-		cmd_name->return_flags = 0;
-		if (kdbus_member_set_user(&cmd_name->return_flags, buf,
-					  struct kdbus_cmd_name,
-					  return_flags)) {
-			ret = -EFAULT;
-			break;
-		}
-
-		ret = kdbus_negotiate_flags(cmd_name, buf, typeof(*cmd_name),
-					    0);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(cmd_name->items,
-					   KDBUS_ITEMS_SIZE(cmd_name, items));
-		if (ret < 0)
-			break;
 
 		ret = kdbus_cmd_name_release(conn->ep->bus->name_registry,
-					     conn, cmd_name);
+					     conn, cmd);
 		break;
 	}
 
 	case KDBUS_CMD_NAME_LIST: {
 		struct kdbus_cmd_name_list *cmd_list;
 
-		cmd_list = kdbus_memdup_user(buf, sizeof(*cmd_list),
-					     KDBUS_CMD_MAX_SIZE);
-		if (IS_ERR(cmd_list)) {
-			ret = PTR_ERR(cmd_list);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_name_list,
+				      KDBUS_NAME_LIST_UNIQUE |
+				      KDBUS_NAME_LIST_NAMES |
+				      KDBUS_NAME_LIST_ACTIVATORS |
+				      KDBUS_NAME_LIST_QUEUED, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
-
-		free_ptr = cmd_list;
-
-		ret = kdbus_negotiate_flags(cmd_list, buf, typeof(*cmd_list),
-					    KDBUS_NAME_LIST_UNIQUE |
-					    KDBUS_NAME_LIST_NAMES |
-					    KDBUS_NAME_LIST_ACTIVATORS |
-					    KDBUS_NAME_LIST_QUEUED);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(cmd_list->items,
-					   KDBUS_ITEMS_SIZE(cmd_list, items));
-		if (ret < 0)
-			break;
+		cmd_list = cmd;
 
 		ret = kdbus_cmd_name_list(conn->ep->bus->name_registry,
 					  conn, cmd_list);
 		if (ret < 0)
 			break;
 
-		cmd_list->return_flags = 0;
-
-		/* return allocated data */
 		if (kdbus_member_set_user(&cmd_list->offset, buf,
 					  struct kdbus_cmd_name_list, offset) ||
 		    kdbus_member_set_user(&cmd_list->list_size, buf,
 					  struct kdbus_cmd_name_list,
-					  list_size) ||
-		    kdbus_member_set_user(&cmd_list->return_flags, buf,
-					  struct kdbus_cmd_name_list,
-					  return_flags))
+					  list_size))
 			ret = -EFAULT;
 
 		break;
@@ -516,30 +488,15 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 	case KDBUS_CMD_BUS_CREATOR_INFO: {
 		struct kdbus_cmd_info *cmd_info;
 
-		/* return the properties of a connection */
-		cmd_info = kdbus_memdup_user(buf, sizeof(*cmd_info),
-					     sizeof(*cmd_info) +
-						KDBUS_NAME_MAX_LEN + 1);
-		if (IS_ERR(cmd_info)) {
-			ret = PTR_ERR(cmd_info);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_info,
+				      _KDBUS_ATTACH_ALL, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
+		cmd_info = cmd;
 
-		free_ptr = cmd_info;
-
-		ret = kdbus_negotiate_flags(cmd_info, buf, typeof(*cmd_info),
-					    _KDBUS_ATTACH_ALL);
-		if (ret < 0)
-			break;
-
-		cmd_info->return_flags = 0;
-
-		ret = kdbus_items_validate(cmd_info->items,
-					   KDBUS_ITEMS_SIZE(cmd_info, items));
-		if (ret < 0)
-			break;
-
-		if (cmd == KDBUS_CMD_CONN_INFO)
+		if (command == KDBUS_CMD_CONN_INFO)
 			ret = kdbus_cmd_conn_info(conn, cmd_info);
 		else
 			ret = kdbus_cmd_bus_creator_info(conn, cmd_info);
@@ -550,19 +507,13 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		if (kdbus_member_set_user(&cmd_info->offset, buf,
 					  struct kdbus_cmd_info, offset) ||
 		    kdbus_member_set_user(&cmd_info->info_size, buf,
-					  struct kdbus_cmd_info, info_size) ||
-		    kdbus_member_set_user(&cmd_info->return_flags, buf,
-					  struct kdbus_cmd_info,
-					  return_flags))
+					  struct kdbus_cmd_info, info_size))
 			ret = -EFAULT;
 
 		break;
 	}
 
 	case KDBUS_CMD_UPDATE: {
-		/* update the properties of a connection */
-		struct kdbus_cmd_update *cmd_update;
-
 		if (!kdbus_conn_is_ordinary(conn) &&
 		    !kdbus_conn_is_policy_holder(conn) &&
 		    !kdbus_conn_is_monitor(conn)) {
@@ -570,125 +521,53 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		cmd_update = kdbus_memdup_user(buf, sizeof(*cmd_update),
-					       KDBUS_UPDATE_MAX_SIZE);
-		if (IS_ERR(cmd_update)) {
-			ret = PTR_ERR(cmd_update);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd, 0, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
 
-		free_ptr = cmd_update;
-
-		ret = kdbus_negotiate_flags(cmd_update, buf,
-					    typeof(*cmd_update), 0);
-		if (ret < 0)
-			break;
-
-		cmd_update->return_flags = 0;
-
-		ret = kdbus_items_validate(cmd_update->items,
-					   KDBUS_ITEMS_SIZE(cmd_update, items));
-		if (ret < 0)
-			break;
-
-		ret = kdbus_cmd_conn_update(conn, cmd_update);
-		if (ret < 0)
-			break;
-
-		if (kdbus_member_set_user(&cmd_update->return_flags, buf,
-					  struct kdbus_cmd_update,
-					  return_flags))
-			ret = -EFAULT;
-
+		ret = kdbus_cmd_conn_update(conn, cmd);
 		break;
 	}
 
 	case KDBUS_CMD_MATCH_ADD: {
-		/* subscribe to/filter for broadcast messages */
-		struct kdbus_cmd_match *cmd_match;
-
 		if (!kdbus_conn_is_ordinary(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
 
-		cmd_match = kdbus_memdup_user(buf, sizeof(*cmd_match),
-					      KDBUS_MATCH_MAX_SIZE);
-		if (IS_ERR(cmd_match)) {
-			ret = PTR_ERR(cmd_match);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_match,
+				      KDBUS_MATCH_REPLACE, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
 
-		free_ptr = cmd_match;
-
-		ret = kdbus_negotiate_flags(cmd_match, buf, typeof(*cmd_match),
-					    KDBUS_MATCH_REPLACE);
+		ret = kdbus_match_db_add(conn, cmd);
 		if (ret < 0)
 			break;
-
-		cmd_match->return_flags = 0;
-
-		ret = kdbus_items_validate(cmd_match->items,
-					   KDBUS_ITEMS_SIZE(cmd_match, items));
-		if (ret < 0)
-			break;
-
-		ret = kdbus_match_db_add(conn, cmd_match);
-		if (ret < 0)
-			break;
-
-		if (kdbus_member_set_user(&cmd_match->return_flags, buf,
-					  struct kdbus_cmd_match,
-					  return_flags))
-			ret = -EFAULT;
 
 		break;
 	}
 
 	case KDBUS_CMD_MATCH_REMOVE: {
-		/* unsubscribe from broadcast messages */
-		struct kdbus_cmd_match *cmd_match;
-
 		if (!kdbus_conn_is_ordinary(conn)) {
 			ret = -EOPNOTSUPP;
 			break;
 		}
 
-		cmd_match = kdbus_memdup_user(buf, sizeof(*cmd_match),
-					      sizeof(*cmd_match));
-		if (IS_ERR(cmd_match)) {
-			ret = PTR_ERR(cmd_match);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_match, 0, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
 
-		free_ptr = cmd_match;
-
-		ret = kdbus_negotiate_flags(cmd_match, buf, typeof(*cmd_match),
-					    0);
-		if (ret < 0)
-			break;
-
-		cmd_match->return_flags = 0;
-
-		ret = kdbus_items_validate(cmd_match->items,
-					   KDBUS_ITEMS_SIZE(cmd_match, items));
-		if (ret < 0)
-			break;
-
-		ret = kdbus_match_db_remove(conn, cmd_match);
-		if (ret < 0)
-			break;
-
-		if (kdbus_member_set_user(&cmd_match->return_flags, buf,
-					  struct kdbus_cmd_match,
-					  return_flags))
-			ret = -EFAULT;
-
+		ret = kdbus_match_db_remove(conn, cmd);
 		break;
 	}
 
 	case KDBUS_CMD_SEND: {
-		/* submit a message which will be queued in the receiver */
 		struct kdbus_cmd_send *cmd_send;
 		struct kdbus_kmsg *kmsg = NULL;
 
@@ -697,29 +576,17 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		cmd_send = kdbus_memdup_user(buf, sizeof(*cmd_send),
-					     KDBUS_SEND_MAX_SIZE);
-		if (IS_ERR(cmd_send)) {
-			ret = PTR_ERR(cmd_send);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_send,
+				      KDBUS_SEND_SYNC_REPLY, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
 
-		free_ptr = cmd_send;
-
-		ret = kdbus_negotiate_flags(cmd_send, buf, typeof(*cmd_send),
-					    KDBUS_SEND_SYNC_REPLY);
-		if (ret < 0)
-			break;
-
-		cmd_send->return_flags = 0;
+		cmd_send = cmd;
 		cmd_send->reply.offset = 0;
 		cmd_send->reply.msg_size = 0;
 		cmd_send->reply.return_flags = 0;
-
-		ret = kdbus_items_validate(cmd_send->items,
-					   KDBUS_ITEMS_SIZE(cmd_send, items));
-		if (ret < 0)
-			break;
 
 		kmsg = kdbus_kmsg_new_from_cmd(conn, buf, cmd_send);
 		if (IS_ERR(kmsg)) {
@@ -728,18 +595,7 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 		}
 
 		ret = kdbus_cmd_msg_send(conn, cmd_send, file, kmsg);
-		if (ret < 0) {
-			kdbus_kmsg_free(kmsg);
-			break;
-		}
-
-		if (kdbus_member_set_user(&cmd_send->return_flags, buf,
-					  struct kdbus_cmd_send,
-					  return_flags))
-			ret = -EFAULT;
-
-		/* store the reply back to userspace */
-		if (cmd_send->flags & KDBUS_SEND_SYNC_REPLY) {
+		if (ret >= 0) {
 			if (kdbus_member_set_user(&cmd_send->reply, buf,
 						  struct kdbus_cmd_send,
 						  reply))
@@ -760,50 +616,28 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		cmd_recv = kdbus_memdup_user(buf, sizeof(*cmd_recv),
-					     KDBUS_RECV_MAX_SIZE);
-		if (IS_ERR(cmd_recv)) {
-			ret = PTR_ERR(cmd_recv);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_recv,
+				      KDBUS_RECV_PEEK |
+				      KDBUS_RECV_DROP |
+				      KDBUS_RECV_USE_PRIORITY, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
 
-		free_ptr = cmd_recv;
-
-		ret = kdbus_negotiate_flags(cmd_recv, buf, typeof(*cmd_recv),
-					    KDBUS_RECV_PEEK |
-					    KDBUS_RECV_DROP |
-					    KDBUS_RECV_USE_PRIORITY);
-		if (ret < 0)
-			break;
-
-		cmd_recv->return_flags = 0;
+		cmd_recv = cmd;
 		cmd_recv->dropped_msgs = 0;
 		cmd_recv->msg.offset = 0;
 		cmd_recv->msg.msg_size = 0;
 		cmd_recv->msg.return_flags = 0;
 
-		ret = kdbus_items_validate(cmd_recv->items,
-					   KDBUS_ITEMS_SIZE(cmd_recv, items));
-		if (ret < 0)
-			break;
-
 		ret = kdbus_cmd_msg_recv(conn, cmd_recv);
-		/*
-		 * In case of -EOVERFLOW, we still have to write back the
-		 * number of lost messages.
-		 */
-		if (ret < 0 && ret != -EOVERFLOW)
-			break;
 
-		/* return the number of dropped messages */
 		if (kdbus_member_set_user(&cmd_recv->dropped_msgs, buf,
 					  struct kdbus_cmd_recv,
 					  dropped_msgs) ||
 		    kdbus_member_set_user(&cmd_recv->msg, buf,
-					  struct kdbus_cmd_recv, msg) ||
-		    kdbus_member_set_user(&cmd_recv->return_flags, buf,
-					  struct kdbus_cmd_recv,
-					  return_flags))
+					  struct kdbus_cmd_recv, msg))
 			ret = -EFAULT;
 
 		break;
@@ -811,7 +645,6 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_FREE: {
 		struct kdbus_cmd_free *cmd_free;
-		const struct kdbus_item *item;
 
 		if (!kdbus_conn_is_ordinary(conn) &&
 		    !kdbus_conn_is_monitor(conn) &&
@@ -820,48 +653,14 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		cmd_free = kdbus_memdup_user(buf, sizeof(*cmd_free),
-					     KDBUS_CMD_MAX_SIZE);
-		if (IS_ERR(cmd_free)) {
-			ret = PTR_ERR(cmd_free);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_free, 0, false);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
-
-		free_ptr = cmd_free;
-
-		ret = kdbus_negotiate_flags(cmd_free, buf, typeof(*cmd_free),
-					    0);
-		if (ret < 0)
-			break;
-
-		ret = kdbus_items_validate(cmd_free->items,
-					   KDBUS_ITEMS_SIZE(cmd_free, items));
-		if (ret < 0)
-			break;
-
-		KDBUS_ITEMS_FOREACH(item, cmd_free->items,
-				    KDBUS_ITEMS_SIZE(cmd_free, items)) {
-			/* no items supported so far */
-			switch (item->type) {
-			default:
-				ret = -EINVAL;
-				break;
-			}
-		}
-		if (ret < 0)
-			break;
-
-		cmd_free->return_flags = 0;
+		cmd_free = cmd;
 
 		ret = kdbus_pool_release_offset(conn->pool, cmd_free->offset);
-		if (ret < 0)
-			break;
-
-		if (kdbus_member_set_user(&cmd_free->return_flags, buf,
-					  struct kdbus_cmd_free,
-					  return_flags))
-			ret = -EFAULT;
-
 		break;
 	}
 
@@ -871,55 +670,31 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int cmd,
 	}
 
 	kdbus_conn_release(release_conn);
-	kfree(free_ptr);
-	return ret;
+	return kdbus_leave_cmd(buf, cmd, ret);
 }
 
 /* kdbus endpoint commands for endpoint owners */
-static long handle_ep_ioctl_owner(struct file *file, unsigned int cmd,
+static long handle_ep_ioctl_owner(struct file *file, unsigned int command,
 				  void __user *buf)
 {
 	struct kdbus_handle_ep *handle = file->private_data;
 	struct kdbus_ep *ep = handle->ep_owner;
-	void *free_ptr = NULL;
+	void *cmd = NULL;
 	long ret = 0;
 
-	switch (cmd) {
+	switch (command) {
 	case KDBUS_CMD_ENDPOINT_UPDATE: {
-		struct kdbus_cmd_update *cmd_update;
+		struct kdbus_cmd *cmd_update;
 
-		/* update the properties of a custom endpoint */
-		cmd_update = kdbus_memdup_user(buf, sizeof(*cmd_update),
-					       KDBUS_UPDATE_MAX_SIZE);
-		if (IS_ERR(cmd_update)) {
-			ret = PTR_ERR(cmd_update);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd, 0, true);
+		if (IS_ERR(cmd)) {
+			ret = PTR_ERR(cmd);
 			break;
 		}
 
-		free_ptr = cmd_update;
-
-		ret = kdbus_negotiate_flags(cmd_update, buf,
-					    typeof(*cmd_update), 0);
-		if (ret < 0)
-			break;
-
-		cmd_update->return_flags = 0;
-
-		ret = kdbus_items_validate(cmd_update->items,
-					   KDBUS_ITEMS_SIZE(cmd_update, items));
-		if (ret < 0)
-			break;
-
+		cmd_update = cmd;
 		ret = kdbus_ep_policy_set(ep, cmd_update->items,
 					  KDBUS_ITEMS_SIZE(cmd_update, items));
-		if (ret < 0)
-			break;
-
-		if (kdbus_member_set_user(&cmd_update->return_flags, buf,
-					  struct kdbus_cmd_update,
-					  return_flags))
-			ret = -EFAULT;
-
 		break;
 	}
 
@@ -928,8 +703,7 @@ static long handle_ep_ioctl_owner(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	kfree(free_ptr);
-	return ret;
+	return kdbus_leave_cmd(buf, cmd, ret);
 }
 
 static long handle_ep_ioctl(struct file *file, unsigned int cmd,
@@ -1042,37 +816,30 @@ static int handle_control_ioctl_bus_make(struct file *file,
 					 struct kdbus_domain *domain,
 					 void __user *buf)
 {
-	struct kdbus_cmd_make *make;
-	struct kdbus_bus *bus;
+	struct kdbus_cmd *cmd;
+	struct kdbus_bus *bus = NULL;
 	int ret;
 
 	/* catch double BUS_MAKE early, locked test is below */
 	if (file->private_data)
 		return -EBADFD;
 
-	make = kdbus_memdup_user(buf, sizeof(*make), KDBUS_MAKE_MAX_SIZE);
-	if (IS_ERR(make))
-		return PTR_ERR(make);
+	cmd = kdbus_enter_cmd(buf, struct kdbus_cmd,
+			      KDBUS_MAKE_ACCESS_GROUP |
+			      KDBUS_MAKE_ACCESS_WORLD, true);
+	if (IS_ERR(cmd))
+		return PTR_ERR(cmd);
 
-	ret = kdbus_negotiate_flags(make, buf, struct kdbus_cmd_make,
-				    KDBUS_MAKE_ACCESS_GROUP |
-				    KDBUS_MAKE_ACCESS_WORLD);
-	if (ret < 0)
-		goto exit;
-
-	ret = kdbus_items_validate(make->items, KDBUS_ITEMS_SIZE(make, items));
-	if (ret < 0)
-		goto exit;
-
-	bus = kdbus_bus_new(domain, make, current_euid(), current_egid());
+	bus = kdbus_bus_new(domain, cmd, current_euid(), current_egid());
 	if (IS_ERR(bus)) {
 		ret = PTR_ERR(bus);
+		bus = NULL;
 		goto exit;
 	}
 
 	ret = kdbus_bus_activate(bus);
 	if (ret < 0)
-		goto exit_bus_unref;
+		goto exit;
 
 	/* protect against parallel ioctls */
 	mutex_lock(&domain->lock);
@@ -1082,17 +849,12 @@ static int handle_control_ioctl_bus_make(struct file *file,
 		file->private_data = bus;
 	mutex_unlock(&domain->lock);
 
-	if (ret < 0)
-		goto exit_bus_unref;
-
-	goto exit;
-
-exit_bus_unref:
-	kdbus_bus_deactivate(bus);
-	kdbus_bus_unref(bus);
 exit:
-	kfree(make);
-	return ret;
+	if (ret < 0) {
+		kdbus_bus_deactivate(bus);
+		kdbus_bus_unref(bus);
+	}
+	return kdbus_leave_cmd(buf, cmd, ret);
 }
 
 static long handle_control_ioctl(struct file *file, unsigned int cmd,

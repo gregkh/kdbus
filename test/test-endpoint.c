@@ -52,7 +52,7 @@ static int create_endpoint(const char *buspath, uid_t uid, const char *name,
 			   uint64_t flags)
 {
 	struct {
-		struct kdbus_cmd_make head;
+		struct kdbus_cmd head;
 
 		/* name item */
 		struct {
@@ -163,7 +163,7 @@ static int update_endpoint(int fd, const char *name)
 {
 	int len = strlen(name) + 1;
 	struct {
-		struct kdbus_cmd_update head;
+		struct kdbus_cmd head;
 
 		/* name item */
 		struct {

@@ -616,7 +616,7 @@ exit_unlock:
  */
 int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
-			   struct kdbus_cmd_name *cmd)
+			   struct kdbus_cmd *cmd)
 {
 	const char *name;
 	int ret;
@@ -661,7 +661,7 @@ out_dec:
  */
 int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 			   struct kdbus_conn *conn,
-			   const struct kdbus_cmd_name *cmd)
+			   const struct kdbus_cmd *cmd)
 {
 	int ret;
 	const char *name;

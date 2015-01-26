@@ -69,7 +69,7 @@ static int test_bus_creator_info(const char *bus_path)
 int kdbus_test_bus_make(struct kdbus_test_env *env)
 {
 	struct {
-		struct kdbus_cmd_make head;
+		struct kdbus_cmd head;
 
 		/* bloom size item */
 		struct {
@@ -111,7 +111,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	/* missing uid prefix */
 	snprintf(bus_make.name, sizeof(bus_make.name), "foo");
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+	bus_make.head.size = sizeof(struct kdbus_cmd) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
@@ -119,7 +119,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	/* non alphanumeric character */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah@123", uid);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+	bus_make.head.size = sizeof(struct kdbus_cmd) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
@@ -127,7 +127,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	/* '-' at the end */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah-", uid);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+	bus_make.head.size = sizeof(struct kdbus_cmd) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
@@ -135,7 +135,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	/* create a new bus */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-1", uid, name);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+	bus_make.head.size = sizeof(struct kdbus_cmd) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);
@@ -154,7 +154,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	 */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-2", uid, name);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+	bus_make.head.size = sizeof(struct kdbus_cmd) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == -1 && errno == EBADFD);
@@ -162,7 +162,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	/* create a new bus, with different fd and different bus name */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-2", uid, name);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd_make) +
+	bus_make.head.size = sizeof(struct kdbus_cmd) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(control_fd2, KDBUS_CMD_BUS_MAKE, &bus_make);
 	ASSERT_RETURN(ret == 0);

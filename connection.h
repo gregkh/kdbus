@@ -162,7 +162,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 int kdbus_cmd_conn_info(struct kdbus_conn *conn,
 			struct kdbus_cmd_info *cmd_info);
 int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  const struct kdbus_cmd_update *cmd_update);
+			  const struct kdbus_cmd *cmd_update);
 
 /**
  * kdbus_conn_is_ordinary() - Check if connection is ordinary

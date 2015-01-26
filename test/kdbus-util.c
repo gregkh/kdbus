@@ -119,7 +119,7 @@ int kdbus_create_bus(int control_fd, const char *name,
 		     char **path)
 {
 	struct {
-		struct kdbus_cmd_make head;
+		struct kdbus_cmd head;
 
 		/* bloom size item */
 		struct {
@@ -1078,7 +1078,7 @@ int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
 int kdbus_name_acquire(struct kdbus_conn *conn,
 		       const char *name, uint64_t *flags)
 {
-	struct kdbus_cmd_name *cmd_name;
+	struct kdbus_cmd *cmd_name;
 	size_t name_len = strlen(name) + 1;
 	uint64_t size = sizeof(*cmd_name) + KDBUS_ITEM_SIZE(name_len);
 	struct kdbus_item *item;
@@ -1115,7 +1115,7 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 
 int kdbus_name_release(struct kdbus_conn *conn, const char *name)
 {
-	struct kdbus_cmd_name *cmd_name;
+	struct kdbus_cmd *cmd_name;
 	size_t name_len = strlen(name) + 1;
 	uint64_t size = sizeof(*cmd_name) + KDBUS_ITEM_SIZE(name_len);
 	struct kdbus_item *item;
@@ -1174,7 +1174,7 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 		struct kdbus_item *item;
 		const char *n = "MISSING-NAME";
 
-		if (name->size == sizeof(struct kdbus_cmd_name))
+		if (name->size == sizeof(struct kdbus_cmd))
 			continue;
 
 		KDBUS_ITEM_FOREACH(item, name, items)
@@ -1200,10 +1200,10 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn,
 {
 	int ret;
 	size_t size;
-	struct kdbus_cmd_update *update;
+	struct kdbus_cmd *update;
 	struct kdbus_item *item;
 
-	size = sizeof(struct kdbus_cmd_update);
+	size = sizeof(struct kdbus_cmd);
 	size += KDBUS_ITEM_SIZE(sizeof(uint64_t)) * 2;
 
 	update = malloc(size);
@@ -1243,12 +1243,12 @@ int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
 			     const struct kdbus_policy_access *access,
 			     size_t num_access)
 {
-	struct kdbus_cmd_update *update;
+	struct kdbus_cmd *update;
 	struct kdbus_item *item;
 	size_t i, size;
 	int ret;
 
-	size = sizeof(struct kdbus_cmd_update);
+	size = sizeof(struct kdbus_cmd);
 	size += KDBUS_ITEM_SIZE(strlen(name) + 1);
 	size += num_access * KDBUS_ITEM_SIZE(sizeof(struct kdbus_policy_access));
 

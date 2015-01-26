@@ -21,7 +21,7 @@
 #define KDBUS_MSG_MAX_ITEMS		128
 
 /* max size of ioctl command data */
-#define KDBUS_CMD_MAX_SIZE		SZ_8K
+#define KDBUS_CMD_MAX_SIZE		SZ_32K
 
 /*
  * Maximum number of passed file descriptors
@@ -41,29 +41,8 @@
 /* maximum length of bus, domain, ep name */
 #define KDBUS_SYSNAME_MAX_LEN			63
 
-/* maximum size of make data */
-#define KDBUS_MAKE_MAX_SIZE			SZ_32K
-
-/* maximum size of hello data */
-#define KDBUS_HELLO_MAX_SIZE			SZ_32K
-
-/* maximum size for update commands */
-#define KDBUS_UPDATE_MAX_SIZE			SZ_32K
-
 /* maximum number of matches per connection */
 #define KDBUS_MATCH_MAX				256
-
-/* maximum size of match data */
-#define KDBUS_MATCH_MAX_SIZE			SZ_32K
-
-/* maximum size of send data */
-#define KDBUS_SEND_MAX_SIZE			SZ_32K
-
-/* maximum size of recv data */
-#define KDBUS_RECV_MAX_SIZE			SZ_32K
-
-/* maximum size of policy data */
-#define KDBUS_POLICY_MAX_SIZE			SZ_32K
 
 /* maximum number of queued messages in a connection */
 #define KDBUS_CONN_MAX_MSGS			256

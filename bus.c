@@ -62,7 +62,7 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
 }
 
 /**
- * kdbus_bus_new() - create a kdbus_cmd_make from user-supplied data
+ * kdbus_bus_new() - create a kdbus_cmd from user-supplied data
  * @domain:		The domain to work on
  * @make:		Information as passed in by userspace
  * @uid:		The uid of the bus node
@@ -74,7 +74,7 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
  * Return: the new bus on success, ERR_PTR on failure.
  */
 struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
-				const struct kdbus_cmd_make *make,
+				const struct kdbus_cmd *make,
 				kuid_t uid, kgid_t gid)
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;

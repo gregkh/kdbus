@@ -506,8 +506,8 @@ struct kdbus_cmd_send {
 	__u64 size;
 	__u64 flags;
 	__u64 kernel_flags;
-	__u64 kernel_msg_flags;
 	__u64 return_flags;
+	__u64 kernel_msg_flags;
 	__u64 msg_address;
 	struct kdbus_msg_info reply;
 	struct kdbus_item items[0];
@@ -573,21 +573,21 @@ struct kdbus_cmd_recv {
 /**
  * struct kdbus_cmd_free - struct to free a slice of memory in the pool
  * @size:		Overall size of this structure
+ * @flags:		Flags for the free command, userspace → kernel
+ * @kernel_flags:	Supported flags of the free command, userspace → kernel
+ * @return_flags:	Command return flags, kernel → userspace
  * @offset:		The offset of the memory slice, as returned by other
  *			ioctls
- * @flags:		Flags for the free command, userspace → kernel
- * @return_flags:	Command return flags, kernel → userspace
- * @kernel_flags:	Supported flags of the free command, userspace → kernel
  * @items:		Additional items to modify the behavior
  *
  * This struct is used with the KDBUS_CMD_FREE ioctl.
  */
 struct kdbus_cmd_free {
 	__u64 size;
-	__u64 offset;
 	__u64 flags;
 	__u64 kernel_flags;
 	__u64 return_flags;
+	__u64 offset;
 	struct kdbus_item items[0];
 } __attribute__((aligned(8)));
 
@@ -734,26 +734,6 @@ enum kdbus_make_flags {
 };
 
 /**
- * struct kdbus_cmd_make - struct to make a bus, an endpoint or a domain
- * @size:		The total size of the struct
- * @flags:		Properties for the bus/ep/domain to create,
- *			userspace → kernel
- * @kernel_flags:	Supported flags for the used command, kernel → userspace
- * @return_flags:	Command return flags, kernel → userspace
- * @items:		Items describing details
- *
- * This structure is used with the KDBUS_CMD_BUS_MAKE and
- * KDBUS_CMD_ENDPOINT_MAKE ioctls.
- */
-struct kdbus_cmd_make {
-	__u64 size;
-	__u64 flags;
-	__u64 kernel_flags;
-	__u64 return_flags;
-	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
-
-/**
  * enum kdbus_name_flags - properties of a well-known name
  * @KDBUS_NAME_REPLACE_EXISTING:	Try to replace name of other connections
  * @KDBUS_NAME_ALLOW_REPLACEMENT:	Allow the replacement of the name
@@ -768,26 +748,6 @@ enum kdbus_name_flags {
 	KDBUS_NAME_IN_QUEUE		= 1ULL <<  3,
 	KDBUS_NAME_ACTIVATOR		= 1ULL <<  4,
 };
-
-/**
- * struct kdbus_cmd_name - struct to describe a well-known name
- * @size:		The total size of the struct
- * @flags:		Flags for a name entry (KDBUS_NAME_*),
- *			userspace → kernel, kernel → userspace
- * @kernel_flags:	Supported flags for a name entry, kernel → userspace
- * @return_flags:	Command return flags, kernel → userspace
- * @items:		Item list, containing the well-known name as
- *			KDBUS_ITEM_NAME
- *
- * This structure is used with the KDBUS_CMD_NAME_ACQUIRE ioctl.
- */
-struct kdbus_cmd_name {
-	__u64 size;
-	__u64 flags;
-	__u64 kernel_flags;
-	__u64 return_flags;
-	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
 
 /**
  * struct kdbus_name_info - struct to describe a well-known name
@@ -908,24 +868,6 @@ struct kdbus_cmd_info {
 } __attribute__((aligned(8)));
 
 /**
- * struct kdbus_cmd_update - update flags of a connection
- * @size:		The total size of the struct
- * @flags:		Flags for the update command, userspace → kernel
- * @kernel_flags:	Supported flags for this command, kernel → userspace
- * @return_flags:	Command return flags, kernel → userspace
- * @items:		A list of struct kdbus_item
- *
- * This struct is used with the KDBUS_CMD_UPDATE ioctl.
- */
-struct kdbus_cmd_update {
-	__u64 size;
-	__u64 flags;
-	__u64 kernel_flags;
-	__u64 return_flags;
-	struct kdbus_item items[0];
-} __attribute__((aligned(8)));
-
-/**
  * enum kdbus_cmd_match_flags - flags to control the KDBUS_CMD_MATCH_ADD ioctl
  * @KDBUS_MATCH_REPLACE:	If entries with the supplied cookie already
  *				exists, remove them before installing the new
@@ -938,12 +880,12 @@ enum kdbus_cmd_match_flags {
 /**
  * struct kdbus_cmd_match - struct to add or remove matches
  * @size:		The total size of the struct
- * @cookie:		Userspace supplied cookie. When removing, the cookie
- *			identifies the match to remove
  * @flags:		Flags for match command (KDBUS_MATCH_*),
  *			userspace → kernel
  * @kernel_flags:	Supported flags of the used command, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
+ * @cookie:		Userspace supplied cookie. When removing, the cookie
+ *			identifies the match to remove
  * @items:		A list of items for additional information
  *
  * This structure is used with the KDBUS_CMD_MATCH_ADD and
@@ -951,7 +893,26 @@ enum kdbus_cmd_match_flags {
  */
 struct kdbus_cmd_match {
 	__u64 size;
+	__u64 flags;
+	__u64 kernel_flags;
+	__u64 return_flags;
 	__u64 cookie;
+	struct kdbus_item items[0];
+} __attribute__((aligned(8)));
+
+/**
+ * struct kdbus_cmd - generic ioctl payload
+ * @size:		Overall size of this structure
+ * @flags:		Flags for this ioctl, userspace → kernel
+ * @kernel_flags:	Supported flags for this ioctl, kernel → userspace
+ * @return_flags:	Ioctl return flags, kernel → userspace
+ * @items:		Additional items to modify the behavior
+ *
+ * This is a generic ioctl payload object. It's used by all ioctls that only
+ * take flags and items as input.
+ */
+struct kdbus_cmd {
+	__u64 size;
 	__u64 flags;
 	__u64 kernel_flags;
 	__u64 return_flags;
@@ -1015,19 +976,19 @@ struct kdbus_cmd_match {
 enum kdbus_ioctl_type {
 	/* bus owner (00-0f) */
 	KDBUS_CMD_BUS_MAKE =		_IOW(KDBUS_IOCTL_MAGIC, 0x00,
-					     struct kdbus_cmd_make),
+					     struct kdbus_cmd),
 
 	/* endpoint owner (10-1f) */
 	KDBUS_CMD_ENDPOINT_MAKE =	_IOW(KDBUS_IOCTL_MAGIC, 0x10,
-					     struct kdbus_cmd_make),
+					     struct kdbus_cmd),
 	KDBUS_CMD_ENDPOINT_UPDATE =	_IOW(KDBUS_IOCTL_MAGIC, 0x11,
-					     struct kdbus_cmd_update),
+					     struct kdbus_cmd),
 
 	/* connection owner (80-ff) */
 	KDBUS_CMD_HELLO =		_IOWR(KDBUS_IOCTL_MAGIC, 0x80,
 					      struct kdbus_cmd_hello),
 	KDBUS_CMD_UPDATE =		_IOW(KDBUS_IOCTL_MAGIC, 0x81,
-					     struct kdbus_cmd_update),
+					     struct kdbus_cmd),
 	KDBUS_CMD_BYEBYE =		_IO(KDBUS_IOCTL_MAGIC, 0x82),
 	KDBUS_CMD_FREE =		_IOW(KDBUS_IOCTL_MAGIC, 0x83,
 					     struct kdbus_cmd_free),
@@ -1042,9 +1003,9 @@ enum kdbus_ioctl_type {
 					     struct kdbus_cmd_recv),
 
 	KDBUS_CMD_NAME_ACQUIRE =	_IOW(KDBUS_IOCTL_MAGIC, 0xa0,
-					     struct kdbus_cmd_name),
+					     struct kdbus_cmd),
 	KDBUS_CMD_NAME_RELEASE =	_IOW(KDBUS_IOCTL_MAGIC, 0xa1,
-					     struct kdbus_cmd_name),
+					     struct kdbus_cmd),
 	KDBUS_CMD_NAME_LIST =		_IOR(KDBUS_IOCTL_MAGIC, 0xa2,
 					     struct kdbus_cmd_name_list),
 
