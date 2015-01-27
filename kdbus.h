@@ -209,6 +209,34 @@ struct kdbus_name {
 } __attribute__((__aligned__(8)));
 
 /**
+ * enum kdbus_policy_access_type - permissions of a policy record
+ * @_KDBUS_POLICY_ACCESS_NULL:	Uninitialized/invalid
+ * @KDBUS_POLICY_ACCESS_USER:	Grant access to a uid
+ * @KDBUS_POLICY_ACCESS_GROUP:	Grant access to gid
+ * @KDBUS_POLICY_ACCESS_WORLD:	World-accessible
+ */
+enum kdbus_policy_access_type {
+	_KDBUS_POLICY_ACCESS_NULL,
+	KDBUS_POLICY_ACCESS_USER,
+	KDBUS_POLICY_ACCESS_GROUP,
+	KDBUS_POLICY_ACCESS_WORLD,
+};
+
+/**
+ * enum kdbus_policy_access_flags - mode flags
+ * @KDBUS_POLICY_OWN:		Allow to own a well-known name
+ *				Implies KDBUS_POLICY_TALK and KDBUS_POLICY_SEE
+ * @KDBUS_POLICY_TALK:		Allow communication to a well-known name
+ *				Implies KDBUS_POLICY_SEE
+ * @KDBUS_POLICY_SEE:		Allow to see a well-known name
+ */
+enum kdbus_policy_type {
+	KDBUS_POLICY_SEE	= 0,
+	KDBUS_POLICY_TALK,
+	KDBUS_POLICY_OWN,
+};
+
+/**
  * struct kdbus_policy_access - policy access item
  * @type:		One of KDBUS_POLICY_ACCESS_* types
  * @access:		Access to grant
@@ -220,6 +248,45 @@ struct kdbus_policy_access {
 	__u64 access;	/* OWN, TALK, SEE */
 	__u64 id;	/* uid, gid, 0 */
 } __attribute__((__aligned__(8)));
+
+/**
+ * enum kdbus_attach_flags - flags for metadata attachments
+ * @KDBUS_ATTACH_TIMESTAMP:		Timestamp
+ * @KDBUS_ATTACH_CREDS:			Credentials
+ * @KDBUS_ATTACH_PIDS:			PIDs
+ * @KDBUS_ATTACH_AUXGROUPS:		Auxiliary groups
+ * @KDBUS_ATTACH_NAMES:			Well-known names
+ * @KDBUS_ATTACH_TID_COMM:		The "comm" process identifier of the TID
+ * @KDBUS_ATTACH_PID_COMM:		The "comm" process identifier of the PID
+ * @KDBUS_ATTACH_EXE:			The path of the executable
+ * @KDBUS_ATTACH_CMDLINE:		The process command line
+ * @KDBUS_ATTACH_CGROUP:		The croup membership
+ * @KDBUS_ATTACH_CAPS:			The process capabilities
+ * @KDBUS_ATTACH_SECLABEL:		The security label
+ * @KDBUS_ATTACH_AUDIT:			The audit IDs
+ * @KDBUS_ATTACH_CONN_DESCRIPTION:	The human-readable connection name
+ * @_KDBUS_ATTACH_ALL:			All of the above
+ * @_KDBUS_ATTACH_ANY:			Wildcard match to enable any kind of
+ *					metatdata.
+ */
+enum kdbus_attach_flags {
+	KDBUS_ATTACH_TIMESTAMP		=  1ULL <<  0,
+	KDBUS_ATTACH_CREDS		=  1ULL <<  1,
+	KDBUS_ATTACH_PIDS		=  1ULL <<  2,
+	KDBUS_ATTACH_AUXGROUPS		=  1ULL <<  3,
+	KDBUS_ATTACH_NAMES		=  1ULL <<  4,
+	KDBUS_ATTACH_TID_COMM		=  1ULL <<  5,
+	KDBUS_ATTACH_PID_COMM		=  1ULL <<  6,
+	KDBUS_ATTACH_EXE		=  1ULL <<  7,
+	KDBUS_ATTACH_CMDLINE		=  1ULL <<  8,
+	KDBUS_ATTACH_CGROUP		=  1ULL <<  9,
+	KDBUS_ATTACH_CAPS		=  1ULL << 10,
+	KDBUS_ATTACH_SECLABEL		=  1ULL << 11,
+	KDBUS_ATTACH_AUDIT		=  1ULL << 12,
+	KDBUS_ATTACH_CONN_DESCRIPTION	=  1ULL << 13,
+	_KDBUS_ATTACH_ALL		=  (1ULL << 14) - 1,
+	_KDBUS_ATTACH_ANY		=  ~0ULL
+};
 
 /**
  * enum kdbus_item_type - item types to chain data in a list
@@ -592,34 +659,6 @@ struct kdbus_cmd_free {
 } __attribute__((__aligned__(8)));
 
 /**
- * enum kdbus_policy_access_type - permissions of a policy record
- * @_KDBUS_POLICY_ACCESS_NULL:	Uninitialized/invalid
- * @KDBUS_POLICY_ACCESS_USER:	Grant access to a uid
- * @KDBUS_POLICY_ACCESS_GROUP:	Grant access to gid
- * @KDBUS_POLICY_ACCESS_WORLD:	World-accessible
- */
-enum kdbus_policy_access_type {
-	_KDBUS_POLICY_ACCESS_NULL,
-	KDBUS_POLICY_ACCESS_USER,
-	KDBUS_POLICY_ACCESS_GROUP,
-	KDBUS_POLICY_ACCESS_WORLD,
-};
-
-/**
- * enum kdbus_policy_access_flags - mode flags
- * @KDBUS_POLICY_OWN:		Allow to own a well-known name
- *				Implies KDBUS_POLICY_TALK and KDBUS_POLICY_SEE
- * @KDBUS_POLICY_TALK:		Allow communication to a well-known name
- *				Implies KDBUS_POLICY_SEE
- * @KDBUS_POLICY_SEE:		Allow to see a well-known name
- */
-enum kdbus_policy_type {
-	KDBUS_POLICY_SEE	= 0,
-	KDBUS_POLICY_TALK,
-	KDBUS_POLICY_OWN,
-};
-
-/**
  * enum kdbus_hello_flags - flags for struct kdbus_cmd_hello
  * @KDBUS_HELLO_ACCEPT_FD:	The connection allows the reception of
  *				any passed file descriptors
@@ -640,45 +679,6 @@ enum kdbus_hello_flags {
 	KDBUS_HELLO_ACTIVATOR		=  1ULL <<  1,
 	KDBUS_HELLO_POLICY_HOLDER	=  1ULL <<  2,
 	KDBUS_HELLO_MONITOR		=  1ULL <<  3,
-};
-
-/**
- * enum kdbus_attach_flags - flags for metadata attachments
- * @KDBUS_ATTACH_TIMESTAMP:		Timestamp
- * @KDBUS_ATTACH_CREDS:			Credentials
- * @KDBUS_ATTACH_PIDS:			PIDs
- * @KDBUS_ATTACH_AUXGROUPS:		Auxiliary groups
- * @KDBUS_ATTACH_NAMES:			Well-known names
- * @KDBUS_ATTACH_TID_COMM:		The "comm" process identifier of the TID
- * @KDBUS_ATTACH_PID_COMM:		The "comm" process identifier of the PID
- * @KDBUS_ATTACH_EXE:			The path of the executable
- * @KDBUS_ATTACH_CMDLINE:		The process command line
- * @KDBUS_ATTACH_CGROUP:		The croup membership
- * @KDBUS_ATTACH_CAPS:			The process capabilities
- * @KDBUS_ATTACH_SECLABEL:		The security label
- * @KDBUS_ATTACH_AUDIT:			The audit IDs
- * @KDBUS_ATTACH_CONN_DESCRIPTION:	The human-readable connection name
- * @_KDBUS_ATTACH_ALL:			All of the above
- * @_KDBUS_ATTACH_ANY:			Wildcard match to enable any kind of
- *					metatdata.
- */
-enum kdbus_attach_flags {
-	KDBUS_ATTACH_TIMESTAMP		=  1ULL <<  0,
-	KDBUS_ATTACH_CREDS		=  1ULL <<  1,
-	KDBUS_ATTACH_PIDS		=  1ULL <<  2,
-	KDBUS_ATTACH_AUXGROUPS		=  1ULL <<  3,
-	KDBUS_ATTACH_NAMES		=  1ULL <<  4,
-	KDBUS_ATTACH_TID_COMM		=  1ULL <<  5,
-	KDBUS_ATTACH_PID_COMM		=  1ULL <<  6,
-	KDBUS_ATTACH_EXE		=  1ULL <<  7,
-	KDBUS_ATTACH_CMDLINE		=  1ULL <<  8,
-	KDBUS_ATTACH_CGROUP		=  1ULL <<  9,
-	KDBUS_ATTACH_CAPS		=  1ULL << 10,
-	KDBUS_ATTACH_SECLABEL		=  1ULL << 11,
-	KDBUS_ATTACH_AUDIT		=  1ULL << 12,
-	KDBUS_ATTACH_CONN_DESCRIPTION	=  1ULL << 13,
-	_KDBUS_ATTACH_ALL		=  (1ULL << 14) - 1,
-	_KDBUS_ATTACH_ANY		=  ~0ULL
 };
 
 /**
@@ -722,32 +722,6 @@ struct kdbus_cmd_hello {
 	__u8 id128[16];
 	struct kdbus_item items[0];
 } __attribute__((__aligned__(8)));
-
-/**
- * enum kdbus_make_flags - Flags for KDBUS_CMD_{BUS,EP,NS}_MAKE
- * @KDBUS_MAKE_ACCESS_GROUP:	Make the bus or endpoint node group-accessible
- * @KDBUS_MAKE_ACCESS_WORLD:	Make the bus or endpoint node world-accessible
- */
-enum kdbus_make_flags {
-	KDBUS_MAKE_ACCESS_GROUP		= 1ULL <<  0,
-	KDBUS_MAKE_ACCESS_WORLD		= 1ULL <<  1,
-};
-
-/**
- * enum kdbus_name_flags - properties of a well-known name
- * @KDBUS_NAME_REPLACE_EXISTING:	Try to replace name of other connections
- * @KDBUS_NAME_ALLOW_REPLACEMENT:	Allow the replacement of the name
- * @KDBUS_NAME_QUEUE:			Name should be queued if busy
- * @KDBUS_NAME_IN_QUEUE:		Name is queued
- * @KDBUS_NAME_ACTIVATOR:		Name is owned by a activator connection
- */
-enum kdbus_name_flags {
-	KDBUS_NAME_REPLACE_EXISTING	= 1ULL <<  0,
-	KDBUS_NAME_ALLOW_REPLACEMENT	= 1ULL <<  1,
-	KDBUS_NAME_QUEUE		= 1ULL <<  2,
-	KDBUS_NAME_IN_QUEUE		= 1ULL <<  3,
-	KDBUS_NAME_ACTIVATOR		= 1ULL <<  4,
-};
 
 /**
  * struct kdbus_name_info - struct to describe a well-known name
@@ -899,6 +873,32 @@ struct kdbus_cmd_match {
 	__u64 cookie;
 	struct kdbus_item items[0];
 } __attribute__((__aligned__(8)));
+
+/**
+ * enum kdbus_make_flags - Flags for KDBUS_CMD_{BUS,ENDPOINT}_MAKE
+ * @KDBUS_MAKE_ACCESS_GROUP:	Make the bus or endpoint node group-accessible
+ * @KDBUS_MAKE_ACCESS_WORLD:	Make the bus or endpoint node world-accessible
+ */
+enum kdbus_make_flags {
+	KDBUS_MAKE_ACCESS_GROUP		= 1ULL <<  0,
+	KDBUS_MAKE_ACCESS_WORLD		= 1ULL <<  1,
+};
+
+/**
+ * enum kdbus_name_flags - flags for KDBUS_CMD_NAME_ACQUIRE
+ * @KDBUS_NAME_REPLACE_EXISTING:	Try to replace name of other connections
+ * @KDBUS_NAME_ALLOW_REPLACEMENT:	Allow the replacement of the name
+ * @KDBUS_NAME_QUEUE:			Name should be queued if busy
+ * @KDBUS_NAME_IN_QUEUE:		Name is queued
+ * @KDBUS_NAME_ACTIVATOR:		Name is owned by a activator connection
+ */
+enum kdbus_name_flags {
+	KDBUS_NAME_REPLACE_EXISTING	= 1ULL <<  0,
+	KDBUS_NAME_ALLOW_REPLACEMENT	= 1ULL <<  1,
+	KDBUS_NAME_QUEUE		= 1ULL <<  2,
+	KDBUS_NAME_IN_QUEUE		= 1ULL <<  3,
+	KDBUS_NAME_ACTIVATOR		= 1ULL <<  4,
+};
 
 /**
  * struct kdbus_cmd - generic ioctl payload
