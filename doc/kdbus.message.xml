@@ -130,13 +130,19 @@ struct kdbus_cmd_send {
               <term><varname>KDBUS_ITEM_CANCEL_FD</varname></term>
               <listitem>
                 <para>
-                  When this optional item is passed in, and the call is executed as SYNC
-                  call, the passed in file descriptor can be used as alternative
-                  cancellation point. The kernel will call poll() on this file descriptor,
-                  and if it reports any incoming bytes, the blocking send operation will
-                  be canceled, and the call will return -ECANCELED. Any type of file
-                  descriptor that implements poll() can be used as payload to this item.
-                  For asynchronous message sending, this item is accepted but ignored.
+                  When this optional item is passed in, and the call is
+                  executed as SYNC call, the passed in file descriptor can be
+                  used as alternative cancellation point. The kernel will call
+                  poll()
+                  <citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+                  on this file descriptor, and if it reports any incoming
+                  bytes, the blocking send operation will be canceled, and the
+                  call will return <varname>-ECANCELED</varname>. Any type of
+                  file descriptor on which
+                  <citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+                  can be called on can be used as payload to this item.
+                  For asynchronous message sending, this item is allowed but
+                  ignored.
                 </para>
               </listitem>
             </varlistentry>
