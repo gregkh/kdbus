@@ -37,10 +37,11 @@
       Messages with a specific <varname>uint64_t</varname> destination ID are
       directly delivered to the connection with the corresponding ID. Messages
       with the special destination ID <varname>KDBUS_DST_ID_BROADCAST</varname>
-      are broadcast messages and are potentially delivered to all currently
-      active connections on the bus. However, in order to receive any broadcast
-      messages, clients must subscribe to the specific messages in which they are
-      interested in.
+      (~0ULL) are broadcast messages and are potentially delivered to all
+      currently active connections on the bus. However, in order to receive any
+      broadcast messages, clients must subscribe to the specific messages they
+      are interested in (see
+      <citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
     </para>
     <para>
       Messages synthesized and sent directly by the kernel will carry the special
@@ -56,9 +57,9 @@
       on name acquisition, the name registry, and the validity of names.
     </para>
     <para>
-      Messages can specify the special destination ID 0 and carry a well-known name
-      in the message data. Such a message is delivered to the destination connection
-      which owns that well-known name.
+      Messages can specify the special destination ID <varname>KDBUS_DST_ID_NAME</varname>
+      (0) and carry a well-known name in the message data. Such a message is
+      delivered to the destination connection which owns that well-known name.
     </para>
 
     <programlisting><![CDATA[
@@ -113,11 +114,12 @@
   <refsect1>
     <title>Creating connections</title>
     <para>
-      A connection to a bus is created by opening an endpoint file of a bus and
-      becoming an active client with the <varname>KDBUS_CMD_HELLO</varname>
-      ioctl. Every connected client connection has a unique identifier on the
-      bus and can address messages to every other connection on the same bus
-      by using the peer's connection ID as the destination.
+      A connection to a bus is created by opening an endpoint file (see
+      <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
+      of a bus and becoming an active client with the <varname>KDBUS_CMD_HELLO</varname>
+      ioctl. Every connection has a unique identifier on the bus and can address
+      messages to every other connection on the same bus by using the peer's
+      connection ID as the destination.
     </para>
     <para>
       The KDBUS_CMD_HELLO ioctl takes the following struct as argument.
@@ -152,16 +154,17 @@ struct kdbus_cmd_hello {
 
       <varlistentry>
         <term><varname>flags</varname></term>
-        <listitem><para>Flags to apply to this connection</para>
+        <listitem><para>Flags to apply to this connection
+TODO: document precisely what combination of flags may be passed</para>
           <variablelist>
             <varlistentry>
               <term><varname>KDBUS_HELLO_ACCEPT_FD</varname></term>
               <listitem>
                 <para>
                   When this flag is set, the connection can be sent file
-                  descriptors as message payload. If it's not set, an attempt
-                  to send file descriptors results in <varname>-ECOMM</varname>
-                  on the sender's side.
+                  descriptors as message payload of unicast messages. If it's not
+                  set, an attempt to send file descriptors results in
+                  <varname>-ECOMM</varname> on the sender's side.
                 </para>
               </listitem>
             </varlistentry>
@@ -194,12 +197,11 @@ struct kdbus_cmd_hello {
               <term><varname>KDBUS_HELLO_MONITOR</varname></term>
               <listitem>
                 <para>
-                  Make this connection an monitor (eavesdropping) connection.
-                  See the section below more information.
+                  Make this connection a monitor (eavesdropping) connection.
                 </para>
                 <para>
                   This flag can only be set by privileged bus connections. See
-                  below.
+                  below for more information.
                 </para>
               </listitem>
             </varlistentry>
@@ -227,13 +229,12 @@ struct kdbus_cmd_hello {
         <listitem><para>
           Set the bits for metadata this connection permits to be sent to the
           receiving peer. Only metadata items that are both allowed to be sent
-          by the sender and that are requested by the receiver will effectively
-          be attached to the message. Note, however, that the bus may
-          optionally require some of those bits to be set. If the match fails,
-          <varname>-ECONNREFUSED</varname> will be returned. In either case,
-          this field will be set to the mask of metadata items that are
-          enforced by the bus. The <varname>KDBUS_FLAGS_KERNEL</varname> bit
-          will as well be set.
+          by the sender and that are requested by the receiver will be attached
+          to the message. Note, however, that the bus may optionally require
+          some of those bits to be set. If the match fails, <varname>-ECONNREFUSED</varname>
+          will be returned. In either case, when returning the field will be set
+          to the mask of metadata items that are enforced by the bus with the
+          <varname>KDBUS_FLAGS_KERNEL</varname> bit set as well.
         </para></listitem>
       </varlistentry>
 
