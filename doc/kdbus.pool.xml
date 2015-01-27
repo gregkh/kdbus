@@ -163,34 +163,34 @@ struct kdbus_cmd_free {
       On success, all metioned ioctl commands return 0.
     </para>
 
-    <para>
-      <varname>KDBUS_CMD_FREE</varname> may return the following errors.
-    </para>
+    <refsect2>
+      <title><varname>KDBUS_CMD_FREE</varname> may return the following errors</title>
 
-    <variablelist>
-      <varlistentry>
-        <term><varname>-ENXIO</varname></term>
-        <listitem><para>
-          No pool slice found at given offset.
-        </para></listitem>
-      </varlistentry>
+      <variablelist>
+        <varlistentry>
+          <term><varname>-ENXIO</varname></term>
+          <listitem><para>
+            No pool slice found at given offset.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          Invalid flags provided.
-        </para></listitem>
-      </varlistentry>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Invalid flags provided.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          The offset is valid, but the user is not allowed to free the slice.
-          This happens, for example, if the offset was retrieved with
-          <varname>KDBUS_RECV_PEEK</varname>.
-        </para></listitem>
-      </varlistentry>
-    </variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            The offset is valid, but the user is not allowed to free the slice.
+            This happens, for example, if the offset was retrieved with
+            <varname>KDBUS_RECV_PEEK</varname>.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
   </refsect1>
 
   <refsect1>

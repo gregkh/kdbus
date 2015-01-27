@@ -400,52 +400,52 @@ struct kdbus_cmd_match {
       On success, all mentioned ioctl commands return 0.
     </para>
 
-    <para>
-      <varname>KDBUS_CMD_MATCH_ADD</varname> may return the following errors.
-    </para>
+    <refsect2>
+      <title><varname>KDBUS_CMD_MATCH_ADD</varname> may return the following errors</title>
 
-    <variablelist>
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          Illegal flags or items.
-        </para></listitem>
-      </varlistentry>
+      <variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Illegal flags or items.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EDOM</varname></term>
-        <listitem><para>
-          Illegal bloom filter size.
-        </para></listitem>
-      </varlistentry>
+        <varlistentry>
+          <term><varname>-EDOM</varname></term>
+          <listitem><para>
+            Illegal bloom filter size.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EMFILE</varname></term>
-        <listitem><para>
-          Too many matches for this connection.
-        </para></listitem>
-      </varlistentry>
-    </variablelist>
+        <varlistentry>
+          <term><varname>-EMFILE</varname></term>
+          <listitem><para>
+            Too many matches for this connection.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
 
-    <para>
-      <varname>KDBUS_CMD_MATCH_REMOVE</varname> may return the following errors.
-    </para>
+    <refsect2>
+      <title><varname>KDBUS_CMD_MATCH_REMOVE</varname> may return the following errors</title>
 
-    <variablelist>
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          Illegal flags.
-        </para></listitem>
-      </varlistentry>
+      <variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Illegal flags.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EBADSLT</varname></term>
-        <listitem><para>
-          A match entry with the given cookie could not be found.
-        </para></listitem>
-      </varlistentry>
-    </variablelist>
+        <varlistentry>
+          <term><varname>-EBADSLT</varname></term>
+          <listitem><para>
+            A match entry with the given cookie could not be found.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
   </refsect1>
 
   <refsect1>

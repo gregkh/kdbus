@@ -479,95 +479,94 @@ struct kdbus_name_info {
       On success, all metioned ioctl commands return 0.
     </para>
 
-    <para>
-      <varname>KDBUS_CMD_NAME_ACQUIRE</varname> may return the following errors.
-    </para>
+    <refsect2>
+      <title><varname>KDBUS_CMD_NAME_ACQUIRE</varname> may return the following errors</title>
 
-    <variablelist>
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          Illegal command flags, illegal name provided, or an activator
-          tried to acquire a second name.
-        </para></listitem>
-      </varlistentry>
+      <variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Illegal command flags, illegal name provided, or an activator
+            tried to acquire a second name.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EPERM</varname></term>
-        <listitem><para>
-          Policy prohibited name ownership.
-        </para></listitem>
-      </varlistentry>
+        <varlistentry>
+          <term><varname>-EPERM</varname></term>
+          <listitem><para>
+            Policy prohibited name ownership.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EALREADY</varname></term>
-        <listitem><para>
-          Connection already owns that name.
-        </para></listitem>
-      </varlistentry>
+        <varlistentry>
+          <term><varname>-EALREADY</varname></term>
+          <listitem><para>
+            Connection already owns that name.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EEXIST</varname></term>
-        <listitem><para>
-          The name already exists and can not be taken over.
-        </para></listitem>
-      </varlistentry>
+        <varlistentry>
+          <term><varname>-EEXIST</varname></term>
+          <listitem><para>
+            The name already exists and can not be taken over.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-E2BIG</varname></term>
-        <listitem><para>
-          The maximum number of well-known names per connection is exhausted.
-        </para></listitem>
-      </varlistentry>
-    </variablelist>
+        <varlistentry>
+          <term><varname>-E2BIG</varname></term>
+          <listitem><para>
+            The maximum number of well-known names per connection is exhausted.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
 
-    <para>
-      <varname>KDBUS_CMD_NAME_RELEASE</varname> may return the following errors.
-    </para>
+    <refsect2>
+      <title><varname>KDBUS_CMD_NAME_RELEASE</varname> may return the following errors</title>
 
-    <variablelist>
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          Invalid command flags, or invalid name provided.
-        </para></listitem>
-      </varlistentry>
+      <variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Invalid command flags, or invalid name provided.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-ESRCH</varname></term>
-        <listitem><para>
-          Name is not found in the registry.
-        </para></listitem>
-      </varlistentry>
+        <varlistentry>
+          <term><varname>-ESRCH</varname></term>
+          <listitem><para>
+            Name is not found in the registry.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EADDRINUSE</varname></term>
-        <listitem><para>
-          Name is owned by a different connection and can't be released.
-        </para></listitem>
-      </varlistentry>
-    </variablelist>
+        <varlistentry>
+          <term><varname>-EADDRINUSE</varname></term>
+          <listitem><para>
+            Name is owned by a different connection and can't be released.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
 
-    <para>
-      <varname>KDBUS_CMD_NAME_LIST</varname> may return the following errors.
-    </para>
+    <refsect2>
+      <title><varname>KDBUS_CMD_NAME_LIST</varname> may return the following errors</title>
 
-    <variablelist>
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          Invalid command flags
-        </para></listitem>
-      </varlistentry>
+      <variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Invalid command flags
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-ENOBUFS</varname></term>
-        <listitem><para>
-          No available memory in the connection's pool.
-        </para></listitem>
-      </varlistentry>
-    </variablelist>
-
+        <varlistentry>
+          <term><varname>-ENOBUFS</varname></term>
+          <listitem><para>
+            No available memory in the connection's pool.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
   </refsect1>
 
   <refsect1>

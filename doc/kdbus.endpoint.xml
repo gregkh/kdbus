@@ -259,35 +259,72 @@ struct kdbus_cmd_make {
       On success, all mentioned ioctl commands return 0.
     </para>
 
-    <para>
-      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname> may return the following errors.
-    </para>
+    <refsect2>
+      <title><varname>KDBUS_CMD_ENDPOINT_MAKE</varname> may return the following errors</title>
 
-    <variablelist>
-      <varlistentry>
-        <term><varname>-EINVAL</varname></term>
-        <listitem><para>
-          The flags supplied in the <varname>struct kdbus_cmd_make</varname>
-          are invalid.
-        </para></listitem>
-      </varlistentry>
+      <variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            The flags supplied in the <varname>struct kdbus_cmd_make</varname>
+            are invalid.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EEXIST</varname></term>
-        <listitem><para>
-          An endpoint of that name already exists.
-        </para></listitem>
-      </varlistentry>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Illegal combination of <varname>KDBUS_ITEM_NAME</varname> and
+            <varname>KDBUS_ITEM_POLICY_ACCESS</varname> was provided.
+          </para></listitem>
+        </varlistentry>
 
-      <varlistentry>
-        <term><varname>-EPERM</varname></term>
-        <listitem><para>
-          The calling user is not privileged. See
-          <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
-          for information about privileged users.
-        </para></listitem>
-      </varlistentry>
-    </variablelist>
+        <varlistentry>
+          <term><varname>-EEXIST</varname></term>
+          <listitem><para>
+            An endpoint of that name already exists.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>-EPERM</varname></term>
+          <listitem><para>
+            The calling user is not privileged. See
+            <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+            for information about privileged users.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+
+    <refsect2>
+      <title><varname>KDBUS_CMD_ENDPOINT_UPDATE</varname> may return the following errors</title>
+
+      <variablelist>
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            The flags supplied in the <varname>struct kdbus_cmd_update</varname>
+            are invalid.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>-EINVAL</varname></term>
+          <listitem><para>
+            Illegal combination of <varname>KDBUS_ITEM_NAME</varname> and
+            <varname>KDBUS_ITEM_POLICY_ACCESS</varname> was provided.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><varname>-EEXIST</varname></term>
+          <listitem><para>
+            An endpoint of that name already exists.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
   </refsect1>
 
   <refsect1>
