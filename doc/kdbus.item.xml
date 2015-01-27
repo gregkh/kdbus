@@ -155,7 +155,7 @@ struct kdbus_item {
           <listitem><para>
             Messages are directly copied by the sending process into the
             receiver's
-            <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
+            <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
             This way, two peers can exchange data by effectively doing a
             single-copy from one process to another; the kernel will not buffer
             the data anywhere else. <varname>KDBUS_ITEM_PAYLOAD_VEC</varname>
@@ -164,10 +164,10 @@ struct kdbus_item {
             <varname>KDBUS_ITEM_PAYLOAD_OFF</varname> is used when messages
             are <emphasis>received</emphasis>, and the <varname>offset</varname>
             value describes the offset inside the receiving connection's
-            <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             where the message payload can be found.
             See
-            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on passing of payload data along with a
             message.
             <programlisting>
@@ -191,7 +191,7 @@ struct kdbus_vec {
             has to match the actual size of the memfd that was specified when
             it was created. The <varname>start</varname> parameter denotes the
             offset inside the memfd at which the referenced payload starts. See
-            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on passing of payload data along with a
             message.
             <programlisting>
@@ -217,7 +217,7 @@ struct kdbus_memfd {
             filedescriptor.
             In either case, the number of entries in the array is derived from
             the item's total size. See
-            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information.
           </para></listitem>
         </varlistentry>
@@ -235,7 +235,7 @@ struct kdbus_memfd {
             writing to it. The file descriptor is stored in
             <varname>item.fd[0]</varname>. The item may only contain one
             filedescriptor. See
-            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on this item and how to use it.
           </para></listitem>
         </varlistentry>
@@ -277,7 +277,7 @@ struct kdbus_bloom_filter {
             message to, as null-terminated string in
             <varname>item.str</varname>. This item is used with
             <varname>KDBUS_CMD_SEND</varname>. See
-            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on how to send a message.
           </para></listitem>
         </varlistentry>
@@ -294,9 +294,9 @@ struct kdbus_bloom_filter {
           <listitem><para>
             Contains a set of <emphasis>attach flags</emphasis> at
             <emphasis>send</emphasis> or <emphasis>receive</emphasis> time. See
-            <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>2</manvolnum></citerefentry>,
-            <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>2</manvolnum></citerefentry> and
-            <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry>,
+            <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
+            <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on attach flags.
           </para></listitem>
         </varlistentry>
@@ -318,7 +318,7 @@ struct kdbus_bloom_filter {
             <varname>struct kdbus_name</varname> in
             <varname>item.name</varname>. The <varname> flags</varname>
             contains the flags of the name. See
-            <citerefentry><refentrytitle>kdbus.name</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.name</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on how to access the name registry of a bus.
             <programlisting>
 struct kdbus_name {
@@ -529,8 +529,19 @@ struct kdbus_audit {
       </variablelist>
 
       <para>
-        [*] Note that the content stored in these metadata items can easily
-        be tampered by the sending tasks. Therefore, they should
+        All metadata is automatically translated into the
+        <emphasis>namespaces</emphasis> of the task that receives them. See
+        <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        for more information.
+      </para>
+
+      <para>
+        [*] Note that the content stored in metadata items of type
+        <varname>KDBUS_ITEM_TID_COMM</varname>,
+        <varname>KDBUS_ITEM_PID_COMM</varname>,
+        <varname>KDBUS_ITEM_EXE</varname> and
+        <varname>KDBUS_ITEM_CMDLINE</varname>
+        can easily be tampered by the sending tasks. Therefore, they should
         <emphasis>not</emphasis> be used for any sort of security relevant
         assumptions. The only reason they are transmitted is to let
         receivers know about details that were set when metadata was
@@ -548,10 +559,10 @@ struct kdbus_audit {
           <listitem><para>
             This item describes a <emphasis>policy access</emphasis> entry to
             access the policy database of a
-            <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>2</manvolnum></citerefentry> or
-            <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
+            <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry> or
+            <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
             Please refer to
-            <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on the policy database and how to access it.
             <programlisting>
 struct kdbus_policy_access {

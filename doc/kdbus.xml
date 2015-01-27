@@ -462,7 +462,7 @@
     </para>
 
     <refsect2>
-      <title>Known metadata item types</title>
+      <title>Attach flags for metadata items</title>
       <para>
         To let the kernel know which metadata information to attach as items
         to the afformentioned commands, it uses a bitmask. In those, the
@@ -511,7 +511,7 @@
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ATTACH_TID_COMM [*]</varname></term>
+          <term><varname>KDBUS_ATTACH_TID_COMM</varname></term>
             <listitem><para>
               Requests the attachment of an item of type
               <varname>KDBUS_ITEM_TID_COMM</varname>.
@@ -519,7 +519,7 @@
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ATTACH_PID_COMM [*]</varname></term>
+          <term><varname>KDBUS_ATTACH_PID_COMM</varname></term>
             <listitem><para>
               Requests the attachment of an item of type
               <varname>KDBUS_ITEM_PID_COMM</varname>.
@@ -527,7 +527,7 @@
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ATTACH_EXE [*]</varname></term>
+          <term><varname>KDBUS_ATTACH_EXE</varname></term>
             <listitem><para>
               Requests the attachment of an item of type
               <varname>KDBUS_ITEM_EXE</varname>.
@@ -586,16 +586,8 @@
       <para>
         Please refer to
         <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
-        for detailed information about the layout any payload of items.
-      </para>
-
-      <para>
-        [*] Note that the content stored in these items can easily be tampered
-        by the sending tasks. Therefore, they should <emphasis>not</emphasis>
-        be used for any sort of security relevant assumptions. The only reason
-        why they are transmitted is to let receivers know about details that
-        were set when metadata was collected, even though the task they were
-        collected from is not active any longer when the items are received.
+        for detailed information about the layout and payload of items and
+        what metadata should be used to.
       </para>
     </refsect2>
 

@@ -350,7 +350,10 @@ struct kdbus_msg {
 
     <para>
       The message will be augmented by the requested metadata items when
-      queued into the receiver's pool. See TODO!
+      queued into the receiver's pool. See
+      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
+      <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information on metadata.
     </para>
   </refsect1>
 
