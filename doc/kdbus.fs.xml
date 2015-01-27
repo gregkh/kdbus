@@ -22,11 +22,34 @@
   <refsect1>
     <title>File-system Layout</title>
 
-    <para>The <emphasis>kdbusfs</emphasis>
-    pseudo file-system provides access to internal kdbus entities,
-    including buses and endpoints. Each time you mount it, a new
-    instance (called <emphasis>domain</emphasis>) will be created
-    which is independent of the other domains.</para>
+    <para>
+      The <emphasis>kdbusfs</emphasis> pseudo file-system provides access to
+      kdbus entities, such as <emphasis>buses</emphasis> and
+      <emphasis>endpoints</emphasis>. Each time you mount the filesystem,
+      a new and isolated kdbus instance will be created which is independent
+      of the other instances.
+    </para>
+    <para>
+      The system-wide default mount point for <emphasis>kdbusfs</emphasis> is
+      <varname>/sys/fs/kdbus</varname>.
+    </para>
+
+    <para>
+      Buses are represented as directories in the file system layout, whereas
+      endpoints are exposed as files inside these directories. On the top-level,
+      a <emphasis>control</emphasis> node is present, which can be opened to
+      create new buses via the <varname>KDBUS_CMD_BUS_MAKE</varname> ioctl.
+      Each <emphasis>bus</emphasis> shows a default endpoint called
+      <varname>bus</varname>, which can be opened to either create a connection
+      with the <varname>KDBUS_CMD_HELLO</varname> ioctl, or to create new
+      custom endpoints for the bus with
+      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>.
+      See
+      <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>,
+      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
+      <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more details.
+    </para>
 
     <para>Following, you can see an example layout of the
     <emphasis>kdbusfs</emphasis> file-system:</para>
@@ -46,15 +69,13 @@
 
   <refsect1>
     <title>Mounting instances</title>
-    <para>In order to get a new and separate kdbus environment, new instance
-    of <emphasis>kdbusfs</emphasis> can be mounted like this:
-<programlisting>
-    # mount -t kdbusfs kdbusfs /tmp/new_kdbus/
-</programlisting>
+    <para>
+      In order to get a new and separate kdbus environment, new instance
+      of <emphasis>kdbusfs</emphasis> can be mounted like this:
     </para>
-
-    <para>Busses created in this new instance will be entirely separated and
-    not influence any other kdbus instances on the system.</para>
+<programlisting>
+  # mount -t kdbusfs kdbusfs /tmp/new_kdbus/
+</programlisting>
   </refsect1>
 
   <refsect1>
@@ -64,10 +85,6 @@
       <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
       <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
       <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
       <member><citerefentry><refentrytitle>mount</refentrytitle><manvolnum>8</manvolnum></citerefentry></member>
     </simplelist>
   </refsect1>
