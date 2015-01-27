@@ -137,24 +137,34 @@ struct kdbus_cmd_make {
         <term><varname>items</varname></term>
         <listitem>
           <para>
-            The following items (see <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
+            The following items (see
+            <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
             are expected for <varname>KDBUS_CMD_BUS_MAKE</varname>.
           </para>
           <variablelist>
             <varlistentry>
               <term><varname>KDBUS_ITEM_MAKE_NAME</varname></term>
               <listitem>
-                <para>Contains a null-terminated string that identifies the bus. The name must be unique across the kdbus domain and must start with the effective UID of the caller followed by a '-'. This item is mandatory.</para>
+                <para>
+                  Contains a null-terminated string that identifies the
+                  bus. The name must be unique across the kdbus domain and
+                  must start with the effective UID of the caller, followed by
+                  a '-'. This item is mandatory.
+                </para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
               <term><varname>KDBUS_ITEM_BLOOM_PARAMETER</varname></term>
               <listitem>
-                <para>Bus-wide bloom parameters passed in a
+                <para>
+                  Bus-wide bloom parameters passed in a
                   <varname>struct kdbus_bloom_parameter</varname>. These
-                  settings are copied back to new connections verbatim. This item is mandatory.
-TODO: document the bloom_parameter struct and reference that from here (maybe kdbus.bloom.7?)
+                  settings are copied back to new connections verbatim.
+                  This item is mandatory.
+                  See
+                  <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+                  for a detailed description of this item.
                 </para>
               </listitem>
             </varlistentry>
@@ -175,9 +185,10 @@ TODO: document the bloom_parameter struct and reference that from here (maybe kd
             <varlistentry>
               <term><varname>KDBUS_ITEM_ATTACH_FLAGS_SEND</varname></term>
               <listitem>
-                <para>An optional item that contains a set of attach flags that are
-                  returned to connections when they query the bus creator metadata.
-                  If not set, no metadata is returned.
+                <para>
+                  An optional item that contains a set of attach flags that are
+                  returned to connections when they query the bus creator
+                  metadata. If not set, no metadata is returned.
                 </para>
               </listitem>
             </varlistentry>
@@ -187,7 +198,8 @@ TODO: document the bloom_parameter struct and reference that from here (maybe kd
     </variablelist>
 
     <para>
-      Unrecognized items are rejected, and the ioctl will fail with -EINVAL.
+      Unrecognized items are rejected, and the ioctl will fail with
+      <varname>-EINVAL</varname>.
     </para>
   </refsect1>
 
