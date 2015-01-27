@@ -402,6 +402,8 @@ struct kdbus_pids {
             <emphasis>TID</emphasis>, stored as null-terminated string in
             <varname>item.str</varname>. Its length can also be derived from
             the item's total size.
+            Receivers of this item should not use its contents for any kind
+            of security measures. See below.
           </para></listitem>
         </varlistentry>
 
@@ -412,6 +414,8 @@ struct kdbus_pids {
             <emphasis>PID</emphasis>, stored as null-terminated string in
             <varname>item.str</varname>. Its length can also be derived from
             the item's total size.
+            Receivers of this item should not use its contents for any kind
+            of security measures. See below.
           </para></listitem>
         </varlistentry>
 
@@ -422,6 +426,8 @@ struct kdbus_pids {
             task, stored as null-terminated string in
             <varname>item.str</varname>. Its length can also be derived from
             the item's total size.
+            Receivers of this item should not use its contents for any kind
+            of security measures. See below.
           </para></listitem>
         </varlistentry>
 
@@ -432,6 +438,8 @@ struct kdbus_pids {
             task, stored as an <emphasis>array</emphasis> of null-terminated
             strings in <varname>item.str</varname>. The total length of all
             strings in the array can be derived from the item's total size.
+            Receivers of this item should not use its contents for any kind
+            of security measures. See below.
           </para></listitem>
         </varlistentry>
 
@@ -500,21 +508,33 @@ struct kdbus_audit {
         </varlistentry>
       </variablelist>
 
-      <para>
-          Note that the content stored in these items can easily be tampered
-          by the sending tasks. Therefore, they should <emphasis>not</emphasis>
-          be used for any sort of security relevant assumptions. The only
-          reason they are transmitted is to let receivers know about details
-          that were set when metadata was collected, even though the task
-          they were collected from is not active any longer when the items
-          are received.
-      </para>
-
       <para>Items used for policy entries, matches and notifications</para>
 
       <variablelist>
         <varlistentry>
+          <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+          <listitem><para>
+            This item describes a <emphasis>policy access</emphasis> entry to
+            access the policy database of a
+            <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>2</manvolnum></citerefentry> or
+            <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
+            Please refer to
+            <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+            for more information on the policy database and how to access it.
+            <programlisting>
+struct kdbus_policy_access {
+  __u64 type;
+  __u64 access;
+  __u64 id;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
           <term><varname>KDBUS_ITEM_NAME_ADD</varname></term>
+          <term><varname>KDBUS_ITEM_NAME_REMOVE</varname></term>
+          <term><varname>KDBUS_ITEM_NAME_CHANGE</varname></term>
           <listitem><para>TODO
             <programlisting>
 struct kdbus_notify_name_change {
@@ -527,32 +547,8 @@ struct kdbus_notify_name_change {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
-          <listitem><para>TODO
-            <programlisting>
-struct kdbus_policy_access {
-  __u64 type;  /* USER, GROUP, WORLD */
-  __u64 access;  /* OWN, TALK, SEE */
-  __u64 id;  /* uid, gid, 0 */
-};
-            </programlisting>
-          </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><varname>KDBUS_ITEM_NAME_REMOVE</varname></term>
-          <listitem><para>TODO
-          </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><varname>KDBUS_ITEM_NAME_CHANGE</varname></term>
-          <listitem><para>TODO
-          </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
           <term><varname>KDBUS_ITEM_ID_ADD</varname></term>
+          <term><varname>KDBUS_ITEM_ID_REMOVE</varname></term>
           <listitem><para>TODO
             <programlisting>
 struct kdbus_notify_id_change {
@@ -560,12 +556,6 @@ struct kdbus_notify_id_change {
   __u64 flags;
 };
             </programlisting>
-          </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><varname>KDBUS_ITEM_ID_REMOVE</varname></term>
-          <listitem><para>TODO
           </para></listitem>
         </varlistentry>
 
@@ -581,6 +571,17 @@ struct kdbus_notify_id_change {
           </para></listitem>
         </varlistentry>
       </variablelist>
+
+      <para>
+        [*] Note that the content stored in these metadata items can easily
+        be tampered by the sending tasks. Therefore, they should
+        <emphasis>not</emphasis> be used for any sort of security relevant
+        assumptions. The only reason they are transmitted is to let
+        receivers know about details that were set when metadata was
+        collected, even though the task they were collected from is not
+        active any longer when the items are received.
+      </para>
+
   </refsect1>
 
   <refsect1>
