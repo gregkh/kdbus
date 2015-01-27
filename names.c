@@ -692,10 +692,10 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	int ret;
 
 	/* info header */
-	struct kdbus_name_info info = {
+	struct kdbus_info info = {
 		.size = 0,
-		.owner_id = c->id,
-		.conn_flags = c->flags,
+		.id = c->id,
+		.flags = c->flags,
 	};
 
 	/* fake the header of a kdbus_name item */

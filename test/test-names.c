@@ -22,7 +22,7 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 {
 	struct kdbus_cmd_name_list cmd_list = { .size = sizeof(cmd_list) };
 	struct kdbus_name_list *list;
-	struct kdbus_name_info *name;
+	struct kdbus_info *name;
 	bool found = false;
 	int ret;
 
@@ -40,7 +40,7 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 			if (item->type == KDBUS_ITEM_OWNED_NAME)
 				n = item->name.name;
 
-		if (name->owner_id == conn->id &&
+		if (name->id == conn->id &&
 		    n && strcmp(needle, n) == 0) {
 			found = true;
 			break;

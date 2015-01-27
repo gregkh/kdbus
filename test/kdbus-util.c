@@ -1149,7 +1149,7 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 {
 	struct kdbus_cmd_name_list cmd_list;
 	struct kdbus_name_list *list;
-	struct kdbus_name_info *name;
+	struct kdbus_info *name;
 	int ret;
 
 	cmd_list.size = sizeof(cmd_list);
@@ -1184,8 +1184,8 @@ int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
 			}
 
 		kdbus_printf("%8llu flags=0x%08llx conn=0x%08llx '%s'\n",
-			     name->owner_id, (unsigned long long) flags,
-			     name->conn_flags, n);
+			     name->id, (unsigned long long) flags,
+			     name->flags, n);
 	}
 	kdbus_printf("\n");
 

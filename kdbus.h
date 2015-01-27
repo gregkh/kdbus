@@ -724,19 +724,19 @@ struct kdbus_cmd_hello {
 } __attribute__((__aligned__(8)));
 
 /**
- * struct kdbus_name_info - struct to describe a well-known name
- * @size:		The total size of the struct
- * @conn_flags:		The flags of the owning connection (KDBUS_HELLO_*)
- * @owner_id:		The current owner of the name
- * @items:		Item list, containing the well-known name as
- *			KDBUS_ITEM_OWNED_NAME
+ * struct kdbus_info - connection information
+ * @size:		total size of the struct
+ * @id:			64bit object ID
+ * @flags:		object creation flags
+ * @items:		list of items
  *
- * This structure is used as return struct for the KDBUS_CMD_NAME_LIST ioctl.
+ * Note that the user is responsible for freeing the allocated memory with
+ * the KDBUS_CMD_FREE ioctl.
  */
-struct kdbus_name_info {
+struct kdbus_info {
 	__u64 size;
-	__u64 conn_flags;
-	__u64 owner_id;
+	__u64 id;
+	__u64 flags;
 	struct kdbus_item items[0];
 } __attribute__((__aligned__(8)));
 
@@ -750,7 +750,7 @@ struct kdbus_name_info {
  */
 struct kdbus_name_list {
 	__u64 size;
-	struct kdbus_name_info names[0];
+	struct kdbus_info names[0];
 } __attribute__((__aligned__(8)));
 
 /**
@@ -789,23 +789,6 @@ struct kdbus_cmd_name_list {
 	__u64 return_flags;
 	__u64 offset;
 	__u64 list_size;
-	struct kdbus_item items[0];
-} __attribute__((__aligned__(8)));
-
-/**
- * struct kdbus_info - information returned by KDBUS_CMD_*_INFO
- * @size:		The total size of the struct
- * @id:			The connection's or bus' 64-bit ID
- * @flags:		The connection's or bus' flags
- * @items:		A list of struct kdbus_item
- *
- * Note that the user is responsible for freeing the allocated memory with
- * the KDBUS_CMD_FREE ioctl.
- */
-struct kdbus_info {
-	__u64 size;
-	__u64 id;
-	__u64 flags;
 	struct kdbus_item items[0];
 } __attribute__((__aligned__(8)));
 

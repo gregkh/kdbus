@@ -386,10 +386,10 @@ struct kdbus_cmd_name_list {
     </para>
 
     <programlisting>
-struct kdbus_name_info {
+struct kdbus_info {
   __u64 size;
-  __u64 owner_id;
-  __u64 conn_flags;
+  __u64 id;
+  __u64 flags;
   struct kdbus_item items[0];
 };
     </programlisting>
