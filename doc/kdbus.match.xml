@@ -1,0 +1,464 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.match">
+
+  <refentryinfo>
+    <title>kdbus.match</title>
+    <productname>kdbus.match</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.match</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.match</refname>
+    <refpurpose>kdbus match</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      TODO
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Matches for broadcast messages from other connections</title>
+    <para>
+      A message addressed at the connection ID
+      <varname>KDBUS_DST_ID_BROADCAST</varname> (~0ULL) is a broadcast message,
+      delivered to all connected peers which installed a rule to match certain
+      properties of the message. Without any rules installed in the connection,
+      no broadcast message or kernel-side notifications will be delivered
+      to the connection. Broadcast messages are subject to policy rules and TALK
+      access checks - see
+      <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more details on implicit policies.
+    </para>
+    <para>
+      Matches for messages from other connections (not kernel notifications) are
+      implemented as bloom filters. The sender adds certain properties of the message
+      as elements to a bloom filter bit field, and sends that along with the
+      broadcast message.
+
+      The connection adds the message properties it is interested as elements to a
+      bloom mask bit field, and uploads the mask to the match rules of the
+      connection.
+
+      The kernel will match the broadcast message's bloom filter against the
+      connections bloom mask (simply by &amp;-ing it), and decide whether the
+      message should be delivered to the connection.
+    </para>
+    <para>
+      The kernel has no notion of any specific properties of the message, all it
+      sees are the bit fields of the bloom filter and mask to match against. The
+      use of bloom filters allows simple and efficient matching, without exposing
+      any message properties or internals to the kernel side. Clients need to deal
+      with the fact that they might receive broadcasts which they did not subscribe
+      to, as the bloom filter might allow false-positives to pass the filter.
+
+      To allow the future extension of the set of elements in the bloom filter, the
+      filter specifies a "generation" number. A later generation must always contain
+      all elements of the set of the previous generation, but can add new elements
+      to the set. The match rules mask can carry an array with all previous
+      generations of masks individually stored. When the filter and mask are matched
+      by the kernel, the mask with the closest matching "generation" is selected
+      as the index into the mask array.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Matches for kernel notifications</title>
+    <para>
+      To receive kernel generated notifications (see
+      <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      ), a connection must install special match rules that are different from
+      the bloom filter matches described in the section above. They can be
+      filtered by a sender connection's ID, by one of the name the sender
+      connection owns at the time of sending the message, or by the type of
+      the notification (ID/name add/remove/change).
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Matches for kernel notifications</title>
+    <para>
+      To add a match, the <varname>KDBUS_CMD_MATCH_ADD</varname> ioctl is used,
+      which takes a struct of the struct described below.
+
+      Note that each of the items attached to this command will internally create
+      one match 'rule', and the collection of them, which is submitted as one block
+      via the ioctl, is called a 'match'. To allow a message to pass, all rules of a
+      match have to be satisfied. Hence, adding more items to the command will only
+      narrow the possibility of a match to effectively let the message pass, and will
+      decrease the chance that the connection's userspace process wil be woken up.
+
+      Multiple matches can be installed per connection. As long as one of it has a
+      set of rules which allows the message to pass, this one will be decisive.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_match {
+  __u64 size;
+  __u64 cookie;
+  __u64 flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>cookie</varname></term>
+        <listitem><para>
+          A cookie which identifies the match, so it can be referred to when
+          removing it.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>Flags to control the behavior of the ioctl.</para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_MATCH_REPLACE</varname></term>
+              <listitem>
+                <para>Make the endpoint file group-accessible</para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+        <para>
+          Items to define the actual rules of the matches. The following item
+          types are expected. Each item will create one new match rule.
+        </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_BLOOM_MASK</varname></term>
+              <listitem>
+                <para>
+                  An item that carries the bloom filter mask to match against
+                  in its data field. The payload size must match the bloom
+                  filter size that was specified when the bus was created.
+                  See the section below for more information on bloom filters.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_NAME</varname></term>
+              <listitem>
+                <para>
+                  Specify a name that a sending connection must own at the
+                  time of sending a broadcast message in order to match this
+                  rule.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_ID</varname></term>
+              <listitem>
+                <para>
+                  Specify a sender connection's ID that will match this rule.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_NAME_ADD</varname></term>
+              <term><varname>KDBUS_ITEM_NAME_REMOVE</varname></term>
+              <term><varname>KDBUS_ITEM_NAME_CHANGE</varname></term>
+              <listitem>
+                <para>
+                  These items request delivery of broadcast messages that
+                  describe a name acquisition, loss, or change. The details
+                  are stored in the item's
+                  <varname>kdbus_notify_name_change</varname> member.
+                  All information specified must be matched in order to make
+                  the message pass. Use
+                  <varname>KDBUS_MATCH_ID_ANY</varname> to
+                  match against any unique connection ID.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_ID_ADD</varname></term>
+              <term><varname>KDBUS_ITEM_ID_REMOVE</varname></term>
+              <listitem>
+                <para>
+                  These items request delivery of kernel notofications that are
+                  generated when a connection is created or terminated.
+                  <varname>struct kdbus_notify_id_change</varname>is used to
+                  store the actual match information. This item can be used to
+                  monitor one particular connection ID, or, when the ID field is set to
+                  <varname>KDBUS_MATCH_ID_ANY</varname>, all of them.
+                </para>
+              </listitem>
+            </varlistentry>
+
+          </variablelist>
+
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      Refer to
+      <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information on message types.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Removing a match</title>
+    <para>
+      Matches can be removed through the
+      <varname>KDBUS_CMD_MATCH_REMOVE</varname> ioctl, which takes
+      <varname>struct kdbus_cmd_match</varname> as argument, but its fields
+      usage slightly differs compared to that of
+      <varname>KDBUS_CMD_MATCH_ADD</varname>.
+    </para>
+
+    <programlisting>
+struct kdbus_cmd_match {
+  __u64 size;
+  __u64 cookie;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>cookie</varname></term>
+        <listitem><para>
+          The cookie of the match, as it was passed when the match was added.
+          All matches that have this cookie will be removed.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          No flags are supported for this use case.
+        </para></listitem>
+      </varlistentry>
+
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            No items are supported for this use case.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Bloom filters</title>
+    <para>
+      Bloom filters allow checking whether a given word is present in a dictionary.
+      This allows connections to set up a mask for information it is interested in,
+      and will be delivered signal messages that have a matching filter.
+
+      For general information, see
+      <ulink url="https://en.wikipedia.org/wiki/Bloom_filter">the Wikipedia article on bloom filters</ulink>
+    </para>
+    <para>
+      The size of the bloom filter is defined per bus when it is created, in
+      <varname>kdbus_bloom_parameter.size</varname>. All bloom filters attached
+      to signal messages on the bus must match this size, and all bloom filter
+      matches uploaded by connections must also match the size, or a multiple
+      thereof (see below).
+
+      The calculation of the mask has to be done on the userspace side. The
+      kernel just checks the bitmasks to decide whether or not to let the
+      message pass. All bits in the mask must match the filter in and bit-wise
+      <emphasis>AND</emphasis> logic, but the mask may have more bits set than
+      the filter. Consequently, false positive matches are expected to happen,
+      and userspace must deal with that fact by checking the contents of the
+      payload again at receive time.
+    </para>
+    <para>
+      Masks are entities that are always passed to the kernel as part of a
+      match (with an item of type <varname>KDBUS_ITEM_BLOOM_MASK</varname>),
+      and filters can be attached to signals, with an item of type
+      <varname>KDBUS_ITEM_BLOOM_FILTER</varname>. For a filter to match, all
+      its bits have to be set in the match mask as well.
+    </para>
+    <para>
+      For example, consider a bus that has a bloom size of 8 bytes, and the following
+      mask/filter combinations:
+    </para>
+    <programlisting><![CDATA[
+          filter  0x0101010101010101
+          mask    0x0101010101010101
+                  -> matches
+
+          filter  0x0303030303030303
+          mask    0x0101010101010101
+                  -> doesn't match
+
+          filter  0x0101010101010101
+          mask    0x0303030303030303
+                  -> matches
+    ]]></programlisting>
+
+    <para>
+      Hence, in order to catch all messages, a mask filled with
+      <varname>0xff</varname> bytes can be installed as a wildcard match rule.
+    </para>
+
+    <refsect2>
+      <title>Generations</title>
+
+      <para>
+        Uploaded matches may contain multiple masks, which have are as large as
+        the bloom size defined by the bus. Each block of a mask is called a
+        <emphasis>generation</emphasis>, starting at index 0.
+
+        At match time, when a signal is about to be delivered, a bloom mask
+        generation is passed, which denotes which of the bloom masks the filter
+        should be matched against. This allows userspace to provide backward
+        compatible masks at upload time, while older clients can still match
+        against older versions of filters.
+      </para>
+    </refsect2>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all mentioned ioctl commands return 0.
+    </para>
+
+    <para>
+      <varname>KDBUS_CMD_MATCH_ADD</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Illegal flags or items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EDOM</varname></term>
+        <listitem><para>
+          Illegal bloom filter size.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EMFILE</varname></term>
+        <listitem><para>
+          Too many matches for this connection.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      <varname>KDBUS_CMD_MATCH_REMOVE</varname> may return the following errors.
+    </para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>-EINVAL</varname></term>
+        <listitem><para>
+          Illegal flags.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>-EBADSLT</varname></term>
+        <listitem><para>
+          A match entry with the given cookie could not be found.
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+    </simplelist>
+  </refsect1>
+</refentry>

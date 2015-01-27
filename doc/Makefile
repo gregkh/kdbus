@@ -5,6 +5,7 @@ docs=	\
 	kdbus.endpoint.xml	\
 	kdbus.fs.xml		\
 	kdbus.item.xml		\
+	kdbus.match.xml		\
 	kdbus.message.xml	\
 	kdbus.names.xml		\
 	kdbus.policy.xml	\
