@@ -252,10 +252,10 @@ int kdbus_test_activator(struct kdbus_test_env *env)
 	ret = kdbus_add_match_empty(env->conn);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_name_list(env->conn, KDBUS_NAME_LIST_NAMES |
-					 KDBUS_NAME_LIST_UNIQUE |
-					 KDBUS_NAME_LIST_ACTIVATORS |
-					 KDBUS_NAME_LIST_QUEUED);
+	ret = kdbus_list(env->conn, KDBUS_LIST_NAMES |
+				    KDBUS_LIST_UNIQUE |
+				    KDBUS_LIST_ACTIVATORS |
+				    KDBUS_LIST_QUEUED);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_msg_send(env->conn, "foo.test.activator", 0xdeafbeef,
@@ -278,7 +278,7 @@ int kdbus_test_activator(struct kdbus_test_env *env)
 		ret = poll(fds, nfds, 3000);
 		ASSERT_RETURN(ret >= 0);
 
-		ret = kdbus_name_list(env->conn, KDBUS_NAME_LIST_NAMES);
+		ret = kdbus_list(env->conn, KDBUS_LIST_NAMES);
 		ASSERT_RETURN(ret == 0);
 
 		if ((fds[0].revents & POLLIN) && !activator_done) {

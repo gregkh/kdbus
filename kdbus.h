@@ -741,48 +741,35 @@ struct kdbus_info {
 } __attribute__((__aligned__(8)));
 
 /**
- * struct kdbus_name_list - information returned by KDBUS_CMD_NAME_LIST
- * @size:		The total size of the structure
- * @names:		A list of names
- *
- * Note that the user is responsible for freeing the allocated memory with
- * the KDBUS_CMD_FREE ioctl.
+ * enum kdbus_list_flags - what to include into the returned list
+ * @KDBUS_LIST_UNIQUE:		active connections
+ * @KDBUS_LIST_ACTIVATORS:	activator connections
+ * @KDBUS_LIST_NAMES:		known well-known names
+ * @KDBUS_LIST_QUEUED:		queued-up names
  */
-struct kdbus_name_list {
-	__u64 size;
-	struct kdbus_info names[0];
-} __attribute__((__aligned__(8)));
-
-/**
- * enum kdbus_name_list_flags - what to include into the returned list
- * @KDBUS_NAME_LIST_UNIQUE:	All active connections
- * @KDBUS_NAME_LIST_NAMES:	All known well-known names
- * @KDBUS_NAME_LIST_ACTIVATORS:	All activator connections
- * @KDBUS_NAME_LIST_QUEUED:	All queued-up names
- */
-enum kdbus_name_list_flags {
-	KDBUS_NAME_LIST_UNIQUE		= 1ULL <<  0,
-	KDBUS_NAME_LIST_NAMES		= 1ULL <<  1,
-	KDBUS_NAME_LIST_ACTIVATORS	= 1ULL <<  2,
-	KDBUS_NAME_LIST_QUEUED		= 1ULL <<  3,
+enum kdbus_list_flags {
+	KDBUS_LIST_UNIQUE		= 1ULL <<  0,
+	KDBUS_LIST_NAMES		= 1ULL <<  1,
+	KDBUS_LIST_ACTIVATORS		= 1ULL <<  2,
+	KDBUS_LIST_QUEUED		= 1ULL <<  3,
 };
 
 /**
- * struct kdbus_cmd_name_list - request a list of name entries
- * @flags:		Flags for the query (KDBUS_NAME_LIST_*),
- *			userspace → kernel
- * @kernel_flags:	Supported flags for queries, kernel → userspace
- * @return_flags:	Command return flags, kernel → userspace
- * @offset:		The returned offset in the caller's pool buffer.
+ * struct kdbus_cmd_list - list connections
+ * @size:		overall size of this object
+ * @flags:		flags for the query (KDBUS_LIST_*), userspace → kernel
+ * @kernel_flags:	supported flags for queries, kernel → userspace
+ * @return_flags:	command return flags, kernel → userspace
+ * @offset:		Offset in the caller's pool buffer where an array of
+ *			kdbus_info objects is stored.
  *			The user must use KDBUS_CMD_FREE to free the
  *			allocated memory.
- * @list_size:		Returned size of list in bytes
- * @size:		Output buffer to report size of data at @offset.
+ * @list_size:		size of returned list in bytes
  * @items:		Items for the command. Reserved for future use.
  *
- * This structure is used with the KDBUS_CMD_NAME_LIST ioctl.
+ * This structure is used with the KDBUS_CMD_LIST ioctl.
  */
-struct kdbus_cmd_name_list {
+struct kdbus_cmd_list {
 	__u64 size;
 	__u64 flags;
 	__u64 kernel_flags;
@@ -949,7 +936,7 @@ struct kdbus_cmd {
  *				address a peer on the bus.
  * KDBUS_CMD_NAME_RELEASE:	Release a well-known name the connection
  *				currently owns.
- * KDBUS_CMD_NAME_LIST:		Retrieve the list of all currently registered
+ * KDBUS_CMD_LIST:		Retrieve the list of all currently registered
  *				well-known and unique names.
  *
  * KDBUS_CMD_MATCH_ADD:		Install a match which broadcast messages should
@@ -980,6 +967,8 @@ enum kdbus_ioctl_type {
 					     struct kdbus_cmd_info),
 	KDBUS_CMD_BUS_CREATOR_INFO =	_IOR(KDBUS_IOCTL_MAGIC, 0x85,
 					     struct kdbus_cmd_info),
+	KDBUS_CMD_LIST =		_IOR(KDBUS_IOCTL_MAGIC, 0x86,
+					     struct kdbus_cmd_list),
 
 	KDBUS_CMD_SEND =		_IOW(KDBUS_IOCTL_MAGIC, 0x90,
 					     struct kdbus_cmd_send),
@@ -990,8 +979,6 @@ enum kdbus_ioctl_type {
 					     struct kdbus_cmd),
 	KDBUS_CMD_NAME_RELEASE =	_IOW(KDBUS_IOCTL_MAGIC, 0xa1,
 					     struct kdbus_cmd),
-	KDBUS_CMD_NAME_LIST =		_IOR(KDBUS_IOCTL_MAGIC, 0xa2,
-					     struct kdbus_cmd_name_list),
 
 	KDBUS_CMD_MATCH_ADD =		_IOW(KDBUS_IOCTL_MAGIC, 0xb0,
 					     struct kdbus_cmd_match),

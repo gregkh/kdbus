@@ -32,6 +32,11 @@
 	     ((uint8_t *)(item) < (uint8_t *)(head) + (head)->size) &&	\
 	       ((uint8_t *)(item) >= (uint8_t *)(head));	\
 	     item = KDBUS_ITEM_NEXT(item))
+#define KDBUS_FOREACH(iter, first, _size)				\
+	for (iter = (first);						\
+	     ((uint8_t *)(iter) < (uint8_t *)(first) + (_size)) &&	\
+	       ((uint8_t *)(iter) >= (uint8_t *)(first));		\
+	     iter = (void*)(((uint8_t *)iter) + KDBUS_ALIGN8((iter)->size)))
 
 
 #define _KDBUS_ATTACH_BITS_SET_NR  (__builtin_popcountll(_KDBUS_ATTACH_ALL))
@@ -151,7 +156,7 @@ int sys_memfd_create(const char *name, __u64 size);
 int sys_memfd_seal_set(int fd);
 off_t sys_memfd_get_size(int fd, off_t *size);
 
-int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags);
+int kdbus_list(struct kdbus_conn *conn, uint64_t flags);
 int kdbus_name_release(struct kdbus_conn *conn, const char *name);
 int kdbus_name_acquire(struct kdbus_conn *conn, const char *name,
 		       uint64_t *flags);

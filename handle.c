@@ -457,29 +457,28 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int command,
 		break;
 	}
 
-	case KDBUS_CMD_NAME_LIST: {
-		struct kdbus_cmd_name_list *cmd_list;
+	case KDBUS_CMD_LIST: {
+		struct kdbus_cmd_list *cmd_list;
 
-		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_name_list,
-				      KDBUS_NAME_LIST_UNIQUE |
-				      KDBUS_NAME_LIST_NAMES |
-				      KDBUS_NAME_LIST_ACTIVATORS |
-				      KDBUS_NAME_LIST_QUEUED, true);
+		cmd = kdbus_enter_cmd(buf, struct kdbus_cmd_list,
+				      KDBUS_LIST_UNIQUE |
+				      KDBUS_LIST_NAMES |
+				      KDBUS_LIST_ACTIVATORS |
+				      KDBUS_LIST_QUEUED, false);
 		if (IS_ERR(cmd)) {
 			ret = PTR_ERR(cmd);
 			break;
 		}
 		cmd_list = cmd;
 
-		ret = kdbus_cmd_name_list(conn->ep->bus->name_registry,
-					  conn, cmd_list);
+		ret = kdbus_cmd_list(conn, cmd_list);
 		if (ret < 0)
 			break;
 
 		if (kdbus_member_set_user(&cmd_list->offset, buf,
-					  struct kdbus_cmd_name_list, offset) ||
+					  struct kdbus_cmd_list, offset) ||
 		    kdbus_member_set_user(&cmd_list->list_size, buf,
-					  struct kdbus_cmd_name_list,
+					  struct kdbus_cmd_list,
 					  list_size))
 			ret = -EFAULT;
 

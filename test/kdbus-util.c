@@ -1145,31 +1145,25 @@ int kdbus_name_release(struct kdbus_conn *conn, const char *name)
 	return 0;
 }
 
-int kdbus_name_list(struct kdbus_conn *conn, uint64_t flags)
+int kdbus_list(struct kdbus_conn *conn, uint64_t flags)
 {
-	struct kdbus_cmd_name_list cmd_list;
-	struct kdbus_name_list *list;
-	struct kdbus_info *name;
+	struct kdbus_cmd_list cmd_list;
+	struct kdbus_info *list, *name;
 	int ret;
 
 	cmd_list.size = sizeof(cmd_list);
 	cmd_list.flags = flags;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);
+	ret = ioctl(conn->fd, KDBUS_CMD_LIST, &cmd_list);
 	if (ret < 0) {
 		kdbus_printf("error listing names: %d (%m)\n", ret);
 		return EXIT_FAILURE;
 	}
 
 	kdbus_printf("REGISTRY:\n");
-	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
-	if (list->size != cmd_list.list_size) {
-		kdbus_printf("%s(): size mismatch: %d != %d\n", __func__,
-				(int) list->size, (int) cmd_list.list_size);
-		return -EIO;
-	}
+	list = (struct kdbus_info *)(conn->buf + cmd_list.offset);
 
-	KDBUS_ITEM_FOREACH(name, list, names) {
+	KDBUS_FOREACH(name, list, cmd_list.list_size) {
 		uint64_t flags = 0;
 		struct kdbus_item *item;
 		const char *n = "MISSING-NAME";

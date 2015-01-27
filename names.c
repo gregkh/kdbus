@@ -680,12 +680,12 @@ int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
 	return ret;
 }
 
-static int kdbus_name_list_write(struct kdbus_conn *conn,
-				 struct kdbus_conn *c,
-				 struct kdbus_pool_slice *slice,
-				 size_t *pos,
-				 struct kdbus_name_entry *e,
-				 bool write)
+static int kdbus_list_write(struct kdbus_conn *conn,
+			    struct kdbus_conn *c,
+			    struct kdbus_pool_slice *slice,
+			    size_t *pos,
+			    struct kdbus_name_entry *e,
+			    bool write)
 {
 	struct kvec kvec[4];
 	size_t cnt = 0;
@@ -735,9 +735,9 @@ static int kdbus_name_list_write(struct kdbus_conn *conn,
 	return 0;
 }
 
-static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
-			       struct kdbus_pool_slice *slice,
-			       size_t *pos, bool write)
+static int kdbus_list_all(struct kdbus_conn *conn, u64 flags,
+			  struct kdbus_pool_slice *slice,
+			  size_t *pos, bool write)
 {
 	struct kdbus_conn *c;
 	size_t p = *pos;
@@ -751,22 +751,21 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 			continue;
 
 		/* skip activators */
-		if (!(flags & KDBUS_NAME_LIST_ACTIVATORS) &&
+		if (!(flags & KDBUS_LIST_ACTIVATORS) &&
 		    kdbus_conn_is_activator(c))
 			continue;
 
 		/* all names the connection owns */
-		if (flags & (KDBUS_NAME_LIST_NAMES |
-			     KDBUS_NAME_LIST_ACTIVATORS)) {
+		if (flags & (KDBUS_LIST_NAMES | KDBUS_LIST_ACTIVATORS)) {
 			struct kdbus_name_entry *e;
 
 			mutex_lock(&c->lock);
 			list_for_each_entry(e, &c->names_list, conn_entry) {
 				struct kdbus_conn *a = e->activator;
 
-				if ((flags & KDBUS_NAME_LIST_ACTIVATORS) &&
+				if ((flags & KDBUS_LIST_ACTIVATORS) &&
 				    a && a != c) {
-					ret = kdbus_name_list_write(conn, a,
+					ret = kdbus_list_write(conn, a,
 							slice, &p, e, write);
 					if (ret < 0) {
 						mutex_unlock(&c->lock);
@@ -776,9 +775,9 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 					added = true;
 				}
 
-				if (flags & KDBUS_NAME_LIST_NAMES ||
+				if (flags & KDBUS_LIST_NAMES ||
 				    kdbus_conn_is_activator(c)) {
-					ret = kdbus_name_list_write(conn, c,
+					ret = kdbus_list_write(conn, c,
 							slice, &p, e, write);
 					if (ret < 0) {
 						mutex_unlock(&c->lock);
@@ -792,13 +791,13 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 		}
 
 		/* queue of names the connection is currently waiting for */
-		if (flags & KDBUS_NAME_LIST_QUEUED) {
+		if (flags & KDBUS_LIST_QUEUED) {
 			struct kdbus_name_queue_item *q;
 
 			mutex_lock(&c->lock);
 			list_for_each_entry(q, &c->names_queue_list,
 					    conn_entry) {
-				ret = kdbus_name_list_write(conn, c,
+				ret = kdbus_list_write(conn, c,
 						slice, &p, q->entry, write);
 				if (ret < 0) {
 					mutex_unlock(&c->lock);
@@ -811,8 +810,8 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 		}
 
 		/* nothing added so far, just add the unique ID */
-		if (!added && flags & KDBUS_NAME_LIST_UNIQUE) {
-			ret = kdbus_name_list_write(conn, c,
+		if (!added && flags & KDBUS_LIST_UNIQUE) {
+			ret = kdbus_list_write(conn, c,
 					slice, &p, NULL, write);
 			if (ret < 0)
 				return ret;
@@ -824,64 +823,44 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 }
 
 /**
- * kdbus_cmd_name_list() - list names of a connection
- * @reg:		The name registry
- * @conn:		The connection holding the name entries
- * @cmd:		The command as passed in by the ioctl
+ * kdbus_cmd_list() - list connections
+ * @conn:		connection that requests the list
+ * @cmd:		command payload
  *
  * Return: 0 on success, negative errno on failure.
  */
-int kdbus_cmd_name_list(struct kdbus_name_registry *reg,
-			struct kdbus_conn *conn,
-			struct kdbus_cmd_name_list *cmd)
+int kdbus_cmd_list(struct kdbus_conn *conn, struct kdbus_cmd_list *cmd)
 {
+	struct kdbus_name_registry *reg = conn->ep->bus->name_registry;
 	struct kdbus_pool_slice *slice = NULL;
-	struct kdbus_name_list list = {};
-	const struct kdbus_item *item;
-	struct kvec kvec;
-	size_t pos;
+	size_t pos, size;
 	int ret;
-
-	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-		/* no items supported so far */
-		switch (item->type) {
-		default:
-			return -EINVAL;
-		}
-	}
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_read(&reg->rwlock);
 	down_read(&conn->ep->bus->conn_rwlock);
 	down_read(&conn->ep->policy_db.entries_rwlock);
 
-	/* size of header + records */
-	pos = sizeof(struct kdbus_name_list);
-	ret = kdbus_name_list_all(conn, cmd->flags, NULL, &pos, false);
+	/* size of records */
+	size = 0;
+	ret = kdbus_list_all(conn, cmd->flags, NULL, &size, false);
 	if (ret < 0)
 		goto exit_unlock;
 
-	/* copy the header, specifying the overall size */
-	list.size = pos;
-	kvec.iov_base = &list;
-	kvec.iov_len = sizeof(list);
-
-	slice = kdbus_pool_slice_alloc(conn->pool, list.size, NULL, NULL, 0);
+	slice = kdbus_pool_slice_alloc(conn->pool, size, NULL, NULL, 0);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit_unlock;
 	}
 
-	ret = kdbus_pool_slice_copy_kvec(slice, 0, &kvec, 1, kvec.iov_len);
+	/* copy the records */
+	pos = 0;
+	ret = kdbus_list_all(conn, cmd->flags, slice, &pos, true);
 	if (ret < 0)
 		goto exit_unlock;
 
-	/* copy the records */
-	pos = sizeof(struct kdbus_name_list);
-	ret = kdbus_name_list_all(conn, cmd->flags, slice, &pos, true);
-	if (ret < 0)
-		goto exit_unlock;
+	WARN_ON(pos != size);
 
 	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->list_size);
 	ret = 0;

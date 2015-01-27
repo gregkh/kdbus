@@ -300,7 +300,7 @@
 0x40289532     KDBUS_CMD_FREE               struct kdbus_cmd_free *
 0xc0209540     KDBUS_CMD_NAME_ACQUIRE       struct kdbus_cmd_name *
 0x40209541     KDBUS_CMD_NAME_RELEASE       struct kdbus_cmd_name *
-0xc0309542     KDBUS_CMD_NAME_LIST          struct kdbus_cmd_name_list *
+0xc0309542     KDBUS_CMD_LIST               struct kdbus_cmd_list *
 0xc0389550     KDBUS_CMD_CONN_INFO          struct kdbus_cmd_info *
 0x40209551     KDBUS_CMD_CONN_UPDATE        struct kdbus_cmd_update *
 0xc0389552     KDBUS_CMD_BUS_CREATOR_INFO   struct kdbus_cmd_info *

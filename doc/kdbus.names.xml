@@ -287,12 +287,12 @@ struct kdbus_cmd_name {
     <title>Dumping the name registry</title>
     <para>
       A connection may request a complete or filtered dump of currently active
-      bus names with the <constant>KDBUS_CMD_NAME_LIST</constant> ioctl, which
-      takes a <type>struct kdbus_cmd_name_list</type> as argument.
+      bus names with the <constant>KDBUS_CMD_LIST</constant> ioctl, which
+      takes a <type>struct kdbus_cmd_list</type> as argument.
     </para>
 
     <programlisting>
-struct kdbus_cmd_name_list {
+struct kdbus_cmd_list {
   __u64 flags;
   __u64 kernel_flags;
   __u64 return_flags;
@@ -311,7 +311,7 @@ struct kdbus_cmd_name_list {
           </para>
           <variablelist>
             <varlistentry>
-              <term><constant>KDBUS_NAME_LIST_UNIQUE</constant></term>
+              <term><constant>KDBUS_LIST_UNIQUE</constant></term>
               <listitem>
                 <para>
                   List the unique (numeric) IDs of the connection, whether it
@@ -321,7 +321,7 @@ struct kdbus_cmd_name_list {
             </varlistentry>
 
             <varlistentry>
-              <term><constant>KDBUS_NAME_LIST_NAMES</constant></term>
+              <term><constant>KDBUS_LIST_NAMES</constant></term>
               <listitem>
                 <para>
                   List well-known names stored in the database which are
@@ -331,7 +331,7 @@ struct kdbus_cmd_name_list {
             </varlistentry>
 
             <varlistentry>
-              <term><constant>KDBUS_NAME_LIST_ACTIVATORS</constant></term>
+              <term><constant>KDBUS_LIST_ACTIVATORS</constant></term>
               <listitem>
                 <para>
                   List names that are owned by an activator.
@@ -340,7 +340,7 @@ struct kdbus_cmd_name_list {
             </varlistentry>
 
             <varlistentry>
-              <term><constant>KDBUS_NAME_LIST_QUEUED</constant></term>
+              <term><constant>KDBUS_LIST_QUEUED</constant></term>
               <listitem>
                 <para>
                   List connections that are not yet owning a name but are
@@ -377,12 +377,9 @@ struct kdbus_cmd_name_list {
     </variablelist>
 
     <para>
-      The returned list of names is stored in a
-      <type>struct kdbus_name_list</type> that in turn
-      contains a dynamic number of
-      <type>struct kdbus_cmd_name</type> that carry the actual
-      information. The fields inside that
-      <type>struct kdbus_cmd_name</type> is described next.
+      The returned list of names is stored in an array of
+      <varname>struct kdbus_info</varname>. The array-size in bytes is given
+      as <varname>list_size</varname>.
     </para>
 
     <programlisting>
@@ -405,21 +402,21 @@ struct kdbus_info {
       </varlistentry>
 
       <varlistentry>
-        <term><varname>owner_id</varname></term>
+        <term><varname>id</varname></term>
         <listitem><para>
           The owning connection's unique ID.
         </para></listitem>
       </varlistentry>
 
       <varlistentry>
-        <term><varname>conn_flags</varname></term>
+        <term><varname>flags</varname></term>
         <listitem><para>
           The flags of the owning connection.
         </para></listitem>
       </varlistentry>
 
       <varlistentry>
-        <term><varname>flags</varname></term>
+        <term><varname>items</varname></term>
         <listitem>
           <para>
             Items containing the actual name. Currently, one item of type
@@ -578,7 +575,7 @@ struct kdbus_info {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_NAME_LIST</constant> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_LIST</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>

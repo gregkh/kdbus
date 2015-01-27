@@ -564,10 +564,10 @@ int kdbus_test_policy_ns(struct kdbus_test_env *env)
 	ret = kdbus_normal_test(bus, POLICY_NAME, conn_db);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_name_list(conn_db[0], KDBUS_NAME_LIST_NAMES |
-					  KDBUS_NAME_LIST_UNIQUE |
-					  KDBUS_NAME_LIST_ACTIVATORS |
-					  KDBUS_NAME_LIST_QUEUED);
+	ret = kdbus_list(conn_db[0], KDBUS_LIST_NAMES |
+				     KDBUS_LIST_UNIQUE |
+				     KDBUS_LIST_ACTIVATORS |
+				     KDBUS_LIST_QUEUED);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_fork_test(bus, POLICY_NAME, conn_db, EXIT_SUCCESS);

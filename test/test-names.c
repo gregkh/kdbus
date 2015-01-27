@@ -20,19 +20,18 @@
 static int conn_is_name_owner(const struct kdbus_conn *conn,
 			      const char *needle)
 {
-	struct kdbus_cmd_name_list cmd_list = { .size = sizeof(cmd_list) };
-	struct kdbus_name_list *list;
-	struct kdbus_info *name;
+	struct kdbus_cmd_list cmd_list = { .size = sizeof(cmd_list) };
+	struct kdbus_info *name, *list;
 	bool found = false;
 	int ret;
 
-	cmd_list.flags = KDBUS_NAME_LIST_NAMES;
+	cmd_list.flags = KDBUS_LIST_NAMES;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_LIST, &cmd_list);
+	ret = ioctl(conn->fd, KDBUS_CMD_LIST, &cmd_list);
 	ASSERT_RETURN(ret == 0);
 
-	list = (struct kdbus_name_list *)(conn->buf + cmd_list.offset);
-	KDBUS_ITEM_FOREACH(name, list, names) {
+	list = (struct kdbus_info *)(conn->buf + cmd_list.offset);
+	KDBUS_FOREACH(name, list, cmd_list.list_size) {
 		struct kdbus_item *item;
 		const char *n = NULL;
 

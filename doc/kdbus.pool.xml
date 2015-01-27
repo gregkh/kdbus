@@ -49,7 +49,7 @@
           </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><constant>KDBUS_CMD_NAME_LIST</constant></term>
+          <term><constant>KDBUS_CMD_LIST</constant></term>
           <listitem><para>
             ... to dump the name registry
           </para></listitem>

@@ -51,10 +51,10 @@ int kdbus_test_chat(struct kdbus_test_env *env)
 	ret = kdbus_name_release(conn_a, "foo.bar.double");
 	ASSERT_RETURN(ret == -ESRCH);
 
-	ret = kdbus_name_list(conn_b, KDBUS_NAME_LIST_UNIQUE |
-				      KDBUS_NAME_LIST_NAMES  |
-				      KDBUS_NAME_LIST_QUEUED |
-				      KDBUS_NAME_LIST_ACTIVATORS);
+	ret = kdbus_list(conn_b, KDBUS_LIST_UNIQUE |
+				 KDBUS_LIST_NAMES  |
+				 KDBUS_LIST_QUEUED |
+				 KDBUS_LIST_ACTIVATORS);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_add_match_empty(conn_a);
@@ -105,10 +105,10 @@ int kdbus_test_chat(struct kdbus_test_env *env)
 			ASSERT_RETURN(ret == 0);
 		}
 
-		ret = kdbus_name_list(conn_b, KDBUS_NAME_LIST_UNIQUE |
-					      KDBUS_NAME_LIST_NAMES  |
-					      KDBUS_NAME_LIST_QUEUED |
-					      KDBUS_NAME_LIST_ACTIVATORS);
+		ret = kdbus_list(conn_b, KDBUS_LIST_UNIQUE |
+					 KDBUS_LIST_NAMES  |
+					 KDBUS_LIST_QUEUED |
+					 KDBUS_LIST_ACTIVATORS);
 		ASSERT_RETURN(ret == 0);
 
 		if (count > 10)
