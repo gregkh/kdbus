@@ -9,5 +9,5 @@ Module.symvers
 tags
 tools/kdbus-monitor
 test/kdbus-test
-doc/html
-doc/man
+doc/*.html
+doc/*.7

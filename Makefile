@@ -25,7 +25,7 @@ KERNELVER		?= $(shell uname -r)
 KERNELDIR 		?= /lib/modules/$(KERNELVER)/build
 PWD			:= $(shell pwd)
 
-all: module tools test
+all: module tools test doc
 
 tools::
 	$(MAKE) -C tools KERNELDIR=$(realpath $(KERNELDIR)) KBUILD_MODNAME=kdbus$(EXT)
@@ -40,6 +40,7 @@ clean:
 	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
 	rm -f Module.markers Module.symvers modules.order
 	rm -rf .tmp_versions Modules.symvers $(hostprogs-y)
+	$(MAKE) -C doc clean
 	$(MAKE) -C test clean
 
 check:
@@ -48,7 +49,10 @@ check:
 mandoc:	
 	$(MAKE) -C doc mandoc
 
-doc:	mandoc
+htmldoc:	
+	$(MAKE) -C doc htmldoc
+
+doc:	mandoc htmldoc
 
 kerneldoc_check:
 	$(KERNELDIR)/scripts/kernel-doc *.c kdbus.h >/dev/null | grep "^Warning"
