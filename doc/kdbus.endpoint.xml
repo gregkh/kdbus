@@ -68,7 +68,13 @@
     <title>Creating custom endpoints</title>
     <para>
       To create a new endpoint, the <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>
-      command is used. It takes a <varname>struct kdbus_cmd_make</varname> argument.
+      command is used. Along with the endpoint's name, which will be used to
+      expose the endpoint in the
+      <citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry>,
+      the command also optionally takes items to set up the endpoint's
+      <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname> takes a
+      <varname>struct kdbus_cmd_make</varname> argument.
     </para>
     <programlisting>
 struct kdbus_cmd_make {
@@ -140,6 +146,18 @@ struct kdbus_cmd_make {
                 <para>Contains a string to identify the endpoint name.</para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_NAME</varname></term>
+              <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+              <listitem>
+                <para>
+                  These items are used to set the policy attached to the
+                  endpoint. For more details on bus and endpoint policies, see
+                  <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
@@ -153,8 +171,86 @@ struct kdbus_cmd_make {
   <refsect1>
     <title>Updating endpoints</title>
     <para>
-      TODO!! Document KDBUS_CMD_ENPOINT_UPDATE
+      To update an existing endpoint, the
+      <varname>KDBUS_CMD_ENDPOINT_UPDATE</varname> command is used on the file
+      descriptor that was used to create the update, using
+      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>. The only relevant detail of
+      the endpoint that can be updated is the policy. When the command is
+      employed, the policy of the endpoint is <emphasis>replaced</emphasis>
+      atomically with the new set of rules.
+      The command takes a <varname>struct kdbus_cmd_update</varname> argument.
     </para>
+    <programlisting>
+struct kdbus_cmd_make {
+  __u64 size;
+  __u64 flags;
+  __u64 kernel_flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          Unused for this command.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>kernel_flags</varname></term>
+        <listitem><para>
+          Valid flags for this command, returned by the kernel upon each call.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          zero by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            The following items are expected for 
+            <varname>KDBUS_CMD_ENDPOINT_UPDATE</varname>.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><varname>KDBUS_ITEM_NAME</varname></term>
+              <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+              <listitem>
+                <para>
+                  These items are used to set the policy attached to the
+                  endpoint. For more details on bus and endpoint policies, see
+                  <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+                  Existing policy is atomically replaced with the new rules
+                  provided.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>-EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
   </refsect1>
 
   <refsect1>
