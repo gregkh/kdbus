@@ -31,7 +31,7 @@
 
   <refnamediv>
     <refname>kdbus.item</refname>
-    <refpurpose>kdbus item structure</refpurpose>
+    <refpurpose>kdbus item structure, layout and usage</refpurpose>
   </refnamediv>
 
   <refsect1>
@@ -42,30 +42,42 @@
       <varname>struct kdbus_item</varname>
       can be attached to the structs passed into the ioctls. Some ioctls make
       items of certain types mandatory, others are optional. Items that are
-      unsupported by ioctls they are sent to will cause the ioctl to fail 
-      <varname>-EINVAL.</varname>
+      unsupported by ioctls they are attached to will cause the ioctl to fail
+      <varname>-EINVAL</varname>.
       Items are also used for information stored in a connection's
       <emphasis>pool</emphasis>, such as received messages, name lists or
       requested connection or bus owner information. Depending on the type of
       an item, its total size is either fixed or variable.
-      The kernel expects all items to be aligned to 8-byte boundaries. Unaligned
-      items or items that are unsupported by the ioctl are rejected.
-    </para>
-
-    <para>
-      Whenever items are used as part of the kdbus kernel API, they are
-      embedded in structs that are embedded inside structs that themselves
-      include a size field containing the overall size of the structure.
-      This allows multiple items to be chained up.
     </para>
 
     <refsect2>
+      <title>Chaining items</title>
+      <para>
+        Whenever items are used as part of the kdbus kernel API, they are
+        embedded in structs that are embedded inside structs that themselves
+        include a size field containing the overall size of the structure.
+        This allows multiple items to be chained up, and an item iterator
+        (see below) is capable of detecting the end of an item chain.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Alignment</title>
+      <para>
+        The kernel expects all items to be aligned to 8-byte boundaries.
+        Unaligned items will cause the ioctl they are used with to fail
+        with <varname>-EINVAL</varname>. An item that has an unaligned size
+        itself hence needs to be padded if it is followed by another item.
+      </para>
+    </refsect2>
+
+    <refsect2>
       <title>Iterating items</title>
-        <para>
-          A simple iterator in userspace would iterate over the items until
-          the items have reached the embedding structure's overall size.
-          An example implementation is shown below.
-        </para>
+      <para>
+        A simple iterator in userspace would iterate over the items until
+        the items have reached the embedding structure's overall size.
+        An example implementation is shown below.
+      </para>
 
       <programlisting><![CDATA[
 #define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
@@ -76,7 +88,7 @@
 #define KDBUS_ITEM_FOREACH(item, head, first)                      \
     for (item = (head)->first;                                     \
          ((uint8_t *)(item) < (uint8_t *)(head) + (head)->size) && \
-           ((uint8_t *)(item) >= (uint8_u *)(head));               \
+          ((uint8_t *)(item) >= (uint8_t *)(head));                \
          item = KDBUS_ITEM_NEXT(item))
       ]]></programlisting>
     </refsect2>
@@ -134,7 +146,8 @@ struct kdbus_item {
   <refsect1>
     <title>Item types</title>
 
-      <para>Items exchanged between userspace and kernel</para>
+    <refsect2>
+      <title>Command specific items</title>
       <variablelist>
         <varlistentry>
           <term><varname>KDBUS_ITEM_PAYLOAD_VEC</varname></term>
@@ -208,7 +221,12 @@ struct kdbus_memfd {
             for more information.
           </para></listitem>
         </varlistentry>
+      </variablelist>
+    </refsect2>
 
+    <refsect2>
+      <title>Items specific to some commands</title>
+      <variablelist>
         <varlistentry>
           <term><varname>KDBUS_ITEM_CANCEL_FD</varname></term>
           <listitem><para>
@@ -311,8 +329,10 @@ struct kdbus_name {
           </para></listitem>
         </varlistentry>
       </variablelist>
+    </refsect2>
 
-      <para>Items attached by the kernel as metadata</para>
+    <refsect2>
+      <title>Items attached by the kernel as metadata</title>
 
       <variablelist>
         <varlistentry>
@@ -508,7 +528,19 @@ struct kdbus_audit {
         </varlistentry>
       </variablelist>
 
-      <para>Items used for policy entries, matches and notifications</para>
+      <para>
+        [*] Note that the content stored in these metadata items can easily
+        be tampered by the sending tasks. Therefore, they should
+        <emphasis>not</emphasis> be used for any sort of security relevant
+        assumptions. The only reason they are transmitted is to let
+        receivers know about details that were set when metadata was
+        collected, even though the task they were collected from is not
+        active any longer when the items are received.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Items used for policy entries, matches and notifications</title>
 
       <variablelist>
         <varlistentry>
@@ -571,17 +603,7 @@ struct kdbus_notify_id_change {
           </para></listitem>
         </varlistentry>
       </variablelist>
-
-      <para>
-        [*] Note that the content stored in these metadata items can easily
-        be tampered by the sending tasks. Therefore, they should
-        <emphasis>not</emphasis> be used for any sort of security relevant
-        assumptions. The only reason they are transmitted is to let
-        receivers know about details that were set when metadata was
-        collected, even though the task they were collected from is not
-        active any longer when the items are received.
-      </para>
-
+    </refsect2>
   </refsect1>
 
   <refsect1>
