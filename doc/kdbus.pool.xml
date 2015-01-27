@@ -26,7 +26,9 @@
       <emphasis>connection</emphasis> of the <emphasis>bus</emphasis>, and
       is sized according to the information stored in the
       <varname>KDBUS_ITEM_BLOOM_PARAMETER</varname> item that is returned by
-      <varname>KDBUS_CMD_HELLO</varname>.
+      <varname>KDBUS_CMD_HELLO</varname>. Internally, the pool is segmented
+      into <emphasis>slices</emphasis>, each referenced by its
+      <emphasis>offset</emphasis> in the pool.
     </para>
 
     <para>
@@ -62,13 +64,21 @@
 
     </para>
     <para>
-      The offsets returned by either one of the aforementioned ioctls describe offsets
-      inside the pool. In order to make the slice available for subsequent calls,
-      KDBUS_CMD_FREE has to be called on the offset (see below).
-
-      To access the memory, the caller is expected to 
+      The <varname>offset</varname> fields returned by either one of the
+      aforementioned ioctls describe offsets inside the pool. In order to make
+      the slice available for subsequent calls,
+      <varname>KDBUS_CMD_FREE</varname> has to be called on that offset
+      (see below). Otherwise, the pool will fill up, and the connection won't
+      be able to receive any more information through its pool.
+    </para>
+  </refsect1>
+  <refsect1>
+    <title>Accessing the pool memory</title>
+    <para>
+      Memory is the pool is read-only for userspace and may only be written
+      to by the kernel. To read from the pool memory, the caller is expected to
       <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
-      it, like this:
+      the buffer into its task, like this:
     </para>
     <programlisting>
 /*
@@ -81,16 +91,42 @@ buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
     </programlisting>
 
     <para>
-        Alternatively, instead of mapping the entire pool buffer, only parts of it can
-        be mapped. The length of the response is returned by the kernel along with the
-        offset for each of the ioctls listed above.
+      The <emphasis>file descriptor</emphasis> used to map the memory must be
+      the one that was used to create the <emphasis>connection</emphasis>
+      In other words, the one that was used to call
+      <varname>KDBUS_CMD_HELLO</varname>. See
+      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more details.
+    </para>
+
+    <para>
+      Alternatively, instead of mapping the entire pool buffer, only parts
+      of it can be mapped. Every kdbus command that returns an
+      <emphasis> offset</emphasis> (see above) also reports a
+      <emphasis>size</emphasis> along with it, so userspace can be written
+      in a way that it only maps portions of the part to access a specific
+      <emphasis>slice</emphasis>.
+    </para>
+
+    <para>
+      When access to the pool memory is no longer needed, userspace should
+      call
+      <citerefentry><refentrytitle>munmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      on the pointer returned by
+      <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
     </para>
   </refsect1>
 
   <refsect1>
-    <title>Description</title>
+    <title>Pool slice allocation</title>
     <para>
-      TODO: some words about how slices are alllocated ...
+      Pool slices are allocated by the kernel in order to report information
+      back to a userspace task, such as messages, returned name list etc.
+      Allocation of pool slices cannot be initiated by userspace. See
+      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
+      <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for examples of commands that use the <emphasis>pool</emphasis> to
+      return data.
     </para>
   </refsect1>
 
@@ -98,8 +134,9 @@ buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
     <title>Freeing pool slices</title>
     <para>
       The <varname>KDBUS_CMD_FREE</varname> ioctl is used to free a slice
-      inside the pool, described an offset that was returned in an 'offset'
-      field of another ioctl struct. The command takes a
+      inside the pool, describing an offset that was returned in an
+      <varname>offset</varname> field of another ioctl struct.
+      The <varname>KDBUS_CMD_FREE</varname> command takes a
       <varname>struct kdbus_cmd_free</varname> as argument:
     </para>
 
@@ -200,11 +237,9 @@ struct kdbus_cmd_free {
       <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
       <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
       <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
       <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member><citerefentry><refentrytitle>munmap</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
     </simplelist>
   </refsect1>
 </refentry>
