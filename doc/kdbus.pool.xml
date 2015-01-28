@@ -188,7 +188,8 @@ struct kdbus_cmd_free {
         <term><varname>items</varname></term>
         <listitem><para>
           Items to specify further details for the receive command.
-          Currently unused. All items will be rejected with -EINVAL.
+          Currently unused. All items will be rejected with
+          <constant>-EINVAL</constant>.
         </para></listitem>
       </varlistentry>
     </variablelist>
@@ -202,29 +203,29 @@ struct kdbus_cmd_free {
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_FREE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_FREE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>ENXIO</varname></term>
+          <term><constant>ENXIO</constant></term>
           <listitem><para>
             No pool slice found at given offset.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Invalid flags provided.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             The offset is valid, but the user is not allowed to free the slice.
             This happens, for example, if the offset was retrieved with
-            <varname>KDBUS_RECV_PEEK</varname>.
+            <constant>KDBUS_RECV_PEEK</constant>.
           </para></listitem>
         </varlistentry>
       </variablelist>

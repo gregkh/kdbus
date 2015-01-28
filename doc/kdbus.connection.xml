@@ -816,43 +816,43 @@ struct kdbus_cmd_update {
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_HELLO</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_HELLO</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EFAULT</varname></term>
+          <term><constant>EFAULT</constant></term>
           <listitem><para>
             The supplied pool size was 0 or not a multiple of the page size.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in <varname>struct kdbus_cmd_make</varname> are
+            The flags supplied in <constant>struct kdbus_cmd_make</constant> are
             invalid.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             An illegal combination of
-            <varname>KDBUS_HELLO_MONITOR</varname>,
-            <varname>KDBUS_HELLO_ACTIVATOR</varname> and
-            <varname>KDBUS_HELLO_POLICY_HOLDER</varname> was passed in the flags.
+            <constant>KDBUS_HELLO_MONITOR</constant>,
+            <constant>KDBUS_HELLO_ACTIVATOR</constant> and
+            <constant>KDBUS_HELLO_POLICY_HOLDER</constant> was passed in the flags.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             An invalid set of items was supplied.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>ECONNREFUSED</varname></term>
+          <term><constant>ECONNREFUSED</constant></term>
           <listitem><para>
             The attach_flags_send field did not satisfy the requirements of
             the bus.
@@ -860,50 +860,50 @@ struct kdbus_cmd_update {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EPERM</varname></term>
+          <term><constant>EPERM</constant></term>
           <listitem><para>
-            A <varname>KDBUS_ITEM_CREDS</varname> items was supplied, but the
+            A <constant>KDBUS_ITEM_CREDS</constant> items was supplied, but the
             current user is not privileged.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>ESHUTDOWN</varname></term>
+          <term><constant>ESHUTDOWN</constant></term>
           <listitem><para>
             The bus you were trying to connect to has already been shut down.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EMFILE</varname></term>
+          <term><constant>EMFILE</constant></term>
           <listitem><para>
             The maximum number of connections on the bus has been reached.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EOPNOTSUPP</varname></term>
+          <term><constant>EOPNOTSUPP</constant></term>
           <listitem><para>
             The endpoint does not support the connection flags supplied in
-            <varname>struct kdbus_cmd_hello</varname>.
+            <constant>struct kdbus_cmd_hello</constant>.
           </para></listitem>
         </varlistentry>
       </variablelist>
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_BYEBYE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_BYEBYE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EALREADY</varname></term>
+          <term><constant>EALREADY</constant></term>
           <listitem><para>
             The connection has already been shut down.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EBUSY</varname></term>
+          <term><constant>EBUSY</constant></term>
           <listitem><para>
             There are still messages queued up in the connection's pool.
           </para></listitem>
@@ -912,11 +912,11 @@ struct kdbus_cmd_update {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_CONN_INFO</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_CONN_INFO</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Invalid flags, or neither an ID nor a name was provided, or the
             name is invalid.
@@ -924,14 +924,14 @@ struct kdbus_cmd_update {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>ESRCH</varname></term>
+          <term><constant>ESRCH</constant></term>
           <listitem><para>
             Connection lookup by name failed.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>ENXIO</varname></term>
+          <term><constant>ENXIO</constant></term>
           <listitem><para>
             No connection with the provided connection ID found.
           </para></listitem>
@@ -940,18 +940,18 @@ struct kdbus_cmd_update {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_CONN_UPDATE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_CONN_UPDATE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Illegal flags or items.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Wildcards submitted in policy entries, or illegal sequence
             of policy items.
@@ -959,14 +959,14 @@ struct kdbus_cmd_update {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EOPNOTSUPP</varname></term>
+          <term><constant>EOPNOTSUPP</constant></term>
           <listitem><para>
             Operation not supported by connection.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>E2BIG</varname></term>
+          <term><constant>E2BIG</constant></term>
           <listitem><para>
             Too many policy items attached.
           </para></listitem>

@@ -402,25 +402,25 @@ struct kdbus_cmd_match {
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_MATCH_ADD</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_MATCH_ADD</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Illegal flags or items.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EDOM</varname></term>
+          <term><constant>EDOM</constant></term>
           <listitem><para>
             Illegal bloom filter size.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EMFILE</varname></term>
+          <term><constant>EMFILE</constant></term>
           <listitem><para>
             Too many matches for this connection.
           </para></listitem>
@@ -429,18 +429,18 @@ struct kdbus_cmd_match {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_MATCH_REMOVE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_MATCH_REMOVE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Illegal flags.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EBADSLT</varname></term>
+          <term><constant>EBADSLT</constant></term>
           <listitem><para>
             A match entry with the given cookie could not be found.
           </para></listitem>

@@ -150,19 +150,19 @@ struct kdbus_item {
       <title>Command specific items</title>
       <variablelist>
         <varlistentry>
-          <term><varname>KDBUS_ITEM_PAYLOAD_VEC</varname></term>
-          <term><varname>KDBUS_ITEM_PAYLOAD_OFF</varname></term>
+          <term><constant>KDBUS_ITEM_PAYLOAD_VEC</constant></term>
+          <term><constant>KDBUS_ITEM_PAYLOAD_OFF</constant></term>
           <listitem><para>
             Messages are directly copied by the sending process into the
             receiver's
             <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
             This way, two peers can exchange data by effectively doing a
             single-copy from one process to another; the kernel will not buffer
-            the data anywhere else. <varname>KDBUS_ITEM_PAYLOAD_VEC</varname>
+            the data anywhere else. <constant>KDBUS_ITEM_PAYLOAD_VEC</constant>
             is used when <emphasis>sending</emphasis> message. The item
             references a memory address when the payload data can be found.
-            <varname>KDBUS_ITEM_PAYLOAD_OFF</varname> is used when messages
-            are <emphasis>received</emphasis>, and the <varname>offset</varname>
+            <constant>KDBUS_ITEM_PAYLOAD_OFF</constant> is used when messages
+            are <emphasis>received</emphasis>, and the <constant>offset</constant>
             value describes the offset inside the receiving connection's
             <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             where the message payload can be found.
@@ -183,7 +183,7 @@ struct kdbus_vec {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_PAYLOAD_MEMFD</varname></term>
+          <term><constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant></term>
           <listitem><para>
             Transports a file descriptor of a <emphasis>memfd</emphasis> in
             <varname>struct kdbus_memfd</varname> in
@@ -206,10 +206,10 @@ struct kdbus_memfd {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_FDS</varname></term>
+          <term><constant>KDBUS_ITEM_FDS</constant></term>
           <listitem><para>
             Contains an array of <emphasis>file descriptors</emphasis>.
-            When used with <varname>KDBUS_CMD_SEND</varname>, userspace sets
+            When used with <constant>KDBUS_CMD_SEND</constant>, userspace sets
             the values of this array with valid file descriptor numbers.
             When received as item attached to a message, the array will
             contain the numbers of the installed file descriptors, or
@@ -228,10 +228,10 @@ struct kdbus_memfd {
       <title>Items specific to some commands</title>
       <variablelist>
         <varlistentry>
-          <term><varname>KDBUS_ITEM_CANCEL_FD</varname></term>
+          <term><constant>KDBUS_ITEM_CANCEL_FD</constant></term>
           <listitem><para>
             Transports a file descriptor that can be used to cancel a
-            synchronous <varname>KDBUS_CMD_SEND</varname> operation by
+            synchronous <constant>KDBUS_CMD_SEND</constant> operation by
             writing to it. The file descriptor is stored in
             <varname>item.fd[0]</varname>. The item may only contain one
             filedescriptor. See
@@ -241,7 +241,7 @@ struct kdbus_memfd {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_BLOOM_PARAMETER</varname></term>
+          <term><constant>KDBUS_ITEM_BLOOM_PARAMETER</constant></term>
           <listitem><para>TODO
             <programlisting>
 struct kdbus_bloom_parameter {
@@ -253,7 +253,7 @@ struct kdbus_bloom_parameter {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_BLOOM_FILTER</varname></term>
+          <term><constant>KDBUS_ITEM_BLOOM_FILTER</constant></term>
           <listitem><para>TODO
             <programlisting>
 struct kdbus_bloom_filter {
@@ -265,32 +265,32 @@ struct kdbus_bloom_filter {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_BLOOM_MASK</varname></term>
+          <term><constant>KDBUS_ITEM_BLOOM_MASK</constant></term>
           <listitem><para>TODO
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_DST_NAME</varname></term>
+          <term><constant>KDBUS_ITEM_DST_NAME</constant></term>
           <listitem><para>
             Contains a <emphasis>well-known name</emphasis> to send a
             message to, as null-terminated string in
             <varname>item.str</varname>. This item is used with
-            <varname>KDBUS_CMD_SEND</varname>. See
+            <constant>KDBUS_CMD_SEND</constant>. See
             <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on how to send a message.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_MAKE_NAME</varname></term>
+          <term><constant>KDBUS_ITEM_MAKE_NAME</constant></term>
           <listitem><para>TODO
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_ATTACH_FLAGS_SEND</varname></term>
-          <term><varname>KDBUS_ITEM_ATTACH_FLAGS_RECV</varname></term>
+          <term><constant>KDBUS_ITEM_ATTACH_FLAGS_SEND</constant></term>
+          <term><constant>KDBUS_ITEM_ATTACH_FLAGS_RECV</constant></term>
           <listitem><para>
             Contains a set of <emphasis>attach flags</emphasis> at
             <emphasis>send</emphasis> or <emphasis>receive</emphasis> time. See
@@ -302,7 +302,7 @@ struct kdbus_bloom_filter {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_ID</varname></term>
+          <term><constant>KDBUS_ITEM_ID</constant></term>
           <listitem><para>
             Transports a connection's <emphasis>numerical ID</emphasis> of
             a connection as <varname>u64</varname> value in
@@ -311,7 +311,7 @@ struct kdbus_bloom_filter {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_NAME</varname></term>
+          <term><constant>KDBUS_ITEM_NAME</constant></term>
           <listitem><para>
             Transports a name associated with the
             <emphasis>name registry</emphasis> as null-terminated string as
@@ -336,7 +336,7 @@ struct kdbus_name {
 
       <variablelist>
         <varlistentry>
-          <term><varname>KDBUS_ITEM_TIMESTAMP</varname></term>
+          <term><constant>KDBUS_ITEM_TIMESTAMP</constant></term>
           <listitem><para>
             Contains both the <emphasis>monotonic</emphasis> and the
             <emphasis>realtime</emphasis> timestamp, taken when the message
@@ -354,7 +354,7 @@ struct kdbus_timestamp {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_CREDS</varname></term>
+          <term><constant>KDBUS_ITEM_CREDS</constant></term>
           <listitem><para>
             Contains credentials such as the <emphasis>user</emphasis> and
             <emphasis>group</emphasis> in the usual four flavors:
@@ -377,7 +377,7 @@ struct kdbus_creds {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_PIDS</varname></term>
+          <term><constant>KDBUS_ITEM_PIDS</constant></term>
           <listitem><para>
             Contains the <emphasis>PID</emphasis>, <emphasis>TID</emphasis>
             and <emphasis>parent PID (PPID)</emphasis> of a remote peer.
@@ -394,7 +394,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_AUXGROUPS</varname></term>
+          <term><constant>KDBUS_ITEM_AUXGROUPS</constant></term>
           <listitem><para>
             Contains the <emphasis>auxiliary (supplementary) groups</emphasis>
             a remote peer is a member of, stored as array of
@@ -406,7 +406,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_OWNED_NAME</varname></term>
+          <term><constant>KDBUS_ITEM_OWNED_NAME</constant></term>
           <listitem><para>
             Contains a <emphasis>well-known name</emphasis> currently owned
             by a connection. The name is stored as null-terminated string in
@@ -416,7 +416,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_TID_COMM [*]</varname></term>
+          <term><constant>KDBUS_ITEM_TID_COMM</constant> [*]</term>
           <listitem><para>
             Contains the <emphasis>comm</emphasis> of a task's
             <emphasis>TID</emphasis>, stored as null-terminated string in
@@ -428,7 +428,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_PID_COMM [*]</varname></term>
+          <term><constant>KDBUS_ITEM_PID_COMM</constant> [*]</term>
           <listitem><para>
             Contains the <emphasis>comm</emphasis> of a task's
             <emphasis>PID</emphasis>, stored as null-terminated string in
@@ -440,7 +440,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_EXE [*]</varname></term>
+          <term><constant>KDBUS_ITEM_EXE</constant> [*]</term>
           <listitem><para>
             Contains the <emphasis>path to the executable</emphasis> of a
             task, stored as null-terminated string in
@@ -452,7 +452,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_CMDLINE [*]</varname></term>
+          <term><constant>KDBUS_ITEM_CMDLINE</constant> [*]</term>
           <listitem><para>
             Contains the <emphasis>command line arguments</emphasis> of a
             task, stored as an <emphasis>array</emphasis> of null-terminated
@@ -464,7 +464,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_CGROUP</varname></term>
+          <term><constant>KDBUS_ITEM_CGROUP</constant></term>
           <listitem><para>
             Contains the <emphasis>cgroup path</emphasis> of a task, stored
             as null-terminated string in <varname>item.str</varname>. Its
@@ -473,7 +473,7 @@ struct kdbus_pids {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_CAPS</varname></term>
+          <term><constant>KDBUS_ITEM_CAPS</constant></term>
           <listitem><para>
             Contains sets of <emphasis>capabilities</emphasis>, stored as
             <varname>struct kdbus_caps</varname> in
@@ -492,7 +492,7 @@ struct kdbus_caps {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_SECLABEL</varname></term>
+          <term><constant>KDBUS_ITEM_SECLABEL</constant></term>
           <listitem><para>
             Contains the <emphasis>LSM label</emphasis> of a task, stored as
             null-terminated string in <varname>item.str</varname>. Its length
@@ -501,7 +501,7 @@ struct kdbus_caps {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_AUDIT</varname></term>
+          <term><constant>KDBUS_ITEM_AUDIT</constant></term>
           <listitem><para>
             Contains the audit <emphasis>sessionid</emphasis> and
             <emphasis>loginuid</emphasis> of a task, stored as
@@ -517,7 +517,7 @@ struct kdbus_audit {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_CONN_DESCRIPTION</varname></term>
+          <term><constant>KDBUS_ITEM_CONN_DESCRIPTION</constant></term>
           <listitem><para>
             Contains the <emphasis>connection description</emphasis>, as set
             by <varname>KDBUS_CMD_HELLO</varname> or
@@ -537,10 +537,10 @@ struct kdbus_audit {
 
       <para>
         [*] Note that the content stored in metadata items of type
-        <varname>KDBUS_ITEM_TID_COMM</varname>,
-        <varname>KDBUS_ITEM_PID_COMM</varname>,
-        <varname>KDBUS_ITEM_EXE</varname> and
-        <varname>KDBUS_ITEM_CMDLINE</varname>
+        <constant>KDBUS_ITEM_TID_COMM</constant>,
+        <constant>KDBUS_ITEM_PID_COMM</constant>,
+        <constant>KDBUS_ITEM_EXE</constant> and
+        <constant>KDBUS_ITEM_CMDLINE</constant>
         can easily be tampered by the sending tasks. Therefore, they should
         <emphasis>not</emphasis> be used for any sort of security relevant
         assumptions. The only reason they are transmitted is to let
@@ -555,7 +555,7 @@ struct kdbus_audit {
 
       <variablelist>
         <varlistentry>
-          <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+          <term><constant>KDBUS_ITEM_POLICY_ACCESS</constant></term>
           <listitem><para>
             This item describes a <emphasis>policy access</emphasis> entry to
             access the policy database of a
@@ -575,9 +575,9 @@ struct kdbus_policy_access {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_NAME_ADD</varname></term>
-          <term><varname>KDBUS_ITEM_NAME_REMOVE</varname></term>
-          <term><varname>KDBUS_ITEM_NAME_CHANGE</varname></term>
+          <term><constant>KDBUS_ITEM_NAME_ADD</constant></term>
+          <term><constant>KDBUS_ITEM_NAME_REMOVE</constant></term>
+          <term><constant>KDBUS_ITEM_NAME_CHANGE</constant></term>
           <listitem><para>TODO
             <programlisting>
 struct kdbus_notify_name_change {
@@ -590,8 +590,8 @@ struct kdbus_notify_name_change {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_ID_ADD</varname></term>
-          <term><varname>KDBUS_ITEM_ID_REMOVE</varname></term>
+          <term><constant>KDBUS_ITEM_ID_ADD</constant></term>
+          <term><constant>KDBUS_ITEM_ID_REMOVE</constant></term>
           <listitem><para>TODO
             <programlisting>
 struct kdbus_notify_id_change {
@@ -603,13 +603,13 @@ struct kdbus_notify_id_change {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_REPLY_TIMEOUT</varname></term>
+          <term><constant>KDBUS_ITEM_REPLY_TIMEOUT</constant></term>
           <listitem><para>TODO
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>KDBUS_ITEM_REPLY_DEAD</varname></term>
+          <term><constant>KDBUS_ITEM_REPLY_DEAD</constant></term>
           <listitem><para>TODO
           </para></listitem>
         </varlistentry>

@@ -481,11 +481,11 @@ struct kdbus_name_info {
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_NAME_ACQUIRE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_NAME_ACQUIRE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Illegal command flags, illegal name provided, or an activator
             tried to acquire a second name.
@@ -493,28 +493,28 @@ struct kdbus_name_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EPERM</varname></term>
+          <term><constant>EPERM</constant></term>
           <listitem><para>
             Policy prohibited name ownership.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EALREADY</varname></term>
+          <term><constant>EALREADY</constant></term>
           <listitem><para>
             Connection already owns that name.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EEXIST</varname></term>
+          <term><constant>EEXIST</constant></term>
           <listitem><para>
             The name already exists and can not be taken over.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>E2BIG</varname></term>
+          <term><constant>E2BIG</constant></term>
           <listitem><para>
             The maximum number of well-known names per connection is exhausted.
           </para></listitem>
@@ -523,25 +523,25 @@ struct kdbus_name_info {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_NAME_RELEASE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_NAME_RELEASE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Invalid command flags, or invalid name provided.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>ESRCH</varname></term>
+          <term><constant>ESRCH</constant></term>
           <listitem><para>
             Name is not found in the registry.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EADDRINUSE</varname></term>
+          <term><constant>EADDRINUSE</constant></term>
           <listitem><para>
             Name is owned by a different connection and can't be released.
           </para></listitem>
@@ -550,18 +550,18 @@ struct kdbus_name_info {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_NAME_LIST</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_NAME_LIST</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
             Invalid command flags
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>ENOBUFS</varname></term>
+          <term><constant>ENOBUFS</constant></term>
           <listitem><para>
             No available memory in the connection's pool.
           </para></listitem>

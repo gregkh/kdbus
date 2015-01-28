@@ -246,7 +246,7 @@ struct kdbus_cmd_make {
           </variablelist>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            <varname>-EINVAL</varname>.
+            <constant>-EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -261,34 +261,34 @@ struct kdbus_cmd_make {
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_ENDPOINT_MAKE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_ENDPOINT_MAKE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in the <varname>struct kdbus_cmd_make</varname>
+            The flags supplied in the <constant>struct kdbus_cmd_make</constant>
             are invalid.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
-            Illegal combination of <varname>KDBUS_ITEM_NAME</varname> and
-            <varname>KDBUS_ITEM_POLICY_ACCESS</varname> was provided.
+            Illegal combination of <constant>KDBUS_ITEM_NAME</constant> and
+            <constant>KDBUS_ITEM_POLICY_ACCESS</constant> was provided.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EEXIST</varname></term>
+          <term><constant>EEXIST</constant></term>
           <listitem><para>
             An endpoint of that name already exists.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EPERM</varname></term>
+          <term><constant>EPERM</constant></term>
           <listitem><para>
             The calling user is not privileged. See
             <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
@@ -299,27 +299,27 @@ struct kdbus_cmd_make {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_ENDPOINT_UPDATE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in the <varname>struct kdbus_cmd_update</varname>
+            The flags supplied in the <constant>struct kdbus_cmd_update</constant>
             are invalid.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
-            Illegal combination of <varname>KDBUS_ITEM_NAME</varname> and
-            <varname>KDBUS_ITEM_POLICY_ACCESS</varname> was provided.
+            Illegal combination of <constant>KDBUS_ITEM_NAME</constant> and
+            <constant>KDBUS_ITEM_POLICY_ACCESS</constant> was provided.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EEXIST</varname></term>
+          <term><constant>EEXIST</constant></term>
           <listitem><para>
             An endpoint of that name already exists.
           </para></listitem>

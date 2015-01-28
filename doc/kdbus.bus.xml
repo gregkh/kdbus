@@ -211,41 +211,41 @@ struct kdbus_cmd_make {
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_BUS_MAKE</varname> may fail with the following errors</title>
+      <title><constant>KDBUS_CMD_BUS_MAKE</constant> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>EBADMSG</varname></term>
+          <term><constant>EBADMSG</constant></term>
           <listitem><para>
             A mandatory item is missing.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EINVAL</varname></term>
+          <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in the <varname>struct kdbus_cmd_make</varname>
+            The flags supplied in the <constant>struct kdbus_cmd_make</constant>
             are invalid or the supplied name does not start with the current
             UID and a '-'.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EEXIST</varname></term>
+          <term><constant>EEXIST</constant></term>
           <listitem><para>
             A bus of that name already exists.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>ESHUTDOWN</varname></term>
+          <term><constant>ESHUTDOWN</constant></term>
           <listitem><para>
             The kdbus mount instance for the bus was already shut down.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>EMFILE</varname></term>
+          <term><constant>EMFILE</constant></term>
           <listitem><para>
             The maximum number of buses for the current user is exhausted.
           </para></listitem>
