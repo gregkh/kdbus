@@ -256,8 +256,9 @@ struct kdbus_cmd_make {
   <refsect1>
     <title>Return value</title>
     <para>
-      On success, all metioned ioctl commands return 0; on error, -1 is
-      returned, and errno is set to indicate the error.
+      On success, all metioned ioctl commands return <errorcode>0</errorcode>;
+      on error, <errorcode>-1</errorcode> is returned, and
+      <varname>errno</varname> is set to indicate the error.
     </para>
 
     <refsect2>
