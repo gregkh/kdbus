@@ -27,7 +27,7 @@
       instantiates a name registry to resolve well-known names into unique
       connection IDs for message delivery. The registry will be queried when a
       message is sent with <varname>kdbus_msg.dst_id</varname> set to
-      <varname>KDBUS_DST_ID_NAME</varname>, or when a registry dump is
+      <constant>KDBUS_DST_ID_NAME</constant>, or when a registry dump is
       requested.
     </para>
 
@@ -73,7 +73,7 @@
     <title>Acquiring a name</title>
     <para>
       To acquire a name, a client uses the
-      <varname>KDBUS_CMD_NAME_ACQUIRE</varname> ioctl with the following data
+      <constant>KDBUS_CMD_NAME_ACQUIRE</constant> ioctl with the following data
       structure.
     </para>
 
@@ -102,12 +102,12 @@ struct kdbus_cmd_name {
         <listitem><para>Flags to control details in the name acquisition.</para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_NAME_REPLACE_EXISTING</varname></term>
+              <term><constant>KDBUS_NAME_REPLACE_EXISTING</constant></term>
               <listitem>
                 <para>
                   Acquiring a name that is already present usually fails,
                   unless this flag is set in the call, and
-                  <varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname> (see below)
+                  <constant>KDBUS_NAME_ALLOW_REPLACEMENT</constant> (see below)
                   was set when the current owner of the name acquired it, or
                   if the current owner is an activator connection (see
                   <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
@@ -116,7 +116,7 @@ struct kdbus_cmd_name {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname></term>
+              <term><constant>KDBUS_NAME_ALLOW_REPLACEMENT</constant></term>
               <listitem>
                 <para>
                   Allow other connections to take over this name. When this
@@ -127,16 +127,16 @@ struct kdbus_cmd_name {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_NAME_QUEUE</varname></term>
+              <term><constant>KDBUS_NAME_QUEUE</constant></term>
               <listitem>
                 <para>
                   A name that is already acquired by a connection, and which
                   wasn't requested with the
-                  <varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname> flag set can
-                  not be acquired again. However, a connection can put itself
-                  in a queue of connections waiting for the name to be released.
-                  Once that happens, the first connection in that queue becomes
-                  the new owner and is notified accordingly.
+                  <constant>KDBUS_NAME_ALLOW_REPLACEMENT</constant> flag set
+                  can not be acquired again. However, a connection can put
+                  itself in a queue of connections waiting for the name to be
+                  released. Once that happens, the first connection in that
+                  queue becomes the new owner and is notified accordingly.
                 </para>
               </listitem>
             </varlistentry>
@@ -164,12 +164,12 @@ struct kdbus_cmd_name {
         <listitem>
           <para>
             Items to submit the name. Currently, one item of type
-            <varname>KDBUS_ITEM_NAME</varname> is expected and allowed, and
+            <constant>KDBUS_ITEM_NAME</constant> is expected and allowed, and
             the contained string must be a valid bus name.
           </para>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            <varname>-EINVAL</varname>.
+            <varname>errno</varname> set to <errorname>>EINVAL</errorname>.
           </para>
         </listitem>
       </varlistentry>
@@ -180,7 +180,7 @@ struct kdbus_cmd_name {
     <title>Releasing a name</title>
     <para>
       A connection may release a name explicitly with the
-      <varname>KDBUS_CMD_NAME_RELEASE</varname> ioctl. If the connection was
+      <constant>KDBUS_CMD_NAME_RELEASE</constant> ioctl. If the connection was
       an implementer of an activatable name, its pending messages are moved
       back to the activator. If there are any connections queued up as waiters
       for the name, the first one in the queue (the oldest entry) will become
@@ -190,8 +190,8 @@ struct kdbus_cmd_name {
       for more information on connections.
     </para>
     <para>
-      The <varname>KDBUS_CMD_NAME_RELEASE</varname> ioctl uses the same data
-      structure as the acquisition call (<varname>KDBUS_CMD_NAME_ACQUIRE</varname>),
+      The <constant>KDBUS_CMD_NAME_RELEASE</constant> ioctl uses the same data
+      structure as the acquisition call (<constant>KDBUS_CMD_NAME_ACQUIRE</constant>),
       but with slightly different field usage.
     </para>
 
@@ -253,12 +253,12 @@ struct kdbus_cmd_name {
         <listitem>
           <para>
             Items to submit the name. Currently, one item of type
-            <varname>KDBUS_ITEM_NAME</varname> is expected and allowed, and
+            <constant>KDBUS_ITEM_NAME</constant> is expected and allowed, and
             the contained string must be a valid bus name.
           </para>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            <varname>-EINVAL</varname>.
+            errno set to <constant>-EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -269,8 +269,8 @@ struct kdbus_cmd_name {
     <title>Dumping the name registry</title>
     <para>
       A connection may request a complete or filtered dump of currently active
-      bus names with the <varname>KDBUS_CMD_NAME_LIST</varname> ioctl, which
-      takes a <varname>struct kdbus_cmd_name_list</varname> as argument.
+      bus names with the <constant>KDBUS_CMD_NAME_LIST</constant> ioctl, which
+      takes a <type>struct kdbus_cmd_name_list</type> as argument.
     </para>
 
     <programlisting>
@@ -293,7 +293,7 @@ struct kdbus_cmd_name_list {
           </para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_NAME_LIST_UNIQUE</varname></term>
+              <term><constant>KDBUS_NAME_LIST_UNIQUE</constant></term>
               <listitem>
                 <para>
                   List the unique (numeric) IDs of the connection, whether it
@@ -303,7 +303,7 @@ struct kdbus_cmd_name_list {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_NAME_LIST_NAMES</varname></term>
+              <term><constant>KDBUS_NAME_LIST_NAMES</constant></term>
               <listitem>
                 <para>
                   List well-known names stored in the database which are
@@ -313,7 +313,7 @@ struct kdbus_cmd_name_list {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_NAME_LIST_ACTIVATORS</varname></term>
+              <term><constant>KDBUS_NAME_LIST_ACTIVATORS</constant></term>
               <listitem>
                 <para>
                   List names that are owned by an activator.
@@ -322,7 +322,7 @@ struct kdbus_cmd_name_list {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_NAME_LIST_QUEUED</varname></term>
+              <term><constant>KDBUS_NAME_LIST_QUEUED</constant></term>
               <listitem>
                 <para>
                   List connections that are not yet owning a name but are
@@ -360,11 +360,11 @@ struct kdbus_cmd_name_list {
 
     <para>
       The returned list of names is stored in a
-      <varname>struct kdbus_name_list</varname> that in turn
+      <type>struct kdbus_name_list</type> that in turn
       contains a dynamic number of
-      <varname>struct kdbus_cmd_name</varname> that carry the actual
+      <type>struct kdbus_cmd_name</type> that carry the actual
       information. The fields inside that
-      <varname>struct kdbus_cmd_name</varname> is described next.
+      <type>struct kdbus_cmd_name</type> is described next.
     </para>
 
     <programlisting>
@@ -405,13 +405,13 @@ struct kdbus_name_info {
         <listitem>
           <para>
             Items containing the actual name. Currently, one item of type
-            <varname>KDBUS_ITEM_OWNED_NAME</varname> will be attached,
+            <constant>KDBUS_ITEM_OWNED_NAME</constant> will be attached,
             including the name's flags. In that item, the flags field of the
             name may carry the following bits:
           </para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_NAME_ALLOW_REPLACEMENT</varname></term>
+              <term><constant>KDBUS_NAME_ALLOW_REPLACEMENT</constant></term>
               <listitem>
                 <para>
                   Other connections are allowed to take over this name from the
@@ -421,7 +421,7 @@ struct kdbus_name_info {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_NAME_IN_QUEUE</varname></term>
+              <term><constant>KDBUS_NAME_IN_QUEUE</constant></term>
               <listitem>
                 <para>
                   When retrieving a list of currently acquired names in the
@@ -433,7 +433,7 @@ struct kdbus_name_info {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_NAME_ACTIVATOR</varname></term>
+              <term><constant>KDBUS_NAME_ACTIVATOR</constant></term>
               <listitem>
                 <para>
                   An activator connection owns a name as a placeholder for an
@@ -444,7 +444,7 @@ struct kdbus_name_info {
                   .
                 </para>
                 <para>
-                  In contrast to <varname>KDBUS_NAME_REPLACE_EXISTING</varname>,
+                  In contrast to <constant>KDBUS_NAME_REPLACE_EXISTING</constant>,
                   when a name is taken over from an activator connection, all
                   the messages that have been queued in the activator
                   connection will be moved over to the new owner. The activator
@@ -452,9 +452,9 @@ struct kdbus_name_info {
                   control again if the implementer connection terminates.
                 </para>
                 <para>
-                  This flag can not be used when acquiring a name, but is implicitly set
-                  through <varname>KDBUS_CMD_HELLO</varname> with
-                  <varname>KDBUS_HELLO_ACTIVATOR</varname> set in
+                  This flag can not be used when acquiring a name, but is
+                  implicitly set through <constant>KDBUS_CMD_HELLO</constant>
+                  with <constant>KDBUS_HELLO_ACTIVATOR</constant> set in
                   <varname>kdbus_cmd_hello.conn_flags</varname>.
                 </para>
               </listitem>

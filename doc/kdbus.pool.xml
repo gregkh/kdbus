@@ -25,8 +25,8 @@
       A pool for data received from the kernel is installed for every
       <emphasis>connection</emphasis> of the <emphasis>bus</emphasis>, and
       is sized according to the information stored in the
-      <varname>KDBUS_ITEM_BLOOM_PARAMETER</varname> item that is returned by
-      <varname>KDBUS_CMD_HELLO</varname>. Internally, the pool is segmented
+      <constant>KDBUS_ITEM_BLOOM_PARAMETER</constant> item that is returned by
+      <constant>KDBUS_CMD_HELLO</constant>. Internally, the pool is segmented
       into <emphasis>slices</emphasis>, each referenced by its
       <emphasis>offset</emphasis> in the pool.
     </para>
@@ -37,25 +37,25 @@
 
       <variablelist>
         <varlistentry>
-          <term><varname>KDBUS_CMD_HELLO</varname></term>
+          <term><constant>KDBUS_CMD_HELLO</constant></term>
           <listitem><para>
             ... to receive details about the bus the connection was made to
           </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><varname>KDBUS_CMD_RECV</varname></term>
+          <term><constant>KDBUS_CMD_RECV</constant></term>
           <listitem><para>
             ... to receive a message
           </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><varname>KDBUS_CMD_NAME_LIST</varname></term>
+          <term><constant>KDBUS_CMD_NAME_LIST</constant></term>
           <listitem><para>
             ... to dump the name registry
           </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><varname>KDBUS_CMD_CONN_INFO</varname></term>
+          <term><constant>KDBUS_CMD_CONN_INFO</constant></term>
           <listitem><para>
             ... to retrieve information on a connection
           </para></listitem>
@@ -67,7 +67,7 @@
       The <varname>offset</varname> fields returned by either one of the
       aforementioned ioctls describe offsets inside the pool. In order to make
       the slice available for subsequent calls,
-      <varname>KDBUS_CMD_FREE</varname> has to be called on that offset
+      <constant>KDBUS_CMD_FREE</constant> has to be called on that offset
       (see below). Otherwise, the pool will fill up, and the connection won't
       be able to receive any more information through its pool.
     </para>
@@ -94,7 +94,7 @@ buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
       The <emphasis>file descriptor</emphasis> used to map the memory must be
       the one that was used to create the <emphasis>connection</emphasis>
       In other words, the one that was used to call
-      <varname>KDBUS_CMD_HELLO</varname>. See
+      <constant>KDBUS_CMD_HELLO</constant>. See
       <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
       for more details.
     </para>
@@ -133,11 +133,11 @@ buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
   <refsect1>
     <title>Freeing pool slices</title>
     <para>
-      The <varname>KDBUS_CMD_FREE</varname> ioctl is used to free a slice
+      The <constant>KDBUS_CMD_FREE</constant> ioctl is used to free a slice
       inside the pool, describing an offset that was returned in an
       <varname>offset</varname> field of another ioctl struct.
-      The <varname>KDBUS_CMD_FREE</varname> command takes a
-      <varname>struct kdbus_cmd_free</varname> as argument:
+      The <constant>KDBUS_CMD_FREE</constant> command takes a
+      <type>struct kdbus_cmd_free</type> as argument.
     </para>
 
 <programlisting>

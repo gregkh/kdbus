@@ -31,12 +31,12 @@
     <title>Matches for broadcast messages from other connections</title>
     <para>
       A message addressed at the connection ID
-      <varname>KDBUS_DST_ID_BROADCAST</varname> (~0ULL) is a broadcast message,
-      delivered to all connected peers which installed a rule to match certain
-      properties of the message. Without any rules installed in the connection,
-      no broadcast message or kernel-side notifications will be delivered
-      to the connection. Broadcast messages are subject to policy rules and TALK
-      access checks - see
+      <constant>KDBUS_DST_ID_BROADCAST</constant> (~0ULL) is a broadcast
+      message, delivered to all connected peers which installed a rule to
+      match certain properties of the message. Without any rules installed in
+      the connection, no broadcast message or kernel-side notifications will be
+      delivered to the connection. Broadcast messages are subject to policy
+      rules and TALK access checks - see
       <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
       for more details on implicit policies.
     </para>
@@ -88,8 +88,8 @@
   <refsect1>
     <title>Matches for kernel notifications</title>
     <para>
-      To add a match, the <varname>KDBUS_CMD_MATCH_ADD</varname> ioctl is used,
-      which takes a struct of the struct described below.
+      To add a match, the <constant>KDBUS_CMD_MATCH_ADD</constant> ioctl is
+      used, which takes a struct of the struct described below.
 
       Note that each of the items attached to this command will internally create
       one match 'rule', and the collection of them, which is submitted as one block
@@ -135,7 +135,7 @@ struct kdbus_cmd_match {
         <listitem><para>Flags to control the behavior of the ioctl.</para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_MATCH_REPLACE</varname></term>
+              <term><constant>KDBUS_MATCH_REPLACE</constant></term>
               <listitem>
                 <para>Make the endpoint file group-accessible</para>
               </listitem>
@@ -168,7 +168,7 @@ struct kdbus_cmd_match {
         </para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_ITEM_BLOOM_MASK</varname></term>
+              <term><constant>KDBUS_ITEM_BLOOM_MASK</constant></term>
               <listitem>
                 <para>
                   An item that carries the bloom filter mask to match against
@@ -180,7 +180,7 @@ struct kdbus_cmd_match {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_NAME</varname></term>
+              <term><constant>KDBUS_ITEM_NAME</constant></term>
               <listitem>
                 <para>
                   Specify a name that a sending connection must own at the
@@ -191,7 +191,7 @@ struct kdbus_cmd_match {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_ID</varname></term>
+              <term><constant>KDBUS_ITEM_ID</constant></term>
               <listitem>
                 <para>
                   Specify a sender connection's ID that will match this rule.
@@ -200,9 +200,9 @@ struct kdbus_cmd_match {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_NAME_ADD</varname></term>
-              <term><varname>KDBUS_ITEM_NAME_REMOVE</varname></term>
-              <term><varname>KDBUS_ITEM_NAME_CHANGE</varname></term>
+              <term><constant>KDBUS_ITEM_NAME_ADD</constant></term>
+              <term><constant>KDBUS_ITEM_NAME_REMOVE</constant></term>
+              <term><constant>KDBUS_ITEM_NAME_CHANGE</constant></term>
               <listitem>
                 <para>
                   These items request delivery of broadcast messages that
@@ -211,23 +211,23 @@ struct kdbus_cmd_match {
                   <varname>kdbus_notify_name_change</varname> member.
                   All information specified must be matched in order to make
                   the message pass. Use
-                  <varname>KDBUS_MATCH_ID_ANY</varname> to
+                  <constant>KDBUS_MATCH_ID_ANY</constant> to
                   match against any unique connection ID.
                 </para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_ID_ADD</varname></term>
-              <term><varname>KDBUS_ITEM_ID_REMOVE</varname></term>
+              <term><constant>KDBUS_ITEM_ID_ADD</constant></term>
+              <term><constant>KDBUS_ITEM_ID_REMOVE</constant></term>
               <listitem>
                 <para>
                   These items request delivery of kernel notofications that are
                   generated when a connection is created or terminated.
-                  <varname>struct kdbus_notify_id_change</varname>is used to
+                  <type>struct kdbus_notify_id_change</type>is used to
                   store the actual match information. This item can be used to
                   monitor one particular connection ID, or, when the ID field is set to
-                  <varname>KDBUS_MATCH_ID_ANY</varname>, all of them.
+                  <constant>KDBUS_MATCH_ID_ANY</constant>, all of them.
                 </para>
               </listitem>
             </varlistentry>
@@ -236,7 +236,7 @@ struct kdbus_cmd_match {
 
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            <varname>-EINVAL</varname>.
+            errno set to <constant>-EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -252,11 +252,11 @@ struct kdbus_cmd_match {
   <refsect1>
     <title>Removing a match</title>
     <para>
-      Matches can be removed through the
-      <varname>KDBUS_CMD_MATCH_REMOVE</varname> ioctl, which takes
-      <varname>struct kdbus_cmd_match</varname> as argument, but its fields
+      Matches can be removed with the
+      <constant>KDBUS_CMD_MATCH_REMOVE</constant> ioctl, which takes
+      <type>struct kdbus_cmd_match</type> as argument, but its fields
       usage slightly differs compared to that of
-      <varname>KDBUS_CMD_MATCH_ADD</varname>.
+      <constant>KDBUS_CMD_MATCH_ADD</constant>.
     </para>
 
     <programlisting>
@@ -349,9 +349,9 @@ struct kdbus_cmd_match {
     </para>
     <para>
       Masks are entities that are always passed to the kernel as part of a
-      match (with an item of type <varname>KDBUS_ITEM_BLOOM_MASK</varname>),
+      match (with an item of type <constant>KDBUS_ITEM_BLOOM_MASK</constant>),
       and filters can be attached to signals, with an item of type
-      <varname>KDBUS_ITEM_BLOOM_FILTER</varname>. For a filter to match, all
+      <constant>KDBUS_ITEM_BLOOM_FILTER</constant>. For a filter to match, all
       its bits have to be set in the match mask as well.
     </para>
     <para>
@@ -374,7 +374,7 @@ struct kdbus_cmd_match {
 
     <para>
       Hence, in order to catch all messages, a mask filled with
-      <varname>0xff</varname> bytes can be installed as a wildcard match rule.
+      <constant>0xff</constant> bytes can be installed as a wildcard match rule.
     </para>
 
     <refsect2>

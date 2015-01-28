@@ -27,12 +27,12 @@
       messages (see <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
       Each bus is independent and operations on the bus will not have any
       effect on other buses. A bus is a management entity, that controls the
-      addresses of its connections, their policies and message transactions performed
-      via this bus.
+      addresses of its connections, their policies and message transactions
+      performed via this bus.
     </para>
     <para>
-      Each bus is bound to the mount instance it was created on. It has a custom name that is
-      unique across all buses of a domain. In
+      Each bus is bound to the mount instance it was created on. It has a
+      custom name that is unique across all buses of a domain. In
       <citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
       a bus is presented as a directory. No operations can be performed on
       the bus itself; instead you need to perform the operations on an endpoint
@@ -41,23 +41,28 @@
     </para>
     <para>
       Bus names may be chosen freely except for one restriction: the name
-      must be prefixed with the numeric effective UID of the creator and a dash. This
-      is required to avoid namespace clashes between different users. When creating a
-      bus, that name that is passed in must be properly formatted, or the kernel will
-      refuse creation of the bus. Example: "1047-foobar" is an acceptable name for a
-      bus registered by a user with UID 1047. However, "1024-foobar" is not, and
-      neither is "foobar". The UID must be provided in the user-namespace of the
-      parent domain.
+      must be prefixed with the numeric effective UID of the creator and a
+      dash. This is required to avoid namespace clashes between different users.
+      When creating a bus, that name that is passed in must be properly
+      formatted, or the kernel will refuse creation of the bus. Example:
+      <constant>"1047-foobar"</constant> is an acceptable name for a bus
+      registered by a user with UID 1047. However,
+      <constant>"1024-foobar"</constant> is not, and neither is
+      <constant>"foobar"</constant>. The UID must be provided in the
+      user-namespace of the bus owner.
     </para>
     <para>
-      To create a new bus, you need to open the control file of a domain and employ
-      the <varname>KDBUS_CMD_BUS_MAKE</varname> ioctl. The control file descriptor that was used to issue
-      KDBUS_CMD_BUS_MAKE must not previously have been used for any other
-      control-ioctl and must be kept open for the entire life-time of the created
-      bus. Closing it will immediately cleanup the entire bus and all its associated
-      resources and endpoints. Every control file descriptor can only be used to
-      create a single new bus; from that point on, it is not used for any further
-      communication until the final close().
+      To create a new bus, you need to open the control file of a domain and
+      employ the <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl. The control
+      file descriptor that was used to issue
+      <constant>KDBUS_CMD_BUS_MAKE</constant> must not previously have been
+      used for any other control-ioctl and must be kept open for the entire
+      life-time of the created bus. Closing it will immediately cleanup the
+      entire bus and all its associated resources and endpoints. Every control
+      file descriptor can only be used to create a single new bus; from that
+      point on, it is not used for any further communication until the final
+      <citerefentry><refentrytitle>close</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      .
     </para>
     <para>
       Each bus will generate a random, 128-bit UUID upon creation. This UUID will be
@@ -74,8 +79,8 @@
   <refsect1>
     <title>Creating buses and endpoints</title>
     <para>
-      To create a new bus, the <varname>KDBUS_CMD_BUS_MAKE</varname>
-      command is used. It takes a <varname>struct kdbus_cmd_make</varname> argument.
+      To create a new bus, the <constant>KDBUS_CMD_BUS_MAKE</constant>
+      command is used. It takes a <type>struct kdbus_cmd_make</type> argument.
     </para>
     <programlisting>
 struct kdbus_cmd_make {
@@ -102,14 +107,14 @@ struct kdbus_cmd_make {
         <listitem><para>The flags for creation.</para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_MAKE_ACCESS_GROUP</varname></term>
+              <term><constant>KDBUS_MAKE_ACCESS_GROUP</constant></term>
               <listitem>
                 <para>Make the bus or endpoint file group-accessible</para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_MAKE_ACCESS_WORLD</varname></term>
+              <term><constant>KDBUS_MAKE_ACCESS_WORLD</constant></term>
               <listitem>
                 <para>Make the bus or endpoint file world-accessible</para>
               </listitem>
@@ -139,11 +144,11 @@ struct kdbus_cmd_make {
           <para>
             The following items (see
             <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
-            are expected for <varname>KDBUS_CMD_BUS_MAKE</varname>.
+            are expected for <constant>KDBUS_CMD_BUS_MAKE</constant>.
           </para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_ITEM_MAKE_NAME</varname></term>
+              <term><constant>KDBUS_ITEM_MAKE_NAME</constant></term>
               <listitem>
                 <para>
                   Contains a null-terminated string that identifies the
@@ -155,22 +160,21 @@ struct kdbus_cmd_make {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_BLOOM_PARAMETER</varname></term>
+              <term><constant>KDBUS_ITEM_BLOOM_PARAMETER</constant></term>
               <listitem>
                 <para>
                   Bus-wide bloom parameters passed in a
-                  <varname>struct kdbus_bloom_parameter</varname>. These
-                  settings are copied back to new connections verbatim.
-                  This item is mandatory.
-                  See
+                  <type>struct kdbus_bloom_parameter</type>. These settings are
+                  copied back to new connections verbatim. This item is
+                  mandatory. See
                   <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
-                  for a detailed description of this item.
+                  for a more detailed description of this item.
                 </para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_ATTACH_FLAGS_RECV</varname></term>
+              <term><constant>KDBUS_ITEM_ATTACH_FLAGS_RECV</constant></term>
               <listitem>
                 <para>An optional item that contains a set of required attach
                   flags that connections must allow. This item is used as a negotiation
@@ -183,7 +187,7 @@ struct kdbus_cmd_make {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_ATTACH_FLAGS_SEND</varname></term>
+              <term><constant>KDBUS_ITEM_ATTACH_FLAGS_SEND</constant></term>
               <listitem>
                 <para>
                   An optional item that contains a set of attach flags that are
@@ -199,7 +203,7 @@ struct kdbus_cmd_make {
 
     <para>
       Unrecognized items are rejected, and the ioctl will fail with
-      <varname>-EINVAL</varname>.
+      errno set to <constant>EINVAL</constant>.
     </para>
   </refsect1>
 

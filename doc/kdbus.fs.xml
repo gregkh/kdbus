@@ -31,19 +31,19 @@
     </para>
     <para>
       The system-wide default mount point for <emphasis>kdbusfs</emphasis> is
-      <varname>/sys/fs/kdbus</varname>.
+      <constant>/sys/fs/kdbus</constant>.
     </para>
 
     <para>
       Buses are represented as directories in the file system layout, whereas
       endpoints are exposed as files inside these directories. On the top-level,
       a <emphasis>control</emphasis> node is present, which can be opened to
-      create new buses via the <varname>KDBUS_CMD_BUS_MAKE</varname> ioctl.
+      create new buses via the <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl.
       Each <emphasis>bus</emphasis> shows a default endpoint called
       <varname>bus</varname>, which can be opened to either create a connection
-      with the <varname>KDBUS_CMD_HELLO</varname> ioctl, or to create new
+      with the <constant>KDBUS_CMD_HELLO</constant> ioctl, or to create new
       custom endpoints for the bus with
-      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>.
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>.
       See
       <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>,
       <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry> and

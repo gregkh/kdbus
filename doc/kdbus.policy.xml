@@ -32,7 +32,7 @@
 
     <variablelist>
       <varlistentry>
-        <term><varname>KDBUS_CMD_HELLO</varname></term>
+        <term><constant>KDBUS_CMD_HELLO</constant></term>
         <listitem><para>
           When creating, or updating, a policy holder connection. See
           <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
@@ -40,8 +40,8 @@
       </varlistentry>
 
       <varlistentry>
-        <term><varname>KDBUS_CMD_ENDPOINT_MAKE</varname></term>
-        <term><varname>KDBUS_CMD_ENDPOINT_UPDATE</varname></term>
+        <term><constant>KDBUS_CMD_ENDPOINT_MAKE</constant></term>
+        <term><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant></term>
         <listitem><para>
           When creating, or updating, a bus custom endpoint. See
           <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
@@ -51,24 +51,24 @@
 
     <para>
       In all cases, the name and policy access information is stored in items
-      of type <varname>KDBUS_ITEM_NAME</varname> and
-      <varname>KDBUS_ITEM_POLICY_ACCESS</varname>. For this transport, the
+      of type <constant>KDBUS_ITEM_NAME</constant> and
+      <constant>KDBUS_ITEM_POLICY_ACCESS</constant>. For this transport, the
       following rules apply.
     </para>
 
     <itemizedlist mark="open-circle">
       <listitem>
         <para>
-          An item of type <varname>KDBUS_ITEM_NAME</varname> must be followed
-          by at least one <varname>KDBUS_ITEM_POLICY_ACCESS</varname> item.
+          An item of type <constant>KDBUS_ITEM_NAME</constant> must be followed
+          by at least one <constant>KDBUS_ITEM_POLICY_ACCESS</constant> item.
         </para>
       </listitem>
 
       <listitem>
         <para>
-          An item of type <varname>KDBUS_ITEM_NAME</varname> can be followed
-          by an arbitrary number of <varname>KDBUS_ITEM_POLICY_ACCESS</varname>
-          items.
+          An item of type <constant>KDBUS_ITEM_NAME</constant> can be followed
+          by an arbitrary number of
+          <constant>KDBUS_ITEM_POLICY_ACCESS</constant> items.
         </para>
       </listitem>
 
@@ -80,14 +80,14 @@
     </itemizedlist>
 
     <para>
-      Names passed in items of type <varname>KDBUS_ITEM_NAME</varname> must
+      Names passed in items of type <constant>KDBUS_ITEM_NAME</constant> must
       comply to the rules of valid kdbus names. See
       <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
       for more information.
 
-      The payload of an item of type <varname>KDBUS_ITEM_POLICY_ACCESS</varname>
-      is defined by the following struct. For more information on the layout
-      of items, please refer to
+      The payload of an item of type
+      <constant>KDBUS_ITEM_POLICY_ACCESS</constant> is defined by the following
+      struct. For more information on the layout of items, please refer to
       <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
     </para>
 
@@ -111,7 +111,7 @@ struct kdbus_policy_access {
 
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_POLICY_ACCESS_USER</varname></term>
+              <term><constant>KDBUS_POLICY_ACCESS_USER</constant></term>
               <listitem><para>
                 Grant access to a user with the UID stored in the
                 <varname>id</varname> field.
@@ -119,7 +119,7 @@ struct kdbus_policy_access {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_POLICY_ACCESS_GROUP</varname></term>
+              <term><constant>KDBUS_POLICY_ACCESS_GROUP</constant></term>
               <listitem><para>
                 Grant access to a user with the GID stored in the
                 <varname>id</varname> field.
@@ -127,7 +127,7 @@ struct kdbus_policy_access {
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_POLICY_ACCESS_WORLD</varname></term>
+              <term><constant>KDBUS_POLICY_ACCESS_WORLD</constant></term>
               <listitem><para>
                 Grant access to everyone. The <varname>id</varname> field
                 is ignored.
@@ -146,21 +146,21 @@ struct kdbus_policy_access {
 
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_POLICY_SEE</varname></term>
+              <term><constant>KDBUS_POLICY_SEE</constant></term>
               <listitem><para>
                 Allow the name to be seen.
               </para></listitem>
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_POLICY_TALK</varname></term>
+              <term><constant>KDBUS_POLICY_TALK</constant></term>
               <listitem><para>
                 Allow the name to be talked to.
               </para></listitem>
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_POLICY_OWN</varname></term>
+              <term><constant>KDBUS_POLICY_OWN</constant></term>
               <listitem><para>
                 Allow the name to be owned.
               </para></listitem>
@@ -172,8 +172,8 @@ struct kdbus_policy_access {
       <varlistentry>
         <term><varname>id</varname></term>
         <listitem><para>
-           For <varname>KDBUS_POLICY_ACCESS_USER</varname>, stores the UID.
-           For <varname>KDBUS_POLICY_ACCESS_GROUP</varname>, stores the GID.
+           For <constant>KDBUS_POLICY_ACCESS_USER</constant>, stores the UID.
+           For <constant>KDBUS_POLICY_ACCESS_GROUP</constant>, stores the GID.
         </para></listitem>
       </varlistentry>
 
@@ -190,12 +190,15 @@ struct kdbus_policy_access {
   <refsect1>
     <title>Wildcard names</title>
     <para>
-      Policy holder connections may upload names that contain the wildcard suffix
-      <varname>(".*")</varname>. Such a policy entry is effective for every
-      well-known name that extends the provided name by exactly one more level.
+      Policy holder connections may upload names that contain the wildcard
+      suffix <constant>(".*")</constant>. Such a policy entry is effective for
+      every well-known name that extends the provided name by exactly one more
+      level.
 
-      For example, the name "foo.bar.*" matches both "foo.bar.baz" and
-      "foo.bar.bazbaz" are, but not "foo.bar.baz.baz".
+      For example, the name <constant>"foo.bar.*"</constant> matches both
+      <constant>"foo.bar.baz"</constant> and
+      <constant>"foo.bar.bazbaz"</constant> are, but not
+      <constant>"foo.bar.baz.baz"</constant>.
 
       This allows connections to take control over multiple names that the
       policy holder doesn't need to know about when uploading the policy.
@@ -259,8 +262,8 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
     <para>
       Both the endpoint and the bus policy databases are consulted to allow
       name registry listing, owning a well-known name and message delivery.
-      If either one fails, the operation is failed with
-      <varname>-EPERM</varname>.
+      If either one fails, the operation is failed with errno set to
+      <constant>EPERM</constant>.
 
       For best practices, connections that own names with a restricted TALK
       access should not install matches. This avoids cases where the sent
@@ -311,7 +314,7 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
       </listitem>
       <listitem>
         <para>
-          Policy rules are always enforced for <varname>TALK</varname> access,
+          Policy rules are always enforced for <constant>TALK</constant> access,
           even if both ends are running under the same user. This includes
           broadcast messages.
         </para>
@@ -319,7 +322,7 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
       <listitem>
         <para>
           To restrict the set of names that can be seen, endpoint policies can
-          install <varname>SEE</varname> policies.
+          install <constant>SEE</constant> policies.
         </para>
       </listitem>
     </itemizedlist>

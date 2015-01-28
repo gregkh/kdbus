@@ -39,11 +39,11 @@
 
     <para>
       To flexibly augment transport structures, data blobs of type
-      <varname>struct kdbus_item</varname>
-      can be attached to the structs passed into the ioctls. Some ioctls make
-      items of certain types mandatory, others are optional. Items that are
-      unsupported by ioctls they are attached to will cause the ioctl to fail
-      <varname>-EINVAL</varname>.
+      <type>struct kdbus_item</type> can be attached to the structs passed
+      into the ioctls. Some ioctls make items of certain types mandatory,
+      others are optional. Items that are unsupported by ioctls they are
+      attached to will cause the ioctl to fail with errno set to
+      <errorname>EINVAL</errorname>.
       Items are also used for information stored in a connection's
       <emphasis>pool</emphasis>, such as received messages, name lists or
       requested connection or bus owner information. Depending on the type of
@@ -66,8 +66,9 @@
       <para>
         The kernel expects all items to be aligned to 8-byte boundaries.
         Unaligned items will cause the ioctl they are used with to fail
-        with <varname>-EINVAL</varname>. An item that has an unaligned size
-        itself hence needs to be padded if it is followed by another item.
+        with errno set to <constant>EINVAL</constant>. An item that has an
+        unaligned size itself hence needs to be padded if it is followed by
+        another item.
       </para>
     </refsect2>
 
@@ -97,7 +98,7 @@
   <refsect1>
     <title>Item layout</title>
     <para>
-      A <varname>struct kdbus_item</varname> consists of a
+      A <type>struct kdbus_item</type> consists of a
       <varname>size</varname> field, describing its overall size, and a
       <varname>type</varname> field, both 64 bit wide. They are followed by
       a union to store information that is specific to the item's type.
@@ -135,7 +136,7 @@ struct kdbus_item {
     </programlisting>
 
     <para>
-      <varname>struct kdbus_item</varname> should never be used to allocate
+      <type>struct kdbus_item</type> should never be used to allocate
       an item instance, as its size may grow in future releases of the API.
       Instead, it should be manually assembled by storing the
       <varname>size</varname>, <varname>type</varname> and payload to a
@@ -186,11 +187,11 @@ struct kdbus_vec {
           <term><constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant></term>
           <listitem><para>
             Transports a file descriptor of a <emphasis>memfd</emphasis> in
-            <varname>struct kdbus_memfd</varname> in
-            <varname>item.memfd</varname>. The <varname>size</varname> field
-            has to match the actual size of the memfd that was specified when
-            it was created. The <varname>start</varname> parameter denotes the
-            offset inside the memfd at which the referenced payload starts. See
+            <type>struct kdbus_memfd</type> in <varname>item.memfd</varname>.
+            The <varname>size</varname> field has to match the actual size of
+            the memfd that was specified when it was created. The
+            <varname>start</varname> parameter denotes the offset inside the
+            memfd at which the referenced payload starts. See
             <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
             for more information on passing of payload data along with a
             message.
@@ -213,7 +214,7 @@ struct kdbus_memfd {
             the values of this array with valid file descriptor numbers.
             When received as item attached to a message, the array will
             contain the numbers of the installed file descriptors, or
-            <varname>-1</varname> in case an error occured.
+            <constant>-1</constant> in case an error occured.
             filedescriptor.
             In either case, the number of entries in the array is derived from
             the item's total size. See
@@ -305,7 +306,7 @@ struct kdbus_bloom_filter {
           <term><constant>KDBUS_ITEM_ID</constant></term>
           <listitem><para>
             Transports a connection's <emphasis>numerical ID</emphasis> of
-            a connection as <varname>u64</varname> value in
+            a connection as <constant>u64</constant> value in
             <varname>item.id</varname>.
           </para></listitem>
         </varlistentry>
@@ -315,7 +316,7 @@ struct kdbus_bloom_filter {
           <listitem><para>
             Transports a name associated with the
             <emphasis>name registry</emphasis> as null-terminated string as
-            <varname>struct kdbus_name</varname> in
+            <type>struct kdbus_name</type> in
             <varname>item.name</varname>. The <varname> flags</varname>
             contains the flags of the name. See
             <citerefentry><refentrytitle>kdbus.name</refentrytitle><manvolnum>7</manvolnum></citerefentry>
@@ -341,7 +342,7 @@ struct kdbus_name {
             Contains both the <emphasis>monotonic</emphasis> and the
             <emphasis>realtime</emphasis> timestamp, taken when the message
             was processed on the kernel side.
-            Stored as <varname>struct kdbus_timestamp</varname> in
+            Stored as <type>struct kdbus_timestamp</type> in
             <varname>item.timestamp</varname>.
             <programlisting>
 struct kdbus_timestamp {
@@ -359,7 +360,7 @@ struct kdbus_timestamp {
             Contains credentials such as the <emphasis>user</emphasis> and
             <emphasis>group</emphasis> in the usual four flavors:
             real, effective, saved and file-system related.
-            Stored as <varname>struct kdbus_creds</varname> in
+            Stored as <type>struct kdbus_creds</type> in
             <varname>item.creds</varname>.
             <programlisting>
 struct kdbus_creds {
@@ -381,7 +382,7 @@ struct kdbus_creds {
           <listitem><para>
             Contains the <emphasis>PID</emphasis>, <emphasis>TID</emphasis>
             and <emphasis>parent PID (PPID)</emphasis> of a remote peer.
-            Stored as <varname>struct kdbus_pids</varname> in
+            Stored as <type>struct kdbus_pids</type> in
             <varname>item.pids</varname>.
             <programlisting>
 struct kdbus_pids {
@@ -398,10 +399,10 @@ struct kdbus_pids {
           <listitem><para>
             Contains the <emphasis>auxiliary (supplementary) groups</emphasis>
             a remote peer is a member of, stored as array of
-            <varname>u32</varname> values in <varname>item.data32</varname>.
+            <type>u32</type> values in <varname>item.data32</varname>.
             The array length can be determined by looking at the item's total
             size, substracting the size of the header and and dividing the
-            remainder by <varname>sizeof(u32)</varname>.
+            remainder by <constant>sizeof(u32)</constant>.
           </para></listitem>
         </varlistentry>
 
@@ -476,9 +477,9 @@ struct kdbus_pids {
           <term><constant>KDBUS_ITEM_CAPS</constant></term>
           <listitem><para>
             Contains sets of <emphasis>capabilities</emphasis>, stored as
-            <varname>struct kdbus_caps</varname> in
-            <varname>item.caps</varname>. As the item size may increas in the
-            future, userspace should be written in a way that it takes
+            <type>struct kdbus_caps</type> in <varname>item.caps</varname>.
+            As the item size may increas in the future, userspace should be
+            written in a way that it takes
             <varname>item.caps.last_cap</varname> into account, and derive
             the number of sets and rows from the item size and the reported
             number of valid capability bits.
@@ -505,7 +506,7 @@ struct kdbus_caps {
           <listitem><para>
             Contains the audit <emphasis>sessionid</emphasis> and
             <emphasis>loginuid</emphasis> of a task, stored as
-            <varname>struct kdbus_audit</varname> in
+            <type>struct kdbus_audit</type> in
             <varname>item.audit</varname>.
             <programlisting>
 struct kdbus_audit {
@@ -520,8 +521,8 @@ struct kdbus_audit {
           <term><constant>KDBUS_ITEM_CONN_DESCRIPTION</constant></term>
           <listitem><para>
             Contains the <emphasis>connection description</emphasis>, as set
-            by <varname>KDBUS_CMD_HELLO</varname> or
-            <varname>KDBUS_CMD_CONN_UPDATE</varname>, stored as
+            by <constant>KDBUS_CMD_HELLO</constant> or
+            <constant>KDBUS_CMD_CONN_UPDATE</constant>, stored as
             null-terminated string in <varname>item.str</varname>. Its length
             can also be derived from the item's total size.
           </para></listitem>

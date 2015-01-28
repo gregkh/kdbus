@@ -67,14 +67,14 @@
   <refsect1>
     <title>Creating custom endpoints</title>
     <para>
-      To create a new endpoint, the <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>
-      command is used. Along with the endpoint's name, which will be used to
-      expose the endpoint in the
+      To create a new endpoint, the
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> command is used. Along with
+      the endpoint's name, which will be used to expose the endpoint in the
       <citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry>,
       the command also optionally takes items to set up the endpoint's
       <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
-      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname> takes a
-      <varname>struct kdbus_cmd_make</varname> argument.
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> takes a
+      <type>struct kdbus_cmd_make</type> argument.
     </para>
     <programlisting>
 struct kdbus_cmd_make {
@@ -101,14 +101,14 @@ struct kdbus_cmd_make {
         <listitem><para>The flags for creation.</para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_MAKE_ACCESS_GROUP</varname></term>
+              <term><constant>KDBUS_MAKE_ACCESS_GROUP</constant></term>
               <listitem>
                 <para>Make the endpoint file group-accessible</para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_MAKE_ACCESS_WORLD</varname></term>
+              <term><constant>KDBUS_MAKE_ACCESS_WORLD</constant></term>
               <listitem>
                 <para>Make the endpoint file world-accessible</para>
               </listitem>
@@ -137,19 +137,19 @@ struct kdbus_cmd_make {
         <listitem>
           <para>
             The following items are expected for 
-            <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>.
+            <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>.
           </para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_ITEM_MAKE_NAME</varname></term>
+              <term><constant>KDBUS_ITEM_MAKE_NAME</constant></term>
               <listitem>
                 <para>Contains a string to identify the endpoint name.</para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
-              <term><varname>KDBUS_ITEM_NAME</varname></term>
-              <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+              <term><constant>KDBUS_ITEM_NAME</constant></term>
+              <term><constant>KDBUS_ITEM_POLICY_ACCESS</constant></term>
               <listitem>
                 <para>
                   These items are used to set the policy attached to the
@@ -161,7 +161,7 @@ struct kdbus_cmd_make {
           </variablelist>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            <varname>-EINVAL</varname>.
+            errno set to <varname>EINVAL</varname>.
           </para>
         </listitem>
       </varlistentry>
@@ -172,13 +172,13 @@ struct kdbus_cmd_make {
     <title>Updating endpoints</title>
     <para>
       To update an existing endpoint, the
-      <varname>KDBUS_CMD_ENDPOINT_UPDATE</varname> command is used on the file
+      <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> command is used on the file
       descriptor that was used to create the update, using
-      <varname>KDBUS_CMD_ENDPOINT_MAKE</varname>. The only relevant detail of
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>. The only relevant detail of
       the endpoint that can be updated is the policy. When the command is
       employed, the policy of the endpoint is <emphasis>replaced</emphasis>
       atomically with the new set of rules.
-      The command takes a <varname>struct kdbus_cmd_update</varname> argument.
+      The command takes a <type>struct kdbus_cmd_update</type> argument.
     </para>
     <programlisting>
 struct kdbus_cmd_make {
@@ -227,12 +227,12 @@ struct kdbus_cmd_make {
         <listitem>
           <para>
             The following items are expected for 
-            <varname>KDBUS_CMD_ENDPOINT_UPDATE</varname>.
+            <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant>.
           </para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_ITEM_NAME</varname></term>
-              <term><varname>KDBUS_ITEM_POLICY_ACCESS</varname></term>
+              <term><constant>KDBUS_ITEM_NAME</constant></term>
+              <term><constant>KDBUS_ITEM_POLICY_ACCESS</constant></term>
               <listitem>
                 <para>
                   These items are used to set the policy attached to the

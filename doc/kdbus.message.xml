@@ -33,7 +33,7 @@
 
     <para>
       The <constant>KDBUS_CMD_SEND</constant> ioctl uses a
-      <varname>struct kdbus_cmd_send</varname> to describe the message
+      <type>struct kdbus_cmd_send</type> to describe the message
       transfer.
     </para>
     <programlisting>
@@ -106,7 +106,7 @@ struct kdbus_cmd_send {
         <term><varname>msg_address</varname></term>
         <listitem><para>
           In this field, userspace has to provide a pointer to a message
-          (<varname>struct kdbus_msg</varname>) to send. See below for a
+          (<type>struct kdbus_msg</type>) to send. See below for a
           detailed description.
         </para></listitem>
       </varlistentry>
@@ -115,7 +115,7 @@ struct kdbus_cmd_send {
         <term><varname>reply</varname></term>
         <listitem><para>
           Only used for synchronous replies. See description of
-          <varname>struct kdbus_cmd_recv</varname> for more details.
+          <type>struct kdbus_cmd_recv</type> for more details.
         </para></listitem>
       </varlistentry>
 
@@ -127,7 +127,7 @@ struct kdbus_cmd_send {
           </para>
           <variablelist>
             <varlistentry>
-              <term><varname>KDBUS_ITEM_CANCEL_FD</varname></term>
+              <term><constant>KDBUS_ITEM_CANCEL_FD</constant></term>
               <listitem>
                 <para>
                   When this optional item is passed in, and the call is
@@ -137,8 +137,10 @@ struct kdbus_cmd_send {
                   <citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry>
                   on this file descriptor, and if it reports any incoming
                   bytes, the blocking send operation will be canceled, and the
-                  call will return <varname>-ECANCELED</varname>. Any type of
-                  file descriptor on which
+                  call will return <errorcode>-1</errorcode> and
+                  <varname>errno</varname> will be set to
+                  <errorname>ECANCELED</errorname>. Any type of file descriptor
+                  on which
                   <citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry>
                   can be called on can be used as payload to this item.
                   For asynchronous message sending, this item is allowed but
@@ -485,7 +487,7 @@ struct kdbus_msg {
 
     <para>
       With the <constant>KDBUS_CMD_RECV</constant> ioctl, a
-      <varname>struct kdbus_cmd_recv</varname> is used.
+      <type>struct kdbus_cmd_recv</type> is used.
     </para>
 
     <programlisting>
@@ -609,9 +611,9 @@ struct kdbus_cmd_recv {
     </variablelist>
 
     <para>
-      Both <varname>struct kdbus_cmd_recv</varname> and 
-      <varname>struct kdbus_cmd_send</varname> embed 
-      <varname>struct kdbus_msg_info</varname>.
+      Both <type>struct kdbus_cmd_recv</type> and 
+      <type>struct kdbus_cmd_send</type> embed 
+      <type>struct kdbus_msg_info</type>.
       For the <constant>KDBUS_CMD_SEND</constant> ioctl, it is used to catch
       synchronous replies, if one was requested, and is unused otherwise.
     </para>
@@ -644,7 +646,7 @@ struct kdbus_msg_info {
           Upon successful return of the ioctl, this field contains the size of
           the allocated slice at offset <varname>offset</varname>.
           It is the combination of the size of the stored
-          <varname>struct kdbus_msg</varname> object plus all appended VECs.
+          <type>struct kdbus_msg</type> object plus all appended VECs.
           You can use it in combination with <varname>offset</varname> to map
           a single message, instead of mapping the entire pool. See
           <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
@@ -683,7 +685,7 @@ struct kdbus_msg_info {
       Unless <constant>KDBUS_RECV_DROP</constant> was passed after a successful
       <constant>KDBUS_CMD_RECV</constant> ioctl, the <varname>offset</varname>
       field contains the location of the new message inside the receiver's
-      pool. The message is stored as <varname>struct kdbus_msg</varname> at
+      pool. The message is stored as <type>struct kdbus_msg</type> at
       this offset, and can be interpreted with the semantics described above.
     </para>
     <para>
