@@ -213,8 +213,8 @@
         counter-part blob, called a 'filter', and signals are only delivered to
         peers which have a match that whitelists the message's filter.  Senders
         of signal messages can use either a single connection ID as receiver, or
-        KDBUS_DST_ID_BROADCAST to potentially send it to all connections of a
-        bus, following the logic described above.  See
+        <constant>KDBUS_DST_ID_BROADCAST</constant> to potentially send it to
+        all connections of a bus, following the logic described above.  See
         <citerefentry>
           <refentrytitle>kdbus.match</refentrytitle>
           <manvolnum>7</manvolnum>

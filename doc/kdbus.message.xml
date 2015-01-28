@@ -68,18 +68,25 @@ struct kdbus_cmd_send {
               <listitem>
                 <para>
                   By default, all calls to kdbus are considered asynchronous,
-                  non-blocking. However, as there are many use cases that need to wait
-                  for a remote peer to answer a method call, there's a way to send a
-                  message and wait for a reply in a synchronous fashion. This is what
-                  the KDBUS_SEND_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
-                  until the reply has arrived, the timeout limit is reached, in case the
-                  remote connection was shut down, or if interrupted by a signal before
-                  any reply; see signal(7).
+                  non-blocking. However, as there are many use cases that need
+                  to wait for a remote peer to answer a method call, there's a
+                  way to send a message and wait for a reply in a synchronous
+                  fashion. This is what the
+                  <constant>KDBUS_SEND_SYNC_REPLY</constant> controls.  The
+                  <constant>KDBUS_CMD_SEND</constant> ioctl will block until the
+                  reply has arrived, the timeout limit is reached, in case the
+                  remote connection was shut down, or if interrupted by a signal
+                  before any reply; see
+                  <citerefentry>
+                    <refentrytitle>signal</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>.
 
-                  The offset of the reply message in the sender's pool is stored in in
-                  'offset_reply' when the ioctl has returned without error. Hence, there
-                  is no need for another KDBUS_CMD_RECV ioctl or anything else to receive
-                  the reply.
+                  The offset of the reply message in the sender's pool is stored
+                  in in <varname>offset_reply</varname> when the ioctl has
+                  returned without error. Hence, there is no need for another
+                  <constant>KDBUS_CMD_RECV</constant> ioctl or anything else to
+                  receive the reply.
                 </para>
               </listitem>
             </varlistentry>
@@ -501,9 +508,10 @@ struct kdbus_msg {
     <title>Receiving messages</title>
 
     <para>
-      Messages are received by the client with the KDBUS_CMD_RECV ioctl.
-      The endpoint file of the bus supports <emphasis>poll/epoll/select</emphasis>
-      to wake up the receiving process when new messages are queued up to be received.
+      Messages are received by the client with the
+      <constant>KDBUS_CMD_RECV</constant> ioctl.  The endpoint file of the bus
+      supports <function>poll()/epoll()/select()</function> to wake up the
+      receiving process when new messages are queued up to be received.
     </para>
 
     <para>
@@ -740,14 +748,23 @@ struct kdbus_msg_info {
     </para>
 
     <itemizedlist mark='opencircle'>
-      <listitem><para>kdbus_msg.src_id == <constant>KDBUS_SRC_ID_KERNEL</constant></para></listitem>
-      <listitem><para>kdbus_msg.dst_id == <constant>KDBUS_DST_ID_BROADCAST</constant></para></listitem>
-      <listitem><para>kdbus_msg.payload_type == <constant>KDBUS_PAYLOAD_KERNEL</constant></para></listitem>
-      <listitem><para>Has exactly one of the aforementioned items attached</para></listitem>
+      <listitem><para>
+          kdbus_msg.src_id == <constant>KDBUS_SRC_ID_KERNEL</constant>
+      </para></listitem>
+      <listitem><para>
+        kdbus_msg.dst_id == <constant>KDBUS_DST_ID_BROADCAST</constant>
+      </para></listitem>
+      <listitem>
+        <para>kdbus_msg.payload_type == <constant>KDBUS_PAYLOAD_KERNEL</constant>
+      </para></listitem>
+      <listitem><para>
+        Has exactly one of the aforementioned items attached
+      </para></listitem>
     </itemizedlist>
 
     <para>
-      Kernel notifications have an item of type KDBUS_ITEM_TIMESTAMP attached.
+      Kernel notifications have an item of type
+      <constant>KDBUS_ITEM_TIMESTAMP</constant> attached.
     </para>
 
     <para>

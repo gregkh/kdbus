@@ -500,36 +500,33 @@ struct kdbus_pids {
         <varlistentry>
           <term><constant>KDBUS_ITEM_TID_COMM</constant> [*]</term>
           <listitem><para>
-            Contains the <emphasis>comm</emphasis> of a task's
-            <emphasis>TID</emphasis>, stored as null-terminated string in
-            <varname>item.str</varname>. Its length can also be derived from
-            the item's total size.
-            Receivers of this item should not use its contents for any kind
-            of security measures. See below.
+            Contains the <emphasis>comm</emphasis> string of a task's
+            <emphasis>TID</emphasis> (thread ID), stored as null-terminated
+            string in <varname>item.str</varname>. Its length can also be
+            derived from the item's total size.  Receivers of this item should
+            not use its contents for any kind of security measures. See below.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
           <term><constant>KDBUS_ITEM_PID_COMM</constant> [*]</term>
           <listitem><para>
-            Contains the <emphasis>comm</emphasis> of a task's
-            <emphasis>PID</emphasis>, stored as null-terminated string in
-            <varname>item.str</varname>. Its length can also be derived from
-            the item's total size.
-            Receivers of this item should not use its contents for any kind
-            of security measures. See below.
+            Contains the <emphasis>comm</emphasis> string of a task's
+            <emphasis>PID</emphasis> (process ID), stored as null-terminated
+            string in <varname>item.str</varname>. Its length can also be
+            derived from the item's total size.  Receivers of this item should
+            not use its contents for any kind of security measures. See below.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
           <term><constant>KDBUS_ITEM_EXE</constant> [*]</term>
           <listitem><para>
-            Contains the <emphasis>path to the executable</emphasis> of a
-            task, stored as null-terminated string in
-            <varname>item.str</varname>. Its length can also be derived from
-            the item's total size.
-            Receivers of this item should not use its contents for any kind
-            of security measures. See below.
+            Contains the <emphasis>path to the executable</emphasis> of a task,
+            stored as null-terminated string in <varname>item.str</varname>. Its
+            length can also be derived from the item's total size.  Receivers of
+            this item should not use its contents for any kind of security
+            measures. See below.
           </para></listitem>
         </varlistentry>
 
@@ -719,6 +716,8 @@ struct kdbus_notify_id_change {
             <varname>new_id</varname> describes the new owner of the name and
             is set to <constant>0</constant> values in case of
             <constant>KDBUS_ITEM_NAME_REMOVE</constant>.
+            The <varname>name</varname> field contains the well-known name the
+            notification is about, as null-terminated string.
             See
             <citerefentry>
               <refentrytitle>kdbus.match</refentrytitle>

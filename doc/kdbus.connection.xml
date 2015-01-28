@@ -134,7 +134,8 @@
       on the same bus by using the peer's connection ID as the destination.
     </para>
     <para>
-      The KDBUS_CMD_HELLO ioctl takes the following struct as argument.
+      The <constant>KDBUS_CMD_HELLO</constant> ioctl takes a <type>struct
+      kdbus_cmd_hello</type> as argument.
     </para>
 
     <programlisting>

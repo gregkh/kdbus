@@ -28,7 +28,7 @@
       <constant>KDBUS_ITEM_BLOOM_PARAMETER</constant> item that is returned by
       <constant>KDBUS_CMD_HELLO</constant>. Internally, the pool is segmented
       into <emphasis>slices</emphasis>, each referenced by its
-      <emphasis>offset</emphasis> in the pool.
+      <emphasis>offset</emphasis> in the pool, expressed in <type>bytes</type>.
     </para>
 
     <para>
@@ -108,7 +108,7 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
     <para>
       Alternatively, instead of mapping the entire pool buffer, only parts
       of it can be mapped. Every kdbus command that returns an
-      <emphasis> offset</emphasis> (see above) also reports a
+      <emphasis>offset</emphasis> (see above) also reports a
       <emphasis>size</emphasis> along with it, so userspace can be written
       in a way that it only maps portions of the part to access a specific
       <emphasis>slice</emphasis>.
