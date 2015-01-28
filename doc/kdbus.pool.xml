@@ -77,7 +77,10 @@
     <para>
       Memory is the pool is read-only for userspace and may only be written
       to by the kernel. To read from the pool memory, the caller is expected to
-      <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>mmap</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
       the buffer into its task, like this:
     </para>
     <programlisting>
@@ -87,7 +90,7 @@
  * item field when the KDBUS_CMD_HELLO ioctl returned.
  */
 
-buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
+uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
     </programlisting>
 
     <para>
@@ -95,7 +98,10 @@ buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
       the one that was used to create the <emphasis>connection</emphasis>
       In other words, the one that was used to call
       <constant>KDBUS_CMD_HELLO</constant>. See
-      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more details.
     </para>
 
@@ -121,8 +127,15 @@ buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
       Pool slices are allocated by the kernel in order to report information
       back to a userspace task, such as messages, returned name list etc.
       Allocation of pool slices cannot be initiated by userspace. See
-      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
-      <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      and
+      <citerefentry>
+        <refentrytitle>kdbus.names</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for examples of commands that use the <emphasis>pool</emphasis> to
       return data.
     </para>
@@ -234,13 +247,48 @@ struct kdbus_cmd_free {
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>munmap</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>mmap</refentrytitle>
+            <manvolnum>2</manvolnum>
+          </citerefentry>
+        </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>munmap</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>

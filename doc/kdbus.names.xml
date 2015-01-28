@@ -23,7 +23,10 @@
     <title>Description</title>
     <para>
       Each
-      <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.bus</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       instantiates a name registry to resolve well-known names into unique
       connection IDs for message delivery. The registry will be queried when a
       message is sent with <varname>kdbus_msg.dst_id</varname> set to
@@ -34,7 +37,10 @@
     <para>
       All of the below is subject to policy rules for SEE and OWN permissions.
       See
-      <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.policy</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information.
     </para>
   </refsect1>
@@ -46,26 +52,42 @@
     </para>
 
     <itemizedlist mark='opencircle'>
-      <listitem><para>
-        The name has two or more elements separated by a period ('.') character
-      </para></listitem>
-      <listitem><para>
-        All elements must contain at least one character
-      </para></listitem>
-      <listitem><para>
-        Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_"
-        and must not begin with a digit
-      </para></listitem>
-      <listitem><para>
-        The name must contain at least one '.' (period) character
-        (and thus at least two elements)
-      </para></listitem>
-      <listitem><para>
-        The name must not begin with a '.' (period) character
-      </para></listitem>
-      <listitem><para>
-        The name must not exceed KDBUS_NAME_MAX_LEN (255)
-      </para></listitem>
+      <listitem>
+        <para>
+          The name has two or more elements separated by a
+          <constant>.'</constant> (period) character.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          All elements must contain at least one character.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Each element must only contain the ASCII characters
+          <constant>[A-Z][a-z][0-9]_"</constant> and must not begin with a
+          digit.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          The name must contain at least one <constant>.</constant> (period)
+          character (and thus at least two elements)
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          The name must not begin with a <constant>.</constant> (period)
+          character
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          The name must not exceed <constant>255</constant> characters in
+          length.
+        </para>
+      </listitem>
     </itemizedlist>
   </refsect1>
 
@@ -110,7 +132,10 @@ struct kdbus_cmd_name {
                   <constant>KDBUS_NAME_ALLOW_REPLACEMENT</constant> (see below)
                   was set when the current owner of the name acquired it, or
                   if the current owner is an activator connection (see
-                  <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
+                  <citerefentry>
+                    <refentrytitle>kdbus.connection</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>).
                 </para>
               </listitem>
             </varlistentry>
@@ -186,12 +211,16 @@ struct kdbus_cmd_name {
       for the name, the first one in the queue (the oldest entry) will become
       the new owner. The same happens implicitly for all names once a
       connection terminates. See 
-      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information on connections.
     </para>
     <para>
       The <constant>KDBUS_CMD_NAME_RELEASE</constant> ioctl uses the same data
-      structure as the acquisition call (<constant>KDBUS_CMD_NAME_ACQUIRE</constant>),
+      structure as the acquisition call
+      (<constant>KDBUS_CMD_NAME_ACQUIRE</constant>),
       but with slightly different field usage.
     </para>
 
@@ -258,7 +287,7 @@ struct kdbus_cmd_name {
           </para>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            errno set to <constant>-EINVAL</constant>.
+            <varname>errno</varname> set to <constant>EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -440,7 +469,10 @@ struct kdbus_name_info {
                   implementer, which is started on demand by userspace as soon
                   as the first message arrives. There's some more information
                   on this topic in 
-                  <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+                  <citerefentry>
+                    <refentrytitle>kdbus.connection</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>
                   .
                 </para>
                 <para>
@@ -466,9 +498,13 @@ struct kdbus_name_info {
     </variablelist>
 
     <para>
-      The returned buffer must be freed with the KDBUS_CMD_FREE ioctl when the user
-      is finished with it. See
-      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      The returned buffer must be freed with the
+      <constant>KDBUS_CMD_FREE</constant> ioctl when the user is finished with
+      it. See
+      <citerefentry>
+        <refentrytitle>kdbus.pool</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information.
     </para>
   </refsect1>
@@ -574,9 +610,24 @@ struct kdbus_name_info {
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.items</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>

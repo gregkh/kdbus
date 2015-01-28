@@ -42,7 +42,10 @@
       connections on the bus. However, in order to receive any broadcast
       messages, clients must subscribe to the specific messages they are
       interested in (see
-      <citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.match</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       ).
     </para>
     <para>
@@ -55,7 +58,10 @@
       <emphasis>well-known names</emphasis>, under which they can be found and
       addressed by other bus clients. A well-known name is associated with one
       and only one connection at a time. See
-      <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.names</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       on name acquisition, the name registry, and the validity of names.
     </para>
     <para>
@@ -118,11 +124,14 @@
     <title>Creating connections</title>
     <para>
       A connection to a bus is created by opening an endpoint file (see
-      <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
-      of a bus and becoming an active client with the <constant>KDBUS_CMD_HELLO</constant>
-      ioctl. Every connection has a unique identifier on the bus and can address
-      messages to every other connection on the same bus by using the peer's
-      connection ID as the destination.
+      <citerefentry>
+        <refentrytitle>kdbus.endpoint</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      ) of a bus and becoming an active client with the
+      <constant>KDBUS_CMD_HELLO</constant> ioctl. Every connection has a unique
+      identifier on the bus and can address messages to every other connection
+      on the same bus by using the peer's connection ID as the destination.
     </para>
     <para>
       The KDBUS_CMD_HELLO ioctl takes the following struct as argument.
@@ -235,10 +244,11 @@ TODO: document precisely what combination of flags may be passed</para>
           by the sender and that are requested by the receiver will be attached
           to the message. Note, however, that the bus may optionally require
           some of those bits to be set. If the match fails, the ioctl will fail
-          with errno set to <constant>-ECONNREFUSED</constant>.
-          In either case, when returning the field will be set to the mask of
-          metadata items that are enforced by the bus with the
-          <constant>KDBUS_FLAGS_KERNEL</constant> bit set as well.
+          with <varname>errno</varname> set to
+          <constant>ECONNREFUSED</constant>. In either case, when returning the
+          field will be set to the mask of metadata items that are enforced by
+          the bus with the <constant>KDBUS_FLAGS_KERNEL</constant> bit set as
+          well.
         </para></listitem>
       </varlistentry>
 
@@ -247,9 +257,15 @@ TODO: document precisely what combination of flags may be passed</para>
         <listitem><para>
           Request the attachment of metadata for each message received by this
           connection. See
-          <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
           for information about metadata, and
-          <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus.item</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
           regarding items in general.
         </para></listitem>
       </varlistentry>
@@ -275,13 +291,19 @@ TODO: document precisely what combination of flags may be passed</para>
         <listitem><para>
           The size of the communication pool, in bytes. The pool can be
           accessed by calling
-          <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>mmap</refentrytitle>
+            <manvolnum>2</manvolnum>
+          </citerefentry>
           on the file descriptor that was used to issue the
           <constant>KDBUS_CMD_HELLO</constant> ioctl.
         </para>
         <para>
           See 
-          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus.pool</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
           for further information.
         </para></listitem>
       </varlistentry>
@@ -327,7 +349,10 @@ TODO: document precisely what combination of flags may be passed</para>
                 <para>
                   For activators and policy holders only, combinations of
                   these two items describe policy access entries. See
-                  <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+                  <citerefentry>
+                    <refentrytitle>kdbus.policy</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>
                   for further details.
                 </para>
               </listitem>
@@ -351,7 +376,7 @@ TODO: document precisely what combination of flags may be passed</para>
 
           <para>
             Unrecognized items are rejected, and the ioctl will fail with 
-            errno set to <constant>EINVAL</constant>.
+            <varname>errno</varname> set to <constant>EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -377,7 +402,10 @@ TODO: document precisely what combination of flags may be passed</para>
     <para>
       The offset in the pool has to be freed with the
       <constant>KDBUS_CMD_FREE</constant> ioctl. See
-      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.pool</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for further information.
     </para>
   </refsect1>
@@ -455,7 +483,10 @@ struct kdbus_cmd_info {
         <listitem><para>
           Specifies which metadata items should be attached to the answer.
           See
-          <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus.message</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
         </para></listitem>
       </varlistentry>
 
@@ -488,7 +519,10 @@ struct kdbus_cmd_info {
         <listitem><para>
           When the ioctl returns, this field will contain the offset of the
           connection information inside the caller's pool. See
-          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus.pool</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
           for futher information.
         </para></listitem>
       </varlistentry>
@@ -498,9 +532,15 @@ struct kdbus_cmd_info {
         <listitem><para>
           The kernel will return the size of the returned information, so applications
           can optionally
-          <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>mmap</refentrytitle>
+            <manvolnum>2</manvolnum>
+          </citerefentry>
           specific parts of the pool. See
-          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus.pool</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
           for futher information.
         </para></listitem>
       </varlistentry>
@@ -526,7 +566,7 @@ struct kdbus_cmd_info {
           </variablelist>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            errno set to <constant>EINVAL</constant>.
+            <varname>errno</varname> set to <constant>EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -586,7 +626,10 @@ struct kdbus_info {
       Once the caller is finished with parsing the return buffer, it needs to
       employ the <constant>KDBUS_CMD_FREE</constant> command for the offset, in
       order to free the buffer part. See
-      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.pool</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for futher information.
     </para>
   </refsect1>
@@ -603,8 +646,8 @@ struct kdbus_info {
       it did so.
     </para>
     <para>
-      In response to this call, a slice in the connection's pool is allocated and
-      filled with an object of type <type>struct kdbus_info</type>,
+      In response to this call, a slice in the connection's pool is allocated
+      and filled with an object of type <type>struct kdbus_info</type>,
       pointed to by the ioctl's <varname>offset</varname> field.
     </para>
 
@@ -656,7 +699,10 @@ struct kdbus_info {
       Once the caller is finished with parsing the return buffer, it needs to
       employ the <constant>KDBUS_CMD_FREE</constant> command for the offset, in
       order to free the buffer part. See
-      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.pool</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for futher information.
     </para>
   </refsect1>
@@ -743,7 +789,8 @@ struct kdbus_cmd_update {
                 <para>
                   Policy holder connections may supply a new set of policy
                   information with these items. For other connection types,
-                  <constant>EOPNOTSUPP</constant> is returned in errno.
+                  <constant>EOPNOTSUPP</constant> is returned in
+                  <varname>errno</varname>.
                 </para>
               </listitem>
             </varlistentry>
@@ -751,7 +798,7 @@ struct kdbus_cmd_update {
 
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            errno set to <constant>EINVAL</constant>.
+            <varname>errno</varname> set to <constant>EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -796,7 +843,10 @@ struct kdbus_cmd_update {
     <title>Termination of connections</title>
     <para>
       A connection can be terminated by simply calling
-      <citerefentry><refentrytitle>close</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>close</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
       on its file descriptor. All pending incoming messages will be discarded,
       and the memory allocated by the pool will be freed.
     </para>
@@ -805,7 +855,7 @@ struct kdbus_cmd_update {
       An alternative way of closing down a connection is via the
       <constant>KDBUS_CMD_BYEBYE</constant> ioctl. This ioctl will succeed only
       if the message queue of the connection is empty at the time of closing;
-      otherwise, the ioctl will fail with errno set to
+      otherwise, the ioctl will fail with <varname>errno</varname> set to
       <constant>EBUSY</constant> is returned. When this ioctl returns
       successfully, the connection has been terminated and won't accept any new
       messages from remote peers. This way, a connection can be terminated
@@ -984,13 +1034,42 @@ struct kdbus_cmd_update {
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.items</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>

@@ -24,42 +24,62 @@
 
     <para>
       Endpoints are entry points to a bus (see
-      <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
+      <citerefentry>
+        <refentrytitle>kdbus.bus</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      ).
       By default, each bus has a default
       endpoint called 'bus'. The bus owner has the ability to create custom
-      endpoints with specific names, permissions, and policy databases (see below).
-      An endpoint is presented as file underneath the directory of the parent bus.
+      endpoints with specific names, permissions, and policy databases
+      (see below). An endpoint is presented as file underneath the directory
+      of the parent bus.
     </para>
     <para>
-      To create a custom endpoint, open the default endpoint ('bus') and use the
-      KDBUS_CMD_ENDPOINT_MAKE ioctl with "struct kdbus_cmd_make". Custom endpoints
-      always have a policy database that, by default, forbids any operation. You have
-      to explicitly install policy entries to allow any operation on this endpoint.
+      To create a custom endpoint, open the default endpoint
+      (<constant>bus</constant>) and use the
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> ioctl with
+      <type>struct kdbus_cmd_make</type>. Custom endpoints
+      always have a policy database that, by default, forbids any operation.
+      You have to explicitly install policy entries to allow any operation on
+      this endpoint.
     </para>
     <para>
-      Once KDBUS_CMD_ENDPOINT_MAKE succeeded, the new endpoint will appear in the
-      filesystem 
-      (<citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
-      and the used file descriptor will manage the
-      newly created endpoint resource. It cannot be used to manage further resources
-      and must be kept open as long as the endpoint is needed. The endpoint will be
-      terminated as soon as the file descriptor is closed.
+      Once <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> succeeded, the new 
+      endpoint will appear in the filesystem (
+      <citerefentry>
+        <refentrytitle>kdbus.bus</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      ), and the used file descriptor will manage the
+      newly created endpoint resource. It cannot be used to manage further
+      resources and must be kept open as long as the endpoint is needed. The
+      endpoint will be terminated as soon as the file descriptor is closed.
     </para>
     <para>
-      Endpoint names may be chosen freely except for one restriction: the name must
-      be prefixed with the numeric effective UID of the creator and a dash. This is
-      required to avoid namespace clashes between different users. When creating an
-      endpoint, the name that is passed in must be properly formatted or the kernel
-      will refuse creation of the endpoint. Example: "1047-foobar" is an acceptable
-      name for an endpoint registered by a user with UID 1047. However,
-      "1024-my-endpoint" is not, and neither is "my-endpoint". The UID must be
-      provided in the user-namespace of the parent domain.
+      Endpoint names may be chosen freely except for one restriction: the name
+      must be prefixed with the numeric effective UID of the creator and a dash.
+      This is required to avoid namespace clashes between different users. When
+      creating an endpoint, the name that is passed in must be properly
+      formatted or the kernel will refuse creation of the endpoint. Example:
+      <constant>"1047-foobar"</constant> is an acceptable name for an endpoint
+      registered by a user with UID 1047. However,
+      <constant>"1024-my-endpoint</constant> is not, and neither is
+      <constant>"my-endpoint"</constant>. The UID must be provided in the
+      user-namespace of the bus.
     </para>
     <para>
-      To create connections to a bus, use KDBUS_CMD_HELLO on a file descriptor returned by
-      <citerefentry><refentrytitle>open</refentrytitle><manvolnum>2</manvolnum></citerefentry>
-      on an endpoint node.
-      See <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      To create connections to a bus, use <constant>KDBUS_CMD_HELLO</constant>
+      on a file descriptor returned by
+      <citerefentry>
+        <refentrytitle>open</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
+      on an endpoint node. See
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for further details.
     </para>
   </refsect1>
@@ -70,9 +90,16 @@
       To create a new endpoint, the
       <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> command is used. Along with
       the endpoint's name, which will be used to expose the endpoint in the
-      <citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry>,
+      <citerefentry>
+        <refentrytitle>kdbus.fs</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>,
       the command also optionally takes items to set up the endpoint's
-      <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+      <citerefentry>
+        <refentrytitle>kdbus.policy</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      .
       <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> takes a
       <type>struct kdbus_cmd_make</type> argument.
     </para>
@@ -154,14 +181,17 @@ struct kdbus_cmd_make {
                 <para>
                   These items are used to set the policy attached to the
                   endpoint. For more details on bus and endpoint policies, see
-                  <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+                  <citerefentry>
+                    <refentrytitle>kdbus.policy</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>.
                 </para>
               </listitem>
             </varlistentry>
           </variablelist>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            errno set to <varname>EINVAL</varname>.
+            <varname>errno</varname> set to <varname>EINVAL</varname>.
           </para>
         </listitem>
       </varlistentry>
@@ -237,7 +267,10 @@ struct kdbus_cmd_make {
                 <para>
                   These items are used to set the policy attached to the
                   endpoint. For more details on bus and endpoint policies, see
-                  <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+                  <citerefentry>
+                    <refentrytitle>kdbus.policy</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>.
                   Existing policy is atomically replaced with the new rules
                   provided.
                 </para>
@@ -292,7 +325,10 @@ struct kdbus_cmd_make {
           <term><constant>EPERM</constant></term>
           <listitem><para>
             The calling user is not privileged. See
-            <citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+            <citerefentry>
+              <refentrytitle>kdbus</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
             for information about privileged users.
           </para></listitem>
         </varlistentry>
@@ -332,14 +368,54 @@ struct kdbus_cmd_make {
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+           <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>

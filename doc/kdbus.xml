@@ -87,7 +87,10 @@
         distinguish between different bus types, they are all handled the same
         way.
         See
-        <citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -105,7 +108,10 @@
         additional policy which can be used to create sandboxes with
         locked-down, limited, filtered access to a bus.
         See
-        <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -119,7 +125,10 @@
         connection has a unique identifier on the bus and can address messages
         to every other connection on the same bus by using the peer's
         connection ID as the destination. See
-        <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -132,21 +141,27 @@
         It is never used to send anything to the kernel. In order to access that
         memory, a userspace application must mmap() it into its address space.
         See
-        <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
 
     <refsect2>
       <title>Well-known Name</title>
-      <para>A connection can, in addition to its implicit unique connection ID, request
-        the ownership of a textual well-known name. Well-known names are noted in
-        reverse-domain notation, such as com.example.service1. A connection that
-        offers a service on a bus is usually reached by its well-known name. The
-        analogy of connection ID and well-known name is an IP address and a DNS
-        name associated with that address.
-        See
-        <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <para>
+        A connection can, in addition to its implicit unique connection ID,
+        request the ownership of a textual well-known name. Well-known names are
+        noted in reverse-domain notation, such as com.example.service1. A
+        connection that offers a service on a bus is usually reached by its
+        well-known name. The analogy of connection ID and well-known name is an
+        IP address and a DNS name associated with that address.  See
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -155,19 +170,22 @@
       <title>Message</title>
       <para>
         Connections can exchange messages with other connections by addressing
-        the peers with their connection ID or well-known name. A message consists
-        of a message header with information on how to route the message, and the
-        message payload, which is a logical byte stream of arbitrary size.
-        Messages can carry additional file descriptors to be passed from one
-        connection to another, just like passing file descriptors over UNIX domain
-        sockets. Every connection can specify which set of metadata the kernel
-        should attach to the message when it is delivered to the receiving
-        connection. Metadata contains information like: system timestamps, UID, GID,
-        TID, proc-starttime, well-known names, process comm, process exe, process
-        argv, cgroup, capabilities, seclabel, audit session, loginuid and the
-        connection's human-readable name.
-        See
-        <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        the peers with their connection ID or well-known name. A message
+        consists of a message header with information on how to route the
+        message, and the message payload, which is a logical byte stream of
+        arbitrary size.  Messages can carry additional file descriptors to be
+        passed from one connection to another, just like passing file
+        descriptors over UNIX domain sockets. Every connection can specify which
+        set of metadata the kernel should attach to the message when it is
+        delivered to the receiving connection. Metadata contains information
+        like: system timestamps, UID, GID, TID, proc-starttime, well-known
+        names, process comm, process exe, process argv, cgroup, capabilities,
+        seclabel, audit session, loginuid and the connection's human-readable
+        name.  See
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -179,7 +197,10 @@
         returned by most ioctls, and stored inside data structures in the
         connection's pool.
         See
-        <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -188,15 +209,21 @@
       <title>Broadcast, signal, filter, match</title>
       <para>
         Signals are messages that a receiver opts in for by installing a blob of
-        bytes, called a 'match'. Signal messages must always carry a counter-part
-        blob, called a 'filter', and signals are only delivered to peers which have
-        a match that whitelists the message's filter.
-        Senders of signal messages can use either a single connection ID as
-        receiver, or KDBUS_DST_ID_BROADCAST to potentially send it to all
-        connections of a bus, following the logic described above.
-        See
-        <citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
-        <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        bytes, called a 'match'. Signal messages must always carry a
+        counter-part blob, called a 'filter', and signals are only delivered to
+        peers which have a match that whitelists the message's filter.  Senders
+        of signal messages can use either a single connection ID as receiver, or
+        KDBUS_DST_ID_BROADCAST to potentially send it to all connections of a
+        bus, following the logic described above.  See
+        <citerefentry>
+          <refentrytitle>kdbus.match</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+        and
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -204,12 +231,14 @@
     <refsect2>
       <title>Policy</title>
       <para>
-        A policy is a set of rules that define which connections can see, talk to,
-        or register a well-known name on the bus. A policy is attached to buses and
-        custom endpoints, and modified by policy holder connections or owners of
-        custom endpoints.
-        See
-        <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        A policy is a set of rules that define which connections can see, talk
+        to, or register a well-known name on the bus. A policy is attached to
+        buses and custom endpoints, and modified by policy holder connections or
+        owners of custom endpoints.  See
+        <citerefentry>
+          <refentrytitle>kdbus.policy</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -217,10 +246,13 @@
     <refsect2>
       <title>Privileged bus users</title>
       <para>
-        A user connecting to the bus is considered privileged if it is either the
-        creator of the bus, or if it has the CAP_IPC_OWNER capability flag set.
-        See
-        <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        A user connecting to the bus is considered privileged if it is either
+        the creator of the bus, or if it has the CAP_IPC_OWNER capability flag
+        set. See
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for more details.
       </para>
     </refsect2>
@@ -230,12 +262,22 @@
   <refsect1>
     <title>The ioctl interface</title>
 
-    <para>kdbus exposes its functions exclusively through
-      <citerefentry><refentrytitle>ioctl</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+    <para>
+      kdbus exposes its functions exclusively through
+      <citerefentry>
+        <refentrytitle>ioctl</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
       through file descriptors returned by
-      <citerefentry><refentrytitle>open</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>open</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
       on pseudo files exposed by
-      <citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+      <citerefentry>
+        <refentrytitle>kdbus.fs</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>.
     </para>
     <para>
       Following is a list of all the ioctls.
@@ -303,21 +345,17 @@
   <refsect1>
     <title>Bus Layout</title>
 
-    <para>A bus
-      (<citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
-      provides and defines an environment that peers can connect to
-      for message interchange. A bus is created via the kdbus
-      control interface and can be modified by the bus creator. It
-      applies the policy that control all bus operations. The bus
-      creator itself does not participate as a peer.
-      To establish a peer connection
-      (<citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
-      you have to open one of the endpoints
-      (<citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
-      of a bus. Each bus provides a default endpoint, but further
-      endpoints can be created on-demand. Endpoints are used to apply
-      additional policies for all connections on this endpoint. Thus,
-      they provide additional filters to further restrict access of
+    <para>
+      A <emphasis>bus</emphasis> provides and defines an environment that peers
+      can connect to for message interchange. A bus is created via the kdbus
+      control interface and can be modified by the bus creator. It applies the
+      policy that control all bus operations. The bus creator itself does not
+      participate as a peer. To establish a peer
+      <emphasis>connection</emphasis>, you have to open one of the
+      <emphasis>endpoints</emphasis> of a bus. Each bus provides a default
+      endpoint, but further endpoints can be created on-demand. Endpoints are
+      used to apply additional policies for all connections on this endpoint.
+      Thus, they provide additional filters to further restrict access of
       specific connections to the bus.
     </para>
 
@@ -378,12 +416,15 @@
       </para></listitem>
 
       <listitem><para>
-        When a message is sent (<constant>KDBUS_CMD_SEND</constant>), information
-        about the sending task and the sending connection are collected.
-        This metadata will be attached to the message when it arrives in the
-        receiver's pool. If the connection sending the message installed faked
-        credentials (see 
-        <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
+        When a message is sent (<constant>KDBUS_CMD_SEND</constant>),
+        information about the sending task and the sending connection are
+        collected.  This metadata will be attached to the message when it
+        arrives in the receiver's pool. If the connection sending the message
+        installed faked credentials (see 
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>),
         the message will not be augmented by any information about the
         currently sending task.
       </para></listitem>
@@ -585,7 +626,10 @@
 
       <para>
         Please refer to
-        <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
         for detailed information about the layout and payload of items and
         what metadata should be used to.
       </para>
@@ -596,19 +640,81 @@
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>ioctl</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>open</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>close</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><ulink url="http://freedesktop.org/wiki/Software/dbus">D-Bus</ulink></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>ioctl</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>mmap</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>open</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>close</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <ulink url="http://freedesktop.org/wiki/Software/dbus">D-Bus</ulink>
+      </member>
     </simplelist>
   </refsect1>
 

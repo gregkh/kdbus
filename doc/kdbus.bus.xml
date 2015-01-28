@@ -23,8 +23,13 @@
     <title>Description</title>
 
     <para>
-      A bus is a resource that is shared between connections in order to transmit
-      messages (see <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>).
+      A bus is a resource that is shared between connections in order to
+      transmit messages (see
+      <citerefentry>
+        <refentrytitle>kdbus.message</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      ).
       Each bus is independent and operations on the bus will not have any
       effect on other buses. A bus is a management entity, that controls the
       addresses of its connections, their policies and message transactions
@@ -33,8 +38,11 @@
     <para>
       Each bus is bound to the mount instance it was created on. It has a
       custom name that is unique across all buses of a domain. In
-      <citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry>),
-      a bus is presented as a directory. No operations can be performed on
+      <citerefentry>
+        <refentrytitle>kdbus.fs</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      , a bus is presented as a directory. No operations can be performed on
       the bus itself; instead you need to perform the operations on an endpoint
       associated with the bus. Endpoints are accessible as files underneath the
       bus directory. A default endpoint called "bus" is provided on each bus.
@@ -61,15 +69,19 @@
       entire bus and all its associated resources and endpoints. Every control
       file descriptor can only be used to create a single new bus; from that
       point on, it is not used for any further communication until the final
-      <citerefentry><refentrytitle>close</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>close</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
       .
     </para>
     <para>
-      Each bus will generate a random, 128-bit UUID upon creation. This UUID will be
-      returned to creators of connections through kdbus_cmd_hello.id128 and can
-      be used by userspace to uniquely identify buses, even across different machines
-      or containers. The UUID will have its variant bits set to 'DCE', and denote
-      version 4 (random). For more details on UUIDs, see
+      Each bus will generate a random, 128-bit UUID upon creation. This UUID
+      will be returned to creators of connections through
+      <varname>kdbus_cmd_hello.id128</varname> and can be used by userspace to
+      uniquely identify buses, even across different machines or containers. The
+      UUID will have its variant bits set to '<constant>DCE</constant>', and
+      denote version 4 (random). For more details on UUIDs, see
       <ulink url="https://en.wikipedia.org/wiki/Universally_unique_identifier">
       the Wikipedia entry on UUIDs</ulink>.
     </para>
@@ -143,8 +155,11 @@ struct kdbus_cmd_make {
         <listitem>
           <para>
             The following items (see
-            <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>)
-            are expected for <constant>KDBUS_CMD_BUS_MAKE</constant>.
+            <citerefentry>
+              <refentrytitle>kdbus.item</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            ) are expected for <constant>KDBUS_CMD_BUS_MAKE</constant>.
           </para>
           <variablelist>
             <varlistentry>
@@ -167,7 +182,10 @@ struct kdbus_cmd_make {
                   <type>struct kdbus_bloom_parameter</type>. These settings are
                   copied back to new connections verbatim. This item is
                   mandatory. See
-                  <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+                  <citerefentry>
+                    <refentrytitle>kdbus.item</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>
                   for a more detailed description of this item.
                 </para>
               </listitem>
@@ -176,12 +194,14 @@ struct kdbus_cmd_make {
             <varlistentry>
               <term><constant>KDBUS_ITEM_ATTACH_FLAGS_RECV</constant></term>
               <listitem>
-                <para>An optional item that contains a set of required attach
-                  flags that connections must allow. This item is used as a negotiation
-                  measure during connection creation. If connections do not satisfy
-                  the bus requirements, they are not allowed on the bus.
-                  If not set, the bus does not require any metadata to be attached;
-                  in this case connections are free to set their own attach flags.
+                <para>
+                  An optional item that contains a set of required attach flags
+                  that connections must allow. This item is used as a
+                  negotiation measure during connection creation. If connections
+                  do not satisfy the bus requirements, they are not allowed on
+                  the bus.  If not set, the bus does not require any metadata to
+                  be attached; in this case connections are free to set their
+                  own attach flags.
                 </para>
               </listitem>
             </varlistentry>
@@ -203,7 +223,7 @@ struct kdbus_cmd_make {
 
     <para>
       Unrecognized items are rejected, and the ioctl will fail with
-      errno set to <constant>EINVAL</constant>.
+      <varname>errno</varname> set to <constant>EINVAL</constant>.
     </para>
   </refsect1>
 
@@ -262,14 +282,54 @@ struct kdbus_cmd_make {
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>

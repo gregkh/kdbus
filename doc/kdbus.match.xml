@@ -37,17 +37,20 @@
       the connection, no broadcast message or kernel-side notifications will be
       delivered to the connection. Broadcast messages are subject to policy
       rules and TALK access checks - see
-      <citerefentry><refentrytitle>kdbus.policy</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.policy</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more details on implicit policies.
     </para>
     <para>
       Matches for messages from other connections (not kernel notifications) are
-      implemented as bloom filters. The sender adds certain properties of the message
-      as elements to a bloom filter bit field, and sends that along with the
-      broadcast message.
+      implemented as bloom filters. The sender adds certain properties of the
+      message as elements to a bloom filter bit field, and sends that along with
+      the broadcast message.
 
-      The connection adds the message properties it is interested as elements to a
-      bloom mask bit field, and uploads the mask to the match rules of the
+      The connection adds the message properties it is interested as elements to
+      a bloom mask bit field, and uploads the mask to the match rules of the
       connection.
 
       The kernel will match the broadcast message's bloom filter against the
@@ -57,18 +60,19 @@
     <para>
       The kernel has no notion of any specific properties of the message, all it
       sees are the bit fields of the bloom filter and mask to match against. The
-      use of bloom filters allows simple and efficient matching, without exposing
-      any message properties or internals to the kernel side. Clients need to deal
-      with the fact that they might receive broadcasts which they did not subscribe
-      to, as the bloom filter might allow false-positives to pass the filter.
+      use of bloom filters allows simple and efficient matching, without
+      exposing any message properties or internals to the kernel side. Clients
+      need to deal with the fact that they might receive broadcasts which they
+      did not subscribe to, as the bloom filter might allow false-positives to
+      pass the filter.
 
-      To allow the future extension of the set of elements in the bloom filter, the
-      filter specifies a "generation" number. A later generation must always contain
-      all elements of the set of the previous generation, but can add new elements
-      to the set. The match rules mask can carry an array with all previous
-      generations of masks individually stored. When the filter and mask are matched
-      by the kernel, the mask with the closest matching "generation" is selected
-      as the index into the mask array.
+      To allow the future extension of the set of elements in the bloom filter,
+      the filter specifies a "generation" number. A later generation must always
+      contain all elements of the set of the previous generation, but can add
+      new elements to the set. The match rules mask can carry an array with all
+      previous generations of masks individually stored. When the filter and
+      mask are matched by the kernel, the mask with the closest matching
+      "generation" is selected as the index into the mask array.
     </para>
   </refsect1>
 
@@ -76,7 +80,10 @@
     <title>Matches for kernel notifications</title>
     <para>
       To receive kernel generated notifications (see
-      <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.message</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       ), a connection must install special match rules that are different from
       the bloom filter matches described in the section above. They can be
       filtered by a sender connection's ID, by one of the name the sender
@@ -91,15 +98,18 @@
       To add a match, the <constant>KDBUS_CMD_MATCH_ADD</constant> ioctl is
       used, which takes a struct of the struct described below.
 
-      Note that each of the items attached to this command will internally create
-      one match 'rule', and the collection of them, which is submitted as one block
-      via the ioctl, is called a 'match'. To allow a message to pass, all rules of a
-      match have to be satisfied. Hence, adding more items to the command will only
-      narrow the possibility of a match to effectively let the message pass, and will
-      decrease the chance that the connection's userspace process wil be woken up.
+      Note that each of the items attached to this command will internally
+      create one match <emphasis>rule</emphasis>, and the collection of them,
+      which is submitted as one block via the ioctl, is called a
+      <emphasis>match</emphasis>. To allow a message to pass, all rules of a
+      match have to be satisfied. Hence, adding more items to the command will
+      only narrow the possibility of a match to effectively let the message
+      pass, and will decrease the chance that the connection's userspace process
+      wil be woken up.
 
-      Multiple matches can be installed per connection. As long as one of it has a
-      set of rules which allows the message to pass, this one will be decisive.
+      Multiple matches can be installed per connection. As long as one of it has
+      a set of rules which allows the message to pass, this one will be
+      decisive.
     </para>
 
     <programlisting>
@@ -236,7 +246,7 @@ struct kdbus_cmd_match {
 
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
-            errno set to <constant>-EINVAL</constant>.
+            <varname>errno</varname> set to <constant>-EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -244,7 +254,10 @@ struct kdbus_cmd_match {
 
     <para>
       Refer to
-      <citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.message</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information on message types.
     </para>
   </refsect1>
@@ -453,14 +466,54 @@ struct kdbus_cmd_match {
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.match</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>

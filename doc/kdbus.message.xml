@@ -134,14 +134,20 @@ struct kdbus_cmd_send {
                   executed as SYNC call, the passed in file descriptor can be
                   used as alternative cancellation point. The kernel will call
                   poll()
-                  <citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+                  <citerefentry>
+                    <refentrytitle>poll</refentrytitle>
+                    <manvolnum>2</manvolnum>
+                  </citerefentry>
                   on this file descriptor, and if it reports any incoming
                   bytes, the blocking send operation will be canceled, and the
                   call will return <errorcode>-1</errorcode> and
                   <varname>errno</varname> will be set to
                   <errorname>ECANCELED</errorname>. Any type of file descriptor
                   on which
-                  <citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+                  <citerefentry>
+                    <refentrytitle>poll</refentrytitle>
+                    <manvolnum>2</manvolnum>
+                  </citerefentry>
                   can be called on can be used as payload to this item.
                   For asynchronous message sending, this item is allowed but
                   ignored.
@@ -223,7 +229,8 @@ struct kdbus_msg {
                   connection, the activator is notified and will start an
                   implementer. This flag inhibits that behavior. With this bit
                   set, and the remote being an activator, the ioctl will fail
-                  with errno set to <constant>EADDRNOTAVAIL</constant>.
+                  with <varname>errno</varname> set to
+                  <constant>EADDRNOTAVAIL</constant>.
                 </para>
               </listitem>
             </varlistentry>
@@ -289,7 +296,10 @@ struct kdbus_msg {
           If the message sent requires a reply from the remote peer (see above),
           this field contains the timeout in absolute nanoseconds based on
           <constant>CLOCK_MONOTONIC</constant>. Also see
-          <citerefentry><refentrytitle>clock_gettime</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
+          <citerefentry>
+            <refentrytitle>clock_gettime</refentrytitle>
+            <manvolnum>2</manvolnum>
+          </citerefentry>.
         </para></listitem>
       </varlistentry>
 
@@ -338,14 +348,15 @@ struct kdbus_msg {
                   <varname>dst_id</varname> is set to
                   <constant>KDBUS_DST_ID_NAME</constant>.
                   If a connection holding the given name can't be found,
-                  the ioctl will fail with errno set to
-                  <constant>-ESRCH</constant> is returned.
+                  the ioctl will fail with <varname>errno</varname> set to
+                  <constant>ESRCH</constant> is returned.
                 </para>
                 <para>
-                  For messages to a unique name (ID), this item is optional. If present,
-                  the kernel will make sure the name owner matches the given unique name.
-                  This allows userspace tie the message sending to the condition that a
-                  name is currently owned by a certain unique name.
+                  For messages to a unique name (ID), this item is optional. If
+                  present, the kernel will make sure the name owner matches the
+                  given unique name.  This allows userspace tie the message
+                  sending to the condition that a name is currently owned by a
+                  certain unique name.
                 </para>
               </listitem>
             </varlistentry>
@@ -357,8 +368,15 @@ struct kdbus_msg {
     <para>
       The message will be augmented by the requested metadata items when
       queued into the receiver's pool. See
-      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry> and
-      <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      and
+      <citerefentry>
+        <refentrytitle>kdbus.item</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information on metadata.
     </para>
   </refsect1>
@@ -416,7 +434,10 @@ struct kdbus_msg {
     </para>
     <para>
       See
-      <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.pool</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information.
     </para>
 
@@ -576,19 +597,19 @@ struct kdbus_cmd_recv {
           priority, starting with the highest value. Also, messages will be
           filtered by the value given in this field, so the returned message
           will at least have the requested priority. If no such message is
-          waiting in the queue, the ioctl will fail, and errno will be set to
-          <constant>ENOMSG</constant>.
+          waiting in the queue, the ioctl will fail, and
+          <varname>errno</varname> will be set to <constant>ENOMSG</constant>.
         </para></listitem>
       </varlistentry>
 
       <varlistentry>
         <term><varname>dropped_msgs</varname></term>
         <listitem><para>
-          If the <constant>CMD_RECV</constant> ioctl fails with errno set to
-          <constant>EOVERFLOW</constant>, this field is filled by
-          the kernel with the number of messages that couldn't be transmitted
-          to this receiving connection. In that case, the
-          <varname>offset</varname> member must not be accessed.
+          If the <constant>CMD_RECV</constant> ioctl fails with
+          <varname>errno</varname> set to <constant>EOVERFLOW</constant>, this
+          field is filled by the kernel with the number of messages that
+          couldn't be transmitted to this receiving connection. In that case,
+          the <varname>offset</varname> member must not be accessed.
         </para></listitem>
       </varlistentry>
 
@@ -632,10 +653,13 @@ struct kdbus_msg_info {
       <varlistentry>
         <term><varname>offset</varname></term>
         <listitem><para>
-          Upon return of the ioctl, this field contains the offset in the receiver's
-          memory pool. The memory must be freed with
+          Upon return of the ioctl, this field contains the offset in the
+          receiver's memory pool. The memory must be freed with
           <constant>KDBUS_CMD_FREE</constant>. See
-          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus.pool</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
           for further details.
         </para></listitem>
       </varlistentry>
@@ -649,7 +673,10 @@ struct kdbus_msg_info {
           <type>struct kdbus_msg</type> object plus all appended VECs.
           You can use it in combination with <varname>offset</varname> to map
           a single message, instead of mapping the entire pool. See
-          <citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+          <citerefentry>
+            <refentrytitle>kdbus.pool</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
           for further details.
         </para></listitem>
       </varlistentry>
@@ -867,7 +894,10 @@ struct kdbus_msg_info {
             The supplied kdbus memfd file cannot be sealed or the seal
             was removed, because it is shared with other processes or
             still mapped with
-            <citerefentry><refentrytitle>mmap</refentrytitle><manvolnum>2</manvolnum></citerefentry>.
+            <citerefentry>
+              <refentrytitle>mmap</refentrytitle>
+              <manvolnum>2</manvolnum>
+            </citerefentry>.
           </para></listitem>
         </varlistentry>
 
@@ -1034,20 +1064,90 @@ struct kdbus_msg_info {
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.items</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>clock_gettime</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>ioctl</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>poll</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>select</refentrytitle><manvolnum>2</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>epoll</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.items</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>clock_gettime</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>ioctl</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>poll</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>select</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>epoll</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>

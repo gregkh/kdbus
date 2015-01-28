@@ -35,7 +35,10 @@
         <term><constant>KDBUS_CMD_HELLO</constant></term>
         <listitem><para>
           When creating, or updating, a policy holder connection. See
-          <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+          <citerefentry>
+            <refentrytitle>kdbus.connection</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>.
         </para></listitem>
       </varlistentry>
 
@@ -44,7 +47,10 @@
         <term><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant></term>
         <listitem><para>
           When creating, or updating, a bus custom endpoint. See
-          <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+          <citerefentry>
+            <refentrytitle>kdbus.endpoint</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>.
         </para></listitem>
       </varlistentry>
     </variablelist>
@@ -82,13 +88,19 @@
     <para>
       Names passed in items of type <constant>KDBUS_ITEM_NAME</constant> must
       comply to the rules of valid kdbus names. See
-      <citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.names</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information.
 
       The payload of an item of type
       <constant>KDBUS_ITEM_POLICY_ACCESS</constant> is defined by the following
       struct. For more information on the layout of items, please refer to
-      <citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+      <citerefentry>
+        <refentrytitle>kdbus.item</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>.
     </para>
 
     <programlisting>
@@ -183,7 +195,10 @@ struct kdbus_policy_access {
       All endpoints of buses have an empty policy database by default.
       Therefore, unless policy rules are added, all operations will also be
       denied by default. Also see
-      <citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+      <citerefentry>
+        <refentrytitle>kdbus.endpoint</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>.
     </para>
   </refsect1>
 
@@ -212,7 +227,10 @@ struct kdbus_policy_access {
     <para>
       The policy database is overruled when action is taken by a privileged
       connection. Please refer to
-      <citerefentry><refentrytitle>kdbus.connection</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
       for more information on what makes a connection privileged.
     </para>
   </refsect1>
@@ -247,23 +265,24 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
   <refsect1>
     <title>TALK access and multiple well-known names per connection</title>
     <para>
-      Note that TALK access is checked against all names of a connection.
-      For example, if a connection owns both 'org.foo.bar' and 'org.blah.baz', and
-      the policy database allows 'org.blah.baz' to be talked to by WORLD, then this
-      permission is also granted to 'org.foo.bar'. That might sound illogical, but
-      after all, we allow messages to be directed to either the ID or a well-known
-      name, and policy is applied to the connection, not the name. In other words,
-      the effective TALK policy for a connection is the most permissive of all names
-      the connection owns.
+      Note that TALK access is checked against all names of a connection.  For
+      example, if a connection owns both <constant>'org.foo.bar'</constant> and
+      <constant>'org.blah.baz'</constant>, and the policy database allows
+      <constant>'org.blah.baz'</constant> to be talked to by WORLD, then this
+      permission is also granted to <constant>'org.foo.bar'</constant>. That
+      might sound illogical, but after all, we allow messages to be directed to
+      either the ID or a well-known name, and policy is applied to the
+      connection, not the name. In other words, the effective TALK policy for a
+      connection is the most permissive of all names the connection owns.
 
-      For broadcast messages, the receiver needs TALK permissions to the sender to
-      receive the broadcast.
+      For broadcast messages, the receiver needs TALK permissions to the sender
+      to receive the broadcast.
     </para>
     <para>
       Both the endpoint and the bus policy databases are consulted to allow
       name registry listing, owning a well-known name and message delivery.
-      If either one fails, the operation is failed with errno set to
-      <constant>EPERM</constant>.
+      If either one fails, the operation is failed with
+      <varname>errno</varname> set to <constant>EPERM</constant>.
 
       For best practices, connections that own names with a restricted TALK
       access should not install matches. This avoids cases where the sent
@@ -271,7 +290,10 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
       satisfy the policy rules.
 
       Also see
-      <citerefentry><refentrytitle>kdbus.match</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+      <citerefentry>
+        <refentrytitle>kdbus.match</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>.
     </para>
   </refsect1>
 
@@ -308,8 +330,8 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
     <itemizedlist>
       <listitem>
         <para>
-          Policy rules are always enforced, even if the connection is a privileged
-          connection.
+          Policy rules are always enforced, even if the connection is a
+          privileged connection.
         </para>
       </listitem>
       <listitem>
@@ -331,14 +353,54 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
   <refsect1>
     <title>See Also</title>
     <simplelist type="inline">
-      <member><citerefentry><refentrytitle>kdbus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.bus</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.endpoint</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.fs</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.item</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.message</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.names</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
-      <member><citerefentry><refentrytitle>kdbus.pool</refentrytitle><manvolnum>7</manvolnum></citerefentry></member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
     </simplelist>
   </refsect1>
 </refentry>
