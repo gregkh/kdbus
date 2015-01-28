@@ -397,29 +397,30 @@ struct kdbus_cmd_match {
   <refsect1>
     <title>Return value</title>
     <para>
-      On success, all mentioned ioctl commands return 0.
+      On success, all metioned ioctl commands return 0; on error, -1 is
+      returned, and errno is set to indicate the error.
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_MATCH_ADD</varname> may return the following errors</title>
+      <title><varname>KDBUS_CMD_MATCH_ADD</varname> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>-EINVAL</varname></term>
+          <term><varname>EINVAL</varname></term>
           <listitem><para>
             Illegal flags or items.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EDOM</varname></term>
+          <term><varname>EDOM</varname></term>
           <listitem><para>
             Illegal bloom filter size.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EMFILE</varname></term>
+          <term><varname>EMFILE</varname></term>
           <listitem><para>
             Too many matches for this connection.
           </para></listitem>
@@ -428,18 +429,18 @@ struct kdbus_cmd_match {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_MATCH_REMOVE</varname> may return the following errors</title>
+      <title><varname>KDBUS_CMD_MATCH_REMOVE</varname> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>-EINVAL</varname></term>
+          <term><varname>EINVAL</varname></term>
           <listitem><para>
             Illegal flags.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EBADSLT</varname></term>
+          <term><varname>EBADSLT</varname></term>
           <listitem><para>
             A match entry with the given cookie could not be found.
           </para></listitem>

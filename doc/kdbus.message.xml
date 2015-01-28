@@ -753,15 +753,16 @@ struct kdbus_msg_info {
   <refsect1>
     <title>Return value</title>
     <para>
-      On success, all metioned ioctl commands return 0.
+      On success, all metioned ioctl commands return 0; on error, -1 is
+      returned, and errno is set to indicate the error.
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_SEND</varname> may return the following errors</title>
+      <title><varname>KDBUS_CMD_SEND</varname> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>-EOPNOTSUPP</varname></term>
+          <term><varname>EOPNOTSUPP</varname></term>
           <listitem><para>
             The connection is not an ordinary connection, or the passed
             file descriptors are either kdbus handles or unix domain
@@ -770,7 +771,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EINVAL</varname></term>
+          <term><varname>EINVAL</varname></term>
           <listitem><para>
             The submitted payload type is <varname>KDBUS_PAYLOAD_KERNEL</varname>,
             <varname>KDBUS_MSG_EXPECT_REPLY</varname> was set without timeout or
@@ -783,7 +784,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ENOTUNIQ</varname></term>
+          <term><varname>ENOTUNIQ</varname></term>
           <listitem><para>
             The supplied destination is <varname>KDBUS_DST_ID_BROADCAST</varname>,
             a file descriptor was passed, <varname>KDBUS_MSG_EXPECT_REPLY</varname>
@@ -792,14 +793,14 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-E2BIG</varname></term>
+          <term><varname>E2BIG</varname></term>
           <listitem><para>
             Too many items
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EMSGSIZE</varname></term>
+          <term><varname>EMSGSIZE</varname></term>
           <listitem><para>
             The size of the message header and items or the payload vector
             is excessive.
@@ -807,7 +808,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EEXIST</varname></term>
+          <term><varname>EEXIST</varname></term>
           <listitem><para>
             Multiple <varname>KDBUS_ITEM_FDS</varname>,
             <varname>KDBUS_ITEM_BLOOM_FILTER</varname> or
@@ -816,7 +817,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EBADF</varname></term>
+          <term><varname>EBADF</varname></term>
           <listitem><para>
             The supplied <varname>KDBUS_ITEM_FDS</varname> or
             <varname>KDBUS_ITEM_PAYLOAD_MEMFD</varname> items
@@ -825,21 +826,21 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EMEDIUMTYPE</varname></term>
+          <term><varname>EMEDIUMTYPE</varname></term>
           <listitem><para>
             The supplied memfd is not a sealed kdbus memfd.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EMFILE</varname></term>
+          <term><varname>EMFILE</varname></term>
           <listitem><para>
             Too many file descriptors inside a <varname>KDBUS_ITEM_FDS</varname>.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EBADMSG</varname></term>
+          <term><varname>EBADMSG</varname></term>
           <listitem><para>
             An item had illegal size, both a <varname>dst_id</varname> and a
             <varname>KDBUS_ITEM_DST_NAME</varname> was given, or both a name
@@ -848,7 +849,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ETXTBSY</varname></term>
+          <term><varname>ETXTBSY</varname></term>
           <listitem><para>
             The supplied kdbus memfd file cannot be sealed or the seal
             was removed, because it is shared with other processes or
@@ -858,14 +859,14 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ECOMM</varname></term>
+          <term><varname>ECOMM</varname></term>
           <listitem><para>
             A peer does not accept the file descriptors addressed to it.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EFAULT</varname></term>
+          <term><varname>EFAULT</varname></term>
           <listitem><para>
             The supplied bloom filter size was not 64-bit aligned or memory
             supplied by userspace could not be accessed by the kernel.
@@ -873,7 +874,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EDOM</varname></term>
+          <term><varname>EDOM</varname></term>
           <listitem><para>
             The supplied bloom filter size did not match the bloom filter
             size of the bus.
@@ -881,7 +882,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EDESTADDRREQ</varname></term>
+          <term><varname>EDESTADDRREQ</varname></term>
           <listitem><para>
             <varname>dst_id</varname> was set to
             <varname>KDBUS_DST_ID_NAME</varname>, but no
@@ -890,14 +891,14 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ESRCH</varname></term>
+          <term><varname>ESRCH</varname></term>
           <listitem><para>
             The name to look up was not found in the name registry.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EADDRNOTAVAIL</varname></term>
+          <term><varname>EADDRNOTAVAIL</varname></term>
           <listitem><para>
             <varname>KDBUS_MSG_NO_AUTO_START</varname> was given but the
             destination connection is an activator.
@@ -905,7 +906,7 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ENXIO</varname></term>
+          <term><varname>ENXIO</varname></term>
           <listitem><para>
             The passed numeric destination connection ID couldn't be found,
             or is not connected.
@@ -913,28 +914,28 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ECONNRESET</varname></term>
+          <term><varname>ECONNRESET</varname></term>
           <listitem><para>
             The destination connection is no longer active.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ETIMEDOUT</varname></term>
+          <term><varname>ETIMEDOUT</varname></term>
           <listitem><para>
             Timeout while synchronously waiting for a reply.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EINTR</varname></term>
+          <term><varname>EINTR</varname></term>
           <listitem><para>
             Interrupted system call  while synchronously waiting for a reply.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EPIPE</varname></term>
+          <term><varname>EPIPE</varname></term>
           <listitem><para>
             When sending a message, a synchronous reply from the receiving
             connection was expected but the connection died before answering.
@@ -942,14 +943,14 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ENOBUFS</varname></term>
+          <term><varname>ENOBUFS</varname></term>
           <listitem><para>
             Too many pending messages on the receiver side.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EREMCHG</varname></term>
+          <term><varname>EREMCHG</varname></term>
           <listitem><para>
             Both a well-known name and a unique name (ID) was given, but
             the name is not currently owned by that connection.
@@ -957,14 +958,14 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EXFULL</varname></term>
+          <term><varname>EXFULL</varname></term>
           <listitem><para>
             The memory pool of the receiver is full.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EREMOTEIO</varname></term>
+          <term><varname>EREMOTEIO</varname></term>
           <listitem><para>
             While synchronously waiting for a reply, the remote peer
             failed with an I/O error.
@@ -974,11 +975,11 @@ struct kdbus_msg_info {
     </refsect2>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_RECV</varname> may return the following errors</title>
+      <title><varname>KDBUS_CMD_RECV</varname> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>-EOPNOTSUPP</varname></term>
+          <term><varname>EOPNOTSUPP</varname></term>
           <listitem><para>
             The connection is not an ordinary connection, or the passed
             file descriptors are either kdbus handles or unix domain
@@ -987,28 +988,28 @@ struct kdbus_msg_info {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EINVAL</varname></term>
+          <term><varname>EINVAL</varname></term>
           <listitem><para>
             Invalid flags or offset.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EAGAIN</varname></term>
+          <term><varname>EAGAIN</varname></term>
           <listitem><para>
             No message found in the queue
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ENOMSG</varname></term>
+          <term><varname>ENOMSG</varname></term>
           <listitem><para>
             No message of the requested priority found.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EOVERFLOW</varname></term>
+          <term><varname>EOVERFLOW</varname></term>
           <listitem><para>
             Some messages have been lost.
           </para></listitem>

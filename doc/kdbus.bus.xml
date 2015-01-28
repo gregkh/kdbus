@@ -206,22 +206,23 @@ struct kdbus_cmd_make {
   <refsect1>
     <title>Return value</title>
     <para>
-      On success, all mentioned ioctl commands return 0.
+      On success, all metioned ioctl commands return 0; on error, -1 is
+      returned, and errno is set to indicate the error.
     </para>
 
     <refsect2>
-      <title><varname>KDBUS_CMD_BUS_MAKE</varname> may return the following errors</title>
+      <title><varname>KDBUS_CMD_BUS_MAKE</varname> may fail with the following errors</title>
 
       <variablelist>
         <varlistentry>
-          <term><varname>-EBADMSG</varname></term>
+          <term><varname>EBADMSG</varname></term>
           <listitem><para>
             A mandatory item is missing.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EINVAL</varname></term>
+          <term><varname>EINVAL</varname></term>
           <listitem><para>
             The flags supplied in the <varname>struct kdbus_cmd_make</varname>
             are invalid or the supplied name does not start with the current
@@ -230,21 +231,21 @@ struct kdbus_cmd_make {
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EEXIST</varname></term>
+          <term><varname>EEXIST</varname></term>
           <listitem><para>
             A bus of that name already exists.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-ESHUTDOWN</varname></term>
+          <term><varname>ESHUTDOWN</varname></term>
           <listitem><para>
             The kdbus mount instance for the bus was already shut down.
           </para></listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><varname>-EMFILE</varname></term>
+          <term><varname>EMFILE</varname></term>
           <listitem><para>
             The maximum number of buses for the current user is exhausted.
           </para></listitem>
