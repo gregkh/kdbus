@@ -71,7 +71,7 @@ struct kdbus_cmd_send {
                   non-blocking. However, as there are many use cases that need to wait
                   for a remote peer to answer a method call, there's a way to send a
                   message and wait for a reply in a synchronous fashion. This is what
-                  the KDBUS_MSG_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
+                  the KDBUS_SEND_SYNC_REPLY controls. The KDBUS_CMD_SEND ioctl will block
                   until the reply has arrived, the timeout limit is reached, in case the
                   remote connection was shut down, or if interrupted by a signal before
                   any reply; see signal(7).
@@ -447,7 +447,7 @@ struct kdbus_msg {
 
     <variablelist>
       <varlistentry>
-        <term><constant>KDBUS_MSG_PAYLOAD_VEC</constant></term>
+        <term><constant>KDBUS_ITEM_PAYLOAD_VEC</constant></term>
         <listitem>
           <para>
             Messages are directly copied by the sending process into the receiver's pool.
@@ -458,7 +458,7 @@ struct kdbus_msg {
       </varlistentry>
 
       <varlistentry>
-        <term><constant>KDBUS_MSG_PAYLOAD_MEMFD</constant></term>
+        <term><constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant></term>
         <listitem>
           <para>
             Messages can reference <emphasis>memfd</emphasis> files which contain the data.
