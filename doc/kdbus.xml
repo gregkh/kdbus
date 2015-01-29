@@ -507,11 +507,6 @@
           [4] When querying creds of a bus owner, the creds returned are
           <constant>a &amp; e &amp; g</constant>.
         </para></listitem>
-
-        <listitem><para>
-          [5] When creating a new bus, and <constant>d &amp; ~a != 0</constant>,
-          the bus creation command will fail.
-        </para></listitem>
       </itemizedlist>
 
       <para>
