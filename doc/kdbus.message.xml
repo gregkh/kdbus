@@ -140,22 +140,26 @@ struct kdbus_cmd_send {
                   When this optional item is passed in, and the call is
                   executed as SYNC call, the passed in file descriptor can be
                   used as alternative cancellation point. The kernel will call
-                  poll()
                   <citerefentry>
                     <refentrytitle>poll</refentrytitle>
                     <manvolnum>2</manvolnum>
                   </citerefentry>
-                  on this file descriptor, and if it reports any incoming
-                  bytes, the blocking send operation will be canceled, and the
-                  call will return <errorcode>-1</errorcode> and
-                  <varname>errno</varname> will be set to
-                  <errorname>ECANCELED</errorname>. Any type of file descriptor
-                  on which
+                  on this file descriptor, and once it reports any incoming
+                  bytes, the blocking send operation will be canceled; the
+                  blocking, synchronous ioctl call will return
+                  <errorcode>-1</errorcode>, and <varname>errno</varname> will
+                  be set to <errorname>ECANCELED</errorname>.
+                  Any type of file descriptor on which
                   <citerefentry>
                     <refentrytitle>poll</refentrytitle>
                     <manvolnum>2</manvolnum>
                   </citerefentry>
-                  can be called on can be used as payload to this item.
+                  can be called on can be used as payload to this item; for
+                  example, an eventfd can be used for this purpose, see
+                  <citerefentry>
+                    <refentrytitle>eventfd</refentrytitle>
+                    <manvolnum>2</manvolnum>
+                  </citerefentry>.
                   For asynchronous message sending, this item is allowed but
                   ignored.
                 </para>
@@ -707,7 +711,7 @@ struct kdbus_msg_info {
                   that task were exceeded. The message is still delivered, so
                   this is not a fatal condition. File descriptors inside the
                   <constant>KDBUS_ITEM_FDS</constant> item that could not be
-                  installed will be set to -1.
+                  installed will be set to <constant>-1</constant>.
                 </para>
               </listitem>
             </varlistentry>
@@ -1163,6 +1167,12 @@ struct kdbus_msg_info {
         <citerefentry>
           <refentrytitle>epoll</refentrytitle>
           <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>eventfd</refentrytitle>
+          <manvolnum>2</manvolnum>
         </citerefentry>
       </member>
     </simplelist>
