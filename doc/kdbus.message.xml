@@ -495,8 +495,9 @@ struct kdbus_msg {
         <term><constant>KDBUS_ITEM_FDS</constant></term>
         <listitem>
           <para>
-	    Messages can carry regular file descriptors. Only one KDBUS_ITEM_FDS item
-	    that reference a file descriptors array is accepted per message.
+	    Messages can carry regular file descriptors. Only one
+	    <constant>KDBUS_ITEM_FDS</constant> item that reference a file descriptors
+	    array is accepted per message.
           </para>
         </listitem>
       </varlistentry>
