@@ -29,17 +29,25 @@
   </refnamediv>
 
   <refsect1>
-    <title>Description</title>
+    <title>Synopsis</title>
     <para>
-      kdbus is an inter-process communication bus system
-      controlled by the kernel. It provides user-space with a bus API
-      to send unicast and multicast messages to one, or many, peers
-      connected to the same bus.
-      It does not enforce any layout on the transmitted data, but
-      only provides the transport layer used for message interchange
-      between peers.
+      kdbus is an inter-process communication bus system controlled by the
+      kernel. It provides user-space with a bus API to send unicast and
+      multicast messages to one, or many, peers connected to the same bus. It
+      does not enforce any layout on the transmitted data, but only provides the
+      transport layer used for message interchange between peers.
     </para>
+    <para>
+      This set of man-pages aims for giving developers a comprehensive insight
+      of the kernel-level API, with all ioctl commands, associated structs and
+      bit masks. However, most people will not use this API level directly, but
+      rather let one of the high-level abstraction libraries help them integrate
+      D-Bus functionality into their applications.
+    </para>
+  </refsect1>
 
+  <refsect1>
+    <title>Description</title>
     <para>
       kdbus provides a pseudo file-system called
       <emphasis>kdbusfs</emphasis>, which is usually mounted on
@@ -388,119 +396,158 @@
 
   <refsect1>
     <title>Metadata</title>
-    <para>
-      kdbus records data about the system in certain situations. Such metadata
-      can refer to the currently active process (creds, PIDs, current user
-      groups, process names and its executable path, cgroup membership,
-      capabilities, security label and audit information), connection
-      information (description string, currently owned names) and timestamps.
-    </para>
-    <para>
-      Metadata is collected in the following circumstances.
-    </para>
 
-    <itemizedlist mark='opencircle'>
-      <listitem><para>
-        When a bus is created (<constant>KDBUS_CMD_MAKE</constant>), information
-        about the calling task is collected. This data is returned by the
-        kernel via the <constant>KDBUS_CMD_BUS_CREATOR_INFO</constant> call.
-      </para></listitem>
+    <refsect2>
+      <title>When metadata is collected</title>
+      <para>
+        kdbus records data about the system in certain situations. Such metadata
+        can refer to the currently active process (creds, PIDs, current user
+        groups, process names and its executable path, cgroup membership,
+        capabilities, security label and audit information), connection
+        information (description string, currently owned names) and timestamps.
+      </para>
+      <para>
+        Metadata is collected in the following circumstances.
+      </para>
 
-      <listitem><para>
-        When a connection is created (<constant>KDBUS_CMD_HELLO</constant>),
-        information about the calling task is collected. Alternatively, a
-        privileged connection may provide 'faked' information about credentials,
-        PIDs and security labels which will be taken instead. This data is
-        returned by the kernel as information on a connection
-        (<constant>KDBUS_CMD_CONN_INFO</constant>).
-      </para></listitem>
+      <itemizedlist mark='opencircle'>
+        <listitem><para>
+          When a bus is created (<constant>KDBUS_CMD_MAKE</constant>),
+          information about the calling task is collected. This data is returned
+          by the kernel via the <constant>KDBUS_CMD_BUS_CREATOR_INFO</constant>
+          call.
+        </para></listitem>
 
-      <listitem><para>
-        When a message is sent (<constant>KDBUS_CMD_SEND</constant>),
-        information about the sending task and the sending connection are
-        collected.  This metadata will be attached to the message when it
-        arrives in the receiver's pool. If the connection sending the message
-        installed faked credentials (see 
-        <citerefentry>
-          <refentrytitle>kdbus.connection</refentrytitle>
-          <manvolnum>7</manvolnum>
-        </citerefentry>),
-        the message will not be augmented by any information about the
-        currently sending task.
-      </para></listitem>
-    </itemizedlist>
+        <listitem><para>
+          When a connection is created (<constant>KDBUS_CMD_HELLO</constant>),
+          information about the calling task is collected. Alternatively, a
+          privileged connection may provide 'faked' information about
+          credentials, PIDs and security labels which will be taken instead.
+          This data is returned by the kernel as information on a connection
+          (<constant>KDBUS_CMD_CONN_INFO</constant>).  Only metadata that a
+          connection allowed to be sent (by setting its bit in
+          <varname>attach_flags_send</varname> will be exported that way.
+        </para></listitem>
 
-    <para>
-      Which metadata items are actually delivered depends on the following
-      sets and masks:
-    </para>
+        <listitem><para>
+          When a message is sent (<constant>KDBUS_CMD_SEND</constant>),
+          information about the sending task and the sending connection are
+          collected. This metadata will be attached to the message when it
+          arrives in the receiver's pool. If the connection sending the message
+          installed faked credentials (see 
+          <citerefentry>
+            <refentrytitle>kdbus.connection</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>),
+          the message will not be augmented by any information about the
+          currently sending task. Note that only metadata that was requested
+          by the receiving connection will be collected and attached to messages.
+        </para></listitem>
+      </itemizedlist>
 
-    <itemizedlist mark='none'>
-      <listitem><para>
-        (a) the system-wide kmod creds mask
-        (module parameter <varname>attach_flags_mask</varname>)
-      </para></listitem>
+      <para>
+        Which metadata items are actually delivered depends on the following
+        sets and masks:
+      </para>
 
-      <listitem><para>
-        (b) the per-connection send creds mask, set by the connecting client
-      </para></listitem>
+      <itemizedlist mark='none'>
+        <listitem><para>
+          (a) the system-wide kmod creds mask
+          (module parameter <varname>attach_flags_mask</varname>)
+        </para></listitem>
 
-      <listitem><para>
-        (c) the per-connection receive creds mask, set by the connecting client
-      </para></listitem>
+        <listitem><para>
+          (b) the per-connection send creds mask, set by the connecting client
+        </para></listitem>
 
-      <listitem><para>
-        (d) the per-bus minimal creds mask, set by the bus creator
-      </para></listitem>
+        <listitem><para>
+          (c) the per-connection receive creds mask, set by the connecting client
+        </para></listitem>
 
-      <listitem><para>
-        (e) the per-bus owner creds mask, set by the bus creator
-      </para></listitem>
+        <listitem><para>
+          (d) the per-bus minimal creds mask, set by the bus creator
+        </para></listitem>
 
-      <listitem><para>
-        (f) the mask specified when querying creds of a bus peer
-      </para></listitem>
+        <listitem><para>
+          (e) the per-bus owner creds mask, set by the bus creator
+        </para></listitem>
 
-      <listitem><para>
-        (g) the mask specified when querying creds of a bus owner
-      </para></listitem>
-    </itemizedlist>
+        <listitem><para>
+          (f) the mask specified when querying creds of a bus peer
+        </para></listitem>
 
-    <para>
-      With the following rules:
-    </para>
+        <listitem><para>
+          (g) the mask specified when querying creds of a bus owner
+        </para></listitem>
+      </itemizedlist>
 
-    <itemizedlist mark='none'>
-      <listitem><para>
-        [1] The creds attached to messages are determined as
-        (a &amp; b &amp; c).
-      </para></listitem>
+      <para>
+        With the following rules:
+      </para>
 
-      <listitem><para>
-        [2] When connecting to a bus (<constant>KDBUS_CMD_HELLO</constant>), and
-        (~b &amp; d) != 0, the call will fail, the connection is refused.
-      </para></listitem>
+      <itemizedlist mark='none'>
+        <listitem><para>
+          [1] The creds attached to messages are determined as
+          <constant>a &amp; b &amp; c</constant>.
+        </para></listitem>
 
-      <listitem><para>
-        [3] When querying creds of a bus peer, the creds returned are
-        (a &amp; b &amp; f)
-      </para></listitem>
+        <listitem><para>
+          [2] When connecting to a bus (<constant>KDBUS_CMD_HELLO</constant>),
+          and <constant>~b &amp; d != 0</constant>, the call will fail with,
+          <errorcode>-1</errorcode>, and <varname>errno</varname> is set to
+          <constant>ECONNREFUSED</constant>.
+        </para></listitem>
 
-      <listitem><para>
-        [4] When querying creds of a bus owner, the creds returned are
-        (a &amp; e &amp; g)
-      </para></listitem>
+        <listitem><para>
+          [3] When querying creds of a bus peer, the creds returned are
+          <constant>a &amp; b &amp; f</constant>.
+        </para></listitem>
 
-      <listitem><para>
-        [5] When creating a new bus, and (d &amp; ~a) != 0, then bus creation
-        will fail
-      </para></listitem>
-    </itemizedlist>
+        <listitem><para>
+          [4] When querying creds of a bus owner, the creds returned are
+          <constant>a &amp; e &amp; g</constant>.
+        </para></listitem>
 
-    <para>
-      Hence, userspace might not always get all requested metadata items that
-      it requested. Code must be written so that it can cope with this fact.
-    </para>
+        <listitem><para>
+          [5] When creating a new bus, and <constant>d &amp; ~a != 0</constant>,
+          the bus creation command will fail.
+        </para></listitem>
+      </itemizedlist>
+
+      <para>
+        Hence, userspace might not always get all requested metadata items that
+        it requested. Code must be written so that it can cope with this fact.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Benefits and heads-up</title>
+      <para>
+        Attaching metadata to messages has two major benefits.
+ 
+        <itemizedlist mark='none'>
+          <listitem><para>
+            Metadata attached to messages is gathered at the moment when the
+            other side calls <constant>KDBUS_CMD_SEND</constant>, or,
+            respectively, then the kernel notification is generated. There is
+            no need for the receiving peer to retrieve information about the
+            task in a second step. This closes a race gap that would otherwise
+            be inherent.
+          </para></listitem>
+          <listitem><para>
+            As metadata is delivered along with messages in the same data blob,
+            no extra calls to kernel functions etc. are needed to gather them.
+          </para></listitem>
+        </itemizedlist>
+
+        Note, however, that collecting metadata does come at a price for
+        performance, so developers should carefully assess which metadata to
+        really opt-in for. For best practice, data that is not needed as part
+        of a message should not be requested by the connection in the first
+        place (see <varname>attach_flags_recv</varname> in
+        <constant>KDBUS_CMD_HELLO</constant>).
+      </para>
+    </refsect2>
 
     <refsect2>
       <title>Attach flags for metadata items</title>
@@ -508,6 +555,12 @@
         To let the kernel know which metadata information to attach as items
         to the afformentioned commands, it uses a bitmask. In those, the
         following <emphasis>attach flags</emphasis> are currently supported.
+        Both the the <varname>attach_flags_recv</varname> and
+        <varname>attach_flags_send</varname> fields of
+        <type>struct kdbus_cmd_hello</type>, as well as the payload of the
+        <constant>KDBUS_ITEM_ATTACH_FLAGS_SEND</constant> and
+        <constant>KDBUS_ITEM_ATTACH_FLAGS_RECV</constant> items follow this
+        scheme.
       </para>
 
       <variablelist>
