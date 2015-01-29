@@ -835,8 +835,9 @@ struct kdbus_msg_info {
           <term><constant>EOPNOTSUPP</constant></term>
           <listitem><para>
             The connection is not an ordinary connection, or the passed
-            file descriptors are either kdbus handles or unix domain
-            sockets. Both are currently unsupported.
+            file descriptors in <constant>KDBUS_ITEM_FDS</constant> item are
+	    either kdbus handles or unix domain sockets. Both are currently
+	    unsupported.
           </para></listitem>
         </varlistentry>
 
