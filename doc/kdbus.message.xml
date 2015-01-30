@@ -722,13 +722,15 @@ struct kdbus_msg_info {
               <term><constant>KDBUS_RECV_RETURN_INCOMPLETE_FDS</constant></term>
               <listitem>
                 <para>
-                  The message contained file descriptors which couldn't be
-                  installed into the receiver's task. Most probably that
+                  The message contained memfd or file descriptors which couldn't
+		  be installed into the receiver's task. Most probably that
                   happened because the maximum number of file descriptors for
                   that task were exceeded. The message is still delivered, so
                   this is not a fatal condition. File descriptors inside the
-                  <constant>KDBUS_ITEM_FDS</constant> item that could not be
-                  installed will be set to <constant>-1</constant>.
+                  <constant>KDBUS_ITEM_FDS</constant> item or memfd files
+		  referenced by <constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant>
+		  item that could not be installed will be set to
+		  <constant>-1</constant>.
                 </para>
               </listitem>
             </varlistentry>
