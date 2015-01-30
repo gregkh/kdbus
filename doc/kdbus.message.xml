@@ -836,8 +836,8 @@ struct kdbus_msg_info {
           <listitem><para>
             The connection is not an ordinary connection, or the passed
             file descriptors in <constant>KDBUS_ITEM_FDS</constant> item are
-	    either kdbus handles or unix domain sockets. Both are currently
-	    unsupported.
+            either kdbus handles or unix domain sockets. Both are currently
+            unsupported.
           </para></listitem>
         </varlistentry>
 
@@ -858,9 +858,10 @@ struct kdbus_msg_info {
         <varlistentry>
           <term><constant>ENOTUNIQ</constant></term>
           <listitem><para>
-            The supplied destination is <constant>KDBUS_DST_ID_BROADCAST</constant>,
-            a file descriptor was passed, <constant>KDBUS_MSG_EXPECT_REPLY</constant>
-            was set, or a timeout was given for a broadcast message.
+            The supplied destination is
+            <constant>KDBUS_DST_ID_BROADCAST</constant>, a file descriptor was
+            passed, <constant>KDBUS_MSG_EXPECT_REPLY</constant> was set, or a
+            timeout was given for a broadcast message.
           </para></listitem>
         </varlistentry>
 
