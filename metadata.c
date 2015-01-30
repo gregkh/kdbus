@@ -632,8 +632,8 @@ struct kdbus_meta_conn *kdbus_meta_conn_new(void)
 
 static void kdbus_meta_conn_free(struct kref *kref)
 {
-	struct kdbus_meta_conn *mc = container_of(kref, struct kdbus_meta_conn,
-						  kref);
+	struct kdbus_meta_conn *mc =
+		container_of(kref, struct kdbus_meta_conn, kref);
 
 	kfree(mc->conn_description);
 	kfree(mc->owned_names_items);
