@@ -167,7 +167,8 @@ struct kdbus_cmd_send {
             </varlistentry>
           </variablelist>
           <para>
-            All other items are rejected, and the ioctl will fail with -EINVAL.
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>errno</varname> set to <constant>EINVAL</constant>.
           </para>
         </listitem>
       </varlistentry>
@@ -438,10 +439,10 @@ struct kdbus_msg {
     <title>Passing of Payload Data</title>
 
     <para>
-      When connecting to the bus, receivers request a memory pool of a given size,
-      large enough to carry all backlog of data enqueued for the connection. The
-      pool is internally backed by a shared memory file which can be mmap()ed by
-      the receiver.
+      When connecting to the bus, receivers request a memory pool of a given
+      size, large enough to carry all backlog of data enqueued for the
+      connection. The pool is internally backed by a shared memory file which
+      can be mmap()ed by the receiver.
     </para>
     <para>
       See
@@ -461,9 +462,10 @@ struct kdbus_msg {
         <term><constant>KDBUS_ITEM_PAYLOAD_VEC</constant></term>
         <listitem>
           <para>
-            Messages are directly copied by the sending process into the receiver's pool.
-            This way, two peers can exchange data by effectively doing a single-copy from
-            one process to another; the kernel will not buffer the data anywhere else.
+            Messages are directly copied by the sending process into the
+            receiver's pool.  This way, two peers can exchange data by
+            effectively doing a single-copy from one process to another; the
+            kernel will not buffer the data anywhere else.
           </para>
         </listitem>
       </varlistentry>
@@ -472,21 +474,25 @@ struct kdbus_msg {
         <term><constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant></term>
         <listitem>
           <para>
-            Messages can reference <emphasis>memfd</emphasis> files which contain the data.
-            memfd files are tmpfs-backed files that allow sealing of the content of the
-            file, which prevents all writable access to the file content.
+            Messages can reference <emphasis>memfd</emphasis> files which
+            contain the data.  memfd files are tmpfs-backed files that allow
+            sealing of the content of the file, which prevents all writable
+            access to the file content.
           </para>
           <para>
             Only memfds that have
-            <constant>(F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_WRITE|F_SEAL_SEAL)</constant>
-            set are accepted as payload data, which enforces reliable passing of data.
-            The receiver can assume that neither the sender nor anyone else can alter the
-            content after the message is sent.
+            <constant>F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_WRITE|F_SEAL_SEAL</constant>
+            set are accepted as payload data, which enforces reliable passing of
+            data. The receiver can assume that neither the sender nor anyone
+            else can alter the content after the message is sent. If those
+            seals are not set on the memfd, the ioctl will fail with
+            <errorcode>-1</errorcode>, and <varname>errno</varname> will be
+            set to <constant>ETXTBUSY</constant>.
           </para>
           <para>
-            Apart from the sender filling-in the content into memfd files, the data will
-            be passed as zero-copy from one process to another, read-only, shared between
-            the peers.
+            Apart from the sender filling-in the content into memfd files, the
+            data will be passed as zero-copy from one process to another,
+            read-only, shared between the peers.
           </para>
         </listitem>
       </varlistentry>
@@ -504,18 +510,18 @@ struct kdbus_msg {
     </variablelist>
 
     <para>
-      The sender must not make any assumptions on the type in which data is received
-      by the remote peer. The kernel is free to re-pack multiple VEC and MEMFD
-      payloads. For instance, the kernel may decide to merge multiple VECs into a
-      single VEC, inline MEMFD payloads into memory or merge all passed VECs into a
-      single MEMFD. However, the kernel preserves the order of passed data. This
-      means that the order of all VEC and MEMFD items is not changed in respect to
-      each other.
+      The sender must not make any assumptions on the type in which data is
+      received by the remote peer. The kernel is free to re-pack multiple VEC
+      and MEMFD payloads. For instance, the kernel may decide to merge multiple
+      VECs into a single VEC, inline MEMFD payloads into memory or merge all
+      passed VECs into a single MEMFD. However, the kernel preserves the order
+      of passed data. This means that the order of all VEC and MEMFD items is
+      not changed in respect to each other.
     </para>
     <para>
-      In other words: All passed VEC and MEMFD data payloads are treated as a single
-      stream of data that may be received by the remote peer in a different set of
-      hunks than it was sent as.
+      In other words: All passed VEC and MEMFD data payloads are treated as a
+      single stream of data that may be received by the remote peer in a
+      different set of hunks than it was sent as.
     </para>
   </refsect1>
 
