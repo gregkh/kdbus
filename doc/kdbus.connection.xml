@@ -167,8 +167,8 @@ struct kdbus_cmd_hello {
 
       <varlistentry>
         <term><varname>flags</varname></term>
-        <listitem><para>Flags to apply to this connection
-TODO: document precisely what combination of flags may be passed</para>
+        <listitem>
+          <para>Flags to apply to this connection</para>
           <variablelist>
             <varlistentry>
               <term><constant>KDBUS_HELLO_ACCEPT_FD</constant></term>
@@ -190,6 +190,9 @@ TODO: document precisely what combination of flags may be passed</para>
                   set, an item of type <constant>KDBUS_ITEM_NAME</constant> has
                   to be attached. This item describes the well-known name this
                   connection should be an activator for.
+                  A connection can not be an activator and a policy holder at
+                  the same time time, so this bit is not allowed together with
+                  <constant>KDBUS_HELLO_POLICY_HOLDER</constant>.
                 </para>
               </listitem>
             </varlistentry>
@@ -202,6 +205,9 @@ TODO: document precisely what combination of flags may be passed</para>
                   bit set, an item of type <constant>KDBUS_ITEM_NAME</constant>
                   has to be attached. This item describes the well-known name
                   this connection should hold a policy for.
+                  A connection can not be an activator and a policy holder at
+                  the same time time, so this bit is not allowed together with
+                  <constant>KDBUS_HELLO_ACTIVATOR</constant>.
                 </para>
               </listitem>
             </varlistentry>
@@ -531,8 +537,8 @@ struct kdbus_cmd_info {
       <varlistentry>
         <term><varname></varname></term>
         <listitem><para>
-          The kernel will return the size of the returned information, so applications
-          can optionally
+          The kernel will return the size of the returned information, so
+          applications can optionally
           <citerefentry>
             <refentrytitle>mmap</refentrytitle>
             <manvolnum>2</manvolnum>
@@ -870,6 +876,8 @@ struct kdbus_cmd_update {
       On success, all metioned ioctl commands return <errorcode>0</errorcode>;
       on error, <errorcode>-1</errorcode> is returned, and
       <varname>errno</varname> is set to indicate the error.
+      If the issued ioctl is illegal for the file descriptor used,
+      <varname>errno</varname> will be set to <constant>ENOTTY</constant>.
     </para>
 
     <refsect2>

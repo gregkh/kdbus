@@ -292,6 +292,8 @@ struct kdbus_cmd_make {
       On success, all metioned ioctl commands return <errorcode>0</errorcode>;
       on error, <errorcode>-1</errorcode> is returned, and
       <varname>errno</varname> is set to indicate the error.
+      If the issued ioctl is illegal for the file descriptor used,
+      <varname>errno</varname> will be set to <constant>ENOTTY</constant>.
     </para>
 
     <refsect2>

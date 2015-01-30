@@ -775,8 +775,8 @@ struct kdbus_msg_info {
       <listitem><para>
         kdbus_msg.dst_id == <constant>KDBUS_DST_ID_BROADCAST</constant>
       </para></listitem>
-      <listitem>
-        <para>kdbus_msg.payload_type == <constant>KDBUS_PAYLOAD_KERNEL</constant>
+      <listitem><para>
+        kdbus_msg.payload_type == <constant>KDBUS_PAYLOAD_KERNEL</constant>
       </para></listitem>
       <listitem><para>
         Has exactly one of the aforementioned items attached
@@ -831,6 +831,8 @@ struct kdbus_msg_info {
       On success, all metioned ioctl commands return <errorcode>0</errorcode>;
       on error, <errorcode>-1</errorcode> is returned, and
       <varname>errno</varname> is set to indicate the error.
+      If the issued ioctl is illegal for the file descriptor used,
+      <varname>errno</varname> will be set to <constant>ENOTTY</constant>.
     </para>
 
     <refsect2>
