@@ -332,15 +332,20 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 		kdbus_item_set(item, KDBUS_ITEM_FDS,
 			       NULL, sizeof(int) * res->fds_count);
 		for (i = 0; i < res->fds_count; i++) {
-			if (install_fds) {
-				item->fds[i] = get_unused_fd_flags(O_CLOEXEC);
-				if (item->fds[i] >= 0)
-					fd_install(item->fds[i],
-						   get_file(res->fds[i]));
-				else
-					incomplete_fds = true;
+			int fd;
+			item->fds[i] = -1;
+
+			/* Non installed fds will always be -1 */
+			if (!install_fds)
+				continue;
+
+			fd = get_unused_fd_flags(O_CLOEXEC);
+			if (fd >= 0) {
+				item->fds[i] = fd;
+				fd_install(item->fds[i],
+					   get_file(res->fds[i]));
 			} else {
-				item->fds[i] = -1;
+				incomplete_fds = true;
 			}
 		}
 
