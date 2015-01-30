@@ -746,6 +746,10 @@ static int kdbus_name_list_all(struct kdbus_conn *conn, u64 flags,
 	hash_for_each(conn->ep->bus->conn_hash, i, c, hentry) {
 		bool added = false;
 
+		/* skip monitors */
+		if (kdbus_conn_is_monitor(c))
+			continue;
+
 		/* skip activators */
 		if (!(flags & KDBUS_NAME_LIST_ACTIVATORS) &&
 		    kdbus_conn_is_activator(c))
