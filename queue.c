@@ -314,11 +314,13 @@ kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
 			m.fd = -1;
 			if (install_fds) {
 				m.fd = get_unused_fd_flags(O_CLOEXEC);
-				if (m.fd >= 0)
+				if (m.fd < 0) {
+					m.fd = -1;
+					incomplete_fds = true;
+				} else {
 					fd_install(m.fd,
 						   get_file(d->memfd.file));
-				else
-					incomplete_fds = true;
+				}
 			}
 
 			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD,
