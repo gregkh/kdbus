@@ -501,9 +501,9 @@ struct kdbus_msg {
         <term><constant>KDBUS_ITEM_FDS</constant></term>
         <listitem>
           <para>
-	    Messages can carry regular file descriptors. Only one
-	    <constant>KDBUS_ITEM_FDS</constant> item that reference a file descriptors
-	    array is accepted per message.
+            Messages can carry regular file descriptors. Only one
+            <constant>KDBUS_ITEM_FDS</constant> item that reference a file descriptors
+            array is accepted per message.
           </para>
         </listitem>
       </varlistentry>
@@ -723,14 +723,14 @@ struct kdbus_msg_info {
               <listitem>
                 <para>
                   The message contained memfd or file descriptors which couldn't
-		  be installed into the receiver's task. Most probably that
+                  be installed into the receiver's task. Most probably that
                   happened because the maximum number of file descriptors for
                   that task were exceeded. The message is still delivered, so
                   this is not a fatal condition. File descriptors inside the
                   <constant>KDBUS_ITEM_FDS</constant> item or memfd files
-		  referenced by <constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant>
-		  item that could not be installed will be set to
-		  <constant>-1</constant>.
+                  referenced by <constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant>
+                  item that could not be installed will be set to
+                  <constant>-1</constant>.
                 </para>
               </listitem>
             </varlistentry>
