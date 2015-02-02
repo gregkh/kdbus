@@ -221,8 +221,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 		size_t pool_avail = kdbus_pool_remain(pool);
 
 		/* do not give out more than half of the remaining space */
-		if (kmsg->pool_size < pool_avail &&
-		    kmsg->pool_size > pool_avail / 2) {
+		if (kmsg->pool_size > pool_avail / 2) {
 			ret = -EXFULL;
 			goto exit_free_entry;
 		}
