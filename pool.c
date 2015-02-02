@@ -232,7 +232,7 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 
 	/* no slice with the minimum size found in the pool */
 	if (!found) {
-		ret = -ENOBUFS;
+		ret = -EXFULL;
 		goto exit_unlock;
 	}
 
