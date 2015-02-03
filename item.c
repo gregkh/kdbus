@@ -20,15 +20,6 @@
 #include "limits.h"
 #include "util.h"
 
-#define KDBUS_ITEM_VALID(_i, _is, _s)					\
-	((_i)->size >= KDBUS_ITEM_HEADER_SIZE &&			\
-	 (u8 *)(_i) + (_i)->size > (u8 *)(_i) &&			\
-	 (u8 *)(_i) + (_i)->size <= (u8 *)(_is) + (_s) &&		\
-	 (u8 *)(_i) >= (u8 *)(_is))
-
-#define KDBUS_ITEMS_END(_i, _is, _s)					\
-	((u8 *)_i == ((u8 *)(_is) + KDBUS_ALIGN8(_s)))
-
 /**
  * kdbus_item_validate_name() - validate an item containing a name
  * @item:		Item to validate
@@ -50,7 +41,13 @@ int kdbus_item_validate_name(const struct kdbus_item *item)
 	return kdbus_sysname_is_valid(item->str);
 }
 
-static int kdbus_item_validate(const struct kdbus_item *item)
+/**
+ * kdbus_item_validate() - validate a single item
+ * @item:	item to validate
+ *
+ * Return: 0 if item is valid, negative error code if not.
+ */
+int kdbus_item_validate(const struct kdbus_item *item)
 {
 	size_t payload_size = KDBUS_ITEM_PAYLOAD_SIZE(item);
 	size_t l;
@@ -60,6 +57,11 @@ static int kdbus_item_validate(const struct kdbus_item *item)
 		return -EINVAL;
 
 	switch (item->type) {
+	case KDBUS_ITEM_NEGOTIATE:
+		if (payload_size % sizeof(u64) != 0)
+			return -EINVAL;
+		break;
+
 	case KDBUS_ITEM_PAYLOAD_VEC:
 		if (payload_size != sizeof(struct kdbus_vec))
 			return -EINVAL;

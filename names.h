@@ -59,13 +59,6 @@ void kdbus_name_registry_free(struct kdbus_name_registry *reg);
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       const char *name, u64 *flags);
-int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
-			   struct kdbus_conn *conn,
-			   struct kdbus_cmd *cmd);
-int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
-			   struct kdbus_conn *conn,
-			   const struct kdbus_cmd *cmd);
-int kdbus_cmd_list(struct kdbus_conn *conn, struct kdbus_cmd_list *cmd);
 
 struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
 					 const char *name);
@@ -76,5 +69,9 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn);
 
 bool kdbus_name_is_valid(const char *p, bool allow_wildcard);
+
+int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp);
+int kdbus_cmd_name_release(struct kdbus_conn *conn, void __user *argp);
+int kdbus_cmd_list(struct kdbus_conn *conn, void __user *argp);
 
 #endif

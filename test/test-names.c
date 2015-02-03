@@ -96,13 +96,13 @@ int kdbus_test_name_basic(struct kdbus_test_env *env)
 
 	/* Name is not valid, must fail */
 	ret = kdbus_name_release(env->conn, dot_name);
-	ASSERT_RETURN(ret == -EINVAL);
+	ASSERT_RETURN(ret == -ESRCH);
 
 	ret = kdbus_name_release(env->conn, invalid_name);
-	ASSERT_RETURN(ret == -EINVAL);
+	ASSERT_RETURN(ret == -ESRCH);
 
 	ret = kdbus_name_release(env->conn, wildcard_name);
-	ASSERT_RETURN(ret == -EINVAL);
+	ASSERT_RETURN(ret == -ESRCH);
 
 	return TEST_OK;
 }

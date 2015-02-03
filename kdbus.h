@@ -16,7 +16,7 @@
 #define KDBUS_DST_ID_NAME		(0)
 #define KDBUS_MATCH_ID_ANY		(~0ULL)
 #define KDBUS_DST_ID_BROADCAST		(~0ULL)
-#define KDBUS_FLAG_KERNEL		(1ULL << 63)
+#define KDBUS_FLAG_NEGOTIATE		(1ULL << 63)
 
 /**
  * struct kdbus_notify_id_change - name registry change message
@@ -292,6 +292,7 @@ enum kdbus_attach_flags {
  * enum kdbus_item_type - item types to chain data in a list
  * @_KDBUS_ITEM_NULL:			Uninitialized/invalid
  * @_KDBUS_ITEM_USER_BASE:		Start of user items
+ * @KDBUS_ITEM_NEGOTIATE:		Negotiate supported items
  * @KDBUS_ITEM_PAYLOAD_VEC:		Vector to data
  * @KDBUS_ITEM_PAYLOAD_OFF:		Data at returned offset to message head
  * @KDBUS_ITEM_PAYLOAD_MEMFD:		Data as sealed memfd
@@ -358,7 +359,8 @@ enum kdbus_attach_flags {
 enum kdbus_item_type {
 	_KDBUS_ITEM_NULL,
 	_KDBUS_ITEM_USER_BASE,
-	KDBUS_ITEM_PAYLOAD_VEC	= _KDBUS_ITEM_USER_BASE,
+	KDBUS_ITEM_NEGOTIATE	= _KDBUS_ITEM_USER_BASE,
+	KDBUS_ITEM_PAYLOAD_VEC,
 	KDBUS_ITEM_PAYLOAD_OFF,
 	KDBUS_ITEM_PAYLOAD_MEMFD,
 	KDBUS_ITEM_FDS,
@@ -561,8 +563,6 @@ enum kdbus_send_flags {
  * struct kdbus_cmd_send - send message
  * @size:		Overall size of this structure
  * @flags:		Flags to change send behavior (KDBUS_SEND_*)
- * @kernel_flags:	Supported send flags, kernel → userspace
- * @kernel_msg_flags:	Supported message flags, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
  * @msg_address:	Storage address of the kdbus_msg to send
  * @reply:		Storage for message reply if KDBUS_SEND_SYNC_REPLY
@@ -572,9 +572,7 @@ enum kdbus_send_flags {
 struct kdbus_cmd_send {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
-	__u64 kernel_msg_flags;
 	__u64 msg_address;
 	struct kdbus_msg_info reply;
 	struct kdbus_item items[0];
@@ -613,7 +611,6 @@ enum kdbus_recv_return_flags {
  * struct kdbus_cmd_recv - struct to de-queue a buffered message
  * @size:		Overall size of this object
  * @flags:		KDBUS_RECV_* flags, userspace → kernel
- * @kernel_flags:	Supported KDBUS_RECV_* flags, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
  * @priority:		Minimum priority of the messages to de-queue. Lowest
  *			values have the highest priority.
@@ -629,7 +626,6 @@ enum kdbus_recv_return_flags {
 struct kdbus_cmd_recv {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
 	__s64 priority;
 	__u64 dropped_msgs;
@@ -641,7 +637,6 @@ struct kdbus_cmd_recv {
  * struct kdbus_cmd_free - struct to free a slice of memory in the pool
  * @size:		Overall size of this structure
  * @flags:		Flags for the free command, userspace → kernel
- * @kernel_flags:	Supported flags of the free command, userspace → kernel
  * @return_flags:	Command return flags, kernel → userspace
  * @offset:		The offset of the memory slice, as returned by other
  *			ioctls
@@ -652,7 +647,6 @@ struct kdbus_cmd_recv {
 struct kdbus_cmd_free {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
 	__u64 offset;
 	struct kdbus_item items[0];
@@ -685,7 +679,6 @@ enum kdbus_hello_flags {
  * struct kdbus_cmd_hello - struct to say hello to kdbus
  * @size:		The total size of the structure
  * @flags:		Connection flags (KDBUS_HELLO_*), userspace → kernel
- * @kernel_flags:	Supported connection flags, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
  * @attach_flags_send:	Mask of metadata to attach to each message sent
  *			off by this connection (KDBUS_ATTACH_*)
@@ -710,7 +703,6 @@ enum kdbus_hello_flags {
 struct kdbus_cmd_hello {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
 	__u64 attach_flags_send;
 	__u64 attach_flags_recv;
@@ -758,7 +750,6 @@ enum kdbus_list_flags {
  * struct kdbus_cmd_list - list connections
  * @size:		overall size of this object
  * @flags:		flags for the query (KDBUS_LIST_*), userspace → kernel
- * @kernel_flags:	supported flags for queries, kernel → userspace
  * @return_flags:	command return flags, kernel → userspace
  * @offset:		Offset in the caller's pool buffer where an array of
  *			kdbus_info objects is stored.
@@ -772,7 +763,6 @@ enum kdbus_list_flags {
 struct kdbus_cmd_list {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
 	__u64 offset;
 	__u64 list_size;
@@ -783,7 +773,6 @@ struct kdbus_cmd_list {
  * struct kdbus_cmd_info - struct used for KDBUS_CMD_CONN_INFO ioctl
  * @size:		The total size of the struct
  * @flags:		KDBUS_ATTACH_* flags, userspace → kernel
- * @kernel_flags:	Supported KDBUS_ATTACH_* flags, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
  * @id:			The 64-bit ID of the connection. If set to zero, passing
  *			@name is required. kdbus will look up the name to
@@ -803,7 +792,6 @@ struct kdbus_cmd_list {
 struct kdbus_cmd_info {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
 	__u64 id;
 	__u64 offset;
@@ -826,7 +814,6 @@ enum kdbus_cmd_match_flags {
  * @size:		The total size of the struct
  * @flags:		Flags for match command (KDBUS_MATCH_*),
  *			userspace → kernel
- * @kernel_flags:	Supported flags of the used command, kernel → userspace
  * @return_flags:	Command return flags, kernel → userspace
  * @cookie:		Userspace supplied cookie. When removing, the cookie
  *			identifies the match to remove
@@ -838,7 +825,6 @@ enum kdbus_cmd_match_flags {
 struct kdbus_cmd_match {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
 	__u64 cookie;
 	struct kdbus_item items[0];
@@ -874,7 +860,6 @@ enum kdbus_name_flags {
  * struct kdbus_cmd - generic ioctl payload
  * @size:		Overall size of this structure
  * @flags:		Flags for this ioctl, userspace → kernel
- * @kernel_flags:	Supported flags for this ioctl, kernel → userspace
  * @return_flags:	Ioctl return flags, kernel → userspace
  * @items:		Additional items to modify the behavior
  *
@@ -884,7 +869,6 @@ enum kdbus_name_flags {
 struct kdbus_cmd {
 	__u64 size;
 	__u64 flags;
-	__u64 kernel_flags;
 	__u64 return_flags;
 	struct kdbus_item items[0];
 } __attribute__((__aligned__(8)));

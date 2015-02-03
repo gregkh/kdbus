@@ -1147,7 +1147,7 @@ int kdbus_name_release(struct kdbus_conn *conn, const char *name)
 
 int kdbus_list(struct kdbus_conn *conn, uint64_t flags)
 {
-	struct kdbus_cmd_list cmd_list;
+	struct kdbus_cmd_list cmd_list = {};
 	struct kdbus_info *list, *name;
 	int ret;
 

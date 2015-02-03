@@ -28,6 +28,7 @@
 #include "connection.h"
 #include "domain.h"
 #include "endpoint.h"
+#include "handle.h"
 #include "item.h"
 #include "match.h"
 #include "message.h"
@@ -489,21 +490,71 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 }
 
 /**
- * kdbus_cmd_bus_creator_info() - get information on a bus creator
- * @conn:	The querying connection
- * @cmd_info:	The command buffer, as passed in from the ioctl
+ * kdbus_cmd_bus_make() - handle KDBUS_CMD_BUS_MAKE
+ * @domain:		domain to operate on
+ * @argp:		command payload
  *
- * Gather information on the creator of the bus @conn is connected to.
- *
- * Return: 0 on success, error otherwise.
+ * Return: Newly created bus on success, ERR_PTR on failure.
  */
-int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
-			       struct kdbus_cmd_info *cmd_info)
+struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
+				     void __user *argp)
 {
+	struct kdbus_bus *bus = NULL;
+	struct kdbus_cmd *cmd;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_MAKE_NAME, .mandatory = true },
+		{ .type = KDBUS_ITEM_BLOOM_PARAMETER, .mandatory = true },
+		{ .type = KDBUS_ITEM_ATTACH_FLAGS_SEND },
+		{ .type = KDBUS_ITEM_ATTACH_FLAGS_RECV },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_MAKE_ACCESS_GROUP |
+				 KDBUS_MAKE_ACCESS_WORLD,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		goto exit;
+
+	bus = kdbus_bus_new(domain, cmd, current_euid(), current_egid());
+	if (IS_ERR(bus)) {
+		ret = PTR_ERR(bus);
+		bus = NULL;
+		goto exit;
+	}
+
+	ret = kdbus_bus_activate(bus);
+
+exit:
+	ret = kdbus_args_clear(&args, ret);
+	if (ret < 0) {
+		kdbus_bus_deactivate(bus);
+		kdbus_bus_unref(bus);
+		return ERR_PTR(ret);
+	}
+	return bus;
+}
+
+/**
+ * kdbus_cmd_bus_creator_info() - handle KDBUS_CMD_BUS_CREATOR_INFO
+ * @conn:		connection to operate on
+ * @argp:		command payload
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
+{
+	struct kdbus_cmd_info *cmd;
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_item_header item_hdr;
-	struct kdbus_item *meta_items;
+	struct kdbus_item *meta_items = NULL;
 	struct kdbus_info info = {};
 	size_t meta_size, name_len;
 	struct kvec kvec[5];
@@ -511,21 +562,34 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 	size_t cnt = 0;
 	int ret;
 
-	info.id = bus->id;
-	info.flags = bus->bus_flags;
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 _KDBUS_ATTACH_ALL,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
 
 	name_len = strlen(bus->node.name) + 1;
-
-	/* mask out what information the bus owner wants to pass us */
-	attach_flags = cmd_info->flags & bus->attach_flags_owner;
+	attach_flags = cmd->flags & bus->attach_flags_owner;
+	info.id = bus->id;
+	info.flags = bus->bus_flags;
+	item_hdr.type = KDBUS_ITEM_MAKE_NAME;
+	item_hdr.size = KDBUS_ITEM_HEADER_SIZE + name_len;
 
 	meta_items = kdbus_meta_export(bus->creator_meta, NULL, attach_flags,
 				       &meta_size);
-	if (IS_ERR(meta_items))
-		return PTR_ERR(meta_items);
-
-	item_hdr.type = KDBUS_ITEM_MAKE_NAME;
-	item_hdr.size = KDBUS_ITEM_HEADER_SIZE + name_len;
+	if (IS_ERR(meta_items)) {
+		ret = PTR_ERR(meta_items);
+		meta_items = NULL;
+		goto exit;
+	}
 
 	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &info.size);
 	kdbus_kvec_set(&kvec[cnt++], &item_hdr, sizeof(item_hdr), &info.size);
@@ -542,13 +606,15 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
 		goto exit;
 	}
 
-	/* write back the offset */
-	kdbus_pool_slice_publish(slice, &cmd_info->offset,
-				 &cmd_info->info_size);
-	ret = 0;
+	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->info_size);
 
-	kdbus_pool_slice_release(slice);
+	if (kdbus_member_set_user(&cmd->offset, argp, typeof(*cmd), offset) ||
+	    kdbus_member_set_user(&cmd->info_size, argp,
+				  typeof(*cmd), info_size))
+		ret = -EFAULT;
+
 exit:
+	kdbus_pool_slice_release(slice);
 	kfree(meta_items);
-	return ret;
+	return kdbus_args_clear(&args, ret);
 }

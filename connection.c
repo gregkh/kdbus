@@ -35,6 +35,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "handle.h"
 #include "match.h"
 #include "message.h"
 #include "metadata.h"
@@ -1169,234 +1170,20 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	return ret;
 }
 
-/**
- * kdbus_cmd_conn_info() - retrieve info about a connection
- * @conn:		Connection
- * @cmd_info:		The command as passed in by the ioctl
- *
- * Return: 0 on success, negative errno on failure.
- */
-int kdbus_cmd_conn_info(struct kdbus_conn *conn,
-			struct kdbus_cmd_info *cmd_info)
-{
-	struct kdbus_meta_conn *conn_meta = NULL;
-	struct kdbus_pool_slice *slice = NULL;
-	struct kdbus_name_entry *entry = NULL;
-	struct kdbus_conn *owner_conn = NULL;
-	struct kdbus_item *meta_items = NULL;
-	struct kdbus_info info = {};
-	struct kvec kvec[2];
-	size_t meta_size;
-	u64 attach_flags;
-	int ret = 0;
-
-	if (cmd_info->id == 0) {
-		const char *name;
-
-		name = kdbus_items_get_str(cmd_info->items,
-					   KDBUS_ITEMS_SIZE(cmd_info, items),
-					   KDBUS_ITEM_NAME);
-		if (IS_ERR(name))
-			return -EINVAL;
-
-		if (!kdbus_name_is_valid(name, false))
-			return -EINVAL;
-
-		entry = kdbus_name_lock(conn->ep->bus->name_registry, name);
-		if (!entry || !kdbus_conn_policy_see_name(conn, current_cred(),
-							  name)) {
-			/* pretend a name doesn't exist if you cannot see it */
-			ret = -ESRCH;
-			goto exit;
-		}
-
-		if (entry->conn)
-			owner_conn = kdbus_conn_ref(entry->conn);
-	} else {
-		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus,
-						       cmd_info->id);
-		if (!owner_conn || !kdbus_conn_policy_see(conn, current_cred(),
-							  owner_conn)) {
-			/* pretend an id doesn't exist if you cannot see it */
-			ret = -ENXIO;
-			goto exit;
-		}
-	}
-
-	info.id = owner_conn->id;
-	info.flags = owner_conn->flags;
-
-	/* mask out what information the connection wants to pass us */
-	attach_flags = cmd_info->flags &
-		       atomic64_read(&owner_conn->attach_flags_send);
-
-	conn_meta = kdbus_meta_conn_new();
-	if (IS_ERR(conn_meta)) {
-		ret = PTR_ERR(conn_meta);
-		conn_meta = NULL;
-		goto exit;
-	}
-
-	ret = kdbus_meta_conn_collect(conn_meta, NULL, owner_conn,
-				      attach_flags);
-	if (ret < 0)
-		goto exit;
-
-	meta_items = kdbus_meta_export(owner_conn->meta, conn_meta,
-				       attach_flags, &meta_size);
-	if (IS_ERR(meta_items)) {
-		ret = PTR_ERR(meta_items);
-		meta_items = NULL;
-		goto exit;
-	}
-
-	kdbus_kvec_set(&kvec[0], &info, sizeof(info), &info.size);
-	kdbus_kvec_set(&kvec[1], meta_items, meta_size, &info.size);
-
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size,
-				       kvec, NULL, ARRAY_SIZE(kvec));
-	if (IS_ERR(slice)) {
-		ret = PTR_ERR(slice);
-		slice = NULL;
-		goto exit;
-	}
-
-	/* write back the offset */
-	kdbus_pool_slice_publish(slice, &cmd_info->offset,
-				 &cmd_info->info_size);
-	ret = 0;
-
-	kdbus_pool_slice_release(slice);
-exit:
-	kfree(meta_items);
-	kdbus_meta_conn_unref(conn_meta);
-	kdbus_conn_unref(owner_conn);
-	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
-
-	return ret;
-}
-
-/**
- * kdbus_cmd_conn_update() - update the attach-flags of a connection or
- *			     the policy entries of a policy holding one
- * @conn:		Connection
- * @cmd:		The command as passed in by the ioctl
- *
- * Return: 0 on success, negative errno on failure.
- */
-int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  const struct kdbus_cmd *cmd)
-{
-	struct kdbus_bus *bus = conn->ep->bus;
-	bool send_flags_provided = false;
-	bool recv_flags_provided = false;
-	bool policy_provided = false;
-	const struct kdbus_item *item;
-	u64 attach_send;
-	u64 attach_recv;
-	int ret;
-
-	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_ATTACH_FLAGS_SEND:
-			/*
-			 * Only ordinary or monitor connections may update
-			 * their attach-flags-send. attach-flags-recv can
-			 * additionally be updated by activators.
-			 */
-			if (!kdbus_conn_is_ordinary(conn) &&
-			    !kdbus_conn_is_monitor(conn))
-				return -EOPNOTSUPP;
-
-			ret = kdbus_sanitize_attach_flags(item->data64[0],
-							  &attach_send);
-			if (ret < 0)
-				return ret;
-
-			send_flags_provided = true;
-			break;
-
-		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
-			if (!kdbus_conn_is_ordinary(conn) &&
-			    !kdbus_conn_is_monitor(conn) &&
-			    !kdbus_conn_is_activator(conn))
-				return -EOPNOTSUPP;
-
-			ret = kdbus_sanitize_attach_flags(item->data64[0],
-							  &attach_recv);
-			if (ret < 0)
-				return ret;
-
-			recv_flags_provided = true;
-			break;
-
-		case KDBUS_ITEM_NAME:
-		case KDBUS_ITEM_POLICY_ACCESS:
-			/*
-			 * Only policy holders may update their policy
-			 * entries. Policy holders are privileged
-			 * connections.
-			 */
-			if (!kdbus_conn_is_policy_holder(conn))
-				return -EOPNOTSUPP;
-
-			policy_provided = true;
-			break;
-
-		default:
-			return -EINVAL;
-		}
-	}
-
-	if (policy_provided) {
-		ret = kdbus_policy_set(&conn->ep->bus->policy_db, cmd->items,
-				       KDBUS_ITEMS_SIZE(cmd, items),
-				       1, true, conn);
-		if (ret < 0)
-			return ret;
-	}
-
-	if (send_flags_provided) {
-		/*
-		 * The attach flags send must always satisfy the
-		 * bus requirements.
-		 */
-		if (bus->attach_flags_req & ~attach_send)
-			return -EINVAL;
-
-		atomic64_set(&conn->attach_flags_send, attach_send);
-	}
-
-	if (recv_flags_provided)
-		atomic64_set(&conn->attach_flags_recv, attach_recv);
-
-	return 0;
-}
-
-/**
- * kdbus_conn_new() - create a new connection
- * @ep:			The endpoint the connection is connected to
- * @hello:		The kdbus_cmd_hello as passed in by the user
- * @privileged:		Whether to create a privileged connection
- *
- * Return: a new kdbus_conn on success, ERR_PTR on failure
- */
-struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
-				  struct kdbus_cmd_hello *hello,
-				  bool privileged)
+static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
+					 struct kdbus_cmd_hello *hello,
+					 const char *name,
+					 const struct kdbus_creds *creds,
+					 const struct kdbus_pids *pids,
+					 const char *seclabel,
+					 const char *conn_description)
 {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	static struct lock_class_key __key;
 #endif
-	const struct kdbus_creds *creds = NULL;
 	struct kdbus_pool_slice *slice = NULL;
-	const struct kdbus_pids *pids = NULL;
 	struct kdbus_item_list items = {};
 	struct kdbus_bus *bus = ep->bus;
-	const struct kdbus_item *item;
-	const char *conn_description = NULL;
-	const char *seclabel = NULL;
-	const char *name = NULL;
 	struct kdbus_conn *conn;
 	u64 attach_flags_send;
 	u64 attach_flags_recv;
@@ -1417,90 +1204,22 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 	is_activator = hello->flags & KDBUS_HELLO_ACTIVATOR;
 	is_policy_holder = hello->flags & KDBUS_HELLO_POLICY_HOLDER;
 
-	/* can only be one of monitor/activator/policy_holder */
+	if (!hello->pool_size || !IS_ALIGNED(hello->pool_size, PAGE_SIZE))
+		return ERR_PTR(-EINVAL);
 	if (is_monitor + is_activator + is_policy_holder > 1)
 		return ERR_PTR(-EINVAL);
-
-	/* Monitors are disallowed on custom endpoints */
+	if (name && !is_activator && !is_policy_holder)
+		return ERR_PTR(-EINVAL);
+	if (!name && (is_activator || is_policy_holder))
+		return ERR_PTR(-EINVAL);
+	if (name && !kdbus_name_is_valid(name, true))
+		return ERR_PTR(-EINVAL);
 	if (is_monitor && ep->has_policy)
 		return ERR_PTR(-EOPNOTSUPP);
-
-	/* only privileged connections can activate and monitor */
 	if (!privileged && (is_activator || is_policy_holder || is_monitor))
 		return ERR_PTR(-EPERM);
-
-	KDBUS_ITEMS_FOREACH(item, hello->items,
-			    KDBUS_ITEMS_SIZE(hello, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_NAME:
-			if (!is_activator && !is_policy_holder)
-				return ERR_PTR(-EINVAL);
-
-			if (name)
-				return ERR_PTR(-EINVAL);
-
-			if (!kdbus_name_is_valid(item->str, true))
-				return ERR_PTR(-EINVAL);
-
-			name = item->str;
-			break;
-
-		case KDBUS_ITEM_CREDS:
-			/* privileged processes can impersonate somebody else */
-			if (!privileged)
-				return ERR_PTR(-EPERM);
-
-			if (item->size != KDBUS_ITEM_SIZE(sizeof(*creds)))
-				return ERR_PTR(-EINVAL);
-
-			creds = &item->creds;
-			break;
-
-		case KDBUS_ITEM_PIDS:
-			/* privileged processes can impersonate somebody else */
-			if (!privileged)
-				return ERR_PTR(-EPERM);
-
-			if (item->size != KDBUS_ITEM_SIZE(sizeof(*pids)))
-				return ERR_PTR(-EINVAL);
-
-			pids = &item->pids;
-			break;
-
-		case KDBUS_ITEM_SECLABEL:
-			/* privileged processes can impersonate somebody else */
-			if (!privileged)
-				return ERR_PTR(-EPERM);
-
-			seclabel = item->str;
-			break;
-
-		case KDBUS_ITEM_CONN_DESCRIPTION:
-			/* human-readable connection name (debugging) */
-			if (conn_description)
-				return ERR_PTR(-EINVAL);
-
-			conn_description = item->str;
-			break;
-
-		case KDBUS_ITEM_POLICY_ACCESS:
-		case KDBUS_ITEM_BLOOM_MASK:
-		case KDBUS_ITEM_ID:
-		case KDBUS_ITEM_NAME_ADD:
-		case KDBUS_ITEM_NAME_REMOVE:
-		case KDBUS_ITEM_NAME_CHANGE:
-		case KDBUS_ITEM_ID_ADD:
-		case KDBUS_ITEM_ID_REMOVE:
-			/* will be handled by policy and match code */
-			break;
-
-		default:
-			return ERR_PTR(-EINVAL);
-		}
-	}
-
-	if ((is_activator || is_policy_holder) && !name)
-		return ERR_PTR(-EINVAL);
+	if ((creds || pids || seclabel) && !privileged)
+		return ERR_PTR(-EPERM);
 
 	ret = kdbus_sanitize_attach_flags(hello->attach_flags_send,
 					  &attach_flags_send);
@@ -1511,9 +1230,6 @@ struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
 					  &attach_flags_recv);
 	if (ret < 0)
 		return ERR_PTR(ret);
-
-	/* Let userspace know which flags are enforced by the bus */
-	hello->attach_flags_send = bus->attach_flags_req | KDBUS_FLAG_KERNEL;
 
 	/*
 	 * The attach flags must always satisfy the bus
@@ -1661,18 +1377,7 @@ exit_unref:
 	return ERR_PTR(ret);
 }
 
-/**
- * kdbus_conn_connect() - introduce a connection to a bus
- * @conn:		Connection
- * @hello:		Hello parameters
- *
- * This puts life into a kdbus-conn object. A connection to the bus is
- * established and the peer will be reachable via the bus (if it is an ordinary
- * connection).
- *
- * Return: 0 on success, negative error code on failure.
- */
-int kdbus_conn_connect(struct kdbus_conn *conn, struct kdbus_cmd_hello *hello)
+static int kdbus_conn_connect(struct kdbus_conn *conn, const char *name)
 {
 	struct kdbus_ep *ep = conn->ep;
 	struct kdbus_bus *bus = ep->bus;
@@ -1724,11 +1429,7 @@ int kdbus_conn_connect(struct kdbus_conn *conn, struct kdbus_cmd_hello *hello)
 
 	if (kdbus_conn_is_activator(conn)) {
 		u64 flags = KDBUS_NAME_ACTIVATOR;
-		const char *name;
 
-		name = kdbus_items_get_str(hello->items,
-					   KDBUS_ITEMS_SIZE(hello, items),
-					   KDBUS_ITEM_NAME);
 		if (WARN_ON(!name)) {
 			ret = -EINVAL;
 			goto exit_disconnect;
@@ -2004,4 +1705,476 @@ bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 		     (unsigned long long)kmsg->notify_type);
 		return false;
 	}
+}
+
+/**
+ * kdbus_cmd_hello() - handle KDBUS_CMD_HELLO
+ * @bus:		bus to operate on
+ * @privileged:		whether the caller is privileged
+ * @argp:		command payload
+ *
+ * Return: Newly created connection on success, ERR_PTR on failure.
+ */
+struct kdbus_conn *kdbus_cmd_hello(struct kdbus_ep *ep, bool privileged,
+				   void __user *argp)
+{
+	struct kdbus_cmd_hello *cmd;
+	struct kdbus_conn *c = NULL;
+	const char *item_name;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_NAME },
+		{ .type = KDBUS_ITEM_CREDS },
+		{ .type = KDBUS_ITEM_PIDS },
+		{ .type = KDBUS_ITEM_SECLABEL },
+		{ .type = KDBUS_ITEM_CONN_DESCRIPTION },
+		{ .type = KDBUS_ITEM_POLICY_ACCESS, .multiple = true },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_HELLO_ACCEPT_FD |
+				 KDBUS_HELLO_ACTIVATOR |
+				 KDBUS_HELLO_POLICY_HOLDER |
+				 KDBUS_HELLO_MONITOR,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		goto exit;
+
+	item_name = argv[1].item ? argv[1].item->str : NULL;
+
+	c = kdbus_conn_new(ep, privileged, cmd, item_name,
+			   argv[2].item ? &argv[2].item->creds : NULL,
+			   argv[3].item ? &argv[3].item->pids : NULL,
+			   argv[4].item ? argv[4].item->str : NULL,
+			   argv[5].item ? argv[5].item->str : NULL);
+	if (IS_ERR(c)) {
+		ret = PTR_ERR(c);
+		c = NULL;
+		goto exit;
+	}
+
+	ret = kdbus_conn_connect(c, item_name);
+	if (ret < 0)
+		goto exit;
+
+	if (kdbus_conn_is_activator(c) || kdbus_conn_is_policy_holder(c)) {
+		ret = kdbus_conn_acquire(c);
+		if (ret < 0)
+			goto exit;
+
+		ret = kdbus_policy_set(&c->ep->bus->policy_db, args.items,
+				       args.items_size, 1,
+				       kdbus_conn_is_policy_holder(c), c);
+		kdbus_conn_release(c);
+		if (ret < 0)
+			goto exit;
+	}
+
+	if (copy_to_user(argp, cmd, sizeof(*cmd)))
+		ret = -EFAULT;
+
+exit:
+	ret = kdbus_args_clear(&args, ret);
+	if (ret < 0) {
+		if (c) {
+			kdbus_conn_disconnect(c, false);
+			kdbus_conn_unref(c);
+		}
+		return ERR_PTR(ret);
+	}
+	return c;
+}
+
+/**
+ * kdbus_cmd_byebye_unlocked() - handle KDBUS_CMD_BYEBYE
+ * @conn:		connection to operate on
+ * @argp:		command payload
+ *
+ * The caller must not hold any active reference to @conn or this will deadlock.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_cmd_byebye_unlocked(struct kdbus_conn *conn, void __user *argp)
+{
+	struct kdbus_cmd *cmd;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	if (!kdbus_conn_is_ordinary(conn))
+		return -EOPNOTSUPP;
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	ret = kdbus_conn_disconnect(conn, true);
+	return kdbus_args_clear(&args, ret);
+}
+
+/**
+ * kdbus_cmd_conn_info() - handle KDBUS_CMD_CONN_INFO
+ * @conn:		connection to operate on
+ * @argp:		command payload
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
+{
+	struct kdbus_cmd_info *cmd;
+	struct kdbus_meta_conn *conn_meta = NULL;
+	struct kdbus_pool_slice *slice = NULL;
+	struct kdbus_name_entry *entry = NULL;
+	struct kdbus_conn *owner_conn = NULL;
+	struct kdbus_item *meta_items = NULL;
+	struct kdbus_info info = {};
+	struct kvec kvec[2];
+	size_t meta_size;
+	const char *name;
+	u64 attach_flags;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_NAME },
+	};
+	struct kdbus_args args = {
+		/* TODO: ATTACH_FLAGS should be passed separately */
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 _KDBUS_ATTACH_ALL,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	name = argv[1].item ? argv[1].item->str : NULL;
+
+	if (name) {
+		entry = kdbus_name_lock(conn->ep->bus->name_registry, name);
+		if (!entry || !entry->conn ||
+		    !kdbus_conn_policy_see_name(conn, current_cred(), name) ||
+		    (cmd->id != 0 && entry->conn->id != cmd->id)) {
+			/* pretend a name doesn't exist if you cannot see it */
+			ret = -ESRCH;
+			goto exit;
+		}
+
+		owner_conn = kdbus_conn_ref(entry->conn);
+	} else if (cmd->id > 0) {
+		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd->id);
+		if (!owner_conn || !kdbus_conn_policy_see(conn, current_cred(),
+							  owner_conn)) {
+			/* pretend an id doesn't exist if you cannot see it */
+			ret = -ENXIO;
+			goto exit;
+		}
+	} else {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	info.id = owner_conn->id;
+	info.flags = owner_conn->flags;
+
+	attach_flags = cmd->flags &
+		       atomic64_read(&owner_conn->attach_flags_send);
+
+	conn_meta = kdbus_meta_conn_new();
+	if (IS_ERR(conn_meta)) {
+		ret = PTR_ERR(conn_meta);
+		conn_meta = NULL;
+		goto exit;
+	}
+
+	ret = kdbus_meta_conn_collect(conn_meta, NULL, owner_conn,
+				      attach_flags);
+	if (ret < 0)
+		goto exit;
+
+	meta_items = kdbus_meta_export(owner_conn->meta, conn_meta,
+				       attach_flags, &meta_size);
+	if (IS_ERR(meta_items)) {
+		ret = PTR_ERR(meta_items);
+		meta_items = NULL;
+		goto exit;
+	}
+
+	kdbus_kvec_set(&kvec[0], &info, sizeof(info), &info.size);
+	kdbus_kvec_set(&kvec[1], meta_items, meta_size, &info.size);
+
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size,
+				       kvec, NULL, ARRAY_SIZE(kvec));
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
+		slice = NULL;
+		goto exit;
+	}
+
+	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->info_size);
+
+	if (kdbus_member_set_user(&cmd->offset, argp, typeof(*cmd), offset) ||
+	    kdbus_member_set_user(&cmd->info_size, argp,
+				  typeof(*cmd), info_size))
+		ret = -EFAULT;
+
+exit:
+	kdbus_pool_slice_release(slice);
+	kfree(meta_items);
+	kdbus_meta_conn_unref(conn_meta);
+	kdbus_conn_unref(owner_conn);
+	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
+	return kdbus_args_clear(&args, ret);
+}
+
+/**
+ * kdbus_cmd_update() - handle KDBUS_CMD_UPDATE
+ * @conn:		connection to operate on
+ * @argp:		command payload
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_cmd_update(struct kdbus_conn *conn, void __user *argp)
+{
+	struct kdbus_bus *bus = conn->ep->bus;
+	struct kdbus_item *item_policy;
+	u64 *item_attach_send = NULL;
+	u64 *item_attach_recv = NULL;
+	struct kdbus_cmd *cmd;
+	u64 attach_send;
+	u64 attach_recv;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		/* TODO: get rid of ATTACH_FLAGS_SEND */
+		{ .type = KDBUS_ITEM_ATTACH_FLAGS_SEND },
+		{ .type = KDBUS_ITEM_ATTACH_FLAGS_RECV },
+		{ .type = KDBUS_ITEM_NAME, .multiple = true },
+		{ .type = KDBUS_ITEM_POLICY_ACCESS, .multiple = true },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	item_attach_send = argv[1].item ? &argv[1].item->data64[0] : NULL;
+	item_attach_recv = argv[2].item ? &argv[2].item->data64[0] : NULL;
+	item_policy = argv[3].item ? : argv[4].item;
+
+	if (item_attach_send) {
+		if (!kdbus_conn_is_ordinary(conn) &&
+		    !kdbus_conn_is_monitor(conn)) {
+			ret = -EOPNOTSUPP;
+			goto exit;
+		}
+
+		ret = kdbus_sanitize_attach_flags(*item_attach_send,
+						  &attach_send);
+		if (ret < 0)
+			goto exit;
+
+		if (bus->attach_flags_req & ~attach_send) {
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+
+	if (item_attach_recv) {
+		if (!kdbus_conn_is_ordinary(conn) &&
+		    !kdbus_conn_is_monitor(conn) &&
+		    !kdbus_conn_is_activator(conn)) {
+			ret = -EOPNOTSUPP;
+			goto exit;
+		}
+
+		ret = kdbus_sanitize_attach_flags(*item_attach_recv,
+						  &attach_recv);
+		if (ret < 0)
+			goto exit;
+	}
+
+	if (item_policy && !kdbus_conn_is_policy_holder(conn)) {
+		ret = -EOPNOTSUPP;
+		goto exit;
+	}
+
+	/* now that we verified the input, update the connection */
+
+	if (item_policy) {
+		ret = kdbus_policy_set(&conn->ep->bus->policy_db, cmd->items,
+				       KDBUS_ITEMS_SIZE(cmd, items),
+				       1, true, conn);
+		if (ret < 0)
+			goto exit;
+	}
+
+	if (item_attach_send)
+		atomic64_set(&conn->attach_flags_send, attach_send);
+
+	if (item_attach_recv)
+		atomic64_set(&conn->attach_flags_recv, attach_recv);
+
+exit:
+	return kdbus_args_clear(&args, ret);
+}
+
+/**
+ * kdbus_cmd_send() - handle KDBUS_CMD_SEND
+ * @conn:		connection to operate on
+ * @f:			file this command was called on
+ * @argp:		command payload
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
+{
+	struct kdbus_cmd_send *cmd;
+	struct kdbus_kmsg *kmsg = NULL;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_CANCEL_FD },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_SEND_SYNC_REPLY,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	if (!kdbus_conn_is_ordinary(conn))
+		return -EOPNOTSUPP;
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	cmd->reply.offset = 0;
+	cmd->reply.msg_size = 0;
+	cmd->reply.return_flags = 0;
+
+	kmsg = kdbus_kmsg_new_from_cmd(conn, cmd);
+	if (IS_ERR(kmsg)) {
+		ret = PTR_ERR(kmsg);
+		kmsg = NULL;
+		goto exit;
+	}
+
+	ret = kdbus_cmd_msg_send(conn, cmd, f, kmsg);
+	if (ret < 0)
+		goto exit;
+
+	if (kdbus_member_set_user(&cmd->reply, argp, typeof(*cmd), reply))
+		ret = -EFAULT;
+
+exit:
+	kdbus_kmsg_free(kmsg);
+	return kdbus_args_clear(&args, ret);
+}
+
+/**
+ * kdbus_cmd_recv() - handle KDBUS_CMD_RECV
+ * @conn:		connection to operate on
+ * @argp:		command payload
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
+{
+	struct kdbus_cmd_recv *cmd;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_RECV_PEEK |
+				 KDBUS_RECV_DROP |
+				 KDBUS_RECV_USE_PRIORITY,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	if (!kdbus_conn_is_ordinary(conn) &&
+	    !kdbus_conn_is_monitor(conn) &&
+	    !kdbus_conn_is_activator(conn))
+		return -EOPNOTSUPP;
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	cmd->dropped_msgs = 0;
+	cmd->msg.offset = 0;
+	cmd->msg.msg_size = 0;
+	cmd->msg.return_flags = 0;
+
+	ret = kdbus_cmd_msg_recv(conn, cmd);
+
+	/* copy fields even if RECV fails, to ensure 'dropped_msgs' is set */
+
+	if (kdbus_member_set_user(&cmd->msg, argp, typeof(*cmd), msg) ||
+	    kdbus_member_set_user(&cmd->dropped_msgs, argp, typeof(*cmd),
+				  dropped_msgs))
+		ret = -EFAULT;
+
+	return kdbus_args_clear(&args, ret);
+}
+
+/**
+ * kdbus_cmd_free() - handle KDBUS_CMD_FREE
+ * @conn:		connection to operate on
+ * @argp:		command payload
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_cmd_free(struct kdbus_conn *conn, void __user *argp)
+{
+	struct kdbus_cmd_free *cmd;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	if (!kdbus_conn_is_ordinary(conn) &&
+	    !kdbus_conn_is_monitor(conn) &&
+	    !kdbus_conn_is_activator(conn))
+		return -EOPNOTSUPP;
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	ret = kdbus_pool_release_offset(conn->pool, cmd->offset);
+
+	return kdbus_args_clear(&args, ret);
 }

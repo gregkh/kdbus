@@ -33,6 +33,15 @@
 	       ((u8 *)(_i) >= (u8 *)(_is));				\
 	     _i = KDBUS_ITEM_NEXT(_i))
 
+#define KDBUS_ITEM_VALID(_i, _is, _s)					\
+	((_i)->size >= KDBUS_ITEM_HEADER_SIZE &&			\
+	 (u8 *)(_i) + (_i)->size > (u8 *)(_i) &&			\
+	 (u8 *)(_i) + (_i)->size <= (u8 *)(_is) + (_s) &&		\
+	 (u8 *)(_i) >= (u8 *)(_is))
+
+#define KDBUS_ITEMS_END(_i, _is, _s)					\
+	((u8 *)_i == ((u8 *)(_is) + KDBUS_ALIGN8(_s)))
+
 /**
  * struct kdbus_item_header - Describes the fix part of an item
  * @size:	The total size of the item
@@ -44,6 +53,7 @@ struct kdbus_item_header {
 };
 
 int kdbus_item_validate_name(const struct kdbus_item *item);
+int kdbus_item_validate(const struct kdbus_item *item);
 int kdbus_items_validate(const struct kdbus_item *items, size_t items_size);
 struct kdbus_item *kdbus_items_get(const struct kdbus_item *items,
 				   size_t items_size,

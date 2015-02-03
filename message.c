@@ -113,6 +113,9 @@ kdbus_msg_resources_unref(struct kdbus_msg_resources *r)
  */
 void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 {
+	if (!kmsg)
+		return;
+
 	kdbus_msg_resources_unref(kmsg->res);
 	kdbus_meta_conn_unref(kmsg->conn_meta);
 	kdbus_meta_proc_unref(kmsg->proc_meta);
@@ -472,13 +475,11 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 /**
  * kdbus_kmsg_new_from_cmd() - create kernel message from send payload
  * @conn:		Connection
- * @buf:		The user-buffer location of @cmd
  * @cmd_send:		Payload of KDBUS_CMD_SEND
  *
  * Return: a new kdbus_kmsg on success, ERR_PTR on failure.
  */
 struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
-					   void __user *buf,
 					   struct kdbus_cmd_send *cmd_send)
 {
 	struct kdbus_kmsg *m;
@@ -523,14 +524,12 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 		goto exit_free;
 	}
 
-	ret = kdbus_check_and_write_flags(m->msg.flags, buf,
-					  offsetof(struct kdbus_cmd_send,
-						   kernel_msg_flags),
-					  KDBUS_MSG_EXPECT_REPLY	|
-					  KDBUS_MSG_NO_AUTO_START	|
-					  KDBUS_MSG_SIGNAL);
-	if (ret < 0)
+	if (m->msg.flags & ~(KDBUS_MSG_EXPECT_REPLY |
+			     KDBUS_MSG_NO_AUTO_START |
+			     KDBUS_MSG_SIGNAL)) {
+		ret = -EINVAL;
 		goto exit_free;
+	}
 
 	ret = kdbus_items_validate(m->msg.items,
 				   KDBUS_ITEMS_SIZE(&m->msg, items));

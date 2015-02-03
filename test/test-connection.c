@@ -56,20 +56,17 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
-	/* kernel must have set its bit in the ioctl buffer */
-	ASSERT_RETURN(hello.kernel_flags & KDBUS_FLAG_KERNEL);
-
 	/* check for faulty pool sizes */
 	hello.pool_size = 0;
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EFAULT);
+	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
 	hello.pool_size = 4097;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EFAULT);
+	ASSERT_RETURN(ret == -1 && errno == EINVAL);
 
 	hello.pool_size = POOL_SIZE;
 
@@ -88,9 +85,6 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	/* success test */
 	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
 	ASSERT_RETURN(ret == 0);
-
-	/* The kernel should have set KDBUS_FLAG_KERNEL */
-	ASSERT_RETURN(hello.attach_flags_send & KDBUS_FLAG_KERNEL);
 
 	/* The kernel should have returned some items */
 	ASSERT_RETURN(hello.offset != (__u64)-1);

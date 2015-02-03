@@ -28,6 +28,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "handle.h"
 #include "item.h"
 #include "names.h"
 #include "notify.h"
@@ -607,27 +608,43 @@ exit_unlock:
 }
 
 /**
- * kdbus_cmd_name_acquire() - acquire a name from a ioctl command buffer
- * @reg:		The name registry
- * @conn:		The connection to pin this entry to
- * @cmd:		The command as passed in by the ioctl
+ * kdbus_cmd_name_acquire() - handle KDBUS_CMD_NAME_ACQUIRE
+ * @conn:		connection to operate on
+ * @argp:		command payload
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative error code on failure.
  */
-int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
-			   struct kdbus_conn *conn,
-			   struct kdbus_cmd *cmd)
+int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp)
 {
-	const char *name;
+	const char *item_name;
+	struct kdbus_cmd *cmd;
 	int ret;
 
-	name = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
-				   KDBUS_ITEM_NAME);
-	if (IS_ERR(name))
-		return -EINVAL;
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_NAME, .mandatory = true },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_NAME_REPLACE_EXISTING |
+				 KDBUS_NAME_ALLOW_REPLACEMENT |
+				 KDBUS_NAME_QUEUE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
 
-	if (!kdbus_name_is_valid(name, false))
-		return -EINVAL;
+	if (!kdbus_conn_is_ordinary(conn))
+		return -EOPNOTSUPP;
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	item_name = argv[1].item->str;
+	if (!kdbus_name_is_valid(item_name, false)) {
+		ret = -EINVAL;
+		goto exit;
+	}
 
 	/*
 	 * Do atomic_inc_return here to reserve our slot, then decrement
@@ -635,49 +652,62 @@ int kdbus_cmd_name_acquire(struct kdbus_name_registry *reg,
 	 */
 	if (atomic_inc_return(&conn->name_count) > KDBUS_CONN_MAX_NAMES) {
 		ret = -E2BIG;
-		goto out_dec;
+		goto exit_dec;
 	}
 
-	if (!kdbus_conn_policy_own_name(conn, current_cred(), name)) {
+	if (!kdbus_conn_policy_own_name(conn, current_cred(), item_name)) {
 		ret = -EPERM;
-		goto out_dec;
+		goto exit_dec;
 	}
 
-	ret = kdbus_name_acquire(reg, conn, name, &cmd->flags);
+	ret = kdbus_name_acquire(conn->ep->bus->name_registry, conn, item_name,
+				 &cmd->flags);
+	if (ret < 0)
+		goto exit_dec;
 
-out_dec:
-	/* Decrement the previous allocated slot */
+	/* TODO: we should not return data in cmd->flags! */
+	if (copy_to_user(argp, cmd, cmd->size))
+		ret = -EFAULT;
+
+exit_dec:
 	atomic_dec(&conn->name_count);
-	return ret;
+exit:
+	return kdbus_args_clear(&args, ret);
 }
 
 /**
- * kdbus_cmd_name_release() - release a name entry from a ioctl command buffer
- * @reg:		The name registry
- * @conn:		The connection that holds the name
- * @cmd:		The command as passed in by the ioctl
+ * kdbus_cmd_name_release() - handle KDBUS_CMD_NAME_RELEASE
+ * @conn:		connection to operate on
+ * @argp:		command payload
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative error code on failure.
  */
-int kdbus_cmd_name_release(struct kdbus_name_registry *reg,
-			   struct kdbus_conn *conn,
-			   const struct kdbus_cmd *cmd)
+int kdbus_cmd_name_release(struct kdbus_conn *conn, void __user *argp)
 {
+	struct kdbus_cmd *cmd;
 	int ret;
-	const char *name;
 
-	name = kdbus_items_get_str(cmd->items, KDBUS_ITEMS_SIZE(cmd, items),
-				   KDBUS_ITEM_NAME);
-	if (IS_ERR(name))
-		return -EINVAL;
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_NAME, .mandatory = true },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
 
-	if (!kdbus_name_is_valid(name, false))
-		return -EINVAL;
+	if (!kdbus_conn_is_ordinary(conn))
+		return -EOPNOTSUPP;
 
-	ret = kdbus_name_release(reg, conn, name);
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
 
+	ret = kdbus_name_release(conn->ep->bus->name_registry, conn,
+				 argv[1].item->str);
 	kdbus_notify_flush(conn->ep->bus);
-	return ret;
+	return kdbus_args_clear(&args, ret);
 }
 
 static int kdbus_list_write(struct kdbus_conn *conn,
@@ -823,18 +853,36 @@ static int kdbus_list_all(struct kdbus_conn *conn, u64 flags,
 }
 
 /**
- * kdbus_cmd_list() - list connections
- * @conn:		connection that requests the list
- * @cmd:		command payload
+ * kdbus_cmd_list() - handle KDBUS_CMD_LIST
+ * @conn:		connection to operate on
+ * @argp:		command payload
  *
- * Return: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative error code on failure.
  */
-int kdbus_cmd_list(struct kdbus_conn *conn, struct kdbus_cmd_list *cmd)
+int kdbus_cmd_list(struct kdbus_conn *conn, void __user *argp)
 {
 	struct kdbus_name_registry *reg = conn->ep->bus->name_registry;
 	struct kdbus_pool_slice *slice = NULL;
+	struct kdbus_cmd_list *cmd;
 	size_t pos, size;
 	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_LIST_UNIQUE |
+				 KDBUS_LIST_NAMES |
+				 KDBUS_LIST_ACTIVATORS |
+				 KDBUS_LIST_QUEUED,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_read(&reg->rwlock);
@@ -861,14 +909,17 @@ int kdbus_cmd_list(struct kdbus_conn *conn, struct kdbus_cmd_list *cmd)
 		goto exit_unlock;
 
 	WARN_ON(pos != size);
-
 	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->list_size);
-	ret = 0;
+
+	if (kdbus_member_set_user(&cmd->offset, argp, typeof(*cmd), offset) ||
+	    kdbus_member_set_user(&cmd->list_size, argp,
+				  typeof(*cmd), list_size))
+		ret = -EFAULT;
 
 exit_unlock:
-	kdbus_pool_slice_release(slice);
 	up_read(&conn->ep->policy_db.entries_rwlock);
 	up_read(&conn->ep->bus->conn_rwlock);
 	up_read(&reg->rwlock);
-	return ret;
+	kdbus_pool_slice_release(slice);
+	return kdbus_args_clear(&args, ret);
 }

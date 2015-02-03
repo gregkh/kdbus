@@ -92,12 +92,14 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 int kdbus_bus_activate(struct kdbus_bus *bus);
 void kdbus_bus_deactivate(struct kdbus_bus *bus);
 
-int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn,
-			       struct kdbus_cmd_info *cmd_info);
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
 void kdbus_bus_broadcast(struct kdbus_bus *bus, struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
 void kdbus_bus_eavesdrop(struct kdbus_bus *bus, struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
+
+struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
+				     void __user *argp);
+int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp);
 
 #endif

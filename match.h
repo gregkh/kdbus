@@ -29,4 +29,7 @@ bool kdbus_match_db_match_kmsg(struct kdbus_match_db *db,
 			       struct kdbus_conn *conn_src,
 			       struct kdbus_kmsg *kmsg);
 
+int kdbus_cmd_match_add(struct kdbus_conn *conn, void __user *argp);
+int kdbus_cmd_match_remove(struct kdbus_conn *conn, void __user *argp);
+
 #endif

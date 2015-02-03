@@ -63,6 +63,7 @@ static int test_bus_creator_info(const char *bus_path)
 	ASSERT_RETURN_VAL(ret == 0, ret);
 
 	free(tmp);
+	kdbus_conn_free(conn);
 	return 0;
 }
 

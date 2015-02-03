@@ -113,14 +113,10 @@ struct kdbus_conn {
 struct kdbus_kmsg;
 struct kdbus_name_registry;
 
-struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep,
-				  struct kdbus_cmd_hello *hello,
-				  bool privileged);
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
 int kdbus_conn_acquire(struct kdbus_conn *conn);
 void kdbus_conn_release(struct kdbus_conn *conn);
-int kdbus_conn_connect(struct kdbus_conn *conn, struct kdbus_cmd_hello *hello);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty);
 bool kdbus_conn_active(const struct kdbus_conn *conn);
 int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
@@ -153,16 +149,20 @@ bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 					const struct kdbus_kmsg *kmsg);
 
 /* command dispatcher */
+struct kdbus_conn *kdbus_cmd_hello(struct kdbus_ep *ep, bool privileged,
+				   void __user *argp);
+int kdbus_cmd_byebye_unlocked(struct kdbus_conn *conn, void __user *argp);
+int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp);
+int kdbus_cmd_update(struct kdbus_conn *conn, void __user *argp);
+int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp);
+int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp);
 int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		       struct kdbus_cmd_send *cmd_send,
 		       struct file *ioctl_file,
 		       struct kdbus_kmsg *kmsg);
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv);
-int kdbus_cmd_conn_info(struct kdbus_conn *conn,
-			struct kdbus_cmd_info *cmd_info);
-int kdbus_cmd_conn_update(struct kdbus_conn *conn,
-			  const struct kdbus_cmd *cmd_update);
+int kdbus_cmd_free(struct kdbus_conn *conn, void __user *argp);
 
 /**
  * kdbus_conn_is_ordinary() - Check if connection is ordinary

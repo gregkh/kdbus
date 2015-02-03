@@ -65,4 +65,7 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 			const struct kdbus_item *items,
 			size_t items_size);
 
+struct kdbus_ep *kdbus_cmd_ep_make(struct kdbus_bus *bus, void __user *argp);
+int kdbus_cmd_ep_update(struct kdbus_ep *ep, void __user *argp);
+
 #endif

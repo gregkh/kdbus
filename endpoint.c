@@ -231,3 +231,90 @@ int kdbus_ep_policy_set(struct kdbus_ep *ep,
 {
 	return kdbus_policy_set(&ep->policy_db, items, items_size, 0, true, ep);
 }
+
+/**
+ * kdbus_cmd_ep_make() - handle KDBUS_CMD_ENDPOINT_MAKE
+ * @bus:		bus to operate on
+ * @argp:		command payload
+ *
+ * Return: Newly created endpoint on success, ERR_PTR on failure.
+ */
+struct kdbus_ep *kdbus_cmd_ep_make(struct kdbus_bus *bus, void __user *argp)
+{
+	const char *item_make_name;
+	struct kdbus_ep *ep = NULL;
+	struct kdbus_cmd *cmd;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_MAKE_NAME, .mandatory = true },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_MAKE_ACCESS_GROUP |
+				 KDBUS_MAKE_ACCESS_WORLD,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		goto exit;
+
+	item_make_name = argv[1].item->str;
+
+	ep = kdbus_ep_new(bus, item_make_name,
+			  cmd->flags & (KDBUS_MAKE_ACCESS_WORLD |
+			                KDBUS_MAKE_ACCESS_GROUP),
+			  current_euid(), current_egid(), true);
+	if (IS_ERR(ep)) {
+		ret = PTR_ERR(ep);
+		ep = NULL;
+		goto exit;
+	}
+
+	ret = kdbus_ep_activate(ep);
+
+exit:
+	ret = kdbus_args_clear(&args, ret);
+	if (ret < 0) {
+		kdbus_ep_deactivate(ep);
+		kdbus_ep_unref(ep);
+		return ERR_PTR(ret);
+	}
+	return ep;
+}
+
+/**
+ * kdbus_cmd_ep_update() - handle KDBUS_CMD_ENDPOINT_UPDATE
+ * @ep:			endpoint to operate on
+ * @argp:		command payload
+ *
+ * Return: Newly created endpoint on success, ERR_PTR on failure.
+ */
+int kdbus_cmd_ep_update(struct kdbus_ep *ep, void __user *argp)
+{
+	struct kdbus_cmd *cmd;
+	int ret;
+
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_NAME, .multiple = true },
+		{ .type = KDBUS_ITEM_POLICY_ACCESS, .multiple = true },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		goto exit;
+
+	ret = kdbus_ep_policy_set(ep, args.items, args.items_size);
+
+exit:
+	return kdbus_args_clear(&args, ret);
+}

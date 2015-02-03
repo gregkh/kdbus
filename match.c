@@ -24,6 +24,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "handle.h"
 #include "item.h"
 #include "match.h"
 #include "message.h"
@@ -125,6 +126,9 @@ static void kdbus_match_rule_free(struct kdbus_match_rule *rule)
 static void kdbus_match_entry_free(struct kdbus_match_entry *entry)
 {
 	struct kdbus_match_rule *r, *tmp;
+
+	if (!entry)
+		return;
 
 	list_for_each_entry_safe(r, tmp, &entry->rules_list, rules_entry)
 		kdbus_match_rule_free(r);
@@ -330,12 +334,9 @@ static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
 }
 
 /**
- * kdbus_match_db_add() - add an entry to the match database
- * @conn:		The connection that was used in the ioctl call
- * @cmd:		The command as provided by the ioctl call
- *
- * This function is used in the context of the KDBUS_CMD_MATCH_ADD ioctl
- * interface.
+ * kdbus_cmd_match_add() - handle KDBUS_CMD_MATCH_ADD
+ * @conn:		connection to operate on
+ * @argp:		command payload
  *
  * One call to this function (or one ioctl(KDBUS_CMD_MATCH_ADD), respectively,
  * adds one new database entry with n rules attached to it. Each rule is
@@ -362,21 +363,46 @@ static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
  * are used to match messages from userspace, while the others apply to
  * kernel-generated notifications.
  *
- * Return: 0 on success, negative errno on failure
+ * Return: 0 on success, negative error code on failure.
  */
-int kdbus_match_db_add(struct kdbus_conn *conn,
-		       struct kdbus_cmd_match *cmd)
+int kdbus_cmd_match_add(struct kdbus_conn *conn, void __user *argp)
 {
 	struct kdbus_match_entry *entry = NULL;
 	struct kdbus_match_db *mdb = conn->match_db;
+	struct kdbus_cmd_match *cmd;
 	struct kdbus_item *item;
-	int ret = 0;
+	int ret;
 
-	kdbus_conn_assert_active(conn);
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+		{ .type = KDBUS_ITEM_BLOOM_MASK, .multiple = true },
+		{ .type = KDBUS_ITEM_NAME, .multiple = true },
+		{ .type = KDBUS_ITEM_ID, .multiple = true },
+		{ .type = KDBUS_ITEM_NAME_ADD, .multiple = true },
+		{ .type = KDBUS_ITEM_NAME_REMOVE, .multiple = true },
+		{ .type = KDBUS_ITEM_NAME_CHANGE, .multiple = true },
+		{ .type = KDBUS_ITEM_ID_ADD, .multiple = true },
+		{ .type = KDBUS_ITEM_ID_REMOVE, .multiple = true },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
+				 KDBUS_MATCH_REPLACE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
+
+	if (!kdbus_conn_is_ordinary(conn))
+		return -EOPNOTSUPP;
+
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
-	if (!entry)
-		return -ENOMEM;
+	if (!entry) {
+		ret = -ENOMEM;
+		goto exit;
+	}
 
 	entry->cookie = cmd->cookie;
 	INIT_LIST_HEAD(&entry->list_entry);
@@ -389,14 +415,13 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		rule = kzalloc(sizeof(*rule), GFP_KERNEL);
 		if (!rule) {
 			ret = -ENOMEM;
-			break;
+			goto exit;
 		}
 
 		rule->type = item->type;
 		INIT_LIST_HEAD(&rule->rules_entry);
 
 		switch (item->type) {
-		/* First matches for userspace messages */
 		case KDBUS_ITEM_BLOOM_MASK: {
 			u64 bsize = conn->ep->bus->bloom.size;
 			u64 generations;
@@ -415,17 +440,11 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 				break;
 			}
 
-			/* we get an array of n generations of bloom masks */
 			rule->bloom_mask.generations = generations;
-
 			break;
 		}
 
 		case KDBUS_ITEM_NAME:
-			/*
-			 * Do not allow wildcard for now, since we
-			 * must validate the wildcard first
-			 */
 			if (!kdbus_name_is_valid(item->str, false)) {
 				ret = -EINVAL;
 				break;
@@ -441,10 +460,9 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			rule->src_id = item->id;
 			break;
 
-		/* Now matches for kernel messages */
 		case KDBUS_ITEM_NAME_ADD:
 		case KDBUS_ITEM_NAME_REMOVE:
-		case KDBUS_ITEM_NAME_CHANGE: {
+		case KDBUS_ITEM_NAME_CHANGE:
 			rule->old_id = item->name_change.old_id.id;
 			rule->new_id = item->name_change.new_id.id;
 
@@ -456,7 +474,6 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 			}
 
 			break;
-		}
 
 		case KDBUS_ITEM_ID_ADD:
 		case KDBUS_ITEM_ID_REMOVE:
@@ -466,22 +483,15 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 				rule->old_id = item->id_change.id;
 
 			break;
-
-		default:
-			ret = -EINVAL;
-			break;
 		}
 
 		if (ret < 0) {
 			kdbus_match_rule_free(rule);
-			break;
+			goto exit;
 		}
 
 		list_add_tail(&rule->rules_entry, &entry->rules_list);
 	}
-
-	if (ret < 0)
-		goto exit;
 
 	down_write(&mdb->mdb_rwlock);
 
@@ -498,38 +508,47 @@ int kdbus_match_db_add(struct kdbus_conn *conn,
 		ret = -EMFILE;
 	} else {
 		list_add_tail(&entry->list_entry, &mdb->entries_list);
+		entry = NULL;
 	}
 
 	up_write(&mdb->mdb_rwlock);
 
 exit:
-	if (ret < 0)
-		kdbus_match_entry_free(entry);
-
-	return ret;
+	kdbus_match_entry_free(entry);
+	return kdbus_args_clear(&args, ret);
 }
 
 /**
- * kdbus_match_db_remove() - remove an entry from the match database
- * @conn:		The connection that was used in the ioctl call
- * @cmd:		Pointer to the match data structure
+ * kdbus_cmd_match_remove() - handle KDBUS_CMD_MATCH_REMOVE
+ * @conn:		connection to operate on
+ * @argp:		command payload
  *
- * This function is used in the context of the KDBUS_CMD_MATCH_REMOVE
- * ioctl interface.
- *
- * Return: 0 on success, negative errno on failure.
+ * Return: 0 on success, negative error code on failure.
  */
-int kdbus_match_db_remove(struct kdbus_conn *conn,
-			  struct kdbus_cmd_match *cmd)
+int kdbus_cmd_match_remove(struct kdbus_conn *conn, void __user *argp)
 {
-	struct kdbus_match_db *mdb = conn->match_db;
+	struct kdbus_cmd_match *cmd;
 	int ret;
 
-	kdbus_conn_assert_active(conn);
+	struct kdbus_arg argv[] = {
+		{ .type = KDBUS_ITEM_NEGOTIATE },
+	};
+	struct kdbus_args args = {
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
+		.argv = argv,
+		.argc = sizeof(argv) / sizeof(argv[0]),
+	};
 
-	down_write(&mdb->mdb_rwlock);
-	ret = kdbus_match_db_remove_unlocked(mdb, cmd->cookie);
-	up_write(&mdb->mdb_rwlock);
+	if (!kdbus_conn_is_ordinary(conn))
+		return -EOPNOTSUPP;
 
-	return ret;
+	ret = kdbus_args_parse(&args, argp, &cmd);
+	if (ret < 0)
+		return ret;
+
+	down_write(&conn->match_db->mdb_rwlock);
+	ret = kdbus_match_db_remove_unlocked(conn->match_db, cmd->cookie);
+	up_write(&conn->match_db->mdb_rwlock);
+
+	return kdbus_args_clear(&args, ret);
 }
