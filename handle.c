@@ -269,8 +269,10 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 		}
 		break;
 	case KDBUS_HANDLE_EP_OWNER:
-		kdbus_ep_deactivate(handle->ep_owner);
-		kdbus_ep_unref(handle->ep_owner);
+		if (handle->ep_owner) {
+			kdbus_node_deactivate(&handle->ep_owner->node);
+			kdbus_ep_unref(handle->ep_owner);
+		}
 		break;
 	case KDBUS_HANDLE_CONNECTED:
 		kdbus_conn_disconnect(handle->conn, false);

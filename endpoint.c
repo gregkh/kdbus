@@ -187,35 +187,6 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 }
 
 /**
- * kdbus_ep_activate() - Activatean endpoint
- * @ep:			Endpoint
- *
- * Return: 0 on success, negative error otherwise.
- */
-int kdbus_ep_activate(struct kdbus_ep *ep)
-{
-	/*
-	 * kdbus_ep_activate() must not be called multiple times, so if
-	 * kdbus_node_activate() didn't activate the node, it must already be
-	 * dead.
-	 */
-	if (!kdbus_node_activate(&ep->node))
-		return -ESHUTDOWN;
-
-	return 0;
-}
-
-/**
- * kdbus_ep_deactivate() - invalidate an endpoint
- * @ep:			Endpoint
- */
-void kdbus_ep_deactivate(struct kdbus_ep *ep)
-{
-	if (ep)
-		kdbus_node_deactivate(&ep->node);
-}
-
-/**
  * kdbus_ep_policy_set() - set policy for an endpoint
  * @ep:			The endpoint
  * @items:		The kdbus items containing policy information
@@ -274,13 +245,18 @@ struct kdbus_ep *kdbus_cmd_ep_make(struct kdbus_bus *bus, void __user *argp)
 		goto exit;
 	}
 
-	ret = kdbus_ep_activate(ep);
+	if (!kdbus_node_activate(&ep->node)) {
+		ret = -ESHUTDOWN;
+		goto exit;
+	}
 
 exit:
 	ret = kdbus_args_clear(&args, ret);
 	if (ret < 0) {
-		kdbus_ep_deactivate(ep);
-		kdbus_ep_unref(ep);
+		if (ep) {
+			kdbus_node_deactivate(&ep->node);
+			kdbus_ep_unref(ep);
+		}
 		return ERR_PTR(ret);
 	}
 	return ep;

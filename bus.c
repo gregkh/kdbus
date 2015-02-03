@@ -491,9 +491,10 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 		goto exit;
 	}
 
-	ret = kdbus_ep_activate(ep);
-	if (ret < 0)
+	if (!kdbus_node_activate(&ep->node)) {
+		ret = -ESHUTDOWN;
 		goto exit;
+	}
 
 	/*
 	 * Drop our own reference, effectively causing the endpoint to be
@@ -505,7 +506,7 @@ exit:
 	ret = kdbus_args_clear(&args, ret);
 	if (ret < 0) {
 		if (ep) {
-			kdbus_ep_deactivate(ep);
+			kdbus_node_deactivate(&ep->node);
 			kdbus_ep_unref(ep);
 		}
 		if (bus) {
