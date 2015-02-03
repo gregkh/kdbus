@@ -264,7 +264,6 @@
         for more details.
       </para>
     </refsect2>
-
   </refsect1>
 
   <refsect1>
@@ -291,21 +290,22 @@
       Following is a list of all the ioctls.
     </para>
     <programlisting>
-0x40209500     KDBUS_CMD_BUS_MAKE           struct kdbus_cmd *
-0x40209510     KDBUS_CMD_ENDPOINT_MAKE      struct kdbus_cmd *
-0xc0689520     KDBUS_CMD_HELLO              struct kdbus_cmd_hello *
-0x00009521     KDBUS_CMD_BYEBYE             struct kdbus_cmd *
-0xc0489530     KDBUS_CMD_SEND               struct kdbus_cmd_send *
-0xc0489531     KDBUS_CMD_RECV               struct kdbus_cmd_recv *
-0x40289532     KDBUS_CMD_FREE               struct kdbus_cmd_free *
-0xc0209540     KDBUS_CMD_NAME_ACQUIRE       struct kdbus_cmd *
-0x40209541     KDBUS_CMD_NAME_RELEASE       struct kdbus_cmd *
-0xc0389550     KDBUS_CMD_CONN_INFO          struct kdbus_cmd_info *
-0x40209551     KDBUS_CMD_CONN_UPDATE        struct kdbus_cmd *
-0xc0389552     KDBUS_CMD_BUS_CREATOR_INFO   struct kdbus_cmd_info *
-0x40209561     KDBUS_CMD_ENDPOINT_UPDATE    struct kdbus_cmd *
-0x40289570     KDBUS_CMD_MATCH_ADD          struct kdbus_cmd_match *
-0x40289571     KDBUS_CMD_MATCH_REMOVE       struct kdbus_cmd_match *
+0x40189500     KDBUS_CMD_BUS_MAKE           struct kdbus_cmd *
+0x40189510     KDBUS_CMD_ENDPOINT_MAKE      struct kdbus_cmd *
+0xc0609580     KDBUS_CMD_HELLO              struct kdbus_cmd_hello *
+0x40189582     KDBUS_CMD_BYEBYE             struct kdbus_cmd *
+0x40389590     KDBUS_CMD_SEND               struct kdbus_cmd_send *
+0x80409591     KDBUS_CMD_RECV               struct kdbus_cmd_recv *
+0x40209583     KDBUS_CMD_FREE               struct kdbus_cmd_free *
+0x401895a0     KDBUS_CMD_NAME_ACQUIRE       struct kdbus_cmd *
+0x401895a1     KDBUS_CMD_NAME_RELEASE       struct kdbus_cmd *
+0x80289586     KDBUS_CMD_LIST               struct kdbus_cmd_list *
+0x80309584     KDBUS_CMD_CONN_INFO          struct kdbus_cmd_info *
+0x40209551     KDBUS_CMD_UPDATE             struct kdbus_cmd *
+0x80309585     KDBUS_CMD_BUS_CREATOR_INFO   struct kdbus_cmd_info *
+0x40189511     KDBUS_CMD_ENDPOINT_UPDATE    struct kdbus_cmd *
+0x402095b0     KDBUS_CMD_MATCH_ADD          struct kdbus_cmd_match *
+0x402095b1     KDBUS_CMD_MATCH_REMOVE       struct kdbus_cmd_match *
     </programlisting>
 
     <para>
