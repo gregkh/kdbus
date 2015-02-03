@@ -89,8 +89,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				kuid_t uid, kgid_t gid);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
-int kdbus_bus_activate(struct kdbus_bus *bus);
-void kdbus_bus_deactivate(struct kdbus_bus *bus);
 
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
 void kdbus_bus_broadcast(struct kdbus_bus *bus, struct kdbus_conn *conn_src,

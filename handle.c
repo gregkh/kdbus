@@ -263,8 +263,10 @@ static int kdbus_handle_release(struct inode *inode, struct file *file)
 
 	switch (handle->type) {
 	case KDBUS_HANDLE_BUS_OWNER:
-		kdbus_bus_deactivate(handle->bus_owner);
-		kdbus_bus_unref(handle->bus_owner);
+		if (handle->bus_owner) {
+			kdbus_node_deactivate(&handle->bus_owner->node);
+			kdbus_bus_unref(handle->bus_owner);
+		}
 		break;
 	case KDBUS_HANDLE_EP_OWNER:
 		kdbus_ep_deactivate(handle->ep_owner);

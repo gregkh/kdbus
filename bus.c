@@ -271,65 +271,6 @@ struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus)
 }
 
 /**
- * kdbus_bus_activate() - activate a bus
- * @bus:		Bus
- *
- * Activate a bus and make it available to user-space.
- *
- * Returns: 0 on success, negative error code on failure
- */
-int kdbus_bus_activate(struct kdbus_bus *bus)
-{
-	struct kdbus_ep *ep;
-	int ret;
-
-	if (atomic_inc_return(&bus->creator->buses) > KDBUS_USER_MAX_BUSES) {
-		atomic_dec(&bus->creator->buses);
-		return -EMFILE;
-	}
-
-	/*
-	 * kdbus_bus_activate() must not be called multiple times, so if
-	 * kdbus_node_activate() didn't activate the node, it must already be
-	 * dead.
-	 */
-	if (!kdbus_node_activate(&bus->node)) {
-		atomic_dec(&bus->creator->buses);
-		return -ESHUTDOWN;
-	}
-
-	/*
-	 * Create a new default endpoint for this bus. If activation succeeds,
-	 * we drop our own reference, effectively causing the endpoint to be
-	 * deactivated and released when the parent domain is.
-	 */
-	ep = kdbus_ep_new(bus, "bus", bus->access,
-			  bus->node.uid, bus->node.gid, false);
-	if (IS_ERR(ep))
-		return PTR_ERR(ep);
-
-	ret = kdbus_ep_activate(ep);
-	if (ret < 0)
-		kdbus_ep_deactivate(ep);
-	kdbus_ep_unref(ep);
-
-	return 0;
-}
-
-/**
- * kdbus_bus_deactivate() - deactivate a bus
- * @bus:               The kdbus reference
- *
- * The passed bus will be disconnected and the associated endpoint will be
- * unref'ed.
- */
-void kdbus_bus_deactivate(struct kdbus_bus *bus)
-{
-	if (bus)
-		kdbus_node_deactivate(&bus->node);
-}
-
-/**
  * kdbus_bus_find_conn_by_id() - find a connection with a given id
  * @bus:		The bus to look for the connection
  * @id:			The 64-bit connection id
@@ -501,6 +442,7 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 {
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_cmd *cmd;
+	struct kdbus_ep *ep = NULL;
 	int ret;
 
 	struct kdbus_arg argv[] = {
@@ -529,13 +471,47 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 		goto exit;
 	}
 
-	ret = kdbus_bus_activate(bus);
+	if (atomic_inc_return(&bus->creator->buses) > KDBUS_USER_MAX_BUSES) {
+		atomic_dec(&bus->creator->buses);
+		ret = -EMFILE;
+		goto exit;
+	}
+
+	if (!kdbus_node_activate(&bus->node)) {
+		atomic_dec(&bus->creator->buses);
+		ret = -ESHUTDOWN;
+		goto exit;
+	}
+
+	ep = kdbus_ep_new(bus, "bus", bus->access,
+			  bus->node.uid, bus->node.gid, false);
+	if (IS_ERR(ep)) {
+		ret = PTR_ERR(ep);
+		ep = NULL;
+		goto exit;
+	}
+
+	ret = kdbus_ep_activate(ep);
+	if (ret < 0)
+		goto exit;
+
+	/*
+	 * Drop our own reference, effectively causing the endpoint to be
+	 * deactivated and released when the parent bus is.
+	 */
+	ep = kdbus_ep_unref(ep);
 
 exit:
 	ret = kdbus_args_clear(&args, ret);
 	if (ret < 0) {
-		kdbus_bus_deactivate(bus);
-		kdbus_bus_unref(bus);
+		if (ep) {
+			kdbus_ep_deactivate(ep);
+			kdbus_ep_unref(ep);
+		}
+		if (bus) {
+			kdbus_node_deactivate(&bus->node);
+			kdbus_bus_unref(bus);
+		}
 		return ERR_PTR(ret);
 	}
 	return bus;
