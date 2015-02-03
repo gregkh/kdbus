@@ -120,7 +120,7 @@ struct kdbus_cmd_send {
       <varlistentry>
         <term><varname>msg_address</varname></term>
         <listitem><para>
-          In this field, programs has to provide a pointer to a message
+          In this field, users have to provide a pointer to a message
           (<type>struct kdbus_msg</type>) to send. See below for a
           detailed description.
         </para></listitem>
@@ -394,7 +394,7 @@ struct kdbus_msg {
                 <para>
                   For messages to a unique name (ID), this item is optional. If
                   present, the kernel will make sure the name owner matches the
-                  given unique name.  This allows programs tie the message
+                  given unique name.  This allows programs to tie the message
                   sending to the condition that a name is currently owned by a
                   certain unique name.
                 </para>
@@ -1000,8 +1000,8 @@ struct kdbus_msg_info {
         <varlistentry>
           <term><constant>EFAULT</constant></term>
           <listitem><para>
-            The supplied bloom filter size was not 64-bit aligned or memory
-            supplied by programs could not be accessed by the kernel.
+            The supplied bloom filter size was not 64-bit aligned, or supplied
+            memory could not be accessed by the kernel.
           </para></listitem>
         </varlistentry>
 

@@ -104,8 +104,8 @@
       <emphasis>match</emphasis>. To allow a message to pass, all rules of a
       match have to be satisfied. Hence, adding more items to the command will
       only narrow the possibility of a match to effectively let the message
-      pass, and will decrease the chance that the connection's programs process
-      wil be woken up.
+      pass, and will decrease the chance that the connection's process will be
+      woken up needlessly.
 
       Multiple matches can be installed per connection. As long as one of it has
       a set of rules which allows the message to pass, this one will be
@@ -368,7 +368,7 @@ struct kdbus_cmd_match {
       matches uploaded by connections must also match the size, or a multiple
       thereof (see below).
 
-      The calculation of the mask has to be done on the programs side. The
+      The calculation of the mask has to be done in userspace applications. The
       kernel just checks the bitmasks to decide whether or not to let the
       message pass. All bits in the mask must match the filter in and bit-wise
       <emphasis>AND</emphasis> logic, but the mask may have more bits set than

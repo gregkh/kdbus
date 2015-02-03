@@ -461,9 +461,9 @@ struct kdbus_cmd_hello {
     <para>
       An <emphasis>activator</emphasis> connection is a placeholder for a
       <emphasis>well-known name</emphasis>. Messages sent to such a connection
-      can be used by programs to start an implementer connection, which will
-      then get all the messages from the activator copied over. An activator
-      connection cannot be used to send any message.
+      can be used to start an implementer connection, which will then get all
+      the messages from the activator copied over. An activator connection
+      cannot be used to send any message.
     </para>
     <para>
       A <emphasis>policy holder</emphasis> connection only installs a policy

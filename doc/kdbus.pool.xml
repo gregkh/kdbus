@@ -75,7 +75,7 @@
   <refsect1>
     <title>Accessing the pool memory</title>
     <para>
-      Memory is the pool is read-only for programs and may only be written
+      Memory is the pool is read-only for userspace and may only be written
       to by the kernel. To read from the pool memory, the caller is expected to
       <citerefentry>
         <refentrytitle>mmap</refentrytitle>
@@ -125,8 +125,8 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
     <title>Pool slice allocation</title>
     <para>
       Pool slices are allocated by the kernel in order to report information
-      back to a programs task, such as messages, returned name list etc.
-      Allocation of pool slices cannot be initiated by programs. See
+      back to a task, such as messages, returned name list etc.
+      Allocation of pool slices cannot be initiated by userspace. See
       <citerefentry>
         <refentrytitle>kdbus.connection</refentrytitle>
         <manvolnum>7</manvolnum>

@@ -75,9 +75,9 @@
     <refsect2>
       <title>Iterating items</title>
       <para>
-        A simple iterator in programs would iterate over the items until
-        the items have reached the embedding structure's overall size.
-        An example implementation is shown below.
+        A simple iterator would iterate over the items until the items have
+        reached the embedding structure's overall size.  An example
+        implementation is shown below.
       </para>
 
       <programlisting><![CDATA[
@@ -160,7 +160,7 @@ struct kdbus_item {
             probe. The kernel will reset each member of this array that is
             not recognized as valid item type to <constant>0</constant>.
             This way, users can negotiate kernel features at startup to
-            keep newer programs compatible with older kernels. This item
+            keep newer userspace compatible with older kernels. This item
             is never attached by the kernel in response to any command.
           </para></listitem>
         </varlistentry>
@@ -243,8 +243,8 @@ struct kdbus_memfd {
           <term><constant>KDBUS_ITEM_FDS</constant></term>
           <listitem><para>
             Contains an array of <emphasis>file descriptors</emphasis>.
-            When used with <constant>KDBUS_CMD_SEND</constant>, programs sets
-            the values of this array with valid file descriptor numbers.
+            When used with <constant>KDBUS_CMD_SEND</constant>, the values of
+            this array must be filled with valid file descriptor numbers.
             When received as item attached to a message, the array will
             contain the numbers of the installed file descriptors, or
             <constant>-1</constant> in case an error occured.
@@ -286,7 +286,7 @@ struct kdbus_memfd {
             Contains a set of <emphasis>bloom parameters</emphasis> as
             <type>struct kdbus_bloom_parameter</type> in
             <varname>item.bloom_parameter</varname>.
-            The item is passed from programs to kernel during the
+            The item is passed from userspace to kernel during the
             <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl, and returned
             verbatim when <constant>KDBUS_CMD_HELLO</constant> is called.
             The kernel does not use the bloom parameters, but they need to
@@ -314,7 +314,7 @@ struct kdbus_bloom_parameter {
             <varname>item.bloom_filter</varname>. It is mandatory to send this
             item attached to a <type>struct kdbus_msg</type>, in case the
             message is a signal. This item is never transported from kernel to
-            programs. See
+            userspace. See
             <citerefentry>
               <refentrytitle>kdbus.match</refentrytitle>
               <manvolnum>7</manvolnum>
@@ -364,8 +364,8 @@ struct kdbus_bloom_filter {
             Contains a <emphasis>bus name</emphasis> or
             <emphasis>endpoint name</emphasis>, stored as null-terminated
             string in <varname>item.str</varname>. This item is sent from
-            programs to kernel when buses or endpoints are created, and
-            returned back to programs when the bus creator information is
+            userspace to kernel when buses or endpoints are created, and
+            returned back to userspace when the bus creator information is
             queried. See
             <citerefentry>
               <refentrytitle>kdbus.bus</refentrytitle>

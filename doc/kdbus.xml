@@ -147,7 +147,7 @@
         Each connection allocates a piece of shmem-backed memory that is
         used to receive messages and answers to ioctl commands from the kernel.
         It is never used to send anything to the kernel. In order to access that
-        memory, a programs application must mmap() it into its address space.
+        memory, an application must mmap() it into its address space.
         See
         <citerefentry>
           <refentrytitle>kdbus.pool</refentrytitle>
