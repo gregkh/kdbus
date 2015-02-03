@@ -18,8 +18,8 @@
 #include <linux/init.h>
 #include <linux/kdev_t.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/poll.h>
+#include <linux/rwsem.h>
 #include <linux/sched.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
@@ -193,7 +193,7 @@ enum kdbus_handle_type {
 
 /**
  * struct kdbus_handle - handle to the kdbus system
- * @lock:		handle lock
+ * @rwlock:		handle lock
  * @type:		type of this handle (KDBUS_HANDLE_*)
  * @bus_owner:		bus this handle owns
  * @ep_owner:		endpoint this handle owns
@@ -201,7 +201,7 @@ enum kdbus_handle_type {
  * @privileged:		Flag to mark a handle as privileged
  */
 struct kdbus_handle {
-	struct mutex lock;
+	struct rw_semaphore rwlock;
 
 	enum kdbus_handle_type type;
 	union {
@@ -229,7 +229,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		goto exit;
 	}
 
-	mutex_init(&handle->lock);
+	init_rwsem(&handle->rwlock);
 	handle->type = KDBUS_HANDLE_NONE;
 
 	if (node->type == KDBUS_NODE_ENDPOINT) {
@@ -296,10 +296,6 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	struct kdbus_domain *domain;
 	int ret = 0;
 
-	lockdep_assert_held(&handle->lock);
-	if (WARN_ON(handle->type != KDBUS_HANDLE_NONE))
-		return -EBADFD;
-
 	if (!kdbus_node_acquire(node))
 		return -ESHUTDOWN;
 
@@ -346,10 +342,6 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 	struct kdbus_ep *ep, *file_ep = kdbus_ep_from_node(node);
 	struct kdbus_conn *conn;
 	int ret = 0;
-
-	lockdep_assert_held(&handle->lock);
-	if (WARN_ON(handle->type != KDBUS_HANDLE_NONE))
-		return -EBADFD;
 
 	if (!kdbus_node_acquire(node))
 		return -ESHUTDOWN;
@@ -487,28 +479,37 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 {
 	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_node *node = kdbus_node_from_inode(file_inode(file));
-	enum kdbus_handle_type type;
 	void __user *argp = (void __user *)arg;
-	long ret = -ENOTTY;
+	long ret = -EBADFD;
 
-	/* While no type is set for this handle, we perform all ioctls locked.
-	 * Once a type is fixed, it will never change again, so we only need
-	 * the implicit memory-barrier provided by the mutex. */
+	switch (cmd) {
+	case KDBUS_CMD_BUS_MAKE:
+	case KDBUS_CMD_ENDPOINT_MAKE:
+	case KDBUS_CMD_HELLO:
+		/* bail out early if already typed */
+		if (handle->type != KDBUS_HANDLE_NONE)
+			break;
 
-	mutex_lock(&handle->lock);
-	type = handle->type;
-	if (type == KDBUS_HANDLE_NONE) {
-		if (node->type == KDBUS_NODE_CONTROL)
-			ret = kdbus_handle_ioctl_control(file, cmd, argp);
-		else if (node->type == KDBUS_NODE_ENDPOINT)
-			ret = kdbus_handle_ioctl_ep(file, cmd, argp);
+		down_write(&handle->rwlock);
+		if (handle->type == KDBUS_HANDLE_NONE) {
+			if (node->type == KDBUS_NODE_CONTROL)
+				ret = kdbus_handle_ioctl_control(file, cmd,
+								 argp);
+			else if (node->type == KDBUS_NODE_ENDPOINT)
+				ret = kdbus_handle_ioctl_ep(file, cmd, argp);
+		}
+		up_write(&handle->rwlock);
+		break;
+
+	default:
+		down_read(&handle->rwlock);
+		if (handle->type == KDBUS_HANDLE_EP_OWNER)
+			ret = kdbus_handle_ioctl_ep_owner(file, cmd, argp);
+		else if (handle->type == KDBUS_HANDLE_CONNECTED)
+			ret = kdbus_handle_ioctl_connected(file, cmd, argp);
+		up_read(&handle->rwlock);
+		break;
 	}
-	mutex_unlock(&handle->lock);
-
-	if (type == KDBUS_HANDLE_EP_OWNER)
-		ret = kdbus_handle_ioctl_ep_owner(file, cmd, argp);
-	else if (type == KDBUS_HANDLE_CONNECTED)
-		ret = kdbus_handle_ioctl_connected(file, cmd, argp);
 
 	return ret;
 }
@@ -521,12 +522,12 @@ static unsigned int kdbus_handle_poll(struct file *file,
 	int ret;
 
 	/* Only a connected endpoint can read/write data */
-	mutex_lock(&handle->lock);
+	down_read(&handle->rwlock);
 	if (handle->type != KDBUS_HANDLE_CONNECTED) {
-		mutex_unlock(&handle->lock);
+		up_read(&handle->rwlock);
 		return POLLERR | POLLHUP;
 	}
-	mutex_unlock(&handle->lock);
+	up_read(&handle->rwlock);
 
 	ret = kdbus_conn_acquire(handle->conn);
 	if (ret < 0)
@@ -545,15 +546,14 @@ static unsigned int kdbus_handle_poll(struct file *file,
 static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct kdbus_handle *handle = file->private_data;
+	int ret = -EBADFD;
 
-	mutex_lock(&handle->lock);
-	if (handle->type != KDBUS_HANDLE_CONNECTED) {
-		mutex_unlock(&handle->lock);
-		return -EPERM;
+	if (down_read_trylock(&handle->rwlock)) {
+		if (handle->type == KDBUS_HANDLE_CONNECTED)
+			ret = kdbus_pool_mmap(handle->conn->pool, vma);
+		up_read(&handle->rwlock);
 	}
-	mutex_unlock(&handle->lock);
-
-	return kdbus_pool_mmap(handle->conn->pool, vma);
+	return ret;
 }
 
 const struct file_operations kdbus_handle_ops = {

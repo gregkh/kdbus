@@ -158,7 +158,7 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	bus_make.head.size = sizeof(struct kdbus_cmd) +
 			     sizeof(bus_make.bs) + bus_make.n_size;
 	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
-	ASSERT_RETURN(ret == -1 && errno == ENOTTY);
+	ASSERT_RETURN(ret == -1 && errno == EBADFD);
 
 	/* create a new bus, with different fd and different bus name */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-2", uid, name);
