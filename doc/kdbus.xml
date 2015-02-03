@@ -417,31 +417,36 @@
           call.
         </para></listitem>
 
-        <listitem><para>
-          When a connection is created (<constant>KDBUS_CMD_HELLO</constant>),
-          information about the calling task is collected. Alternatively, a
-          privileged connection may provide 'faked' information about
-          credentials, PIDs and security labels which will be taken instead.
-          This data is returned by the kernel as information on a connection
-          (<constant>KDBUS_CMD_CONN_INFO</constant>).  Only metadata that a
-          connection allowed to be sent (by setting its bit in
-          <varname>attach_flags_send</varname> will be exported that way.
-        </para></listitem>
+        <listitem>
+          <para>
+            When a connection is created (<constant>KDBUS_CMD_HELLO</constant>),
+            information about the calling task is collected. Alternatively, a
+            privileged connection may provide 'faked' information about
+            credentials, PIDs and security labels which will be stored instead.
+            This data is returned by the kernel as information on a connection
+            (<constant>KDBUS_CMD_CONN_INFO</constant>). Only metadata that a
+            connection allowed to be sent (by setting its bit in
+            <varname>attach_flags_send</varname>) will be exported that way.
+          </para>
+        </listitem>
 
-        <listitem><para>
-          When a message is sent (<constant>KDBUS_CMD_SEND</constant>),
-          information about the sending task and the sending connection are
-          collected. This metadata will be attached to the message when it
-          arrives in the receiver's pool. If the connection sending the message
-          installed faked credentials (see 
-          <citerefentry>
-            <refentrytitle>kdbus.connection</refentrytitle>
-            <manvolnum>7</manvolnum>
-          </citerefentry>),
-          the message will not be augmented by any information about the
-          currently sending task. Note that only metadata that was requested
-          by the receiving connection will be collected and attached to messages.
-        </para></listitem>
+        <listitem>
+          <para>
+            When a message is sent (<constant>KDBUS_CMD_SEND</constant>),
+            information about the sending task and the sending connection are
+            collected. This metadata will be attached to the message when it
+            arrives in the receiver's pool. If the connection sending the
+            message installed faked credentials (see
+            <citerefentry>
+              <refentrytitle>kdbus.connection</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>),
+            the message will not be augmented by any information about the
+            currently sending task. Note that only metadata that was requested
+            by the receiving connection will be collected and attached to
+            messages.
+          </para>
+        </listitem>
       </itemizedlist>
 
       <para>
@@ -485,27 +490,35 @@
       </para>
 
       <itemizedlist mark='none'>
-        <listitem><para>
-          [1] The creds attached to messages are determined as
-          <constant>a &amp; b &amp; c</constant>.
-        </para></listitem>
+        <listitem>
+          <para>
+            [1] The creds attached to messages are determined as
+            <constant>a &amp; b &amp; c</constant>.
+          </para>
+        </listitem>
 
-        <listitem><para>
-          [2] When connecting to a bus (<constant>KDBUS_CMD_HELLO</constant>),
-          and <constant>~b &amp; d != 0</constant>, the call will fail with,
-          <errorcode>-1</errorcode>, and <varname>errno</varname> is set to
-          <constant>ECONNREFUSED</constant>.
-        </para></listitem>
+        <listitem>
+          <para>
+            [2] When connecting to a bus (<constant>KDBUS_CMD_HELLO</constant>),
+            and <constant>~b &amp; d != 0</constant>, the call will fail with,
+            <errorcode>-1</errorcode>, and <varname>errno</varname> is set to
+            <constant>ECONNREFUSED</constant>.
+          </para>
+        </listitem>
 
-        <listitem><para>
-          [3] When querying creds of a bus peer, the creds returned are
-          <constant>a &amp; b &amp; f</constant>.
-        </para></listitem>
+        <listitem>
+          <para>
+            [3] When querying creds of a bus peer, the creds returned are
+            <constant>a &amp; b &amp; f</constant>.
+          </para>
+        </listitem>
 
-        <listitem><para>
-          [4] When querying creds of a bus owner, the creds returned are
-          <constant>a &amp; e &amp; g</constant>.
-        </para></listitem>
+        <listitem>
+          <para>
+            [4] When querying creds of a bus owner, the creds returned are
+            <constant>a &amp; e &amp; g</constant>.
+          </para>
+        </listitem>
       </itemizedlist>
 
       <para>
@@ -518,20 +531,25 @@
       <title>Benefits and heads-up</title>
       <para>
         Attaching metadata to messages has two major benefits.
- 
+
         <itemizedlist mark='none'>
-          <listitem><para>
-            Metadata attached to messages is gathered at the moment when the
-            other side calls <constant>KDBUS_CMD_SEND</constant>, or,
-            respectively, then the kernel notification is generated. There is
-            no need for the receiving peer to retrieve information about the
-            task in a second step. This closes a race gap that would otherwise
-            be inherent.
-          </para></listitem>
-          <listitem><para>
-            As metadata is delivered along with messages in the same data blob,
-            no extra calls to kernel functions etc. are needed to gather them.
-          </para></listitem>
+          <listitem>
+            <para>
+              Metadata attached to messages is gathered at the moment when the
+              other side calls <constant>KDBUS_CMD_SEND</constant>, or,
+              respectively, then the kernel notification is generated. There is
+              no need for the receiving peer to retrieve information about the
+              task in a second step. This closes a race gap that would otherwise
+              be inherent.
+            </para>
+          </listitem>
+          <listitem>
+            <para>
+              As metadata is delivered along with messages in the same data
+              blob, no extra calls to kernel functions etc. are needed to gather
+              them.
+            </para>
+          </listitem>
         </itemizedlist>
 
         Note, however, that collecting metadata does come at a price for
