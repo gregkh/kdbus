@@ -29,6 +29,7 @@
 #include "bus.h"
 #include "connection.h"
 #include "endpoint.h"
+#include "fs.h"
 #include "handle.h"
 #include "item.h"
 #include "match.h"
@@ -177,152 +178,149 @@ int kdbus_args_clear(struct kdbus_args *args, int ret)
 }
 
 /**
- * enum kdbus_handle_ep_type - type an endpoint handle can be of
- * @KDBUS_HANDLE_EP_NONE:	New file descriptor on an endpoint
- * @KDBUS_HANDLE_EP_CONNECTED:	An endpoint connection after HELLO
- * @KDBUS_HANDLE_EP_OWNER:	File descriptor to hold an endpoint
+ * enum kdbus_handle_type - type an handle can be of
+ * @KDBUS_HANDLE_NONE:		no type set, yet
+ * @KDBUS_HANDLE_BUS_OWNER:	bus owner
+ * @KDBUS_HANDLE_EP_OWNER:	endpoint owner
+ * @KDBUS_HANDLE_CONNECTED:	endpoint connection after HELLO
  */
-enum kdbus_handle_ep_type {
-	KDBUS_HANDLE_EP_NONE,
-	KDBUS_HANDLE_EP_CONNECTED,
+enum kdbus_handle_type {
+	KDBUS_HANDLE_NONE,
+	KDBUS_HANDLE_BUS_OWNER,
 	KDBUS_HANDLE_EP_OWNER,
+	KDBUS_HANDLE_CONNECTED,
 };
 
 /**
- * struct kdbus_handle_ep - an endpoint handle to the kdbus system
- * @lock:		Handle lock
- * @ep:			The endpoint for this handle
- * @type:		Type of this handle (KDBUS_HANDLE_EP_*)
- * @conn:		The connection this handle owns, in case @type
- *			is KDBUS_HANDLE_EP_CONNECTED
- * @ep_owner:		The endpoint this handle owns, in case @type
- *			is KDBUS_HANDLE_EP_OWNER
+ * struct kdbus_handle - handle to the kdbus system
+ * @lock:		handle lock
+ * @type:		type of this handle (KDBUS_HANDLE_*)
+ * @bus_owner:		bus this handle owns
+ * @ep_owner:		endpoint this handle owns
+ * @conn:		connection this handle owns
  * @privileged:		Flag to mark a handle as privileged
  */
-struct kdbus_handle_ep {
+struct kdbus_handle {
 	struct mutex lock;
-	struct kdbus_ep *ep;
 
-	enum kdbus_handle_ep_type type;
+	enum kdbus_handle_type type;
 	union {
-		struct kdbus_conn *conn;
+		struct kdbus_bus *bus_owner;
 		struct kdbus_ep *ep_owner;
+		struct kdbus_conn *conn;
 	};
 
 	bool privileged:1;
 };
 
-static int handle_ep_open(struct inode *inode, struct file *file)
+static int kdbus_handle_open(struct inode *inode, struct file *file)
 {
-	struct kdbus_handle_ep *handle;
-	struct kdbus_domain *domain;
+	struct kdbus_handle *handle;
 	struct kdbus_node *node;
-	struct kdbus_bus *bus;
 	int ret;
 
-	/* kdbusfs stores the kdbus_node in i_private */
-	node = inode->i_private;
+	node = kdbus_node_from_inode(inode);
 	if (!kdbus_node_acquire(node))
 		return -ESHUTDOWN;
 
 	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
 	if (!handle) {
 		ret = -ENOMEM;
-		goto exit_node;
+		goto exit;
 	}
 
 	mutex_init(&handle->lock);
-	handle->ep = kdbus_ep_ref(kdbus_ep_from_node(node));
-	handle->type = KDBUS_HANDLE_EP_NONE;
+	handle->type = KDBUS_HANDLE_NONE;
 
-	domain = handle->ep->bus->domain;
-	bus = handle->ep->bus;
+	if (node->type == KDBUS_NODE_ENDPOINT) {
+		struct kdbus_ep *ep = kdbus_ep_from_node(node);
+		struct kdbus_bus *bus = ep->bus;
 
-	/*
-	 * A connection is privileged if it is opened on an endpoint without
-	 * custom policy and either:
-	 *   * the user has CAP_IPC_OWNER in the domain user namespace
-	 * or
-	 *   * the callers euid matches the uid of the bus creator
-	 */
-	if (!handle->ep->has_policy &&
-	    (ns_capable(domain->user_namespace, CAP_IPC_OWNER) ||
-	     uid_eq(file->f_cred->euid, bus->node.uid)))
-		handle->privileged = true;
+		/*
+		 * A connection is privileged if it is opened on an endpoint
+		 * without custom policy and either:
+		 *   * the user has CAP_IPC_OWNER in the domain user namespace
+		 * or
+		 *   * the callers euid matches the uid of the bus creator
+		 */
+		if (!ep->has_policy &&
+		    (ns_capable(bus->domain->user_namespace, CAP_IPC_OWNER) ||
+		     uid_eq(file->f_cred->euid, bus->node.uid)))
+			handle->privileged = true;
+	}
 
 	file->private_data = handle;
-	kdbus_node_release(node);
+	ret = 0;
 
-	return 0;
-
-exit_node:
+exit:
 	kdbus_node_release(node);
 	return ret;
 }
 
-static int handle_ep_release(struct inode *inode, struct file *file)
+static int kdbus_handle_release(struct inode *inode, struct file *file)
 {
-	struct kdbus_handle_ep *handle = file->private_data;
+	struct kdbus_handle *handle = file->private_data;
 
 	switch (handle->type) {
+	case KDBUS_HANDLE_BUS_OWNER:
+		kdbus_bus_deactivate(handle->bus_owner);
+		kdbus_bus_unref(handle->bus_owner);
+		break;
 	case KDBUS_HANDLE_EP_OWNER:
 		kdbus_ep_deactivate(handle->ep_owner);
 		kdbus_ep_unref(handle->ep_owner);
 		break;
-
-	case KDBUS_HANDLE_EP_CONNECTED:
+	case KDBUS_HANDLE_CONNECTED:
 		kdbus_conn_disconnect(handle->conn, false);
 		kdbus_conn_unref(handle->conn);
 		break;
-
-	case KDBUS_HANDLE_EP_NONE:
+	case KDBUS_HANDLE_NONE:
 		/* nothing to clean up */
 		break;
 	}
 
-	kdbus_ep_unref(handle->ep);
 	kfree(handle);
 
 	return 0;
 }
 
-/* kdbus endpoint make commands */
-static long handle_ep_ioctl_none(struct file *file, unsigned int cmd,
-				 void __user *buf)
+static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
+				       void __user *argp)
 {
-	struct kdbus_handle_ep *handle = file->private_data;
+	struct kdbus_handle *handle = file->private_data;
+	struct kdbus_node *node = file_inode(file)->i_private;
+	struct kdbus_domain *domain;
 	int ret = 0;
 
 	lockdep_assert_held(&handle->lock);
-	if (WARN_ON(handle->type != KDBUS_HANDLE_EP_NONE))
+	if (WARN_ON(handle->type != KDBUS_HANDLE_NONE))
 		return -EBADFD;
 
-	switch (cmd) {
-	case KDBUS_CMD_ENDPOINT_MAKE: {
-		struct kdbus_ep *ep;
+	if (!kdbus_node_acquire(node))
+		return -ESHUTDOWN;
 
-		/* creating custom endpoints is a privileged operation */
-		if (!handle->privileged)
-			return -EPERM;
-
-		ep = kdbus_cmd_ep_make(handle->ep->bus, buf);
-		if (IS_ERR(ep))
-			return PTR_ERR(ep);
-
-		handle->type = KDBUS_HANDLE_EP_OWNER;
-		handle->ep_owner = ep;
-		break;
+	/*
+	 * The parent of control-nodes is always a domain, make sure to pin it
+	 * so the parent is actually valid.
+	 */
+	domain = kdbus_domain_from_node(node->parent);
+	if (!kdbus_node_acquire(&domain->node)) {
+		kdbus_node_release(node);
+		return -ESHUTDOWN;
 	}
 
-	case KDBUS_CMD_HELLO: {
-		struct kdbus_conn *conn;
+	switch (cmd) {
+	case KDBUS_CMD_BUS_MAKE: {
+		struct kdbus_bus *bus;
 
-		conn = kdbus_cmd_hello(handle->ep, handle->privileged, buf);
-		if (IS_ERR(conn))
-			return PTR_ERR(conn);
+		bus = kdbus_cmd_bus_make(domain, argp);
+		if (IS_ERR(bus)) {
+			ret = PTR_ERR(bus);
+			break;
+		}
 
-		handle->type = KDBUS_HANDLE_EP_CONNECTED;
-		handle->conn = conn;
+		handle->type = KDBUS_HANDLE_BUS_OWNER;
+		handle->bus_owner = bus;
 		break;
 	}
 
@@ -331,14 +329,92 @@ static long handle_ep_ioctl_none(struct file *file, unsigned int cmd,
 		break;
 	}
 
+	kdbus_node_release(&domain->node);
+	kdbus_node_release(node);
 	return ret;
 }
 
-/* kdbus endpoint commands for connected peers */
-static long handle_ep_ioctl_connected(struct file *file, unsigned int command,
-				      void __user *buf)
+static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
+				  void __user *buf)
 {
-	struct kdbus_handle_ep *handle = file->private_data;
+	struct kdbus_handle *handle = file->private_data;
+	struct kdbus_node *node = file_inode(file)->i_private;
+	struct kdbus_ep *ep, *file_ep = kdbus_ep_from_node(node);
+	struct kdbus_conn *conn;
+	int ret = 0;
+
+	lockdep_assert_held(&handle->lock);
+	if (WARN_ON(handle->type != KDBUS_HANDLE_NONE))
+		return -EBADFD;
+
+	if (!kdbus_node_acquire(node))
+		return -ESHUTDOWN;
+
+	switch (cmd) {
+	case KDBUS_CMD_ENDPOINT_MAKE:
+		/* creating custom endpoints is a privileged operation */
+		if (!handle->privileged) {
+			ret = -EPERM;
+			break;
+		}
+
+		ep = kdbus_cmd_ep_make(file_ep->bus, buf);
+		if (IS_ERR(ep)) {
+			ret = PTR_ERR(ep);
+			break;
+		}
+
+		handle->type = KDBUS_HANDLE_EP_OWNER;
+		handle->ep_owner = ep;
+		break;
+
+	case KDBUS_CMD_HELLO:
+		conn = kdbus_cmd_hello(file_ep, handle->privileged, buf);
+		if (IS_ERR(conn)) {
+			ret = PTR_ERR(conn);
+			break;
+		}
+
+		handle->type = KDBUS_HANDLE_CONNECTED;
+		handle->conn = conn;
+		break;
+
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	kdbus_node_release(node);
+	return ret;
+}
+
+static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int command,
+					void __user *buf)
+{
+	struct kdbus_handle *handle = file->private_data;
+	struct kdbus_ep *ep = handle->ep_owner;
+	int ret;
+
+	if (!kdbus_node_acquire(&ep->node))
+		return -ESHUTDOWN;
+
+	switch (command) {
+	case KDBUS_CMD_ENDPOINT_UPDATE:
+		ret = kdbus_cmd_ep_update(ep, buf);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	kdbus_node_release(&ep->node);
+	return ret;
+}
+
+static long kdbus_handle_ioctl_connected(struct file *file,
+					 unsigned int command, void __user *buf)
+{
+	struct kdbus_handle *handle = file->private_data;
 	struct kdbus_conn *conn = handle->conn;
 	struct kdbus_conn *release_conn = NULL;
 	int ret;
@@ -402,32 +478,14 @@ static long handle_ep_ioctl_connected(struct file *file, unsigned int command,
 	return ret;
 }
 
-/* kdbus endpoint commands for endpoint owners */
-static long handle_ep_ioctl_owner(struct file *file, unsigned int command,
-				  void __user *buf)
+static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
+			       unsigned long arg)
 {
-	struct kdbus_handle_ep *handle = file->private_data;
-	struct kdbus_ep *ep = handle->ep_owner;
-	int ret;
-
-	switch (command) {
-	case KDBUS_CMD_ENDPOINT_UPDATE:
-		ret = kdbus_cmd_ep_update(ep, buf);
-		break;
-	default:
-		ret = -ENOTTY;
-		break;
-	}
-
-	return ret;
-}
-
-static long handle_ep_ioctl(struct file *file, unsigned int cmd,
-			    unsigned long arg)
-{
-	struct kdbus_handle_ep *handle = file->private_data;
-	enum kdbus_handle_ep_type type;
-	int ret = -EBADFD;
+	struct kdbus_handle *handle = file->private_data;
+	struct kdbus_node *node = kdbus_node_from_inode(file_inode(file));
+	enum kdbus_handle_type type;
+	void __user *argp = (void __user *)arg;
+	long ret = -ENOTTY;
 
 	/* While no type is set for this handle, we perform all ioctls locked.
 	 * Once a type is fixed, it will never change again, so we only need
@@ -435,28 +493,32 @@ static long handle_ep_ioctl(struct file *file, unsigned int cmd,
 
 	mutex_lock(&handle->lock);
 	type = handle->type;
-	if (type == KDBUS_HANDLE_EP_NONE)
-		ret = handle_ep_ioctl_none(file, cmd, (void __user *)arg);
+	if (type == KDBUS_HANDLE_NONE) {
+		if (node->type == KDBUS_NODE_CONTROL)
+			ret = kdbus_handle_ioctl_control(file, cmd, argp);
+		else if (node->type == KDBUS_NODE_ENDPOINT)
+			ret = kdbus_handle_ioctl_ep(file, cmd, argp);
+	}
 	mutex_unlock(&handle->lock);
 
-	if (type == KDBUS_HANDLE_EP_CONNECTED)
-		ret = handle_ep_ioctl_connected(file, cmd, (void __user *)arg);
-	else if (type == KDBUS_HANDLE_EP_OWNER)
-		ret = handle_ep_ioctl_owner(file, cmd, (void __user *)arg);
+	if (type == KDBUS_HANDLE_EP_OWNER)
+		ret = kdbus_handle_ioctl_ep_owner(file, cmd, argp);
+	else if (type == KDBUS_HANDLE_CONNECTED)
+		ret = kdbus_handle_ioctl_connected(file, cmd, argp);
 
 	return ret;
 }
 
-static unsigned int handle_ep_poll(struct file *file,
-				   struct poll_table_struct *wait)
+static unsigned int kdbus_handle_poll(struct file *file,
+				      struct poll_table_struct *wait)
 {
-	struct kdbus_handle_ep *handle = file->private_data;
+	struct kdbus_handle *handle = file->private_data;
 	unsigned int mask = POLLOUT | POLLWRNORM;
 	int ret;
 
 	/* Only a connected endpoint can read/write data */
 	mutex_lock(&handle->lock);
-	if (handle->type != KDBUS_HANDLE_EP_CONNECTED) {
+	if (handle->type != KDBUS_HANDLE_CONNECTED) {
 		mutex_unlock(&handle->lock);
 		return POLLERR | POLLHUP;
 	}
@@ -476,12 +538,12 @@ static unsigned int handle_ep_poll(struct file *file,
 	return mask;
 }
 
-static int handle_ep_mmap(struct file *file, struct vm_area_struct *vma)
+static int kdbus_handle_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	struct kdbus_handle_ep *handle = file->private_data;
+	struct kdbus_handle *handle = file->private_data;
 
 	mutex_lock(&handle->lock);
-	if (handle->type != KDBUS_HANDLE_EP_CONNECTED) {
+	if (handle->type != KDBUS_HANDLE_CONNECTED) {
 		mutex_unlock(&handle->lock);
 		return -EPERM;
 	}
@@ -490,110 +552,15 @@ static int handle_ep_mmap(struct file *file, struct vm_area_struct *vma)
 	return kdbus_pool_mmap(handle->conn->pool, vma);
 }
 
-const struct file_operations kdbus_handle_ep_ops = {
+const struct file_operations kdbus_handle_ops = {
 	.owner =		THIS_MODULE,
-	.open =			handle_ep_open,
-	.release =		handle_ep_release,
-	.poll =			handle_ep_poll,
+	.open =			kdbus_handle_open,
+	.release =		kdbus_handle_release,
+	.poll =			kdbus_handle_poll,
 	.llseek =		noop_llseek,
-	.unlocked_ioctl =	handle_ep_ioctl,
-	.mmap =			handle_ep_mmap,
+	.unlocked_ioctl =	kdbus_handle_ioctl,
+	.mmap =			kdbus_handle_mmap,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl =		handle_ep_ioctl,
-#endif
-};
-
-static int handle_control_open(struct inode *inode, struct file *file)
-{
-	if (!kdbus_node_is_active(inode->i_private))
-		return -ESHUTDOWN;
-
-	/* private_data is used by BUS_MAKE to store the new bus */
-	file->private_data = NULL;
-
-	return 0;
-}
-
-static int handle_control_release(struct inode *inode, struct file *file)
-{
-	struct kdbus_bus *bus = file->private_data;
-
-	if (bus) {
-		kdbus_bus_deactivate(bus);
-		kdbus_bus_unref(bus);
-	}
-
-	return 0;
-}
-
-static long handle_control_ioctl(struct file *file, unsigned int cmd,
-				 unsigned long arg)
-{
-	struct kdbus_node *node = file_inode(file)->i_private;
-	struct kdbus_domain *domain;
-	int ret = 0;
-
-	/*
-	 * The parent of control-nodes is always a domain, make sure to pin it
-	 * so the parent is actually valid.
-	 */
-	if (!kdbus_node_acquire(node))
-		return -ESHUTDOWN;
-
-	domain = kdbus_domain_from_node(node->parent);
-	if (!kdbus_node_acquire(&domain->node)) {
-		kdbus_node_release(node);
-		return -ESHUTDOWN;
-	}
-
-	switch (cmd) {
-	case KDBUS_CMD_BUS_MAKE: {
-		struct kdbus_bus *bus;
-
-		/* catch double BUS_MAKE early, locked test is below */
-		if (file->private_data) {
-			ret = -EBADFD;
-			break;
-		}
-
-		bus = kdbus_cmd_bus_make(domain, (void __user *)arg);
-		if (IS_ERR(bus)) {
-			ret = PTR_ERR(bus);
-			break;
-		}
-
-		/* protect against parallel ioctls */
-		mutex_lock(&domain->lock);
-		if (file->private_data)
-			ret = -EBADFD;
-		else
-			file->private_data = bus;
-		mutex_unlock(&domain->lock);
-
-		if (ret < 0) {
-			kdbus_bus_deactivate(bus);
-			kdbus_bus_unref(bus);
-		}
-
-		break;
-	}
-
-	default:
-		ret = -ENOTTY;
-		break;
-	}
-
-	kdbus_node_release(&domain->node);
-	kdbus_node_release(node);
-	return ret;
-}
-
-const struct file_operations kdbus_handle_control_ops = {
-	.open =			handle_control_open,
-	.release =		handle_control_release,
-	.llseek =		noop_llseek,
-	.unlocked_ioctl =	handle_control_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl =		handle_control_ioctl,
+	.compat_ioctl =		kdbus_handle_ioctl,
 #endif
 };

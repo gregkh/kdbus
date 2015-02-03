@@ -22,4 +22,7 @@ int kdbus_fs_init(void);
 void kdbus_fs_exit(void);
 void kdbus_fs_flush(struct kdbus_node *node);
 
+#define kdbus_node_from_inode(_inode) \
+	((struct kdbus_node *)(_inode)->i_private)
+
 #endif

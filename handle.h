@@ -17,8 +17,7 @@
 #include <linux/fs.h>
 #include "kdbus.h"
 
-extern const struct file_operations kdbus_handle_ep_ops;
-extern const struct file_operations kdbus_handle_control_ops;
+extern const struct file_operations kdbus_handle_ops;
 
 struct kdbus_arg {
 	u64 type;

@@ -35,8 +35,6 @@
 
 #define kdbus_node_from_dentry(_dentry) \
 	((struct kdbus_node *)(_dentry)->d_fsdata)
-#define kdbus_node_from_inode(_inode) \
-	((struct kdbus_node *)(_inode)->i_private)
 
 static struct inode *fs_inode_get(struct super_block *sb,
 				  struct kdbus_node *node);
@@ -227,12 +225,12 @@ static struct inode *fs_inode_get(struct super_block *sb,
 	case KDBUS_NODE_CONTROL:
 		inode->i_mode |= S_IFREG;
 		inode->i_op = &fs_inode_iops;
-		inode->i_fop = &kdbus_handle_control_ops;
+		inode->i_fop = &kdbus_handle_ops;
 		break;
 	case KDBUS_NODE_ENDPOINT:
 		inode->i_mode |= S_IFREG;
 		inode->i_op = &fs_inode_iops;
-		inode->i_fop = &kdbus_handle_ep_ops;
+		inode->i_fop = &kdbus_handle_ops;
 		break;
 	}
 
