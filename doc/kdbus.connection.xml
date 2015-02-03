@@ -24,17 +24,18 @@
 
     <para>
       Connections are identified by their <emphasis>connection ID</emphasis>,
-      internally implemented as a <constant>uint64_t</constant> counter.
-      The IDs of every newly created bus start at 1, and every new
-      connection will increment the counter by 1. The IDs are not reused.
+      internally implemented as a <type>uint64_t</type> counter.
+      The IDs of every newly created bus start at <constant>1</constant>, and
+      every new connection will increment the counter by <constant>1</constant>.
+      The IDs are not reused.
     </para>
     <para>
       In higher level tools, the user visible representation of a connection is
       defined by the D-Bus protocol specification as
-      <emphasis>":1.&lt;ID&gt;"</emphasis>.
+      <constant>":1.&lt;ID&gt;"</constant>.
     </para>
     <para>
-      Messages with a specific <constant>uint64_t</constant> destination ID are
+      Messages with a specific <type>uint64_t</type> destination ID are
       directly delivered to the connection with the corresponding ID. Messages
       with the special destination ID
       <constant>KDBUS_DST_ID_BROADCAST</constant> (~0ULL) are broadcast
@@ -53,7 +54,7 @@
       source ID <constant>KDBUS_SRC_ID_KERNEL</constant> (0).
     </para>
     <para>
-      In addition to the unique <constant>uint64_t</constant> connection ID,
+      In addition to the unique <type>uint64_t</type> connection ID,
       established connections can request the ownership of
       <emphasis>well-known names</emphasis>, under which they can be found and
       addressed by other bus clients. A well-known name is associated with one
@@ -142,7 +143,6 @@
 struct kdbus_cmd_hello {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   __u64 attach_flags_send;
   __u64 attach_flags_recv;
@@ -221,6 +221,24 @@ struct kdbus_cmd_hello {
                 <para>
                   This flag can only be set by privileged bus connections. See
                   below for more information.
+                  A connection can not be monitor and an activator or a policy
+                  holder at the same time time, so this bit is not allowed
+                  together with <constant>KDBUS_HELLO_ACTIVATOR</constant> or
+                  <constant>KDBUS_HELLO_POLICY_HOLDER</constant>.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
                 </para>
               </listitem>
             </varlistentry>
@@ -229,17 +247,10 @@ struct kdbus_cmd_hello {
       </varlistentry>
 
       <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -379,6 +390,19 @@ struct kdbus_cmd_hello {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
           </variablelist>
 
           <para>
@@ -437,7 +461,7 @@ struct kdbus_cmd_hello {
     <para>
       An <emphasis>activator</emphasis> connection is a placeholder for a
       <emphasis>well-known name</emphasis>. Messages sent to such a connection
-      can be used by userspace to start an implementer connection, which will
+      can be used by programs to start an implementer connection, which will
       then get all the messages from the activator copied over. An activator
       connection cannot be used to send any message.
     </para>
@@ -468,7 +492,6 @@ struct kdbus_cmd_hello {
 struct kdbus_cmd_info {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   __u64 id;
   __u64 offset;
@@ -498,17 +521,10 @@ struct kdbus_cmd_info {
       </varlistentry>
 
       <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -570,6 +586,19 @@ struct kdbus_cmd_info {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
           </variablelist>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
@@ -624,6 +653,7 @@ struct kdbus_info {
             <type>struct kdbus_cmd_info</type>, items of types
             <constant>KDBUS_ITEM_OWNED_NAME</constant> and
             <constant>KDBUS_ITEM_CONN_DESCRIPTION</constant> may follow here.
+            <constant>KDBUS_ITEM_NEGOTIATE</constant> is also allowed.
           </para>
         </listitem>
       </varlistentry>
@@ -663,7 +693,6 @@ struct kdbus_info {
   __u64 size;
   __u64 id;
   __u64 flags;
-  __u64 kernel_flags;
   struct kdbus_item items[0];
 };
     </programlisting>
@@ -697,6 +726,8 @@ struct kdbus_info {
             Metadata information is stored in items here. The item list
             contains a <constant>KDBUS_ITEM_MAKE_NAME</constant> item that
             indicates the bus name of the calling connection.
+            <constant>KDBUS_ITEM_NEGOTIATE</constant> is allowed to probe
+            for known item types.
           </para>
         </listitem>
       </varlistentry>
@@ -724,10 +755,10 @@ struct kdbus_info {
     </para>
 
     <programlisting>
-struct kdbus_cmd_update {
+struct kdbus_cmd {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
+  __u64 return_flags;
   struct kdbus_item items[0];
 };
     </programlisting>
@@ -743,14 +774,11 @@ struct kdbus_cmd_update {
       <varlistentry>
         <term><varname>flags</varname></term>
         <listitem><para>
-           Currently, no flags are supported. Reserved for future use.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
+          Currently, no flags are supported.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will return <errorcode>0</errorcode>,
+          and the <varname>flags</varname> field is set to
+          <constant>0</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -758,7 +786,7 @@ struct kdbus_cmd_update {
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -801,6 +829,19 @@ struct kdbus_cmd_update {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
           </variablelist>
 
           <para>
@@ -813,9 +854,9 @@ struct kdbus_cmd_update {
   </refsect1>
 
   <refsect1>
-    <title>Monitor connections ('eavesdropper')</title>
+    <title>Monitor connections</title>
     <para>
-      Eavesdropping connections are created by setting the
+      Monitors are eaves-dropping connections that are created by setting the
       <constant>KDBUS_HELLO_MONITOR</constant> flag in
       <varname>struct kdbus_hello.flags</varname>.
       Such connections have all properties of any other, regular connection,
@@ -834,7 +875,12 @@ struct kdbus_cmd_update {
       </para></listitem>
 
       <listitem><para>
-        They cannot send messages or be directly addressed as receiver
+        They cannot send messages or be directly addressed as receiver.
+      </para></listitem>
+
+      <listitem><para>
+        They cannot own well-known names. Therefore, they also can't operate as
+        activators.
       </para></listitem>
 
       <listitem><para>
@@ -842,6 +888,11 @@ struct kdbus_cmd_update {
         <constant>KDBUS_ITEM_ID_{ADD,REMOVE}</constant> notifications to be
         generated, so other connections cannot detect the presence of an
         eavesdropper.
+      </para></listitem>
+
+      <listitem><para>
+        They are not listed with their unique name in name regsitry dumps
+        (<constant>KDBUS_CMD_NAME_LIST</constant>).
       </para></listitem>
     </itemizedlist>
   </refsect1>
@@ -866,8 +917,76 @@ struct kdbus_cmd_update {
       <constant>EBUSY</constant> is returned. When this ioctl returns
       successfully, the connection has been terminated and won't accept any new
       messages from remote peers. This way, a connection can be terminated
-      race-free, without losing any messages.
+      race-free, without losing any messages. The ioctl takes an argument of
+      type <type>struct kdbus_cmd</type>.
     </para>
+
+    <programlisting>
+struct kdbus_cmd {
+  __u64 size;
+  __u64 flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          Currently, no flags are supported.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will fail with
+          <errorcode>-1</errorcode>, <varname>errno</varname> is set to
+          <constant>EPROTO</constant>, and the <varname>flags</varname> field
+          is set to <constant>0</constant>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          <constant>0</constant> by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            Items to describe the connection details to be updated. The
+            following item types are supported.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
+          </variablelist>
+
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>errno</varname> set to <constant>EINVAL</constant>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
   </refsect1>
 
   <refsect1>
@@ -894,8 +1013,8 @@ struct kdbus_cmd_update {
         <varlistentry>
           <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in <constant>struct kdbus_cmd_make</constant> are
-            invalid.
+            The flags supplied in <type>struct kdbus_cmd_hello</type>
+            are invalid.
           </para></listitem>
         </varlistentry>
 
@@ -905,7 +1024,8 @@ struct kdbus_cmd_update {
             An illegal combination of
             <constant>KDBUS_HELLO_MONITOR</constant>,
             <constant>KDBUS_HELLO_ACTIVATOR</constant> and
-            <constant>KDBUS_HELLO_POLICY_HOLDER</constant> was passed in the flags.
+            <constant>KDBUS_HELLO_POLICY_HOLDER</constant> was passed in 
+            <varname>flags</varname>.
           </para></listitem>
         </varlistentry>
 
@@ -950,7 +1070,7 @@ struct kdbus_cmd_update {
           <term><constant>EOPNOTSUPP</constant></term>
           <listitem><para>
             The endpoint does not support the connection flags supplied in
-            <constant>struct kdbus_cmd_hello</constant>.
+            <type>struct kdbus_cmd_hello</type>.
           </para></listitem>
         </varlistentry>
       </variablelist>
@@ -1069,13 +1189,25 @@ struct kdbus_cmd_update {
       </member>
       <member>
         <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.policy</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
           <refentrytitle>kdbus.pool</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.items</refentrytitle>
+          <refentrytitle>kdbus.item</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

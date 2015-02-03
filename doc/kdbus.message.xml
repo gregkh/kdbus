@@ -40,8 +40,6 @@
 struct kdbus_cmd_send {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
-  __u64 kernel_msg_flags;
   __u64 return_flags;
   __u64 msg_address;
   struct kdbus_msg_info reply;
@@ -90,29 +88,39 @@ struct kdbus_cmd_send {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Request a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will fail with
+                  <errorcode>-1</errorcode>, <varname>errno</varname>
+                  is set to <constant>EPROTO</constant>.
+                  Once the ioctl returned, the <varname>flags</varname>
+                  field will have all bits set that the kernel recognizes as
+                  valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
       </varlistentry>
 
       <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
       <varlistentry>
         <term><varname>msg_address</varname></term>
         <listitem><para>
-          In this field, userspace has to provide a pointer to a message
+          In this field, programs has to provide a pointer to a message
           (<type>struct kdbus_msg</type>) to send. See below for a
           detailed description.
         </para></listitem>
@@ -246,6 +254,20 @@ struct kdbus_msg {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
       </varlistentry>
@@ -257,7 +279,7 @@ struct kdbus_msg {
           optionally be constrained to messages of a minimal priority. This
           allows for use cases where timing critical data is interleaved with
           control data on the same connection. If unused, the priority field
-          should be set to zero.
+          should be set to <constant>0</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -271,6 +293,12 @@ struct kdbus_msg {
           it up dynamically from the bus' name registry.
           In the latter case, an item of type
           <constant>KDBUS_ITEM_DST_NAME</constant> is mandatory.
+          Also see
+          <citerefentry>
+            <refentrytitle>kdbus.names</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
+          .
         </para></listitem>
       </varlistentry>
 
@@ -366,7 +394,7 @@ struct kdbus_msg {
                 <para>
                   For messages to a unique name (ID), this item is optional. If
                   present, the kernel will make sure the name owner matches the
-                  given unique name.  This allows userspace tie the message
+                  given unique name.  This allows programs tie the message
                   sending to the condition that a name is currently owned by a
                   certain unique name.
                 </para>
@@ -436,16 +464,13 @@ struct kdbus_msg {
   </refsect1>
 
   <refsect1>
-    <title>Passing of Payload Data</title>
+    <title>Message payload</title>
 
     <para>
       When connecting to the bus, receivers request a memory pool of a given
       size, large enough to carry all backlog of data enqueued for the
       connection. The pool is internally backed by a shared memory file which
-      can be mmap()ed by the receiver.
-    </para>
-    <para>
-      See
+      can be <function>mmap()</function>ed by the receiver. See
       <citerefentry>
         <refentrytitle>kdbus.pool</refentrytitle>
         <manvolnum>7</manvolnum>
@@ -501,9 +526,17 @@ struct kdbus_msg {
         <term><constant>KDBUS_ITEM_FDS</constant></term>
         <listitem>
           <para>
-            Messages can carry regular file descriptors. Only one
-            <constant>KDBUS_ITEM_FDS</constant> item that reference a file descriptors
-            array is accepted per message.
+            Messages can transport regular file-descriptors via
+            <constant>KDBUS_ITEM_FDS</constant>. This item carries an array
+            of <type>int</type> values in <varname>item.fd</varname>. The
+            maximum number of file-descriptors in the item is
+            <constant>253</constant>, and only one item of this type is
+            accepted per message. All passed values must be valid file
+            descriptors; the open count of each file-descriptors is increased
+            by installing it to the receiver's task. This item can only be
+            used for directed messages, not for broadcasts, and only to
+            remote peers that have opted-in for receiving file-descriptors
+            at connection time (<constant>KDBUS_HELLO_ACCEPT_FD</constant>).
           </para>
         </listitem>
       </varlistentry>
@@ -511,17 +544,18 @@ struct kdbus_msg {
 
     <para>
       The sender must not make any assumptions on the type in which data is
-      received by the remote peer. The kernel is free to re-pack multiple VEC
-      and MEMFD payloads. For instance, the kernel may decide to merge multiple
-      VECs into a single VEC, inline MEMFD payloads into memory or merge all
-      passed VECs into a single MEMFD. However, the kernel preserves the order
-      of passed data. This means that the order of all VEC and MEMFD items is
-      not changed in respect to each other.
-    </para>
-    <para>
-      In other words: All passed VEC and MEMFD data payloads are treated as a
-      single stream of data that may be received by the remote peer in a
-      different set of hunks than it was sent as.
+      received by the remote peer. The kernel is free to re-pack multiple
+      <constant>KDBUS_ITEM_PAYLOAD_VEC</constant> and
+      <constant>KDBUS_ITEM_MEMFD</constant> payloads. For instance, the kernel
+      may decide to merge multiple <constant>VECs</constant> into a single
+      <constant>VEC</constant>, inline <constant>MEMFD</constant> payloads into
+      memory or merge all passed <constant>VECs</constant> into a single
+      <constant>MEMFD</constant>. However, the kernel preserves the order
+      of passed data. This means that the order of all <constant>VEC</constant>
+      and <constant>MEMFD</constant> items is not changed in respect to each
+      other. In other words: All passed VEC and MEMFD data payloads are treated
+      as a single stream of data that may be received by the remote peer in a
+      different set of chunks than it was sent as.
     </para>
   </refsect1>
 
@@ -531,8 +565,12 @@ struct kdbus_msg {
     <para>
       Messages are received by the client with the
       <constant>KDBUS_CMD_RECV</constant> ioctl.  The endpoint file of the bus
-      supports <function>poll()/epoll()/select()</function> to wake up the
-      receiving process when new messages are queued up to be received.
+      supports <function>poll()/epoll()/select()</function>; when new messages
+      are available on the connection's file-descriptor,
+      <constant>POLLIN</constant> is reported. For compatibility reasons,
+      <constant>POLLOUT</constant> is always reported as well. Note, however,
+      that the latter does not guarantee that a message can in fact be sent, as
+      this depends on how many pending messages the receiver has in its pool.
     </para>
 
     <para>
@@ -544,7 +582,6 @@ struct kdbus_msg {
 struct kdbus_cmd_recv {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   __s64 priority;
   __u64 dropped_msgs;
@@ -599,22 +636,30 @@ struct kdbus_cmd_recv {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Request a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will fail with
+                  <errorcode>-1</errorcode>, <varname>errno</varname>
+                  is set to <constant>EPROTO</constant>.
+                  Once the ioctl returned, the <varname>flags</varname>
+                  field will have all bits set that the kernel recognizes as
+                  valid for this command.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
       </varlistentry>
 
       <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -956,7 +1001,7 @@ struct kdbus_msg_info {
           <term><constant>EFAULT</constant></term>
           <listitem><para>
             The supplied bloom filter size was not 64-bit aligned or memory
-            supplied by userspace could not be accessed by the kernel.
+            supplied by programs could not be accessed by the kernel.
           </para></listitem>
         </varlistentry>
 
@@ -1140,13 +1185,7 @@ struct kdbus_msg_info {
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.items</refentrytitle>
-          <manvolnum>7</manvolnum>
-        </citerefentry>
-      </member>
-      <member>
-        <citerefentry>
-          <refentrytitle>kdbus.message</refentrytitle>
+          <refentrytitle>kdbus.item</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

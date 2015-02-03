@@ -104,7 +104,7 @@
       <emphasis>match</emphasis>. To allow a message to pass, all rules of a
       match have to be satisfied. Hence, adding more items to the command will
       only narrow the possibility of a match to effectively let the message
-      pass, and will decrease the chance that the connection's userspace process
+      pass, and will decrease the chance that the connection's programs process
       wil be woken up.
 
       Multiple matches can be installed per connection. As long as one of it has
@@ -150,22 +150,29 @@ struct kdbus_cmd_match {
                 <para>Make the endpoint file group-accessible</para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
       </varlistentry>
 
       <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -242,6 +249,18 @@ struct kdbus_cmd_match {
               </listitem>
             </varlistentry>
 
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
           </variablelist>
 
           <para>
@@ -277,7 +296,6 @@ struct kdbus_cmd_match {
   __u64 size;
   __u64 cookie;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   struct kdbus_item items[0];
 };
@@ -305,14 +323,11 @@ struct kdbus_cmd_match {
         <term><varname>flags</varname></term>
         <listitem><para>
           No flags are supported for this use case.
-        </para></listitem>
-      </varlistentry>
-
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will fail with
+          <errorcode>-1</errorcode>, <varname>errno</varname> is set to
+          <constant>EPROTO</constant>, and the <varname>flags</varname> field
+          is set to <constant>0</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -320,7 +335,7 @@ struct kdbus_cmd_match {
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -328,7 +343,8 @@ struct kdbus_cmd_match {
         <term><varname>items</varname></term>
         <listitem>
           <para>
-            No items are supported for this use case.
+            No items are supported for this use case, but
+            <constant>KDBUS_ITEM_NEGOTIATE</constant> is allowed nevertheless.
           </para>
         </listitem>
       </varlistentry>
@@ -352,12 +368,12 @@ struct kdbus_cmd_match {
       matches uploaded by connections must also match the size, or a multiple
       thereof (see below).
 
-      The calculation of the mask has to be done on the userspace side. The
+      The calculation of the mask has to be done on the programs side. The
       kernel just checks the bitmasks to decide whether or not to let the
       message pass. All bits in the mask must match the filter in and bit-wise
       <emphasis>AND</emphasis> logic, but the mask may have more bits set than
       the filter. Consequently, false positive matches are expected to happen,
-      and userspace must deal with that fact by checking the contents of the
+      and programs must deal with that fact by checking the contents of the
       payload again at receive time.
     </para>
     <para>
@@ -400,7 +416,7 @@ struct kdbus_cmd_match {
 
         At match time, when a signal is about to be delivered, a bloom mask
         generation is passed, which denotes which of the bloom masks the filter
-        should be matched against. This allows userspace to provide backward
+        should be matched against. This allows programs to provide backward
         compatible masks at upload time, while older clients can still match
         against older versions of filters.
       </para>

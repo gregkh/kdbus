@@ -75,7 +75,7 @@
   <refsect1>
     <title>Accessing the pool memory</title>
     <para>
-      Memory is the pool is read-only for userspace and may only be written
+      Memory is the pool is read-only for programs and may only be written
       to by the kernel. To read from the pool memory, the caller is expected to
       <citerefentry>
         <refentrytitle>mmap</refentrytitle>
@@ -109,13 +109,13 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
       Alternatively, instead of mapping the entire pool buffer, only parts
       of it can be mapped. Every kdbus command that returns an
       <emphasis>offset</emphasis> (see above) also reports a
-      <emphasis>size</emphasis> along with it, so userspace can be written
+      <emphasis>size</emphasis> along with it, so programs can be written
       in a way that it only maps portions of the part to access a specific
       <emphasis>slice</emphasis>.
     </para>
 
     <para>
-      When access to the pool memory is no longer needed, userspace should
+      When access to the pool memory is no longer needed, programs should
       call <function>munmap</function> on the pointer returned by
       <function>mmap</function>.
     </para>
@@ -125,8 +125,8 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
     <title>Pool slice allocation</title>
     <para>
       Pool slices are allocated by the kernel in order to report information
-      back to a userspace task, such as messages, returned name list etc.
-      Allocation of pool slices cannot be initiated by userspace. See
+      back to a programs task, such as messages, returned name list etc.
+      Allocation of pool slices cannot be initiated by programs. See
       <citerefentry>
         <refentrytitle>kdbus.connection</refentrytitle>
         <manvolnum>7</manvolnum>
@@ -154,10 +154,9 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
 <programlisting>
 struct kdbus_cmd_free {
   __u64 size;
-  __u64 offset;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
+  __u64 offset;
   struct kdbus_item items[0];
 };
 </programlisting>
@@ -173,6 +172,25 @@ struct kdbus_cmd_free {
       </varlistentry>
 
       <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          Currently unused.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will return <errorcode>0</errorcode>,
+          and the <varname>flags</varname> field is set to
+          <constant>0</constant>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          <constant>0</constant> by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
         <term><varname>offset</varname></term>
         <listitem><para>
           The offset to free, as returned by other ioctls that allocated
@@ -181,26 +199,19 @@ struct kdbus_cmd_free {
       </varlistentry>
 
       <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>return_flags</varname></term>
-        <listitem><para>
-          Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
         <term><varname>items</varname></term>
         <listitem><para>
           Items to specify further details for the receive command.
-          Currently unused. All items will be rejected with
-          <constant>-EINVAL</constant>.
+          Currently unused.
+          Unrecognized items are rejected, and the ioctl will fail with
+          <varname>errno</varname> set to <constant>EINVAL</constant>.
+          All items except for
+          <constant>KDBUS_ITEM_NEGOTIATE</constant> (see
+            <citerefentry>
+              <refentrytitle>kdbus.item</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+          ) will be rejected. 
         </para></listitem>
       </varlistentry>
     </variablelist>

@@ -147,7 +147,7 @@
         Each connection allocates a piece of shmem-backed memory that is
         used to receive messages and answers to ioctl commands from the kernel.
         It is never used to send anything to the kernel. In order to access that
-        memory, a userspace application must mmap() it into its address space.
+        memory, a programs application must mmap() it into its address space.
         See
         <citerefentry>
           <refentrytitle>kdbus.pool</refentrytitle>
@@ -291,20 +291,19 @@
       Following is a list of all the ioctls.
     </para>
     <programlisting>
-0x40209500     KDBUS_CMD_BUS_MAKE           struct kdbus_cmd_make *
-0x40209510     KDBUS_CMD_ENDPOINT_MAKE      struct kdbus_cmd_make *
+0x40209500     KDBUS_CMD_BUS_MAKE           struct kdbus_cmd *
+0x40209510     KDBUS_CMD_ENDPOINT_MAKE      struct kdbus_cmd *
 0xc0689520     KDBUS_CMD_HELLO              struct kdbus_cmd_hello *
-0x00009521     KDBUS_CMD_BYEBYE
+0x00009521     KDBUS_CMD_BYEBYE             struct kdbus_cmd *
 0xc0489530     KDBUS_CMD_SEND               struct kdbus_cmd_send *
 0xc0489531     KDBUS_CMD_RECV               struct kdbus_cmd_recv *
 0x40289532     KDBUS_CMD_FREE               struct kdbus_cmd_free *
-0xc0209540     KDBUS_CMD_NAME_ACQUIRE       struct kdbus_cmd_name *
-0x40209541     KDBUS_CMD_NAME_RELEASE       struct kdbus_cmd_name *
-0xc0309542     KDBUS_CMD_LIST               struct kdbus_cmd_list *
+0xc0209540     KDBUS_CMD_NAME_ACQUIRE       struct kdbus_cmd *
+0x40209541     KDBUS_CMD_NAME_RELEASE       struct kdbus_cmd *
 0xc0389550     KDBUS_CMD_CONN_INFO          struct kdbus_cmd_info *
-0x40209551     KDBUS_CMD_CONN_UPDATE        struct kdbus_cmd_update *
+0x40209551     KDBUS_CMD_CONN_UPDATE        struct kdbus_cmd *
 0xc0389552     KDBUS_CMD_BUS_CREATOR_INFO   struct kdbus_cmd_info *
-0x40209561     KDBUS_CMD_ENDPOINT_UPDATE    struct kdbus_cmd_update *
+0x40209561     KDBUS_CMD_ENDPOINT_UPDATE    struct kdbus_cmd *
 0x40289570     KDBUS_CMD_MATCH_ADD          struct kdbus_cmd_match *
 0x40289571     KDBUS_CMD_MATCH_REMOVE       struct kdbus_cmd_match *
     </programlisting>
@@ -510,7 +509,7 @@
       </itemizedlist>
 
       <para>
-        Hence, userspace might not always get all requested metadata items that
+        Hence, programs might not always get all requested metadata items that
         it requested. Code must be written so that it can cope with this fact.
       </para>
     </refsect2>

@@ -39,10 +39,9 @@
       To create a custom endpoint, open the default endpoint
       (<constant>bus</constant>) and use the
       <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> ioctl with
-      <type>struct kdbus_cmd_make</type>. Custom endpoints
-      always have a policy database that, by default, forbids any operation.
-      You have to explicitly install policy entries to allow any operation on
-      this endpoint.
+      <type>struct kdbus_cmd</type>. Custom endpoints always have a policy
+      database that, by default, forbids any operation.  You have to explicitly
+      install policy entries to allow any operation on this endpoint.
     </para>
     <para>
       Once <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> succeeded, the new 
@@ -62,20 +61,16 @@
       This is required to avoid namespace clashes between different users. When
       creating an endpoint, the name that is passed in must be properly
       formatted or the kernel will refuse creation of the endpoint. Example:
-      <constant>"1047-foobar"</constant> is an acceptable name for an endpoint
-      registered by a user with UID 1047. However,
-      <constant>"1024-my-endpoint</constant> is not, and neither is
-      <constant>"my-endpoint"</constant>. The UID must be provided in the
+      <constant>1047-my-endpoint</constant> is an acceptable name for an
+      endpoint registered by a user with UID 1047. However,
+      <constant>1024-my-endpoint</constant> is not, and neither is
+      <constant>my-endpoint</constant>. The UID must be provided in the
       user-namespace of the bus.
     </para>
     <para>
       To create connections to a bus, use <constant>KDBUS_CMD_HELLO</constant>
-      on a file descriptor returned by
-      <citerefentry>
-        <refentrytitle>open</refentrytitle>
-        <manvolnum>2</manvolnum>
-      </citerefentry>
-      on an endpoint node. See
+      on a file descriptor returned by <function>open()</function> on an
+      endpoint node. See
       <citerefentry>
         <refentrytitle>kdbus.connection</refentrytitle>
         <manvolnum>7</manvolnum>
@@ -101,13 +96,12 @@
       </citerefentry>
       .
       <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> takes a
-      <type>struct kdbus_cmd_make</type> argument.
+      <type>struct kdbus_cmd</type> argument.
     </para>
     <programlisting>
-struct kdbus_cmd_make {
+struct kdbus_cmd {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   struct kdbus_item items[0];
 };
@@ -130,14 +124,28 @@ struct kdbus_cmd_make {
             <varlistentry>
               <term><constant>KDBUS_MAKE_ACCESS_GROUP</constant></term>
               <listitem>
-                <para>Make the endpoint file group-accessible</para>
+                <para>Make the endpoint file group-accessible.</para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
               <term><constant>KDBUS_MAKE_ACCESS_WORLD</constant></term>
               <listitem>
-                <para>Make the endpoint file world-accessible</para>
+                <para>Make the endpoint file world-accessible.</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
               </listitem>
             </varlistentry>
           </variablelist>
@@ -145,17 +153,10 @@ struct kdbus_cmd_make {
       </varlistentry>
 
       <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -208,13 +209,12 @@ struct kdbus_cmd_make {
       the endpoint that can be updated is the policy. When the command is
       employed, the policy of the endpoint is <emphasis>replaced</emphasis>
       atomically with the new set of rules.
-      The command takes a <type>struct kdbus_cmd_update</type> argument.
+      The command takes a <type>struct kdbus_cmd</type> argument.
     </para>
     <programlisting>
-struct kdbus_cmd_make {
+struct kdbus_cmd {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   struct kdbus_item items[0];
 };
@@ -234,13 +234,10 @@ struct kdbus_cmd_make {
         <term><varname>flags</varname></term>
         <listitem><para>
           Unused for this command.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will return <errorcode>0</errorcode>,
+          and the <varname>flags</varname> field is set to
+          <constant>0</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -248,7 +245,7 @@ struct kdbus_cmd_make {
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -275,6 +272,19 @@ struct kdbus_cmd_make {
                   provided.
                 </para>
               </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
             </varlistentry>
           </variablelist>
           <para>
@@ -303,7 +313,7 @@ struct kdbus_cmd_make {
         <varlistentry>
           <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in the <constant>struct kdbus_cmd_make</constant>
+            The flags supplied in the <type>struct kdbus_cmd</type>
             are invalid.
           </para></listitem>
         </varlistentry>
@@ -344,7 +354,7 @@ struct kdbus_cmd_make {
         <varlistentry>
           <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in the <constant>struct kdbus_cmd_update</constant>
+            The flags supplied in <type>struct kdbus_cmd</type>
             are invalid.
           </para></listitem>
         </varlistentry>

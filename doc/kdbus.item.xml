@@ -43,7 +43,7 @@
       into the ioctls. Some ioctls make items of certain types mandatory,
       others are optional. Items that are unsupported by ioctls they are
       attached to will cause the ioctl to fail with <varname>errno</varname>
-      set to <errorname>EINVAL</errorname>.
+      set to <constant>EINVAL</constant>.
       Items are also used for information stored in a connection's
       <emphasis>pool</emphasis>, such as received messages, name lists or
       requested connection or bus owner information. Depending on the type of
@@ -75,13 +75,13 @@
     <refsect2>
       <title>Iterating items</title>
       <para>
-        A simple iterator in userspace would iterate over the items until
+        A simple iterator in programs would iterate over the items until
         the items have reached the embedding structure's overall size.
         An example implementation is shown below.
       </para>
 
       <programlisting><![CDATA[
-#define KDBUS_ALIGN8(l) (((l) + 7) & ~7)
+#define KDBUS_ALIGN8(val) (((val) + 7) & ~7)
 
 #define KDBUS_ITEM_NEXT(item) \
     (typeof(item))(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
@@ -148,6 +148,26 @@ struct kdbus_item {
     <title>Item types</title>
 
     <refsect2>
+      <title>Negotiation item</title>
+      <variablelist>
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+          <listitem><para>
+            With this item is attached to any ioctl, programs can
+            <emphasis>probe</emphasis> the kernel for known item items.
+            The item carries an array of <type>uint64_t</type> values in
+            <varname>item.data64</varname>, each set to an item type to
+            probe. The kernel will reset each member of this array that is
+            not recognized as valid item type to <constant>0</constant>.
+            This way, users can negotiate kernel features at startup to
+            keep newer programs compatible with older kernels. This item
+            is never attached by the kernel in response to any command.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+
+    <refsect2>
       <title>Command specific items</title>
       <variablelist>
         <varlistentry>
@@ -166,8 +186,9 @@ struct kdbus_item {
             is used when <emphasis>sending</emphasis> message. The item
             references a memory address when the payload data can be found.
             <constant>KDBUS_ITEM_PAYLOAD_OFF</constant> is used when messages
-            are <emphasis>received</emphasis>, and the <constant>offset</constant>
-            value describes the offset inside the receiving connection's
+            are <emphasis>received</emphasis>, and the
+            <constant>offset</constant> value describes the offset inside the
+            receiving connection's
             <citerefentry>
               <refentrytitle>kdbus.pool</refentrytitle>
               <manvolnum>7</manvolnum>
@@ -222,7 +243,7 @@ struct kdbus_memfd {
           <term><constant>KDBUS_ITEM_FDS</constant></term>
           <listitem><para>
             Contains an array of <emphasis>file descriptors</emphasis>.
-            When used with <constant>KDBUS_CMD_SEND</constant>, userspace sets
+            When used with <constant>KDBUS_CMD_SEND</constant>, programs sets
             the values of this array with valid file descriptor numbers.
             When received as item attached to a message, the array will
             contain the numbers of the installed file descriptors, or
@@ -265,7 +286,7 @@ struct kdbus_memfd {
             Contains a set of <emphasis>bloom parameters</emphasis> as
             <type>struct kdbus_bloom_parameter</type> in
             <varname>item.bloom_parameter</varname>.
-            The item is passed from userspace to kernel during the
+            The item is passed from programs to kernel during the
             <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl, and returned
             verbatim when <constant>KDBUS_CMD_HELLO</constant> is called.
             The kernel does not use the bloom parameters, but they need to
@@ -293,7 +314,7 @@ struct kdbus_bloom_parameter {
             <varname>item.bloom_filter</varname>. It is mandatory to send this
             item attached to a <type>struct kdbus_msg</type>, in case the
             message is a signal. This item is never transported from kernel to
-            userspace. See
+            programs. See
             <citerefentry>
               <refentrytitle>kdbus.match</refentrytitle>
               <manvolnum>7</manvolnum>
@@ -343,8 +364,8 @@ struct kdbus_bloom_filter {
             Contains a <emphasis>bus name</emphasis> or
             <emphasis>endpoint name</emphasis>, stored as null-terminated
             string in <varname>item.str</varname>. This item is sent from
-            userspace to kernel when buses or endpoints are created, and
-            returned back to userspace when the bus creator information is
+            programs to kernel when buses or endpoints are created, and
+            returned back to programs when the bus creator information is
             queried. See
             <citerefentry>
               <refentrytitle>kdbus.bus</refentrytitle>
@@ -384,7 +405,7 @@ struct kdbus_bloom_filter {
           <term><constant>KDBUS_ITEM_ID</constant></term>
           <listitem><para>
             Transports a connection's <emphasis>numerical ID</emphasis> of
-            a connection as <constant>u64</constant> value in
+            a connection as <type>uint64_t</type> value in
             <varname>item.id</varname>.
           </para></listitem>
         </varlistentry>
@@ -395,7 +416,7 @@ struct kdbus_bloom_filter {
             Transports a name associated with the
             <emphasis>name registry</emphasis> as null-terminated string as
             <type>struct kdbus_name</type> in
-            <varname>item.name</varname>. The <varname> flags</varname>
+            <varname>item.name</varname>. The <varname>flags</varname>
             contains the flags of the name. See
             <citerefentry>
               <refentrytitle>kdbus.name</refentrytitle>
@@ -438,9 +459,9 @@ struct kdbus_timestamp {
         <varlistentry>
           <term><constant>KDBUS_ITEM_CREDS</constant></term>
           <listitem><para>
-            Contains credentials such as the <emphasis>user</emphasis> and
-            <emphasis>group</emphasis> in the usual four flavors:
-            real, effective, saved and file-system related.
+            Contains a set of <emphasis>user</emphasis> and
+            <emphasis>group</emphasis> information as 32-bit values, in the
+            usual four flavors: real, effective, saved and file-system related.
             Stored as <type>struct kdbus_creds</type> in
             <varname>item.creds</varname>.
             <programlisting>
@@ -480,10 +501,10 @@ struct kdbus_pids {
           <listitem><para>
             Contains the <emphasis>auxiliary (supplementary) groups</emphasis>
             a remote peer is a member of, stored as array of
-            <type>u32</type> values in <varname>item.data32</varname>.
+            <type>uint32_t</type> values in <varname>item.data32</varname>.
             The array length can be determined by looking at the item's total
             size, substracting the size of the header and and dividing the
-            remainder by <constant>sizeof(u32)</constant>.
+            remainder by <constant>sizeof(uint32_t)</constant>.
           </para></listitem>
         </varlistentry>
 
@@ -556,7 +577,7 @@ struct kdbus_pids {
           <listitem><para>
             Contains sets of <emphasis>capabilities</emphasis>, stored as
             <type>struct kdbus_caps</type> in <varname>item.caps</varname>.
-            As the item size may increas in the future, userspace should be
+            As the item size may increas in the future, programs should be
             written in a way that it takes
             <varname>item.caps.last_cap</varname> into account, and derive
             the number of sets and rows from the item size and the reported

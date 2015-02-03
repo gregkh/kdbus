@@ -31,11 +31,12 @@
       connection IDs for message delivery. The registry will be queried when a
       message is sent with <varname>kdbus_msg.dst_id</varname> set to
       <constant>KDBUS_DST_ID_NAME</constant>, or when a registry dump is
-      requested.
+      requested with <constant>KDBUS_CMD_NAME_LIST</constant>.
     </para>
 
     <para>
-      All of the below is subject to policy rules for SEE and OWN permissions.
+      All of the below is subject to policy rules for <emphasis>SEE</emphasis>
+      and <emphasis>OWN</emphasis> permissions.
       See
       <citerefentry>
         <refentrytitle>kdbus.policy</refentrytitle>
@@ -48,14 +49,15 @@
   <refsect1>
     <title>Name validity</title>
     <para>
-      A name has to comply with the following rules to be considered valid.
+      A name has to comply with the following rules in order to be considered
+      valid.
     </para>
 
     <itemizedlist mark='opencircle'>
       <listitem>
         <para>
           The name has two or more elements separated by a
-          <constant>.'</constant> (period) character.
+          '<constant>.</constant>' (period) character.
         </para>
       </listitem>
       <listitem>
@@ -66,20 +68,20 @@
       <listitem>
         <para>
           Each element must only contain the ASCII characters
-          <constant>[A-Z][a-z][0-9]_"</constant> and must not begin with a
+          <constant>[A-Z][a-z][0-9]_</constant> and must not begin with a
           digit.
         </para>
       </listitem>
       <listitem>
         <para>
-          The name must contain at least one <constant>.</constant> (period)
-          character (and thus at least two elements)
+          The name must contain at least one '<constant>.</constant>' (period)
+          character (and thus at least two elements).
         </para>
       </listitem>
       <listitem>
         <para>
-          The name must not begin with a <constant>.</constant> (period)
-          character
+          The name must not begin with a '<constant>.</constant>' (period)
+          character.
         </para>
       </listitem>
       <listitem>
@@ -95,15 +97,14 @@
     <title>Acquiring a name</title>
     <para>
       To acquire a name, a client uses the
-      <constant>KDBUS_CMD_NAME_ACQUIRE</constant> ioctl with the following data
-      structure.
+      <constant>KDBUS_CMD_NAME_ACQUIRE</constant> ioctl with
+      <type>struct kdbus_cmd</type> as argument.
     </para>
 
     <programlisting>
-struct kdbus_cmd_name {
+struct kdbus_cmd {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   struct kdbus_item items[0];
 };
@@ -165,22 +166,32 @@ struct kdbus_cmd_name {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Request a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will fail with
+                  <errorcode>-1</errorcode>, and <varname>errno</varname>
+                  is set to <constant>EPROTO</constant>.
+                  Once the ioctl returned, the <varname>flags</varname>
+                  field will have all bits set that the kernel recognizes as
+                  valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
       </varlistentry>
 
       <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -191,6 +202,14 @@ struct kdbus_cmd_name {
             Items to submit the name. Currently, one item of type
             <constant>KDBUS_ITEM_NAME</constant> is expected and allowed, and
             the contained string must be a valid bus name.
+            <constant>KDBUS_ITEM_NEGOTIATE</constant> may be used to probe for
+            valid item types.
+            See
+            <citerefentry>
+              <refentrytitle>kdbus.item</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for a detailed description of how this item is used.
           </para>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
@@ -225,10 +244,9 @@ struct kdbus_cmd_name {
     </para>
 
     <programlisting>
-struct kdbus_cmd_name {
+struct kdbus_cmd {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   struct kdbus_item items[0];
 };
@@ -247,14 +265,11 @@ struct kdbus_cmd_name {
       <varlistentry>
         <term><varname>flags</varname></term>
         <listitem><para>
-          Flags to the command. Currently unused and must be zero.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
+          Flags to the command. Currently unused.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will return <errorcode>0</errorcode>,
+          and the <varname>flags</varname> field is set to
+          <constant>0</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -262,7 +277,7 @@ struct kdbus_cmd_name {
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -273,6 +288,14 @@ struct kdbus_cmd_name {
             Items to submit the name. Currently, one item of type
             <constant>KDBUS_ITEM_NAME</constant> is expected and allowed, and
             the contained string must be a valid bus name.
+            <constant>KDBUS_ITEM_NEGOTIATE</constant> may be used to probe for
+            valid item types.
+            See
+            <citerefentry>
+              <refentrytitle>kdbus.item</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for a detailed description of how this item is used.
           </para>
           <para>
             Unrecognized items are rejected, and the ioctl will fail with
@@ -294,7 +317,6 @@ struct kdbus_cmd_name {
     <programlisting>
 struct kdbus_cmd_list {
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   __u64 offset;
 };
@@ -348,22 +370,32 @@ struct kdbus_cmd_list {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Request a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will fail with
+                  <errorcode>-1</errorcode>, and <varname>errno</varname>
+                  is set to <constant>EPROTO</constant>.
+                  Once the ioctl returned, the <varname>flags</varname>
+                  field will have all bits set that the kernel recognizes as
+                  valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
       </varlistentry>
 
       <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -377,9 +409,10 @@ struct kdbus_cmd_list {
     </variablelist>
 
     <para>
-      The returned list of names is stored in an array of
-      <varname>struct kdbus_info</varname>. The array-size in bytes is given
-      as <varname>list_size</varname>.
+      The returned list of names is stored in a <type>struct kdbus_list</type>
+      that in turn contains an array of type <type>struct kdbus_info</type>,
+      The array-size in bytes is given as <varname>list_size</varname>.
+      The fields inside <type>struct kdbus_info</type> is described next.
     </para>
 
     <programlisting>
@@ -452,7 +485,7 @@ struct kdbus_info {
               <listitem>
                 <para>
                   An activator connection owns a name as a placeholder for an
-                  implementer, which is started on demand by userspace as soon
+                  implementer, which is started on demand by programs as soon
                   as the first message arrives. There's some more information
                   on this topic in 
                   <citerefentry>
@@ -478,6 +511,19 @@ struct kdbus_info {
               </listitem>
             </varlistentry>
 
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
       </varlistentry>
@@ -612,7 +658,25 @@ struct kdbus_info {
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.items</refentrytitle>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.policy</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

@@ -30,8 +30,8 @@
         <manvolnum>7</manvolnum>
       </citerefentry>
       ).
-      Each bus is independent and operations on the bus will not have any
-      effect on other buses. A bus is a management entity, that controls the
+      Each bus is independent, and operations on the bus will not have any
+      effect on other buses. A bus is a management entity that controls the
       addresses of its connections, their policies and message transactions
       performed via this bus.
     </para>
@@ -45,18 +45,19 @@
       , a bus is presented as a directory. No operations can be performed on
       the bus itself; instead you need to perform the operations on an endpoint
       associated with the bus. Endpoints are accessible as files underneath the
-      bus directory. A default endpoint called "bus" is provided on each bus.
+      bus directory. A default endpoint called <constant>bus</constant> is
+      provided on each bus.
     </para>
     <para>
-      Bus names may be chosen freely except for one restriction: the name
-      must be prefixed with the numeric effective UID of the creator and a
-      dash. This is required to avoid namespace clashes between different users.
-      When creating a bus, that name that is passed in must be properly
-      formatted, or the kernel will refuse creation of the bus. Example:
-      <constant>"1047-foobar"</constant> is an acceptable name for a bus
+      Bus names may be chosen freely except for one restriction: the name must
+      be prefixed with the numeric effective UID of the creator and a dash. This
+      is required to avoid namespace clashes between different users.  When
+      creating a bus, the name that is passed in must be properly formatted, or
+      the kernel will refuse creation of the bus. Example:
+      <constant>1047-foobar</constant> is an acceptable name for a bus
       registered by a user with UID 1047. However,
-      <constant>"1024-foobar"</constant> is not, and neither is
-      <constant>"foobar"</constant>. The UID must be provided in the
+      <constant>1024-foobar</constant> is not, and neither is
+      <constant>foobar</constant>. The UID must be provided in the
       user-namespace of the bus owner.
     </para>
     <para>
@@ -67,7 +68,7 @@
       used for any other control-ioctl and must be kept open for the entire
       life-time of the created bus. Closing it will immediately cleanup the
       entire bus and all its associated resources and endpoints. Every control
-      file descriptor can only be used to create a single new bus; from that
+      file-descriptor can only be used to create a single new bus; from that
       point on, it is not used for any further communication until the final
       <citerefentry>
         <refentrytitle>close</refentrytitle>
@@ -78,27 +79,26 @@
     <para>
       Each bus will generate a random, 128-bit UUID upon creation. This UUID
       will be returned to creators of connections through
-      <varname>kdbus_cmd_hello.id128</varname> and can be used by userspace to
-      uniquely identify buses, even across different machines or containers. The
-      UUID will have its variant bits set to '<constant>DCE</constant>', and
-      denote version 4 (random). For more details on UUIDs, see
-      <ulink url="https://en.wikipedia.org/wiki/Universally_unique_identifier">
-      the Wikipedia entry on UUIDs</ulink>.
+      <varname>kdbus_cmd_hello.id128</varname> and can be used to uniquely
+      identify buses, even across different machines or containers. The UUID
+      will have its variant bits set to '<constant>DCE</constant>', and denote
+      version 4 (random). For more details on UUIDs, see <ulink
+      url="https://en.wikipedia.org/wiki/Universally_unique_identifier">
+      the Wikipedia article on UUIDs</ulink>.
     </para>
 
   </refsect1>
 
   <refsect1>
-    <title>Creating buses and endpoints</title>
+    <title>Creating buses</title>
     <para>
       To create a new bus, the <constant>KDBUS_CMD_BUS_MAKE</constant>
-      command is used. It takes a <type>struct kdbus_cmd_make</type> argument.
+      command is used. It takes a <type>struct kdbus_cmd</type> argument.
     </para>
     <programlisting>
-struct kdbus_cmd_make {
+struct kdbus_cmd {
   __u64 size;
   __u64 flags;
-  __u64 kernel_flags;
   __u64 return_flags;
   struct kdbus_item items[0];
 };
@@ -121,14 +121,28 @@ struct kdbus_cmd_make {
             <varlistentry>
               <term><constant>KDBUS_MAKE_ACCESS_GROUP</constant></term>
               <listitem>
-                <para>Make the bus or endpoint file group-accessible</para>
+                <para>Make the bus file group-accessible.</para>
               </listitem>
             </varlistentry>
 
             <varlistentry>
               <term><constant>KDBUS_MAKE_ACCESS_WORLD</constant></term>
               <listitem>
-                <para>Make the bus or endpoint file world-accessible</para>
+                <para>Make the bus file world-accessible.</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
               </listitem>
             </varlistentry>
           </variablelist>
@@ -136,17 +150,10 @@ struct kdbus_cmd_make {
       </varlistentry>
 
       <varlistentry>
-        <term><varname>kernel_flags</varname></term>
-        <listitem><para>
-          Valid flags for this command, returned by the kernel upon each call.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
-          zero by the kernel.
+          <constant>0</constant> by the kernel.
         </para></listitem>
       </varlistentry>
 
@@ -169,7 +176,7 @@ struct kdbus_cmd_make {
                   Contains a null-terminated string that identifies the
                   bus. The name must be unique across the kdbus domain and
                   must start with the effective UID of the caller, followed by
-                  a '-'. This item is mandatory.
+                  a '<constant>-</constant>' (dash). This item is mandatory.
                 </para>
               </listitem>
             </varlistentry>
@@ -216,6 +223,19 @@ struct kdbus_cmd_make {
                 </para>
               </listitem>
             </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
           </variablelist>
         </listitem>
       </varlistentry>
@@ -251,9 +271,9 @@ struct kdbus_cmd_make {
         <varlistentry>
           <term><constant>EINVAL</constant></term>
           <listitem><para>
-            The flags supplied in the <constant>struct kdbus_cmd_make</constant>
+            The flags supplied in the <constant>struct kdbus_cmd</constant>
             are invalid or the supplied name does not start with the current
-            UID and a '-'.
+            UID and a '<constant>-</constant>' (dash).
           </para></listitem>
         </varlistentry>
 
