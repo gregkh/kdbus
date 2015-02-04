@@ -637,11 +637,7 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 	init_sync_kiocb(&kiocb, f);
 	kiocb.ki_pos = slice->off + off;
 	kiocb.ki_nbytes = total_len;
-
-	/* FIXME: replace with iov_iter_kvec() once 3.19-rc1 is out */
-	iov_iter_init(&iter, WRITE | ITER_KVEC, (struct iovec *)kvec,
-		      kvec_len, total_len);
-
+	iov_iter_kvec(&iter, WRITE | ITER_KVEC, kvec, kvec_len, total_len);
 	len = f->f_op->write_iter(&kiocb, &iter);
 	set_fs(old_fs);
 
