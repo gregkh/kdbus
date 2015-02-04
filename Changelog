@@ -1,3 +1,18 @@
+since v3:
+
+  * Drop KDBUS_FLAG_KERNEL and the 'kernel_flags' member from all
+    struct kdbus_cmd_*, and introduce a new KDBUS_FLAGS_NEGOTIATE
+    instead. Requested by Michael Kerrisk.
+
+  * Transform kdbus.txt into DocBook man-pages for better readablity,
+    and extend the documentation significantly. Requested by Michael
+    Kerrisk and Christoph Hellwig.
+
+  * Consolidate some 'struct kdbus_cmd_*' types to make the API
+    interface easier to grasp.
+
+  * Some internal restructuring and cleanups.
+
 since v2:
 
   * Add FS_USERNS_MOUNT to the file system flags, so users can mount
