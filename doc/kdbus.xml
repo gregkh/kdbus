@@ -287,26 +287,179 @@
       </citerefentry>.
     </para>
     <para>
-      Following is a list of all the ioctls.
+      Following is a list of all the ioctls, along with the command structs
+      they must be used with.
     </para>
-    <programlisting>
-0x40189500     KDBUS_CMD_BUS_MAKE           struct kdbus_cmd *
-0x40189510     KDBUS_CMD_ENDPOINT_MAKE      struct kdbus_cmd *
-0xc0609580     KDBUS_CMD_HELLO              struct kdbus_cmd_hello *
-0x40189582     KDBUS_CMD_BYEBYE             struct kdbus_cmd *
-0x40389590     KDBUS_CMD_SEND               struct kdbus_cmd_send *
-0x80409591     KDBUS_CMD_RECV               struct kdbus_cmd_recv *
-0x40209583     KDBUS_CMD_FREE               struct kdbus_cmd_free *
-0x401895a0     KDBUS_CMD_NAME_ACQUIRE       struct kdbus_cmd *
-0x401895a1     KDBUS_CMD_NAME_RELEASE       struct kdbus_cmd *
-0x80289586     KDBUS_CMD_LIST               struct kdbus_cmd_list *
-0x80309584     KDBUS_CMD_CONN_INFO          struct kdbus_cmd_info *
-0x40209551     KDBUS_CMD_UPDATE             struct kdbus_cmd *
-0x80309585     KDBUS_CMD_BUS_CREATOR_INFO   struct kdbus_cmd_info *
-0x40189511     KDBUS_CMD_ENDPOINT_UPDATE    struct kdbus_cmd *
-0x402095b0     KDBUS_CMD_MATCH_ADD          struct kdbus_cmd_match *
-0x402095b1     KDBUS_CMD_MATCH_REMOVE       struct kdbus_cmd_match *
-    </programlisting>
+
+    <informaltable frame="none">
+      <tgroup cols="3" colsep="1">
+        <thead>
+          <row>
+            <entry>ioctl signature</entry>
+            <entry>command</entry>
+            <entry>transported struct</entry>
+          </row>
+        </thead>
+        <tbody>
+          <row>
+            <entry><constant>0x40189500</constant></entry>
+            <entry><constant>KDBUS_CMD_BUS_MAKE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x40189510</constant></entry>
+            <entry><constant>KDBUS_CMD_ENDPOINT_MAKE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0xc0609580</constant></entry>
+            <entry><constant>KDBUS_CMD_HELLO</constant></entry>
+            <entry><type>struct kdbus_cmd_hello *</type></entry>
+          </row><row>
+            <entry><constant>0x40189582</constant></entry>
+            <entry><constant>KDBUS_CMD_BYEBYE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x40389590</constant></entry>
+            <entry><constant>KDBUS_CMD_SEND</constant></entry>
+            <entry><type>struct kdbus_cmd_send *</type></entry>
+          </row><row>
+            <entry><constant>0x80409591</constant></entry>
+            <entry><constant>KDBUS_CMD_RECV</constant></entry>
+            <entry><type>struct kdbus_cmd_recv *</type></entry>
+          </row><row>
+            <entry><constant>0x40209583</constant></entry>
+            <entry><constant>KDBUS_CMD_FREE</constant></entry>
+            <entry><type>struct kdbus_cmd_free *</type></entry>
+          </row><row>
+            <entry><constant>0x401895a0</constant></entry>
+            <entry><constant>KDBUS_CMD_NAME_ACQUIRE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x401895a1</constant></entry>
+            <entry><constant>KDBUS_CMD_NAME_RELEASE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x80289586</constant></entry>
+            <entry><constant>KDBUS_CMD_LIST</constant></entry>
+            <entry><type>struct kdbus_cmd_list *</type></entry>
+          </row><row>
+            <entry><constant>0x80309584</constant></entry>
+            <entry><constant>KDBUS_CMD_CONN_INFO</constant></entry>
+            <entry><type>struct kdbus_cmd_info *</type></entry>
+          </row><row>
+            <entry><constant>0x40209551</constant></entry>
+            <entry><constant>KDBUS_CMD_UPDATE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x80309585</constant></entry>
+            <entry><constant>KDBUS_CMD_BUS_CREATOR_INFO</constant></entry>
+            <entry><type>struct kdbus_cmd_info *</type></entry>
+          </row><row>
+            <entry><constant>0x40189511</constant></entry>
+            <entry><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x402095b0</constant></entry>
+            <entry><constant>KDBUS_CMD_MATCH_ADD</constant></entry>
+            <entry><type>struct kdbus_cmd_match *</type></entry>
+          </row><row>
+            <entry><constant>0x402095b1</constant></entry>
+            <entry><constant>KDBUS_CMD_MATCH_REMOVE</constant></entry>
+            <entry><type>struct kdbus_cmd_match *</type></entry>
+          </row>
+        </tbody>
+      </tgroup>
+    </informaltable>
+
+    <para>
+      The following ioctls change the kdbus type of the file-descriptor.
+    </para>
+
+    <informaltable frame="none">
+      <tgroup cols="3" colsep="1">
+        <thead>
+          <row>
+            <entry>command</entry>
+            <entry>before call</entry>
+            <entry>after call</entry>
+          </row>
+        </thead>
+        <tbody>
+          <row>
+            <entry><constant>KDBUS_CMD_BUS_MAKE</constant></entry>
+            <entry>control</entry>
+            <entry>bus</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_ENDPOINT_MAKE</constant></entry>
+            <entry>bus</entry>
+            <entry>endpoint</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_HELLO</constant></entry>
+            <entry>bus</entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_BYEBYE</constant></entry>
+            <entry>connection</entry>
+            <entry>invalid</entry>
+          </row>
+        </tbody>
+      </tgroup>
+    </informaltable>
+
+    <para>
+      The other ioctls do not alter the kdbus file-descriptor type, but, as
+      all ioctls, they must still be used with the correct type of
+      file-descriptor:
+    </para>
+
+    <informaltable frame="none">
+      <tgroup cols="3" colsep="1">
+        <thead>
+          <row>
+            <entry>command</entry>
+            <entry>file-descriptor type</entry>
+          </row>
+        </thead>
+        <tbody>
+          <row>
+            <entry><constant>KDBUS_CMD_SEND</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_RECV</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_FREE</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_NAME_ACQUIRE</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_NAME_RELEASE</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_LIST</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_CONN_INFO</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_UPDATE</constant></entry>
+            <entry>connection or endpoint</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_BUS_CREATOR_INFO</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant></entry>
+            <entry>endpoint</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_MATCH_ADD</constant></entry>
+            <entry>connection</entry>
+          </row><row>
+            <entry><constant>KDBUS_CMD_MATCH_REMOVE</constant></entry>
+            <entry>connection</entry>
+          </row>
+        </tbody>
+      </tgroup>
+    </informaltable>
 
     <para>
       These ioctls, along with the structs they transport, are explained in
