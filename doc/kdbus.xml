@@ -524,24 +524,24 @@
     </para>
 
     <programlisting><![CDATA[
-                                          Bus Creator
-                                               |
-                                               |
-                                            +-----+
-                                            | Bus |
-                                            +-----+
-                                               |
-                    __________________________/ \__________________________
-                   /                                                       \
-                   |                                                       |
-             +----------+                                             +----------+
-             | Endpoint |                                             | Endpoint |
-             +----------+                                             +----------+
-         _________/|\_________                                   _________/|\_________
-        /          |          \                                 /          |          \
-        |          |          |                                 |          |          |
-        |          |          |                                 |          |          |
-   Connection  Connection  Connection                      Connection  Connection  Connection
+                                  Bus Creator
+                                       |
+                                       |
+                                    +-----+
+                                    | Bus |
+                                    +-----+
+                                       |
+                    __________________/ \__________________
+                   /                                       \
+                   |                                       |
+             +----------+                             +----------+
+             | Endpoint |                             | Endpoint |
+             +----------+                             +----------+
+         _________/|\_________                   _________/|\_________
+        /          |          \                 /          |          \
+        |          |          |                 |          |          |
+        |          |          |                 |          |          |
+   Connection  Connection  Connection      Connection  Connection  Connection
     ]]></programlisting>
 
   </refsect1>
