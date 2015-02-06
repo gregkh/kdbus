@@ -1358,13 +1358,17 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	kdbus_kvec_set(&kvec[0], &items, sizeof(items), &items.size);
 	kdbus_kvec_set(&kvec[1], &bloom_item, bloom_item.size, &items.size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, items.size, kvec, NULL,
-				       ARRAY_SIZE(kvec));
+	slice = kdbus_pool_slice_alloc(conn->pool, items.size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit_unref;
 	}
+
+	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec, ARRAY_SIZE(kvec),
+					 items.size);
+	if (ret < 0)
+		goto exit_unref;
 
 	kdbus_pool_slice_publish(slice, &hello->offset, &hello->items_size);
 	kdbus_pool_slice_release(slice);
@@ -1918,20 +1922,28 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	kdbus_kvec_set(&kvec[0], &info, sizeof(info), &info.size);
 	kdbus_kvec_set(&kvec[1], meta_items, meta_size, &info.size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size,
-				       kvec, NULL, ARRAY_SIZE(kvec));
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit;
 	}
 
+	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec,
+					 ARRAY_SIZE(kvec), info.size);
+	if (ret < 0)
+		goto exit;
+
 	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->info_size);
 
 	if (kdbus_member_set_user(&cmd->offset, argp, typeof(*cmd), offset) ||
 	    kdbus_member_set_user(&cmd->info_size, argp,
-				  typeof(*cmd), info_size))
+				  typeof(*cmd), info_size)) {
 		ret = -EFAULT;
+		goto exit;
+	}
+
+	ret = 0;
 
 exit:
 	kdbus_pool_slice_release(slice);

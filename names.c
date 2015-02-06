@@ -892,7 +892,7 @@ int kdbus_cmd_list(struct kdbus_conn *conn, void __user *argp)
 	if (ret < 0)
 		goto exit_unlock;
 
-	slice = kdbus_pool_slice_alloc(conn->pool, size, NULL, NULL, 0);
+	slice = kdbus_pool_slice_alloc(conn->pool, size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;

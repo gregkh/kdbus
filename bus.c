@@ -576,13 +576,18 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 	if (meta_items && meta_size)
 		kdbus_kvec_set(&kvec[cnt++], meta_items, meta_size, &info.size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size, kvec, NULL, cnt);
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit;
 	}
 
+	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec, cnt, info.size);
+	if (ret < 0)
+		goto exit;
+
+	ret = 0;
 	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->info_size);
 
 	if (kdbus_member_set_user(&cmd->offset, argp, typeof(*cmd), offset) ||

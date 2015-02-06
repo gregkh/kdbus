@@ -201,18 +201,12 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * Return: the allocated slice on success, ERR_PTR on failure.
  */
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-						size_t size,
-						struct kvec *kvec,
-						struct iovec *iovec,
-						size_t vec_count)
+						size_t size)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
 	struct rb_node *n, *found = NULL;
 	struct kdbus_pool_slice *s;
 	int ret = 0;
-
-	if (WARN_ON(kvec && iovec))
-		return ERR_PTR(-EINVAL);
 
 	/* search a free slice with the closest matching size */
 	mutex_lock(&pool->lock);
@@ -268,17 +262,6 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	s->free = false;
 	pool->busy += s->size;
 	mutex_unlock(&pool->lock);
-
-	if (kvec)
-		ret = kdbus_pool_slice_copy_kvec(s, 0, kvec, vec_count, size);
-
-	if (iovec)
-		ret = kdbus_pool_slice_copy_iovec(s, 0, iovec, vec_count, size);
-
-	if (ret < 0) {
-		kdbus_pool_slice_release(s);
-		return ERR_PTR(ret);
-	}
 
 	return s;
 
@@ -735,8 +718,7 @@ int kdbus_pool_slice_move(struct kdbus_pool *pool_dst,
 	struct kdbus_pool_slice *slice_new;
 	int ret;
 
-	slice_new = kdbus_pool_slice_alloc(pool_dst, (*slice)->size,
-					   NULL, NULL, 0);
+	slice_new = kdbus_pool_slice_alloc(pool_dst, (*slice)->size);
 	if (IS_ERR(slice_new))
 		return PTR_ERR(slice_new);
 
