@@ -9,12 +9,12 @@
 #include <errno.h>
 #include <assert.h>
 #include <sys/capability.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <linux/unistd.h>
 
+#include "kdbus-api.h"
 #include "kdbus-test.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -63,9 +63,8 @@ static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 	h.hello.size = sizeof(h);
 	h.hello.pool_size = POOL_SIZE;
 
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
+	ret = kdbus_cmd_hello(fd, (struct kdbus_cmd_hello *) &h.hello);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
@@ -75,7 +74,7 @@ static struct kdbus_conn *__kdbus_hello(const char *path, uint64_t flags,
 
 	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = h.hello.offset;
-	ret = ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	ret = kdbus_cmd_free(fd, &cmd_free);
 	if (ret < 0)
 		return NULL;
 
@@ -726,7 +725,7 @@ int kdbus_test_attach_flags(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/*
-	 * Test the CONN_INFO ioctl attach flags
+	 * Test the CONN_INFO attach flags
 	 */
 	ret = kdbus_test_peers_info(env);
 	/* Restore previous kdbus mask */

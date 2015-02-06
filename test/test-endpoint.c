@@ -9,10 +9,10 @@
 #include <assert.h>
 #include <libgen.h>
 #include <sys/capability.h>
-#include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <stdbool.h>
 
+#include "kdbus-api.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
@@ -41,7 +41,7 @@ static int install_name_add_match(struct kdbus_conn *conn, const char *name)
 	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(conn->fd, &buf.cmd);
 	if (ret < 0)
 		return ret;
 
@@ -52,7 +52,7 @@ static int create_endpoint(const char *buspath, uid_t uid, const char *name,
 			   uint64_t flags)
 {
 	struct {
-		struct kdbus_cmd head;
+		struct kdbus_cmd cmd;
 
 		/* name item */
 		struct {
@@ -80,13 +80,11 @@ static int create_endpoint(const char *buspath, uid_t uid, const char *name,
 	ep_make.name.size = KDBUS_ITEM_HEADER_SIZE +
 			    strlen(ep_make.name.str) + 1;
 
-	ep_make.head.flags = flags;
-	ep_make.head.size = sizeof(ep_make.head) +
-			    ep_make.name.size;
+	ep_make.cmd.flags = flags;
+	ep_make.cmd.size = sizeof(ep_make.cmd) + ep_make.name.size;
 
-	ret = ioctl(fd, KDBUS_CMD_ENDPOINT_MAKE, &ep_make);
+	ret = kdbus_cmd_endpoint_make(fd, &ep_make.cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error creating endpoint: %d (%m)\n", ret);
 		return ret;
 	}
@@ -163,7 +161,7 @@ static int update_endpoint(int fd, const char *name)
 {
 	int len = strlen(name) + 1;
 	struct {
-		struct kdbus_cmd head;
+		struct kdbus_cmd cmd;
 
 		/* name item */
 		struct {
@@ -191,11 +189,10 @@ static int update_endpoint(int fd, const char *name)
 	ep_update.access.access.type = KDBUS_POLICY_ACCESS_WORLD;
 	ep_update.access.access.access = KDBUS_POLICY_SEE;
 
-	ep_update.head.size = sizeof(ep_update);
+	ep_update.cmd.size = sizeof(ep_update);
 
-	ret = ioctl(fd, KDBUS_CMD_ENDPOINT_UPDATE, &ep_update);
+	ret = kdbus_cmd_endpoint_update(fd, &ep_update.cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error updating endpoint: %d (%m)\n", ret);
 		return ret;
 	}

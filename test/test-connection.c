@@ -10,12 +10,12 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <sys/capability.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <stdbool.h>
 
+#include "kdbus-api.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
@@ -38,35 +38,35 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	hello.pool_size = POOL_SIZE;
 
 	/* an unaligned hello must result in -EFAULT */
-	ret = ioctl(fd, KDBUS_CMD_HELLO, (char *) &hello + 1);
-	ASSERT_RETURN(ret == -1 && errno == EFAULT);
+	ret = kdbus_cmd_hello(fd, (struct kdbus_cmd_hello *) ((char *) &hello + 1));
+	ASSERT_RETURN(ret == -EFAULT);
 
 	/* a size of 0 must return EMSGSIZE */
 	hello.size = 1;
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	ret = kdbus_cmd_hello(fd, &hello);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	hello.size = sizeof(struct kdbus_cmd_hello);
 
 	/* check faulty flags */
 	hello.flags = 1ULL << 32;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	ret = kdbus_cmd_hello(fd, &hello);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	/* check for faulty pool sizes */
 	hello.pool_size = 0;
 	hello.flags = KDBUS_HELLO_ACCEPT_FD;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	ret = kdbus_cmd_hello(fd, &hello);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	hello.pool_size = 4097;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	ret = kdbus_cmd_hello(fd, &hello);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	hello.pool_size = POOL_SIZE;
 
@@ -76,21 +76,21 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 	 * -ECONNREFUSED.
 	 */
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL & ~KDBUS_ATTACH_TIMESTAMP;
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == ECONNREFUSED);
+	ret = kdbus_cmd_hello(fd, &hello);
+	ASSERT_RETURN(ret == -ECONNREFUSED);
 
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 	hello.offset = (__u64)-1;
 
 	/* success test */
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
+	ret = kdbus_cmd_hello(fd, &hello);
 	ASSERT_RETURN(ret == 0);
 
 	/* The kernel should have returned some items */
 	ASSERT_RETURN(hello.offset != (__u64)-1);
 	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = hello.offset;
-	ret = ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	ret = kdbus_cmd_free(fd, &cmd_free);
 	ASSERT_RETURN(ret >= 0);
 
 	close(fd);
@@ -100,8 +100,8 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 
 	/* no ACTIVATOR flag without a name */
 	hello.flags = KDBUS_HELLO_ACTIVATOR;
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	ret = kdbus_cmd_hello(fd, &hello);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	close(fd);
 
@@ -111,7 +111,7 @@ int kdbus_test_hello(struct kdbus_test_env *env)
 int kdbus_test_byebye(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *conn;
-	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
+	struct kdbus_cmd_recv cmd_recv = { .size = sizeof(cmd_recv) };
 	struct kdbus_cmd cmd_byebye = { .size = sizeof(cmd_byebye) };
 	int ret;
 
@@ -131,23 +131,23 @@ int kdbus_test_byebye(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == 0);
 
 	/* say byebye on the 2nd, which must fail */
-	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
-	ASSERT_RETURN(ret == -1 && errno == EBUSY);
+	ret = kdbus_cmd_byebye(conn->fd, &cmd_byebye);
+	ASSERT_RETURN(ret == -EBUSY);
 
 	/* receive the message */
-	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
+	ret = kdbus_cmd_recv(conn->fd, &cmd_recv);
 	ASSERT_RETURN(ret == 0);
 
-	ret = kdbus_free(conn, recv.msg.offset);
+	ret = kdbus_free(conn, cmd_recv.msg.offset);
 	ASSERT_RETURN(ret == 0);
 
 	/* and try again */
-	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
+	ret = kdbus_cmd_byebye(conn->fd, &cmd_byebye);
 	ASSERT_RETURN(ret == 0);
 
 	/* a 2nd try should result in -ECONNRESET */
-	ret = ioctl(conn->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
-	ASSERT_RETURN(ret == -1 && errno == ECONNRESET);
+	ret = kdbus_cmd_byebye(conn->fd, &cmd_byebye);
+	ASSERT_RETURN(ret == -ECONNRESET);
 
 	kdbus_conn_free(conn);
 
@@ -474,8 +474,8 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 
 	buf.cmd_info.id = 0;
 	buf.cmd_info.size = sizeof(buf.cmd_info) + buf.name.size;
-	ret = ioctl(env->conn->fd, KDBUS_CMD_CONN_INFO, &buf);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	ret = kdbus_cmd_conn_info(env->conn->fd, (struct kdbus_cmd_info *) &buf);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	/* Pass a non existent name */
 	ret = kdbus_conn_info(env->conn, 0, "non.existent.name", 0, NULL);
@@ -577,14 +577,14 @@ int kdbus_test_writable_pool(struct kdbus_test_env *env)
 	hello.offset = (__u64)-1;
 
 	/* success test */
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &hello);
+	ret = kdbus_cmd_hello(fd, &hello);
 	ASSERT_RETURN(ret == 0);
 
 	/* The kernel should have returned some items */
 	ASSERT_RETURN(hello.offset != (__u64)-1);
 	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = hello.offset;
-	ret = ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	ret = kdbus_cmd_free(fd, &cmd_free);
 	ASSERT_RETURN(ret >= 0);
 
 	/* pools cannot be mapped writable */

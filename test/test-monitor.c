@@ -11,7 +11,6 @@
 #include <assert.h>
 #include <signal.h>
 #include <sys/time.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 
 #include "kdbus-util.h"

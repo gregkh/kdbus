@@ -8,10 +8,10 @@
 #include <errno.h>
 #include <assert.h>
 #include <limits.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <stdbool.h>
 
+#include "kdbus-api.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
@@ -70,7 +70,7 @@ static int test_bus_creator_info(const char *bus_path)
 int kdbus_test_bus_make(struct kdbus_test_env *env)
 {
 	struct {
-		struct kdbus_cmd head;
+		struct kdbus_cmd cmd;
 
 		/* bloom size item */
 		struct {
@@ -112,37 +112,37 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	/* missing uid prefix */
 	snprintf(bus_make.name, sizeof(bus_make.name), "foo");
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd) +
-			     sizeof(bus_make.bs) + bus_make.n_size;
-	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	bus_make.cmd.size = sizeof(struct kdbus_cmd) +
+			    sizeof(bus_make.bs) + bus_make.n_size;
+	ret = kdbus_cmd_bus_make(env->control_fd, &bus_make.cmd);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	/* non alphanumeric character */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah@123", uid);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd) +
-			     sizeof(bus_make.bs) + bus_make.n_size;
-	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	bus_make.cmd.size = sizeof(struct kdbus_cmd) +
+			    sizeof(bus_make.bs) + bus_make.n_size;
+	ret = kdbus_cmd_bus_make(env->control_fd, &bus_make.cmd);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	/* '-' at the end */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-blah-", uid);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd) +
-			     sizeof(bus_make.bs) + bus_make.n_size;
-	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
-	ASSERT_RETURN(ret == -1 && errno == EINVAL);
+	bus_make.cmd.size = sizeof(struct kdbus_cmd) +
+			    sizeof(bus_make.bs) + bus_make.n_size;
+	ret = kdbus_cmd_bus_make(env->control_fd, &bus_make.cmd);
+	ASSERT_RETURN(ret == -EINVAL);
 
 	/* create a new bus */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-1", uid, name);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd) +
-			     sizeof(bus_make.bs) + bus_make.n_size;
-	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
+	bus_make.cmd.size = sizeof(struct kdbus_cmd) +
+			    sizeof(bus_make.bs) + bus_make.n_size;
+	ret = kdbus_cmd_bus_make(env->control_fd, &bus_make.cmd);
 	ASSERT_RETURN(ret == 0);
 
-	ret = ioctl(control_fd2, KDBUS_CMD_BUS_MAKE, &bus_make);
-	ASSERT_RETURN(ret == -1 && errno == EEXIST);
+	ret = kdbus_cmd_bus_make(control_fd2, &bus_make.cmd);
+	ASSERT_RETURN(ret == -EEXIST);
 
 	snprintf(s, sizeof(s), "%s/%u-%s-1/bus", env->root, uid, name);
 	ASSERT_RETURN(access(s, F_OK) == 0);
@@ -155,17 +155,17 @@ int kdbus_test_bus_make(struct kdbus_test_env *env)
 	 */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-2", uid, name);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd) +
-			     sizeof(bus_make.bs) + bus_make.n_size;
-	ret = ioctl(env->control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
-	ASSERT_RETURN(ret == -1 && errno == EBADFD);
+	bus_make.cmd.size = sizeof(struct kdbus_cmd) +
+			    sizeof(bus_make.bs) + bus_make.n_size;
+	ret = kdbus_cmd_bus_make(env->control_fd, &bus_make.cmd);
+	ASSERT_RETURN(ret == -EBADFD);
 
 	/* create a new bus, with different fd and different bus name */
 	snprintf(bus_make.name, sizeof(bus_make.name), "%u-%s-2", uid, name);
 	bus_make.n_size = KDBUS_ITEM_HEADER_SIZE + strlen(bus_make.name) + 1;
-	bus_make.head.size = sizeof(struct kdbus_cmd) +
-			     sizeof(bus_make.bs) + bus_make.n_size;
-	ret = ioctl(control_fd2, KDBUS_CMD_BUS_MAKE, &bus_make);
+	bus_make.cmd.size = sizeof(struct kdbus_cmd) +
+			    sizeof(bus_make.bs) + bus_make.n_size;
+	ret = kdbus_cmd_bus_make(control_fd2, &bus_make.cmd);
 	ASSERT_RETURN(ret == 0);
 
 	close(control_fd2);

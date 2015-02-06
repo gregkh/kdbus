@@ -10,11 +10,11 @@
 #include <errno.h>
 #include <assert.h>
 #include <sys/types.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 
+#include "kdbus-api.h"
 #include "kdbus-test.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -119,9 +119,8 @@ static int send_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
+	ret = kdbus_cmd_send(conn->fd, &cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
@@ -163,9 +162,8 @@ static int send_fds(struct kdbus_conn *conn, uint64_t dst_id,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
+	ret = kdbus_cmd_send(conn->fd, &cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
@@ -200,9 +198,8 @@ static int send_fds_memfds(struct kdbus_conn *conn, uint64_t dst_id,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
+	ret = kdbus_cmd_send(conn->fd, &cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
@@ -301,12 +298,12 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	hello.pool_size = POOL_SIZE;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 
-	ret = ioctl(connfd1, KDBUS_CMD_HELLO, &hello);
+	ret = kdbus_cmd_hello(connfd1, &hello);
 	ASSERT_RETURN(ret == 0);
 
 	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = hello.offset;
-	ret = ioctl(connfd1, KDBUS_CMD_FREE, &cmd_free);
+	ret = kdbus_cmd_free(connfd1, &cmd_free);
 	ASSERT_RETURN(ret >= 0);
 
 	conn_dst->fd = connfd1;
@@ -317,12 +314,12 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	hello.pool_size = POOL_SIZE;
 	hello.attach_flags_send = _KDBUS_ATTACH_ALL;
 
-	ret = ioctl(connfd2, KDBUS_CMD_HELLO, &hello);
+	ret = kdbus_cmd_hello(connfd2, &hello);
 	ASSERT_RETURN(ret == 0);
 
 	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = hello.offset;
-	ret = ioctl(connfd2, KDBUS_CMD_FREE, &cmd_free);
+	ret = kdbus_cmd_free(connfd2, &cmd_free);
 	ASSERT_RETURN(ret >= 0);
 
 	conn_dummy->fd = connfd2;
@@ -380,8 +377,8 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 		cmd.msg_address = (uintptr_t)msg_sync_reply;
 		cmd.flags = KDBUS_SEND_SYNC_REPLY;
 
-		ret = ioctl(conn_dst->fd, KDBUS_CMD_SEND, &cmd);
-		ASSERT_EXIT(ret < 0 && -errno == -ECOMM);
+		ret = kdbus_cmd_send(conn_dst->fd, &cmd);
+		ASSERT_EXIT(ret == -ECOMM);
 
 		/*
 		 * Now send a normal message, but the sync reply
@@ -431,8 +428,8 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg_sync_reply;
 
-	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, &cmd);
-	ASSERT_RETURN(ret < 0 && -errno == -EOPNOTSUPP);
+	ret = kdbus_cmd_send(conn_src->fd, &cmd);
+	ASSERT_RETURN(ret == -EOPNOTSUPP);
 
 	free(msg_sync_reply);
 
@@ -453,8 +450,8 @@ static int kdbus_test_no_fds(struct kdbus_test_env *env,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg_sync_reply;
 
-	ret = ioctl(conn_src->fd, KDBUS_CMD_SEND, &cmd);
-	ASSERT_RETURN(ret < 0 && -errno == -ECOMM);
+	ret = kdbus_cmd_send(conn_src->fd, &cmd);
+	ASSERT_RETURN(ret == -ECOMM);
 
 	free(msg_sync_reply);
 

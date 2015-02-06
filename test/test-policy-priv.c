@@ -9,7 +9,6 @@
 #include <time.h>
 #include <sys/capability.h>
 #include <sys/eventfd.h>
-#include <sys/ioctl.h>
 #include <sys/wait.h>
 
 #include "kdbus-test.h"

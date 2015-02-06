@@ -26,7 +26,6 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/prctl.h>
-#include <sys/ioctl.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>
 #include <sys/capability.h>

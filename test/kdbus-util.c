@@ -25,7 +25,6 @@
 #include <poll.h>
 #include <grp.h>
 #include <sys/capability.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -44,6 +43,7 @@
   #endif
 #endif
 
+#include "kdbus-api.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 
@@ -119,7 +119,7 @@ int kdbus_create_bus(int control_fd, const char *name,
 		     char **path)
 {
 	struct {
-		struct kdbus_cmd head;
+		struct kdbus_cmd cmd;
 
 		/* bloom size item */
 		struct {
@@ -165,8 +165,8 @@ int kdbus_create_bus(int control_fd, const char *name,
 	bus_make.name.size = KDBUS_ITEM_HEADER_SIZE +
 			     strlen(bus_make.name.str) + 1;
 
-	bus_make.head.flags = KDBUS_MAKE_ACCESS_WORLD;
-	bus_make.head.size = sizeof(bus_make.head) +
+	bus_make.cmd.flags = KDBUS_MAKE_ACCESS_WORLD;
+	bus_make.cmd.size = sizeof(bus_make.cmd) +
 			     bus_make.bp.size +
 			     bus_make.attach[0].size +
 			     bus_make.attach[1].size +
@@ -175,9 +175,8 @@ int kdbus_create_bus(int control_fd, const char *name,
 	kdbus_printf("Creating bus with name >%s< on control fd %d ...\n",
 		     name, control_fd);
 
-	ret = ioctl(control_fd, KDBUS_CMD_BUS_MAKE, &bus_make);
+	ret = kdbus_cmd_bus_make(control_fd, &bus_make.cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("--- error when making bus: %d (%m)\n", ret);
 		return ret;
 	}
@@ -229,9 +228,8 @@ kdbus_hello(const char *path, uint64_t flags,
 	h.hello.size = sizeof(h);
 	h.hello.pool_size = POOL_SIZE;
 
-	ret = ioctl(fd, KDBUS_CMD_HELLO, &h.hello);
+	ret = kdbus_cmd_hello(fd, (struct kdbus_cmd_hello *) &h.hello);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("--- error when saying hello: %d (%m)\n", ret);
 		return NULL;
 	}
@@ -246,7 +244,7 @@ kdbus_hello(const char *path, uint64_t flags,
 
 	cmd_free.size = sizeof(cmd_free);
 	cmd_free.offset = h.hello.offset;
-	ioctl(fd, KDBUS_CMD_FREE, &cmd_free);
+	kdbus_cmd_free(fd, &cmd_free);
 
 	conn = malloc(sizeof(*conn));
 	if (!conn) {
@@ -333,9 +331,8 @@ int kdbus_bus_creator_info(struct kdbus_conn *conn,
 	cmd->size = size;
 	cmd->flags = flags;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_BUS_CREATOR_INFO, cmd);
+	ret = kdbus_cmd_bus_creator_info(conn->fd, cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("--- error when requesting info: %d (%m)\n", ret);
 		return ret;
 	}
@@ -373,9 +370,8 @@ int kdbus_conn_info(struct kdbus_conn *conn, uint64_t id,
 		cmd->id = id;
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_CONN_INFO, cmd);
+	ret = kdbus_cmd_conn_info(conn->fd, cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("--- error when requesting info: %d (%m)\n", ret);
 		return ret;
 	}
@@ -588,12 +584,11 @@ static int __kdbus_msg_send(const struct kdbus_conn *conn,
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, cmd);
+	ret = kdbus_cmd_send(conn->fd, cmd);
 	if (memfd >= 0)
 		close(memfd);
 
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
@@ -673,11 +668,9 @@ int kdbus_msg_send_reply(const struct kdbus_conn *conn,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
-	if (ret < 0) {
-		ret = -errno;
+	ret = kdbus_cmd_send(conn->fd, &cmd);
+	if (ret < 0)
 		kdbus_printf("error sending message: %d (%m)\n", ret);
-	}
 
 	free(msg);
 
@@ -975,9 +968,8 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
+	ret = kdbus_cmd_recv(conn->fd, &recv);
 	if (ret < 0) {
-		ret = -errno;
 		/* store how many lost packets */
 		if (ret == -EOVERFLOW && offset)
 			*offset = recv.dropped_msgs;
@@ -1066,10 +1058,10 @@ int kdbus_free(const struct kdbus_conn *conn, uint64_t offset)
 	cmd_free.offset = offset;
 	cmd_free.flags = 0;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_FREE, &cmd_free);
+	ret = kdbus_cmd_free(conn->fd, &cmd_free);
 	if (ret < 0) {
 		kdbus_printf("KDBUS_CMD_FREE failed: %d (%m)\n", ret);
-		return -errno;
+		return ret;
 	}
 
 	return 0;
@@ -1097,9 +1089,8 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 	if (flags)
 		cmd_name->flags = *flags;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_ACQUIRE, cmd_name);
+	ret = kdbus_cmd_name_acquire(conn->fd, cmd_name);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error aquiring name: %s\n", strerror(-ret));
 		return ret;
 	}
@@ -1135,9 +1126,8 @@ int kdbus_name_release(struct kdbus_conn *conn, const char *name)
 	kdbus_printf("conn %lld giving up name '%s'\n",
 		     (unsigned long long) conn->id, name);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_NAME_RELEASE, cmd_name);
+	ret = kdbus_cmd_name_release(conn->fd, cmd_name);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error releasing name: %s\n", strerror(-ret));
 		return ret;
 	}
@@ -1154,10 +1144,10 @@ int kdbus_list(struct kdbus_conn *conn, uint64_t flags)
 	cmd_list.size = sizeof(cmd_list);
 	cmd_list.flags = flags;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_LIST, &cmd_list);
+	ret = kdbus_cmd_list(conn->fd, &cmd_list);
 	if (ret < 0) {
 		kdbus_printf("error listing names: %d (%m)\n", ret);
-		return EXIT_FAILURE;
+		return ret;
 	}
 
 	kdbus_printf("REGISTRY:\n");
@@ -1222,11 +1212,9 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn,
 	item->data64[0] = attach_flags_recv;
 	item = KDBUS_ITEM_NEXT(item);
 
-	ret = ioctl(conn->fd, KDBUS_CMD_UPDATE, update);
-	if (ret < 0) {
-		ret = -errno;
+	ret = kdbus_cmd_update(conn->fd, update);
+	if (ret < 0)
 		kdbus_printf("error conn update: %d (%m)\n", ret);
-	}
 
 	free(update);
 
@@ -1275,11 +1263,9 @@ int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
 		item = KDBUS_ITEM_NEXT(item);
 	}
 
-	ret = ioctl(conn->fd, KDBUS_CMD_UPDATE, update);
-	if (ret < 0) {
-		ret = -errno;
+	ret = kdbus_cmd_update(conn->fd, update);
+	if (ret < 0)
 		kdbus_printf("error conn update: %d (%m)\n", ret);
-	}
 
 	free(update);
 
@@ -1307,11 +1293,9 @@ int kdbus_add_match_id(struct kdbus_conn *conn, uint64_t cookie,
 	buf.item.type = type;
 	buf.item.chg.id = id;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
-	if (ret < 0) {
-		ret = -errno;
+	ret = kdbus_cmd_match_add(conn->fd, &buf.cmd);
+	if (ret < 0)
 		kdbus_printf("--- error adding conn match: %d (%m)\n", ret);
-	}
 
 	return ret;
 }
@@ -1332,11 +1316,9 @@ int kdbus_add_match_empty(struct kdbus_conn *conn)
 
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
-	if (ret < 0) {
+	ret = kdbus_cmd_match_add(conn->fd, &buf.cmd);
+	if (ret < 0)
 		kdbus_printf("--- error adding conn match: %d (%m)\n", ret);
-		ret = -errno;
-	}
 
 	return ret;
 }

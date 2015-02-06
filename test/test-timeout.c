@@ -9,9 +9,9 @@
 #include <errno.h>
 #include <assert.h>
 #include <poll.h>
-#include <sys/ioctl.h>
 #include <stdbool.h>
 
+#include "kdbus-api.h"
 #include "kdbus-test.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -22,10 +22,10 @@ int timeout_msg_recv(struct kdbus_conn *conn, uint64_t *expected)
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
+	ret = kdbus_cmd_recv(conn->fd, &recv);
 	if (ret < 0) {
 		kdbus_printf("error receiving message: %d (%m)\n", ret);
-		return -errno;
+		return ret;
 	}
 
 	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);

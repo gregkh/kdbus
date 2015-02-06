@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <sys/ioctl.h>
 
 #include "kdbus-test.h"
 #include "kdbus-util.h"

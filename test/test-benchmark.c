@@ -12,10 +12,10 @@
 #include <assert.h>
 #include <poll.h>
 #include <sys/time.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 
+#include "kdbus-api.h"
 #include "kdbus-test.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -179,8 +179,8 @@ send_echo_request(struct kdbus_conn *conn, uint64_t dst_id,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)kdbus_msg;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
-	ASSERT_RETURN_VAL(ret == 0, -errno);
+	ret = kdbus_cmd_send(conn->fd, &cmd);
+	ASSERT_RETURN_VAL(ret == 0, ret);
 
 	close(memfd);
 
@@ -196,11 +196,11 @@ handle_echo_reply(struct kdbus_conn *conn, uint64_t send_ns)
 	const struct kdbus_item *item;
 	bool has_memfd = false;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
-	if (ret < 0 && errno == EAGAIN)
-		return -EAGAIN;
+	ret = kdbus_cmd_recv(conn->fd, &recv);
+	if (ret == -EAGAIN)
+		return ret;
 
-	ASSERT_RETURN_VAL(ret == 0, -errno);
+	ASSERT_RETURN_VAL(ret == 0, ret);
 
 	if (!use_memfd)
 		goto out;

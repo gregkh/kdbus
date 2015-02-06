@@ -9,10 +9,10 @@
 #include <errno.h>
 #include <assert.h>
 #include <limits.h>
-#include <sys/ioctl.h>
 #include <getopt.h>
 #include <stdbool.h>
 
+#include "kdbus-api.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
@@ -27,7 +27,7 @@ static int conn_is_name_owner(const struct kdbus_conn *conn,
 
 	cmd_list.flags = KDBUS_LIST_NAMES;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_LIST, &cmd_list);
+	ret = kdbus_cmd_list(conn->fd, &cmd_list);
 	ASSERT_RETURN(ret == 0);
 
 	list = (struct kdbus_info *)(conn->buf + cmd_list.offset);

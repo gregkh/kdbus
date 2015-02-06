@@ -17,7 +17,6 @@
 #include <assert.h>
 #include <signal.h>
 #include <sys/wait.h>
-#include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>

@@ -8,12 +8,12 @@
 #include <errno.h>
 #include <assert.h>
 #include <time.h>
-#include <sys/ioctl.h>
 #include <stdbool.h>
 #include <sys/eventfd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "kdbus-api.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
@@ -109,10 +109,10 @@ static int msg_recv_prio(struct kdbus_conn *conn,
 	struct kdbus_msg *msg;
 	int ret;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_RECV, &recv);
+	ret = kdbus_cmd_recv(conn->fd, &recv);
 	if (ret < 0) {
 		kdbus_printf("error receiving message: %d (%m)\n", -errno);
-		return -errno;
+		return ret;
 	}
 
 	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);
@@ -660,13 +660,13 @@ int kdbus_test_pool_quota(struct kdbus_test_env *env)
 	for (i = 0; i < (POOL_SIZE/KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE - 1); i++) {
 		msg->cookie = cookie++;
 
-		ret = ioctl(a->fd, KDBUS_CMD_SEND, &cmd);
+		ret = kdbus_cmd_send(a->fd, &cmd);
 		ASSERT_RETURN_VAL(ret == 0, -errno);
 	}
 
 	msg->cookie = cookie++;
-	ret = ioctl(a->fd, KDBUS_CMD_SEND, &cmd);
-	ASSERT_RETURN(ret == -1 && errno == EXFULL);
+	ret = kdbus_cmd_send(a->fd, &cmd);
+	ASSERT_RETURN(ret == -EXFULL);
 
 	ret = kdbus_msg_send(b, NULL, cookie++, 0, 0, 0, c->id);
 	ASSERT_RETURN(ret == 0);

@@ -7,9 +7,9 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <sys/ioctl.h>
 #include <stdbool.h>
 
+#include "kdbus-api.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
@@ -37,7 +37,7 @@ int kdbus_test_match_id_add(struct kdbus_test_env *env)
 	buf.item.chg.id = KDBUS_MATCH_ID_ANY;
 
 	/* match on id add */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(env->conn->fd, &buf.cmd);
 	ASSERT_RETURN(ret == 0);
 
 	/* create 2nd connection */
@@ -84,7 +84,7 @@ int kdbus_test_match_id_remove(struct kdbus_test_env *env)
 	buf.item.chg.id = id;
 
 	/* register match on 2nd connection */
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(env->conn->fd, &buf.cmd);
 	ASSERT_RETURN(ret == 0);
 
 	/* remove 2nd connection again */
@@ -128,7 +128,7 @@ int kdbus_test_match_replace(struct kdbus_test_env *env)
 	buf.item.type = KDBUS_ITEM_ID_REMOVE;
 	buf.item.chg.id = KDBUS_MATCH_ID_ANY;
 
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(env->conn->fd, &buf.cmd);
 
 	/* create 2nd connection */
 	conn = kdbus_hello(env->buspath, 0, NULL, 0);
@@ -178,7 +178,7 @@ int kdbus_test_match_name_add(struct kdbus_test_env *env)
 	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(env->conn->fd, &buf.cmd);
 	ASSERT_RETURN(ret == 0);
 
 	/* acquire the name */
@@ -227,7 +227,7 @@ int kdbus_test_match_name_remove(struct kdbus_test_env *env)
 	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(env->conn->fd, &buf.cmd);
 	ASSERT_RETURN(ret == 0);
 
 	/* release the name again */
@@ -276,7 +276,7 @@ int kdbus_test_match_name_change(struct kdbus_test_env *env)
 	buf.item.size = sizeof(buf.item) + strlen(buf.name) + 1;
 	buf.cmd.size = sizeof(buf.cmd) + buf.item.size;
 
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(env->conn->fd, &buf.cmd);
 	ASSERT_RETURN(ret == 0);
 
 	/* create a 2nd connection */
@@ -344,9 +344,8 @@ static int send_bloom_filter(const struct kdbus_conn *conn,
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg;
 
-	ret = ioctl(conn->fd, KDBUS_CMD_SEND, &cmd);
+	ret = kdbus_cmd_send(conn->fd, &cmd);
 	if (ret < 0) {
-		ret = -errno;
 		kdbus_printf("error sending message: %d (%m)\n", ret);
 		return ret;
 	}
@@ -383,7 +382,7 @@ int kdbus_test_match_bloom(struct kdbus_test_env *env)
 	buf.item.data_gen1[1] = 0xaa;
 	buf.item.data_gen1[9] = 0x02;
 
-	ret = ioctl(env->conn->fd, KDBUS_CMD_MATCH_ADD, &buf);
+	ret = kdbus_cmd_match_add(env->conn->fd, &buf.cmd);
 	ASSERT_RETURN(ret == 0);
 
 	/* create a 2nd connection */

@@ -8,13 +8,13 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
-#include <sys/ioctl.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/eventfd.h>
 
+#include "kdbus-api.h"
 #include "kdbus-test.h"
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -304,9 +304,9 @@ static void *run_thread_byebye(void *data)
 		kdbus_printf("Thread received message, invoking BYEBYE ...\n");
 		kdbus_msg_recv(conn_a, NULL, NULL);
 		if (data == BYEBYE_ME)
-			ioctl(conn_b->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
+			kdbus_cmd_byebye(conn_b->fd, &cmd_byebye);
 		else if (data == BYEBYE_THEM)
-			ioctl(conn_a->fd, KDBUS_CMD_BYEBYE, &cmd_byebye);
+			kdbus_cmd_byebye(conn_a->fd, &cmd_byebye);
 	}
 
 	pthread_exit(NULL);

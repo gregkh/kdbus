@@ -12,7 +12,6 @@
 #include <poll.h>
 #include <sys/capability.h>
 #include <sys/types.h>
-#include <sys/ioctl.h>
 #include <sys/wait.h>
 
 #include "kdbus-test.h"
