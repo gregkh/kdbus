@@ -645,9 +645,8 @@ int kdbus_msg_send_reply(const struct kdbus_conn *conn,
 
 	msg = malloc(size);
 	if (!msg) {
-		ret = -errno;
 		kdbus_printf("unable to malloc()!?\n");
-		return ret;
+		return -ENOMEM;
 	}
 
 	memset(msg, 0, size);
@@ -676,6 +675,7 @@ int kdbus_msg_send_reply(const struct kdbus_conn *conn,
 
 	return ret;
 }
+
 static char *msg_id(uint64_t id, char *buf)
 {
 	if (id == 0)
@@ -1192,9 +1192,8 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn,
 
 	update = malloc(size);
 	if (!update) {
-		ret = -errno;
 		kdbus_printf("error malloc: %d (%m)\n", ret);
-		return ret;
+		return -ENOMEM;
 	}
 
 	memset(update, 0, size);
@@ -1236,9 +1235,8 @@ int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
 
 	update = malloc(size);
 	if (!update) {
-		ret = -errno;
 		kdbus_printf("error malloc: %d (%m)\n", ret);
-		return ret;
+		return -ENOMEM;
 	}
 
 	memset(update, 0, size);
