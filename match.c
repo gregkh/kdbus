@@ -388,7 +388,7 @@ int kdbus_cmd_match_add(struct kdbus_conn *conn, void __user *argp)
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
 				 KDBUS_MATCH_REPLACE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn))
@@ -536,7 +536,7 @@ int kdbus_cmd_match_remove(struct kdbus_conn *conn, void __user *argp)
 	struct kdbus_args args = {
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn))

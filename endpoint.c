@@ -226,7 +226,7 @@ struct kdbus_ep *kdbus_cmd_ep_make(struct kdbus_bus *bus, void __user *argp)
 				 KDBUS_MAKE_ACCESS_GROUP |
 				 KDBUS_MAKE_ACCESS_WORLD,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
@@ -282,7 +282,7 @@ int kdbus_cmd_ep_update(struct kdbus_ep *ep, void __user *argp)
 	struct kdbus_args args = {
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);

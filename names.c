@@ -630,7 +630,7 @@ int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp)
 				 KDBUS_NAME_ALLOW_REPLACEMENT |
 				 KDBUS_NAME_QUEUE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn))
@@ -694,7 +694,7 @@ int kdbus_cmd_name_release(struct kdbus_conn *conn, void __user *argp)
 	struct kdbus_args args = {
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn))
@@ -877,7 +877,7 @@ int kdbus_cmd_list(struct kdbus_conn *conn, void __user *argp)
 				 KDBUS_LIST_ACTIVATORS |
 				 KDBUS_LIST_QUEUED,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);

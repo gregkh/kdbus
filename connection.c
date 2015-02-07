@@ -1739,7 +1739,7 @@ struct kdbus_conn *kdbus_cmd_hello(struct kdbus_ep *ep, bool privileged,
 				 KDBUS_HELLO_POLICY_HOLDER |
 				 KDBUS_HELLO_MONITOR,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
@@ -1811,7 +1811,7 @@ int kdbus_cmd_byebye_unlocked(struct kdbus_conn *conn, void __user *argp)
 	struct kdbus_args args = {
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn))
@@ -1856,7 +1856,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
 				 _KDBUS_ATTACH_ALL,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
@@ -1971,7 +1971,7 @@ int kdbus_cmd_update(struct kdbus_conn *conn, void __user *argp)
 	struct kdbus_args args = {
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
@@ -2061,7 +2061,7 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
 				 KDBUS_SEND_SYNC_REPLY,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn))
@@ -2115,7 +2115,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 				 KDBUS_RECV_DROP |
 				 KDBUS_RECV_USE_PRIORITY,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn) &&
@@ -2162,7 +2162,7 @@ int kdbus_cmd_free(struct kdbus_conn *conn, void __user *argp)
 	struct kdbus_args args = {
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	if (!kdbus_conn_is_ordinary(conn) &&

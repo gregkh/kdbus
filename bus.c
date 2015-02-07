@@ -457,7 +457,7 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 				 KDBUS_MAKE_ACCESS_GROUP |
 				 KDBUS_MAKE_ACCESS_WORLD,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
@@ -546,7 +546,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
 				 _KDBUS_ATTACH_ALL,
 		.argv = argv,
-		.argc = sizeof(argv) / sizeof(argv[0]),
+		.argc = ARRAY_SIZE(argv),
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
