@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2013-2014 Daniel Mack
- * Copyright (C) 2013-2014 Kay Sievers
- * Copyright (C) 2014 Djalal Harouni
+ * Copyright (C) 2013-2015 Daniel Mack
+ * Copyright (C) 2013-2015 Kay Sievers
+ * Copyright (C) 2014-2015 Djalal Harouni
  *
  * kdbus is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Lesser General Public License as published by the
