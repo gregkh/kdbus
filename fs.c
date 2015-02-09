@@ -173,7 +173,7 @@ static struct dentry *fs_dir_iop_lookup(struct inode *dir,
 		if (IS_ERR(inode))
 			dnew = ERR_CAST(inode);
 		else
-			dnew = d_materialise_unique(dentry, inode);
+			dnew = d_splice_alias(inode, dentry);
 
 		kdbus_node_release(node);
 	}
