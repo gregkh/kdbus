@@ -1192,7 +1192,7 @@ int kdbus_conn_update_attach_flags(struct kdbus_conn *conn,
 
 	update = malloc(size);
 	if (!update) {
-		kdbus_printf("error malloc: %d (%m)\n", ret);
+		kdbus_printf("error malloc: %m\n");
 		return -ENOMEM;
 	}
 
@@ -1235,7 +1235,7 @@ int kdbus_conn_update_policy(struct kdbus_conn *conn, const char *name,
 
 	update = malloc(size);
 	if (!update) {
-		kdbus_printf("error malloc: %d (%m)\n", ret);
+		kdbus_printf("error malloc: %m\n");
 		return -ENOMEM;
 	}
 
