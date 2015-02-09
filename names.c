@@ -266,6 +266,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 		 * for items for connection.
 		 */
 
+		ret = -EADDRINUSE;
 		list_for_each_entry_safe(q, tmp, &e->queue_list, entry_entry) {
 			if (q->conn != conn)
 				continue;
