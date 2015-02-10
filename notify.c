@@ -43,7 +43,7 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 
 	WARN_ON(id == 0);
 
-	kmsg = kdbus_kmsg_new(0);
+	kmsg = kdbus_kmsg_new(bus, 0);
 	if (IS_ERR(kmsg))
 		return PTR_ERR(kmsg);
 
@@ -119,7 +119,7 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 
 	name_len = strlen(name) + 1;
 	extra_size = sizeof(struct kdbus_notify_name_change) + name_len;
-	kmsg = kdbus_kmsg_new(extra_size);
+	kmsg = kdbus_kmsg_new(bus, extra_size);
 	if (IS_ERR(kmsg))
 		return PTR_ERR(kmsg);
 
@@ -156,7 +156,7 @@ int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 {
 	struct kdbus_kmsg *kmsg = NULL;
 
-	kmsg = kdbus_kmsg_new(sizeof(struct kdbus_notify_id_change));
+	kmsg = kdbus_kmsg_new(bus, sizeof(struct kdbus_notify_id_change));
 	if (IS_ERR(kmsg))
 		return PTR_ERR(kmsg);
 
@@ -205,7 +205,6 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 	spin_unlock(&bus->notify_lock);
 
 	list_for_each_entry_safe(kmsg, tmp, &notify_list, notify_entry) {
-		kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
 		kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, NULL,
 					KDBUS_ATTACH_TIMESTAMP);
 

@@ -573,10 +573,6 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	struct kdbus_item *item;
 	int ret = 0;
 
-	/* assign domain-global message sequence number */
-	if (WARN_ON(kmsg->seq > 0))
-		return -EINVAL;
-
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_CANCEL_FD:
@@ -604,8 +600,6 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			goto exit_put_cancelfd;
 		}
 	}
-
-	kmsg->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
 
 	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(bus, conn_src, kmsg);

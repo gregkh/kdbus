@@ -125,11 +125,12 @@ void kdbus_kmsg_free(struct kdbus_kmsg *kmsg)
 
 /**
  * kdbus_kmsg_new() - allocate message
+ * @bus:		Bus this message is allocated on
  * @extra_size:		Additional size to reserve for data
  *
  * Return: new kdbus_kmsg on success, ERR_PTR on failure.
  */
-struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
+struct kdbus_kmsg *kdbus_kmsg_new(struct kdbus_bus *bus, size_t extra_size)
 {
 	struct kdbus_kmsg *m;
 	size_t size;
@@ -140,6 +141,7 @@ struct kdbus_kmsg *kdbus_kmsg_new(size_t extra_size)
 	if (!m)
 		return ERR_PTR(-ENOMEM);
 
+	m->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
 	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
@@ -499,6 +501,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 		return ERR_PTR(-ENOMEM);
 
 	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
+	m->seq = atomic64_inc_return(&conn->ep->bus->domain->msg_seq_last);
 
 	m->proc_meta = kdbus_meta_proc_new();
 	if (IS_ERR(m->proc_meta)) {
