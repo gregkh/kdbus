@@ -605,6 +605,13 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 			ret = -EADDRNOTAVAIL;
 			goto exit_unref;
 		}
+
+		/*
+		 * Record the sequence number of the registered name; it will
+		 * be passed on to the queue, in case messages addressed to a
+		 * name need to be moved from or to an activator.
+		 */
+		kmsg->dst_name_id = name_entry->name_id;
 	} else {
 		/* unicast message to unique name */
 		conn_dst = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
@@ -620,15 +627,6 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 			goto exit_unref;
 		}
 	}
-
-	/*
-	 * Record the sequence number of the registered name;
-	 * it will be passed on to the queue, in case messages
-	 * addressed to a name need to be moved from or to
-	 * activator connections of the same name.
-	 */
-	if (name_entry)
-		kmsg->dst_name_id = name_entry->name_id;
 
 	if (conn_src) {
 		u64 attach_flags;
