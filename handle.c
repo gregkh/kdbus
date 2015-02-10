@@ -325,7 +325,7 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 	}
 
 	default:
-		ret = -ENOTTY;
+		ret = -EBADFD;
 		break;
 	}
 
@@ -376,7 +376,7 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		break;
 
 	default:
-		ret = -ENOTTY;
+		ret = -EBADFD;
 		break;
 	}
 
@@ -399,7 +399,7 @@ static long kdbus_handle_ioctl_ep_owner(struct file *file, unsigned int command,
 		ret = kdbus_cmd_ep_update(ep, buf);
 		break;
 	default:
-		ret = -ENOTTY;
+		ret = -EBADFD;
 		break;
 	}
 
@@ -466,7 +466,7 @@ static long kdbus_handle_ioctl_connected(struct file *file,
 		ret = kdbus_cmd_free(conn, buf);
 		break;
 	default:
-		ret = -ENOTTY;
+		ret = -EBADFD;
 		break;
 	}
 
@@ -501,13 +501,28 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 		up_write(&handle->rwlock);
 		break;
 
-	default:
+	case KDBUS_CMD_ENDPOINT_UPDATE:
+	case KDBUS_CMD_BYEBYE:
+	case KDBUS_CMD_NAME_ACQUIRE:
+	case KDBUS_CMD_NAME_RELEASE:
+	case KDBUS_CMD_LIST:
+	case KDBUS_CMD_CONN_INFO:
+	case KDBUS_CMD_BUS_CREATOR_INFO:
+	case KDBUS_CMD_UPDATE:
+	case KDBUS_CMD_MATCH_ADD:
+	case KDBUS_CMD_MATCH_REMOVE:
+	case KDBUS_CMD_SEND:
+	case KDBUS_CMD_RECV:
+	case KDBUS_CMD_FREE:
 		down_read(&handle->rwlock);
 		if (handle->type == KDBUS_HANDLE_EP_OWNER)
 			ret = kdbus_handle_ioctl_ep_owner(file, cmd, argp);
 		else if (handle->type == KDBUS_HANDLE_CONNECTED)
 			ret = kdbus_handle_ioctl_connected(file, cmd, argp);
 		up_read(&handle->rwlock);
+		break;
+	default:
+		ret = -ENOTTY;
 		break;
 	}
 
