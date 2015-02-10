@@ -206,14 +206,14 @@ struct kdbus_policy_access {
     <title>Wildcard names</title>
     <para>
       Policy holder connections may upload names that contain the wildcard
-      suffix <constant>(".*")</constant>. Such a policy entry is effective for
+      suffix (<literal>".*"</literal>). Such a policy entry is effective for
       every well-known name that extends the provided name by exactly one more
       level.
 
-      For example, the name <constant>"foo.bar.*"</constant> matches both
-      <constant>"foo.bar.baz"</constant> and
-      <constant>"foo.bar.bazbaz"</constant> are, but not
-      <constant>"foo.bar.baz.baz"</constant>.
+      For example, the name <literal>foo.bar.*</literal> matches both
+      <literal>"foo.bar.baz"</literal> and
+      <literal>"foo.bar.bazbaz"</literal> are, but not
+      <literal>"foo.bar.baz.baz"</literal>.
 
       This allows connections to take control over multiple names that the
       policy holder doesn't need to know about when uploading the policy.

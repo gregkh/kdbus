@@ -54,10 +54,10 @@
       is required to avoid namespace clashes between different users.  When
       creating a bus, the name that is passed in must be properly formatted, or
       the kernel will refuse creation of the bus. Example:
-      <constant>1047-foobar</constant> is an acceptable name for a bus
+      <literal>1047-foobar</literal> is an acceptable name for a bus
       registered by a user with UID 1047. However,
-      <constant>1024-foobar</constant> is not, and neither is
-      <constant>foobar</constant>. The UID must be provided in the
+      <literal>1024-foobar</literal> is not, and neither is
+      <literal>foobar</literal>. The UID must be provided in the
       user-namespace of the bus owner.
     </para>
     <para>
@@ -81,7 +81,7 @@
       will be returned to creators of connections through
       <varname>kdbus_cmd_hello.id128</varname> and can be used to uniquely
       identify buses, even across different machines or containers. The UUID
-      will have its variant bits set to '<constant>DCE</constant>', and denote
+      will have its variant bits set to <literal>DCE</literal>, and denote
       version 4 (random). For more details on UUIDs, see <ulink
       url="https://en.wikipedia.org/wiki/Universally_unique_identifier">
       the Wikipedia article on UUIDs</ulink>.
@@ -176,7 +176,7 @@ struct kdbus_cmd {
                   Contains a null-terminated string that identifies the
                   bus. The name must be unique across the kdbus domain and
                   must start with the effective UID of the caller, followed by
-                  a '<constant>-</constant>' (dash). This item is mandatory.
+                  a '<literal>-</literal>' (dash). This item is mandatory.
                 </para>
               </listitem>
             </varlistentry>
@@ -273,7 +273,7 @@ struct kdbus_cmd {
           <listitem><para>
             The flags supplied in the <constant>struct kdbus_cmd</constant>
             are invalid or the supplied name does not start with the current
-            UID and a '<constant>-</constant>' (dash).
+            UID and a '<literal>-</literal>' (dash).
           </para></listitem>
         </varlistentry>
 

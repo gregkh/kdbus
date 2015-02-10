@@ -57,7 +57,7 @@
       <listitem>
         <para>
           The name has two or more elements separated by a
-          '<constant>.</constant>' (period) character.
+          '<literal>.</literal>' (period) character.
         </para>
       </listitem>
       <listitem>
@@ -68,19 +68,19 @@
       <listitem>
         <para>
           Each element must only contain the ASCII characters
-          <constant>[A-Z][a-z][0-9]_</constant> and must not begin with a
+          <literal>[A-Z][a-z][0-9]_</literal> and must not begin with a
           digit.
         </para>
       </listitem>
       <listitem>
         <para>
-          The name must contain at least one '<constant>.</constant>' (period)
+          The name must contain at least one '<literal>.</literal>' (period)
           character (and thus at least two elements).
         </para>
       </listitem>
       <listitem>
         <para>
-          The name must not begin with a '<constant>.</constant>' (period)
+          The name must not begin with a '<literal>.</literal>' (period)
           character.
         </para>
       </listitem>

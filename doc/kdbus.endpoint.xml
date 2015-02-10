@@ -37,7 +37,7 @@
     </para>
     <para>
       To create a custom endpoint, open the default endpoint
-      (<constant>bus</constant>) and use the
+      (<literal>bus</literal>) and use the
       <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> ioctl with
       <type>struct kdbus_cmd</type>. Custom endpoints always have a policy
       database that, by default, forbids any operation.  You have to explicitly
@@ -61,10 +61,10 @@
       This is required to avoid namespace clashes between different users. When
       creating an endpoint, the name that is passed in must be properly
       formatted or the kernel will refuse creation of the endpoint. Example:
-      <constant>1047-my-endpoint</constant> is an acceptable name for an
+      <literal>1047-my-endpoint</literal> is an acceptable name for an
       endpoint registered by a user with UID 1047. However,
-      <constant>1024-my-endpoint</constant> is not, and neither is
-      <constant>my-endpoint</constant>. The UID must be provided in the
+      <literal>1024-my-endpoint</literal> is not, and neither is
+      <literal>my-endpoint</literal>. The UID must be provided in the
       user-namespace of the bus.
     </para>
     <para>
