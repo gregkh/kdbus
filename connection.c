@@ -548,19 +548,11 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	return ret;
 }
 
-/**
- * kdbus_cmd_msg_send() - send a message
- * @conn_src:		Connection
- * @cmd:		Payload of SEND command
- * @ioctl_file:		struct file used to issue this ioctl
- * @kmsg:		Message to send
- *
- * Return: 0 on success, negative errno on failure
- */
-int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
-		       struct kdbus_cmd_send *cmd,
-		       struct file *ioctl_file,
-		       struct kdbus_kmsg *kmsg)
+static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
+			      struct kdbus_cmd_send *cmd,
+			      struct file *ioctl_file,
+			      struct kdbus_kmsg *kmsg,
+			      struct file *cancel_fd)
 {
 	bool sync = cmd->flags & KDBUS_SEND_SYNC_REPLY;
 	struct kdbus_name_entry *name_entry = NULL;
@@ -569,40 +561,10 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = conn_src->ep->bus;
-	struct file *cancel_fd = NULL;
-	struct kdbus_item *item;
 	int ret = 0;
 
 	if (WARN_ON(msg->dst_id == KDBUS_DST_ID_BROADCAST))
 		return -EINVAL;
-
-	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_CANCEL_FD:
-			/* install cancel_fd only if synchronous */
-			if (!sync)
-				break;
-
-			if (cancel_fd) {
-				ret = -EEXIST;
-				goto exit_put_cancelfd;
-			}
-
-			cancel_fd = fget(item->fds[0]);
-			if (IS_ERR(cancel_fd))
-				return PTR_ERR(cancel_fd);
-
-			if (!cancel_fd->f_op->poll) {
-				ret = -EINVAL;
-				goto exit_put_cancelfd;
-			}
-			break;
-
-		default:
-			ret = -EINVAL;
-			goto exit_put_cancelfd;
-		}
-	}
 
 	if (kmsg->res && kmsg->res->dst_name) {
 		/*
@@ -616,10 +578,8 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 		 */
 		name_entry = kdbus_name_lock(bus->name_registry,
 					     kmsg->res->dst_name);
-		if (!name_entry) {
-			ret = -ESRCH;
-			goto exit_put_cancelfd;
-		}
+		if (!name_entry)
+			return -ESRCH;
 
 		/*
 		 * If both a name and a connection ID are given as destination
@@ -815,10 +775,6 @@ exit_unref:
 	kdbus_conn_unref(conn_dst);
 exit_name_unlock:
 	kdbus_name_unlock(bus->name_registry, name_entry);
-exit_put_cancelfd:
-	if (cancel_fd)
-		fput(cancel_fd);
-
 	return ret;
 }
 
@@ -2057,6 +2013,7 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 {
 	struct kdbus_cmd_send *cmd;
 	struct kdbus_kmsg *kmsg = NULL;
+	struct file *cancel_fd = NULL;
 	int ret;
 
 	struct kdbus_arg argv[] = {
@@ -2081,6 +2038,20 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 	cmd->reply.msg_size = 0;
 	cmd->reply.return_flags = 0;
 
+	if (argv[1].item) {
+		cancel_fd = fget(argv[1].item->fds[0]);
+		if (IS_ERR(cancel_fd)) {
+			ret = PTR_ERR(cancel_fd);
+			cancel_fd = NULL;
+			goto exit;
+		}
+
+		if (!cancel_fd->f_op->poll) {
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+
 	kmsg = kdbus_kmsg_new_from_cmd(conn, cmd);
 	if (IS_ERR(kmsg)) {
 		ret = PTR_ERR(kmsg);
@@ -2091,7 +2062,7 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 	if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(conn->ep->bus, conn, kmsg);
 	} else {
-		ret = kdbus_cmd_msg_send(conn, cmd, f, kmsg);
+		ret = kdbus_conn_unicast(conn, cmd, f, kmsg, cancel_fd);
 		if (ret < 0)
 			goto exit;
 	}
@@ -2100,6 +2071,8 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 		ret = -EFAULT;
 
 exit:
+	if (cancel_fd)
+		fput(cancel_fd);
 	kdbus_kmsg_free(kmsg);
 	return kdbus_args_clear(&args, ret);
 }
