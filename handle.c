@@ -125,6 +125,26 @@ static int kdbus_args_negotiate(struct kdbus_args *args)
 	return 0;
 }
 
+/**
+ * __kdbus_args_parse() - parse payload of kdbus command
+ * @args:		object to parse data into
+ * @argp:		user-space location of command payload to parse
+ * @type_size:		overall size of command payload to parse
+ * @items_offset:	offset of items array in command payload
+ * @out:		output variable to store pointer to copied payload
+ *
+ * This parses the ioctl payload at user-space location @argp into @args. @args
+ * must be pre-initialized by the caller to reflect the supported flags and
+ * items of this command. This parser will then copy the command payload into
+ * kernel-space, verify correctness and consistency and cache pointers to parsed
+ * items and other data in @args.
+ *
+ * If this function succeeded, you must call kdbus_args_clear() to release
+ * allocated resources before destroying @args.
+ *
+ * Return: On failure a negative error code is returned. Otherwise, 1 is
+ * returned if negotiation was requested, 0 if not.
+ */
 int __kdbus_args_parse(struct kdbus_args *args, void __user *argp,
 		       size_t type_size, size_t items_offset, void **out)
 {
@@ -159,6 +179,18 @@ error:
 	return kdbus_args_clear(args, ret);
 }
 
+/**
+ * kdbus_args_clear() - release allocated command resources
+ * @args:	object to release resources of
+ * @ret:	return value of this command
+ *
+ * This frees all allocated resources on @args and copies the command result
+ * flags into user-space. @ret is usually returned unchanged by this function,
+ * so it can be used in the final 'return' statement of the command handler.
+ *
+ * Return: -EFAULT if return values cannot be copied into user-space, otherwise
+ *         @ret is returned unchanged.
+ */
 int kdbus_args_clear(struct kdbus_args *args, int ret)
 {
 	if (!args)
