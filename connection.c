@@ -548,6 +548,86 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	return ret;
 }
 
+static int kdbus_pin_dst(struct kdbus_bus *bus,
+			 struct kdbus_kmsg *kmsg,
+			 struct kdbus_name_entry **out_name,
+			 struct kdbus_conn **out_dst)
+{
+	struct kdbus_msg_resources *res = kmsg->res;
+	struct kdbus_name_entry *name = NULL;
+	struct kdbus_conn *dst = NULL;
+	struct kdbus_msg *msg = &kmsg->msg;
+	int ret;
+
+	if (WARN_ON(!res))
+		return -EINVAL;
+
+	if (!res->dst_name) {
+		dst = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
+		if (!dst)
+			return -ENXIO;
+
+		if (!kdbus_conn_is_ordinary(dst)) {
+			ret = -ENXIO;
+			goto error;
+		}
+	} else {
+		/*
+		 * Lock the destination name so it will not get dropped or
+		 * moved between activator/implementer while we try to queue a
+		 * message. We also rely on this to read-lock the entire
+		 * registry so kdbus_meta_conn_collect() will have a consistent
+		 * view of all acquired names on both connections.
+		 * If kdbus_name_lock() gets changed to a per-name lock, we
+		 * really need to read-lock the whole registry here.
+		 */
+		name = kdbus_name_lock(bus->name_registry, res->dst_name);
+		if (!name)
+			return -ESRCH;
+
+		/*
+		 * If both a name and a connection ID are given as destination
+		 * of a message, check that the currently owning connection of
+		 * the name matches the specified ID.
+		 * This way, we allow userspace to send the message to a
+		 * specific connection by ID only if the connection currently
+		 * owns the given name.
+		 */
+		if (msg->dst_id != KDBUS_DST_ID_NAME &&
+		    msg->dst_id != name->conn->id) {
+			ret = -EREMCHG;
+			goto error;
+		}
+
+		if (!name->conn && name->activator)
+			dst = kdbus_conn_ref(name->activator);
+		else
+			dst = kdbus_conn_ref(name->conn);
+
+		if ((msg->flags & KDBUS_MSG_NO_AUTO_START) &&
+		    kdbus_conn_is_activator(dst)) {
+			ret = -EADDRNOTAVAIL;
+			goto error;
+		}
+
+		/*
+		 * Record the sequence number of the registered name; it will
+		 * be passed on to the queue, in case messages addressed to a
+		 * name need to be moved from or to an activator.
+		 */
+		kmsg->dst_name_id = name->name_id;
+	}
+
+	*out_name = name;
+	*out_dst = dst;
+	return 0;
+
+error:
+	kdbus_conn_unref(dst);
+	kdbus_name_unlock(bus->name_registry, name);
+	return ret;
+}
+
 static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 			      struct kdbus_cmd_send *cmd,
 			      struct file *ioctl_file,
@@ -566,67 +646,9 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 	if (WARN_ON(msg->dst_id == KDBUS_DST_ID_BROADCAST))
 		return -EINVAL;
 
-	if (kmsg->res && kmsg->res->dst_name) {
-		/*
-		 * Lock the destination name so it will not get dropped or
-		 * moved between activator/implementer while we try to queue a
-		 * message. We also rely on this to read-lock the entire
-		 * registry so kdbus_meta_conn_collect() will have a consistent
-		 * view of all acquired names on both connections.
-		 * If kdbus_name_lock() gets changed to a per-name lock, we
-		 * really need to read-lock the whole registry here.
-		 */
-		name_entry = kdbus_name_lock(bus->name_registry,
-					     kmsg->res->dst_name);
-		if (!name_entry)
-			return -ESRCH;
-
-		/*
-		 * If both a name and a connection ID are given as destination
-		 * of a message, check that the currently owning connection of
-		 * the name matches the specified ID.
-		 * This way, we allow userspace to send the message to a
-		 * specific connection by ID only if the connection currently
-		 * owns the given name.
-		 */
-		if (msg->dst_id != KDBUS_DST_ID_NAME &&
-		    msg->dst_id != name_entry->conn->id) {
-			ret = -EREMCHG;
-			goto exit_name_unlock;
-		}
-
-		if (!name_entry->conn && name_entry->activator)
-			conn_dst = kdbus_conn_ref(name_entry->activator);
-		else
-			conn_dst = kdbus_conn_ref(name_entry->conn);
-
-		if ((msg->flags & KDBUS_MSG_NO_AUTO_START) &&
-		    kdbus_conn_is_activator(conn_dst)) {
-			ret = -EADDRNOTAVAIL;
-			goto exit_unref;
-		}
-
-		/*
-		 * Record the sequence number of the registered name; it will
-		 * be passed on to the queue, in case messages addressed to a
-		 * name need to be moved from or to an activator.
-		 */
-		kmsg->dst_name_id = name_entry->name_id;
-	} else {
-		/* unicast message to unique name */
-		conn_dst = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
-		if (!conn_dst)
-			return -ENXIO;
-
-		/*
-		 * Special-purpose connections are not allowed to be addressed
-		 * via their unique IDs.
-		 */
-		if (!kdbus_conn_is_ordinary(conn_dst)) {
-			ret = -ENXIO;
-			goto exit_unref;
-		}
-	}
+	ret = kdbus_pin_dst(bus, kmsg, &name_entry, &conn_dst);
+	if (ret < 0)
+		return ret;
 
 	if (conn_src) {
 		u64 attach_flags;
@@ -771,7 +793,6 @@ exit_unref:
 	kdbus_reply_unref(reply_wait);
 	kdbus_reply_unref(reply_wake);
 	kdbus_conn_unref(conn_dst);
-exit_name_unlock:
 	kdbus_name_unlock(bus->name_registry, name_entry);
 	return ret;
 }
