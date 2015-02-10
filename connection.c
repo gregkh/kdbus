@@ -573,6 +573,9 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 	struct kdbus_item *item;
 	int ret = 0;
 
+	if (WARN_ON(msg->dst_id == KDBUS_DST_ID_BROADCAST))
+		return -EINVAL;
+
 	KDBUS_ITEMS_FOREACH(item, cmd->items, KDBUS_ITEMS_SIZE(cmd, items)) {
 		switch (item->type) {
 		case KDBUS_ITEM_CANCEL_FD:
@@ -599,11 +602,6 @@ int kdbus_cmd_msg_send(struct kdbus_conn *conn_src,
 			ret = -EINVAL;
 			goto exit_put_cancelfd;
 		}
-	}
-
-	if (msg->dst_id == KDBUS_DST_ID_BROADCAST) {
-		kdbus_bus_broadcast(bus, conn_src, kmsg);
-		goto exit_put_cancelfd;
 	}
 
 	if (kmsg->res && kmsg->res->dst_name) {
@@ -2090,9 +2088,13 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 		goto exit;
 	}
 
-	ret = kdbus_cmd_msg_send(conn, cmd, f, kmsg);
-	if (ret < 0)
-		goto exit;
+	if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
+		kdbus_bus_broadcast(conn->ep->bus, conn, kmsg);
+	} else {
+		ret = kdbus_cmd_msg_send(conn, cmd, f, kmsg);
+		if (ret < 0)
+			goto exit;
+	}
 
 	if (kdbus_member_set_user(&cmd->reply, argp, typeof(*cmd), reply))
 		ret = -EFAULT;
