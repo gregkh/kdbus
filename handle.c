@@ -93,19 +93,17 @@ static int kdbus_args_negotiate(struct kdbus_args *args)
 	 * embedded in the payload itself.
 	 */
 
-	if (!(args->cmd->flags & KDBUS_FLAG_NEGOTIATE))
-		return 0;
+	if (args->cmd->flags & KDBUS_FLAG_NEGOTIATE) {
+		if (put_user(args->allowed_flags & ~KDBUS_FLAG_NEGOTIATE,
+			     &args->user->flags))
+			return -EFAULT;
+	}
 
-	if (put_user(args->allowed_flags, &args->user->flags))
-		return -EFAULT;
-
-	if (args->argc < 1 || args->argv[0].type != KDBUS_ITEM_NEGOTIATE)
+	if (args->argc < 1 || args->argv[0].type != KDBUS_ITEM_NEGOTIATE ||
+	    !args->argv[0].item)
 		return 0;
 
 	negotiation = args->argv[0].item;
-	if (!negotiation)
-		return 0;
-
 	user = (void*)((u8 __user *)args->user +
 			((u8 *)negotiation - (u8 *)args->cmd));
 	num = KDBUS_ITEM_PAYLOAD_SIZE(negotiation) / sizeof(u64);
