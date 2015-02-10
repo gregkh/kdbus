@@ -173,7 +173,7 @@ int __kdbus_args_parse(struct kdbus_args *args, void __user *argp,
 		goto error;
 
 	*out = args->cmd;
-	return 0;
+	return !!(args->cmd->flags & KDBUS_FLAG_NEGOTIATE);
 
 error:
 	return kdbus_args_clear(args, ret);
@@ -344,8 +344,8 @@ static long kdbus_handle_ioctl_control(struct file *file, unsigned int cmd,
 		struct kdbus_bus *bus;
 
 		bus = kdbus_cmd_bus_make(domain, argp);
-		if (IS_ERR(bus)) {
-			ret = PTR_ERR(bus);
+		if (IS_ERR_OR_NULL(bus)) {
+			ret = PTR_ERR_OR_ZERO(bus);
 			break;
 		}
 
@@ -385,8 +385,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 		}
 
 		ep = kdbus_cmd_ep_make(file_ep->bus, buf);
-		if (IS_ERR(ep)) {
-			ret = PTR_ERR(ep);
+		if (IS_ERR_OR_NULL(ep)) {
+			ret = PTR_ERR_OR_ZERO(ep);
 			break;
 		}
 
@@ -396,8 +396,8 @@ static long kdbus_handle_ioctl_ep(struct file *file, unsigned int cmd,
 
 	case KDBUS_CMD_HELLO:
 		conn = kdbus_cmd_hello(file_ep, handle->privileged, buf);
-		if (IS_ERR(conn)) {
-			ret = PTR_ERR(conn);
+		if (IS_ERR_OR_NULL(conn)) {
+			ret = PTR_ERR_OR_ZERO(conn);
 			break;
 		}
 
@@ -556,7 +556,7 @@ static long kdbus_handle_ioctl(struct file *file, unsigned int cmd,
 		break;
 	}
 
-	return ret;
+	return ret < 0 ? ret : 0;
 }
 
 static unsigned int kdbus_handle_poll(struct file *file,

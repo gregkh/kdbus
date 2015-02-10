@@ -395,7 +395,7 @@ int kdbus_cmd_match_add(struct kdbus_conn *conn, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -543,7 +543,7 @@ int kdbus_cmd_match_remove(struct kdbus_conn *conn, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	down_write(&conn->match_db->mdb_rwlock);

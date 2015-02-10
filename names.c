@@ -634,7 +634,7 @@ int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	item_name = argv[1].item->str;
@@ -698,7 +698,7 @@ int kdbus_cmd_name_release(struct kdbus_conn *conn, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	ret = kdbus_name_release(conn->ep->bus->name_registry, conn,
@@ -878,7 +878,7 @@ int kdbus_cmd_list(struct kdbus_conn *conn, void __user *argp)
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */

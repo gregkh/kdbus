@@ -462,7 +462,9 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
 	if (ret < 0)
-		goto exit;
+		return ERR_PTR(ret);
+	if (ret > 0)
+		return NULL;
 
 	bus = kdbus_bus_new(domain, cmd, current_euid(), current_egid());
 	if (IS_ERR(bus)) {
@@ -550,7 +552,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	name_len = strlen(bus->node.name) + 1;

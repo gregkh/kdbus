@@ -231,7 +231,9 @@ struct kdbus_ep *kdbus_cmd_ep_make(struct kdbus_bus *bus, void __user *argp)
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
 	if (ret < 0)
-		goto exit;
+		return ERR_PTR(ret);
+	if (ret > 0)
+		return NULL;
 
 	item_make_name = argv[1].item->str;
 
@@ -286,11 +288,9 @@ int kdbus_cmd_ep_update(struct kdbus_ep *ep, void __user *argp)
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
-		goto exit;
+	if (ret != 0)
+		return ret;
 
 	ret = kdbus_ep_policy_set(ep, args.items, args.items_size);
-
-exit:
 	return kdbus_args_clear(&args, ret);
 }

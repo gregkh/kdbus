@@ -1748,7 +1748,9 @@ struct kdbus_conn *kdbus_cmd_hello(struct kdbus_ep *ep, bool privileged,
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
 	if (ret < 0)
-		goto exit;
+		return ERR_PTR(ret);
+	if (ret > 0)
+		return NULL;
 
 	item_name = argv[1].item ? argv[1].item->str : NULL;
 
@@ -1822,7 +1824,7 @@ int kdbus_cmd_byebye_unlocked(struct kdbus_conn *conn, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	ret = kdbus_conn_disconnect(conn, true);
@@ -1864,7 +1866,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	name = argv[1].item ? argv[1].item->str : NULL;
@@ -1987,7 +1989,7 @@ int kdbus_cmd_update(struct kdbus_conn *conn, void __user *argp)
 	};
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	item_attach_send = argv[1].item ? &argv[1].item->data64[0] : NULL;
@@ -2080,7 +2082,7 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	cmd->reply.offset = 0;
@@ -2136,7 +2138,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	cmd->dropped_msgs = 0;
@@ -2183,7 +2185,7 @@ int kdbus_cmd_free(struct kdbus_conn *conn, void __user *argp)
 		return -EOPNOTSUPP;
 
 	ret = kdbus_args_parse(&args, argp, &cmd);
-	if (ret < 0)
+	if (ret != 0)
 		return ret;
 
 	ret = kdbus_pool_release_offset(conn->pool, cmd->offset);
