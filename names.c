@@ -261,8 +261,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	if (e->conn == conn) {
 		ret = kdbus_name_entry_release(e);
 	} else {
-		/*
-		 * Otherwise, see if the connection is waiting in the queue */
+		/* Otherwise, see if the connection is waiting in the queue */
 		ret = -EADDRINUSE;
 		list_for_each_entry_safe(q, tmp, &e->queue_list, entry_entry) {
 			if (q->conn != conn)
