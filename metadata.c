@@ -762,7 +762,6 @@ int kdbus_meta_conn_collect(struct kdbus_meta_conn *mc,
 		mc->collected |= KDBUS_ATTACH_TIMESTAMP;
 	}
 
-
 	if (conn && (what & KDBUS_ATTACH_NAMES) &&
 	    !(mc->collected & KDBUS_ATTACH_NAMES)) {
 		ret = kdbus_meta_conn_collect_names(mc, conn);
