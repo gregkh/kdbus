@@ -403,7 +403,8 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
  * size 0. The returned offset points to the end of the pool and is never
  * returned on real slices.
  */
-void kdbus_pool_publish_empty(struct kdbus_pool *pool, u64 *off, u64 *size) {
+void kdbus_pool_publish_empty(struct kdbus_pool *pool, u64 *off, u64 *size)
+{
 	if (off)
 		*off = pool->size;
 	if (size)
