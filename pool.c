@@ -208,6 +208,9 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	struct kdbus_pool_slice *s;
 	int ret = 0;
 
+	if (WARN_ON(!size))
+		return ERR_PTR(-EINVAL);
+
 	/* search a free slice with the closest matching size */
 	mutex_lock(&pool->lock);
 	n = pool->slices_free.rb_node;
@@ -373,6 +376,10 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
 	struct kdbus_pool_slice *slice;
 	int ret = 0;
 
+	/* 'pool->size' is used as dummy offset for empty slices */
+	if (off == pool->size)
+		return 0;
+
 	mutex_lock(&pool->lock);
 	slice = kdbus_pool_find_slice(pool, off);
 	if (slice && slice->ref_user) {
@@ -384,6 +391,23 @@ int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off)
 	mutex_unlock(&pool->lock);
 
 	return ret;
+}
+
+/**
+ * kdbus_pool_publish_empty() - publish empty slice to user-space
+ * @pool:		pool to operate on
+ * @off:		output storage for offset, or NULL
+ * @size:		output storage for size, or NULL
+ *
+ * This is the same as kdbus_pool_slice_publish(), but uses a dummy slice with
+ * size 0. The returned offset points to the end of the pool and is never
+ * returned on real slices.
+ */
+void kdbus_pool_publish_empty(struct kdbus_pool *pool, u64 *off, u64 *size) {
+	if (off)
+		*off = pool->size;
+	if (size)
+		*size = 0;
 }
 
 /**

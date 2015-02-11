@@ -23,6 +23,7 @@ void kdbus_pool_free(struct kdbus_pool *pool);
 size_t kdbus_pool_remain(struct kdbus_pool *pool);
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);
 int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off);
+void kdbus_pool_publish_empty(struct kdbus_pool *pool, u64 *off, u64 *size);
 
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 						size_t size);

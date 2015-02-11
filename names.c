@@ -892,21 +892,26 @@ int kdbus_cmd_list(struct kdbus_conn *conn, void __user *argp)
 	if (ret < 0)
 		goto exit_unlock;
 
-	slice = kdbus_pool_slice_alloc(conn->pool, size);
-	if (IS_ERR(slice)) {
-		ret = PTR_ERR(slice);
-		slice = NULL;
-		goto exit_unlock;
+	if (size == 0) {
+		kdbus_pool_publish_empty(conn->pool, &cmd->offset,
+					 &cmd->list_size);
+	} else {
+		slice = kdbus_pool_slice_alloc(conn->pool, size);
+		if (IS_ERR(slice)) {
+			ret = PTR_ERR(slice);
+			slice = NULL;
+			goto exit_unlock;
+		}
+
+		/* copy the records */
+		pos = 0;
+		ret = kdbus_list_all(conn, cmd->flags, slice, &pos, true);
+		if (ret < 0)
+			goto exit_unlock;
+
+		WARN_ON(pos != size);
+		kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->list_size);
 	}
-
-	/* copy the records */
-	pos = 0;
-	ret = kdbus_list_all(conn, cmd->flags, slice, &pos, true);
-	if (ret < 0)
-		goto exit_unlock;
-
-	WARN_ON(pos != size);
-	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->list_size);
 
 	if (kdbus_member_set_user(&cmd->offset, argp, typeof(*cmd), offset) ||
 	    kdbus_member_set_user(&cmd->list_size, argp,
