@@ -744,76 +744,73 @@ exit:
 	return ret;
 }
 
-static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
+static int kdbus_conn_unicast(struct kdbus_conn *src,
 			      struct kdbus_cmd_send *cmd,
 			      struct kdbus_kmsg *kmsg)
 {
-	struct kdbus_name_entry *name_entry = NULL;
-	struct kdbus_reply *reply_wait = NULL;
-	struct kdbus_msg *msg = &kmsg->msg;
-	struct kdbus_conn *conn_dst = NULL;
-	struct kdbus_bus *bus = conn_src->ep->bus;
-	u64 attach_flags;
+	struct kdbus_name_entry *name = NULL;
+	struct kdbus_reply *wait = NULL;
+	struct kdbus_conn *dst = NULL;
+	struct kdbus_bus *bus = src->ep->bus;
+	u64 attach;
 	int ret = 0;
 
-	if (WARN_ON(msg->dst_id == KDBUS_DST_ID_BROADCAST) ||
+	if (WARN_ON(kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) ||
 	    WARN_ON(!(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) &&
 	            kmsg->msg.cookie_reply != 0))
 		return -EINVAL;
 
-	ret = kdbus_pin_dst(bus, kmsg, &name_entry, &conn_dst);
+	/* find and pin destination */
+
+	ret = kdbus_pin_dst(bus, kmsg, &name, &dst);
 	if (ret < 0)
 		return ret;
 
-	attach_flags = kdbus_meta_calc_attach_flags(conn_src, conn_dst);
-
-	if (!conn_src->faked_meta) {
-		ret = kdbus_meta_proc_collect(kmsg->proc_meta,
-					      attach_flags);
-		if (ret < 0)
-			goto exit_unref;
-	}
-
-	ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
-				      attach_flags);
-	if (ret < 0)
-		goto exit_unref;
-
-	if (msg->flags & KDBUS_MSG_SIGNAL) {
-		if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
-					       conn_src, kmsg)) {
+	if (kmsg->msg.flags & KDBUS_MSG_SIGNAL) {
+		if (!kdbus_match_db_match_kmsg(dst->match_db, src, kmsg)) {
 			ret = -EPERM;
-			goto exit_unref;
+			goto exit;
 		}
 
-		if (!kdbus_conn_policy_talk(conn_dst, NULL, conn_src)) {
+		if (!kdbus_conn_policy_talk(dst, NULL, src)) {
 			ret = -EPERM;
-			goto exit_unref;
+			goto exit;
 		}
-	} else if (!kdbus_conn_policy_talk(conn_src, current_cred(),
-					   conn_dst)) {
+	} else if (!kdbus_conn_policy_talk(src, current_cred(), dst)) {
 		ret = -EPERM;
-		goto exit_unref;
-	} else if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
-		reply_wait = kdbus_reply_new(conn_dst, conn_src, msg,
-					     name_entry, false);
-		if (IS_ERR(reply_wait)) {
-			ret = PTR_ERR(reply_wait);
-			reply_wait = NULL;
-			goto exit_unref;
+		goto exit;
+	} else if (kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) {
+		wait = kdbus_reply_new(dst, src, &kmsg->msg, name, false);
+		if (IS_ERR(wait)) {
+			ret = PTR_ERR(wait);
+			wait = NULL;
+			goto exit;
 		}
 	}
 
-	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
+	/* attach metadata */
 
-	ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, reply_wait);
+	attach = kdbus_meta_calc_attach_flags(src, dst);
+
+	if (!src->faked_meta) {
+		ret = kdbus_meta_proc_collect(kmsg->proc_meta, attach);
+		if (ret < 0)
+			goto exit;
+	}
+
+	ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, src, attach);
 	if (ret < 0)
-		goto exit_unref;
+		goto exit;
 
-exit_unref:
-	kdbus_reply_unref(reply_wait);
-	kdbus_conn_unref(conn_dst);
-	kdbus_name_unlock(bus->name_registry, name_entry);
+	/* send message */
+
+	kdbus_bus_eavesdrop(bus, src, kmsg);
+	ret = kdbus_conn_entry_insert(src, dst, kmsg, wait);
+
+exit:
+	kdbus_reply_unref(wait);
+	kdbus_conn_unref(dst);
+	kdbus_name_unlock(bus->name_registry, name);
 	return ret;
 }
 
