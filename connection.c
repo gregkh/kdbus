@@ -650,13 +650,104 @@ exit:
 	return ret;
 }
 
+static int kdbus_conn_call(struct kdbus_conn *src,
+			   struct kdbus_cmd_send *cmd,
+			   struct kdbus_kmsg *kmsg,
+			   struct file *ioctl_fd,
+			   struct file *cancel_fd)
+{
+	struct kdbus_name_entry *name = NULL;
+	struct kdbus_reply *wait = NULL;
+	struct kdbus_conn *dst = NULL;
+	struct kdbus_bus *bus = src->ep->bus;
+	ktime_t exp;
+	u64 attach;
+	int ret;
+
+	if (WARN_ON(kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) ||
+	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_SIGNAL) ||
+	    WARN_ON(!(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY)) ||
+	    WARN_ON(!(cmd->flags & KDBUS_SEND_SYNC_REPLY)))
+		return -EINVAL;
+
+	exp = ns_to_ktime(kmsg->msg.timeout_ns);
+
+	/* resume previous wait-context, if available */
+
+	mutex_lock(&src->lock);
+	wait = kdbus_reply_find(NULL, src, kmsg->msg.cookie);
+	if (wait) {
+		if (wait->interrupted) {
+			kdbus_reply_ref(wait);
+			wait->interrupted = false;
+		} else {
+			wait = NULL;
+		}
+	}
+	mutex_unlock(&src->lock);
+
+	if (wait)
+		goto wait_sync;
+
+	if (ktime_compare(ktime_get(), exp) >= 0)
+		return -ETIMEDOUT;
+
+	/* find and pin destination */
+
+	ret = kdbus_pin_dst(bus, kmsg, &name, &dst);
+	if (ret < 0)
+		return ret;
+
+	if (!kdbus_conn_policy_talk(src, current_cred(), dst)) {
+		ret = -EPERM;
+		goto exit;
+	}
+
+	wait = kdbus_reply_new(dst, src, &kmsg->msg, name, true);
+	if (IS_ERR(wait)) {
+		ret = PTR_ERR(wait);
+		wait = NULL;
+		goto exit;
+	}
+
+	/* attach metadata */
+
+	attach = kdbus_meta_calc_attach_flags(src, dst);
+
+	if (!src->faked_meta) {
+		ret = kdbus_meta_proc_collect(kmsg->proc_meta, attach);
+		if (ret < 0)
+			goto exit;
+	}
+
+	ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, src, attach);
+	if (ret < 0)
+		goto exit;
+
+	/* send message */
+
+	kdbus_bus_eavesdrop(bus, src, kmsg);
+
+	ret = kdbus_conn_entry_insert(src, dst, kmsg, wait);
+	if (ret < 0)
+		goto exit;
+
+	/* wait for reply */
+wait_sync:
+	name = kdbus_name_unlock(bus->name_registry, name);
+	ret = kdbus_conn_wait_reply(src, cmd, ioctl_fd, cancel_fd, wait, exp);
+
+exit:
+	kdbus_reply_unref(wait);
+	kdbus_conn_unref(dst);
+	kdbus_name_unlock(bus->name_registry, name);
+	return ret;
+}
+
 static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 			      struct kdbus_cmd_send *cmd,
-			      struct file *ioctl_file,
-			      struct kdbus_kmsg *kmsg,
-			      struct file *cancel_fd)
+			      struct kdbus_kmsg *kmsg)
 {
-	bool sync = cmd->flags & KDBUS_SEND_SYNC_REPLY;
 	struct kdbus_name_entry *name_entry = NULL;
 	struct kdbus_reply *reply_wait = NULL;
 	struct kdbus_msg *msg = &kmsg->msg;
@@ -674,43 +765,8 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 	if (ret < 0)
 		return ret;
 
-	/*
-	 * If we got here due to an interrupted system call, our reply
-	 * wait object is still queued on conn_dst, with the former
-	 * cookie. Look it up, and in case it exists, go dormant right
-	 * away again, and don't queue the message again.
-	 *
-	 * We also need to make sure that conn_src did really
-	 * issue a request or if the request did not get
-	 * canceled on the way before looking up any reply
-	 * object.
-	 */
-	if (sync && atomic_read(&conn_src->request_count) > 0) {
-		mutex_lock(&conn_src->lock);
-		reply_wait = kdbus_reply_find(conn_dst, conn_src,
-					      kmsg->msg.cookie);
-		if (reply_wait) {
-			if (reply_wait->interrupted) {
-				kdbus_reply_ref(reply_wait);
-				reply_wait->interrupted = false;
-			} else {
-				reply_wait = NULL;
-			}
-		}
-		mutex_unlock(&conn_src->lock);
-
-		if (reply_wait)
-			goto wait_sync;
-	}
-
-	/* Calculate attach flags of conn_src & conn_dst */
 	attach_flags = kdbus_meta_calc_attach_flags(conn_src, conn_dst);
 
-	/*
-	 * If this connection did not fake its metadata then
-	 * lets augment its metadata by the current valid
-	 * metadata
-	 */
 	if (!conn_src->faked_meta) {
 		ret = kdbus_meta_proc_collect(kmsg->proc_meta,
 					      attach_flags);
@@ -718,10 +774,6 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 			goto exit_unref;
 	}
 
-	/*
-	 * If requested, then we always send the current
-	 * description and owned names of source connection
-	 */
 	ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
 				      attach_flags);
 	if (ret < 0)
@@ -744,7 +796,7 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 		goto exit_unref;
 	} else if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
 		reply_wait = kdbus_reply_new(conn_dst, conn_src, msg,
-					     name_entry, sync);
+					     name_entry, false);
 		if (IS_ERR(reply_wait)) {
 			ret = PTR_ERR(reply_wait);
 			reply_wait = NULL;
@@ -752,35 +804,11 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 		}
 	}
 
-	/*
-	 * Forward to monitors before queuing the message. Otherwise, the
-	 * receiver might queue a reply before the original message is queued
-	 * on the monitors.
-	 * We never guarantee consistent ordering across connections, but for
-	 * monitors we should at least make sure they get the message before
-	 * anyone else.
-	 */
 	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
 
 	ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, reply_wait);
 	if (ret < 0)
 		goto exit_unref;
-
-wait_sync:
-	/* no reason to keep names locked for replies */
-	name_entry = kdbus_name_unlock(bus->name_registry, name_entry);
-
-	if (sync) {
-		ktime_t now = ktime_get();
-		ktime_t expire = ns_to_ktime(msg->timeout_ns);
-
-		if (likely(ktime_compare(now, expire) < 0))
-			ret = kdbus_conn_wait_reply(conn_src, cmd,
-						    ioctl_file, cancel_fd,
-						    reply_wait, expire);
-		else
-			ret = -ETIMEDOUT;
-	}
 
 exit_unref:
 	kdbus_reply_unref(reply_wait);
@@ -2072,9 +2100,13 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 
 	if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(conn->ep->bus, conn, kmsg);
+	} else if (cmd->flags & KDBUS_SEND_SYNC_REPLY) {
+		ret = kdbus_conn_call(conn, cmd, kmsg, f, cancel_fd);
+		if (ret < 0)
+			goto exit;
 	} else if ((kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) ||
 		   kmsg->msg.cookie_reply == 0) {
-		ret = kdbus_conn_unicast(conn, cmd, f, kmsg, cancel_fd);
+		ret = kdbus_conn_unicast(conn, cmd, kmsg);
 		if (ret < 0)
 			goto exit;
 	} else {
