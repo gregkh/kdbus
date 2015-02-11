@@ -823,13 +823,13 @@ struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
 
 	if (mp) {
 		mutex_lock(&mp->lock);
-		valid |= mp ? mp->valid : 0;
+		valid |= mp->valid;
 		mutex_unlock(&mp->lock);
 	}
 
 	if (mc) {
 		mutex_lock(&mc->lock);
-		valid |= mc ? mc->valid : 0;
+		valid |= mc->valid;
 		mutex_unlock(&mc->lock);
 	}
 
