@@ -155,7 +155,7 @@ void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
 
 /**
  * kdbus_reply_find() - Find the corresponding reply object
- * @replying:	The replying connection
+ * @replying:	The replying connection or NULL
  * @reply_dst:	The connection the reply will be sent to
  *		(method origin)
  * @cookie:	The cookie of the requesting message
@@ -174,8 +174,8 @@ struct kdbus_reply *kdbus_reply_find(struct kdbus_conn *replying,
 	struct kdbus_reply *r, *reply = NULL;
 
 	list_for_each_entry(r, &reply_dst->reply_list, entry) {
-		if (r->reply_src == replying &&
-		    r->cookie == cookie) {
+		if (r->cookie == cookie &&
+		    (!replying || r->reply_src == replying)) {
 			reply = r;
 			break;
 		}
