@@ -373,7 +373,6 @@ exit_unlock:
  * kdbus_conn_wait_reply() - Wait for the reply of a synchronous send
  *			     operation
  * @conn_src:		The sending connection (origin)
- * @conn_dst:		The replying connection
  * @cmd_send:		Payload of SEND command
  * @ioctl_file:		struct file used to issue this ioctl
  * @cancel_fd:		Pinned file that reflects KDBUS_ITEM_CANCEL_FD
@@ -384,7 +383,6 @@ exit_unlock:
  * Return: 0 on success. negative error otherwise.
  */
 static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
-				 struct kdbus_conn *conn_dst,
 				 struct kdbus_cmd_send *cmd_send,
 				 struct file *ioctl_file,
 				 struct file *cancel_fd,
@@ -777,7 +775,7 @@ wait_sync:
 		ktime_t expire = ns_to_ktime(msg->timeout_ns);
 
 		if (likely(ktime_compare(now, expire) < 0))
-			ret = kdbus_conn_wait_reply(conn_src, conn_dst, cmd,
+			ret = kdbus_conn_wait_reply(conn_src, cmd,
 						    ioctl_file, cancel_fd,
 						    reply_wait, expire);
 		else
