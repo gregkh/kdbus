@@ -163,10 +163,6 @@ void kdbus_sync_reply_wakeup(struct kdbus_reply *reply, int err)
  * Lookup a reply object that should be sent as a reply by
  * @replying to @reply_dst with the given cookie.
  *
- * For optimizations, callers should first check 'request_count' of
- * @reply_dst to see if the connection has issued any requests
- * that are waiting for replies, before calling this function.
- *
  * Callers must take the @reply_dst lock.
  *
  * Return: the corresponding reply object or NULL if not found
