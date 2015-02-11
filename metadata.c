@@ -427,7 +427,17 @@ int kdbus_meta_proc_collect(struct kdbus_meta_proc *mp, u64 what)
 {
 	int ret;
 
-	if (!mp)
+	if (!mp || !(what & (KDBUS_ATTACH_CREDS |
+			     KDBUS_ATTACH_PIDS |
+			     KDBUS_ATTACH_AUXGROUPS |
+			     KDBUS_ATTACH_TID_COMM |
+			     KDBUS_ATTACH_PID_COMM |
+			     KDBUS_ATTACH_EXE |
+			     KDBUS_ATTACH_CMDLINE |
+			     KDBUS_ATTACH_CGROUP |
+			     KDBUS_ATTACH_CAPS |
+			     KDBUS_ATTACH_SECLABEL |
+			     KDBUS_ATTACH_AUDIT)))
 		return 0;
 
 	mutex_lock(&mp->lock);
@@ -749,7 +759,9 @@ int kdbus_meta_conn_collect(struct kdbus_meta_conn *mc,
 {
 	int ret;
 
-	if (!mc)
+	if (!mc || !(what & (KDBUS_ATTACH_TIMESTAMP |
+			     KDBUS_ATTACH_NAMES |
+			     KDBUS_ATTACH_CONN_DESCRIPTION)))
 		return 0;
 
 	if (conn)
