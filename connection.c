@@ -584,8 +584,7 @@ error:
 	return ret;
 }
 
-static int kdbus_conn_reply(struct kdbus_conn *src, struct kdbus_cmd_send *cmd,
-			    struct kdbus_kmsg *kmsg)
+static int kdbus_conn_reply(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_name_entry *name = NULL;
 	struct kdbus_reply *reply, *wake = NULL;
@@ -596,8 +595,7 @@ static int kdbus_conn_reply(struct kdbus_conn *src, struct kdbus_cmd_send *cmd,
 
 	if (WARN_ON(kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) ||
 	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) ||
-	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_SIGNAL) ||
-	    WARN_ON(cmd->flags & KDBUS_SEND_SYNC_REPLY))
+	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_SIGNAL))
 		return -EINVAL;
 
 	/* find and pin destination */
@@ -744,9 +742,7 @@ exit:
 	return ret;
 }
 
-static int kdbus_conn_unicast(struct kdbus_conn *src,
-			      struct kdbus_cmd_send *cmd,
-			      struct kdbus_kmsg *kmsg)
+static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_name_entry *name = NULL;
 	struct kdbus_reply *wait = NULL;
@@ -2103,11 +2099,11 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 			goto exit;
 	} else if ((kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) ||
 		   kmsg->msg.cookie_reply == 0) {
-		ret = kdbus_conn_unicast(conn, cmd, kmsg);
+		ret = kdbus_conn_unicast(conn, kmsg);
 		if (ret < 0)
 			goto exit;
 	} else {
-		ret = kdbus_conn_reply(conn, cmd, kmsg);
+		ret = kdbus_conn_reply(conn, kmsg);
 		if (ret < 0)
 			goto exit;
 	}
