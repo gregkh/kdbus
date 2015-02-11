@@ -641,6 +641,7 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = conn_src->ep->bus;
+	u64 attach_flags;
 	int ret = 0;
 
 	if (WARN_ON(msg->dst_id == KDBUS_DST_ID_BROADCAST))
@@ -650,97 +651,93 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 	if (ret < 0)
 		return ret;
 
-	if (conn_src) {
-		u64 attach_flags;
-
-		/*
-		 * If we got here due to an interrupted system call, our reply
-		 * wait object is still queued on conn_dst, with the former
-		 * cookie. Look it up, and in case it exists, go dormant right
-		 * away again, and don't queue the message again.
-		 *
-		 * We also need to make sure that conn_src did really
-		 * issue a request or if the request did not get
-		 * canceled on the way before looking up any reply
-		 * object.
-		 */
-		if (sync && atomic_read(&conn_src->request_count) > 0) {
-			mutex_lock(&conn_src->lock);
-			reply_wait = kdbus_reply_find(conn_dst, conn_src,
-						      kmsg->msg.cookie);
-			if (reply_wait) {
-				if (reply_wait->interrupted) {
-					kdbus_reply_ref(reply_wait);
-					reply_wait->interrupted = false;
-				} else {
-					reply_wait = NULL;
-				}
+	/*
+	 * If we got here due to an interrupted system call, our reply
+	 * wait object is still queued on conn_dst, with the former
+	 * cookie. Look it up, and in case it exists, go dormant right
+	 * away again, and don't queue the message again.
+	 *
+	 * We also need to make sure that conn_src did really
+	 * issue a request or if the request did not get
+	 * canceled on the way before looking up any reply
+	 * object.
+	 */
+	if (sync && atomic_read(&conn_src->request_count) > 0) {
+		mutex_lock(&conn_src->lock);
+		reply_wait = kdbus_reply_find(conn_dst, conn_src,
+					      kmsg->msg.cookie);
+		if (reply_wait) {
+			if (reply_wait->interrupted) {
+				kdbus_reply_ref(reply_wait);
+				reply_wait->interrupted = false;
+			} else {
+				reply_wait = NULL;
 			}
-			mutex_unlock(&conn_src->lock);
-
-			if (reply_wait)
-				goto wait_sync;
 		}
+		mutex_unlock(&conn_src->lock);
 
-		/* Calculate attach flags of conn_src & conn_dst */
-		attach_flags = kdbus_meta_calc_attach_flags(conn_src, conn_dst);
+		if (reply_wait)
+			goto wait_sync;
+	}
 
-		/*
-		 * If this connection did not fake its metadata then
-		 * lets augment its metadata by the current valid
-		 * metadata
-		 */
-		if (!conn_src->faked_meta) {
-			ret = kdbus_meta_proc_collect(kmsg->proc_meta,
-						      attach_flags);
-			if (ret < 0)
-				goto exit_unref;
-		}
+	/* Calculate attach flags of conn_src & conn_dst */
+	attach_flags = kdbus_meta_calc_attach_flags(conn_src, conn_dst);
 
-		/*
-		 * If requested, then we always send the current
-		 * description and owned names of source connection
-		 */
-		ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
+	/*
+	 * If this connection did not fake its metadata then
+	 * lets augment its metadata by the current valid
+	 * metadata
+	 */
+	if (!conn_src->faked_meta) {
+		ret = kdbus_meta_proc_collect(kmsg->proc_meta,
 					      attach_flags);
 		if (ret < 0)
 			goto exit_unref;
+	}
 
-		if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
-			ret = kdbus_conn_check_access(conn_src, current_cred(),
-						      conn_dst, msg, NULL);
-			if (ret < 0)
-				goto exit_unref;
+	/*
+	 * If requested, then we always send the current
+	 * description and owned names of source connection
+	 */
+	ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, conn_src,
+				      attach_flags);
+	if (ret < 0)
+		goto exit_unref;
 
-			reply_wait = kdbus_reply_new(conn_dst, conn_src, msg,
-						     name_entry, sync);
-			if (IS_ERR(reply_wait)) {
-				ret = PTR_ERR(reply_wait);
-				reply_wait = NULL;
-				goto exit_unref;
-			}
-		} else if (msg->flags & KDBUS_MSG_SIGNAL) {
-			if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
-						       conn_src, kmsg)) {
-				ret = -EPERM;
-				goto exit_unref;
-			}
+	if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
+		ret = kdbus_conn_check_access(conn_src, current_cred(),
+					      conn_dst, msg, NULL);
+		if (ret < 0)
+			goto exit_unref;
 
-			/*
-			 * A receiver needs TALK access to the sender
-			 * in order to receive signals.
-			 */
-			ret = kdbus_conn_check_access(conn_dst, NULL, conn_src,
-						      msg, NULL);
-			if (ret < 0)
-				goto exit_unref;
-		} else {
-			ret = kdbus_conn_check_access(conn_src, current_cred(),
-						      conn_dst, msg,
-						      &reply_wake);
-			if (ret < 0)
-				goto exit_unref;
+		reply_wait = kdbus_reply_new(conn_dst, conn_src, msg,
+					     name_entry, sync);
+		if (IS_ERR(reply_wait)) {
+			ret = PTR_ERR(reply_wait);
+			reply_wait = NULL;
+			goto exit_unref;
 		}
+	} else if (msg->flags & KDBUS_MSG_SIGNAL) {
+		if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
+					       conn_src, kmsg)) {
+			ret = -EPERM;
+			goto exit_unref;
+		}
+
+		/*
+		 * A receiver needs TALK access to the sender
+		 * in order to receive signals.
+		 */
+		ret = kdbus_conn_check_access(conn_dst, NULL, conn_src,
+					      msg, NULL);
+		if (ret < 0)
+			goto exit_unref;
+	} else {
+		ret = kdbus_conn_check_access(conn_src, current_cred(),
+					      conn_dst, msg,
+					      &reply_wake);
+		if (ret < 0)
+			goto exit_unref;
 	}
 
 	/*
