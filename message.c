@@ -579,6 +579,12 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 			ret = -EINVAL;
 			goto exit_free;
 		}
+
+		/* replies cannot be signals */
+		if (m->msg.cookie_reply && (m->msg.flags & KDBUS_MSG_SIGNAL)) {
+			ret = -EINVAL;
+			goto exit_free;
+		}
 	}
 
 	ret = kdbus_msg_scan_items(m, conn->ep->bus);
