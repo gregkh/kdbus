@@ -723,7 +723,7 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			if (item->vec.offset == ~0ULL)
 				s = "[\\0-bytes]";
 			else
-				s = (char *)conn->buf + item->vec.offset;
+				s = (char *)msg + item->vec.offset;
 
 			kdbus_printf("  +%s (%llu bytes) off=%llu size=%llu '%s'\n",
 			       enum_MSG(item->type), item->size,

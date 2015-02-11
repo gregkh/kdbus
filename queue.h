@@ -68,11 +68,12 @@ struct kdbus_queue_entry {
 
 	struct kdbus_msg msg;
 
-	char *msg_extra;
-	size_t msg_extra_size;
-
 	struct kdbus_pool_slice *slice;
-	struct kdbus_pool_slice *slice_vecs;
+
+	u64 attach_flags;
+	size_t meta_offset;
+	size_t fds_offset;
+	size_t *memfd_offset;
 
 	u64 dst_name_id;
 
@@ -88,7 +89,7 @@ struct kdbus_kmsg;
 void kdbus_queue_init(struct kdbus_queue *queue);
 
 struct kdbus_queue_entry *
-kdbus_queue_entry_alloc(struct kdbus_pool *pool,
+kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 			const struct kdbus_kmsg *kmsg);
 int kdbus_queue_entry_move(struct kdbus_conn *conn_dst,
 			   struct kdbus_queue_entry *entry);

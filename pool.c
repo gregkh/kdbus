@@ -71,7 +71,6 @@ struct kdbus_pool {
  * @size:		Size of slice
  * @entry:		Entry in "all slices" list
  * @rb_node:		Entry in free or busy list
- * @child:		Child slice
  * @free:		Unused slice
  * @ref_kernel:		Kernel holds a reference
  * @ref_user:		Userspace holds a reference
@@ -93,7 +92,6 @@ struct kdbus_pool_slice {
 
 	struct list_head entry;
 	struct rb_node rb_node;
-	struct kdbus_pool_slice *child;
 
 	bool free:1;
 	bool ref_kernel:1;
@@ -259,7 +257,6 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 	kdbus_pool_add_busy_slice(pool, s);
 
 	WARN_ON(s->ref_kernel || s->ref_user);
-	WARN_ON(s->child);
 
 	s->ref_kernel = true;
 	s->free = false;
@@ -276,7 +273,6 @@ exit_unlock:
 static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 {
 	struct kdbus_pool *pool = slice->pool;
-	struct kdbus_pool_slice *child = slice->child;
 
 	/* don't free the slice if either has a reference */
 	if (slice->ref_kernel || slice->ref_user)
@@ -318,16 +314,7 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 	}
 
 	slice->free = true;
-	slice->child = NULL;
 	kdbus_pool_add_free_slice(pool, slice);
-
-	if (child) {
-		/* Only allow one level of recursion */
-		WARN_ON(child->child);
-		WARN_ON(!child->ref_kernel);
-		child->ref_kernel = false;
-		__kdbus_pool_slice_release(child);
-	}
 }
 
 /**
@@ -450,24 +437,6 @@ void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 {
 	return slice->off;
-}
-
-/**
- * kdbus_pool_slice_set_child() - Set child of a slice
- * @slice:	Slice to add a child to
- * @child:	Child to set, may be %NULL
- *
- * Set @child as child of @slice, so it will be freed automatically when
- * @slice goes away.
- */
-void kdbus_pool_slice_set_child(struct kdbus_pool_slice *slice,
-				struct kdbus_pool_slice *child)
-{
-	if (WARN_ON(child && slice->pool != child->pool))
-		return;
-
-	WARN_ON(slice->child);
-	slice->child = child;
 }
 
 /**

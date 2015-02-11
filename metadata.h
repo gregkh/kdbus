@@ -42,10 +42,14 @@ int kdbus_meta_conn_collect(struct kdbus_meta_conn *mc,
 			    struct kdbus_conn *conn,
 			    u64 what);
 
-struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
-				     struct kdbus_meta_conn *mc,
-				     u64 mask,
-				     size_t *sz);
+int kdbus_meta_export_prepare(struct kdbus_meta_proc *mp,
+			      struct kdbus_meta_conn *mc,
+			      u64 *mask, size_t *sz);
+int kdbus_meta_export(struct kdbus_meta_proc *mp,
+		      struct kdbus_meta_conn *mc,
+		      u64 mask,
+		      struct kdbus_pool_slice *slice,
+		      off_t offset, size_t *real_size);
 u64 kdbus_meta_calc_attach_flags(const struct kdbus_conn *sender,
 				 const struct kdbus_conn *receiver);
 

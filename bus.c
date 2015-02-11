@@ -533,10 +533,10 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 	struct kdbus_bus *bus = conn->ep->bus;
 	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_item_header item_hdr;
-	struct kdbus_item *meta_items = NULL;
 	struct kdbus_info info = {};
 	size_t meta_size, name_len;
 	struct kvec kvec[5];
+	u64 hdr_size = 0;
 	u64 attach_flags;
 	size_t cnt = 0;
 	int ret;
@@ -555,41 +555,42 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 	if (ret != 0)
 		return ret;
 
-	name_len = strlen(bus->node.name) + 1;
 	attach_flags = cmd->flags & bus->attach_flags_owner;
+
+	ret = kdbus_meta_export_prepare(bus->creator_meta, NULL,
+				        &attach_flags, &meta_size);
+	if (ret < 0)
+		goto exit;
+
+	name_len = strlen(bus->node.name) + 1;
 	info.id = bus->id;
 	info.flags = bus->bus_flags;
 	item_hdr.type = KDBUS_ITEM_MAKE_NAME;
 	item_hdr.size = KDBUS_ITEM_HEADER_SIZE + name_len;
 
-	meta_items = kdbus_meta_export(bus->creator_meta, NULL, attach_flags,
-				       &meta_size);
-	if (IS_ERR(meta_items)) {
-		ret = PTR_ERR(meta_items);
-		meta_items = NULL;
-		goto exit;
-	}
+	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &hdr_size);
+	kdbus_kvec_set(&kvec[cnt++], &item_hdr, sizeof(item_hdr), &hdr_size);
+	kdbus_kvec_set(&kvec[cnt++], bus->node.name, name_len, &hdr_size);
+	cnt += !!kdbus_kvec_pad(&kvec[cnt], &hdr_size);
 
-	kdbus_kvec_set(&kvec[cnt++], &info, sizeof(info), &info.size);
-	kdbus_kvec_set(&kvec[cnt++], &item_hdr, sizeof(item_hdr), &info.size);
-	kdbus_kvec_set(&kvec[cnt++], bus->node.name, name_len, &info.size);
-	cnt += !!kdbus_kvec_pad(&kvec[cnt], &info.size);
-
-	if (meta_items && meta_size)
-		kdbus_kvec_set(&kvec[cnt++], meta_items, meta_size, &info.size);
-
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size);
+	slice = kdbus_pool_slice_alloc(conn->pool, hdr_size + meta_size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit;
 	}
 
-	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec, cnt, info.size);
+	ret = kdbus_meta_export(bus->creator_meta, NULL, attach_flags,
+				slice, hdr_size, &meta_size);
 	if (ret < 0)
 		goto exit;
 
-	ret = 0;
+	info.size = hdr_size + meta_size;
+
+	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec, cnt, hdr_size);
+	if (ret < 0)
+		goto exit;
+
 	kdbus_pool_slice_publish(slice, &cmd->offset, &cmd->info_size);
 
 	if (kdbus_member_set_user(&cmd->offset, argp, typeof(*cmd), offset) ||
@@ -599,6 +600,6 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 
 exit:
 	kdbus_pool_slice_release(slice);
-	kfree(meta_items);
+
 	return kdbus_args_clear(&args, ret);
 }

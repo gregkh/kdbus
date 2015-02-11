@@ -657,11 +657,11 @@ int kdbus_test_pool_quota(struct kdbus_test_env *env)
 	cmd.size = sizeof(cmd);
 	cmd.msg_address = (uintptr_t)msg;
 
-	for (i = 0; i < (POOL_SIZE/KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE - 1); i++) {
+	for (i = 0; i < (POOL_SIZE/(size + KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE) - 1); i++) {
 		msg->cookie = cookie++;
 
 		ret = kdbus_cmd_send(a->fd, &cmd);
-		ASSERT_RETURN_VAL(ret == 0, -errno);
+		ASSERT_RETURN_VAL(ret == 0, ret);
 	}
 
 	msg->cookie = cookie++;
@@ -671,7 +671,7 @@ int kdbus_test_pool_quota(struct kdbus_test_env *env)
 	ret = kdbus_msg_send(b, NULL, cookie++, 0, 0, 0, c->id);
 	ASSERT_RETURN(ret == 0);
 
-	for (i = 0; i < (POOL_SIZE/KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE - 1); i++) {
+	for (i = 0; i < (POOL_SIZE/(size + KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE) - 1); i++) {
 		ret = kdbus_msg_recv(c, &recv_msg, NULL);
 		ASSERT_RETURN(ret == 0);
 		ASSERT_RETURN(recv_msg->src_id == a->id);

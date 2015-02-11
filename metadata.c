@@ -26,6 +26,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/uio.h>
 #include <linux/user_namespace.h>
 #include <linux/version.h>
 
@@ -799,38 +800,32 @@ exit_unlock:
 	return ret;
 }
 
-/**
- * kdbus_meta_export() - export information from metadata into buffer
+/*
+ * kdbus_meta_export_prepare() - Prepare metadata for export
  * @mp:		Process metadata, or NULL
  * @mc:		Connection metadata, or NULL
- * @mask:	Mask of KDBUS_ATTACH_* flags to export
- * @sz:		Pointer to return the buffer size
+ * @mask:	Pointer to mask of KDBUS_ATTACH_* flags to export
+ * @sz:		Pointer to return the size needed by the metadata
  *
- * This function exports information from metadata to allocated buffer.
- * Only information that is requested in @mask and that has been collected
- * before is exported.
+ * Does a conservative calculation of how much space metadata information
+ * will take up during export. It is 'conservative' because for string
+ * translations in namespaces, it will use the kernel namespaces, which is
+ * the longest possible version.
  *
- * All information will be translated using the current namespaces.
+ * The actual size consumed by kdbus_meta_export() may hence vary from the
+ * one reported here, but it is guaranteed never to be greater.
  *
- * Return: An array of items on success, ERR_PTR value on errors. On success,
- * @sz is also set to the number of bytes returned in the items array. The
- * caller must release the buffer via kfree().
+ * Return: 0 on success, negative error number otherwise.
  */
-struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
-				     struct kdbus_meta_conn *mc,
-				     u64 mask,
-				     size_t *sz)
+int kdbus_meta_export_prepare(struct kdbus_meta_proc *mp,
+			      struct kdbus_meta_conn *mc,
+			      u64 *mask, size_t *sz)
 {
-	struct user_namespace *user_ns = current_user_ns();
-	struct kdbus_item *item, *items = NULL;
 	char *exe_pathname = NULL;
 	void *exe_page = NULL;
 	size_t size = 0;
 	u64 valid = 0;
-	int ret;
-
-	if (WARN_ON(!sz))
-		return ERR_PTR(-EINVAL);
+	int ret = 0;
 
 	if (mp) {
 		mutex_lock(&mp->lock);
@@ -844,8 +839,133 @@ struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
 		mutex_unlock(&mc->lock);
 	}
 
-	mask &= valid;
-	mask &= kdbus_meta_attach_mask;
+	*mask &= valid;
+	*mask &= kdbus_meta_attach_mask;
+
+	if (!*mask)
+		goto exit;
+
+	/* process metadata */
+
+	if (mp && (*mask & KDBUS_ATTACH_CREDS))
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
+
+	if (mp && (*mask & KDBUS_ATTACH_PIDS))
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_pids));
+
+	if (mp && (*mask & KDBUS_ATTACH_AUXGROUPS))
+		size += KDBUS_ITEM_SIZE(mp->n_auxgrps * sizeof(u32));
+
+	if (mp && (*mask & KDBUS_ATTACH_TID_COMM))
+		size += KDBUS_ITEM_SIZE(strlen(mp->tid_comm) + 1);
+
+	if (mp && (*mask & KDBUS_ATTACH_PID_COMM))
+		size += KDBUS_ITEM_SIZE(strlen(mp->pid_comm) + 1);
+
+	if (mp && (*mask & KDBUS_ATTACH_EXE)) {
+		exe_page = (void *)__get_free_page(GFP_TEMPORARY);
+		if (!exe_page) {
+			ret = -ENOMEM;
+			goto exit;
+		}
+
+		exe_pathname = d_path(&mp->exe_path, exe_page, PAGE_SIZE);
+		if (IS_ERR(exe_pathname)) {
+			ret = PTR_ERR(exe_pathname);
+			goto exit;
+		}
+
+		size += KDBUS_ITEM_SIZE(strlen(exe_pathname) + 1);
+		free_page((unsigned long)exe_page);
+	}
+
+	if (mp && (*mask & KDBUS_ATTACH_CMDLINE))
+		size += KDBUS_ITEM_SIZE(strlen(mp->cmdline) + 1);
+
+	if (mp && (*mask & KDBUS_ATTACH_CGROUP))
+		size += KDBUS_ITEM_SIZE(strlen(mp->cgroup) + 1);
+
+	if (mp && (*mask & KDBUS_ATTACH_CAPS))
+		size += KDBUS_ITEM_SIZE(sizeof(mp->caps));
+
+	if (mp && (*mask & KDBUS_ATTACH_SECLABEL))
+		size += KDBUS_ITEM_SIZE(strlen(mp->seclabel) + 1);
+
+	if (mp && (*mask & KDBUS_ATTACH_AUDIT))
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_audit));
+
+	/* connection metadata */
+
+	if (mc && (*mask & KDBUS_ATTACH_NAMES))
+		size += mc->owned_names_size;
+
+	if (mc && (*mask & KDBUS_ATTACH_CONN_DESCRIPTION))
+		size += KDBUS_ITEM_SIZE(strlen(mc->conn_description) + 1);
+
+	if (mc && (*mask & KDBUS_ATTACH_TIMESTAMP))
+		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
+
+exit:
+	*sz = size;
+
+	return 0;
+}
+
+static int kdbus_meta_push_kvec(struct kvec *kvec,
+				struct kdbus_item_header *hdr,
+				u64 type, void *payload,
+				size_t payload_size, u64 *size)
+{
+	hdr->type = type;
+	hdr->size = KDBUS_ITEM_HEADER_SIZE + payload_size;
+	kdbus_kvec_set(kvec++, hdr, sizeof(*hdr), size);
+	kdbus_kvec_set(kvec++, payload, payload_size, size);
+	return 2 + !!kdbus_kvec_pad(kvec++, size);
+}
+
+/**
+ * kdbus_meta_export() - export information from metadata into a slice
+ * @mp:		Process metadata, or NULL
+ * @mc:		Connection metadata, or NULL
+ * @mask:	Mask of KDBUS_ATTACH_* flags to export
+ * @slice:	The slice to export to
+ * @offset:	The offset inside @slice to write to
+ * @real_size:	The real size the metadata consumed
+ *
+ * This function exports information from metadata into @slice at offset
+ * @offset inside that slice. Only information that is requested in @mask
+ * and that has been collected before is exported.
+ *
+ * In order to make sure not to write out of bounds, @mask must be the same
+ * value that was previously returned from kdbus_meta_export_prepare(). The
+ * function will, however, not necessarily write as many bytes as returned by
+ * kdbus_meta_export_prepare(); depending on the namespaces in question, it
+ * might use up less than that.
+ *
+ * All information will be translated using the current namespaces.
+ *
+ * Return: 0 on success, negative error number otherwise.
+ */
+int kdbus_meta_export(struct kdbus_meta_proc *mp,
+		      struct kdbus_meta_conn *mc,
+		      u64 mask,
+		      struct kdbus_pool_slice *slice,
+		      off_t offset,
+		      size_t *real_size)
+{
+	struct user_namespace *user_ns = current_user_ns();
+	struct kdbus_item_header item_hdr[13], *hdr;
+	char *exe_pathname = NULL;
+	struct kdbus_creds creds;
+	struct kdbus_pids pids;
+	void *exe_page = NULL;
+	struct kvec kvec[40];
+	u32 *auxgrps = NULL;
+	size_t cnt = 0;
+	u64 size = 0;
+	int ret = 0;
+
+	hdr = &item_hdr[0];
 
 	/*
 	 * TODO: We currently have no sane way of translating a set of caps
@@ -855,27 +975,63 @@ struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
 	if (mp && mp->caps_namespace != user_ns)
 		mask &= ~KDBUS_ATTACH_CAPS;
 
-	if (!mask) {
-		*sz = 0;
-		return NULL;
+	if (mask == 0) {
+		*real_size = 0;
+		return 0;
 	}
 
 	/* process metadata */
 
-	if (mp && (mask & KDBUS_ATTACH_CREDS))
-		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_creds));
+	if (mp && (mask & KDBUS_ATTACH_CREDS)) {
+		creds.uid	= kdbus_from_kuid_keep(mp->uid);
+		creds.euid	= kdbus_from_kuid_keep(mp->euid);
+		creds.suid	= kdbus_from_kuid_keep(mp->suid);
+		creds.fsuid	= kdbus_from_kuid_keep(mp->fsuid);
+		creds.gid	= kdbus_from_kgid_keep(mp->gid);
+		creds.egid	= kdbus_from_kgid_keep(mp->egid);
+		creds.sgid	= kdbus_from_kgid_keep(mp->sgid);
+		creds.fsgid	= kdbus_from_kgid_keep(mp->fsgid);
 
-	if (mp && (mask & KDBUS_ATTACH_PIDS))
-		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_pids));
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++, KDBUS_ITEM_CREDS,
+					    &creds, sizeof(creds), &size);
+	}
 
-	if (mp && (mask & KDBUS_ATTACH_AUXGROUPS))
-		size += KDBUS_ITEM_SIZE(mp->n_auxgrps * sizeof(u32));
+	if (mp && (mask & KDBUS_ATTACH_PIDS)) {
+		pids.pid = pid_vnr(mp->tgid);
+		pids.tid = pid_vnr(mp->pid);
+		pids.ppid = pid_vnr(mp->ppid);
+
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++, KDBUS_ITEM_PIDS,
+					    &pids, sizeof(pids), &size);
+	}
+
+	if (mp && (mask & KDBUS_ATTACH_AUXGROUPS)) {
+		size_t payload_size = mp->n_auxgrps * sizeof(u32);
+		int i;
+
+		auxgrps = kmalloc(payload_size, GFP_KERNEL);
+		if (!auxgrps) {
+			ret = -ENOMEM;
+			goto exit;
+		}
+
+		for (i = 0; i < mp->n_auxgrps; i++)
+			auxgrps[i] = from_kgid_munged(user_ns, mp->auxgrps[i]);
+
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_AUXGROUPS,
+					    auxgrps, payload_size, &size);
+	}
 
 	if (mp && (mask & KDBUS_ATTACH_TID_COMM))
-		size += KDBUS_ITEM_SIZE(strlen(mp->tid_comm) + 1);
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_TID_COMM, mp->tid_comm,
+					    strlen(mp->tid_comm) + 1, &size);
 
 	if (mp && (mask & KDBUS_ATTACH_PID_COMM))
-		size += KDBUS_ITEM_SIZE(strlen(mp->pid_comm) + 1);
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_PID_COMM, mp->pid_comm,
+					    strlen(mp->pid_comm) + 1, &size);
 
 	if (mp && (mask & KDBUS_ATTACH_EXE)) {
 		struct path p;
@@ -905,122 +1061,34 @@ struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
 				goto exit;
 			}
 
-			size += KDBUS_ITEM_SIZE(strlen(exe_pathname) + 1);
-		} else {
-			mask &= ~KDBUS_ATTACH_EXE;
+			cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+						    KDBUS_ITEM_EXE,
+						    exe_pathname,
+						    strlen(exe_pathname) + 1,
+						    &size);
 		}
 		path_put(&p);
 	}
 
 	if (mp && (mask & KDBUS_ATTACH_CMDLINE))
-		size += KDBUS_ITEM_SIZE(strlen(mp->cmdline) + 1);
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_CMDLINE, mp->cmdline,
+					    strlen(mp->cmdline) + 1, &size);
 
 	if (mp && (mask & KDBUS_ATTACH_CGROUP))
-		size += KDBUS_ITEM_SIZE(strlen(mp->cgroup) + 1);
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_CGROUP, mp->cgroup,
+					    strlen(mp->cgroup) + 1, &size);
 
 	if (mp && (mask & KDBUS_ATTACH_CAPS))
-		size += KDBUS_ITEM_SIZE(sizeof(mp->caps));
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_CAPS, &mp->caps,
+					    sizeof(mp->caps), &size);
 
 	if (mp && (mask & KDBUS_ATTACH_SECLABEL))
-		size += KDBUS_ITEM_SIZE(strlen(mp->seclabel) + 1);
-
-	if (mp && (mask & KDBUS_ATTACH_AUDIT))
-		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_audit));
-
-	/* connection metadata */
-
-	if (mc && (mask & KDBUS_ATTACH_NAMES))
-		size += mc->owned_names_size;
-
-	if (mc && (mask & KDBUS_ATTACH_CONN_DESCRIPTION))
-		size += KDBUS_ITEM_SIZE(strlen(mc->conn_description) + 1);
-
-	if (mc && (mask & KDBUS_ATTACH_TIMESTAMP))
-		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_timestamp));
-
-	if (!size) {
-		*sz = 0;
-		ret = 0;
-		goto exit;
-	}
-
-	items = kzalloc(size, GFP_KERNEL);
-	if (!items) {
-		ret = -ENOMEM;
-		goto exit;
-	}
-
-	item = items;
-
-	/* process metadata */
-
-	if (mp && (mask & KDBUS_ATTACH_CREDS)) {
-		struct kdbus_creds creds = {
-			.uid	= kdbus_from_kuid_keep(mp->uid),
-			.euid	= kdbus_from_kuid_keep(mp->euid),
-			.suid	= kdbus_from_kuid_keep(mp->suid),
-			.fsuid	= kdbus_from_kuid_keep(mp->fsuid),
-			.gid	= kdbus_from_kgid_keep(mp->gid),
-			.egid	= kdbus_from_kgid_keep(mp->egid),
-			.sgid	= kdbus_from_kgid_keep(mp->sgid),
-			.fsgid	= kdbus_from_kgid_keep(mp->fsgid),
-		};
-
-		item = kdbus_item_set(item, KDBUS_ITEM_CREDS, &creds,
-				      sizeof(creds));
-	}
-
-	if (mp && (mask & KDBUS_ATTACH_PIDS)) {
-		struct kdbus_pids pids = {
-			.pid = pid_vnr(mp->tgid),
-			.tid = pid_vnr(mp->pid),
-			.ppid = pid_vnr(mp->ppid),
-		};
-
-		item = kdbus_item_set(item, KDBUS_ITEM_PIDS, &pids,
-				      sizeof(pids));
-	}
-
-	if (mp && (mask & KDBUS_ATTACH_AUXGROUPS)) {
-		int i;
-
-		kdbus_item_set(item, KDBUS_ITEM_AUXGROUPS, NULL,
-			       mp->n_auxgrps * sizeof(u32));
-
-		for (i = 0; i < mp->n_auxgrps; i++)
-			item->data32[i] = from_kgid_munged(user_ns,
-							   mp->auxgrps[i]);
-
-		item = KDBUS_ITEM_NEXT(item);
-	}
-
-	if (mp && (mask & KDBUS_ATTACH_TID_COMM))
-		item = kdbus_item_set(item, KDBUS_ITEM_TID_COMM, mp->tid_comm,
-				      strlen(mp->tid_comm) + 1);
-
-	if (mp && (mask & KDBUS_ATTACH_PID_COMM))
-		item = kdbus_item_set(item, KDBUS_ITEM_PID_COMM, mp->pid_comm,
-				      strlen(mp->pid_comm) + 1);
-
-	if (mp && (mask & KDBUS_ATTACH_EXE))
-		item = kdbus_item_set(item, KDBUS_ITEM_EXE, exe_pathname,
-				      strlen(exe_pathname) + 1);
-
-	if (mp && (mask & KDBUS_ATTACH_CMDLINE))
-		item = kdbus_item_set(item, KDBUS_ITEM_CMDLINE, mp->cmdline,
-				      strlen(mp->cmdline) + 1);
-
-	if (mp && (mask & KDBUS_ATTACH_CGROUP))
-		item = kdbus_item_set(item, KDBUS_ITEM_CGROUP, mp->cgroup,
-				      strlen(mp->cgroup) + 1);
-
-	if (mp && (mask & KDBUS_ATTACH_CAPS))
-		item = kdbus_item_set(item, KDBUS_ITEM_CAPS, &mp->caps,
-				      sizeof(mp->caps));
-
-	if (mp && (mask & KDBUS_ATTACH_SECLABEL))
-		item = kdbus_item_set(item, KDBUS_ITEM_SECLABEL, mp->seclabel,
-				      strlen(mp->seclabel) + 1);
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_SECLABEL, mp->seclabel,
+					    strlen(mp->seclabel) + 1, &size);
 
 	if (mp && (mask & KDBUS_ATTACH_AUDIT)) {
 		struct kdbus_audit a = {
@@ -1028,36 +1096,38 @@ struct kdbus_item *kdbus_meta_export(struct kdbus_meta_proc *mp,
 			.sessionid = mp->audit_sessionid,
 		};
 
-		item = kdbus_item_set(item, KDBUS_ITEM_AUDIT, &a, sizeof(a));
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++, KDBUS_ITEM_AUDIT,
+					    &a, sizeof(a), &size);
 	}
 
 	/* connection metadata */
 
-	if (mc && (mask & KDBUS_ATTACH_NAMES)) {
-		memcpy(item, mc->owned_names_items, mc->owned_names_size);
-		item = (struct kdbus_item *)
-				((u8 *)item + mc->owned_names_size);
-	}
+	if (mc && (mask & KDBUS_ATTACH_NAMES))
+		kdbus_kvec_set(&kvec[cnt++], mc->owned_names_items,
+			       mc->owned_names_size, &size);
 
 	if (mc && (mask & KDBUS_ATTACH_CONN_DESCRIPTION))
-		item = kdbus_item_set(item, KDBUS_ITEM_CONN_DESCRIPTION,
-				      mc->conn_description,
-				      strlen(mc->conn_description) + 1);
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_CONN_DESCRIPTION,
+					    mc->conn_description,
+					    strlen(mc->conn_description) + 1,
+					    &size);
 
 	if (mc && (mask & KDBUS_ATTACH_TIMESTAMP))
-		item = kdbus_item_set(item, KDBUS_ITEM_TIMESTAMP, &mc->ts,
-				      sizeof(mc->ts));
+		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
+					    KDBUS_ITEM_TIMESTAMP, &mc->ts,
+					    sizeof(mc->ts), &size);
 
-	/* sanity check: the buffer should be completely written now */
-	WARN_ON((u8 *)item != (u8 *)items + size);
-
-	*sz = size;
-	ret = 0;
+	ret = kdbus_pool_slice_copy_kvec(slice, offset, kvec, cnt, size);
+	*real_size = size;
 
 exit:
+	kfree(auxgrps);
+
 	if (exe_page)
 		free_page((unsigned long)exe_page);
-	return ret < 0 ? ERR_PTR(ret) : items;
+
+	return ret;
 }
 
 /**

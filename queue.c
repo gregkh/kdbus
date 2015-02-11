@@ -190,7 +190,7 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 
 /**
  * kdbus_queue_entry_alloc() - allocate a queue entry
- * @pool:	The pool to allocate the slice in
+ * @conn_dst:	The destination connection
  * @kmsg:	The kmsg object the queue entry should track
  *
  * Allocates a queue entry based on a given kmsg and allocate space for
@@ -199,12 +199,20 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
  *
  * Return: the allocated entry on success, or an ERR_PTR on failures.
  */
-struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
+struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 						  const struct kdbus_kmsg *kmsg)
 {
 	struct kdbus_msg_resources *res = kmsg->res;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_queue_entry *entry;
+	struct kdbus_item_header hdr;
+	size_t memfd_cnt = 0;
+	struct kvec kvec[2];
+	size_t pool_avail;
+	size_t meta_size;
+	size_t msg_size;
+	u64 payload_off;
+	u64 size = 0;
 	int ret = 0;
 
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
@@ -217,155 +225,179 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_pool *pool,
 	entry->conn_meta = kdbus_meta_conn_ref(kmsg->conn_meta);
 	memcpy(&entry->msg, msg, sizeof(*msg));
 
+	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
+		msg_size = msg->size;
+	else
+		msg_size = offsetof(struct kdbus_msg, items);
+
+	/* sum up the size of the needed slice */
+	size = msg_size;
+
+	if (res) {
+		size += res->vec_count *
+			KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+
+		if (res->memfd_count) {
+			entry->memfd_offset =
+				kcalloc(sizeof(size_t), res->memfd_count,
+					GFP_KERNEL);
+			if (!entry->memfd_offset) {
+				ret = -ENOMEM;
+				goto exit_free_entry;
+			}
+
+			size += res->memfd_count *
+				KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
+		}
+
+		if (res->fds_count)
+			size += KDBUS_ITEM_SIZE(sizeof(int) * res->fds_count);
+
+		if (res->dst_name)
+			size += KDBUS_ITEM_SIZE(strlen(res->dst_name) + 1);
+	}
+
+	/*
+	 * Remember the offset of the metadata part, so we can override
+	 * this part later during kdbus_queue_entry_install().
+	 */
+	entry->meta_offset = size;
+
+	if (entry->proc_meta || entry->conn_meta) {
+		entry->attach_flags =
+			atomic64_read(&conn_dst->attach_flags_recv);
+
+		ret = kdbus_meta_export_prepare(entry->proc_meta,
+						entry->conn_meta,
+						&entry->attach_flags,
+						&meta_size);
+		if (ret < 0)
+			goto exit_free_entry;
+
+		size += meta_size;
+	}
+
+	payload_off = size;
+	size += kmsg->pool_size;
+
+	pool_avail = kdbus_pool_remain(conn_dst->pool);
+
+	/* do not give out more than half of the remaining space */
+	if (size > pool_avail / 2) {
+		ret = -EXFULL;
+		goto exit_free_entry;
+	}
+
+	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, size);
+	if (IS_ERR(entry->slice)) {
+		ret = PTR_ERR(entry->slice);
+		entry->slice = NULL;
+		goto exit_free_entry;
+	}
+
+	/* copy message header */
+	kvec[0].iov_base = (char *) msg;
+	kvec[0].iov_len = msg_size;
+
+	ret = kdbus_pool_slice_copy_kvec(entry->slice, 0, kvec, 1, msg_size);
+	if (ret < 0)
+		goto exit_free_entry;
+
+	/* 'size' will now track the write position */
+	size = msg_size;
+
+	/* create message payload items */
+	if (res) {
+		unsigned int i;
+
+		if (res->dst_name) {
+			size_t slen = strlen(res->dst_name) + 1;
+
+			hdr.type = KDBUS_ITEM_DST_NAME;
+			hdr.size = KDBUS_ITEM_HEADER_SIZE + slen;
+
+			kvec[0].iov_base = &hdr;
+			kvec[0].iov_len = sizeof(hdr);
+
+			kvec[1].iov_base = (char *) res->dst_name;
+			kvec[1].iov_len = slen;
+
+			ret = kdbus_pool_slice_copy_kvec(entry->slice, size,
+							 kvec, 2, hdr.size);
+			if (ret < 0)
+				goto exit_free_entry;
+
+			size += KDBUS_ITEM_SIZE(slen);
+		}
+
+		for (i = 0; i < res->data_count; ++i) {
+			struct kdbus_msg_data *d = res->data + i;
+			struct kdbus_vec v = {};
+
+			switch (d->type) {
+			case KDBUS_MSG_DATA_VEC:
+				v.size = d->size;
+				v.offset = d->vec.off;
+				if (v.offset != ~0ULL)
+					v.offset += payload_off;
+
+				hdr.type = KDBUS_ITEM_PAYLOAD_OFF;
+				hdr.size = KDBUS_ITEM_HEADER_SIZE + sizeof(v);
+
+				kvec[0].iov_base = &hdr;
+				kvec[0].iov_len = sizeof(hdr);
+
+				kvec[1].iov_base = &v;
+				kvec[1].iov_len = sizeof(v);
+
+				ret = kdbus_pool_slice_copy_kvec(entry->slice,
+								 size, kvec, 2,
+								 hdr.size);
+				if (ret < 0)
+					goto exit_free_entry;
+
+				size += hdr.size;
+				break;
+
+			case KDBUS_MSG_DATA_MEMFD:
+				/*
+				 * Remember the location of memfds, so we can
+				 * override the content from
+				 * kdbus_queue_entry_install().
+				 */
+				entry->memfd_offset[memfd_cnt++] = size;
+				size += KDBUS_ITEM_HEADER_SIZE +
+					sizeof(struct kdbus_memfd);
+
+				break;
+			}
+		}
+
+		/*
+		 * Remember the location of the FD part, so we can override the
+		 * content in kdbus_queue_entry_install().
+		 */
+		if (res->fds_count) {
+			entry->fds_offset = size;
+			size += KDBUS_ITEM_SIZE(sizeof(int) * res->fds_count);
+		}
+	}
+
+	/* finally, copy over the actual message payload */
 	if (kmsg->iov_count) {
-		size_t pool_avail = kdbus_pool_remain(pool);
-
-		/* do not give out more than half of the remaining space */
-		if (kmsg->pool_size > pool_avail / 2) {
-			ret = -EXFULL;
-			goto exit_free_entry;
-		}
-
-		/* allocate the needed space in the pool of the receiver */
-		entry->slice_vecs = kdbus_pool_slice_alloc(pool,
-							   kmsg->pool_size);
-		if (IS_ERR(entry->slice_vecs)) {
-			ret = PTR_ERR(entry->slice_vecs);
-			entry->slice_vecs = NULL;
-			goto exit_free_entry;
-		}
-
-		ret = kdbus_pool_slice_copy_iovec(entry->slice_vecs, 0,
+		ret = kdbus_pool_slice_copy_iovec(entry->slice, payload_off,
 						  kmsg->iov,
 						  kmsg->iov_count,
 						  kmsg->pool_size);
 		if (ret < 0)
-			goto exit_free_slice;
-	}
-
-	if (msg->src_id == KDBUS_SRC_ID_KERNEL) {
-		size_t extra_size = msg->size - sizeof(*msg);
-
-		entry->msg_extra = kmemdup((u8 *)msg + sizeof(*msg),
-					   extra_size, GFP_KERNEL);
-		if (!entry->msg_extra) {
-			ret = -ENOMEM;
-			goto exit_free_slice;
-		}
-
-		entry->msg_extra_size = extra_size;
+			goto exit_free_entry;
 	}
 
 	return entry;
 
-exit_free_slice:
-	kdbus_pool_slice_release(entry->slice_vecs);
 exit_free_entry:
 	kdbus_queue_entry_free(entry);
 	return ERR_PTR(ret);
-}
-
-static struct kdbus_item *
-kdbus_msg_make_items(const struct kdbus_msg_resources *res, off_t payload_off,
-		     bool install_fds, u64 *return_flags, size_t *out_size)
-{
-	struct kdbus_item *items, *item;
-	bool incomplete_fds = false;
-	size_t i, size = 0;
-
-	/* sum up how much space we need for the 'control' part */
-	size += res->vec_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
-	size += res->memfd_count * KDBUS_ITEM_SIZE(sizeof(struct kdbus_memfd));
-
-	if (res->fds_count)
-		size += KDBUS_ITEM_SIZE(sizeof(int) * res->fds_count);
-
-	if (res->dst_name)
-		size += KDBUS_ITEM_SIZE(strlen(res->dst_name) + 1);
-
-	items = kzalloc(size, GFP_KERNEL);
-	if (!items)
-		return ERR_PTR(-ENOMEM);
-
-	item = items;
-
-	if (res->dst_name) {
-		kdbus_item_set(item, KDBUS_ITEM_DST_NAME,
-			       res->dst_name, strlen(res->dst_name) + 1);
-		item = KDBUS_ITEM_NEXT(item);
-	}
-
-	for (i = 0; i < res->data_count; ++i) {
-		struct kdbus_msg_data *d = res->data + i;
-		struct kdbus_memfd m = {};
-		struct kdbus_vec v = {};
-
-		switch (d->type) {
-		case KDBUS_MSG_DATA_VEC:
-			v.size = d->size;
-			v.offset = d->vec.off;
-			if (v.offset != ~0ULL)
-				v.offset += payload_off;
-
-			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_OFF,
-				       &v, sizeof(v));
-			item = KDBUS_ITEM_NEXT(item);
-			break;
-
-		case KDBUS_MSG_DATA_MEMFD:
-			m.start = d->memfd.start;
-			m.size = d->size;
-			m.fd = -1;
-			if (install_fds) {
-				m.fd = get_unused_fd_flags(O_CLOEXEC);
-				if (m.fd < 0) {
-					m.fd = -1;
-					incomplete_fds = true;
-				} else {
-					fd_install(m.fd,
-						   get_file(d->memfd.file));
-				}
-			}
-
-			kdbus_item_set(item, KDBUS_ITEM_PAYLOAD_MEMFD,
-				       &m, sizeof(m));
-			item = KDBUS_ITEM_NEXT(item);
-			break;
-		}
-	}
-
-	if (res->fds_count) {
-		kdbus_item_set(item, KDBUS_ITEM_FDS,
-			       NULL, sizeof(int) * res->fds_count);
-		for (i = 0; i < res->fds_count; i++) {
-			int fd;
-			item->fds[i] = -1;
-
-			/* Non installed fds will always be -1 */
-			if (!install_fds)
-				continue;
-
-			fd = get_unused_fd_flags(O_CLOEXEC);
-			if (fd >= 0) {
-				item->fds[i] = fd;
-				fd_install(item->fds[i],
-					   get_file(res->fds[i]));
-			} else {
-				incomplete_fds = true;
-			}
-		}
-
-		item = KDBUS_ITEM_NEXT(item);
-	}
-
-	/* Make sure the sizes actually match */
-	BUG_ON((u8 *)item != (u8 *)items + size);
-
-	if (incomplete_fds)
-		*return_flags |= KDBUS_RECV_RETURN_INCOMPLETE_FDS;
-
-	*out_size = size;
-	return items;
 }
 
 /**
@@ -389,88 +421,130 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			      struct kdbus_conn *conn_dst,
 			      u64 *return_flags, bool install_fds)
 {
-	size_t meta_size = 0, payload_items_size = 0;
-	struct kdbus_item *payload_items = NULL;
-	struct kdbus_item *meta_items = NULL;
-	off_t payload_off = 0;
-	struct kvec kvec[4];
-	size_t kvec_count = 0;
-	int ret = 0;
+	u64 msg_size = entry->meta_offset;
+	struct kdbus_msg_resources *res;
+	bool incomplete_fds = false;
+	struct kvec kvec[2];
+	size_t memfds = 0;
+	int i, ret;
 
 	if (entry->proc_meta || entry->conn_meta) {
-		u64 attach_flags = atomic64_read(&conn_dst->attach_flags_recv);
+		size_t meta_size;
 
-		meta_items = kdbus_meta_export(entry->proc_meta,
-					       entry->conn_meta,
-					       attach_flags,
-					       &meta_size);
-		if (IS_ERR(meta_items)) {
-			ret = PTR_ERR(meta_items);
-			meta_items = NULL;
-			goto exit_free;
+		ret = kdbus_meta_export(entry->proc_meta,
+					entry->conn_meta,
+					entry->attach_flags,
+					entry->slice,
+					entry->meta_offset,
+					&meta_size);
+		if (ret < 0)
+			return ret;
+
+		msg_size += meta_size;
+	}
+
+	/* Update message size at offset 0 */
+	kvec[0].iov_base = &msg_size;
+	kvec[0].iov_len = sizeof(msg_size);
+
+	ret = kdbus_pool_slice_copy_kvec(entry->slice, 0, kvec, 1,
+					 sizeof(msg_size));
+	if (ret < 0)
+		return ret;
+
+	res = entry->msg_res;
+
+	if (!res)
+		return 0;
+
+	if (res->fds_count) {
+		struct kdbus_item_header hdr;
+		size_t off;
+
+		off = entry->fds_offset;
+
+		hdr.type = KDBUS_ITEM_FDS;
+		hdr.size = KDBUS_ITEM_HEADER_SIZE +
+			   sizeof(int) * res->fds_count;
+
+		kvec[0].iov_base = &hdr;
+		kvec[0].iov_len = sizeof(hdr);
+
+		ret = kdbus_pool_slice_copy_kvec(entry->slice, off, kvec, 1,
+						 sizeof(hdr));
+		if (ret < 0)
+			return ret;
+
+		off += KDBUS_ITEM_HEADER_SIZE;
+
+		for (i = 0; i < res->fds_count; i++) {
+			int fd;
+
+			if (install_fds) {
+				fd = get_unused_fd_flags(O_CLOEXEC);
+				if (fd >= 0)
+					fd_install(fd, get_file(res->fds[i]));
+				else
+					incomplete_fds = true;
+			} else {
+				fd = -1;
+			}
+
+			kvec[0].iov_base = &fd;
+			kvec[0].iov_len = sizeof(fd);
+
+			ret = kdbus_pool_slice_copy_kvec(entry->slice, off,
+							 kvec, 1, sizeof(fd));
+			if (ret < 0)
+				return ret;
+
+			off += sizeof(fd);
 		}
 	}
 
-	/*
-	 * The offsets stored in the slice are relative to the start of
-	 * the payload slice. When exporting them, they need to become
-	 * relative to the pool, so get the payload slice's offset first.
-	 */
-	if (entry->slice_vecs)
-		payload_off = kdbus_pool_slice_offset(entry->slice_vecs);
+	for (i = 0; i < res->data_count; ++i) {
+		struct kdbus_msg_data *d = res->data + i;
+		struct kdbus_item_header hdr;
+		struct kdbus_memfd m;
 
-	if (entry->msg_res) {
-		payload_items = kdbus_msg_make_items(entry->msg_res,
-						     payload_off,
-						     install_fds, return_flags,
-						     &payload_items_size);
-		if (IS_ERR(payload_items)) {
-			ret = PTR_ERR(payload_items);
-			payload_items = NULL;
-			goto exit_free;
+		if (d->type != KDBUS_MSG_DATA_MEMFD)
+			continue;
+
+		m.start = d->memfd.start;
+		m.size = d->size;
+		m.fd = -1;
+
+		if (install_fds) {
+			m.fd = get_unused_fd_flags(O_CLOEXEC);
+			if (m.fd < 0) {
+				m.fd = -1;
+				incomplete_fds = true;
+			} else {
+				fd_install(m.fd,
+					   get_file(d->memfd.file));
+			}
 		}
+
+		hdr.type = KDBUS_ITEM_PAYLOAD_MEMFD;
+		hdr.size = KDBUS_ITEM_HEADER_SIZE + sizeof(m);
+
+		kvec[0].iov_base = &hdr;
+		kvec[0].iov_len = sizeof(hdr);
+
+		kvec[1].iov_base = &m;
+		kvec[1].iov_len = sizeof(m);
+
+		ret = kdbus_pool_slice_copy_kvec(entry->slice,
+						 entry->memfd_offset[memfds++],
+						 kvec, 2, hdr.size);
+		if (ret < 0)
+			return ret;
 	}
 
-	entry->msg.size = 0;
+	if (incomplete_fds)
+		*return_flags |= KDBUS_RECV_RETURN_INCOMPLETE_FDS;
 
-	kdbus_kvec_set(&kvec[kvec_count++], &entry->msg, sizeof(entry->msg),
-		       &entry->msg.size);
-
-	if (entry->msg_extra_size)
-		kdbus_kvec_set(&kvec[kvec_count++], entry->msg_extra,
-			       entry->msg_extra_size, &entry->msg.size);
-
-	if (payload_items_size)
-		kdbus_kvec_set(&kvec[kvec_count++], payload_items,
-			       payload_items_size, &entry->msg.size);
-
-	if (meta_size)
-		kdbus_kvec_set(&kvec[kvec_count++], meta_items, meta_size,
-			       &entry->msg.size);
-
-	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, entry->msg.size);
-	if (IS_ERR(entry->slice)) {
-		ret = PTR_ERR(entry->slice);
-		entry->slice = NULL;
-		goto exit_free;
-	}
-
-	ret = kdbus_pool_slice_copy_kvec(entry->slice, 0, kvec,
-					 kvec_count, entry->msg.size);
-	if (ret < 0) {
-		kdbus_pool_slice_release(entry->slice);
-		goto exit_free;
-	}
-
-	kdbus_pool_slice_set_child(entry->slice, entry->slice_vecs);
-
-	ret = 0;
-
-exit_free:
-	kfree(payload_items);
-	kfree(meta_items);
-
-	return ret;
+	return 0;
 }
 
 /**
@@ -485,8 +559,8 @@ int kdbus_queue_entry_move(struct kdbus_conn *conn_dst,
 {
 	int ret = 0;
 
-	if (entry->slice_vecs)
-		ret = kdbus_pool_slice_move(conn_dst->pool, &entry->slice_vecs);
+	if (entry->slice)
+		ret = kdbus_pool_slice_move(conn_dst->pool, &entry->slice);
 
 	if (ret < 0)
 		kdbus_queue_entry_free(entry);
@@ -509,7 +583,7 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 	kdbus_meta_conn_unref(entry->conn_meta);
 	kdbus_meta_proc_unref(entry->proc_meta);
 	kdbus_reply_unref(entry->reply);
-	kfree(entry->msg_extra);
+	kfree(entry->memfd_offset);
 	kfree(entry);
 }
 
