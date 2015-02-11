@@ -2073,9 +2073,9 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 	if (ret != 0)
 		return ret;
 
-	cmd->reply.offset = 0;
-	cmd->reply.msg_size = 0;
 	cmd->reply.return_flags = 0;
+	kdbus_pool_publish_empty(conn->pool, &cmd->reply.offset,
+				 &cmd->reply.msg_size);
 
 	if (argv[1].item) {
 		cancel_fd = fget(argv[1].item->fds[0]);
