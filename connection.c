@@ -221,48 +221,6 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_conn_check_access(struct kdbus_conn *conn_src,
-				   const struct cred *conn_src_creds,
-				   struct kdbus_conn *conn_dst,
-				   const struct kdbus_msg *msg,
-				   struct kdbus_reply **reply_wake)
-{
-	/*
-	 * If the message is a reply, its cookie_reply field must match any
-	 * of the connection's expected replies. Otherwise, access to send the
-	 * message will be denied.
-	 */
-	if (reply_wake && msg->cookie_reply > 0) {
-		struct kdbus_reply *r;
-
-		/*
-		 * The connection that we are replying to has not
-		 * issued any request or perhaps we have already
-		 * replied, in anycase the supplied cookie_reply is
-		 * no more valid, so fail.
-		 */
-		if (atomic_read(&conn_dst->request_count) == 0)
-			return -EPERM;
-
-		mutex_lock(&conn_dst->lock);
-		r = kdbus_reply_find(conn_src, conn_dst, msg->cookie_reply);
-		if (r) {
-			if (r->sync)
-				*reply_wake = kdbus_reply_ref(r);
-			kdbus_reply_unlink(r);
-		}
-		mutex_unlock(&conn_dst->lock);
-
-		return r ? 0 : -EPERM;
-	}
-
-	/* ... otherwise, ask the policy DBs for permission */
-	if (!kdbus_conn_policy_talk(conn_src, conn_src_creds, conn_dst))
-		return -EPERM;
-
-	return 0;
-}
-
 /* Callers should take the conn_dst lock */
 static struct kdbus_queue_entry *
 kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
@@ -628,6 +586,72 @@ error:
 	return ret;
 }
 
+static int kdbus_conn_reply(struct kdbus_conn *src, struct kdbus_cmd_send *cmd,
+			    struct kdbus_kmsg *kmsg)
+{
+	struct kdbus_name_entry *name = NULL;
+	struct kdbus_reply *reply, *wake = NULL;
+	struct kdbus_conn *dst = NULL;
+	struct kdbus_bus *bus = src->ep->bus;
+	u64 attach;
+	int ret;
+
+	if (WARN_ON(kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) ||
+	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) ||
+	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_SIGNAL) ||
+	    WARN_ON(cmd->flags & KDBUS_SEND_SYNC_REPLY))
+		return -EINVAL;
+
+	/* find and pin destination */
+
+	ret = kdbus_pin_dst(bus, kmsg, &name, &dst);
+	if (ret < 0)
+		return ret;
+
+	mutex_lock(&dst->lock);
+	reply = kdbus_reply_find(src, dst, kmsg->msg.cookie_reply);
+	if (reply) {
+		if (reply->sync)
+			wake = kdbus_reply_ref(reply);
+		kdbus_reply_unlink(reply);
+	}
+	mutex_unlock(&dst->lock);
+
+	if (!reply) {
+		ret = -EPERM;
+		goto exit;
+	}
+
+	/* attach metadata */
+
+	attach = kdbus_meta_calc_attach_flags(src, dst);
+
+	if (!src->faked_meta) {
+		ret = kdbus_meta_proc_collect(kmsg->proc_meta, attach);
+		if (ret < 0)
+			goto exit;
+	}
+
+	ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, src, attach);
+	if (ret < 0)
+		goto exit;
+
+	/* send message */
+
+	kdbus_bus_eavesdrop(bus, src, kmsg);
+
+	if (wake)
+		ret = kdbus_conn_entry_sync_attach(dst, kmsg, wake);
+	else
+		ret = kdbus_conn_entry_insert(src, dst, kmsg, NULL);
+
+exit:
+	kdbus_reply_unref(wake);
+	kdbus_conn_unref(dst);
+	kdbus_name_unlock(bus->name_registry, name);
+	return ret;
+}
+
 static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 			      struct kdbus_cmd_send *cmd,
 			      struct file *ioctl_file,
@@ -637,14 +661,15 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 	bool sync = cmd->flags & KDBUS_SEND_SYNC_REPLY;
 	struct kdbus_name_entry *name_entry = NULL;
 	struct kdbus_reply *reply_wait = NULL;
-	struct kdbus_reply *reply_wake = NULL;
 	struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_conn *conn_dst = NULL;
 	struct kdbus_bus *bus = conn_src->ep->bus;
 	u64 attach_flags;
 	int ret = 0;
 
-	if (WARN_ON(msg->dst_id == KDBUS_DST_ID_BROADCAST))
+	if (WARN_ON(msg->dst_id == KDBUS_DST_ID_BROADCAST) ||
+	    WARN_ON(!(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) &&
+	            kmsg->msg.cookie_reply != 0))
 		return -EINVAL;
 
 	ret = kdbus_pin_dst(bus, kmsg, &name_entry, &conn_dst);
@@ -704,12 +729,22 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 	if (ret < 0)
 		goto exit_unref;
 
-	if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
-		ret = kdbus_conn_check_access(conn_src, current_cred(),
-					      conn_dst, msg, NULL);
-		if (ret < 0)
+	if (msg->flags & KDBUS_MSG_SIGNAL) {
+		if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
+					       conn_src, kmsg)) {
+			ret = -EPERM;
 			goto exit_unref;
+		}
 
+		if (!kdbus_conn_policy_talk(conn_dst, NULL, conn_src)) {
+			ret = -EPERM;
+			goto exit_unref;
+		}
+	} else if (!kdbus_conn_policy_talk(conn_src, current_cred(),
+					   conn_dst)) {
+		ret = -EPERM;
+		goto exit_unref;
+	} else if (msg->flags & KDBUS_MSG_EXPECT_REPLY) {
 		reply_wait = kdbus_reply_new(conn_dst, conn_src, msg,
 					     name_entry, sync);
 		if (IS_ERR(reply_wait)) {
@@ -717,27 +752,6 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 			reply_wait = NULL;
 			goto exit_unref;
 		}
-	} else if (msg->flags & KDBUS_MSG_SIGNAL) {
-		if (!kdbus_match_db_match_kmsg(conn_dst->match_db,
-					       conn_src, kmsg)) {
-			ret = -EPERM;
-			goto exit_unref;
-		}
-
-		/*
-		 * A receiver needs TALK access to the sender
-		 * in order to receive signals.
-		 */
-		ret = kdbus_conn_check_access(conn_dst, NULL, conn_src,
-					      msg, NULL);
-		if (ret < 0)
-			goto exit_unref;
-	} else {
-		ret = kdbus_conn_check_access(conn_src, current_cred(),
-					      conn_dst, msg,
-					      &reply_wake);
-		if (ret < 0)
-			goto exit_unref;
 	}
 
 	/*
@@ -750,25 +764,9 @@ static int kdbus_conn_unicast(struct kdbus_conn *conn_src,
 	 */
 	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
 
-	if (reply_wake) {
-		/*
-		 * If we're synchronously responding to a message, allocate a
-		 * queue item and attach it to the reply tracking object.
-		 * The connection's queue will never get to see it.
-		 */
-		ret = kdbus_conn_entry_sync_attach(conn_dst, kmsg, reply_wake);
-		if (ret < 0)
-			goto exit_unref;
-	} else {
-		/*
-		 * Otherwise, put it in the queue and wait for the connection
-		 * to dequeue and receive the message.
-		 */
-		ret = kdbus_conn_entry_insert(conn_src, conn_dst,
-					      kmsg, reply_wait);
-		if (ret < 0)
-			goto exit_unref;
-	}
+	ret = kdbus_conn_entry_insert(conn_src, conn_dst, kmsg, reply_wait);
+	if (ret < 0)
+		goto exit_unref;
 
 wait_sync:
 	/* no reason to keep names locked for replies */
@@ -788,7 +786,6 @@ wait_sync:
 
 exit_unref:
 	kdbus_reply_unref(reply_wait);
-	kdbus_reply_unref(reply_wake);
 	kdbus_conn_unref(conn_dst);
 	kdbus_name_unlock(bus->name_registry, name_entry);
 	return ret;
@@ -2077,8 +2074,13 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 
 	if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(conn->ep->bus, conn, kmsg);
-	} else {
+	} else if ((kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) ||
+		   kmsg->msg.cookie_reply == 0) {
 		ret = kdbus_conn_unicast(conn, cmd, f, kmsg, cancel_fd);
+		if (ret < 0)
+			goto exit;
+	} else {
+		ret = kdbus_conn_reply(conn, cmd, kmsg);
 		if (ret < 0)
 			goto exit;
 	}
