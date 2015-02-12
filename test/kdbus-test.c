@@ -436,7 +436,7 @@ static int start_all_tests(struct kdbus_test_args *kdbus_args)
 
 		if (kdbus_args->tap_output) {
 			printf("%sok %d - %s%s (%s)\n",
-			       (ret != TEST_OK) ? "not " : "", i + 1,
+			       (ret == TEST_ERR) ? "not " : "", i + 1,
 			       (ret == TEST_SKIP) ? "# SKIP " : "",
 			       t->desc, t->name);
 			fflush(stdout);
