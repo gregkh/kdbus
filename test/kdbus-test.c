@@ -402,8 +402,10 @@ static int start_all_tests(struct kdbus_test_args *kdbus_args)
 	unsigned int ok_cnt = 0;
 	unsigned int i;
 
-	if (kdbus_args->tap_output)
+	if (kdbus_args->tap_output) {
 		printf("1..%d\n", N_TESTS);
+		fflush(stdout);
+	}
 
 	kdbus_util_verbose = false;
 
@@ -437,6 +439,7 @@ static int start_all_tests(struct kdbus_test_args *kdbus_args)
 			       (ret != TEST_OK) ? "not " : "", i + 1,
 			       (ret == TEST_SKIP) ? "# SKIP " : "",
 			       t->desc, t->name);
+			fflush(stdout);
 		} else {
 			print_test_result(ret);
 			printf("\n");
