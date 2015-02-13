@@ -608,7 +608,7 @@ struct kdbus_cmd_recv {
               <term><constant>KDBUS_RECV_PEEK</constant></term>
               <listitem>
                 <para>
-                  Just return the location of the next message. Do not install 
+                  Just return the location of the next message. Do not install
                   file descriptors or anything else. This is usually used to
                   determine the sender of the next queued message.
                 </para>
@@ -706,8 +706,8 @@ struct kdbus_cmd_recv {
     </variablelist>
 
     <para>
-      Both <type>struct kdbus_cmd_recv</type> and 
-      <type>struct kdbus_cmd_send</type> embed 
+      Both <type>struct kdbus_cmd_recv</type> and
+      <type>struct kdbus_cmd_send</type> embed
       <type>struct kdbus_msg_info</type>.
       For the <constant>KDBUS_CMD_SEND</constant> ioctl, it is used to catch
       synchronous replies, if one was requested, and is unused otherwise.

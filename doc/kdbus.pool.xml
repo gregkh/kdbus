@@ -211,7 +211,7 @@ struct kdbus_cmd_free {
               <refentrytitle>kdbus.item</refentrytitle>
               <manvolnum>7</manvolnum>
             </citerefentry>
-          ) will be rejected. 
+          ) will be rejected.
         </para></listitem>
       </varlistentry>
     </variablelist>

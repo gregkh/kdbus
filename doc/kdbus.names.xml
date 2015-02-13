@@ -229,7 +229,7 @@ struct kdbus_cmd {
       back to the activator. If there are any connections queued up as waiters
       for the name, the first one in the queue (the oldest entry) will become
       the new owner. The same happens implicitly for all names once a
-      connection terminates. See 
+      connection terminates. See
       <citerefentry>
         <refentrytitle>kdbus.connection</refentrytitle>
         <manvolnum>7</manvolnum>
@@ -487,7 +487,7 @@ struct kdbus_info {
                   An activator connection owns a name as a placeholder for an
                   implementer, which is started on demand by programs as soon
                   as the first message arrives. There's some more information
-                  on this topic in 
+                  on this topic in
                   <citerefentry>
                     <refentrytitle>kdbus.connection</refentrytitle>
                     <manvolnum>7</manvolnum>

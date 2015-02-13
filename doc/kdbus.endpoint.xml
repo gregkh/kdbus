@@ -44,7 +44,7 @@
       install policy entries to allow any operation on this endpoint.
     </para>
     <para>
-      Once <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> succeeded, the new 
+      Once <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> succeeded, the new
       endpoint will appear in the filesystem (
       <citerefentry>
         <refentrytitle>kdbus.bus</refentrytitle>
@@ -164,7 +164,7 @@ struct kdbus_cmd {
         <term><varname>items</varname></term>
         <listitem>
           <para>
-            The following items are expected for 
+            The following items are expected for
             <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>.
           </para>
           <variablelist>
@@ -253,7 +253,7 @@ struct kdbus_cmd {
         <term><varname>items</varname></term>
         <listitem>
           <para>
-            The following items are expected for 
+            The following items are expected for
             <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant>.
           </para>
           <variablelist>

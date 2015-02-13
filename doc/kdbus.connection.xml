@@ -317,7 +317,7 @@ struct kdbus_cmd_hello {
           <constant>KDBUS_CMD_HELLO</constant> ioctl.
         </para>
         <para>
-          See 
+          See
           <citerefentry>
             <refentrytitle>kdbus.pool</refentrytitle>
             <manvolnum>7</manvolnum>
@@ -406,7 +406,7 @@ struct kdbus_cmd_hello {
           </variablelist>
 
           <para>
-            Unrecognized items are rejected, and the ioctl will fail with 
+            Unrecognized items are rejected, and the ioctl will fail with
             <varname>errno</varname> set to <constant>EINVAL</constant>.
           </para>
         </listitem>
@@ -572,7 +572,7 @@ struct kdbus_cmd_info {
         <term><varname>items</varname></term>
         <listitem>
           <para>
-            The following items are expected for 
+            The following items are expected for
             <constant>KDBUS_CMD_CONN_INFO</constant>.
           </para>
           <variablelist>
@@ -748,7 +748,7 @@ struct kdbus_info {
   <refsect1>
     <title>Updating connection details</title>
     <para>
-      Some of a connection's details can be updated with the 
+      Some of a connection's details can be updated with the
       <constant>KDBUS_CMD_CONN_UPDATE</constant> ioctl, using the file
       descriptor that was used to create the connection. The update command
       uses the following struct.
@@ -1024,7 +1024,7 @@ struct kdbus_cmd {
             An illegal combination of
             <constant>KDBUS_HELLO_MONITOR</constant>,
             <constant>KDBUS_HELLO_ACTIVATOR</constant> and
-            <constant>KDBUS_HELLO_POLICY_HOLDER</constant> was passed in 
+            <constant>KDBUS_HELLO_POLICY_HOLDER</constant> was passed in
             <varname>flags</varname>.
           </para></listitem>
         </varlistentry>
