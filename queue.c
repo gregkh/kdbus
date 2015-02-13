@@ -205,7 +205,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 	struct kdbus_msg_resources *res = kmsg->res;
 	const struct kdbus_msg *msg = &kmsg->msg;
 	struct kdbus_queue_entry *entry;
-	struct kdbus_item_header hdr;
 	size_t memfd_cnt = 0;
 	struct kvec kvec[2];
 	size_t pool_avail;
@@ -308,69 +307,93 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 
 	/* create message payload items */
 	if (res) {
+		size_t dst_name_len = 0;
 		unsigned int i;
+		size_t sz = 0;
 
 		if (res->dst_name) {
-			size_t slen = strlen(res->dst_name) + 1;
-
-			hdr.type = KDBUS_ITEM_DST_NAME;
-			hdr.size = KDBUS_ITEM_HEADER_SIZE + slen;
-
-			kvec[0].iov_base = &hdr;
-			kvec[0].iov_len = sizeof(hdr);
-
-			kvec[1].iov_base = (char *) res->dst_name;
-			kvec[1].iov_len = slen;
-
-			ret = kdbus_pool_slice_copy_kvec(entry->slice, size,
-							 kvec, 2, hdr.size);
-			if (ret < 0)
-				goto exit_free_entry;
-
-			size += KDBUS_ITEM_SIZE(slen);
+			dst_name_len = strlen(res->dst_name) + 1;
+			sz += KDBUS_ITEM_SIZE(dst_name_len);
 		}
 
 		for (i = 0; i < res->data_count; ++i) {
-			struct kdbus_msg_data *d = res->data + i;
-			struct kdbus_vec v = {};
+			struct kdbus_vec v;
+			struct kdbus_memfd m;
 
-			switch (d->type) {
+			switch (res->data[i].type) {
 			case KDBUS_MSG_DATA_VEC:
-				v.size = d->size;
-				v.offset = d->vec.off;
-				if (v.offset != ~0ULL)
-					v.offset += payload_off;
-
-				hdr.type = KDBUS_ITEM_PAYLOAD_OFF;
-				hdr.size = KDBUS_ITEM_HEADER_SIZE + sizeof(v);
-
-				kvec[0].iov_base = &hdr;
-				kvec[0].iov_len = sizeof(hdr);
-
-				kvec[1].iov_base = &v;
-				kvec[1].iov_len = sizeof(v);
-
-				ret = kdbus_pool_slice_copy_kvec(entry->slice,
-								 size, kvec, 2,
-								 hdr.size);
-				if (ret < 0)
-					goto exit_free_entry;
-
-				size += hdr.size;
+				sz += KDBUS_ITEM_SIZE(sizeof(v));
 				break;
 
 			case KDBUS_MSG_DATA_MEMFD:
-				/*
-				 * Remember the location of memfds, so we can
-				 * override the content from
-				 * kdbus_queue_entry_install().
-				 */
-				entry->memfd_offset[memfd_cnt++] = size;
-				size += KDBUS_ITEM_HEADER_SIZE +
-					sizeof(struct kdbus_memfd);
-
+				sz += KDBUS_ITEM_SIZE(sizeof(m));
 				break;
 			}
+		}
+
+		if (sz) {
+			struct kdbus_item *items, *item;
+
+			items = kmalloc(sz, GFP_KERNEL);
+			if (!items) {
+				ret = -ENOMEM;
+				goto exit_free_entry;
+			}
+
+			item = items;
+
+			if (res->dst_name)
+				item = kdbus_item_set(item, KDBUS_ITEM_DST_NAME,
+						      res->dst_name,
+						      dst_name_len);
+
+			for (i = 0; i < res->data_count; ++i) {
+				struct kdbus_msg_data *d = res->data + i;
+				struct kdbus_memfd m = {};
+				struct kdbus_vec v = {};
+
+				switch (d->type) {
+				case KDBUS_MSG_DATA_VEC:
+					v.size = d->size;
+					v.offset = d->vec.off;
+					if (v.offset != ~0ULL)
+						v.offset += payload_off;
+
+					item = kdbus_item_set(item,
+							KDBUS_ITEM_PAYLOAD_OFF,
+							&v, sizeof(v));
+					break;
+
+				case KDBUS_MSG_DATA_MEMFD:
+					/*
+					 * Remember the location of memfds, so
+					 * we can override the content from
+					 * kdbus_queue_entry_install().
+					 */
+					entry->memfd_offset[memfd_cnt++] =
+						msg_size +
+						(char *) item - (char *) items +
+						offsetof(struct kdbus_item,
+							 memfd);
+
+					item = kdbus_item_set(item,
+						       KDBUS_ITEM_PAYLOAD_MEMFD,
+						       &m, sizeof(m));
+					break;
+				}
+			}
+
+			kvec[0].iov_base = items;
+			kvec[0].iov_len = sz;
+
+			ret = kdbus_pool_slice_copy_kvec(entry->slice, size,
+							 kvec, 1, sz);
+			kfree(items);
+
+			if (ret < 0)
+				goto exit_free_entry;
+
+			size += sz;
 		}
 
 		/*
@@ -501,7 +524,6 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 
 	for (i = 0; i < res->data_count; ++i) {
 		struct kdbus_msg_data *d = res->data + i;
-		struct kdbus_item_header hdr;
 		struct kdbus_memfd m;
 
 		if (d->type != KDBUS_MSG_DATA_MEMFD)
@@ -522,18 +544,12 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			}
 		}
 
-		hdr.type = KDBUS_ITEM_PAYLOAD_MEMFD;
-		hdr.size = KDBUS_ITEM_HEADER_SIZE + sizeof(m);
-
-		kvec[0].iov_base = &hdr;
-		kvec[0].iov_len = sizeof(hdr);
-
-		kvec[1].iov_base = &m;
-		kvec[1].iov_len = sizeof(m);
+		kvec[0].iov_base = &m;
+		kvec[0].iov_len = sizeof(m);
 
 		ret = kdbus_pool_slice_copy_kvec(entry->slice,
 						 entry->memfd_offset[memfds++],
-						 kvec, 2, hdr.size);
+						 kvec, 1, sizeof(m));
 		if (ret < 0)
 			return ret;
 	}
