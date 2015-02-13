@@ -247,7 +247,7 @@ struct kdbus_memfd {
             this array must be filled with valid file descriptor numbers.
             When received as item attached to a message, the array will
             contain the numbers of the installed file descriptors, or
-            <constant>-1</constant> in case an error occured.
+            <constant>-1</constant> in case an error occurred.
             filedescriptor.
             In either case, the number of entries in the array is derived from
             the item's total size. See
@@ -577,7 +577,7 @@ struct kdbus_pids {
           <listitem><para>
             Contains sets of <emphasis>capabilities</emphasis>, stored as
             <type>struct kdbus_caps</type> in <varname>item.caps</varname>.
-            As the item size may increas in the future, programs should be
+            As the item size may increase in the future, programs should be
             written in a way that it takes
             <varname>item.caps.last_cap</varname> into account, and derive
             the number of sets and rows from the item size and the reported
