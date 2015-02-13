@@ -460,6 +460,24 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 	if (res->fds_count) {
 		struct kdbus_item_header hdr;
 		size_t off;
+		int *fds;
+
+		fds = kmalloc_array(res->fds_count, sizeof(int), GFP_KERNEL);
+		if (!fds)
+			return -ENOMEM;
+
+		for (i = 0; i < res->fds_count; i++) {
+			if (install_fds) {
+				fds[i] = get_unused_fd_flags(O_CLOEXEC);
+				if (fds[i] >= 0)
+					fd_install(fds[i],
+						   get_file(res->fds[i]));
+				else
+					incomplete_fds = true;
+			} else {
+				fds[i] = -1;
+			}
+		}
 
 		off = entry->fds_offset;
 
@@ -470,36 +488,15 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 		kvec[0].iov_base = &hdr;
 		kvec[0].iov_len = sizeof(hdr);
 
-		ret = kdbus_pool_slice_copy_kvec(entry->slice, off, kvec, 1,
-						 sizeof(hdr));
+		kvec[1].iov_base = fds;
+		kvec[1].iov_len = sizeof(int) * res->fds_count;
+
+		ret = kdbus_pool_slice_copy_kvec(entry->slice, off,
+						 kvec, 2, hdr.size);
+		kfree(fds);
+
 		if (ret < 0)
 			return ret;
-
-		off += KDBUS_ITEM_HEADER_SIZE;
-
-		for (i = 0; i < res->fds_count; i++) {
-			int fd;
-
-			if (install_fds) {
-				fd = get_unused_fd_flags(O_CLOEXEC);
-				if (fd >= 0)
-					fd_install(fd, get_file(res->fds[i]));
-				else
-					incomplete_fds = true;
-			} else {
-				fd = -1;
-			}
-
-			kvec[0].iov_base = &fd;
-			kvec[0].iov_len = sizeof(fd);
-
-			ret = kdbus_pool_slice_copy_kvec(entry->slice, off,
-							 kvec, 1, sizeof(fd));
-			if (ret < 0)
-				return ret;
-
-			off += sizeof(fd);
-		}
 	}
 
 	for (i = 0; i < res->data_count; ++i) {
