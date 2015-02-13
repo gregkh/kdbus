@@ -558,7 +558,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 	attach_flags = cmd->flags & bus->attach_flags_owner;
 
 	ret = kdbus_meta_export_prepare(bus->creator_meta, NULL,
-				        &attach_flags, &meta_size);
+					&attach_flags, &meta_size);
 	if (ret < 0)
 		goto exit;
 

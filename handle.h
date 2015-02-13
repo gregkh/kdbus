@@ -48,7 +48,7 @@ struct kdbus_arg {
  * @items:		points to item array in @cmd
  * @items_size:		size of @items in bytes
  *
- * This structure is used to parse ioctl command payloads on each invokation.
+ * This structure is used to parse ioctl command payloads on each invocation.
  * The ioctl handler has to pre-fill the flags and allowed items before passing
  * the object to kdbus_args_parse(). The parser will copy the command payload
  * into kernel-space and verify the correctness of the data.
@@ -79,7 +79,7 @@ int kdbus_args_clear(struct kdbus_args *args, int ret);
 			     offsetof(struct kdbus_cmd, return_flags)); \
 		__kdbus_args_parse((_args), (_argp), sizeof(**(_v)),    \
 				   offsetof(typeof(**(_v)), items),     \
-				   (void**)(_v));                       \
+				   (void **)(_v));                      \
 	})
 
 #endif

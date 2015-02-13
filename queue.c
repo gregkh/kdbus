@@ -238,7 +238,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 
 		if (res->memfd_count) {
 			entry->memfd_offset =
-				kcalloc(sizeof(size_t), res->memfd_count,
+				kcalloc(res->memfd_count, sizeof(size_t),
 					GFP_KERNEL);
 			if (!entry->memfd_offset) {
 				ret = -ENOMEM;

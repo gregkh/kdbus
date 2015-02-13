@@ -753,7 +753,7 @@ static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 
 	if (WARN_ON(kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) ||
 	    WARN_ON(!(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) &&
-	            kmsg->msg.cookie_reply != 0))
+		    kmsg->msg.cookie_reply != 0))
 		return -EINVAL;
 
 	/* find and pin destination */
