@@ -1693,9 +1693,9 @@ bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 
 /**
  * kdbus_cmd_hello() - handle KDBUS_CMD_HELLO
- * @bus:		bus to operate on
- * @privileged:		whether the caller is privileged
- * @argp:		command payload
+ * @ep:			Endpoint to operate on
+ * @privileged:		Whether the caller is privileged
+ * @argp:		Command payload
  *
  * Return: Newly created connection on success, ERR_PTR on failure.
  */
