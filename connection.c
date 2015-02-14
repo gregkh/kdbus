@@ -115,8 +115,9 @@ static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
 int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 		       struct kdbus_cmd_recv *recv)
 {
-	bool install = !(recv->flags & KDBUS_RECV_PEEK);
+	bool peek = recv->flags & KDBUS_RECV_PEEK;
 	struct kdbus_queue_entry *entry = NULL;
+	bool install_fds = true;
 	unsigned int lost_count;
 	int ret = 0;
 
@@ -132,14 +133,18 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	}
 
 	/*
-	 * Make sure to never install fds into a connection that has
-	 * refused to receive any.
+	 * Make sure to never install fds into a connection that has refused to
+	 * receive any. Such connections will not get messages with FDs attached
+	 * queued anyway (and the receiver will get -ECOMM), but we have to
+	 * check again here for eavesdroppers that may opt-in or opt-out for
+	 * file descriptors.
 	 */
-	if (WARN_ON(!(conn->flags & KDBUS_HELLO_ACCEPT_FD) &&
-	    entry->msg_res && entry->msg_res->fds_count > 0)) {
-		ret = -EINVAL;
-		goto exit_unlock;
-	}
+	if (!(conn->flags & KDBUS_HELLO_ACCEPT_FD))
+		install_fds = false;
+
+	/* Never install file descriptors when KDBUS_RECV_PEEK was passed. */
+	if (peek)
+		install_fds = false;
 
 	/* just drop the message */
 	if (recv->flags & KDBUS_RECV_DROP) {
@@ -201,7 +206,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	 * is dropped from internal queues.
 	 */
 	ret = kdbus_queue_entry_install(entry, conn, &recv->msg.return_flags,
-					install);
+					install_fds);
 	if (ret < 0)
 		goto exit_unlock;
 
@@ -209,7 +214,7 @@ int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
 	kdbus_pool_slice_publish(entry->slice, &recv->msg.offset,
 				 &recv->msg.msg_size);
 
-	if (install) {
+	if (!peek) {
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
@@ -230,8 +235,15 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 	if (!kdbus_conn_active(conn_dst))
 		return ERR_PTR(-ECONNRESET);
 
-	/* The connection does not accept file descriptors */
-	if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
+	/*
+	 * If the connection does not accept file descriptors but the message
+	 * has some attached, refuse it.
+	 *
+	 * If the connection is an eavesdropper, accept the message. In that
+	 * case, all file descriptors will be set to -1 at receive time.
+	 */
+	if (!kdbus_conn_is_monitor(conn_dst) &&
+	    !(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
 	    kmsg->res && kmsg->res->fds_count > 0)
 		return ERR_PTR(-ECOMM);
 
