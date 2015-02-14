@@ -859,14 +859,16 @@ struct kdbus_msg_info {
 
     <itemizedlist mark='opencircle'>
       <listitem><para>
-        When connection A is terminated while connection B is waiting for a
-        reply from it, connection B is notified with a message with an item of
+        When connection <emphasis>A</emphasis> is terminated while connection
+        <emphasis>B</emphasis> is waiting for a reply from it, connection
+        <emphasis>B</emphasis> is notified with a message with an item of
         type <constant>KDBUS_ITEM_REPLY_DEAD</constant>.
       </para></listitem>
 
       <listitem><para>
-        When connection A does not receive a reply from connection B within the
-        specified timeout window, connection A will receive a message with an
+        When connection <emphasis>A</emphasis> does not receive a reply from
+        connection <emphasis>B</emphasis> within the specified timeout window,
+        connection <emphasis>A</emphasis> will receive a message with an
         item of type <constant>KDBUS_ITEM_REPLY_TIMEOUT</constant>.
       </para></listitem>
 
