@@ -1174,7 +1174,6 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	int ret;
 
 	struct {
-		/* bloom item */
 		u64 size;
 		u64 type;
 		struct kdbus_bloom_parameter bloom;
@@ -1211,10 +1210,7 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	if (ret < 0)
 		return ERR_PTR(ret);
 
-	/*
-	 * The attach flags must always satisfy the bus
-	 * requirements.
-	 */
+	/* The attach flags must always satisfy the bus * requirements. */
 	if (bus->attach_flags_req & ~attach_flags_send)
 		return ERR_PTR(-ECONNREFUSED);
 
@@ -1244,7 +1240,6 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	conn->flags = hello->flags;
 	atomic64_set(&conn->attach_flags_send, attach_flags_send);
 	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
-	/* init entry, so we can remove it unconditionally */
 	INIT_LIST_HEAD(&conn->monitor_entry);
 
 	if (conn_description) {
