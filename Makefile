@@ -46,10 +46,10 @@ clean:
 check:
 	test/kdbus-test
 
-mandocs:	
+mandocs:
 	$(MAKE) -C doc mandocs
 
-htmldocs:	
+htmldocs:
 	$(MAKE) -C doc htmldocs
 
 docs:	mandocs htmldocs
