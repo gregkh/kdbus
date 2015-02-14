@@ -20,9 +20,9 @@ htmlfiles=$(docs:.xml=.html)
 %.html: %.xml
 	xmlto html-nochunks -m stylesheet.xsl -o . $<
 
-mandoc: $(manpages)
+mandocs: $(manpages)
 
-htmldoc: $(htmlfiles)
+htmldocs: $(htmlfiles)
 
 clean::
 	rm -rf *.7 *.html *.proc manpages.*

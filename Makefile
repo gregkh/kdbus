@@ -25,7 +25,7 @@ KERNELVER		?= $(shell uname -r)
 KERNELDIR 		?= /lib/modules/$(KERNELVER)/build
 PWD			:= $(shell pwd)
 
-all: module tools test doc
+all: module tools test docs
 
 tools::
 	$(MAKE) -C tools KERNELDIR=$(realpath $(KERNELDIR)) KBUILD_MODNAME=kdbus$(EXT)
@@ -46,13 +46,13 @@ clean:
 check:
 	test/kdbus-test
 
-mandoc:	
-	$(MAKE) -C doc mandoc
+mandocs:	
+	$(MAKE) -C doc mandocs
 
-htmldoc:	
-	$(MAKE) -C doc htmldoc
+htmldocs:	
+	$(MAKE) -C doc htmldocs
 
-doc:	mandoc htmldoc
+docs:	mandocs htmldocs
 
 kerneldoc_check:
 	$(KERNELDIR)/scripts/kernel-doc *.c kdbus.h >/dev/null | grep "^Warning"
