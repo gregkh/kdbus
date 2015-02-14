@@ -1228,7 +1228,7 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	if (ret < 0)
 		return ERR_PTR(ret);
 
-	/* The attach flags must always satisfy the bus * requirements. */
+	/* The attach flags must always satisfy the bus requirements. */
 	if (bus->attach_flags_req & ~attach_flags_send)
 		return ERR_PTR(-ECONNREFUSED);
 
