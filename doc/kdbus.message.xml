@@ -845,14 +845,13 @@ struct kdbus_msg_info {
         kdbus_msg.payload_type == <constant>KDBUS_PAYLOAD_KERNEL</constant>
       </para></listitem>
       <listitem><para>
-        Has exactly one of the aforementioned items attached
+        Has exactly one of the items attached that are described below.
+      </para></listitem>
+      <listitem><para>
+        Always has a timestamp item (<constant>KDBUS_ITEM_TIMESTAMP</constant>)
+        attached.
       </para></listitem>
     </itemizedlist>
-
-    <para>
-      Kernel notifications have an item of type
-      <constant>KDBUS_ITEM_TIMESTAMP</constant> attached.
-    </para>
 
     <para>
       The kernel will notify its users of the following events.
