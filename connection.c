@@ -760,6 +760,7 @@ static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 	struct kdbus_reply *wait = NULL;
 	struct kdbus_conn *dst = NULL;
 	struct kdbus_bus *bus = src->ep->bus;
+	bool is_signal = (kmsg->msg.flags & KDBUS_MSG_SIGNAL);
 	u64 attach;
 	int ret = 0;
 
@@ -774,16 +775,14 @@ static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 	if (ret < 0)
 		return ret;
 
-	if (kmsg->msg.flags & KDBUS_MSG_SIGNAL) {
-		if (!kdbus_match_db_match_kmsg(dst->match_db, src, kmsg)) {
-			ret = -EPERM;
-			goto exit;
-		}
+	if (is_signal) {
+		/* like broadcasts we eavesdrop even if the msg is dropped */
+		kdbus_bus_eavesdrop(bus, src, kmsg);
 
-		if (!kdbus_conn_policy_talk(dst, NULL, src)) {
-			ret = -EPERM;
+		/* drop silently if peer is not interested or not privileged */
+		if (!kdbus_match_db_match_kmsg(dst->match_db, src, kmsg) ||
+		    !kdbus_conn_policy_talk(dst, NULL, src))
 			goto exit;
-		}
 	} else if (!kdbus_conn_policy_talk(src, current_cred(), dst)) {
 		ret = -EPERM;
 		goto exit;
@@ -802,18 +801,25 @@ static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 
 	if (!src->faked_meta) {
 		ret = kdbus_meta_proc_collect(kmsg->proc_meta, attach);
-		if (ret < 0)
+		if (ret < 0 && !is_signal)
 			goto exit;
 	}
 
 	ret = kdbus_meta_conn_collect(kmsg->conn_meta, kmsg, src, attach);
-	if (ret < 0)
+	if (ret < 0 && !is_signal)
 		goto exit;
 
 	/* send message */
 
-	kdbus_bus_eavesdrop(bus, src, kmsg);
+	if (!is_signal)
+		kdbus_bus_eavesdrop(bus, src, kmsg);
+
 	ret = kdbus_conn_entry_insert(src, dst, kmsg, wait);
+	if (ret < 0 && !is_signal)
+		goto exit;
+
+	/* signals are treated like broadcasts, recv-errors are ignored */
+	ret = 0;
 
 exit:
 	kdbus_reply_unref(wait);
