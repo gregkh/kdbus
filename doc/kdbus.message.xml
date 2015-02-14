@@ -23,12 +23,12 @@
     <title>Description</title>
 
     <para>
-      Messages are passed to the kernel with the <constant>KDBUS_CMD_SEND</constant>
-      ioctl. Depending on the destination address of the message, the kernel
-      delivers the message to the specific destination connection, or to all
-      connections on the same bus.
-      Sending messages across buses is not possible. Messages are always queued in
-      the memory pool of the destination connection (see below).
+      Messages are passed to the kernel with the
+      <constant>KDBUS_CMD_SEND</constant> ioctl. Depending on the destination
+      address of the message, the kernel delivers the message to the specific
+      destination connection, or to all connections on the same bus.
+      Sending messages across buses is not possible. Messages are always queued
+      in the memory pool of the destination connection (see below).
     </para>
 
     <para>
@@ -479,7 +479,9 @@ struct kdbus_msg {
     </para>
 
     <para>
-      The following items are used to carry the actual data payload of a message.
+      Message payload must be described in items attached to a message when
+      it is sent. A receiver can access the payload by looking at the items
+      that are attached to a message in its pool. The following items are used.
     </para>
 
     <variablelist>
@@ -487,10 +489,23 @@ struct kdbus_msg {
         <term><constant>KDBUS_ITEM_PAYLOAD_VEC</constant></term>
         <listitem>
           <para>
-            Messages are directly copied by the sending process into the
-            receiver's pool.  This way, two peers can exchange data by
-            effectively doing a single-copy from one process to another; the
-            kernel will not buffer the data anywhere else.
+            This item references a piece of memory on the sender side which is
+            directly copied into the receiver's pool. This way, two peers can
+            exchange data by effectively doing a single-copy from one process
+            to another; the kernel will not buffer the data anywhere else.
+            This item is never found in a message received by a connection.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><constant>KDBUS_ITEM_PAYLOAD_OFF</constant></term>
+        <listitem>
+          <para>
+            This item is attached to messages on the receiving side and points
+            to a memory area inside the receiver's pool. The
+            <varname>offset</varname> variable in the item denotes the memory
+            location relative to the message itself.
           </para>
         </listitem>
       </varlistentry>
@@ -546,16 +561,17 @@ struct kdbus_msg {
       The sender must not make any assumptions on the type in which data is
       received by the remote peer. The kernel is free to re-pack multiple
       <constant>KDBUS_ITEM_PAYLOAD_VEC</constant> and
-      <constant>KDBUS_ITEM_MEMFD</constant> payloads. For instance, the kernel
-      may decide to merge multiple <constant>VECs</constant> into a single
-      <constant>VEC</constant>, inline <constant>MEMFD</constant> payloads into
-      memory or merge all passed <constant>VECs</constant> into a single
-      <constant>MEMFD</constant>. However, the kernel preserves the order
+      <constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant> payloads. For instance, the
+      kernel may decide to merge multiple <constant>VECs</constant> into a
+      single <constant>VEC</constant>, inline <constant>MEMFD</constant>
+      payloads into memory, or merge all passed <constant>VECs</constant> into a
+      single <constant>MEMFD</constant>. However, the kernel preserves the order
       of passed data. This means that the order of all <constant>VEC</constant>
       and <constant>MEMFD</constant> items is not changed in respect to each
-      other. In other words: All passed VEC and MEMFD data payloads are treated
-      as a single stream of data that may be received by the remote peer in a
-      different set of chunks than it was sent as.
+      other. In other words: All passed <constant>VEC</constant> and
+      <constant>MEMFD</constant> data payloads are treated as a single stream
+      of data that may be received by the remote peer in a different set of
+      chunks than it was sent as.
     </para>
   </refsect1>
 
@@ -767,14 +783,15 @@ struct kdbus_msg_info {
               <term><constant>KDBUS_RECV_RETURN_INCOMPLETE_FDS</constant></term>
               <listitem>
                 <para>
-                  The message contained memfd or file descriptors which couldn't
-                  be installed into the receiver's task. Most probably that
-                  happened because the maximum number of file descriptors for
-                  that task were exceeded. The message is still delivered, so
-                  this is not a fatal condition. File descriptors inside the
+                  The message contained memfds or file descriptors, and the
+                  kernel failed to install one or more of them at receive time.
+                  Most probably that happened because the maximum number of
+                  file-descriptors for the receiver's task were exceeded.
+                  In such cases, the message is still delivered, so this is not
+                  a fatal condition. File descriptors numbers inside the
                   <constant>KDBUS_ITEM_FDS</constant> item or memfd files
                   referenced by <constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant>
-                  item that could not be installed will be set to
+                  items which could not be installed will be set to
                   <constant>-1</constant>.
                 </para>
               </listitem>
@@ -785,21 +802,23 @@ struct kdbus_msg_info {
     </variablelist>
 
     <para>
-      Unless <constant>KDBUS_RECV_DROP</constant> was passed after a successful
-      <constant>KDBUS_CMD_RECV</constant> ioctl, the <varname>offset</varname>
-      field contains the location of the new message inside the receiver's
-      pool. The message is stored as <type>struct kdbus_msg</type> at
-      this offset, and can be interpreted with the semantics described above.
+      Unless <constant>KDBUS_RECV_DROP</constant> was passed, the
+      <varname>offset</varname> field contains the location of the new message
+      inside the receiver's pool after the <constant>KDBUS_CMD_RECV</constant>
+      ioctl was employed. The message is stored as <type>struct kdbus_msg</type>
+      at this offset, and can be interpreted with the semantics described above.
     </para>
     <para>
       Also, if the connection allowed for file descriptor to be passed
       (<constant>KDBUS_HELLO_ACCEPT_FD</constant>), and if the message contained
       any, they will be installed into the receiving process when the
       <constant>KDBUS_CMD_RECV</constant> ioctl is called.
-      The receiving task is obliged to close all of them appropriately. If
-      <constant>KDBUS_RECV_PEEK</constant> is set, no file descriptors are
-      installed. This allows for peeking at a message and dropping it via
-      <constant>KDBUS_RECV_DROP</constant>, without installing the passed file
+      <emphasis>memfds</emphasis> may always be part of the message payload.
+      The receiving task is obliged to close all file-descriptors appropriately
+      once no longer needed. If <constant>KDBUS_RECV_PEEK</constant> is set, no
+      file descriptors are installed. This allows for peeking at a message,
+      looking at its metadata only and dropping it via
+      <constant>KDBUS_RECV_DROP</constant>, without installing any of the file
       descriptors into the receiving process.
     </para>
     <para>
