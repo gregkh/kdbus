@@ -417,11 +417,23 @@ static int benchmark(struct kdbus_test_env *env)
 int kdbus_test_benchmark(struct kdbus_test_env *env)
 {
 	use_memfd = true;
+	attach_none = false;
+	compare_uds = false;
 	return benchmark(env);
 }
 
 int kdbus_test_benchmark_nomemfds(struct kdbus_test_env *env)
 {
 	use_memfd = false;
+	attach_none = false;
+	compare_uds = false;
+	return benchmark(env);
+}
+
+int kdbus_test_benchmark_uds(struct kdbus_test_env *env)
+{
+	use_memfd = false;
+	attach_none = true;
+	compare_uds = true;
 	return benchmark(env);
 }

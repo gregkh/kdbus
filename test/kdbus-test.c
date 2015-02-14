@@ -263,6 +263,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
+		.name	= "benchmark-uds",
+		.desc	= "benchmark comparison to UDS",
+		.func	= kdbus_test_benchmark_uds,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		/* Last test */
 		.name	= "attach-flags",
 		.desc	= "attach flags mask",

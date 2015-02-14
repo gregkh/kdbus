@@ -47,6 +47,7 @@ int kdbus_test_activator(struct kdbus_test_env *env);
 int kdbus_test_attach_flags(struct kdbus_test_env *env);
 int kdbus_test_benchmark(struct kdbus_test_env *env);
 int kdbus_test_benchmark_nomemfds(struct kdbus_test_env *env);
+int kdbus_test_benchmark_uds(struct kdbus_test_env *env);
 int kdbus_test_bus_make(struct kdbus_test_env *env);
 int kdbus_test_byebye(struct kdbus_test_env *env);
 int kdbus_test_chat(struct kdbus_test_env *env);
