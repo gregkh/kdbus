@@ -11,6 +11,12 @@ since v3:
   * Consolidate some 'struct kdbus_cmd_*' types to make the API
     interface easier to grasp.
 
+  * Get rid of the need for a 2nd pool slice at install time. This
+    avoids pool fragmentation, message memory footprint and complexity.
+
+  * Fix handling of messages with file descriptors with regard to
+    eavesdropping connections that don't accept file descriptors.
+
   * Some internal restructuring and cleanups.
 
 since v2:
