@@ -23,56 +23,57 @@
     <title>Description</title>
 
     <para>
-      TODO
+      kdbus connections can install matches in order to subscribe to signal
+      messages sent on the bus. Such signal messages can be either directed
+      to a single connection (by setting a specific connection ID in
+      <varname>struct kdbus_msg.dst_id</varname> or by sending it to a
+      well-known name), or to potentially <emphasis>all</emphasis> currently
+      active connections on the bus (by setting
+      <varname>struct kdbus_msg.dst_id</varname> to
+      <constant>KDBUS_DST_ID_BROADCAST</constant>).
+      A signal message always has the <constant>KDBUS_MSG_SIGNAL</constant>
+      bit set it it <varname>flags</varname> bitfield.
+      Also, signal messages can originate from either the kernel (called
+      <emphasis>notifications</emphasis>), or from other bus connections.
+      In either case, a bus connection needs to have a suitable
+      <emphasis>match</emphasis> installed in order to receive any signal
+      message. Without any rules installed in the connection, no signal message
+      will be received.
     </para>
   </refsect1>
 
   <refsect1>
-    <title>Matches for broadcast messages from other connections</title>
-    <para>
-      A message addressed at the connection ID
-      <constant>KDBUS_DST_ID_BROADCAST</constant> (~0ULL) is a broadcast
-      message, delivered to all connected peers which installed a rule to
-      match certain properties of the message. Without any rules installed in
-      the connection, no broadcast message or kernel-side notifications will be
-      delivered to the connection. Broadcast messages are subject to policy
-      rules and TALK access checks - see
-      <citerefentry>
-        <refentrytitle>kdbus.policy</refentrytitle>
-        <manvolnum>7</manvolnum>
-      </citerefentry>
-      for more details on implicit policies.
-    </para>
+    <title>Matches for signal messages from other connections</title>
     <para>
       Matches for messages from other connections (not kernel notifications) are
       implemented as bloom filters. The sender adds certain properties of the
       message as elements to a bloom filter bit field, and sends that along with
-      the broadcast message.
+      the signal message.
 
-      The connection adds the message properties it is interested as elements to
-      a bloom mask bit field, and uploads the mask to the match rules of the
-      connection.
+      The receiving connection adds the message properties it is interested in
+      as elements to a bloom mask bit field, and uploads the mask as match rule,
+      possibly along with some other rules to further limit the match.
 
-      The kernel will match the broadcast message's bloom filter against the
-      connections bloom mask (simply by &amp;-ing it), and decide whether the
-      message should be delivered to the connection.
+      The kernel will match the signal message's bloom filter against the
+      connections bloom mask (simply by &amp;-ing it), and will decide whether
+      the message should be delivered to a connection.
     </para>
     <para>
-      The kernel has no notion of any specific properties of the message, all it
-      sees are the bit fields of the bloom filter and mask to match against. The
-      use of bloom filters allows simple and efficient matching, without
-      exposing any message properties or internals to the kernel side. Clients
-      need to deal with the fact that they might receive broadcasts which they
-      did not subscribe to, as the bloom filter might allow false-positives to
-      pass the filter.
+      The kernel has no notion of any specific properties of the signal message,
+      all it sees are the bit fields of the bloom filter and the mask to match
+      against. The use of bloom filters allows simple and efficient matching,
+      without exposing any message properties or internals to the kernel side.
+      Clients need to deal with the fact that they might receive signal messages
+      which they did not subscribe to, as the bloom filter might allow
+      false-positives to pass the filter.
 
       To allow the future extension of the set of elements in the bloom filter,
-      the filter specifies a "generation" number. A later generation must always
-      contain all elements of the set of the previous generation, but can add
-      new elements to the set. The match rules mask can carry an array with all
-      previous generations of masks individually stored. When the filter and
-      mask are matched by the kernel, the mask with the closest matching
-      "generation" is selected as the index into the mask array.
+      the filter specifies a <emphasis>generation</emphasis> number. A later
+      generation must always contain all elements of the set of the previous
+      generation, but can add new elements to the set. The match rules mask can
+      carry an array with all previous generations of masks individually stored.
+      When the filter and mask are matched by the kernel, the mask with the
+      closest matching generation is selected as the index into the mask array.
     </para>
   </refsect1>
 
@@ -84,16 +85,16 @@
         <refentrytitle>kdbus.message</refentrytitle>
         <manvolnum>7</manvolnum>
       </citerefentry>
-      ), a connection must install special match rules that are different from
+      ), a connection must install match rules that are different from
       the bloom filter matches described in the section above. They can be
-      filtered by a sender connection's ID, by one of the name the sender
-      connection owns at the time of sending the message, or by the type of
-      the notification (ID/name add/remove/change).
+      filtered by the connection ID that caused the notfication to be sent, by
+      one of the names it currently owns, or by the type of the notification
+      (ID/name add/remove/change).
     </para>
   </refsect1>
 
   <refsect1>
-    <title>Matches for kernel notifications</title>
+    <title>Adding a match</title>
     <para>
       To add a match, the <constant>KDBUS_CMD_MATCH_ADD</constant> ioctl is
       used, which takes a struct of the struct described below.
@@ -200,9 +201,11 @@ struct kdbus_cmd_match {
               <term><constant>KDBUS_ITEM_NAME</constant></term>
               <listitem>
                 <para>
-                  Specify a name that a sending connection must own at the
-                  time of sending a broadcast message in order to match this
-                  rule.
+                  When used ss part of kernel notifications, this item specifies
+                  a name that is acquired, lost or that changed its owner (see
+                  below). When used as part of a match for user-generated signal
+                  messages, it specifies a name that the sending connection must
+                  own at the time of sending the signal.
                 </para>
               </listitem>
             </varlistentry>
@@ -212,6 +215,10 @@ struct kdbus_cmd_match {
               <listitem>
                 <para>
                   Specify a sender connection's ID that will match this rule.
+                  For kernel notifications, this specifies the ID of a
+                  connection that was added to or removed from the bus.
+                  For used-generated signals, it specifies the ID of the
+                  connection that sent the signal message.
                 </para>
               </listitem>
             </varlistentry>
@@ -222,7 +229,7 @@ struct kdbus_cmd_match {
               <term><constant>KDBUS_ITEM_NAME_CHANGE</constant></term>
               <listitem>
                 <para>
-                  These items request delivery of broadcast messages that
+                  These items request delivery of kernel notifications that
                   describe a name acquisition, loss, or change. The details
                   are stored in the item's
                   <varname>kdbus_notify_name_change</varname> member.
@@ -239,12 +246,13 @@ struct kdbus_cmd_match {
               <term><constant>KDBUS_ITEM_ID_REMOVE</constant></term>
               <listitem>
                 <para>
-                  These items request delivery of kernel notofications that are
+                  These items request delivery of kernel notifications that are
                   generated when a connection is created or terminated.
                   <type>struct kdbus_notify_id_change</type>is used to
                   store the actual match information. This item can be used to
-                  monitor one particular connection ID, or, when the ID field is set to
-                  <constant>KDBUS_MATCH_ID_ANY</constant>, all of them.
+                  monitor one particular connection ID, or, when the ID field
+                  is set to <constant>KDBUS_MATCH_ID_ANY</constant>,
+                  all of them.
                 </para>
               </listitem>
             </varlistentry>

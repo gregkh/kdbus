@@ -36,13 +36,17 @@
     </para>
     <para>
       Messages with a specific <type>uint64_t</type> destination ID are
-      directly delivered to the connection with the corresponding ID. Messages
-      with the special destination ID
-      <constant>KDBUS_DST_ID_BROADCAST</constant> (~0ULL) are broadcast
-      messages and are potentially delivered to all currently active
-      connections on the bus. However, in order to receive any broadcast
-      messages, clients must subscribe to the specific messages they are
-      interested in (see
+      directly delivered to the connection with the corresponding ID. Signal
+      messages (see
+      <citerefentry>
+        <refentrytitle>kdbus.message</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>)
+      may be addressed to the special destination ID
+      <constant>KDBUS_DST_ID_BROADCAST</constant> (~0ULL) and will then
+      potentially be delivered to all currently active connections on the bus.
+      However, in order to receive any signal messages, clients must subscribe
+      to them by installing a match (see
       <citerefentry>
         <refentrytitle>kdbus.match</refentrytitle>
         <manvolnum>7</manvolnum>
