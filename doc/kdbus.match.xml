@@ -32,7 +32,7 @@
       <varname>struct kdbus_msg.dst_id</varname> to
       <constant>KDBUS_DST_ID_BROADCAST</constant>).
       A signal message always has the <constant>KDBUS_MSG_SIGNAL</constant>
-      bit set it it <varname>flags</varname> bitfield.
+      bit set in the <varname>flags</varname> bitfield.
       Also, signal messages can originate from either the kernel (called
       <emphasis>notifications</emphasis>), or from other bus connections.
       In either case, a bus connection needs to have a suitable
