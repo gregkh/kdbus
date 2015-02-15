@@ -12,6 +12,8 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <sys/mman.h>
+#include <sys/capability.h>
+#include <sys/wait.h>
 
 #include "kdbus-util.h"
 #include "kdbus-enum.h"
@@ -152,6 +154,23 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	ASSERT_RETURN(ret == -EAGAIN);
 
 	kdbus_conn_free(conn);
+
+	/* Make sure that monitor as unprivileged is not allowed */
+	ret = test_is_capable(CAP_SETUID, CAP_SETGID, -1);
+	ASSERT_RETURN(ret >= 0);
+
+	if (ret && all_uids_gids_are_mapped()) {
+		ret = RUN_UNPRIVILEGED(UNPRIV_UID, UNPRIV_UID, ({
+			monitor = kdbus_hello(env->buspath,
+					      KDBUS_HELLO_MONITOR,
+					      NULL, 0);
+			ASSERT_EXIT(!monitor && errno == EPERM);
+
+			_exit(EXIT_SUCCESS);
+		}),
+		({ 0; }));
+		ASSERT_RETURN(ret == 0);
+	}
 
 	return TEST_OK;
 }
