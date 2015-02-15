@@ -116,9 +116,9 @@
     <programlisting>
 struct kdbus_cmd_match {
   __u64 size;
-  __u64 cookie;
   __u64 flags;
   __u64 return_flags;
+  __u64 cookie;
   struct kdbus_item items[0];
 };
     </programlisting>
@@ -130,14 +130,6 @@ struct kdbus_cmd_match {
         <term><varname>size</varname></term>
         <listitem><para>
           The overall size of the struct, including its items.
-        </para></listitem>
-      </varlistentry>
-
-      <varlistentry>
-        <term><varname>cookie</varname></term>
-        <listitem><para>
-          A cookie which identifies the match, so it can be referred to when
-          removing it.
         </para></listitem>
       </varlistentry>
 
@@ -174,6 +166,14 @@ struct kdbus_cmd_match {
         <listitem><para>
           Flags returned by the kernel. Currently unused and always set to
           <constant>0</constant> by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>cookie</varname></term>
+        <listitem><para>
+          A cookie which identifies the match, so it can be referred to when
+          removing it.
         </para></listitem>
       </varlistentry>
 
