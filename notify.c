@@ -53,6 +53,7 @@ static int kdbus_notify_reply(struct kdbus_bus *bus, u64 id,
 	 * faster lookup in the match db.
 	 */
 	kmsg->notify_type = msg_type;
+	kmsg->msg.flags = KDBUS_MSG_SIGNAL;
 	kmsg->msg.dst_id = id;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
@@ -123,6 +124,7 @@ int kdbus_notify_name_change(struct kdbus_bus *bus, u64 type,
 	if (IS_ERR(kmsg))
 		return PTR_ERR(kmsg);
 
+	kmsg->msg.flags = KDBUS_MSG_SIGNAL;
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
@@ -160,6 +162,7 @@ int kdbus_notify_id_change(struct kdbus_bus *bus, u64 type, u64 id, u64 flags)
 	if (IS_ERR(kmsg))
 		return PTR_ERR(kmsg);
 
+	kmsg->msg.flags = KDBUS_MSG_SIGNAL;
 	kmsg->msg.dst_id = KDBUS_DST_ID_BROADCAST;
 	kmsg->msg.src_id = KDBUS_SRC_ID_KERNEL;
 	kmsg->msg.payload_type = KDBUS_PAYLOAD_KERNEL;
