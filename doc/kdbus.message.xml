@@ -230,8 +230,9 @@ struct kdbus_msg {
                   <constant>CLOCK_MONOTONIC</constant>.
                 </para><para>
                   For a message to be accepted as reply, it must be a direct
-                  message to the original sender (not a broadcast), and its
-                  <varname>kdbus_msg.reply_cookie </varname> must match the
+                  message to the original sender (not a broadcast and not a
+                  signal message), and its
+                  <varname>kdbus_msg.reply_cookie</varname> must match the
                   previous message's <varname>kdbus_msg.cookie</varname>.
                 </para><para>
                   Expected replies also temporarily open the policy of the
@@ -934,9 +935,10 @@ struct kdbus_msg_info {
           <term><constant>ENOTUNIQ</constant></term>
           <listitem><para>
             The supplied destination is
-            <constant>KDBUS_DST_ID_BROADCAST</constant>, a file descriptor was
-            passed, <constant>KDBUS_MSG_EXPECT_REPLY</constant> was set, or a
-            timeout was given for a broadcast message.
+            <constant>KDBUS_DST_ID_BROADCAST</constant> and either
+            file-descriptors were passed, or
+            <constant>KDBUS_MSG_EXPECT_REPLY</constant> was set,
+            or a timeout was given.
           </para></listitem>
         </varlistentry>
 
