@@ -270,7 +270,13 @@
     <title>The ioctl interface</title>
 
     <para>
-      kdbus exposes its functions exclusively through
+      As stated in the 'synopsis' section above, application developers are
+      strongly encouraged to use kdbus through one of the high-level D-Bus
+      abstraction libaries, rather than using the low-level API directly.
+    </para>
+
+    <para>
+      kdbus on the kernel level exposes its functions exclusively through
       <citerefentry>
         <refentrytitle>ioctl</refentrytitle>
         <manvolnum>2</manvolnum>
