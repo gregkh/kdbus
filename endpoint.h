@@ -26,11 +26,11 @@ struct kdbus_kmsg;
 /**
  * struct kdbus_ep - enpoint to access a bus
  * @node:		The kdbus node
- * @bus:		Bus behind this endpoint
- * @conn_list:		Connections of this endpoint
  * @lock:		Endpoint data lock
+ * @bus:		Bus behind this endpoint
  * @user:		Custom enpoints account against an anonymous user
  * @policy_db:		Uploaded policy
+ * @conn_list:		Connections of this endpoint
  *
  * An enpoint offers access to a bus; the default endpoint node name is "bus".
  * Additional custom endpoints to the same bus can be created and they can
@@ -38,11 +38,17 @@ struct kdbus_kmsg;
  */
 struct kdbus_ep {
 	struct kdbus_node node;
-	struct kdbus_bus *bus;
-	struct list_head conn_list;
 	struct mutex lock;
+
+	/* static */
+	struct kdbus_bus *bus;
 	struct kdbus_domain_user *user;
+
+	/* protected by own locks */
 	struct kdbus_policy_db policy_db;
+
+	/* protected by ep->lock */
+	struct list_head conn_list;
 };
 
 #define kdbus_ep_from_node(_node) \
