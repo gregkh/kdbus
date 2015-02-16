@@ -480,7 +480,7 @@ struct kdbus_cmd_hello {
     <para>
       The creation of activator, policy holder or monitor (eavesdropping)
       connections is an operation restricted to privileged users on the bus.
-      See the section below on privileged connections.
+      See the section above on privileged connections.
     </para>
   </refsect1>
 

@@ -38,7 +38,7 @@
       transport layer used for message interchange between peers.
     </para>
     <para>
-      This set of man-pages aims for giving developers a comprehensive insight
+      This set of man-pages aims for giving developers a comprehensive overview
       of the kernel-level API, with all ioctl commands, associated structs and
       bit masks. However, most people will not use this API level directly, but
       rather let one of the high-level abstraction libraries help them integrate
