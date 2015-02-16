@@ -27,7 +27,6 @@ struct kdbus_kmsg;
  * struct kdbus_ep - enpoint to access a bus
  * @node:		The kdbus node
  * @bus:		Bus behind this endpoint
- * @id:			ID of this endpoint on the bus
  * @conn_list:		Connections of this endpoint
  * @lock:		Endpoint data lock
  * @user:		Custom enpoints account against an anonymous user
@@ -41,7 +40,6 @@ struct kdbus_kmsg;
 struct kdbus_ep {
 	struct kdbus_node node;
 	struct kdbus_bus *bus;
-	u64 id;
 	struct list_head conn_list;
 	struct mutex lock;
 	struct kdbus_domain_user *user;
