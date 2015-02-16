@@ -28,7 +28,6 @@
  * @node:		kdbus_node
  * @domain:		Domain of this bus
  * @id:			ID of this bus in the domain
- * @lock:		Bus data lock
  * @access:		The access flags for the bus directory
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @attach_flags_req:	KDBUS_ATTACH_* flags required by connecting peers
@@ -57,7 +56,6 @@ struct kdbus_bus {
 	struct kdbus_node node;
 	struct kdbus_domain *domain;
 	u64 id;
-	struct mutex lock;
 	unsigned int access;
 	u64 bus_flags;
 	u64 attach_flags_req;

@@ -250,7 +250,6 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	hash = kdbus_strhash(name);
 
 	/* lock order: domain -> bus -> ep -> names -> connection */
-	mutex_lock(&conn->ep->bus->lock);
 	down_write(&reg->rwlock);
 
 	e = kdbus_name_lookup(reg, hash, name);
@@ -275,7 +274,6 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 
 exit_unlock:
 	up_write(&reg->rwlock);
-	mutex_unlock(&conn->ep->bus->lock);
 
 	return ret;
 }
@@ -297,7 +295,6 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	LIST_HEAD(names_list);
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->ep->bus->lock);
 	down_write(&reg->rwlock);
 
 	mutex_lock(&conn->lock);
@@ -315,7 +312,6 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 		kdbus_name_entry_release(e);
 
 	up_write(&reg->rwlock);
-	mutex_unlock(&conn->ep->bus->lock);
 
 	kdbus_conn_unref(activator);
 	kdbus_notify_flush(conn->ep->bus);
@@ -471,7 +467,6 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	u32 hash;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->ep->bus->lock);
 	down_write(&reg->rwlock);
 
 	hash = kdbus_strhash(name);
@@ -599,7 +594,6 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 exit_unlock:
 	up_write(&reg->rwlock);
-	mutex_unlock(&conn->ep->bus->lock);
 	kdbus_notify_flush(conn->ep->bus);
 	return ret;
 }

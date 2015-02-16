@@ -1110,9 +1110,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	LIST_HEAD(msg_list);
 	int i, ret = 0;
 
-	if (WARN_ON(!mutex_is_locked(&conn_dst->ep->bus->lock)))
-		return -EINVAL;
-
 	if (WARN_ON(conn_src == conn_dst))
 		return -EINVAL;
 
@@ -1388,7 +1385,6 @@ static int kdbus_conn_connect(struct kdbus_conn *conn, const char *name)
 		return -ESHUTDOWN;
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&bus->lock);
 	mutex_lock(&ep->lock);
 	down_write(&bus->conn_rwlock);
 
@@ -1408,7 +1404,6 @@ static int kdbus_conn_connect(struct kdbus_conn *conn, const char *name)
 
 	up_write(&bus->conn_rwlock);
 	mutex_unlock(&ep->lock);
-	mutex_unlock(&bus->lock);
 
 	kdbus_node_release(&ep->node);
 

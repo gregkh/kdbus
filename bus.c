@@ -170,7 +170,6 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->bloom = *bloom;
 	b->attach_flags_req = attach_recv;
 	b->attach_flags_owner = attach_owner;
-	mutex_init(&b->lock);
 	init_rwsem(&b->conn_rwlock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->monitors_list);
