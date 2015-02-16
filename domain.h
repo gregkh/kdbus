@@ -26,7 +26,6 @@
 /**
  * struct kdbus_domain - domain for buses
  * @node:		Underlying API node
- * @access:		Access mode for this domain
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
@@ -37,7 +36,6 @@
  */
 struct kdbus_domain {
 	struct kdbus_node node;
-	unsigned int access;
 	struct mutex lock;
 	atomic64_t bus_seq_last;
 	atomic64_t msg_seq_last;
@@ -73,8 +71,7 @@ struct kdbus_domain_user {
 struct kdbus_domain *kdbus_domain_new(unsigned int access);
 struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
-int kdbus_domain_activate(struct kdbus_domain *domain);
-void kdbus_domain_deactivate(struct kdbus_domain *domain);
+int kdbus_domain_populate(struct kdbus_domain *domain, unsigned int access);
 
 struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 						kuid_t uid);

@@ -311,7 +311,10 @@ static int fs_super_fill(struct super_block *sb)
 	/* sb holds root reference */
 	domain->dentry = sb->s_root;
 
-	ret = kdbus_domain_activate(domain);
+	if (!kdbus_node_activate(&domain->node))
+		return -ESHUTDOWN;
+
+	ret = kdbus_domain_populate(domain, KDBUS_MAKE_ACCESS_WORLD);
 	if (ret < 0)
 		return ret;
 
@@ -324,7 +327,7 @@ static void fs_super_kill(struct super_block *sb)
 	struct kdbus_domain *domain = sb->s_fs_info;
 
 	if (domain) {
-		kdbus_domain_deactivate(domain);
+		kdbus_node_deactivate(&domain->node);
 		domain->dentry = NULL;
 	}
 
@@ -359,7 +362,7 @@ static struct dentry *fs_super_mount(struct file_system_type *fs_type,
 
 	sb = sget(fs_type, NULL, fs_super_set, flags, domain);
 	if (IS_ERR(sb)) {
-		kdbus_domain_deactivate(domain);
+		kdbus_node_deactivate(&domain->node);
 		kdbus_domain_unref(domain);
 		return ERR_CAST(sb);
 	}

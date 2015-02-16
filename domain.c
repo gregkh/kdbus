@@ -101,7 +101,6 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 	if (access & KDBUS_MAKE_ACCESS_WORLD)
 		d->node.mode |= S_IROTH | S_IXOTH;
 
-	d->access = access;
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
@@ -151,49 +150,31 @@ struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain)
 }
 
 /**
- * kdbus_domain_activate() - activate a domain
- * @domain:		Domain
+ * kdbus_domain_populate() - populate static domain nodes
+ * @domain:	domain to populate
+ * @access:	KDBUS_MAKE_ACCESS_* access restrictions for new nodes
  *
- * Activate a domain so it will be visible to user-space and can be accessed
- * by external entities.
+ * Allocate and activate static sub-nodes of the given domain. This will fail if
+ * you call it on a non-active node or if the domain was already populated.
  *
- * Returns: 0 on success, negative error-code on failure
+ * Return: 0 on success, negative error code on failure.
  */
-int kdbus_domain_activate(struct kdbus_domain *domain)
+int kdbus_domain_populate(struct kdbus_domain *domain, unsigned int access)
 {
 	struct kdbus_node *control;
-
-	/*
-	 * kdbus_domain_activate() must not be called multiple times, so if
-	 * kdbus_node_activate() didn't activate the node, it must already be
-	 * dead.
-	 */
-	if (!kdbus_node_activate(&domain->node))
-		return -ESHUTDOWN;
 
 	/*
 	 * Create a control-node for this domain. We drop our own reference
 	 * immediately, effectively causing the node to be deactivated and
 	 * released when the parent domain is.
 	 */
-	control = kdbus_domain_control_new(domain, domain->access);
+	control = kdbus_domain_control_new(domain, access);
 	if (IS_ERR(control))
 		return PTR_ERR(control);
 
 	kdbus_node_activate(control);
 	kdbus_node_unref(control);
-
 	return 0;
-}
-
-/**
- * kdbus_domain_deactivate() - invalidate a domain
- * @domain:		Domain
- */
-void kdbus_domain_deactivate(struct kdbus_domain *domain)
-{
-	if (domain)
-		kdbus_node_deactivate(&domain->node);
 }
 
 /**
