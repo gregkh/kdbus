@@ -132,7 +132,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	 * user limits. Instead, for each custom endpoint, we create a custom,
 	 * unique user, which all transactions are accounted on. Regardless of
 	 * the user using that endpoint, it is always accounted on the same
-	 * user-object. This budget is not shared with ordniary users on
+	 * user-object. This budget is not shared with ordinary users on
 	 * non-custom endpoints.
 	 */
 	if (is_custom) {
