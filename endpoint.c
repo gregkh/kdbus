@@ -184,23 +184,6 @@ struct kdbus_ep *kdbus_ep_unref(struct kdbus_ep *ep)
 }
 
 /**
- * kdbus_ep_policy_set() - set policy for an endpoint
- * @ep:			The endpoint
- * @items:		The kdbus items containing policy information
- * @items_size:		The total length of the items
- *
- * Only the endpoint owner should be able to call this function.
- *
- * Return: 0 on success, negative errno on failure.
- */
-int kdbus_ep_policy_set(struct kdbus_ep *ep,
-			const struct kdbus_item *items,
-			size_t items_size)
-{
-	return kdbus_policy_set(&ep->policy_db, items, items_size, 0, true, ep);
-}
-
-/**
  * kdbus_cmd_ep_make() - handle KDBUS_CMD_ENDPOINT_MAKE
  * @bus:		bus to operate on
  * @argp:		command payload
@@ -288,6 +271,7 @@ int kdbus_cmd_ep_update(struct kdbus_ep *ep, void __user *argp)
 	if (ret != 0)
 		return ret;
 
-	ret = kdbus_ep_policy_set(ep, args.items, args.items_size);
+	ret = kdbus_policy_set(&ep->policy_db, args.items, args.items_size,
+			       0, true, ep);
 	return kdbus_args_clear(&args, ret);
 }
