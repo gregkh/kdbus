@@ -273,7 +273,7 @@ static int kdbus_handle_open(struct inode *inode, struct file *file)
 		 * or
 		 *   * the callers euid matches the uid of the bus creator
 		 */
-		if (!ep->has_policy &&
+		if (!ep->user &&
 		    (ns_capable(bus->domain->user_namespace, CAP_IPC_OWNER) ||
 		     uid_eq(file->f_cred->euid, bus->node.uid)))
 			handle->privileged = true;

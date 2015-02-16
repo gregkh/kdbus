@@ -120,7 +120,6 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	mutex_init(&e->lock);
 	INIT_LIST_HEAD(&e->conn_list);
 	kdbus_policy_db_init(&e->policy_db);
-	e->has_policy = is_custom;
 	e->bus = kdbus_bus_ref(bus);
 
 	ret = kdbus_node_link(&e->node, &bus->node, name);

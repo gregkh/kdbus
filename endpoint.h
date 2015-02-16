@@ -31,7 +31,6 @@ struct kdbus_kmsg;
  * @lock:		Endpoint data lock
  * @user:		Custom enpoints account against an anonymous user
  * @policy_db:		Uploaded policy
- * @has_policy:		The policy-db is valid and should be used
  *
  * An enpoint offers access to a bus; the default endpoint node name is "bus".
  * Additional custom endpoints to the same bus can be created and they can
@@ -44,8 +43,6 @@ struct kdbus_ep {
 	struct mutex lock;
 	struct kdbus_domain_user *user;
 	struct kdbus_policy_db policy_db;
-
-	bool has_policy:1;
 };
 
 #define kdbus_ep_from_node(_node) \

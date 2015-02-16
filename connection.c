@@ -1208,7 +1208,7 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 		return ERR_PTR(-EINVAL);
 	if (name && !kdbus_name_is_valid(name, true))
 		return ERR_PTR(-EINVAL);
-	if (is_monitor && ep->has_policy)
+	if (is_monitor && ep->user)
 		return ERR_PTR(-EOPNOTSUPP);
 	if (!privileged && (is_activator || is_policy_holder || is_monitor))
 		return ERR_PTR(-EPERM);
@@ -1521,7 +1521,7 @@ bool kdbus_conn_policy_own_name(struct kdbus_conn *conn,
 	if (!conn_creds)
 		conn_creds = conn->cred;
 
-	if (conn->ep->has_policy) {
+	if (conn->ep->user) {
 		res = kdbus_policy_query(&conn->ep->policy_db, conn_creds,
 					 name, hash);
 		if (res < KDBUS_POLICY_OWN)
@@ -1553,7 +1553,7 @@ bool kdbus_conn_policy_talk(struct kdbus_conn *conn,
 	if (!conn_creds)
 		conn_creds = conn->cred;
 
-	if (conn->ep->has_policy &&
+	if (conn->ep->user &&
 	    !kdbus_conn_policy_query_all(conn, conn_creds, &conn->ep->policy_db,
 					 to, KDBUS_POLICY_TALK))
 		return false;
@@ -1590,7 +1590,7 @@ bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 	 * By default, all names are visible on a bus. SEE policies can only be
 	 * installed on custom endpoints, where by default no name is visible.
 	 */
-	if (!conn->ep->has_policy)
+	if (!conn->ep->user)
 		return true;
 
 	res = kdbus_policy_query_unlocked(&conn->ep->policy_db,
@@ -1643,7 +1643,7 @@ bool kdbus_conn_policy_see(struct kdbus_conn *conn,
 	 * peers from each other, unless you see at least _one_ name of the
 	 * peer.
 	 */
-	return !conn->ep->has_policy ||
+	return !conn->ep->user ||
 	       kdbus_conn_policy_query_all(conn, conn_creds,
 					   &conn->ep->policy_db, whom,
 					   KDBUS_POLICY_SEE);
@@ -1690,7 +1690,7 @@ bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 
 	case KDBUS_ITEM_ID_ADD:
 	case KDBUS_ITEM_ID_REMOVE:
-		return !conn->ep->has_policy;
+		return !conn->ep->user;
 
 	default:
 		WARN(1, "Invalid type for notification broadcast: %llu\n",
