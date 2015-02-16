@@ -32,7 +32,6 @@
  * @attach_flags_owner:	KDBUS_ATTACH_* flags of bus creator that other
  *			connections can see or query
  * @id128:		Unique random 128 bit ID of this bus
- * @access:		The access flags for the bus directory
  * @bloom:		Bloom parameters
  * @domain:		Domain of this bus
  * @creator:		Creator of the bus
@@ -55,7 +54,6 @@ struct kdbus_bus {
 	u64 attach_flags_req;
 	u64 attach_flags_owner;
 	u8 id128[16];
-	unsigned int access;
 	struct kdbus_bloom_parameter bloom;
 	struct kdbus_domain *domain;
 	struct kdbus_domain_user *creator;
@@ -80,7 +78,7 @@ struct kdbus_kmsg;
 
 struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				const struct kdbus_cmd *make,
-				kuid_t uid, kgid_t gid);
+				unsigned int access, kuid_t uid, kgid_t gid);
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 

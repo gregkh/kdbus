@@ -66,6 +66,7 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
  * kdbus_bus_new() - create a kdbus_cmd from user-supplied data
  * @domain:		The domain to work on
  * @make:		Information as passed in by userspace
+ * @access:		KDBUS_MAKE_ACCESS_* access restrictions
  * @uid:		The uid of the bus node
  * @gid:		The gid of the bus node
  *
@@ -76,7 +77,7 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
  */
 struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				const struct kdbus_cmd *make,
-				kuid_t uid, kgid_t gid)
+				unsigned int access, kuid_t uid, kgid_t gid)
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;
 	const u64 *pattach_owner = NULL;
@@ -159,11 +160,9 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->node.gid = gid;
 	b->node.mode = S_IRUSR | S_IXUSR;
 
-	b->access = make->flags & (KDBUS_MAKE_ACCESS_WORLD |
-				   KDBUS_MAKE_ACCESS_GROUP);
-	if (b->access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
+	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
 		b->node.mode |= S_IRGRP | S_IXGRP;
-	if (b->access & KDBUS_MAKE_ACCESS_WORLD)
+	if (access & KDBUS_MAKE_ACCESS_WORLD)
 		b->node.mode |= S_IROTH | S_IXOTH;
 
 	b->id = atomic64_inc_return(&domain->last_id);
@@ -442,6 +441,7 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_cmd *cmd;
 	struct kdbus_ep *ep = NULL;
+	unsigned int access;
 	int ret;
 
 	struct kdbus_arg argv[] = {
@@ -465,7 +465,11 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 	if (ret > 0)
 		return NULL;
 
-	bus = kdbus_bus_new(domain, cmd, current_euid(), current_egid());
+	access = cmd->flags & (KDBUS_MAKE_ACCESS_WORLD |
+			       KDBUS_MAKE_ACCESS_GROUP);
+
+	bus = kdbus_bus_new(domain, cmd, access, current_euid(),
+			    current_egid());
 	if (IS_ERR(bus)) {
 		ret = PTR_ERR(bus);
 		bus = NULL;
@@ -484,8 +488,8 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 		goto exit;
 	}
 
-	ep = kdbus_ep_new(bus, "bus", bus->access,
-			  bus->node.uid, bus->node.gid, false);
+	ep = kdbus_ep_new(bus, "bus", access, bus->node.uid, bus->node.gid,
+			  false);
 	if (IS_ERR(ep)) {
 		ret = PTR_ERR(ep);
 		ep = NULL;
