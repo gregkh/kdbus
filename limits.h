@@ -57,7 +57,7 @@
  * maximum number of queued messages from the same indvidual user after the
  * the un-accounted value has been hit
  */
-#define KDBUS_CONN_MAX_MSGS_PER_USER		16
+#define KDBUS_CONN_MAX_MSGS_PER_USER		128
 
 /* maximum number of well-known names per connection */
 #define KDBUS_CONN_MAX_NAMES			256
