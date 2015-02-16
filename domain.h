@@ -30,7 +30,7 @@
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
  * @user_hash:		Accounting of user resources
- * @user_idr:		Map of all users; smallest possible index
+ * @user_ida:		Set of all users to compute small indices
  * @user_namespace:	User namespace, pinned at creation time
  * @dentry:		Root dentry of VFS mount (dont use outside of kdbusfs)
  */
@@ -40,7 +40,7 @@ struct kdbus_domain {
 	atomic64_t bus_seq_last;
 	atomic64_t msg_seq_last;
 	DECLARE_HASHTABLE(user_hash, 6);
-	struct idr user_idr;
+	struct ida user_ida;
 	struct user_namespace *user_namespace;
 	struct dentry *dentry;
 };
@@ -50,7 +50,7 @@ struct kdbus_domain {
  * @kref:		Reference counter
  * @domain:		Domain of the user
  * @hentry:		Entry in domain user map
- * @idr:		Smallest possible index number of all users
+ * @id:			Index of this user
  * @uid:		UID of the user
  * @buses:		Number of buses the user has created
  * @connections:	Number of connections the user has created
@@ -59,7 +59,7 @@ struct kdbus_domain_user {
 	struct kref kref;
 	struct kdbus_domain *domain;
 	struct hlist_node hentry;
-	unsigned int idr;
+	unsigned int id;
 	kuid_t uid;
 	atomic_t buses;
 	atomic_t connections;

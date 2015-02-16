@@ -147,8 +147,8 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 
 	/* user quota */
 	if (entry->user) {
-		BUG_ON(conn->msg_users[entry->user->idr] == 0);
-		conn->msg_users[entry->user->idr]--;
+		BUG_ON(conn->msg_users[entry->user->id] == 0);
+		conn->msg_users[entry->user->id]--;
 		entry->user = kdbus_domain_user_unref(entry->user);
 	}
 

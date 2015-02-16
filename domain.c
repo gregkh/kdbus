@@ -73,7 +73,7 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	WARN_ON(!hash_empty(domain->user_hash));
 
 	put_user_ns(domain->user_namespace);
-	idr_destroy(&domain->user_idr);
+	ida_destroy(&domain->user_ida);
 	kfree(domain);
 }
 
@@ -103,7 +103,7 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
-	idr_init(&d->user_idr);
+	ida_init(&d->user_ida);
 
 	/* Pin user namespace so we can guarantee domain-unique bus * names. */
 	d->user_namespace = get_user_ns(current_user_ns());
@@ -178,39 +178,6 @@ int kdbus_domain_populate(struct kdbus_domain *domain, unsigned int access)
 }
 
 /**
- * kdbus_domain_user_assign_id() - allocate ID and assign it to the
- *				   domain user
- * @domain:		The domain of the user
- * @user:		The kdbus_domain_user object of the user
- *
- * Returns 0 if ID in [0, INT_MAX] is successfully assigned to the
- * domain user. Negative errno on failure.
- *
- * The user index is used in arrays for accounting user quota in
- * receiver queues.
- *
- * Caller must have the domain lock held and must ensure that the
- * domain was not disconnected.
- */
-static int kdbus_domain_user_assign_id(struct kdbus_domain *domain,
-				       struct kdbus_domain_user *user)
-{
-	int ret;
-
-	/*
-	 * Allocate the smallest possible index for this user; used
-	 * in arrays for accounting user quota in receiver queues.
-	 */
-	ret = idr_alloc(&domain->user_idr, user, 0, 0, GFP_KERNEL);
-	if (ret < 0)
-		return ret;
-
-	user->idr = ret;
-
-	return 0;
-}
-
-/**
  * kdbus_domain_get_user() - get a kdbus_domain_user object
  * @domain:		The domain of the user
  * @uid:		The uid of the user; INVALID_UID for an
@@ -253,7 +220,7 @@ struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 	u = kzalloc(sizeof(*u), GFP_KERNEL);
 	if (!u) {
 		ret = -ENOMEM;
-		goto exit_unlock;
+		goto exit;
 	}
 
 	kref_init(&u->kref);
@@ -262,10 +229,15 @@ struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 	atomic_set(&u->buses, 0);
 	atomic_set(&u->connections, 0);
 
-	/* Assign user ID and link into domain */
-	ret = kdbus_domain_user_assign_id(domain, u);
-	if (ret < 0)
-		goto exit_free;
+	/*
+	 * Allocate the smallest possible index for this user; used
+	 * in arrays for accounting user quota in receiver queues.
+	 */
+	u->id = ida_simple_get(&domain->user_ida, 0, 0, GFP_KERNEL);
+	if (u->id < 0) {
+		ret = u->id;
+		goto exit;
+	}
 
 	/* UID hash map */
 	hash_add(domain->user_hash, &u->hentry, __kuid_val(u->uid));
@@ -273,10 +245,11 @@ struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 	mutex_unlock(&domain->lock);
 	return u;
 
-exit_free:
-	kdbus_domain_unref(u->domain);
-	kfree(u);
-exit_unlock:
+exit:
+	if (u) {
+		kdbus_domain_unref(u->domain);
+		kfree(u);
+	}
 	mutex_unlock(&domain->lock);
 	return ERR_PTR(ret);
 }
@@ -295,7 +268,7 @@ static void __kdbus_domain_user_free(struct kref *kref)
 	 * No-one will acquire a ref in parallel.
 	 */
 	mutex_lock(&user->domain->lock);
-	idr_remove(&user->domain->user_idr, user->idr);
+	ida_simple_remove(&user->domain->user_ida, user->id);
 	hash_del(&user->hentry);
 	mutex_unlock(&user->domain->lock);
 
