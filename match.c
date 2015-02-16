@@ -28,6 +28,7 @@
 #include "item.h"
 #include "match.h"
 #include "message.h"
+#include "names.h"
 
 /**
  * struct kdbus_match_db - message filters

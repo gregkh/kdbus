@@ -10,6 +10,7 @@
 #include "endpoint.h"
 #include "message.h"
 #include "metadata.h"
+#include "names.h"
 #include "domain.h"
 #include "item.h"
 #include "notify.h"

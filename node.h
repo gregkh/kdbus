@@ -19,9 +19,6 @@
 #include <linux/mutex.h>
 #include <linux/wait.h>
 
-struct kdbus_bus;
-struct kdbus_domain;
-struct kdbus_ep;
 struct kdbus_node;
 
 enum kdbus_node_type {

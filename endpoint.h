@@ -15,13 +15,14 @@
 #ifndef __KDBUS_ENDPOINT_H
 #define __KDBUS_ENDPOINT_H
 
-#include "limits.h"
-#include "names.h"
+#include <linux/list.h>
+#include <linux/mutex.h>
+#include <linux/uidgid.h>
 #include "node.h"
 #include "policy.h"
-#include "util.h"
 
-struct kdbus_kmsg;
+struct kdbus_bus;
+struct kdbus_domain_user;
 
 /**
  * struct kdbus_ep - enpoint to access a bus

@@ -15,6 +15,8 @@
 #ifndef __KDBUS_POOL_H
 #define __KDBUS_POOL_H
 
+#include <linux/uio.h>
+
 struct kdbus_pool;
 struct kdbus_pool_slice;
 

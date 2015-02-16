@@ -16,12 +16,21 @@
 #define __KDBUS_BUS_H
 
 #include <linux/hashtable.h>
-#include <linux/spinlock.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
 #include <linux/rwsem.h>
+#include <linux/spinlock.h>
 
+#include "kdbus.h"
+#include "metadata.h"
+#include "names.h"
 #include "node.h"
 #include "policy.h"
-#include "util.h"
+
+struct kdbus_conn;
+struct kdbus_domain;
+struct kdbus_domain_user;
+struct kdbus_kmsg;
 
 /**
  * struct kdbus_bus - bus in a domain
@@ -73,8 +82,6 @@ struct kdbus_bus {
 	spinlock_t notify_lock;
 	struct mutex notify_flush_lock;
 };
-
-struct kdbus_kmsg;
 
 struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
