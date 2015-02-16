@@ -95,8 +95,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	 * with a "bus" name are created when the bus is created
 	 */
 	if (is_custom) {
-		ret = kdbus_verify_uid_prefix(name,
-					      bus->domain->user_namespace,
+		ret = kdbus_verify_uid_prefix(name, bus->domain->user_namespace,
 					      uid);
 		if (ret < 0)
 			return ERR_PTR(ret);
