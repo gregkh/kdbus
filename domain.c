@@ -70,10 +70,9 @@ static void kdbus_domain_free(struct kdbus_node *node)
 	struct kdbus_domain *domain =
 		container_of(node, struct kdbus_domain, node);
 
-	WARN_ON(!hash_empty(domain->user_hash));
-
 	put_user_ns(domain->user_namespace);
 	ida_destroy(&domain->user_ida);
+	idr_destroy(&domain->user_idr);
 	kfree(domain);
 }
 
@@ -103,6 +102,7 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 
 	mutex_init(&d->lock);
 	atomic64_set(&d->msg_seq_last, 0);
+	idr_init(&d->user_idr);
 	ida_init(&d->user_ida);
 
 	/* Pin user namespace so we can guarantee domain-unique bus * names. */
@@ -192,28 +192,20 @@ int kdbus_domain_populate(struct kdbus_domain *domain, unsigned int access)
 struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 						kuid_t uid)
 {
-	struct kdbus_domain_user *tmp_user;
-	struct kdbus_domain_user *u = NULL;
+	struct kdbus_domain_user *u = NULL, *old = NULL;
 	int ret;
 
 	mutex_lock(&domain->lock);
 
-	/* find uid and reference it */
 	if (uid_valid(uid)) {
-		hash_for_each_possible(domain->user_hash, tmp_user,
-				       hentry, __kuid_val(uid)) {
-			if (!uid_eq(tmp_user->uid, uid))
-				continue;
-
-			/*
-			 * If the ref-count is already 0, the destructor is
-			 * about to unlink and destroy the object. Continue
-			 * looking for a next one or create one, if none found.
-			 */
-			if (kref_get_unless_zero(&tmp_user->kref)) {
-				mutex_unlock(&domain->lock);
-				return tmp_user;
-			}
+		old = idr_find(&domain->user_idr, __kuid_val(uid));
+		/*
+		 * If the object is about to be destroyed, ignore it and
+		 * replace the slot in the IDR later on.
+		 */
+		if (old && kref_get_unless_zero(&old->kref)) {
+			mutex_unlock(&domain->lock);
+			return old;
 		}
 	}
 
@@ -229,6 +221,18 @@ struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 	atomic_set(&u->buses, 0);
 	atomic_set(&u->connections, 0);
 
+	if (uid_valid(uid)) {
+		if (old) {
+			idr_replace(&domain->user_idr, u, __kuid_val(uid));
+			old->uid = INVALID_UID; /* mark old as removed */
+		} else {
+			ret = idr_alloc(&domain->user_idr, u, __kuid_val(uid),
+					__kuid_val(uid) + 1, GFP_KERNEL);
+			if (ret < 0)
+				goto exit;
+		}
+	}
+
 	/*
 	 * Allocate the smallest possible index for this user; used
 	 * in arrays for accounting user quota in receiver queues.
@@ -239,14 +243,13 @@ struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
 		goto exit;
 	}
 
-	/* UID hash map */
-	hash_add(domain->user_hash, &u->hentry, __kuid_val(u->uid));
-
 	mutex_unlock(&domain->lock);
 	return u;
 
 exit:
 	if (u) {
+		if (uid_valid(u->uid))
+			idr_remove(&domain->user_idr, __kuid_val(u->uid));
 		kdbus_domain_unref(u->domain);
 		kfree(u);
 	}
@@ -262,14 +265,10 @@ static void __kdbus_domain_user_free(struct kref *kref)
 	WARN_ON(atomic_read(&user->buses) > 0);
 	WARN_ON(atomic_read(&user->connections) > 0);
 
-	/*
-	 * Lookups ignore objects with a ref-count of 0. Therefore, we can
-	 * safely remove it from the table after dropping the last reference.
-	 * No-one will acquire a ref in parallel.
-	 */
 	mutex_lock(&user->domain->lock);
 	ida_simple_remove(&user->domain->user_ida, user->id);
-	hash_del(&user->hentry);
+	if (uid_valid(user->uid))
+		idr_remove(&user->domain->user_idr, __kuid_val(user->uid));
 	mutex_unlock(&user->domain->lock);
 
 	kdbus_domain_unref(user->domain);

@@ -16,7 +16,6 @@
 #define __KDBUS_DOMAIN_H
 
 #include <linux/fs.h>
-#include <linux/hashtable.h>
 #include <linux/idr.h>
 #include <linux/kref.h>
 #include <linux/user_namespace.h>
@@ -29,7 +28,7 @@
  * @lock:		Domain data lock
  * @bus_seq_last:	Last used bus id sequence number
  * @msg_seq_last:	Last used message id sequence number
- * @user_hash:		Accounting of user resources
+ * @user_idr:		Set of all users indexed by UID
  * @user_ida:		Set of all users to compute small indices
  * @user_namespace:	User namespace, pinned at creation time
  * @dentry:		Root dentry of VFS mount (dont use outside of kdbusfs)
@@ -39,7 +38,7 @@ struct kdbus_domain {
 	struct mutex lock;
 	atomic64_t bus_seq_last;
 	atomic64_t msg_seq_last;
-	DECLARE_HASHTABLE(user_hash, 6);
+	struct idr user_idr;
 	struct ida user_ida;
 	struct user_namespace *user_namespace;
 	struct dentry *dentry;
@@ -49,7 +48,6 @@ struct kdbus_domain {
  * struct kdbus_domain_user - resource accounting for users
  * @kref:		Reference counter
  * @domain:		Domain of the user
- * @hentry:		Entry in domain user map
  * @id:			Index of this user
  * @uid:		UID of the user
  * @buses:		Number of buses the user has created
@@ -58,7 +56,6 @@ struct kdbus_domain {
 struct kdbus_domain_user {
 	struct kref kref;
 	struct kdbus_domain *domain;
-	struct hlist_node hentry;
 	unsigned int id;
 	kuid_t uid;
 	atomic_t buses;
