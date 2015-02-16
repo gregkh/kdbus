@@ -62,22 +62,10 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
 		atomic_dec(&bus->creator->buses);
 }
 
-/**
- * kdbus_bus_new() - create a kdbus_cmd from user-supplied data
- * @domain:		The domain to work on
- * @make:		Information as passed in by userspace
- * @access:		KDBUS_MAKE_ACCESS_* access restrictions
- * @uid:		The uid of the bus node
- * @gid:		The gid of the bus node
- *
- * This function is part of the connection ioctl() interface and will parse
- * the user-supplied data in order to create a new kdbus_bus.
- *
- * Return: the new bus on success, ERR_PTR on failure.
- */
-struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
-				const struct kdbus_cmd *make,
-				unsigned int access, kuid_t uid, kgid_t gid)
+static struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
+				       const struct kdbus_cmd *make,
+				       unsigned int access, kuid_t uid,
+				       kgid_t gid)
 {
 	const struct kdbus_bloom_parameter *bloom = NULL;
 	const u64 *pattach_owner = NULL;
