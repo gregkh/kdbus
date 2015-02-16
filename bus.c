@@ -63,63 +63,19 @@ static void kdbus_bus_release(struct kdbus_node *node, bool was_active)
 }
 
 static struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
-				       const struct kdbus_cmd *make,
-				       unsigned int access, kuid_t uid,
-				       kgid_t gid)
+				       const char *name,
+				       struct kdbus_bloom_parameter *bloom,
+				       const u64 *pattach_owner,
+				       const u64 *pattach_recv,
+				       u64 flags, kuid_t uid, kgid_t gid)
 {
-	const struct kdbus_bloom_parameter *bloom = NULL;
-	const u64 *pattach_owner = NULL;
-	const u64 *pattach_recv = NULL;
-	const struct kdbus_item *item;
-	const char *name = NULL;
 	struct kdbus_bus *b;
 	u64 attach_owner;
 	u64 attach_recv;
 	int ret;
 
-	KDBUS_ITEMS_FOREACH(item, make->items, KDBUS_ITEMS_SIZE(make, items)) {
-		switch (item->type) {
-		case KDBUS_ITEM_MAKE_NAME:
-			if (name)
-				return ERR_PTR(-EEXIST);
-
-			name = item->str;
-			break;
-
-		case KDBUS_ITEM_BLOOM_PARAMETER:
-			if (bloom)
-				return ERR_PTR(-EEXIST);
-
-			bloom = &item->bloom_parameter;
-			break;
-
-		case KDBUS_ITEM_ATTACH_FLAGS_SEND:
-			if (pattach_owner)
-				return ERR_PTR(-EEXIST);
-
-			pattach_owner = &item->data64[0];
-			break;
-
-		case KDBUS_ITEM_ATTACH_FLAGS_RECV:
-			if (pattach_recv)
-				return ERR_PTR(-EEXIST);
-
-			pattach_recv = &item->data64[0];
-			break;
-
-		default:
-			return ERR_PTR(-EINVAL);
-		}
-	}
-
-	if (!name || !bloom)
-		return ERR_PTR(-EBADMSG);
-
-	if (bloom->size < 8 || bloom->size > KDBUS_BUS_BLOOM_MAX_SIZE)
-		return ERR_PTR(-EINVAL);
-	if (!KDBUS_IS_ALIGNED8(bloom->size))
-		return ERR_PTR(-EINVAL);
-	if (bloom->n_hash < 1)
+	if (bloom->size < 8 || bloom->size > KDBUS_BUS_BLOOM_MAX_SIZE ||
+	    !KDBUS_IS_ALIGNED8(bloom->size) || bloom->n_hash < 1)
 		return ERR_PTR(-EINVAL);
 
 	ret = kdbus_sanitize_attach_flags(pattach_recv ? *pattach_recv : 0,
@@ -148,13 +104,13 @@ static struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	b->node.gid = gid;
 	b->node.mode = S_IRUSR | S_IXUSR;
 
-	if (access & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
+	if (flags & (KDBUS_MAKE_ACCESS_GROUP | KDBUS_MAKE_ACCESS_WORLD))
 		b->node.mode |= S_IRGRP | S_IXGRP;
-	if (access & KDBUS_MAKE_ACCESS_WORLD)
+	if (flags & KDBUS_MAKE_ACCESS_WORLD)
 		b->node.mode |= S_IROTH | S_IXOTH;
 
 	b->id = atomic64_inc_return(&domain->last_id);
-	b->bus_flags = make->flags;
+	b->bus_flags = flags;
 	b->attach_flags_req = attach_recv;
 	b->attach_flags_owner = attach_owner;
 	generate_random_uuid(b->id128);
@@ -429,7 +385,6 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 	struct kdbus_bus *bus = NULL;
 	struct kdbus_cmd *cmd;
 	struct kdbus_ep *ep = NULL;
-	unsigned int access;
 	int ret;
 
 	struct kdbus_arg argv[] = {
@@ -453,11 +408,11 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 	if (ret > 0)
 		return NULL;
 
-	access = cmd->flags & (KDBUS_MAKE_ACCESS_WORLD |
-			       KDBUS_MAKE_ACCESS_GROUP);
-
-	bus = kdbus_bus_new(domain, cmd, access, current_euid(),
-			    current_egid());
+	bus = kdbus_bus_new(domain,
+			    argv[1].item->str, &argv[2].item->bloom_parameter,
+			    argv[3].item ? argv[3].item->data64 : NULL,
+			    argv[4].item ? argv[4].item->data64 : NULL,
+			    cmd->flags, current_euid(), current_egid());
 	if (IS_ERR(bus)) {
 		ret = PTR_ERR(bus);
 		bus = NULL;
@@ -476,7 +431,7 @@ struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
 		goto exit;
 	}
 
-	ep = kdbus_ep_new(bus, "bus", access, bus->node.uid, bus->node.gid,
+	ep = kdbus_ep_new(bus, "bus", cmd->flags, bus->node.uid, bus->node.gid,
 			  false);
 	if (IS_ERR(ep)) {
 		ret = PTR_ERR(ep);
