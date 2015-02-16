@@ -177,10 +177,9 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	INIT_LIST_HEAD(&b->notify_list);
 	spin_lock_init(&b->notify_lock);
 	mutex_init(&b->notify_flush_lock);
-	atomic64_set(&b->conn_seq_last, 0);
 	b->domain = kdbus_domain_ref(domain);
 	kdbus_policy_db_init(&b->policy_db);
-	b->id = atomic64_inc_return(&domain->bus_seq_last);
+	b->id = atomic64_inc_return(&domain->last_id);
 
 	/* generate unique bus id */
 	generate_random_uuid(b->id128);

@@ -123,7 +123,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	kdbus_policy_db_init(&e->policy_db);
 	e->has_policy = is_custom;
 	e->bus = kdbus_bus_ref(bus);
-	e->id = atomic64_inc_return(&bus->ep_seq_last);
+	e->id = atomic64_inc_return(&bus->domain->last_id);
 
 	ret = kdbus_node_link(&e->node, &bus->node, name);
 	if (ret < 0)

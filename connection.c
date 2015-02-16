@@ -1254,7 +1254,7 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	kdbus_queue_init(&conn->queue);
 	conn->privileged = privileged;
 	conn->ep = kdbus_ep_ref(ep);
-	conn->id = atomic64_inc_return(&bus->conn_seq_last);
+	conn->id = atomic64_inc_return(&bus->domain->last_id);
 	conn->flags = hello->flags;
 	atomic64_set(&conn->attach_flags_send, attach_flags_send);
 	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);

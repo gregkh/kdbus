@@ -30,8 +30,6 @@
  * @id:			ID of this bus in the domain
  * @lock:		Bus data lock
  * @access:		The access flags for the bus directory
- * @ep_seq_last:	Last used endpoint id sequence number
- * @conn_seq_last:	Last used connection id sequence number
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @attach_flags_req:	KDBUS_ATTACH_* flags required by connecting peers
  * @attach_flags_owner:	KDBUS_ATTACH_* flags of bus creator that other
@@ -61,8 +59,6 @@ struct kdbus_bus {
 	u64 id;
 	struct mutex lock;
 	unsigned int access;
-	atomic64_t ep_seq_last;
-	atomic64_t conn_seq_last;
 	u64 bus_flags;
 	u64 attach_flags_req;
 	u64 attach_flags_owner;

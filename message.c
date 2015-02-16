@@ -141,7 +141,7 @@ struct kdbus_kmsg *kdbus_kmsg_new(struct kdbus_bus *bus, size_t extra_size)
 	if (!m)
 		return ERR_PTR(-ENOMEM);
 
-	m->seq = atomic64_inc_return(&bus->domain->msg_seq_last);
+	m->seq = atomic64_inc_return(&bus->domain->last_id);
 	m->msg.size = size - KDBUS_KMSG_HEADER_SIZE;
 	m->msg.items[0].size = KDBUS_ITEM_SIZE(extra_size);
 
@@ -501,7 +501,7 @@ struct kdbus_kmsg *kdbus_kmsg_new_from_cmd(struct kdbus_conn *conn,
 		return ERR_PTR(-ENOMEM);
 
 	memset(m, 0, KDBUS_KMSG_HEADER_SIZE);
-	m->seq = atomic64_inc_return(&conn->ep->bus->domain->msg_seq_last);
+	m->seq = atomic64_inc_return(&conn->ep->bus->domain->last_id);
 
 	m->proc_meta = kdbus_meta_proc_new();
 	if (IS_ERR(m->proc_meta)) {

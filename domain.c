@@ -101,7 +101,6 @@ struct kdbus_domain *kdbus_domain_new(unsigned int access)
 		d->node.mode |= S_IROTH | S_IXOTH;
 
 	mutex_init(&d->lock);
-	atomic64_set(&d->msg_seq_last, 0);
 	idr_init(&d->user_idr);
 	ida_init(&d->user_ida);
 

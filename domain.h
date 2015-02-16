@@ -26,8 +26,7 @@
  * struct kdbus_domain - domain for buses
  * @node:		Underlying API node
  * @lock:		Domain data lock
- * @bus_seq_last:	Last used bus id sequence number
- * @msg_seq_last:	Last used message id sequence number
+ * @last_id:		Last used object id
  * @user_idr:		Set of all users indexed by UID
  * @user_ida:		Set of all users to compute small indices
  * @user_namespace:	User namespace, pinned at creation time
@@ -36,8 +35,7 @@
 struct kdbus_domain {
 	struct kdbus_node node;
 	struct mutex lock;
-	atomic64_t bus_seq_last;
-	atomic64_t msg_seq_last;
+	atomic64_t last_id;
 	struct idr user_idr;
 	struct ida user_ida;
 	struct user_namespace *user_namespace;
