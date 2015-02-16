@@ -26,54 +26,54 @@
 /**
  * struct kdbus_bus - bus in a domain
  * @node:		kdbus_node
- * @domain:		Domain of this bus
  * @id:			ID of this bus in the domain
- * @access:		The access flags for the bus directory
  * @bus_flags:		Simple pass-through flags from userspace to userspace
  * @attach_flags_req:	KDBUS_ATTACH_* flags required by connecting peers
  * @attach_flags_owner:	KDBUS_ATTACH_* flags of bus creator that other
  *			connections can see or query
- * @name_registry:	Name registry of this bus
- * @bloom:		Bloom parameters
  * @id128:		Unique random 128 bit ID of this bus
+ * @access:		The access flags for the bus directory
+ * @bloom:		Bloom parameters
+ * @domain:		Domain of this bus
  * @creator:		Creator of the bus
+ * @creator_meta:	Meta information about the bus creator
  * @policy_db:		Policy database for this bus
- * @notify_list:	List of pending kernel-generated messages
- * @notify_lock:	Notification list lock
- * @notify_flush_lock:	Notification flushing lock
+ * @name_registry:	Name registry of this bus
  * @conn_rwlock:	Read/Write lock for all lists of child connections
  * @conn_hash:		Map of connection IDs
  * @monitors_list:	Connections that monitor this bus
- * @meta_proc:		Meta information about the bus creator
- *
- * A bus provides a "bus" endpoint node.
- *
- * A bus is created by opening the control node and issuing the
- * KDBUS_CMD_BUS_MAKE iotcl. Closing this file immediately destroys
- * the bus.
+ * @notify_list:	List of pending kernel-generated messages
+ * @notify_lock:	Notification list lock
+ * @notify_flush_lock:	Notification flushing lock
  */
 struct kdbus_bus {
 	struct kdbus_node node;
-	struct kdbus_domain *domain;
+
+	/* static */
 	u64 id;
-	unsigned int access;
 	u64 bus_flags;
 	u64 attach_flags_req;
 	u64 attach_flags_owner;
-	struct kdbus_name_registry *name_registry;
-	struct kdbus_bloom_parameter bloom;
 	u8 id128[16];
+	unsigned int access;
+	struct kdbus_bloom_parameter bloom;
+	struct kdbus_domain *domain;
 	struct kdbus_domain_user *creator;
-	struct kdbus_policy_db policy_db;
-	struct list_head notify_list;
-	spinlock_t notify_lock;
-	struct mutex notify_flush_lock;
+	struct kdbus_meta_proc *creator_meta;
 
+	/* protected by own locks */
+	struct kdbus_policy_db policy_db;
+	struct kdbus_name_registry *name_registry;
+
+	/* protected by conn_rwlock */
 	struct rw_semaphore conn_rwlock;
 	DECLARE_HASHTABLE(conn_hash, 8);
 	struct list_head monitors_list;
 
-	struct kdbus_meta_proc *creator_meta;
+	/* protected by notify_lock */
+	struct list_head notify_list;
+	spinlock_t notify_lock;
+	struct mutex notify_flush_lock;
 };
 
 struct kdbus_kmsg;

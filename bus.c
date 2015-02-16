@@ -166,22 +166,23 @@ struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	if (b->access & KDBUS_MAKE_ACCESS_WORLD)
 		b->node.mode |= S_IROTH | S_IXOTH;
 
+	b->id = atomic64_inc_return(&domain->last_id);
 	b->bus_flags = make->flags;
-	b->bloom = *bloom;
 	b->attach_flags_req = attach_recv;
 	b->attach_flags_owner = attach_owner;
+	generate_random_uuid(b->id128);
+	b->bloom = *bloom;
+	b->domain = kdbus_domain_ref(domain);
+
+	kdbus_policy_db_init(&b->policy_db);
+
 	init_rwsem(&b->conn_rwlock);
 	hash_init(b->conn_hash);
 	INIT_LIST_HEAD(&b->monitors_list);
+
 	INIT_LIST_HEAD(&b->notify_list);
 	spin_lock_init(&b->notify_lock);
 	mutex_init(&b->notify_flush_lock);
-	b->domain = kdbus_domain_ref(domain);
-	kdbus_policy_db_init(&b->policy_db);
-	b->id = atomic64_inc_return(&domain->last_id);
-
-	/* generate unique bus id */
-	generate_random_uuid(b->id128);
 
 	ret = kdbus_node_link(&b->node, &domain->node, name);
 	if (ret < 0)
