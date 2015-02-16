@@ -217,9 +217,7 @@ struct kdbus_ep *kdbus_cmd_ep_make(struct kdbus_bus *bus, void __user *argp)
 
 	item_make_name = argv[1].item->str;
 
-	ep = kdbus_ep_new(bus, item_make_name,
-			  cmd->flags & (KDBUS_MAKE_ACCESS_WORLD |
-					KDBUS_MAKE_ACCESS_GROUP),
+	ep = kdbus_ep_new(bus, item_make_name, cmd->flags,
 			  current_euid(), current_egid(), true);
 	if (IS_ERR(ep)) {
 		ret = PTR_ERR(ep);
