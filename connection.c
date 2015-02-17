@@ -1609,9 +1609,9 @@ bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
  *
  * Return: true if allowed, false if not.
  */
-bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
-				const struct cred *conn_creds,
-				const char *name)
+static bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
+				       const struct cred *conn_creds,
+				       const char *name)
 {
 	bool res;
 
@@ -1632,9 +1632,9 @@ bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
  *
  * Return: true if allowed, false if not.
  */
-bool kdbus_conn_policy_see(struct kdbus_conn *conn,
-			   const struct cred *conn_creds,
-			   struct kdbus_conn *whom)
+static bool kdbus_conn_policy_see(struct kdbus_conn *conn,
+				  const struct cred *conn_creds,
+				  struct kdbus_conn *whom)
 {
 	/*
 	 * By default, all names are visible on a bus, so a connection can

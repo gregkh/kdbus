@@ -138,12 +138,6 @@ bool kdbus_conn_policy_talk(struct kdbus_conn *conn,
 bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 					 const struct cred *curr_creds,
 					 const char *name);
-bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
-				const struct cred *curr_creds,
-				const char *name);
-bool kdbus_conn_policy_see(struct kdbus_conn *conn,
-			   const struct cred *curr_creds,
-			   struct kdbus_conn *whom);
 bool kdbus_conn_policy_see_notification(struct kdbus_conn *conn,
 					const struct cred *curr_creds,
 					const struct kdbus_kmsg *kmsg);
