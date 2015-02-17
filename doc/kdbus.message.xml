@@ -188,7 +188,7 @@
       address of the message, the kernel delivers the message to the specific
       destination connection, or to some subset of all connections on the same
       bus. Sending messages across buses is not possible. Messages are always
-      queued in the memory pool of the destination connection (see below).
+      queued in the memory pool of the destination connection (see above).
     </para>
 
     <para>
