@@ -152,7 +152,11 @@ int kdbus_item_validate(const struct kdbus_item *item)
 		break;
 
 	case KDBUS_ITEM_CAPS:
-		/* TODO */
+		if (payload_size < sizeof(u32))
+			return -EINVAL;
+		if (payload_size < sizeof(u32) +
+		    4 * CAP_TO_INDEX(item->caps.last_cap) * sizeof(u32))
+			return -EINVAL;
 		break;
 
 	case KDBUS_ITEM_AUDIT:
