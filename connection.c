@@ -52,6 +52,569 @@
 #define KDBUS_CONN_ACTIVE_BIAS	(INT_MIN + 2)
 #define KDBUS_CONN_ACTIVE_NEW	(INT_MIN + 1)
 
+static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
+					 struct kdbus_cmd_hello *hello,
+					 const char *name,
+					 const struct kdbus_creds *creds,
+					 const struct kdbus_pids *pids,
+					 const char *seclabel,
+					 const char *conn_description)
+{
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	static struct lock_class_key __key;
+#endif
+	struct kdbus_pool_slice *slice = NULL;
+	struct kdbus_item_list items = {};
+	struct kdbus_bus *bus = ep->bus;
+	struct kdbus_conn *conn;
+	u64 attach_flags_send;
+	u64 attach_flags_recv;
+	bool is_policy_holder;
+	bool is_activator;
+	bool is_monitor;
+	struct kvec kvec[2];
+	int ret;
+
+	struct {
+		u64 size;
+		u64 type;
+		struct kdbus_bloom_parameter bloom;
+	} bloom_item;
+
+	is_monitor = hello->flags & KDBUS_HELLO_MONITOR;
+	is_activator = hello->flags & KDBUS_HELLO_ACTIVATOR;
+	is_policy_holder = hello->flags & KDBUS_HELLO_POLICY_HOLDER;
+
+	if (!hello->pool_size || !IS_ALIGNED(hello->pool_size, PAGE_SIZE))
+		return ERR_PTR(-EINVAL);
+	if (is_monitor + is_activator + is_policy_holder > 1)
+		return ERR_PTR(-EINVAL);
+	if (name && !is_activator && !is_policy_holder)
+		return ERR_PTR(-EINVAL);
+	if (!name && (is_activator || is_policy_holder))
+		return ERR_PTR(-EINVAL);
+	if (name && !kdbus_name_is_valid(name, true))
+		return ERR_PTR(-EINVAL);
+	if (is_monitor && ep->user)
+		return ERR_PTR(-EOPNOTSUPP);
+	if (!privileged && (is_activator || is_policy_holder || is_monitor))
+		return ERR_PTR(-EPERM);
+	if ((creds || pids || seclabel) && !privileged)
+		return ERR_PTR(-EPERM);
+
+	ret = kdbus_sanitize_attach_flags(hello->attach_flags_send,
+					  &attach_flags_send);
+	if (ret < 0)
+		return ERR_PTR(ret);
+
+	ret = kdbus_sanitize_attach_flags(hello->attach_flags_recv,
+					  &attach_flags_recv);
+	if (ret < 0)
+		return ERR_PTR(ret);
+
+	/* The attach flags must always satisfy the bus requirements. */
+	if (bus->attach_flags_req & ~attach_flags_send)
+		return ERR_PTR(-ECONNREFUSED);
+
+	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
+	if (!conn)
+		return ERR_PTR(-ENOMEM);
+
+	kref_init(&conn->kref);
+	atomic_set(&conn->active, KDBUS_CONN_ACTIVE_NEW);
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	lockdep_init_map(&conn->dep_map, "s_active", &__key, 0);
+#endif
+	mutex_init(&conn->lock);
+	INIT_LIST_HEAD(&conn->names_list);
+	INIT_LIST_HEAD(&conn->names_queue_list);
+	INIT_LIST_HEAD(&conn->reply_list);
+	atomic_set(&conn->name_count, 0);
+	atomic_set(&conn->request_count, 0);
+	atomic_set(&conn->lost_count, 0);
+	INIT_DELAYED_WORK(&conn->work, kdbus_reply_list_scan_work);
+	conn->cred = get_current_cred();
+	init_waitqueue_head(&conn->wait);
+	kdbus_queue_init(&conn->queue);
+	conn->privileged = privileged;
+	conn->ep = kdbus_ep_ref(ep);
+	conn->id = atomic64_inc_return(&bus->domain->last_id);
+	conn->flags = hello->flags;
+	atomic64_set(&conn->attach_flags_send, attach_flags_send);
+	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
+	INIT_LIST_HEAD(&conn->monitor_entry);
+
+	if (conn_description) {
+		conn->description = kstrdup(conn_description, GFP_KERNEL);
+		if (!conn->description) {
+			ret = -ENOMEM;
+			goto exit_unref;
+		}
+	}
+
+	conn->pool = kdbus_pool_new(conn->description, hello->pool_size);
+	if (IS_ERR(conn->pool)) {
+		ret = PTR_ERR(conn->pool);
+		conn->pool = NULL;
+		goto exit_unref;
+	}
+
+	conn->match_db = kdbus_match_db_new();
+	if (IS_ERR(conn->match_db)) {
+		ret = PTR_ERR(conn->match_db);
+		conn->match_db = NULL;
+		goto exit_unref;
+	}
+
+	/* return properties of this connection to the caller */
+	hello->bus_flags = bus->bus_flags;
+	hello->id = conn->id;
+
+	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
+	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
+
+	conn->meta = kdbus_meta_proc_new();
+	if (IS_ERR(conn->meta)) {
+		ret = PTR_ERR(conn->meta);
+		conn->meta = NULL;
+		goto exit_unref;
+	}
+
+	/* privileged processes can impersonate somebody else */
+	if (creds || pids || seclabel) {
+		ret = kdbus_meta_proc_fake(conn->meta, creds, pids, seclabel);
+		if (ret < 0)
+			goto exit_unref;
+
+		conn->faked_meta = true;
+	} else {
+		ret = kdbus_meta_proc_collect(conn->meta,
+					      KDBUS_ATTACH_CREDS |
+					      KDBUS_ATTACH_PIDS |
+					      KDBUS_ATTACH_AUXGROUPS |
+					      KDBUS_ATTACH_TID_COMM |
+					      KDBUS_ATTACH_PID_COMM |
+					      KDBUS_ATTACH_EXE |
+					      KDBUS_ATTACH_CMDLINE |
+					      KDBUS_ATTACH_CGROUP |
+					      KDBUS_ATTACH_CAPS |
+					      KDBUS_ATTACH_SECLABEL |
+					      KDBUS_ATTACH_AUDIT);
+		if (ret < 0)
+			goto exit_unref;
+	}
+
+	/*
+	 * Account the connection against the current user (UID), or for
+	 * custom endpoints use the anonymous user assigned to the endpoint.
+	 * Note that limits are always accounted against the real UID, not
+	 * the effective UID (cred->user always points to the accounting of
+	 * cred->uid, not cred->euid).
+	 */
+	if (ep->user) {
+		conn->user = kdbus_user_ref(ep->user);
+	} else {
+		conn->user = kdbus_user_lookup(ep->bus->domain, current_uid());
+		if (IS_ERR(conn->user)) {
+			ret = PTR_ERR(conn->user);
+			conn->user = NULL;
+			goto exit_unref;
+		}
+	}
+
+	if (atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
+		/* decremented by destructor as conn->user is valid */
+		ret = -EMFILE;
+		goto exit_unref;
+	}
+
+	bloom_item.size = sizeof(bloom_item);
+	bloom_item.type = KDBUS_ITEM_BLOOM_PARAMETER;
+	bloom_item.bloom = bus->bloom;
+	kdbus_kvec_set(&kvec[0], &items, sizeof(items), &items.size);
+	kdbus_kvec_set(&kvec[1], &bloom_item, bloom_item.size, &items.size);
+
+	slice = kdbus_pool_slice_alloc(conn->pool, items.size);
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
+		slice = NULL;
+		goto exit_unref;
+	}
+
+	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec, ARRAY_SIZE(kvec),
+					 items.size);
+	if (ret < 0)
+		goto exit_unref;
+
+	kdbus_pool_slice_publish(slice, &hello->offset, &hello->items_size);
+	kdbus_pool_slice_release(slice);
+
+	return conn;
+
+exit_unref:
+	kdbus_pool_slice_release(slice);
+	kdbus_conn_unref(conn);
+	return ERR_PTR(ret);
+}
+
+static void __kdbus_conn_free(struct kref *kref)
+{
+	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
+
+	WARN_ON(kdbus_conn_active(conn));
+	WARN_ON(delayed_work_pending(&conn->work));
+	WARN_ON(!list_empty(&conn->queue.msg_list));
+	WARN_ON(!list_empty(&conn->names_list));
+	WARN_ON(!list_empty(&conn->names_queue_list));
+	WARN_ON(!list_empty(&conn->reply_list));
+
+	if (conn->user) {
+		atomic_dec(&conn->user->connections);
+		kdbus_user_unref(conn->user);
+	}
+
+	kdbus_meta_proc_unref(conn->meta);
+	kdbus_match_db_free(conn->match_db);
+	kdbus_pool_free(conn->pool);
+	kdbus_ep_unref(conn->ep);
+	put_cred(conn->cred);
+	kfree(conn->description);
+	kfree(conn);
+}
+
+/**
+ * kdbus_conn_ref() - take a connection reference
+ * @conn:		Connection, may be %NULL
+ *
+ * Return: the connection itself
+ */
+struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
+{
+	if (conn)
+		kref_get(&conn->kref);
+	return conn;
+}
+
+/**
+ * kdbus_conn_unref() - drop a connection reference
+ * @conn:		Connection (may be NULL)
+ *
+ * When the last reference is dropped, the connection's internal structure
+ * is freed.
+ *
+ * Return: NULL
+ */
+struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
+{
+	if (conn)
+		kref_put(&conn->kref, __kdbus_conn_free);
+	return NULL;
+}
+
+/**
+ * kdbus_conn_active() - connection is not disconnected
+ * @conn:		Connection to check
+ *
+ * Return true if the connection was not disconnected, yet. Note that a
+ * connection might be disconnected asynchronously, unless you hold the
+ * connection lock. If that's not suitable for you, see kdbus_conn_acquire() to
+ * suppress connection shutdown for a short period.
+ *
+ * Return: true if the connection is still active
+ */
+bool kdbus_conn_active(const struct kdbus_conn *conn)
+{
+	return atomic_read(&conn->active) >= 0;
+}
+
+/**
+ * kdbus_conn_acquire() - acquire an active connection reference
+ * @conn:		Connection
+ *
+ * Users can close a connection via KDBUS_BYEBYE (or by destroying the
+ * endpoint/bus/...) at any time. Whenever this happens, we should deny any
+ * user-visible action on this connection and signal ECONNRESET instead.
+ * To avoid testing for connection availability everytime you take the
+ * connection-lock, you can acquire a connection for short periods.
+ *
+ * By calling kdbus_conn_acquire(), you gain an "active reference" to the
+ * connection. You must also hold a regular reference at any time! As long as
+ * you hold the active-ref, the connection will not be shut down. However, if
+ * the connection was shut down, you can never acquire an active-ref again.
+ *
+ * kdbus_conn_disconnect() disables the connection and then waits for all active
+ * references to be dropped. It will also wake up any pending operation.
+ * However, you must not sleep for an indefinite period while holding an
+ * active-reference. Otherwise, kdbus_conn_disconnect() might stall. If you need
+ * to sleep for an indefinite period, either release the reference and try to
+ * acquire it again after waking up, or make kdbus_conn_disconnect() wake up
+ * your wait-queue.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_conn_acquire(struct kdbus_conn *conn)
+{
+	if (!atomic_inc_unless_negative(&conn->active))
+		return -ECONNRESET;
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_acquire_read(&conn->dep_map, 0, 1, _RET_IP_);
+#endif
+
+	return 0;
+}
+
+/**
+ * kdbus_conn_release() - release an active connection reference
+ * @conn:		Connection
+ *
+ * This releases an active reference that has been acquired via
+ * kdbus_conn_acquire(). If the connection was already disabled and this is the
+ * last active-ref that is dropped, the disconnect-waiter will be woken up and
+ * properly close the connection.
+ */
+void kdbus_conn_release(struct kdbus_conn *conn)
+{
+	int v;
+
+	if (!conn)
+		return;
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_release(&conn->dep_map, 1, _RET_IP_);
+#endif
+
+	v = atomic_dec_return(&conn->active);
+	if (v != KDBUS_CONN_ACTIVE_BIAS)
+		return;
+
+	wake_up_all(&conn->wait);
+}
+
+static int kdbus_conn_connect(struct kdbus_conn *conn, const char *name)
+{
+	struct kdbus_ep *ep = conn->ep;
+	struct kdbus_bus *bus = ep->bus;
+	int ret;
+
+	if (WARN_ON(atomic_read(&conn->active) != KDBUS_CONN_ACTIVE_NEW))
+		return -EALREADY;
+
+	/* make sure the ep-node is active while we add our connection */
+	if (!kdbus_node_acquire(&ep->node))
+		return -ESHUTDOWN;
+
+	/* lock order: domain -> bus -> ep -> names -> conn */
+	mutex_lock(&ep->lock);
+	down_write(&bus->conn_rwlock);
+
+	/* link into monitor list */
+	if (kdbus_conn_is_monitor(conn))
+		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
+
+	/* link into bus and endpoint */
+	list_add_tail(&conn->ep_entry, &ep->conn_list);
+	hash_add(bus->conn_hash, &conn->hentry, conn->id);
+
+	/* enable lookups and acquire active ref */
+	atomic_set(&conn->active, 1);
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_acquire_read(&conn->dep_map, 0, 1, _RET_IP_);
+#endif
+
+	up_write(&bus->conn_rwlock);
+	mutex_unlock(&ep->lock);
+
+	kdbus_node_release(&ep->node);
+
+	/*
+	 * Notify subscribers about the new active connection, unless it is
+	 * a monitor. Monitors are invisible on the bus, can't be addressed
+	 * directly, and won't cause any notifications.
+	 */
+	if (!kdbus_conn_is_monitor(conn)) {
+		ret = kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_ADD,
+					     conn->id, conn->flags);
+		if (ret < 0)
+			goto exit_disconnect;
+	}
+
+	if (kdbus_conn_is_activator(conn)) {
+		u64 flags = KDBUS_NAME_ACTIVATOR;
+
+		if (WARN_ON(!name)) {
+			ret = -EINVAL;
+			goto exit_disconnect;
+		}
+
+		ret = kdbus_name_acquire(bus->name_registry, conn, name,
+					 &flags);
+		if (ret < 0)
+			goto exit_disconnect;
+	}
+
+	kdbus_conn_release(conn);
+	kdbus_notify_flush(bus);
+	return 0;
+
+exit_disconnect:
+	kdbus_conn_release(conn);
+	kdbus_conn_disconnect(conn, false);
+	return ret;
+}
+
+/**
+ * kdbus_conn_disconnect() - disconnect a connection
+ * @conn:		The connection to disconnect
+ * @ensure_queue_empty:	Flag to indicate if the call should fail in
+ *			case the connection's message list is not
+ *			empty
+ *
+ * If @ensure_msg_list_empty is true, and the connection has pending messages,
+ * -EBUSY is returned.
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
+{
+	struct kdbus_queue_entry *entry, *tmp;
+	struct kdbus_bus *bus = conn->ep->bus;
+	struct kdbus_reply *r, *r_tmp;
+	struct kdbus_conn *c;
+	int i, v;
+
+	mutex_lock(&conn->lock);
+	v = atomic_read(&conn->active);
+	if (v == KDBUS_CONN_ACTIVE_NEW) {
+		/* was never connected */
+		mutex_unlock(&conn->lock);
+		return 0;
+	}
+	if (v < 0) {
+		/* already dead */
+		mutex_unlock(&conn->lock);
+		return -ECONNRESET;
+	}
+	if (ensure_queue_empty && !list_empty(&conn->queue.msg_list)) {
+		/* still busy */
+		mutex_unlock(&conn->lock);
+		return -EBUSY;
+	}
+
+	atomic_add(KDBUS_CONN_ACTIVE_BIAS, &conn->active);
+	mutex_unlock(&conn->lock);
+
+	wake_up_interruptible(&conn->wait);
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	rwsem_acquire(&conn->dep_map, 0, 0, _RET_IP_);
+	if (atomic_read(&conn->active) != KDBUS_CONN_ACTIVE_BIAS)
+		lock_contended(&conn->dep_map, _RET_IP_);
+#endif
+
+	wait_event(conn->wait,
+		   atomic_read(&conn->active) == KDBUS_CONN_ACTIVE_BIAS);
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	lock_acquired(&conn->dep_map, _RET_IP_);
+	rwsem_release(&conn->dep_map, 1, _RET_IP_);
+#endif
+
+	cancel_delayed_work_sync(&conn->work);
+	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
+
+	/* lock order: domain -> bus -> ep -> names -> conn */
+	mutex_lock(&conn->ep->lock);
+	down_write(&bus->conn_rwlock);
+
+	/* remove from bus and endpoint */
+	hash_del(&conn->hentry);
+	list_del(&conn->monitor_entry);
+	list_del(&conn->ep_entry);
+
+	up_write(&bus->conn_rwlock);
+	mutex_unlock(&conn->ep->lock);
+
+	/*
+	 * Remove all names associated with this connection; this possibly
+	 * moves queued messages back to the activator connection.
+	 */
+	kdbus_name_remove_by_conn(bus->name_registry, conn);
+
+	/* if we die while other connections wait for our reply, notify them */
+	mutex_lock(&conn->lock);
+	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
+		if (entry->reply)
+			kdbus_notify_reply_dead(bus, entry->msg.src_id,
+						entry->msg.cookie);
+
+		kdbus_queue_entry_remove(conn, entry);
+		kdbus_pool_slice_release(entry->slice);
+		kdbus_queue_entry_free(entry);
+	}
+
+	list_for_each_entry_safe(r, r_tmp, &conn->reply_list, entry)
+		kdbus_reply_unlink(r);
+	mutex_unlock(&conn->lock);
+
+	/* lock order: domain -> bus -> ep -> names -> conn */
+	down_read(&bus->conn_rwlock);
+	hash_for_each(bus->conn_hash, i, c, hentry) {
+		mutex_lock(&c->lock);
+		list_for_each_entry_safe(r, r_tmp, &c->reply_list, entry) {
+			if (r->reply_src == conn) {
+				if (r->sync) {
+					kdbus_sync_reply_wakeup(r, -EPIPE);
+					kdbus_reply_unlink(r);
+					continue;
+				}
+
+				/* send a 'connection dead' notification */
+				kdbus_notify_reply_dead(bus, c->id, r->cookie);
+				kdbus_reply_unlink(r);
+			}
+		}
+		mutex_unlock(&c->lock);
+	}
+	up_read(&bus->conn_rwlock);
+
+	if (!kdbus_conn_is_monitor(conn))
+		kdbus_notify_id_change(bus, KDBUS_ITEM_ID_REMOVE,
+				       conn->id, conn->flags);
+
+	kdbus_notify_flush(bus);
+
+	return 0;
+}
+
+/**
+ * kdbus_conn_has_name() - check if a connection owns a name
+ * @conn:		Connection
+ * @name:		Well-know name to check for
+ *
+ * Return: true if the name is currently owned by the connection
+ */
+bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
+{
+	struct kdbus_name_entry *e;
+	bool match = false;
+
+	/* No need to go further if we do not own names */
+	if (atomic_read(&conn->name_count) == 0)
+		return false;
+
+	mutex_lock(&conn->lock);
+	list_for_each_entry(e, &conn->names_list, conn_entry) {
+		if (strcmp(e->name, name) == 0) {
+			match = true;
+			break;
+		}
+	}
+	mutex_unlock(&conn->lock);
+
+	return match;
+}
+
 static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 			    size_t memory, size_t fds)
 {
@@ -721,264 +1284,6 @@ exit:
 }
 
 /**
- * kdbus_conn_disconnect() - disconnect a connection
- * @conn:		The connection to disconnect
- * @ensure_queue_empty:	Flag to indicate if the call should fail in
- *			case the connection's message list is not
- *			empty
- *
- * If @ensure_msg_list_empty is true, and the connection has pending messages,
- * -EBUSY is returned.
- *
- * Return: 0 on success, negative errno on failure
- */
-int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
-{
-	struct kdbus_queue_entry *entry, *tmp;
-	struct kdbus_bus *bus = conn->ep->bus;
-	struct kdbus_reply *r, *r_tmp;
-	struct kdbus_conn *c;
-	int i, v;
-
-	mutex_lock(&conn->lock);
-	v = atomic_read(&conn->active);
-	if (v == KDBUS_CONN_ACTIVE_NEW) {
-		/* was never connected */
-		mutex_unlock(&conn->lock);
-		return 0;
-	}
-	if (v < 0) {
-		/* already dead */
-		mutex_unlock(&conn->lock);
-		return -ECONNRESET;
-	}
-	if (ensure_queue_empty && !list_empty(&conn->queue.msg_list)) {
-		/* still busy */
-		mutex_unlock(&conn->lock);
-		return -EBUSY;
-	}
-
-	atomic_add(KDBUS_CONN_ACTIVE_BIAS, &conn->active);
-	mutex_unlock(&conn->lock);
-
-	wake_up_interruptible(&conn->wait);
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	rwsem_acquire(&conn->dep_map, 0, 0, _RET_IP_);
-	if (atomic_read(&conn->active) != KDBUS_CONN_ACTIVE_BIAS)
-		lock_contended(&conn->dep_map, _RET_IP_);
-#endif
-
-	wait_event(conn->wait,
-		   atomic_read(&conn->active) == KDBUS_CONN_ACTIVE_BIAS);
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	lock_acquired(&conn->dep_map, _RET_IP_);
-	rwsem_release(&conn->dep_map, 1, _RET_IP_);
-#endif
-
-	cancel_delayed_work_sync(&conn->work);
-	kdbus_policy_remove_owner(&conn->ep->bus->policy_db, conn);
-
-	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&conn->ep->lock);
-	down_write(&bus->conn_rwlock);
-
-	/* remove from bus and endpoint */
-	hash_del(&conn->hentry);
-	list_del(&conn->monitor_entry);
-	list_del(&conn->ep_entry);
-
-	up_write(&bus->conn_rwlock);
-	mutex_unlock(&conn->ep->lock);
-
-	/*
-	 * Remove all names associated with this connection; this possibly
-	 * moves queued messages back to the activator connection.
-	 */
-	kdbus_name_remove_by_conn(bus->name_registry, conn);
-
-	/* if we die while other connections wait for our reply, notify them */
-	mutex_lock(&conn->lock);
-	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
-		if (entry->reply)
-			kdbus_notify_reply_dead(bus, entry->msg.src_id,
-						entry->msg.cookie);
-
-		kdbus_queue_entry_remove(conn, entry);
-		kdbus_pool_slice_release(entry->slice);
-		kdbus_queue_entry_free(entry);
-	}
-
-	list_for_each_entry_safe(r, r_tmp, &conn->reply_list, entry)
-		kdbus_reply_unlink(r);
-	mutex_unlock(&conn->lock);
-
-	/* lock order: domain -> bus -> ep -> names -> conn */
-	down_read(&bus->conn_rwlock);
-	hash_for_each(bus->conn_hash, i, c, hentry) {
-		mutex_lock(&c->lock);
-		list_for_each_entry_safe(r, r_tmp, &c->reply_list, entry) {
-			if (r->reply_src == conn) {
-				if (r->sync) {
-					kdbus_sync_reply_wakeup(r, -EPIPE);
-					kdbus_reply_unlink(r);
-					continue;
-				}
-
-				/* send a 'connection dead' notification */
-				kdbus_notify_reply_dead(bus, c->id, r->cookie);
-				kdbus_reply_unlink(r);
-			}
-		}
-		mutex_unlock(&c->lock);
-	}
-	up_read(&bus->conn_rwlock);
-
-	if (!kdbus_conn_is_monitor(conn))
-		kdbus_notify_id_change(bus, KDBUS_ITEM_ID_REMOVE,
-				       conn->id, conn->flags);
-
-	kdbus_notify_flush(bus);
-
-	return 0;
-}
-
-/**
- * kdbus_conn_active() - connection is not disconnected
- * @conn:		Connection to check
- *
- * Return true if the connection was not disconnected, yet. Note that a
- * connection might be disconnected asynchronously, unless you hold the
- * connection lock. If that's not suitable for you, see kdbus_conn_acquire() to
- * suppress connection shutdown for a short period.
- *
- * Return: true if the connection is still active
- */
-bool kdbus_conn_active(const struct kdbus_conn *conn)
-{
-	return atomic_read(&conn->active) >= 0;
-}
-
-static void __kdbus_conn_free(struct kref *kref)
-{
-	struct kdbus_conn *conn = container_of(kref, struct kdbus_conn, kref);
-
-	WARN_ON(kdbus_conn_active(conn));
-	WARN_ON(delayed_work_pending(&conn->work));
-	WARN_ON(!list_empty(&conn->queue.msg_list));
-	WARN_ON(!list_empty(&conn->names_list));
-	WARN_ON(!list_empty(&conn->names_queue_list));
-	WARN_ON(!list_empty(&conn->reply_list));
-
-	if (conn->user) {
-		atomic_dec(&conn->user->connections);
-		kdbus_user_unref(conn->user);
-	}
-
-	kdbus_meta_proc_unref(conn->meta);
-	kdbus_match_db_free(conn->match_db);
-	kdbus_pool_free(conn->pool);
-	kdbus_ep_unref(conn->ep);
-	put_cred(conn->cred);
-	kfree(conn->description);
-	kfree(conn);
-}
-
-/**
- * kdbus_conn_ref() - take a connection reference
- * @conn:		Connection, may be %NULL
- *
- * Return: the connection itself
- */
-struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn)
-{
-	if (conn)
-		kref_get(&conn->kref);
-	return conn;
-}
-
-/**
- * kdbus_conn_unref() - drop a connection reference
- * @conn:		Connection (may be NULL)
- *
- * When the last reference is dropped, the connection's internal structure
- * is freed.
- *
- * Return: NULL
- */
-struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn)
-{
-	if (conn)
-		kref_put(&conn->kref, __kdbus_conn_free);
-	return NULL;
-}
-
-/**
- * kdbus_conn_acquire() - acquire an active connection reference
- * @conn:		Connection
- *
- * Users can close a connection via KDBUS_BYEBYE (or by destroying the
- * endpoint/bus/...) at any time. Whenever this happens, we should deny any
- * user-visible action on this connection and signal ECONNRESET instead.
- * To avoid testing for connection availability everytime you take the
- * connection-lock, you can acquire a connection for short periods.
- *
- * By calling kdbus_conn_acquire(), you gain an "active reference" to the
- * connection. You must also hold a regular reference at any time! As long as
- * you hold the active-ref, the connection will not be shut down. However, if
- * the connection was shut down, you can never acquire an active-ref again.
- *
- * kdbus_conn_disconnect() disables the connection and then waits for all active
- * references to be dropped. It will also wake up any pending operation.
- * However, you must not sleep for an indefinite period while holding an
- * active-reference. Otherwise, kdbus_conn_disconnect() might stall. If you need
- * to sleep for an indefinite period, either release the reference and try to
- * acquire it again after waking up, or make kdbus_conn_disconnect() wake up
- * your wait-queue.
- *
- * Return: 0 on success, negative error code on failure.
- */
-int kdbus_conn_acquire(struct kdbus_conn *conn)
-{
-	if (!atomic_inc_unless_negative(&conn->active))
-		return -ECONNRESET;
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	rwsem_acquire_read(&conn->dep_map, 0, 1, _RET_IP_);
-#endif
-
-	return 0;
-}
-
-/**
- * kdbus_conn_release() - release an active connection reference
- * @conn:		Connection
- *
- * This releases an active reference that has been acquired via
- * kdbus_conn_acquire(). If the connection was already disabled and this is the
- * last active-ref that is dropped, the disconnect-waiter will be woken up and
- * properly close the connection.
- */
-void kdbus_conn_release(struct kdbus_conn *conn)
-{
-	int v;
-
-	if (!conn)
-		return;
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	rwsem_release(&conn->dep_map, 1, _RET_IP_);
-#endif
-
-	v = atomic_dec_return(&conn->active);
-	if (v != KDBUS_CONN_ACTIVE_BIAS)
-		return;
-
-	wake_up_all(&conn->wait);
-}
-
-/**
  * kdbus_conn_move_messages() - move messages from one connection to another
  * @conn_dst:		Connection to copy to
  * @conn_src:		Connection to copy from
@@ -1055,311 +1360,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	wake_up_interruptible(&conn_dst->wait);
 
 	return ret;
-}
-
-static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
-					 struct kdbus_cmd_hello *hello,
-					 const char *name,
-					 const struct kdbus_creds *creds,
-					 const struct kdbus_pids *pids,
-					 const char *seclabel,
-					 const char *conn_description)
-{
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	static struct lock_class_key __key;
-#endif
-	struct kdbus_pool_slice *slice = NULL;
-	struct kdbus_item_list items = {};
-	struct kdbus_bus *bus = ep->bus;
-	struct kdbus_conn *conn;
-	u64 attach_flags_send;
-	u64 attach_flags_recv;
-	bool is_policy_holder;
-	bool is_activator;
-	bool is_monitor;
-	struct kvec kvec[2];
-	int ret;
-
-	struct {
-		u64 size;
-		u64 type;
-		struct kdbus_bloom_parameter bloom;
-	} bloom_item;
-
-	is_monitor = hello->flags & KDBUS_HELLO_MONITOR;
-	is_activator = hello->flags & KDBUS_HELLO_ACTIVATOR;
-	is_policy_holder = hello->flags & KDBUS_HELLO_POLICY_HOLDER;
-
-	if (!hello->pool_size || !IS_ALIGNED(hello->pool_size, PAGE_SIZE))
-		return ERR_PTR(-EINVAL);
-	if (is_monitor + is_activator + is_policy_holder > 1)
-		return ERR_PTR(-EINVAL);
-	if (name && !is_activator && !is_policy_holder)
-		return ERR_PTR(-EINVAL);
-	if (!name && (is_activator || is_policy_holder))
-		return ERR_PTR(-EINVAL);
-	if (name && !kdbus_name_is_valid(name, true))
-		return ERR_PTR(-EINVAL);
-	if (is_monitor && ep->user)
-		return ERR_PTR(-EOPNOTSUPP);
-	if (!privileged && (is_activator || is_policy_holder || is_monitor))
-		return ERR_PTR(-EPERM);
-	if ((creds || pids || seclabel) && !privileged)
-		return ERR_PTR(-EPERM);
-
-	ret = kdbus_sanitize_attach_flags(hello->attach_flags_send,
-					  &attach_flags_send);
-	if (ret < 0)
-		return ERR_PTR(ret);
-
-	ret = kdbus_sanitize_attach_flags(hello->attach_flags_recv,
-					  &attach_flags_recv);
-	if (ret < 0)
-		return ERR_PTR(ret);
-
-	/* The attach flags must always satisfy the bus requirements. */
-	if (bus->attach_flags_req & ~attach_flags_send)
-		return ERR_PTR(-ECONNREFUSED);
-
-	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
-	if (!conn)
-		return ERR_PTR(-ENOMEM);
-
-	kref_init(&conn->kref);
-	atomic_set(&conn->active, KDBUS_CONN_ACTIVE_NEW);
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	lockdep_init_map(&conn->dep_map, "s_active", &__key, 0);
-#endif
-	mutex_init(&conn->lock);
-	INIT_LIST_HEAD(&conn->names_list);
-	INIT_LIST_HEAD(&conn->names_queue_list);
-	INIT_LIST_HEAD(&conn->reply_list);
-	atomic_set(&conn->name_count, 0);
-	atomic_set(&conn->request_count, 0);
-	atomic_set(&conn->lost_count, 0);
-	INIT_DELAYED_WORK(&conn->work, kdbus_reply_list_scan_work);
-	conn->cred = get_current_cred();
-	init_waitqueue_head(&conn->wait);
-	kdbus_queue_init(&conn->queue);
-	conn->privileged = privileged;
-	conn->ep = kdbus_ep_ref(ep);
-	conn->id = atomic64_inc_return(&bus->domain->last_id);
-	conn->flags = hello->flags;
-	atomic64_set(&conn->attach_flags_send, attach_flags_send);
-	atomic64_set(&conn->attach_flags_recv, attach_flags_recv);
-	INIT_LIST_HEAD(&conn->monitor_entry);
-
-	if (conn_description) {
-		conn->description = kstrdup(conn_description, GFP_KERNEL);
-		if (!conn->description) {
-			ret = -ENOMEM;
-			goto exit_unref;
-		}
-	}
-
-	conn->pool = kdbus_pool_new(conn->description, hello->pool_size);
-	if (IS_ERR(conn->pool)) {
-		ret = PTR_ERR(conn->pool);
-		conn->pool = NULL;
-		goto exit_unref;
-	}
-
-	conn->match_db = kdbus_match_db_new();
-	if (IS_ERR(conn->match_db)) {
-		ret = PTR_ERR(conn->match_db);
-		conn->match_db = NULL;
-		goto exit_unref;
-	}
-
-	/* return properties of this connection to the caller */
-	hello->bus_flags = bus->bus_flags;
-	hello->id = conn->id;
-
-	BUILD_BUG_ON(sizeof(bus->id128) != sizeof(hello->id128));
-	memcpy(hello->id128, bus->id128, sizeof(hello->id128));
-
-	conn->meta = kdbus_meta_proc_new();
-	if (IS_ERR(conn->meta)) {
-		ret = PTR_ERR(conn->meta);
-		conn->meta = NULL;
-		goto exit_unref;
-	}
-
-	/* privileged processes can impersonate somebody else */
-	if (creds || pids || seclabel) {
-		ret = kdbus_meta_proc_fake(conn->meta, creds, pids, seclabel);
-		if (ret < 0)
-			goto exit_unref;
-
-		conn->faked_meta = true;
-	} else {
-		ret = kdbus_meta_proc_collect(conn->meta,
-					      KDBUS_ATTACH_CREDS |
-					      KDBUS_ATTACH_PIDS |
-					      KDBUS_ATTACH_AUXGROUPS |
-					      KDBUS_ATTACH_TID_COMM |
-					      KDBUS_ATTACH_PID_COMM |
-					      KDBUS_ATTACH_EXE |
-					      KDBUS_ATTACH_CMDLINE |
-					      KDBUS_ATTACH_CGROUP |
-					      KDBUS_ATTACH_CAPS |
-					      KDBUS_ATTACH_SECLABEL |
-					      KDBUS_ATTACH_AUDIT);
-		if (ret < 0)
-			goto exit_unref;
-	}
-
-	/*
-	 * Account the connection against the current user (UID), or for
-	 * custom endpoints use the anonymous user assigned to the endpoint.
-	 * Note that limits are always accounted against the real UID, not
-	 * the effective UID (cred->user always points to the accounting of
-	 * cred->uid, not cred->euid).
-	 */
-	if (ep->user) {
-		conn->user = kdbus_user_ref(ep->user);
-	} else {
-		conn->user = kdbus_user_lookup(ep->bus->domain, current_uid());
-		if (IS_ERR(conn->user)) {
-			ret = PTR_ERR(conn->user);
-			conn->user = NULL;
-			goto exit_unref;
-		}
-	}
-
-	if (atomic_inc_return(&conn->user->connections) > KDBUS_USER_MAX_CONN) {
-		/* decremented by destructor as conn->user is valid */
-		ret = -EMFILE;
-		goto exit_unref;
-	}
-
-	bloom_item.size = sizeof(bloom_item);
-	bloom_item.type = KDBUS_ITEM_BLOOM_PARAMETER;
-	bloom_item.bloom = bus->bloom;
-	kdbus_kvec_set(&kvec[0], &items, sizeof(items), &items.size);
-	kdbus_kvec_set(&kvec[1], &bloom_item, bloom_item.size, &items.size);
-
-	slice = kdbus_pool_slice_alloc(conn->pool, items.size);
-	if (IS_ERR(slice)) {
-		ret = PTR_ERR(slice);
-		slice = NULL;
-		goto exit_unref;
-	}
-
-	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec, ARRAY_SIZE(kvec),
-					 items.size);
-	if (ret < 0)
-		goto exit_unref;
-
-	kdbus_pool_slice_publish(slice, &hello->offset, &hello->items_size);
-	kdbus_pool_slice_release(slice);
-
-	return conn;
-
-exit_unref:
-	kdbus_pool_slice_release(slice);
-	kdbus_conn_unref(conn);
-	return ERR_PTR(ret);
-}
-
-static int kdbus_conn_connect(struct kdbus_conn *conn, const char *name)
-{
-	struct kdbus_ep *ep = conn->ep;
-	struct kdbus_bus *bus = ep->bus;
-	int ret;
-
-	if (WARN_ON(atomic_read(&conn->active) != KDBUS_CONN_ACTIVE_NEW))
-		return -EALREADY;
-
-	/* make sure the ep-node is active while we add our connection */
-	if (!kdbus_node_acquire(&ep->node))
-		return -ESHUTDOWN;
-
-	/* lock order: domain -> bus -> ep -> names -> conn */
-	mutex_lock(&ep->lock);
-	down_write(&bus->conn_rwlock);
-
-	/* link into monitor list */
-	if (kdbus_conn_is_monitor(conn))
-		list_add_tail(&conn->monitor_entry, &bus->monitors_list);
-
-	/* link into bus and endpoint */
-	list_add_tail(&conn->ep_entry, &ep->conn_list);
-	hash_add(bus->conn_hash, &conn->hentry, conn->id);
-
-	/* enable lookups and acquire active ref */
-	atomic_set(&conn->active, 1);
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	rwsem_acquire_read(&conn->dep_map, 0, 1, _RET_IP_);
-#endif
-
-	up_write(&bus->conn_rwlock);
-	mutex_unlock(&ep->lock);
-
-	kdbus_node_release(&ep->node);
-
-	/*
-	 * Notify subscribers about the new active connection, unless it is
-	 * a monitor. Monitors are invisible on the bus, can't be addressed
-	 * directly, and won't cause any notifications.
-	 */
-	if (!kdbus_conn_is_monitor(conn)) {
-		ret = kdbus_notify_id_change(conn->ep->bus, KDBUS_ITEM_ID_ADD,
-					     conn->id, conn->flags);
-		if (ret < 0)
-			goto exit_disconnect;
-	}
-
-	if (kdbus_conn_is_activator(conn)) {
-		u64 flags = KDBUS_NAME_ACTIVATOR;
-
-		if (WARN_ON(!name)) {
-			ret = -EINVAL;
-			goto exit_disconnect;
-		}
-
-		ret = kdbus_name_acquire(bus->name_registry, conn, name,
-					 &flags);
-		if (ret < 0)
-			goto exit_disconnect;
-	}
-
-	kdbus_conn_release(conn);
-	kdbus_notify_flush(bus);
-	return 0;
-
-exit_disconnect:
-	kdbus_conn_release(conn);
-	kdbus_conn_disconnect(conn, false);
-	return ret;
-}
-
-/**
- * kdbus_conn_has_name() - check if a connection owns a name
- * @conn:		Connection
- * @name:		Well-know name to check for
- *
- * Return: true if the name is currently owned by the connection
- */
-bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
-{
-	struct kdbus_name_entry *e;
-	bool match = false;
-
-	/* No need to go further if we do not own names */
-	if (atomic_read(&conn->name_count) == 0)
-		return false;
-
-	mutex_lock(&conn->lock);
-	list_for_each_entry(e, &conn->names_list, conn_entry) {
-		if (strcmp(e->name, name) == 0) {
-			match = true;
-			break;
-		}
-	}
-	mutex_unlock(&conn->lock);
-
-	return match;
 }
 
 /* query the policy-database for all names of @whom */

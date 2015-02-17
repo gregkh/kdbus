@@ -125,10 +125,11 @@ struct kdbus_name_registry;
 
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
+bool kdbus_conn_active(const struct kdbus_conn *conn);
 int kdbus_conn_acquire(struct kdbus_conn *conn);
 void kdbus_conn_release(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty);
-bool kdbus_conn_active(const struct kdbus_conn *conn);
+bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 			    struct kdbus_conn *conn_dst,
 			    const struct kdbus_kmsg *kmsg,
@@ -136,7 +137,6 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			     struct kdbus_conn *conn_src,
 			     u64 name_id);
-bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
 
 /* policy */
 bool kdbus_conn_policy_own_name(struct kdbus_conn *conn,
