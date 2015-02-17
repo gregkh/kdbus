@@ -399,19 +399,6 @@ exit_unlock:
 	return ret;
 }
 
-/**
- * kdbus_conn_wait_reply() - Wait for the reply of a synchronous send
- *			     operation
- * @conn_src:		The sending connection (origin)
- * @cmd_send:		Payload of SEND command
- * @ioctl_file:		struct file used to issue this ioctl
- * @cancel_fd:		Pinned file that reflects KDBUS_ITEM_CANCEL_FD
- *			item, used to cancel the blocking send call
- * @reply_wait:		The tracked reply that we are waiting for.
- * @expire:		Reply timeout
- *
- * Return: 0 on success. negative error otherwise.
- */
 static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 				 struct kdbus_cmd_send *cmd_send,
 				 struct file *ioctl_file,
@@ -1617,16 +1604,6 @@ bool kdbus_conn_policy_see_name_unlocked(struct kdbus_conn *conn,
 	return res >= KDBUS_POLICY_SEE;
 }
 
-/**
- * kdbus_conn_policy_see_name() - verify a connection can see a given name
- * @conn:		Connection
- * @conn_creds:		Credentials of @conn to use for policy check
- * @name:		Name
- *
- * This verifies that @conn is allowed to see the well-known name @name.
- *
- * Return: true if allowed, false if not.
- */
 static bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
 				       const struct cred *conn_creds,
 				       const char *name)
@@ -1640,16 +1617,6 @@ static bool kdbus_conn_policy_see_name(struct kdbus_conn *conn,
 	return res;
 }
 
-/**
- * kdbus_conn_policy_see() - verify a connection can see a given peer
- * @conn:		Connection to verify whether it sees a peer
- * @conn_creds:		Credentials of @conn to use for policy check
- * @whom:		Peer destination that is to be 'seen'
- *
- * This checks whether @conn is able to see @whom.
- *
- * Return: true if allowed, false if not.
- */
 static bool kdbus_conn_policy_see(struct kdbus_conn *conn,
 				  const struct cred *conn_creds,
 				  struct kdbus_conn *whom)
