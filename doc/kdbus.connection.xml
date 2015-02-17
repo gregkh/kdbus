@@ -132,8 +132,8 @@
       <citerefentry>
         <refentrytitle>kdbus.endpoint</refentrytitle>
         <manvolnum>7</manvolnum>
-      </citerefentry>
-      ) of a bus and becoming an active client with the
+      </citerefentry>)
+      of a bus and becoming an active client with the
       <constant>KDBUS_CMD_HELLO</constant> ioctl. Every connection has a unique
       identifier on the bus and can address messages to every other connection
       on the same bus by using the peer's connection ID as the destination.
