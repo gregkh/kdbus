@@ -2143,9 +2143,9 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 		return ret;
 
 	cmd->dropped_msgs = 0;
-	cmd->msg.offset = 0;
-	cmd->msg.msg_size = 0;
 	cmd->msg.return_flags = 0;
+	kdbus_pool_publish_empty(conn->pool, &cmd->msg.offset,
+				 &cmd->msg.msg_size);
 
 	/* DROP+priority is not realiably, so prevent it */
 	if ((cmd->flags & KDBUS_RECV_DROP) &&
