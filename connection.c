@@ -105,15 +105,7 @@ static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
 	return 0;
 }
 
-/**
- * kdbus_cmd_msg_recv() - receive a message from the queue
- * @conn:		Connection to work on
- * @recv:		The command as passed in by the ioctl
- *
- * Return: 0 on success, negative errno on failure
- */
-int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
-		       struct kdbus_cmd_recv *recv)
+static int kdbus_conn_recv(struct kdbus_conn *conn, struct kdbus_cmd_recv *recv)
 {
 	bool peek = recv->flags & KDBUS_RECV_PEEK;
 	struct kdbus_queue_entry *entry = NULL;
@@ -2163,7 +2155,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 	cmd->msg.msg_size = 0;
 	cmd->msg.return_flags = 0;
 
-	ret = kdbus_cmd_msg_recv(conn, cmd);
+	ret = kdbus_conn_recv(conn, cmd);
 
 	/* copy fields even if RECV fails, to ensure 'dropped_msgs' is set */
 

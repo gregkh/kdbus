@@ -150,8 +150,6 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp);
 int kdbus_cmd_update(struct kdbus_conn *conn, void __user *argp);
 int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp);
 int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp);
-int kdbus_cmd_msg_recv(struct kdbus_conn *conn,
-		       struct kdbus_cmd_recv *recv);
 int kdbus_cmd_free(struct kdbus_conn *conn, void __user *argp);
 
 /**
