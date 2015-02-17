@@ -462,6 +462,7 @@ int kdbus_test_conn_info(struct kdbus_test_env *env)
 
 	buf.cmd_info.size = sizeof(struct kdbus_cmd_info);
 	buf.cmd_info.flags = 0;
+	buf.cmd_info.attach_flags = 0;
 	buf.cmd_info.id = env->conn->id;
 
 	ret = kdbus_conn_info(env->conn, env->conn->id, NULL, 0, NULL);

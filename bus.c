@@ -491,8 +491,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 		{ .type = KDBUS_ITEM_NEGOTIATE },
 	};
 	struct kdbus_args args = {
-		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
-				 _KDBUS_ATTACH_ALL,
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
 		.argc = ARRAY_SIZE(argv),
 	};
@@ -501,7 +500,11 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 	if (ret != 0)
 		return ret;
 
-	attach_flags = cmd->flags & bus->attach_flags_owner;
+	ret = kdbus_sanitize_attach_flags(cmd->attach_flags, &attach_flags);
+	if (ret < 0)
+		goto exit;
+
+	attach_flags &= bus->attach_flags_owner;
 
 	ret = kdbus_meta_export_prepare(bus->creator_meta, NULL,
 					&attach_flags, &meta_size);

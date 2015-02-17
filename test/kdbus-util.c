@@ -329,7 +329,7 @@ int kdbus_bus_creator_info(struct kdbus_conn *conn,
 	cmd = alloca(size);
 	memset(cmd, 0, size);
 	cmd->size = size;
-	cmd->flags = flags;
+	cmd->attach_flags = flags;
 
 	ret = kdbus_cmd_bus_creator_info(conn->fd, cmd);
 	if (ret < 0) {
@@ -360,7 +360,7 @@ int kdbus_conn_info(struct kdbus_conn *conn, uint64_t id,
 	cmd = alloca(size);
 	memset(cmd, 0, size);
 	cmd->size = size;
-	cmd->flags = flags;
+	cmd->attach_flags = flags;
 
 	if (name) {
 		cmd->items[0].size = KDBUS_ITEM_HEADER_SIZE + strlen(name) + 1;

@@ -1716,9 +1716,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 		{ .type = KDBUS_ITEM_NAME },
 	};
 	struct kdbus_args args = {
-		/* TODO: ATTACH_FLAGS should be passed separately */
-		.allowed_flags = KDBUS_FLAG_NEGOTIATE |
-				 _KDBUS_ATTACH_ALL,
+		.allowed_flags = KDBUS_FLAG_NEGOTIATE,
 		.argv = argv,
 		.argc = ARRAY_SIZE(argv),
 	};
@@ -1726,6 +1724,10 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	ret = kdbus_args_parse(&args, argp, &cmd);
 	if (ret != 0)
 		return ret;
+
+	ret = kdbus_sanitize_attach_flags(cmd->attach_flags, &attach_flags);
+	if (ret < 0)
+		goto exit;
 
 	name = argv[1].item ? argv[1].item->str : NULL;
 
@@ -1757,8 +1759,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	info.flags = owner_conn->flags;
 	kdbus_kvec_set(&kvec, &info, sizeof(info), &info.size);
 
-	attach_flags = cmd->flags &
-		       atomic64_read(&owner_conn->attach_flags_send);
+	attach_flags &= atomic64_read(&owner_conn->attach_flags_send);
 
 	conn_meta = kdbus_meta_conn_new();
 	if (IS_ERR(conn_meta)) {
