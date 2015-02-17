@@ -116,119 +116,6 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 	return 0;
 }
 
-static int kdbus_conn_recv(struct kdbus_conn *conn, struct kdbus_cmd_recv *recv)
-{
-	bool peek = recv->flags & KDBUS_RECV_PEEK;
-	struct kdbus_queue_entry *entry = NULL;
-	bool install_fds = true;
-	unsigned int lost_count;
-	int ret = 0;
-
-	if (recv->msg.offset > 0)
-		return -EINVAL;
-
-	mutex_lock(&conn->lock);
-	entry = kdbus_queue_entry_peek(&conn->queue, recv->priority,
-				       recv->flags & KDBUS_RECV_USE_PRIORITY);
-	if (IS_ERR(entry)) {
-		ret = PTR_ERR(entry);
-		goto exit_unlock;
-	}
-
-	/*
-	 * Make sure to never install fds into a connection that has refused to
-	 * receive any. Such connections will not get messages with FDs attached
-	 * queued anyway (and the receiver will get -ECOMM), but we have to
-	 * check again here for eavesdroppers that may opt-in or opt-out for
-	 * file descriptors.
-	 */
-	if (!(conn->flags & KDBUS_HELLO_ACCEPT_FD))
-		install_fds = false;
-
-	/* Never install file descriptors when KDBUS_RECV_PEEK was passed. */
-	if (peek)
-		install_fds = false;
-
-	/* just drop the message */
-	if (recv->flags & KDBUS_RECV_DROP) {
-		struct kdbus_reply *reply = kdbus_reply_ref(entry->reply);
-
-		kdbus_queue_entry_remove(conn, entry);
-		kdbus_pool_slice_release(entry->slice);
-
-		mutex_unlock(&conn->lock);
-
-		if (reply) {
-			/*
-			 * See if the reply object is still linked in
-			 * reply_dst, and kill it. Notify the waiting peer
-			 * that there won't be an answer (-EPIPE).
-			 */
-			mutex_lock(&reply->reply_dst->lock);
-			if (!list_empty(&reply->entry)) {
-				kdbus_reply_unlink(reply);
-				if (reply->sync)
-					kdbus_sync_reply_wakeup(reply, -EPIPE);
-				else
-					kdbus_notify_reply_dead(conn->ep->bus,
-							entry->msg.src_id,
-							entry->msg.cookie);
-			}
-			mutex_unlock(&reply->reply_dst->lock);
-		}
-
-		kdbus_notify_flush(conn->ep->bus);
-		kdbus_queue_entry_free(entry);
-		kdbus_reply_unref(reply);
-
-		return 0;
-	}
-
-	/*
-	 * If there have been lost broadcast messages, report the number
-	 * in the overloaded recv->dropped_msgs field and return -EOVERFLOW.
-	 */
-	lost_count = atomic_read(&conn->lost_count);
-	if (lost_count) {
-		recv->dropped_msgs = lost_count;
-		atomic_sub(lost_count, &conn->lost_count);
-		ret = -EOVERFLOW;
-		goto exit_unlock;
-	}
-
-	/*
-	 * PEEK just returns the location of the next message. Do not install
-	 * file descriptors or anything else. This is usually used to
-	 * determine the sender of the next queued message.
-	 *
-	 * File descriptor numbers referenced in the message items
-	 * are undefined, they are only valid with the full receive
-	 * not with peek.
-	 *
-	 * Only if no PEEK is specified, the FDs are installed and the message
-	 * is dropped from internal queues.
-	 */
-	ret = kdbus_queue_entry_install(entry, conn, &recv->msg.return_flags,
-					install_fds);
-	if (ret < 0)
-		goto exit_unlock;
-
-	/* Give the offset+size back to the caller. */
-	kdbus_pool_slice_publish(entry->slice, &recv->msg.offset,
-				 &recv->msg.msg_size);
-
-	if (!peek) {
-		kdbus_queue_entry_remove(conn, entry);
-		kdbus_pool_slice_release(entry->slice);
-		kdbus_queue_entry_free(entry);
-	}
-
-exit_unlock:
-	mutex_unlock(&conn->lock);
-	kdbus_notify_flush(conn->ep->bus);
-	return ret;
-}
-
 /* Callers should take the conn_dst lock */
 static struct kdbus_queue_entry *
 kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
@@ -2118,7 +2005,9 @@ exit:
  */
 int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 {
+	struct kdbus_queue_entry *entry;
 	struct kdbus_cmd_recv *cmd;
+	unsigned int lost_count;
 	int ret;
 
 	struct kdbus_arg argv[] = {
@@ -2154,7 +2043,86 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 		goto exit;
 	}
 
-	ret = kdbus_conn_recv(conn, cmd);
+	mutex_lock(&conn->lock);
+
+	entry = kdbus_queue_entry_peek(&conn->queue, cmd->priority,
+				       cmd->flags & KDBUS_RECV_USE_PRIORITY);
+	if (IS_ERR(entry)) {
+		mutex_unlock(&conn->lock);
+		ret = PTR_ERR(entry);
+		goto exit;
+	}
+
+	if (cmd->flags & KDBUS_RECV_DROP) {
+		struct kdbus_reply *reply = kdbus_reply_ref(entry->reply);
+
+		kdbus_queue_entry_remove(conn, entry);
+		kdbus_pool_slice_release(entry->slice);
+
+		mutex_unlock(&conn->lock);
+
+		if (reply) {
+			mutex_lock(&reply->reply_dst->lock);
+			if (!list_empty(&reply->entry)) {
+				kdbus_reply_unlink(reply);
+				if (reply->sync)
+					kdbus_sync_reply_wakeup(reply, -EPIPE);
+				else
+					kdbus_notify_reply_dead(conn->ep->bus,
+							entry->msg.src_id,
+							entry->msg.cookie);
+			}
+			mutex_unlock(&reply->reply_dst->lock);
+			kdbus_notify_flush(conn->ep->bus);
+		}
+
+		kdbus_queue_entry_free(entry);
+		kdbus_reply_unref(reply);
+	} else if ((lost_count = atomic_read(&conn->lost_count))) {
+		/*
+		 * If there have been lost broadcast messages, report the number
+		 * in recv->dropped_msgs field and return -EOVERFLOW.
+		 */
+		cmd->dropped_msgs = lost_count;
+		atomic_sub(lost_count, &conn->lost_count);
+		ret = -EOVERFLOW;
+		mutex_unlock(&conn->lock);
+	} else {
+		bool install_fds;
+
+		/*
+		 * PEEK just returns the location of the next message. Do not
+		 * install FDs nor memfds nor anything else. The only
+		 * information of interest should be the message header and
+		 * metadata. Any FD numbers in the payload is undefined for
+		 * PEEK'ed messages.
+		 * Also make sure to never install fds into a connection that
+		 * has refused to receive any. Ordinary connections will not get
+		 * messages with FDs queued (the receiver will get -ECOMM), but
+		 * eavesdroppers might.
+		 */
+		install_fds = (conn->flags & KDBUS_HELLO_ACCEPT_FD) &&
+			      !(cmd->flags & KDBUS_RECV_PEEK);
+
+		ret = kdbus_queue_entry_install(entry, conn,
+						&cmd->msg.return_flags,
+						install_fds);
+		if (ret < 0) {
+			mutex_unlock(&conn->lock);
+			goto exit;
+		}
+
+		kdbus_pool_slice_publish(entry->slice, &cmd->msg.offset,
+					 &cmd->msg.msg_size);
+
+		if (!(cmd->flags & KDBUS_RECV_PEEK)) {
+			kdbus_queue_entry_remove(conn, entry);
+			kdbus_pool_slice_release(entry->slice);
+			kdbus_queue_entry_free(entry);
+		}
+
+		mutex_unlock(&conn->lock);
+	}
 
 	/* copy fields even if RECV fails, to ensure 'dropped_msgs' is set */
 
