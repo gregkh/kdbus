@@ -15,7 +15,7 @@
 #ifndef __KDBUS_QUEUE_H
 #define __KDBUS_QUEUE_H
 
-struct kdbus_domain_user;
+struct kdbus_user;
 
 /**
  * struct kdbus_queue - a connection's message queue
@@ -81,7 +81,7 @@ struct kdbus_queue_entry {
 	struct kdbus_meta_proc *proc_meta;
 	struct kdbus_meta_conn *conn_meta;
 	struct kdbus_reply *reply;
-	struct kdbus_domain_user *user;
+	struct kdbus_user *user;
 };
 
 struct kdbus_kmsg;

@@ -43,7 +43,7 @@ struct kdbus_domain {
 };
 
 /**
- * struct kdbus_domain_user - resource accounting for users
+ * struct kdbus_user - resource accounting for users
  * @kref:		Reference counter
  * @domain:		Domain of the user
  * @id:			Index of this user
@@ -51,7 +51,7 @@ struct kdbus_domain {
  * @buses:		Number of buses the user has created
  * @connections:	Number of connections the user has created
  */
-struct kdbus_domain_user {
+struct kdbus_user {
 	struct kref kref;
 	struct kdbus_domain *domain;
 	unsigned int id;
@@ -68,9 +68,8 @@ struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 int kdbus_domain_populate(struct kdbus_domain *domain, unsigned int access);
 
-struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
-						kuid_t uid);
-struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u);
-struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u);
+struct kdbus_user *kdbus_user_lookup(struct kdbus_domain *domain, kuid_t uid);
+struct kdbus_user *kdbus_user_ref(struct kdbus_user *u);
+struct kdbus_user *kdbus_user_unref(struct kdbus_user *u);
 
 #endif

@@ -29,8 +29,8 @@
 
 struct kdbus_conn;
 struct kdbus_domain;
-struct kdbus_domain_user;
 struct kdbus_kmsg;
+struct kdbus_user;
 
 /**
  * struct kdbus_bus - bus in a domain
@@ -65,7 +65,7 @@ struct kdbus_bus {
 	u8 id128[16];
 	struct kdbus_bloom_parameter bloom;
 	struct kdbus_domain *domain;
-	struct kdbus_domain_user *creator;
+	struct kdbus_user *creator;
 	struct kdbus_meta_proc *creator_meta;
 
 	/* protected by own locks */

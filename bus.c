@@ -46,7 +46,7 @@ static void kdbus_bus_free(struct kdbus_node *node)
 
 	kdbus_notify_free(bus);
 
-	kdbus_domain_user_unref(bus->creator);
+	kdbus_user_unref(bus->creator);
 	kdbus_name_registry_free(bus->name_registry);
 	kdbus_domain_unref(bus->domain);
 	kdbus_policy_db_clear(&bus->policy_db);
@@ -165,7 +165,7 @@ static struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 	 * Bus-limits of the creator are accounted on its real UID, just like
 	 * all other per-user limits.
 	 */
-	b->creator = kdbus_domain_get_user(domain, current_uid());
+	b->creator = kdbus_user_lookup(domain, current_uid());
 	if (IS_ERR(b->creator)) {
 		ret = PTR_ERR(b->creator);
 		b->creator = NULL;

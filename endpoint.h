@@ -22,7 +22,7 @@
 #include "policy.h"
 
 struct kdbus_bus;
-struct kdbus_domain_user;
+struct kdbus_user;
 
 /**
  * struct kdbus_ep - enpoint to access a bus
@@ -43,7 +43,7 @@ struct kdbus_ep {
 
 	/* static */
 	struct kdbus_bus *bus;
-	struct kdbus_domain_user *user;
+	struct kdbus_user *user;
 
 	/* protected by own locks */
 	struct kdbus_policy_db policy_db;

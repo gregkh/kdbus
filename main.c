@@ -30,7 +30,7 @@
  * From a mount point's (domain's) perspective:
  *
  * struct kdbus_domain
- *   |» struct kdbus_domain_user *user (many, owned)
+ *   |» struct kdbus_user *user (many, owned)
  *   '» struct kdbus_node node (embedded)
  *       |» struct kdbus_node children (many, referenced)
  *       |» struct kdbus_node *parent (pinned)
@@ -51,13 +51,13 @@
  *               |   |    '» struct kdbus_pool_slice *slices (many, owned)
  *               |   |       '» struct kdbus_pool *pool (pinned)
  *               |   |
- *               |   |» struct kdbus_domain_user *user (pinned)
+ *               |   |» struct kdbus_user *user (pinned)
  *               |   `» struct kdbus_queue_entry entries (many, embedded)
  *               |        |» struct kdbus_pool_slice *slice (pinned)
  *               |        |» struct kdbus_conn_reply *reply (owned)
- *               |        '» struct kdbus_domain_user *user (pinned)
+ *               |        '» struct kdbus_user *user (pinned)
  *               |
- *               '» struct kdbus_domain_user *user (pinned)
+ *               '» struct kdbus_user *user (pinned)
  *                   '» struct kdbus_policy_db policy_db (embedded)
  *                        |» struct kdbus_policy_db_entry (many, owned)
  *                        |   |» struct kdbus_conn (pinned)

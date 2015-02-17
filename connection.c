@@ -52,7 +52,7 @@
 #define KDBUS_CONN_ACTIVE_BIAS	(INT_MIN + 2)
 #define KDBUS_CONN_ACTIVE_NEW	(INT_MIN + 1)
 
-static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_domain_user *u,
+static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 			    size_t memory, size_t fds)
 {
 	struct kdbus_quota *quota;
@@ -233,7 +233,7 @@ exit_unlock:
 static struct kdbus_queue_entry *
 kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 		      const struct kdbus_kmsg *kmsg,
-		      struct kdbus_domain_user *user)
+		      struct kdbus_user *user)
 {
 	struct kdbus_queue_entry *entry;
 	int ret;
@@ -268,7 +268,7 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 			return ERR_PTR(ret);
 		}
 
-		entry->user = kdbus_domain_user_ref(user);
+		entry->user = kdbus_user_ref(user);
 	}
 
 	return entry;
@@ -986,7 +986,7 @@ static void __kdbus_conn_free(struct kref *kref)
 
 	if (conn->user) {
 		atomic_dec(&conn->user->connections);
-		kdbus_domain_user_unref(conn->user);
+		kdbus_user_unref(conn->user);
 	}
 
 	kdbus_meta_proc_unref(conn->meta);
@@ -1330,10 +1330,9 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	 * cred->uid, not cred->euid).
 	 */
 	if (ep->user) {
-		conn->user = kdbus_domain_user_ref(ep->user);
+		conn->user = kdbus_user_ref(ep->user);
 	} else {
-		conn->user = kdbus_domain_get_user(ep->bus->domain,
-						   current_uid());
+		conn->user = kdbus_user_lookup(ep->bus->domain, current_uid());
 		if (IS_ERR(conn->user)) {
 			ret = PTR_ERR(conn->user);
 			conn->user = NULL;

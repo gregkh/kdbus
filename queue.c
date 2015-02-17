@@ -150,7 +150,7 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 		struct kdbus_quota *quota = &conn->quota[entry->user->id];
 		size_t n;
 
-		entry->user = kdbus_domain_user_unref(entry->user);
+		entry->user = kdbus_user_unref(entry->user);
 
 		n = kdbus_pool_slice_size(entry->slice);
 		if (!WARN_ON(quota->memory < n))

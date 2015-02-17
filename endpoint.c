@@ -39,7 +39,7 @@ static void kdbus_ep_free(struct kdbus_node *node)
 
 	kdbus_policy_db_clear(&ep->policy_db);
 	kdbus_bus_unref(ep->bus);
-	kdbus_domain_user_unref(ep->user);
+	kdbus_user_unref(ep->user);
 	kfree(ep);
 }
 
@@ -135,7 +135,7 @@ struct kdbus_ep *kdbus_ep_new(struct kdbus_bus *bus, const char *name,
 	 * non-custom endpoints.
 	 */
 	if (is_custom) {
-		e->user = kdbus_domain_get_user(bus->domain, INVALID_UID);
+		e->user = kdbus_user_lookup(bus->domain, INVALID_UID);
 		if (IS_ERR(e->user)) {
 			ret = PTR_ERR(e->user);
 			e->user = NULL;

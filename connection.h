@@ -105,7 +105,7 @@ struct kdbus_conn {
 	struct kdbus_match_db *match_db;
 	struct kdbus_meta_proc *meta;
 	struct kdbus_pool *pool;
-	struct kdbus_domain_user *user;
+	struct kdbus_user *user;
 	const struct cred *cred;
 	atomic_t name_count;
 	atomic_t request_count;

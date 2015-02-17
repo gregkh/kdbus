@@ -177,21 +177,18 @@ int kdbus_domain_populate(struct kdbus_domain *domain, unsigned int access)
 }
 
 /**
- * kdbus_domain_get_user() - get a kdbus_domain_user object
- * @domain:		The domain of the user
- * @uid:		The uid of the user; INVALID_UID for an
- *			anonymous user like a custom endpoint
+ * kdbus_user_lookup() - lookup a kdbus_user object
+ * @domain:		domain of the user
+ * @uid:		uid of the user; INVALID_UID for an anon user
  *
- * If there is a uid matching, then use the already accounted
- * kdbus_domain_user, increment its reference counter and return it.
- * Otherwise allocate a new one, link it into the domain and return it.
+ * Lookup the kdbus user accounting object for the given domain. If INVALID_UID
+ * is passed, a new anonymous user is created which is private to the caller.
  *
- * Return: the accounted domain user on success, ERR_PTR on failure.
+ * Return: The user object is returned, ERR_PTR on failure.
  */
-struct kdbus_domain_user *kdbus_domain_get_user(struct kdbus_domain *domain,
-						kuid_t uid)
+struct kdbus_user *kdbus_user_lookup(struct kdbus_domain *domain, kuid_t uid)
 {
-	struct kdbus_domain_user *u = NULL, *old = NULL;
+	struct kdbus_user *u = NULL, *old = NULL;
 	int ret;
 
 	mutex_lock(&domain->lock);
@@ -256,10 +253,9 @@ exit:
 	return ERR_PTR(ret);
 }
 
-static void __kdbus_domain_user_free(struct kref *kref)
+static void __kdbus_user_free(struct kref *kref)
 {
-	struct kdbus_domain_user *user =
-		container_of(kref, struct kdbus_domain_user, kref);
+	struct kdbus_user *user = container_of(kref, struct kdbus_user, kref);
 
 	WARN_ON(atomic_read(&user->buses) > 0);
 	WARN_ON(atomic_read(&user->connections) > 0);
@@ -275,29 +271,26 @@ static void __kdbus_domain_user_free(struct kref *kref)
 }
 
 /**
- * kdbus_domain_user_ref() - take a domain user reference
+ * kdbus_user_ref() - take a user reference
  * @u:		User
  *
- * Return: the domain user itself
+ * Return: @u is returned
  */
-struct kdbus_domain_user *kdbus_domain_user_ref(struct kdbus_domain_user *u)
+struct kdbus_user *kdbus_user_ref(struct kdbus_user *u)
 {
 	kref_get(&u->kref);
 	return u;
 }
 
 /**
- * kdbus_domain_user_unref() - drop a domain user reference
+ * kdbus_user_unref() - drop a user reference
  * @u:		User
- *
- * When the last reference is dropped, the domain internal structure
- * is freed.
  *
  * Return: NULL
  */
-struct kdbus_domain_user *kdbus_domain_user_unref(struct kdbus_domain_user *u)
+struct kdbus_user *kdbus_user_unref(struct kdbus_user *u)
 {
 	if (u)
-		kref_put(&u->kref, __kdbus_domain_user_free);
+		kref_put(&u->kref, __kdbus_user_free);
 	return NULL;
 }
