@@ -186,9 +186,9 @@
       Messages are passed to the kernel with the
       <constant>KDBUS_CMD_SEND</constant> ioctl. Depending on the destination
       address of the message, the kernel delivers the message to the specific
-      destination connection, or to all connections on the same bus.
-      Sending messages across buses is not possible. Messages are always queued
-      in the memory pool of the destination connection (see below).
+      destination connection, or to some subset of all connections on the same
+      bus. Sending messages across buses is not possible. Messages are always
+      queued in the memory pool of the destination connection (see below).
     </para>
 
     <para>
