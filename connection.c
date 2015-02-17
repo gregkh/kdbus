@@ -2147,6 +2147,13 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 	cmd->msg.msg_size = 0;
 	cmd->msg.return_flags = 0;
 
+	/* DROP+priority is not realiably, so prevent it */
+	if ((cmd->flags & KDBUS_RECV_DROP) &&
+	    (cmd->flags & KDBUS_RECV_USE_PRIORITY)) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
 	ret = kdbus_conn_recv(conn, cmd);
 
 	/* copy fields even if RECV fails, to ensure 'dropped_msgs' is set */
@@ -2156,6 +2163,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 				  dropped_msgs))
 		ret = -EFAULT;
 
+exit:
 	return kdbus_args_clear(&args, ret);
 }
 
