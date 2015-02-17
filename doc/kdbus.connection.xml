@@ -927,7 +927,7 @@ struct kdbus_cmd {
       <constant>KDBUS_CMD_BYEBYE</constant> ioctl. This ioctl will succeed only
       if the message queue of the connection is empty at the time of closing;
       otherwise, the ioctl will fail with <varname>errno</varname> set to
-      <constant>EBUSY</constant> is returned. When this ioctl returns
+      <constant>EBUSY</constant>. When this ioctl returns
       successfully, the connection has been terminated and won't accept any new
       messages from remote peers. This way, a connection can be terminated
       race-free, without losing any messages. The ioctl takes an argument of
@@ -957,9 +957,8 @@ struct kdbus_cmd {
           Currently, no flags are supported.
           <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
           valid flags. If set, the ioctl will fail with
-          <errorcode>-1</errorcode>, <varname>errno</varname> is set to
-          <constant>EPROTO</constant>, and the <varname>flags</varname> field
-          is set to <constant>0</constant>.
+          <varname>errno</varname> set to <constant>EPROTO</constant>, and
+          the <varname>flags</varname> field is set to <constant>0</constant>.
         </para></listitem>
       </varlistentry>
 
