@@ -27,8 +27,7 @@
       <citerefentry>
         <refentrytitle>kdbus.bus</refentrytitle>
         <manvolnum>7</manvolnum>
-      </citerefentry>
-      ).
+      </citerefentry>).
       By default, each bus has a default
       endpoint called 'bus'. The bus owner has the ability to create custom
       endpoints with specific names, permissions, and policy databases
@@ -45,12 +44,11 @@
     </para>
     <para>
       Once <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> succeeded, the new
-      endpoint will appear in the filesystem (
-      <citerefentry>
+      endpoint will appear in the filesystem
+      (<citerefentry>
         <refentrytitle>kdbus.bus</refentrytitle>
         <manvolnum>7</manvolnum>
-      </citerefentry>
-      ), and the used file descriptor will manage the
+      </citerefentry>), and the used file descriptor will manage the
       newly created endpoint resource. It cannot be used to manage further
       resources and must be kept open as long as the endpoint is needed. The
       endpoint will be terminated as soon as the file descriptor is closed.
@@ -93,8 +91,7 @@
       <citerefentry>
         <refentrytitle>kdbus.policy</refentrytitle>
         <manvolnum>7</manvolnum>
-      </citerefentry>
-      .
+      </citerefentry>.
       <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> takes a
       <type>struct kdbus_cmd</type> argument.
     </para>
