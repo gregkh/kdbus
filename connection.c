@@ -1834,7 +1834,6 @@ int kdbus_cmd_update(struct kdbus_conn *conn, void __user *argp)
 
 	struct kdbus_arg argv[] = {
 		{ .type = KDBUS_ITEM_NEGOTIATE },
-		/* TODO: get rid of ATTACH_FLAGS_SEND */
 		{ .type = KDBUS_ITEM_ATTACH_FLAGS_SEND },
 		{ .type = KDBUS_ITEM_ATTACH_FLAGS_RECV },
 		{ .type = KDBUS_ITEM_NAME, .multiple = true },
