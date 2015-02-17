@@ -969,13 +969,8 @@ int kdbus_msg_recv(struct kdbus_conn *conn,
 	int ret;
 
 	ret = kdbus_cmd_recv(conn->fd, &recv);
-	if (ret < 0) {
-		/* store how many lost packets */
-		if (ret == -EOVERFLOW && offset)
-			*offset = recv.dropped_msgs;
-
+	if (ret < 0)
 		return ret;
-	}
 
 	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);
 	ret = kdbus_msg_dump(conn, msg);

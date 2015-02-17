@@ -175,7 +175,6 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 {
 	int ret;
 	unsigned int i;
-	uint64_t offset;
 	struct kdbus_conn *conn;
 	struct kdbus_conn *reader;
 	struct kdbus_msg *msg = NULL;
@@ -221,15 +220,6 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 
 	kdbus_conn_free(conn);
 
-	ret = kdbus_msg_recv(reader, &msg, &offset);
-	ASSERT_RETURN(ret == -EOVERFLOW);
-
-	/*
-	 * We lost only 3 packet since only broadcast mesg
-	 * are accounted. The connection ID add/remove notification
-	 */
-	ASSERT_RETURN(offset == 3);
-
 	kdbus_msg_free(msg);
 
 	/* Read our queue */
@@ -270,7 +260,6 @@ static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
 static int kdbus_test_broadcast_quota(struct kdbus_test_env *env)
 {
 	int ret;
-	uint64_t offset;
 	unsigned int i;
 	struct kdbus_msg *msg;
 	struct kdbus_conn *privileged_a;
@@ -338,16 +327,6 @@ static int kdbus_test_broadcast_quota(struct kdbus_test_env *env)
 	ret = kdbus_msg_send(privileged_b, NULL, expected_cookie, 0,
 			     0, 0, KDBUS_DST_ID_BROADCAST);
 	ASSERT_RETURN(ret == 0);
-
-	/* Privileged service A tries to read its messages now */
-	ret = kdbus_msg_recv_poll(privileged_a, 100, &msg, &offset);
-	ASSERT_RETURN(ret == -EOVERFLOW);
-
-	/*
-	 * We have lost 1 broadcast messages, the one from unprivileged
-	 * the privileged broadcast was queued, our quota is per user
-	 */
-	ASSERT_RETURN(offset == 1);
 
 	/* Read our queue */
 	for (i = 0; i < MAX_USER_TOTAL_MSGS; i++) {

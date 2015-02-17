@@ -675,8 +675,10 @@ struct kdbus_cmd_recv {
       <varlistentry>
         <term><varname>return_flags</varname></term>
         <listitem><para>
-          Flags returned by the kernel. Currently unused and always set to
-          <constant>0</constant> by the kernel.
+          Flags returned by the kernel. If the <varname>dropped_msgs</varname>
+          field is non-zero, <constant>KDBUS_RECV_RETURN_DROPPED_MSGS</constant>
+          is set. If a file-descriptor could not be installed, the
+          <constant>KDBUS_RECV_RETURN_INCOMPLETE_FDS</constant> flag is set.
         </para></listitem>
       </varlistentry>
 
@@ -696,11 +698,17 @@ struct kdbus_cmd_recv {
       <varlistentry>
         <term><varname>dropped_msgs</varname></term>
         <listitem><para>
-          If the <constant>CMD_RECV</constant> ioctl fails with
-          <varname>errno</varname> set to <constant>EOVERFLOW</constant>, this
-          field is filled by the kernel with the number of messages that
-          couldn't be transmitted to this receiving connection. In that case,
-          the <varname>offset</varname> member must not be accessed.
+          Whenever a message with <constant>KDBUS_MSG_SIGNAL</constant> is sent
+          but cannot be queued on a peer (e.g., as it contains FDs but the peer
+          does not support FDs, or there is no space left in the peer's pool..)
+          the 'dropped_msgs' counter of the peer is incremented. On the next
+          RECV ioctl, the 'dropped_msgs' field is copied into the ioctl struct
+          and cleared on the peer. If it was non-zero, the
+          <constant>KDBUS_RECV_RETURN_DROPPED_MSGS</constant> flag will be set
+          in <varname>return_flags</varname>. Note that this will only happen
+          if the ioctl succeeded or failed with <constant>EAGAIN</constant>. In
+          other error cases, the 'dropped_msgs' field of the peer is left
+          untouched.
         </para></listitem>
       </varlistentry>
 
@@ -1152,13 +1160,6 @@ struct kdbus_msg_info {
           <term><constant>EAGAIN</constant></term>
           <listitem><para>
             No message found in the queue
-          </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><constant>EOVERFLOW</constant></term>
-          <listitem><para>
-            Some messages have been lost.
           </para></listitem>
         </varlistentry>
       </variablelist>

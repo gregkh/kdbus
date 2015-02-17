@@ -2007,7 +2007,6 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 {
 	struct kdbus_queue_entry *entry;
 	struct kdbus_cmd_recv *cmd;
-	unsigned int lost_count;
 	int ret;
 
 	struct kdbus_arg argv[] = {
@@ -2075,15 +2074,6 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 
 		kdbus_queue_entry_free(entry);
 		kdbus_reply_unref(reply);
-	} else if ((lost_count = atomic_read(&conn->lost_count))) {
-		/*
-		 * If there have been lost broadcast messages, report the number
-		 * in recv->dropped_msgs field and return -EOVERFLOW.
-		 */
-		cmd->dropped_msgs = lost_count;
-		atomic_sub(lost_count, &conn->lost_count);
-		ret = -EOVERFLOW;
-		mutex_unlock(&conn->lock);
 	} else {
 		bool install_fds;
 
@@ -2121,7 +2111,9 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 		mutex_unlock(&conn->lock);
 	}
 
-	/* copy fields even if RECV fails, to ensure 'dropped_msgs' is set */
+	cmd->dropped_msgs = atomic_xchg(&conn->lost_count, 0);
+	if (cmd->dropped_msgs > 0)
+		cmd->return_flags |= KDBUS_RECV_RETURN_DROPPED_MSGS;
 
 	if (kdbus_member_set_user(&cmd->msg, argp, typeof(*cmd), msg) ||
 	    kdbus_member_set_user(&cmd->dropped_msgs, argp, typeof(*cmd),
