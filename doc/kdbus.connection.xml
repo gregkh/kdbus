@@ -166,9 +166,10 @@
   <refsect1>
     <title>Monitor connections</title>
     <para>
-      Monitors are eavesdropping connections.
-      Such connections have all properties of any other, regular connection,
-      except for the following details:
+      Monitors are eavesdropping connections that receive all the traffic on the
+      bus, but is invisible to other connections. Such connections have all
+      properties of any other, regular connection, except for the following
+      details:
     </para>
 
     <itemizedlist mark='opencircle'>
