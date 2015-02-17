@@ -126,6 +126,89 @@
   </refsect1>
 
   <refsect1>
+    <title>Privileged connections</title>
+    <para>
+      A connection is considered <emphasis>privileged</emphasis> if the user
+      it was created by is the same that created the bus, or if the creating
+      task had <constant>CAP_IPC_OWNER</constant> set when it called
+      <constant>KDBUS_CMD_HELLO</constant>.
+    </para>
+    <para>
+      Privileged connections have permission to employ certain restricted
+      functions and commands, which are explained below and in other kdbus
+      manpages.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Activator and policy holder connection</title>
+    <para>
+      An <emphasis>activator</emphasis> connection is a placeholder for a
+      <emphasis>well-known name</emphasis>. Messages sent to such a connection
+      can be used to start an implementer connection, which will then get all
+      the messages from the activator copied over. An activator connection
+      cannot be used to send any message.
+    </para>
+    <para>
+      A <emphasis>policy holder</emphasis> connection only installs a policy
+      for one or more names. These policy entries are kept active as long as
+      the connection is alive, and are removed once it terminates. Such a
+      policy connection type can be used to deploy restrictions for names that
+      are not yet active on the bus. A policy holder connection cannot be used
+      to send any message.
+    </para>
+    <para>
+      The creation of activator, policy holder or monitor (eavesdropping)
+      connections is an operation restricted to privileged users on the bus.
+      See the section above on privileged connections.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Monitor connections</title>
+    <para>
+      Monitors are eaves-dropping connections that are created by setting the
+      <constant>KDBUS_HELLO_MONITOR</constant> flag in
+      <varname>struct kdbus_hello.flags</varname>.
+      Such connections have all properties of any other, regular connection,
+      except for the following details:
+    </para>
+
+    <itemizedlist mark='opencircle'>
+      <listitem><para>
+        They will get every message sent over the bus, both unicasts and
+        broadcasts.
+      </para></listitem>
+
+      <listitem><para>
+        Installing matches for signal messages is neither necessary
+        nor allowed.
+      </para></listitem>
+
+      <listitem><para>
+        They cannot send messages or be directly addressed as receiver.
+      </para></listitem>
+
+      <listitem><para>
+        They cannot own well-known names. Therefore, they also can't operate as
+        activators.
+      </para></listitem>
+
+      <listitem><para>
+        Their creation and destruction will not cause
+        <constant>KDBUS_ITEM_ID_{ADD,REMOVE}</constant> notifications to be
+        generated, so other connections cannot detect the presence of an
+        eavesdropper.
+      </para></listitem>
+
+      <listitem><para>
+        They are not listed with their unique name in name regsitry dumps
+        (<constant>KDBUS_CMD_NAME_LIST</constant>).
+      </para></listitem>
+    </itemizedlist>
+  </refsect1>
+
+  <refsect1>
     <title>Creating connections</title>
     <para>
       A connection to a bus is created by opening an endpoint file (see
@@ -442,45 +525,6 @@ struct kdbus_cmd_hello {
         <manvolnum>7</manvolnum>
       </citerefentry>
       for further information.
-    </para>
-  </refsect1>
-
-  <refsect1>
-    <title>Privileged connections</title>
-    <para>
-      A connection is considered <emphasis>privileged</emphasis> if the user
-      it was created by is the same that created the bus, or if the creating
-      task had <constant>CAP_IPC_OWNER</constant> set when it called
-      <constant>KDBUS_CMD_HELLO</constant>.
-    </para>
-    <para>
-      Privileged connections have permission to employ certain restricted
-      functions and commands, which are explained below and in other kdbus
-      manpages.
-    </para>
-  </refsect1>
-
-  <refsect1>
-    <title>Activator and policy holder connection</title>
-    <para>
-      An <emphasis>activator</emphasis> connection is a placeholder for a
-      <emphasis>well-known name</emphasis>. Messages sent to such a connection
-      can be used to start an implementer connection, which will then get all
-      the messages from the activator copied over. An activator connection
-      cannot be used to send any message.
-    </para>
-    <para>
-      A <emphasis>policy holder</emphasis> connection only installs a policy
-      for one or more names. These policy entries are kept active as long as
-      the connection is alive, and are removed once it terminates. Such a
-      policy connection type can be used to deploy restrictions for names that
-      are not yet active on the bus. A policy holder connection cannot be used
-      to send any message.
-    </para>
-    <para>
-      The creation of activator, policy holder or monitor (eavesdropping)
-      connections is an operation restricted to privileged users on the bus.
-      See the section above on privileged connections.
     </para>
   </refsect1>
 
@@ -855,50 +899,6 @@ struct kdbus_cmd {
         </listitem>
       </varlistentry>
     </variablelist>
-  </refsect1>
-
-  <refsect1>
-    <title>Monitor connections</title>
-    <para>
-      Monitors are eaves-dropping connections that are created by setting the
-      <constant>KDBUS_HELLO_MONITOR</constant> flag in
-      <varname>struct kdbus_hello.flags</varname>.
-      Such connections have all properties of any other, regular connection,
-      except for the following details:
-    </para>
-
-    <itemizedlist mark='opencircle'>
-      <listitem><para>
-        They will get every message sent over the bus, both unicasts and
-        broadcasts.
-      </para></listitem>
-
-      <listitem><para>
-        Installing matches for signal messages is neither necessary
-        nor allowed.
-      </para></listitem>
-
-      <listitem><para>
-        They cannot send messages or be directly addressed as receiver.
-      </para></listitem>
-
-      <listitem><para>
-        They cannot own well-known names. Therefore, they also can't operate as
-        activators.
-      </para></listitem>
-
-      <listitem><para>
-        Their creation and destruction will not cause
-        <constant>KDBUS_ITEM_ID_{ADD,REMOVE}</constant> notifications to be
-        generated, so other connections cannot detect the presence of an
-        eavesdropper.
-      </para></listitem>
-
-      <listitem><para>
-        They are not listed with their unique name in name regsitry dumps
-        (<constant>KDBUS_CMD_NAME_LIST</constant>).
-      </para></listitem>
-    </itemizedlist>
   </refsect1>
 
   <refsect1>
