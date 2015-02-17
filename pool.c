@@ -437,6 +437,17 @@ off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice)
 }
 
 /**
+ * kdbus_pool_slice_size() - get size of a pool slice
+ * @slice:	slice to query
+ *
+ * Return: size of the given slice
+ */
+size_t kdbus_pool_slice_size(const struct kdbus_pool_slice *slice)
+{
+	return slice->size;
+}
+
+/**
  * kdbus_pool_new() - create a new pool
  * @name:		Name of the (deleted) file which shows up in
  *			/proc, used for debugging

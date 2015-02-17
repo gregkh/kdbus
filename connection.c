@@ -52,56 +52,67 @@
 #define KDBUS_CONN_ACTIVE_BIAS	(INT_MIN + 2)
 #define KDBUS_CONN_ACTIVE_NEW	(INT_MIN + 1)
 
-/*
- * Check for maximum number of messages per individual user. This
- * should prevent a single user from being able to fill the receiver's
- * queue.
- */
-static int kdbus_conn_queue_user_quota(const struct kdbus_conn *conn_src,
-				       struct kdbus_conn *conn_dst,
-				       struct kdbus_queue_entry *entry)
+static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_domain_user *u,
+			    size_t memory, size_t fds)
 {
-	struct kdbus_domain_user *user;
+	struct kdbus_quota *quota;
+	size_t available;
 
 	/*
-	 * When the kernel is the sender we do not do per user
-	 * accouting, instead we just count how many messages have
-	 * been queued and we check the quota limit when inserting
-	 * message into the receiver queue.
+	 * Pool Layout:
+	 * 50% of a pool is always owned by the connection. It is reserved for
+	 * kernel queries, handling received messages and other tasks that are
+	 * under control of the pool owner. The other 50% of the pool are used
+	 * as incoming queue.
+	 * As we optionally support user-space based policies, we need fair
+	 * allocation schemes. Furthermore, resource utilization should be
+	 * maximized, so only minimal resources stay reserved. However, we need
+	 * to adapt to a dynamic number of users, as we cannot know how many
+	 * users will talk to a connection. Therefore, the current allocations
+	 * works like this:
+	 * We limit the number of bytes in a destination's pool per sending
+	 * user. The space available for a user is 33% of the unused pool space
+	 * (whereas the space used by the user itself is also treated as
+	 * 'unused'). This way, we favor users coming first, but keep enough
+	 * pool space available for any following users. Given that messages are
+	 * dequeued in FIFO order, this should balance nicely if the number of
+	 * users grows. At the same time, this algorithm guarantees that the
+	 * space available to a connection is reduced dynamically, the more
+	 * concurrent users talk to a connection.
 	 */
-	if (!conn_src)
-		return 0;
 
-	/*
-	 * Per-user accounting can be expensive if we have many different
-	 * users on the bus. Allow one set of messages to pass through
-	 * un-accounted. Only once we hit that limit, we start accounting.
-	 */
-	if (conn_dst->queue.msg_count < KDBUS_CONN_MAX_MSGS_UNACCOUNTED)
-		return 0;
+	/* per user-accounting is expensive, so we keep state small */
+	BUILD_BUG_ON(sizeof(quota->memory) != 4);
+	BUILD_BUG_ON(sizeof(quota->fds) != 1);
+	BUILD_BUG_ON(KDBUS_CONN_MAX_FDS_PER_USER > U8_MAX);
 
-	user = conn_src->user;
+	if (u->id >= c->n_quota) {
+		unsigned int users;
 
-	/* extend array to store the user message counters */
-	if (user->id >= conn_dst->msg_users_max) {
-		unsigned int *users;
-		unsigned int i;
-
-		i = 8 + KDBUS_ALIGN8(user->id);
-		users = krealloc(conn_dst->msg_users, i * sizeof(unsigned int),
+		users = max(KDBUS_ALIGN8(u->id) + 8, u->id);
+		quota = krealloc(c->quota, users * sizeof(*quota),
 				 GFP_KERNEL | __GFP_ZERO);
-		if (!users)
+		if (!quota)
 			return -ENOMEM;
 
-		conn_dst->msg_users = users;
-		conn_dst->msg_users_max = i;
+		c->n_quota = users;
+		c->quota = quota;
 	}
 
-	if (conn_dst->msg_users[user->id] >= KDBUS_CONN_MAX_MSGS_PER_USER)
+	quota = &c->quota[u->id];
+	available = (kdbus_pool_remain(c->pool) + quota->memory) / 3;
+
+	if (available < quota->memory ||
+	    available - quota->memory < memory ||
+	    quota->memory + memory > U32_MAX)
 		return -ENOBUFS;
 
-	conn_dst->msg_users[user->id]++;
-	entry->user = kdbus_domain_user_ref(user);
+	if (quota->fds + fds < quota->fds ||
+	    quota->fds + fds > KDBUS_CONN_MAX_FDS_PER_USER)
+		return -EMFILE;
+
+	quota->memory += memory;
+	quota->fds += fds;
 	return 0;
 }
 
@@ -221,8 +232,12 @@ exit_unlock:
 /* Callers should take the conn_dst lock */
 static struct kdbus_queue_entry *
 kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
-		      const struct kdbus_kmsg *kmsg)
+		      const struct kdbus_kmsg *kmsg,
+		      struct kdbus_domain_user *user)
 {
+	struct kdbus_queue_entry *entry;
+	int ret;
+
 	/* The remote connection was disconnected */
 	if (!kdbus_conn_active(conn_dst))
 		return ERR_PTR(-ECONNRESET);
@@ -239,7 +254,24 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 	    kmsg->res && kmsg->res->fds_count > 0)
 		return ERR_PTR(-ECOMM);
 
-	return kdbus_queue_entry_alloc(conn_dst, kmsg);
+	entry = kdbus_queue_entry_alloc(conn_dst, kmsg);
+	if (IS_ERR(entry))
+		return entry;
+
+	if (user) {
+		ret = kdbus_conn_quota(conn_dst, user,
+				       kdbus_pool_slice_size(entry->slice),
+				       entry->msg_res ?
+				       entry->msg_res->fds_count : 0);
+		if (ret < 0) {
+			kdbus_queue_entry_free(entry);
+			return ERR_PTR(ret);
+		}
+
+		entry->user = kdbus_domain_user_ref(user);
+	}
+
+	return entry;
 }
 
 /*
@@ -262,7 +294,8 @@ static int kdbus_conn_entry_sync_attach(struct kdbus_conn *conn_dst,
 	 * entry and attach it to the reply object
 	 */
 	if (reply_wake->waiting) {
-		entry = kdbus_conn_entry_make(conn_dst, kmsg);
+		entry = kdbus_conn_entry_make(conn_dst, kmsg,
+					      reply_wake->reply_src->user);
 		if (IS_ERR(entry))
 			ret = PTR_ERR(entry);
 		else
@@ -333,16 +366,12 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 		goto exit_unlock;
 	}
 
-	entry = kdbus_conn_entry_make(conn_dst, kmsg);
+	entry = kdbus_conn_entry_make(conn_dst, kmsg,
+				      conn_src ? conn_src->user : NULL);
 	if (IS_ERR(entry)) {
 		ret = PTR_ERR(entry);
 		goto exit_unlock;
 	}
-
-	/* limit the number of queued messages from the same individual user */
-	ret = kdbus_conn_queue_user_quota(conn_src, conn_dst, entry);
-	if (ret < 0)
-		goto exit_queue_free;
 
 	/*
 	 * Remember the reply associated with this queue entry, so we can
@@ -364,10 +393,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	wake_up_interruptible(&conn_dst->wait);
 
 	ret = 0;
-	goto exit_unlock;
 
-exit_queue_free:
-	kdbus_queue_entry_free(entry);
 exit_unlock:
 	kdbus_conn_unlock2(conn_src, conn_dst);
 	return ret;

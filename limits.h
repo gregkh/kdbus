@@ -47,17 +47,8 @@
 /* maximum number of queued messages in a connection */
 #define KDBUS_CONN_MAX_MSGS			256
 
-/*
- * maximum number of queued messages wich will not be user accounted.
- * after this value is reached each user will have an individual limit.
- */
-#define KDBUS_CONN_MAX_MSGS_UNACCOUNTED		16
-
-/*
- * maximum number of queued messages from the same indvidual user after the
- * the un-accounted value has been hit
- */
-#define KDBUS_CONN_MAX_MSGS_PER_USER		128
+/* maximum number of inflight fds in a target queue per user */
+#define KDBUS_CONN_MAX_FDS_PER_USER		16
 
 /* maximum number of well-known names per connection */
 #define KDBUS_CONN_MAX_NAMES			256

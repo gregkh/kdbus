@@ -20,7 +20,7 @@
 #include "kdbus-enum.h"
 
 #define KDBUS_MSG_MAX_ITEMS     128
-#define KDBUS_MSG_MAX_FDS       253
+#define KDBUS_MSG_MAX_FDS        16
 #define KDBUS_USER_MAX_CONN	256
 
 static int make_msg_payload_dbus(uint64_t src_id, uint64_t dst_id,

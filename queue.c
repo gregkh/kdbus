@@ -147,16 +147,24 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 
 	/* user quota */
 	if (entry->user) {
-		BUG_ON(conn->msg_users[entry->user->id] == 0);
-		conn->msg_users[entry->user->id]--;
+		struct kdbus_quota *quota = &conn->quota[entry->user->id];
+		size_t n;
+
 		entry->user = kdbus_domain_user_unref(entry->user);
+
+		n = kdbus_pool_slice_size(entry->slice);
+		if (!WARN_ON(quota->memory < n))
+			quota->memory -= n;
+		n = entry->msg_res ? entry->msg_res->fds_count : 0;
+		if (!WARN_ON(quota->fds < n))
+			quota->fds -= n;
 	}
 
 	/* the queue is empty, remove the user quota accounting */
-	if (queue->msg_count == 0 && conn->msg_users_max > 0) {
-		kfree(conn->msg_users);
-		conn->msg_users = NULL;
-		conn->msg_users_max = 0;
+	if (queue->msg_count == 0 && conn->n_quota > 0) {
+		kfree(conn->quota);
+		conn->quota = NULL;
+		conn->n_quota = 0;
 	}
 
 	if (list_empty(&entry->prio_entry)) {

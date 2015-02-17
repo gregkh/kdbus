@@ -31,6 +31,16 @@
 					 KDBUS_HELLO_MONITOR)
 
 /**
+ * struct kdbus_quota - per user quota state
+ * @memory:		total amount of memory in target pool
+ * @fds:		total number of fds in target queue
+ */
+struct kdbus_quota {
+	uint32_t memory;
+	uint8_t fds;
+};
+
+/**
  * struct kdbus_conn - connection to a bus
  * @kref:		Reference count
  * @active:		Active references to the connection
@@ -43,9 +53,6 @@
  *			connection is created.
  * @ep:			The endpoint this connection belongs to
  * @lock:		Connection data lock
- * @msg_users:		Array to account the number of queued messages per
- *			individual user
- * @msg_users_max:	Size of the users array
  * @hentry:		Entry in ID <-> connection map
  * @ep_entry:		Entry in endpoint
  * @monitor_entry:	Entry in monitor, if the connection is a monitor
@@ -69,6 +76,8 @@
  * @lost_count:		Number of lost broadcast messages
  * @wait:		Wake up this endpoint
  * @queue:		The message queue associated with this connection
+ * @quota:		Array of per-user quota indexed by user->id
+ * @n_quota:		Number of elements in quota array
  * @privileged:		Whether this connection is privileged on the bus
  * @faked_meta:		Whether the metadata was faked on HELLO
  */
@@ -85,8 +94,6 @@ struct kdbus_conn {
 	const char *description;
 	struct kdbus_ep *ep;
 	struct mutex lock;
-	unsigned int *msg_users;
-	unsigned int msg_users_max;
 	struct hlist_node hentry;
 	struct list_head ep_entry;
 	struct list_head monitor_entry;
@@ -105,6 +112,9 @@ struct kdbus_conn {
 	atomic_t lost_count;
 	wait_queue_head_t wait;
 	struct kdbus_queue queue;
+
+	struct kdbus_quota *quota;
+	unsigned int n_quota;
 
 	bool privileged:1;
 	bool faked_meta:1;
