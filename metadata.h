@@ -15,8 +15,9 @@
 #ifndef __KDBUS_METADATA_H
 #define __KDBUS_METADATA_H
 
+#include <linux/kernel.h>
+
 struct kdbus_conn;
-struct kdbus_domain;
 struct kdbus_kmsg;
 struct kdbus_pool_slice;
 

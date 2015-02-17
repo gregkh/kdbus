@@ -14,6 +14,8 @@
 #ifndef __KDBUS_DEFAULTS_H
 #define __KDBUS_DEFAULTS_H
 
+#include <linux/kernel.h>
+
 /* maximum size of message header and items */
 #define KDBUS_MSG_MAX_SIZE		SZ_8K
 
