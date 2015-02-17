@@ -689,7 +689,7 @@ struct kdbus_cmd_recv {
           filtered by the value given in this field, so the returned message
           will at least have the requested priority. If no such message is
           waiting in the queue, the ioctl will fail, and
-          <varname>errno</varname> will be set to <constant>ENOMSG</constant>.
+          <varname>errno</varname> will be set to <constant>EAGAIN</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -1152,13 +1152,6 @@ struct kdbus_msg_info {
           <term><constant>EAGAIN</constant></term>
           <listitem><para>
             No message found in the queue
-          </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><constant>ENOMSG</constant></term>
-          <listitem><para>
-            No message of the requested priority found.
           </para></listitem>
         </varlistentry>
 

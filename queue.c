@@ -100,9 +100,7 @@ prio_done:
  * Look for a entry in a queue, either by priority, or the oldest one (FIFO).
  * The entry is not freed, put off the queue's lists or anything else.
  *
- * Return: the peeked queue entry on success, ERR_PTR(-ENOMSG) if there is no
- * entry with the requested priority, or ERR_PTR(-EAGAIN) if there are no
- * entries at all.
+ * Return: the peeked queue entry on success, NULL if no suitable msg is found
  */
 struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 						 s64 priority,
@@ -111,7 +109,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 	struct kdbus_queue_entry *e;
 
 	if (queue->msg_count == 0)
-		return ERR_PTR(-EAGAIN);
+		return NULL;
 
 	if (use_priority) {
 		/* get next entry with highest priority */
@@ -120,7 +118,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 
 		/* no entry with the requested priority */
 		if (e->msg.priority > priority)
-			return ERR_PTR(-ENOMSG);
+			return NULL;
 	} else {
 		/* ignore the priority, return the next entry in the entry */
 		e = list_first_entry(&queue->msg_list,

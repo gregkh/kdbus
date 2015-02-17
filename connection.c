@@ -2047,13 +2047,10 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 
 	entry = kdbus_queue_entry_peek(&conn->queue, cmd->priority,
 				       cmd->flags & KDBUS_RECV_USE_PRIORITY);
-	if (IS_ERR(entry)) {
+	if (!entry) {
 		mutex_unlock(&conn->lock);
-		ret = PTR_ERR(entry);
-		goto exit;
-	}
-
-	if (cmd->flags & KDBUS_RECV_DROP) {
+		ret = -EAGAIN;
+	} else if (cmd->flags & KDBUS_RECV_DROP) {
 		struct kdbus_reply *reply = kdbus_reply_ref(entry->reply);
 
 		kdbus_queue_entry_remove(conn, entry);

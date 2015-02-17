@@ -158,7 +158,7 @@ int kdbus_test_message_prio(struct kdbus_test_env *env)
 	ASSERT_RETURN(msg_recv_prio(a, -200, -800) == 0);
 	ASSERT_RETURN(msg_recv_prio(a, -100, -800) == 0);
 	ASSERT_RETURN(msg_recv_prio(a, -400, -600) == 0);
-	ASSERT_RETURN(msg_recv_prio(a, -400, -600) == -ENOMSG);
+	ASSERT_RETURN(msg_recv_prio(a, -400, -600) == -EAGAIN);
 	ASSERT_RETURN(msg_recv_prio(a, 10, -150) == 0);
 	ASSERT_RETURN(msg_recv_prio(a, 10, -100) == 0);
 
