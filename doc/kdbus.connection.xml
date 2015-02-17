@@ -131,7 +131,7 @@
       A connection is considered <emphasis>privileged</emphasis> if the user
       it was created by is the same that created the bus, or if the creating
       task had <constant>CAP_IPC_OWNER</constant> set when it called
-      <constant>KDBUS_CMD_HELLO</constant>.
+      <constant>KDBUS_CMD_HELLO</constant> (see below).
     </para>
     <para>
       Privileged connections have permission to employ certain restricted
@@ -158,18 +158,15 @@
       to send any message.
     </para>
     <para>
-      The creation of activator, policy holder or monitor (eavesdropping)
-      connections is an operation restricted to privileged users on the bus.
-      See the section above on privileged connections.
+      The creation of activator or policy holder connections is restricted to
+      privileged users on the bus (see above).
     </para>
   </refsect1>
 
   <refsect1>
     <title>Monitor connections</title>
     <para>
-      Monitors are eaves-dropping connections that are created by setting the
-      <constant>KDBUS_HELLO_MONITOR</constant> flag in
-      <varname>struct kdbus_hello.flags</varname>.
+      Monitors are eavesdropping connections.
       Such connections have all properties of any other, regular connection,
       except for the following details:
     </para>
@@ -196,16 +193,27 @@
 
       <listitem><para>
         Their creation and destruction will not cause
-        <constant>KDBUS_ITEM_ID_{ADD,REMOVE}</constant> notifications to be
-        generated, so other connections cannot detect the presence of an
-        eavesdropper.
+        <constant>KDBUS_ITEM_ID_{ADD,REMOVE}</constant> (see
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>).
       </para></listitem>
 
       <listitem><para>
         They are not listed with their unique name in name regsitry dumps
-        (<constant>KDBUS_CMD_NAME_LIST</constant>).
+        (see <constant>KDBUS_CMD_NAME_LIST</constant> in
+        <citerefentry>
+          <refentrytitle>kdbus.names</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>), so other connections cannot detect the presence of
+	a monitor.
       </para></listitem>
     </itemizedlist>
+    <para>
+      The creation of monitor connections is restricted to privileged users on
+      the bus (see above).
+    </para>
   </refsect1>
 
   <refsect1>
@@ -273,7 +281,7 @@ struct kdbus_cmd_hello {
               <term><constant>KDBUS_HELLO_ACTIVATOR</constant></term>
               <listitem>
                 <para>
-                  Make this connection an activator (see below). With this bit
+                  Make this connection an activator (see above). With this bit
                   set, an item of type <constant>KDBUS_ITEM_NAME</constant> has
                   to be attached. This item describes the well-known name this
                   connection should be an activator for.
@@ -288,7 +296,7 @@ struct kdbus_cmd_hello {
               <term><constant>KDBUS_HELLO_POLICY_HOLDER</constant></term>
               <listitem>
                 <para>
-                  Make this connection a policy holder (see below). With this
+                  Make this connection a policy holder (see above). With this
                   bit set, an item of type <constant>KDBUS_ITEM_NAME</constant>
                   has to be attached. This item describes the well-known name
                   this connection should hold a policy for.
@@ -303,7 +311,7 @@ struct kdbus_cmd_hello {
               <term><constant>KDBUS_HELLO_MONITOR</constant></term>
               <listitem>
                 <para>
-                  Make this connection a monitor (eavesdropping) connection.
+                  Make this connection a monitor connection (see above).
                 </para>
                 <para>
                   This flag can only be set by privileged bus connections. See

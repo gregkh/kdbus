@@ -15,7 +15,7 @@ since v3:
     avoids pool fragmentation, message memory footprint and complexity.
 
   * Fix handling of messages with file descriptors with regard to
-    eavesdropping connections that don't accept file descriptors.
+    monitor connections that don't accept file descriptors.
 
   * Some internal restructuring and cleanups.
 
