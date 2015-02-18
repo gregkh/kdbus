@@ -39,27 +39,18 @@ struct kdbus_queue {
  * @prio_entry:		Queue tree node entry in the list of one priority
  * @msg:		Message header, either as received from userspace
  *			process, or as crafted by the kernel as notification
- * @msg_extra:		For notifications, contains more fixed parts of a
- *			message, which will be copied to the final message
- *			slice verbatim.
  * @slice:		Slice in the receiver's pool for the message
- * @slice_vecs:		Slice in the receiver's pool for message payload
- * @memfds:		Arrays of offsets where to update the installed
- *			fd number
- * @dst_name:		Destination well-known-name
- * @vecs:		Array of struct kdbus_queue_vecs
- * @vec_count:		Number of elements in @vecs
- * @memfds_fp:		Array memfd files queued up for this message
- * @memfd_size:		Array of size_t values, describing the sizes of memfds
- * @memfds_count:	Number of elements in @memfds_fp
- * @fds_fp:		Array of passed files queued up for this message
- * @fds_count:		Number of elements in @fds_fp
+ * @attach_flags:	Attach flags used during slice allocation
+ * @meta_offset:	Offset of first metadata item in slice
+ * @fds_offset:		Offset of FD item in slice
+ * @memfd_offset:	Array of slice-offsets for all memfd items
  * @dst_name_id:	The sequence number of the name this message is
  *			addressed to, 0 for messages sent to an ID
+ * @msg_res:		Message resources
  * @proc_meta:		Process metadata, captured at message arrival
  * @conn_meta:		Connection metadata, captured at message arrival
- * @reply:		The reply block if a reply to this message is expected.
- * @user:		Index in per-user message counter, -1 for unused
+ * @reply:		The reply block if a reply to this message is expected
+ * @user:		User used for accounting
  */
 struct kdbus_queue_entry {
 	struct list_head entry;
