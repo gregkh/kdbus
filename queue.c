@@ -62,12 +62,12 @@ void kdbus_queue_entry_add(struct kdbus_queue *queue,
 		e = rb_entry(pn, struct kdbus_queue_entry, prio_node);
 
 		/* existing node for this priority, add to its list */
-		if (likely(entry->msg.priority == e->msg.priority)) {
+		if (likely(entry->priority == e->priority)) {
 			list_add_tail(&entry->prio_entry, &e->prio_entry);
 			goto prio_done;
 		}
 
-		if (entry->msg.priority < e->msg.priority) {
+		if (entry->priority < e->priority) {
 			n = &pn->rb_left;
 		} else {
 			n = &pn->rb_right;
@@ -117,7 +117,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 			     struct kdbus_queue_entry, prio_node);
 
 		/* no entry with the requested priority */
-		if (e->msg.priority > priority)
+		if (e->priority > priority)
 			return NULL;
 	} else {
 		/* ignore the priority, return the next entry in the entry */
@@ -225,10 +225,12 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 		return ERR_PTR(-ENOMEM);
 
 	INIT_LIST_HEAD(&entry->entry);
+	entry->src_id = msg->src_id;
+	entry->cookie = msg->cookie;
+	entry->priority = msg->priority;
 	entry->msg_res = kdbus_msg_resources_ref(res);
 	entry->proc_meta = kdbus_meta_proc_ref(kmsg->proc_meta);
 	entry->conn_meta = kdbus_meta_conn_ref(kmsg->conn_meta);
-	memcpy(&entry->msg, msg, sizeof(*msg));
 
 	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
 		msg_size = msg->size;

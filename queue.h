@@ -37,13 +37,14 @@ struct kdbus_queue {
  * @entry:		Entry in the connection's list
  * @prio_node:		Entry in the priority queue tree
  * @prio_entry:		Queue tree node entry in the list of one priority
- * @msg:		Message header, either as received from userspace
- *			process, or as crafted by the kernel as notification
  * @slice:		Slice in the receiver's pool for the message
  * @attach_flags:	Attach flags used during slice allocation
  * @meta_offset:	Offset of first metadata item in slice
  * @fds_offset:		Offset of FD item in slice
  * @memfd_offset:	Array of slice-offsets for all memfd items
+ * @src_id:		Unique ID of message source
+ * @cookie:		Cookie used for this message
+ * @priority:		Message priority
  * @dst_name_id:	The sequence number of the name this message is
  *			addressed to, 0 for messages sent to an ID
  * @msg_res:		Message resources
@@ -57,8 +58,6 @@ struct kdbus_queue_entry {
 	struct rb_node prio_node;
 	struct list_head prio_entry;
 
-	struct kdbus_msg msg;
-
 	struct kdbus_pool_slice *slice;
 
 	u64 attach_flags;
@@ -66,6 +65,9 @@ struct kdbus_queue_entry {
 	size_t fds_offset;
 	size_t *memfd_offset;
 
+	u64 src_id;
+	u64 cookie;
+	s64 priority;
 	u64 dst_name_id;
 
 	struct kdbus_msg_resources *msg_res;
