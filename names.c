@@ -466,6 +466,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	int ret = 0;
 	u32 hash;
 
+	kdbus_conn_assert_active(conn);
+
 	down_write(&reg->rwlock);
 
 	hash = kdbus_strhash(name);
@@ -563,13 +565,6 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	e->name_id = ++reg->name_seq_last;
 
 	mutex_lock(&conn->lock);
-	if (!kdbus_conn_active(conn)) {
-		mutex_unlock(&conn->lock);
-		kfree(e->name);
-		kfree(e);
-		ret = -ECONNRESET;
-		goto exit_unlock;
-	}
 	hash_add(reg->entries_hash, &e->hentry, hash);
 	kdbus_name_entry_set_owner(e, conn);
 	mutex_unlock(&conn->lock);
