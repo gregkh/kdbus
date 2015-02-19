@@ -32,7 +32,6 @@ struct kdbus_name_registry {
 
 /**
  * struct kdbus_name_entry - well-know name entry
- * @name:		The well-known name
  * @name_id:		Sequence number of name entry to be able to uniquely
  *			identify a name over its registration lifetime
  * @flags:		KDBUS_NAME_* flags
@@ -41,9 +40,9 @@ struct kdbus_name_registry {
  * @hentry:		Entry in registry map
  * @conn:		Connection owning the name
  * @activator:		Connection of the activator queuing incoming messages
+ * @name:		The well-known name
  */
 struct kdbus_name_entry {
-	char *name;
 	u64 name_id;
 	u64 flags;
 	struct list_head queue_list;
@@ -51,6 +50,7 @@ struct kdbus_name_entry {
 	struct hlist_node hentry;
 	struct kdbus_conn *conn;
 	struct kdbus_conn *activator;
+	char name[];
 };
 
 struct kdbus_name_registry *kdbus_name_registry_new(void);

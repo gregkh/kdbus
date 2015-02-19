@@ -50,10 +50,32 @@ struct kdbus_name_queue_item {
 	u64 flags;
 };
 
+static struct kdbus_name_entry *
+kdbus_name_entry_new(struct kdbus_name_registry *reg, const char *name,
+		     u64 flags)
+{
+	struct kdbus_name_entry *e;
+	size_t namelen;
+
+	namelen = strlen(name);
+
+	e = kzalloc(sizeof(*e) + namelen + 1, GFP_KERNEL);
+	if (!e)
+		return ERR_PTR(-ENOMEM);
+
+	e->name_id = ++reg->name_seq_last;
+	e->flags = flags;
+	INIT_LIST_HEAD(&e->queue_list);
+	INIT_LIST_HEAD(&e->conn_entry);
+	INIT_HLIST_NODE(&e->hentry);
+	memcpy(e->name, name, namelen);
+
+	return e;
+}
+
 static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 {
 	hash_del(&e->hentry);
-	kfree(e->name);
 	kfree(e);
 }
 
@@ -542,16 +564,9 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		goto exit_unlock;
 	}
 
-	e = kzalloc(sizeof(*e), GFP_KERNEL);
-	if (!e) {
-		ret = -ENOMEM;
-		goto exit_unlock;
-	}
-
-	e->name = kstrdup(name, GFP_KERNEL);
-	if (!e->name) {
-		kfree(e);
-		ret = -ENOMEM;
+	e = kdbus_name_entry_new(reg, name, *flags);
+	if (IS_ERR(e)) {
+		ret = PTR_ERR(e);
 		goto exit_unlock;
 	}
 
@@ -559,10 +574,6 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		e->activator = kdbus_conn_ref(conn);
 		conn->activator_of = e;
 	}
-
-	e->flags = *flags;
-	INIT_LIST_HEAD(&e->queue_list);
-	e->name_id = ++reg->name_seq_last;
 
 	mutex_lock(&conn->lock);
 	hash_add(reg->entries_hash, &e->hentry, hash);
