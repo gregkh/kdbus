@@ -37,7 +37,7 @@ struct kdbus_name_registry {
  * @flags:		KDBUS_NAME_* flags
  * @conn:		Connection owning the name
  * @activator:		Connection of the activator queuing incoming messages
- * @queue_list:		List of queued connections
+ * @queue:		List of queued connections
  * @conn_entry:		Entry in connection
  * @hentry:		Entry in registry map
  * @name:		The well-known name
@@ -47,7 +47,7 @@ struct kdbus_name_entry {
 	u64 flags;
 	struct kdbus_conn *conn;
 	struct kdbus_conn *activator;
-	struct list_head queue_list;
+	struct list_head queue;
 	struct list_head conn_entry;
 	struct hlist_node hentry;
 	char name[];

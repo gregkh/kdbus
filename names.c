@@ -34,21 +34,46 @@
 #include "notify.h"
 #include "policy.h"
 
-/**
- * struct kdbus_name_queue_item - a queue item for a name
- * @conn:		The associated connection
- * @entry:		Name entry queuing up for
- * @entry_entry:	List element for the list in @entry
- * @conn_entry:		List element for the list in @conn
- * @flags:		The queuing flags
- */
-struct kdbus_name_queue_item {
-	struct kdbus_conn *conn;
-	struct kdbus_name_entry *entry;
-	struct list_head entry_entry;
-	struct list_head conn_entry;
+struct kdbus_name_pending {
 	u64 flags;
+	struct kdbus_conn *conn;
+	struct kdbus_name_entry *name;
+	struct list_head conn_entry;
+	struct list_head name_entry;
 };
+
+static int kdbus_name_pending_new(struct kdbus_name_entry *e,
+				  struct kdbus_conn *conn, u64 flags)
+{
+	struct kdbus_name_pending *p;
+
+	kdbus_conn_assert_active(conn);
+	lockdep_assert_held(&conn->lock);
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p)
+		return -ENOMEM;
+
+	p->flags = flags;
+	p->conn = conn;
+	p->name = e;
+	list_add_tail(&p->conn_entry, &conn->names_queue_list);
+	list_add_tail(&p->name_entry, &e->queue);
+
+	return 0;
+}
+
+static void kdbus_name_pending_free(struct kdbus_name_pending *p)
+{
+	if (!p)
+		return;
+
+	lockdep_assert_held(&p->conn->lock);
+
+	list_del(&p->name_entry);
+	list_del(&p->conn_entry);
+	kfree(p);
+}
 
 static struct kdbus_name_entry *
 kdbus_name_entry_new(struct kdbus_name_registry *reg, const char *name,
@@ -67,7 +92,7 @@ kdbus_name_entry_new(struct kdbus_name_registry *reg, const char *name,
 	e->flags = flags;
 	e->conn = NULL;
 	e->activator = NULL;
-	INIT_LIST_HEAD(&e->queue_list);
+	INIT_LIST_HEAD(&e->queue);
 	INIT_LIST_HEAD(&e->conn_entry);
 	INIT_HLIST_NODE(&e->hentry);
 	memcpy(e->name, name, namelen + 1);
@@ -80,8 +105,8 @@ static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 	if (!e)
 		return;
 
-	WARN_ON(!list_empty(&e->queue_list));
 	WARN_ON(!list_empty(&e->conn_entry));
+	WARN_ON(!list_empty(&e->queue));
 	WARN_ON(e->activator);
 	WARN_ON(e->conn);
 
@@ -186,28 +211,17 @@ kdbus_name_lookup(struct kdbus_name_registry *reg, u32 hash, const char *name)
 	return NULL;
 }
 
-static void kdbus_name_queue_item_free(struct kdbus_name_queue_item *q)
-{
-	list_del(&q->entry_entry);
-	list_del(&q->conn_entry);
-	kfree(q);
-}
-
 static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 {
+	struct kdbus_name_pending *p;
 	struct kdbus_conn *conn;
 	int ret;
 
 	/* give it to first active waiter in the queue */
-	while (!list_empty(&e->queue_list)) {
-		struct kdbus_name_queue_item *q;
-
-		q = list_first_entry(&e->queue_list,
-				     struct kdbus_name_queue_item,
-				     entry_entry);
-
-		kdbus_name_entry_replace_owner(e, q->conn, q->flags);
-		kdbus_name_queue_item_free(q);
+	if ((p = list_first_entry_or_null(&e->queue, struct kdbus_name_pending,
+					  name_entry))) {
+		kdbus_name_entry_replace_owner(e, p->conn, p->flags);
+		kdbus_name_pending_free(p);
 		return 0;
 	}
 
@@ -249,7 +263,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 			      struct kdbus_conn *conn,
 			      const char *name)
 {
-	struct kdbus_name_queue_item *tmp, *q;
+	struct kdbus_name_pending *p;
 	struct kdbus_name_entry *e = NULL;
 	int ret = -ESRCH;
 	u32 hash;
@@ -269,13 +283,12 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	} else {
 		/* Otherwise, see if the connection is waiting in the queue */
 		ret = -EADDRINUSE;
-		list_for_each_entry_safe(q, tmp, &e->queue_list, entry_entry) {
-			if (q->conn != conn)
-				continue;
-
-			kdbus_name_queue_item_free(q);
-			ret = 0;
-			break;
+		list_for_each_entry(p, &e->queue, name_entry) {
+			if (p->conn == conn) {
+				kdbus_name_pending_free(p);
+				ret = 0;
+				break;
+			}
 		}
 	}
 
@@ -295,26 +308,29 @@ exit_unlock:
 void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 			       struct kdbus_conn *conn)
 {
-	struct kdbus_name_queue_item *q_tmp, *q;
+	struct kdbus_name_pending *p;
 	struct kdbus_conn *activator = NULL;
 	struct kdbus_name_entry *e_tmp, *e;
-	LIST_HEAD(names_queue_list);
 	LIST_HEAD(names_list);
+	LIST_HEAD(queue);
 
 	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_write(&reg->rwlock);
 
 	mutex_lock(&conn->lock);
 	list_splice_init(&conn->names_list, &names_list);
-	list_splice_init(&conn->names_queue_list, &names_queue_list);
+	list_splice_init(&conn->names_queue_list, &queue);
 	mutex_unlock(&conn->lock);
 
 	if (kdbus_conn_is_activator(conn)) {
 		activator = conn->activator_of->activator;
 		conn->activator_of->activator = NULL;
 	}
-	list_for_each_entry_safe(q, q_tmp, &names_queue_list, conn_entry)
-		kdbus_name_queue_item_free(q);
+
+	while ((p = list_first_entry_or_null(&queue, struct kdbus_name_pending,
+					     conn_entry)))
+		kdbus_name_pending_free(p);
+
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
 		kdbus_name_entry_release(e);
 
@@ -379,25 +395,6 @@ struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
 	}
 
 	return NULL;
-}
-
-static int kdbus_name_queue_conn(struct kdbus_conn *conn, u64 flags,
-				 struct kdbus_name_entry *e)
-{
-	struct kdbus_name_queue_item *q;
-
-	q = kzalloc(sizeof(*q), GFP_KERNEL);
-	if (!q)
-		return -ENOMEM;
-
-	q->conn = conn;
-	q->flags = flags;
-	q->entry = e;
-
-	list_add_tail(&q->entry_entry, &e->queue_list);
-	list_add_tail(&q->conn_entry, &conn->names_queue_list);
-
-	return 0;
 }
 
 /**
@@ -515,8 +512,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
 			/* move owner back to queue if they asked for it */
 			if (e->flags & KDBUS_NAME_QUEUE) {
-				ret = kdbus_name_queue_conn(e->conn,
-							    e->flags, e);
+				ret = kdbus_name_pending_new(e, e->conn,
+							     e->flags);
 				if (ret < 0)
 					goto exit_unlock;
 			}
@@ -527,7 +524,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 		/* add to waiting-queue of the name */
 		if (*flags & KDBUS_NAME_QUEUE) {
-			ret = kdbus_name_queue_conn(conn, *flags, e);
+			ret = kdbus_name_pending_new(e, conn, *flags);
 			if (ret < 0)
 				goto exit_unlock;
 
@@ -790,13 +787,13 @@ static int kdbus_list_all(struct kdbus_conn *conn, u64 flags,
 
 		/* queue of names the connection is currently waiting for */
 		if (flags & KDBUS_LIST_QUEUED) {
-			struct kdbus_name_queue_item *q;
+			struct kdbus_name_pending *q;
 
 			mutex_lock(&c->lock);
 			list_for_each_entry(q, &c->names_queue_list,
 					    conn_entry) {
 				ret = kdbus_list_write(conn, c,
-						slice, &p, q->entry, write);
+						slice, &p, q->name, write);
 				if (ret < 0) {
 					mutex_unlock(&c->lock);
 					return ret;
