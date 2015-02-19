@@ -1964,7 +1964,9 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 	}
 
 	if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
+		down_read(&conn->ep->bus->name_registry->rwlock);
 		kdbus_bus_broadcast(conn->ep->bus, conn, kmsg);
+		up_read(&conn->ep->bus->name_registry->rwlock);
 	} else if (cmd->flags & KDBUS_SEND_SYNC_REPLY) {
 		struct kdbus_reply *r;
 		ktime_t exp;

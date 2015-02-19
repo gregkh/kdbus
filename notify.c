@@ -202,6 +202,7 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 	struct kdbus_kmsg *kmsg, *tmp;
 
 	mutex_lock(&bus->notify_flush_lock);
+	down_read(&bus->name_registry->rwlock);
 
 	spin_lock(&bus->notify_lock);
 	list_splice_init(&bus->notify_list, &notify_list);
@@ -228,6 +229,7 @@ void kdbus_notify_flush(struct kdbus_bus *bus)
 		kdbus_kmsg_free(kmsg);
 	}
 
+	up_read(&bus->name_registry->rwlock);
 	mutex_unlock(&bus->notify_flush_lock);
 }
 

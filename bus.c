@@ -245,6 +245,8 @@ struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id)
  * Send @kmsg to all connections that are currently active on the bus.
  * Connections must still have matches installed in order to let the message
  * pass.
+ *
+ * The caller must hold the name-registry lock of @bus.
  */
 void kdbus_bus_broadcast(struct kdbus_bus *bus,
 			 struct kdbus_conn *conn_src,
@@ -253,6 +255,8 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 	struct kdbus_conn *conn_dst;
 	unsigned int i;
 	int ret;
+
+	lockdep_assert_held(&bus->name_registry->rwlock);
 
 	/*
 	 * Make sure broadcast are queued on monitors before we send it out to
@@ -266,7 +270,6 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 	kdbus_bus_eavesdrop(bus, conn_src, kmsg);
 
 	down_read(&bus->conn_rwlock);
-
 	hash_for_each(bus->conn_hash, i, conn_dst, hentry) {
 		if (conn_dst->id == kmsg->msg.src_id)
 			continue;
@@ -320,7 +323,6 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
 		if (ret < 0)
 			atomic_inc(&conn_dst->lost_count);
 	}
-
 	up_read(&bus->conn_rwlock);
 }
 
@@ -332,6 +334,8 @@ void kdbus_bus_broadcast(struct kdbus_bus *bus,
  *
  * Send @kmsg to all monitors that are currently active on the bus. Monitors
  * must still have matches installed in order to let the message pass.
+ *
+ * The caller must hold the name-registry lock of @bus.
  */
 void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 			 struct kdbus_conn *conn_src,
@@ -344,6 +348,8 @@ void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
 	 * Monitor connections get all messages; ignore possible errors
 	 * when sending messages to monitor connections.
 	 */
+
+	lockdep_assert_held(&bus->name_registry->rwlock);
 
 	down_read(&bus->conn_rwlock);
 	list_for_each_entry(conn_dst, &bus->monitors_list, monitor_entry) {
