@@ -422,42 +422,38 @@ exit_unlock:
 	return ret;
 }
 
-static int kdbus_name_entry_release(struct kdbus_name_entry *e)
+static void kdbus_name_release_unlocked(struct kdbus_name_registry *reg,
+					struct kdbus_name_entry *e)
 {
 	struct kdbus_name_pending *p;
 	struct kdbus_conn *conn;
-	int ret;
 
-	/* give it to first active waiter in the queue */
+	lockdep_assert_held(&reg->rwlock);
+
 	if ((p = list_first_entry_or_null(&e->queue, struct kdbus_name_pending,
 					  name_entry))) {
+		/* give it to first active waiter in the queue */
 		kdbus_name_entry_replace_owner(e, p->conn, p->flags);
 		kdbus_name_pending_free(p);
-		return 0;
-	}
-
-	/* hand it back to an active activator connection */
-	if (e->activator && e->activator != e->conn) {
-		/* move pending messages of that name back to the activator */
+	} else if (e->activator && e->activator != e->conn) {
+		/* hand it back to an active activator connection */
 		kdbus_conn_move_messages(e->activator, e->conn, e->name_id);
 		kdbus_name_entry_replace_owner(e, e->activator,
 					       KDBUS_NAME_ACTIVATOR);
-		return 0;
+	} else {
+		/* release the name */
+		kdbus_notify_name_change(e->conn->ep->bus,
+					 KDBUS_ITEM_NAME_REMOVE,
+					 e->conn->id, 0, e->flags, 0, e->name);
+
+		conn = kdbus_conn_ref(e->conn);
+		mutex_lock(&conn->lock);
+		kdbus_name_entry_remove_owner(e);
+		mutex_unlock(&conn->lock);
+		kdbus_conn_unref(conn);
+
+		kdbus_name_entry_free(e);
 	}
-
-	/* release the name */
-	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_REMOVE,
-				 e->conn->id, 0, e->flags, 0, e->name);
-
-	conn = kdbus_conn_ref(e->conn);
-	mutex_lock(&conn->lock);
-	kdbus_name_entry_remove_owner(e);
-	mutex_unlock(&conn->lock);
-	kdbus_conn_unref(conn);
-
-	kdbus_name_entry_free(e);
-
-	return 0;
 }
 
 static int kdbus_name_release(struct kdbus_name_registry *reg,
@@ -465,24 +461,16 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 			      const char *name)
 {
 	struct kdbus_name_pending *p;
-	struct kdbus_name_entry *e = NULL;
-	int ret = -ESRCH;
-	u32 hash;
+	struct kdbus_name_entry *e;
+	int ret = 0;
 
-	hash = kdbus_strhash(name);
-
-	/* lock order: domain -> bus -> ep -> names -> connection */
 	down_write(&reg->rwlock);
-
-	e = kdbus_name_lookup(reg, hash, name);
-	if (!e)
-		goto exit_unlock;
-
-	/* Is the connection already the real owner of the name? */
-	if (e->conn == conn) {
-		ret = kdbus_name_entry_release(e);
+	e = kdbus_name_lookup(reg, kdbus_strhash(name), name);
+	if (!e) {
+		ret = -ESRCH;
+	} else if (e->conn == conn) {
+		kdbus_name_release_unlocked(reg, e);
 	} else {
-		/* Otherwise, see if the connection is waiting in the queue */
 		ret = -EADDRINUSE;
 		list_for_each_entry(p, &e->queue, name_entry) {
 			if (p->conn == conn) {
@@ -492,8 +480,6 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 			}
 		}
 	}
-
-exit_unlock:
 	up_write(&reg->rwlock);
 
 	return ret;
@@ -533,7 +519,7 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 		kdbus_name_pending_free(p);
 
 	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
-		kdbus_name_entry_release(e);
+		kdbus_name_release_unlocked(reg, e);
 
 	up_write(&reg->rwlock);
 
