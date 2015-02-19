@@ -206,12 +206,13 @@ struct kdbus_name_registry *kdbus_name_registry_new(void)
 {
 	struct kdbus_name_registry *r;
 
-	r = kzalloc(sizeof(*r), GFP_KERNEL);
+	r = kmalloc(sizeof(*r), GFP_KERNEL);
 	if (!r)
 		return ERR_PTR(-ENOMEM);
 
 	hash_init(r->entries_hash);
 	init_rwsem(&r->rwlock);
+	r->name_seq_last = 0;
 
 	return r;
 }
