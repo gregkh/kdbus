@@ -73,8 +73,7 @@ static void kdbus_name_pending_free(struct kdbus_name_pending *p)
 }
 
 static struct kdbus_name_entry *
-kdbus_name_entry_new(struct kdbus_name_registry *reg, const char *name,
-		     u64 flags)
+kdbus_name_entry_new(struct kdbus_name_registry *r, u32 hash, const char *name)
 {
 	struct kdbus_name_entry *e;
 	size_t namelen;
@@ -85,13 +84,13 @@ kdbus_name_entry_new(struct kdbus_name_registry *reg, const char *name,
 	if (!e)
 		return ERR_PTR(-ENOMEM);
 
-	e->name_id = ++reg->name_seq_last;
-	e->flags = flags;
+	e->name_id = ++r->name_seq_last;
+	e->flags = 0;
 	e->conn = NULL;
 	e->activator = NULL;
 	INIT_LIST_HEAD(&e->queue);
 	INIT_LIST_HEAD(&e->conn_entry);
-	INIT_HLIST_NODE(&e->hentry);
+	hash_add(r->entries_hash, &e->hentry, hash);
 	memcpy(e->name, name, namelen + 1);
 
 	return e;
@@ -112,11 +111,12 @@ static void kdbus_name_entry_free(struct kdbus_name_entry *e)
 }
 
 static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
-				       struct kdbus_conn *conn)
+				       struct kdbus_conn *conn, u64 flags)
 {
 	WARN_ON(e->conn);
 
 	e->conn = kdbus_conn_ref(conn);
+	e->flags = flags;
 	atomic_inc(&conn->name_count);
 	list_add_tail(&e->conn_entry, &e->conn->names_list);
 }
@@ -127,6 +127,7 @@ static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 
 	list_del_init(&e->conn_entry);
 	atomic_dec(&e->conn->name_count);
+	e->flags = 0;
 	e->conn = kdbus_conn_unref(e->conn);
 }
 
@@ -140,8 +141,7 @@ static void kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
 				 e->conn->id, conn->id,
 				 e->flags, flags, e->name);
 	kdbus_name_entry_remove_owner(e);
-	kdbus_name_entry_set_owner(e, conn);
-	e->flags = flags;
+	kdbus_name_entry_set_owner(e, conn, flags);
 }
 
 /**
@@ -302,7 +302,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		e = kdbus_name_entry_new(reg, name, *flags);
+		e = kdbus_name_entry_new(reg, hash, name);
 		if (IS_ERR(e)) {
 			ret = PTR_ERR(e);
 			goto exit_unlock;
@@ -313,8 +313,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			conn->activator_of = e;
 		}
 
-		hash_add(reg->entries_hash, &e->hentry, hash);
-		kdbus_name_entry_set_owner(e, conn);
+		kdbus_name_entry_set_owner(e, conn, *flags);
 		kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
 					 0, e->conn->id, 0, e->flags, e->name);
 	} else if (e->conn == conn || e == conn->activator_of) {
