@@ -57,7 +57,6 @@ struct kdbus_quota {
  * @ep_entry:		Entry in endpoint
  * @monitor_entry:	Entry in monitor, if the connection is a monitor
  * @names_list:		List of well-known names
- * @names_queue_list:	Well-known names this connection waits for
  * @reply_list:		List of connections this connection should
  *			reply to
  * @work:		Delayed work to handle timeouts
@@ -78,6 +77,7 @@ struct kdbus_quota {
  * @quota:		Array of per-user quota indexed by user->id
  * @n_quota:		Number of elements in quota array
  * @activator_of:	Well-known name entry this connection acts as an
+ * @names_queue_list:	Well-known names this connection waits for
  * @privileged:		Whether this connection is privileged on the bus
  * @faked_meta:		Whether the metadata was faked on HELLO
  */
@@ -98,7 +98,6 @@ struct kdbus_conn {
 	struct list_head ep_entry;
 	struct list_head monitor_entry;
 	struct list_head names_list;
-	struct list_head names_queue_list;
 	struct list_head reply_list;
 	struct delayed_work work;
 	struct kdbus_match_db *match_db;
@@ -117,6 +116,7 @@ struct kdbus_conn {
 
 	/* protected by registry->rwlock */
 	struct kdbus_name_entry *activator_of;
+	struct list_head names_queue_list;
 
 	bool privileged:1;
 	bool faked_meta:1;

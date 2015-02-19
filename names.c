@@ -48,7 +48,6 @@ static int kdbus_name_pending_new(struct kdbus_name_entry *e,
 	struct kdbus_name_pending *p;
 
 	kdbus_conn_assert_active(conn);
-	lockdep_assert_held(&conn->lock);
 
 	p = kmalloc(sizeof(*p), GFP_KERNEL);
 	if (!p)
@@ -67,8 +66,6 @@ static void kdbus_name_pending_free(struct kdbus_name_pending *p)
 {
 	if (!p)
 		return;
-
-	lockdep_assert_held(&p->conn->lock);
 
 	list_del(&p->name_entry);
 	list_del(&p->conn_entry);
@@ -142,8 +139,6 @@ static void kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
 
 	if (WARN_ON(!e->conn) || WARN_ON(conn == e->conn))
 		return;
-
-	kdbus_conn_assert_active(conn);
 
 	conn_old = kdbus_conn_ref(e->conn);
 	kdbus_conn_lock2(conn, conn_old);
