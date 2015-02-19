@@ -54,7 +54,7 @@ struct kdbus_domain {
 struct kdbus_user {
 	struct kref kref;
 	struct kdbus_domain *domain;
-	int id;
+	unsigned int id;
 	kuid_t uid;
 	atomic_t buses;
 	atomic_t connections;
