@@ -160,24 +160,56 @@ static void kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
 }
 
 /**
- * kdbus_name_registry_free() - drop a name reg's reference
- * @reg:		The name registry, may be %NULL
+ * kdbus_name_is_valid() - check if a name is valid
+ * @p:			The name to check
+ * @allow_wildcard:	Whether or not to allow a wildcard name
  *
- * Cleanup the name registry's internal structures.
+ * A name is valid if all of the following criterias are met:
+ *
+ *  - The name has two or more elements separated by a period ('.') character.
+ *  - All elements must contain at least one character.
+ *  - Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_-"
+ *    and must not begin with a digit.
+ *  - The name must not exceed KDBUS_NAME_MAX_LEN.
+ *  - If @allow_wildcard is true, the name may end on '.*'
  */
-void kdbus_name_registry_free(struct kdbus_name_registry *reg)
+bool kdbus_name_is_valid(const char *p, bool allow_wildcard)
 {
-	struct kdbus_name_entry *e;
-	struct hlist_node *tmp;
-	unsigned int i;
+	bool dot, found_dot = false;
+	const char *q;
 
-	if (!reg)
-		return;
+	for (dot = true, q = p; *q; q++) {
+		if (*q == '.') {
+			if (dot)
+				return false;
 
-	hash_for_each_safe(reg->entries_hash, i, tmp, e, hentry)
-		kdbus_name_entry_free(e);
+			found_dot = true;
+			dot = true;
+		} else {
+			bool good;
 
-	kfree(reg);
+			good = isalpha(*q) || (!dot && isdigit(*q)) ||
+				*q == '_' || *q == '-' ||
+				(allow_wildcard && dot &&
+					*q == '*' && *(q + 1) == '\0');
+
+			if (!good)
+				return false;
+
+			dot = false;
+		}
+	}
+
+	if (q - p > KDBUS_NAME_MAX_LEN)
+		return false;
+
+	if (dot)
+		return false;
+
+	if (!found_dot)
+		return false;
+
+	return true;
 }
 
 /**
@@ -199,6 +231,27 @@ struct kdbus_name_registry *kdbus_name_registry_new(void)
 	return r;
 }
 
+/**
+ * kdbus_name_registry_free() - drop a name reg's reference
+ * @reg:		The name registry, may be %NULL
+ *
+ * Cleanup the name registry's internal structures.
+ */
+void kdbus_name_registry_free(struct kdbus_name_registry *reg)
+{
+	struct kdbus_name_entry *e;
+	struct hlist_node *tmp;
+	unsigned int i;
+
+	if (!reg)
+		return;
+
+	hash_for_each_safe(reg->entries_hash, i, tmp, e, hentry)
+		kdbus_name_entry_free(e);
+
+	kfree(reg);
+}
+
 static struct kdbus_name_entry *
 kdbus_name_lookup(struct kdbus_name_registry *reg, u32 hash, const char *name)
 {
@@ -209,6 +262,185 @@ kdbus_name_lookup(struct kdbus_name_registry *reg, u32 hash, const char *name)
 			return e;
 
 	return NULL;
+}
+
+/**
+ * kdbus_name_lock() - look up a name in a name registry and lock it
+ * @reg:		The name registry
+ * @name:		The name to look up
+ *
+ * Search for a name in a given name registry and return it with the
+ * registry-lock held. If the object is not found, the lock is not acquired and
+ * NULL is returned. The caller is responsible of unlocking the name via
+ * kdbus_name_unlock() again. Note that kdbus_name_unlock() can be safely called
+ * with NULL as name. In this case, it's a no-op as nothing was locked.
+ *
+ * The *_lock() + *_unlock() logic is only required for callers that need to
+ * protect their code against concurrent activator/implementer name changes.
+ * Multiple readers can lock names concurrently. However, you may not change
+ * name-ownership while holding a name-lock.
+ *
+ * Return: NULL if name is unknown, otherwise return a pointer to the name
+ *         entry with the name-lock held (reader lock only).
+ */
+struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
+					 const char *name)
+{
+	struct kdbus_name_entry *e = NULL;
+	u32 hash = kdbus_strhash(name);
+
+	down_read(&reg->rwlock);
+	e = kdbus_name_lookup(reg, hash, name);
+	if (e)
+		return e;
+	up_read(&reg->rwlock);
+
+	return NULL;
+}
+
+/**
+ * kdbus_name_unlock() - unlock one name in a name registry
+ * @reg:		The name registry
+ * @entry:		The locked name entry or NULL
+ *
+ * This is the unlock-counterpart of kdbus_name_lock(). It unlocks a name that
+ * was previously successfully locked. You can safely pass NULL as entry and
+ * this will become a no-op. Therefore, it's safe to always call this on the
+ * return-value of kdbus_name_lock().
+ *
+ * Return: This always returns NULL.
+ */
+struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
+					   struct kdbus_name_entry *entry)
+{
+	if (entry) {
+		BUG_ON(!rwsem_is_locked(&reg->rwlock));
+		up_read(&reg->rwlock);
+	}
+
+	return NULL;
+}
+
+/**
+ * kdbus_name_acquire() - acquire a name
+ * @reg:		The name registry
+ * @conn:		The connection to pin this entry to
+ * @name:		The name to acquire
+ * @flags:		Acquisition flags (KDBUS_NAME_*)
+ *
+ * Callers must ensure that @conn is either a privileged bus user or has
+ * sufficient privileges in the policy-db to own the well-known name @name.
+ *
+ * Return: 0 success, negative error number on failure.
+ */
+int kdbus_name_acquire(struct kdbus_name_registry *reg,
+		       struct kdbus_conn *conn,
+		       const char *name, u64 *flags)
+{
+	struct kdbus_name_entry *e = NULL;
+	int ret = 0;
+	u32 hash;
+
+	kdbus_conn_assert_active(conn);
+
+	down_write(&reg->rwlock);
+
+	hash = kdbus_strhash(name);
+	e = kdbus_name_lookup(reg, hash, name);
+	if (e) {
+		/* connection already owns that name */
+		if (e->conn == conn || e == conn->activator_of) {
+			ret = -EALREADY;
+			goto exit_unlock;
+		}
+
+		/* activator claims existing name */
+		if (kdbus_conn_is_activator(conn)) {
+			if (conn->activator_of) {
+				ret = -EINVAL; /* multiple names not allowed */
+			} else if (e->activator) {
+				ret = -EEXIST; /* only one activator per name */
+			} else {
+				e->activator = kdbus_conn_ref(conn);
+				conn->activator_of = e;
+			}
+
+			goto exit_unlock;
+		}
+
+		/* claim name of an activator */
+		if (e->flags & KDBUS_NAME_ACTIVATOR) {
+			ret = kdbus_conn_move_messages(conn, e->activator, 0);
+			if (ret < 0)
+				goto exit_unlock;
+
+			kdbus_name_entry_replace_owner(e, conn, *flags);
+			goto exit_unlock;
+		}
+
+		/* claim name of a previous owner */
+		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
+		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
+			/* move owner back to queue if they asked for it */
+			if (e->flags & KDBUS_NAME_QUEUE) {
+				ret = kdbus_name_pending_new(e, e->conn,
+							     e->flags);
+				if (ret < 0)
+					goto exit_unlock;
+			}
+
+			kdbus_name_entry_replace_owner(e, conn, *flags);
+			goto exit_unlock;
+		}
+
+		/* add to waiting-queue of the name */
+		if (*flags & KDBUS_NAME_QUEUE) {
+			ret = kdbus_name_pending_new(e, conn, *flags);
+			if (ret < 0)
+				goto exit_unlock;
+
+			/* tell the caller that we queued it */
+			*flags |= KDBUS_NAME_IN_QUEUE;
+
+			goto exit_unlock;
+		}
+
+		/* the name is busy, return a failure */
+		ret = -EEXIST;
+		goto exit_unlock;
+	}
+
+	/* claim new name */
+
+	if (conn->activator_of) {
+		ret = -EINVAL;
+		goto exit_unlock;
+	}
+
+	e = kdbus_name_entry_new(reg, name, *flags);
+	if (IS_ERR(e)) {
+		ret = PTR_ERR(e);
+		goto exit_unlock;
+	}
+
+	if (kdbus_conn_is_activator(conn)) {
+		e->activator = kdbus_conn_ref(conn);
+		conn->activator_of = e;
+	}
+
+	mutex_lock(&conn->lock);
+	hash_add(reg->entries_hash, &e->hentry, hash);
+	kdbus_name_entry_set_owner(e, conn);
+	mutex_unlock(&conn->lock);
+
+	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
+				 0, e->conn->id,
+				 0, e->flags, e->name);
+
+exit_unlock:
+	up_write(&reg->rwlock);
+	kdbus_notify_flush(conn->ep->bus);
+	return ret;
 }
 
 static int kdbus_name_entry_release(struct kdbus_name_entry *e)
@@ -338,238 +570,6 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 
 	kdbus_conn_unref(activator);
 	kdbus_notify_flush(conn->ep->bus);
-}
-
-/**
- * kdbus_name_lock() - look up a name in a name registry and lock it
- * @reg:		The name registry
- * @name:		The name to look up
- *
- * Search for a name in a given name registry and return it with the
- * registry-lock held. If the object is not found, the lock is not acquired and
- * NULL is returned. The caller is responsible of unlocking the name via
- * kdbus_name_unlock() again. Note that kdbus_name_unlock() can be safely called
- * with NULL as name. In this case, it's a no-op as nothing was locked.
- *
- * The *_lock() + *_unlock() logic is only required for callers that need to
- * protect their code against concurrent activator/implementer name changes.
- * Multiple readers can lock names concurrently. However, you may not change
- * name-ownership while holding a name-lock.
- *
- * Return: NULL if name is unknown, otherwise return a pointer to the name
- *         entry with the name-lock held (reader lock only).
- */
-struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
-					 const char *name)
-{
-	struct kdbus_name_entry *e = NULL;
-	u32 hash = kdbus_strhash(name);
-
-	down_read(&reg->rwlock);
-	e = kdbus_name_lookup(reg, hash, name);
-	if (e)
-		return e;
-	up_read(&reg->rwlock);
-
-	return NULL;
-}
-
-/**
- * kdbus_name_unlock() - unlock one name in a name registry
- * @reg:		The name registry
- * @entry:		The locked name entry or NULL
- *
- * This is the unlock-counterpart of kdbus_name_lock(). It unlocks a name that
- * was previously successfully locked. You can safely pass NULL as entry and
- * this will become a no-op. Therefore, it's safe to always call this on the
- * return-value of kdbus_name_lock().
- *
- * Return: This always returns NULL.
- */
-struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
-					   struct kdbus_name_entry *entry)
-{
-	if (entry) {
-		BUG_ON(!rwsem_is_locked(&reg->rwlock));
-		up_read(&reg->rwlock);
-	}
-
-	return NULL;
-}
-
-/**
- * kdbus_name_is_valid() - check if a name is valid
- * @p:			The name to check
- * @allow_wildcard:	Whether or not to allow a wildcard name
- *
- * A name is valid if all of the following criterias are met:
- *
- *  - The name has two or more elements separated by a period ('.') character.
- *  - All elements must contain at least one character.
- *  - Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_-"
- *    and must not begin with a digit.
- *  - The name must not exceed KDBUS_NAME_MAX_LEN.
- *  - If @allow_wildcard is true, the name may end on '.*'
- */
-bool kdbus_name_is_valid(const char *p, bool allow_wildcard)
-{
-	bool dot, found_dot = false;
-	const char *q;
-
-	for (dot = true, q = p; *q; q++) {
-		if (*q == '.') {
-			if (dot)
-				return false;
-
-			found_dot = true;
-			dot = true;
-		} else {
-			bool good;
-
-			good = isalpha(*q) || (!dot && isdigit(*q)) ||
-				*q == '_' || *q == '-' ||
-				(allow_wildcard && dot &&
-					*q == '*' && *(q + 1) == '\0');
-
-			if (!good)
-				return false;
-
-			dot = false;
-		}
-	}
-
-	if (q - p > KDBUS_NAME_MAX_LEN)
-		return false;
-
-	if (dot)
-		return false;
-
-	if (!found_dot)
-		return false;
-
-	return true;
-}
-
-/**
- * kdbus_name_acquire() - acquire a name
- * @reg:		The name registry
- * @conn:		The connection to pin this entry to
- * @name:		The name to acquire
- * @flags:		Acquisition flags (KDBUS_NAME_*)
- *
- * Callers must ensure that @conn is either a privileged bus user or has
- * sufficient privileges in the policy-db to own the well-known name @name.
- *
- * Return: 0 success, negative error number on failure.
- */
-int kdbus_name_acquire(struct kdbus_name_registry *reg,
-		       struct kdbus_conn *conn,
-		       const char *name, u64 *flags)
-{
-	struct kdbus_name_entry *e = NULL;
-	int ret = 0;
-	u32 hash;
-
-	kdbus_conn_assert_active(conn);
-
-	down_write(&reg->rwlock);
-
-	hash = kdbus_strhash(name);
-	e = kdbus_name_lookup(reg, hash, name);
-	if (e) {
-		/* connection already owns that name */
-		if (e->conn == conn || e == conn->activator_of) {
-			ret = -EALREADY;
-			goto exit_unlock;
-		}
-
-		/* activator claims existing name */
-		if (kdbus_conn_is_activator(conn)) {
-			if (conn->activator_of) {
-				ret = -EINVAL; /* multiple names not allowed */
-			} else if (e->activator) {
-				ret = -EEXIST; /* only one activator per name */
-			} else {
-				e->activator = kdbus_conn_ref(conn);
-				conn->activator_of = e;
-			}
-
-			goto exit_unlock;
-		}
-
-		/* claim name of an activator */
-		if (e->flags & KDBUS_NAME_ACTIVATOR) {
-			ret = kdbus_conn_move_messages(conn, e->activator, 0);
-			if (ret < 0)
-				goto exit_unlock;
-
-			kdbus_name_entry_replace_owner(e, conn, *flags);
-			goto exit_unlock;
-		}
-
-		/* claim name of a previous owner */
-		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
-		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
-			/* move owner back to queue if they asked for it */
-			if (e->flags & KDBUS_NAME_QUEUE) {
-				ret = kdbus_name_pending_new(e, e->conn,
-							     e->flags);
-				if (ret < 0)
-					goto exit_unlock;
-			}
-
-			kdbus_name_entry_replace_owner(e, conn, *flags);
-			goto exit_unlock;
-		}
-
-		/* add to waiting-queue of the name */
-		if (*flags & KDBUS_NAME_QUEUE) {
-			ret = kdbus_name_pending_new(e, conn, *flags);
-			if (ret < 0)
-				goto exit_unlock;
-
-			/* tell the caller that we queued it */
-			*flags |= KDBUS_NAME_IN_QUEUE;
-
-			goto exit_unlock;
-		}
-
-		/* the name is busy, return a failure */
-		ret = -EEXIST;
-		goto exit_unlock;
-	}
-
-	/* claim new name */
-
-	if (conn->activator_of) {
-		ret = -EINVAL;
-		goto exit_unlock;
-	}
-
-	e = kdbus_name_entry_new(reg, name, *flags);
-	if (IS_ERR(e)) {
-		ret = PTR_ERR(e);
-		goto exit_unlock;
-	}
-
-	if (kdbus_conn_is_activator(conn)) {
-		e->activator = kdbus_conn_ref(conn);
-		conn->activator_of = e;
-	}
-
-	mutex_lock(&conn->lock);
-	hash_add(reg->entries_hash, &e->hentry, hash);
-	kdbus_name_entry_set_owner(e, conn);
-	mutex_unlock(&conn->lock);
-
-	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
-				 0, e->conn->id,
-				 0, e->flags, e->name);
-
-exit_unlock:
-	up_write(&reg->rwlock);
-	kdbus_notify_flush(conn->ep->bus);
-	return ret;
 }
 
 /**
