@@ -22,7 +22,12 @@
   <refsect1>
     <title>Description</title>
 
-    <para>TODO</para>
+    <para>
+      A kdbus message is used to exchange information between two connections
+      on a bus, or to transport notifications from the kernel to one or many
+      connections. This document describes the layout of messages, how payload
+      is added to them and how they are sent and received.
+    </para>
   </refsect1>
 
   <refsect1>
