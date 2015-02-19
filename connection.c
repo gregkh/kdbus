@@ -1115,27 +1115,21 @@ exit:
 	return ret;
 }
 
-static int kdbus_conn_call(struct kdbus_conn *src,
-			   struct kdbus_cmd_send *cmd,
-			   struct kdbus_kmsg *kmsg,
-			   struct file *ioctl_fd,
-			   struct file *cancel_fd)
+static struct kdbus_reply *kdbus_conn_call(struct kdbus_conn *src,
+					   struct kdbus_kmsg *kmsg,
+					   ktime_t exp)
 {
 	struct kdbus_name_entry *name = NULL;
 	struct kdbus_reply *wait = NULL;
 	struct kdbus_conn *dst = NULL;
 	struct kdbus_bus *bus = src->ep->bus;
-	ktime_t exp;
 	u64 attach;
 	int ret;
 
 	if (WARN_ON(kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) ||
 	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_SIGNAL) ||
-	    WARN_ON(!(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY)) ||
-	    WARN_ON(!(cmd->flags & KDBUS_SEND_SYNC_REPLY)))
-		return -EINVAL;
-
-	exp = ns_to_ktime(kmsg->msg.timeout_ns);
+	    WARN_ON(!(kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY)))
+		return ERR_PTR(-EINVAL);
 
 	/* resume previous wait-context, if available */
 
@@ -1152,10 +1146,10 @@ static int kdbus_conn_call(struct kdbus_conn *src,
 	mutex_unlock(&src->lock);
 
 	if (wait)
-		goto wait_sync;
+		return wait;
 
 	if (ktime_compare(ktime_get(), exp) >= 0)
-		return -ETIMEDOUT;
+		return ERR_PTR(-ETIMEDOUT);
 
 	/* find and pin destination */
 
@@ -1197,16 +1191,15 @@ static int kdbus_conn_call(struct kdbus_conn *src,
 	if (ret < 0)
 		goto exit;
 
-	/* wait for reply */
-wait_sync:
 	name = kdbus_name_unlock(bus->name_registry, name);
-	ret = kdbus_conn_wait_reply(src, cmd, ioctl_fd, cancel_fd, wait, exp);
+	kdbus_conn_unref(dst);
+	return wait;
 
 exit:
 	kdbus_reply_unref(wait);
 	kdbus_conn_unref(dst);
 	kdbus_name_unlock(bus->name_registry, name);
-	return ret;
+	return ERR_PTR(ret);
 }
 
 static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
@@ -1968,7 +1961,18 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 	if (kmsg->msg.dst_id == KDBUS_DST_ID_BROADCAST) {
 		kdbus_bus_broadcast(conn->ep->bus, conn, kmsg);
 	} else if (cmd->flags & KDBUS_SEND_SYNC_REPLY) {
-		ret = kdbus_conn_call(conn, cmd, kmsg, f, cancel_fd);
+		struct kdbus_reply *r;
+		ktime_t exp;
+
+		exp = ns_to_ktime(kmsg->msg.timeout_ns);
+		r = kdbus_conn_call(conn, kmsg, exp);
+		if (IS_ERR(r)) {
+			ret = PTR_ERR(r);
+			goto exit;
+		}
+
+		ret = kdbus_conn_wait_reply(conn, cmd, f, cancel_fd, r, exp);
+		kdbus_reply_unref(r);
 		if (ret < 0)
 			goto exit;
 	} else if ((kmsg->msg.flags & KDBUS_MSG_EXPECT_REPLY) ||
