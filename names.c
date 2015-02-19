@@ -225,16 +225,10 @@ struct kdbus_name_registry *kdbus_name_registry_new(void)
  */
 void kdbus_name_registry_free(struct kdbus_name_registry *reg)
 {
-	struct kdbus_name_entry *e;
-	struct hlist_node *tmp;
-	unsigned int i;
-
 	if (!reg)
 		return;
 
-	hash_for_each_safe(reg->entries_hash, i, tmp, e, hentry)
-		kdbus_name_entry_free(e);
-
+	WARN_ON(!hash_empty(reg->entries_hash));
 	kfree(reg);
 }
 
