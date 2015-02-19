@@ -696,7 +696,7 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 	 * If the connection does not accept file descriptors but the message
 	 * has some attached, refuse it.
 	 *
-	 * If the connection is an eavesdropper, accept the message. In that
+	 * If this is a monitor connection, accept the message. In that
 	 * case, all file descriptors will be set to -1 at receive time.
 	 */
 	if (!kdbus_conn_is_monitor(conn_dst) &&
