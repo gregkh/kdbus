@@ -667,7 +667,7 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 
 	if (available < quota->memory ||
 	    available - quota->memory < memory ||
-	    quota->memory + memory > U32_MAX)
+	    quota->memory + memory < quota->memory)
 		return -ENOBUFS;
 
 	if (quota->fds + fds < quota->fds ||
