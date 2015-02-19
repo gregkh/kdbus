@@ -337,7 +337,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       const char *name, u64 *flags)
 {
-	struct kdbus_name_entry *e = NULL;
+	struct kdbus_name_entry *e;
 	int ret = 0;
 	u32 hash;
 
@@ -347,92 +347,74 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	hash = kdbus_strhash(name);
 	e = kdbus_name_lookup(reg, hash, name);
-	if (e) {
-		/* connection already owns that name */
-		if (e->conn == conn || e == conn->activator_of) {
-			ret = -EALREADY;
+	if (!e) {
+		/* claim new name */
+
+		if (conn->activator_of) {
+			ret = -EINVAL;
 			goto exit_unlock;
 		}
 
-		/* activator claims existing name */
+		e = kdbus_name_entry_new(reg, name, *flags);
+		if (IS_ERR(e)) {
+			ret = PTR_ERR(e);
+			goto exit_unlock;
+		}
+
 		if (kdbus_conn_is_activator(conn)) {
-			if (conn->activator_of) {
-				ret = -EINVAL; /* multiple names not allowed */
-			} else if (e->activator) {
-				ret = -EEXIST; /* only one activator per name */
-			} else {
-				e->activator = kdbus_conn_ref(conn);
-				conn->activator_of = e;
-			}
-
-			goto exit_unlock;
+			e->activator = kdbus_conn_ref(conn);
+			conn->activator_of = e;
 		}
 
+		mutex_lock(&conn->lock);
+		hash_add(reg->entries_hash, &e->hentry, hash);
+		kdbus_name_entry_set_owner(e, conn);
+		mutex_unlock(&conn->lock);
+
+		kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
+					 0, e->conn->id, 0, e->flags, e->name);
+	} else if (e->conn == conn || e == conn->activator_of) {
+		/* connection already owns that name */
+		ret = -EALREADY;
+	} else if (kdbus_conn_is_activator(conn)) {
+		/* activator claims existing name */
+
+		if (conn->activator_of) {
+			ret = -EINVAL; /* multiple names not allowed */
+		} else if (e->activator) {
+			ret = -EEXIST; /* only one activator per name */
+		} else {
+			e->activator = kdbus_conn_ref(conn);
+			conn->activator_of = e;
+		}
+	} else if (e->flags & KDBUS_NAME_ACTIVATOR) {
 		/* claim name of an activator */
-		if (e->flags & KDBUS_NAME_ACTIVATOR) {
-			kdbus_conn_move_messages(conn, e->activator, 0);
-			kdbus_name_entry_replace_owner(e, conn, *flags);
-			goto exit_unlock;
-		}
 
+		kdbus_conn_move_messages(conn, e->activator, 0);
+		kdbus_name_entry_replace_owner(e, conn, *flags);
+	} else if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
+		   (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
 		/* claim name of a previous owner */
-		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
-		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
+
+		if (e->flags & KDBUS_NAME_QUEUE) {
 			/* move owner back to queue if they asked for it */
-			if (e->flags & KDBUS_NAME_QUEUE) {
-				ret = kdbus_name_pending_new(e, e->conn,
-							     e->flags);
-				if (ret < 0)
-					goto exit_unlock;
-			}
-
-			kdbus_name_entry_replace_owner(e, conn, *flags);
-			goto exit_unlock;
-		}
-
-		/* add to waiting-queue of the name */
-		if (*flags & KDBUS_NAME_QUEUE) {
-			ret = kdbus_name_pending_new(e, conn, *flags);
+			ret = kdbus_name_pending_new(e, e->conn, e->flags);
 			if (ret < 0)
 				goto exit_unlock;
-
-			/* tell the caller that we queued it */
-			*flags |= KDBUS_NAME_IN_QUEUE;
-
-			goto exit_unlock;
 		}
 
+		kdbus_name_entry_replace_owner(e, conn, *flags);
+	} else if (*flags & KDBUS_NAME_QUEUE) {
+		/* add to waiting-queue of the name */
+
+		ret = kdbus_name_pending_new(e, conn, *flags);
+		if (ret >= 0)
+			/* tell the caller that we queued it */
+			*flags |= KDBUS_NAME_IN_QUEUE;
+	} else {
 		/* the name is busy, return a failure */
 		ret = -EEXIST;
-		goto exit_unlock;
 	}
-
-	/* claim new name */
-
-	if (conn->activator_of) {
-		ret = -EINVAL;
-		goto exit_unlock;
-	}
-
-	e = kdbus_name_entry_new(reg, name, *flags);
-	if (IS_ERR(e)) {
-		ret = PTR_ERR(e);
-		goto exit_unlock;
-	}
-
-	if (kdbus_conn_is_activator(conn)) {
-		e->activator = kdbus_conn_ref(conn);
-		conn->activator_of = e;
-	}
-
-	mutex_lock(&conn->lock);
-	hash_add(reg->entries_hash, &e->hentry, hash);
-	kdbus_name_entry_set_owner(e, conn);
-	mutex_unlock(&conn->lock);
-
-	kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
-				 0, e->conn->id,
-				 0, e->flags, e->name);
 
 exit_unlock:
 	up_write(&reg->rwlock);
