@@ -487,26 +487,23 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 }
 
 /**
- * kdbus_name_remove_by_conn() - remove all name entries of a given connection
- * @reg:		The name registry
- * @conn:		The connection which entries to remove
- *
- * This function removes all name entry held by a given connection.
+ * kdbus_name_release_all() - remove all name entries of a given connection
+ * @reg:		name registry
+ * @conn:		connection
  */
-void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
-			       struct kdbus_conn *conn)
+void kdbus_name_release_all(struct kdbus_name_registry *reg,
+			    struct kdbus_conn *conn)
 {
 	struct kdbus_name_pending *p;
 	struct kdbus_conn *activator = NULL;
-	struct kdbus_name_entry *e_tmp, *e;
-	LIST_HEAD(names_list);
+	struct kdbus_name_entry *e;
+	LIST_HEAD(names);
 	LIST_HEAD(queue);
 
-	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_write(&reg->rwlock);
 
 	mutex_lock(&conn->lock);
-	list_splice_init(&conn->names_list, &names_list);
+	list_splice_init(&conn->names_list, &names);
 	list_splice_init(&conn->names_queue_list, &queue);
 	mutex_unlock(&conn->lock);
 
@@ -518,8 +515,8 @@ void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
 	while ((p = list_first_entry_or_null(&queue, struct kdbus_name_pending,
 					     conn_entry)))
 		kdbus_name_pending_free(p);
-
-	list_for_each_entry_safe(e, e_tmp, &names_list, conn_entry)
+	while ((e = list_first_entry_or_null(&names, struct kdbus_name_entry,
+					     conn_entry)))
 		kdbus_name_release_unlocked(reg, e);
 
 	up_write(&reg->rwlock);

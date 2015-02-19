@@ -66,8 +66,8 @@ struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
 		       const char *name, u64 *flags);
-void kdbus_name_remove_by_conn(struct kdbus_name_registry *reg,
-			       struct kdbus_conn *conn);
+void kdbus_name_release_all(struct kdbus_name_registry *reg,
+			    struct kdbus_conn *conn);
 
 int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp);
 int kdbus_cmd_name_release(struct kdbus_conn *conn, void __user *argp);

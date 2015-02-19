@@ -539,7 +539,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	 * Remove all names associated with this connection; this possibly
 	 * moves queued messages back to the activator connection.
 	 */
-	kdbus_name_remove_by_conn(bus->name_registry, conn);
+	kdbus_name_release_all(bus->name_registry, conn);
 
 	/* if we die while other connections wait for our reply, notify them */
 	mutex_lock(&conn->lock);
