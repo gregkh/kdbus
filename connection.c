@@ -1293,12 +1293,10 @@ exit:
  * Move all messages from one connection to another. This is used when
  * an implementer connection is taking over/giving back a well-known name
  * from/to an activator connection.
- *
- * Return: 0 on success, negative errno on failure.
  */
-int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
-			     struct kdbus_conn *conn_src,
-			     u64 name_id)
+void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
+			      struct kdbus_conn *conn_src,
+			      u64 name_id)
 {
 	struct kdbus_queue_entry *q, *q_tmp;
 	struct kdbus_reply *r, *r_tmp;
@@ -1308,7 +1306,7 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	int i, ret = 0;
 
 	if (WARN_ON(conn_src == conn_dst))
-		return -EINVAL;
+		return;
 
 	bus = conn_src->ep->bus;
 
@@ -1358,8 +1356,6 @@ int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn_dst->wait);
-
-	return ret;
 }
 
 /* query the policy-database for all names of @whom */

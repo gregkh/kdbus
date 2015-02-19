@@ -136,9 +136,9 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 			    struct kdbus_conn *conn_dst,
 			    const struct kdbus_kmsg *kmsg,
 			    struct kdbus_reply *reply);
-int kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
-			     struct kdbus_conn *conn_src,
-			     u64 name_id);
+void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
+			      struct kdbus_conn *conn_src,
+			      u64 name_id);
 
 /* policy */
 bool kdbus_conn_policy_own_name(struct kdbus_conn *conn,

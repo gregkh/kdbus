@@ -370,10 +370,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 		/* claim name of an activator */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
-			ret = kdbus_conn_move_messages(conn, e->activator, 0);
-			if (ret < 0)
-				goto exit_unlock;
-
+			kdbus_conn_move_messages(conn, e->activator, 0);
 			kdbus_name_entry_replace_owner(e, conn, *flags);
 			goto exit_unlock;
 		}
@@ -459,20 +456,10 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 
 	/* hand it back to an active activator connection */
 	if (e->activator && e->activator != e->conn) {
-		u64 flags = KDBUS_NAME_ACTIVATOR;
-
-		/*
-		 * Move messages still queued in the old connection
-		 * and addressed to that name to the new connection.
-		 * This allows a race and loss-free name and message
-		 * takeover and exit-on-idle services.
-		 */
-		ret = kdbus_conn_move_messages(e->activator, e->conn,
-					       e->name_id);
-		if (ret < 0)
-			return ret;
-
-		kdbus_name_entry_replace_owner(e, e->activator, flags);
+		/* move pending messages of that name back to the activator */
+		kdbus_conn_move_messages(e->activator, e->conn, e->name_id);
+		kdbus_name_entry_replace_owner(e, e->activator,
+					       KDBUS_NAME_ACTIVATOR);
 		return 0;
 	}
 
