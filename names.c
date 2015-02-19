@@ -108,14 +108,13 @@ static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 	e->conn = kdbus_conn_unref(e->conn);
 }
 
-static int kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
-					  struct kdbus_conn *conn, u64 flags)
+static void kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
+					   struct kdbus_conn *conn, u64 flags)
 {
 	struct kdbus_conn *conn_old;
-	int ret = 0;
 
 	if (WARN_ON(!e->conn) || WARN_ON(conn == e->conn))
-		return -EINVAL;
+		return;
 
 	kdbus_conn_assert_active(conn);
 
@@ -131,8 +130,6 @@ static int kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
 
 	kdbus_conn_unlock2(conn, conn_old);
 	kdbus_conn_unref(conn_old);
-
-	return ret;
 }
 
 /**
@@ -207,10 +204,7 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 				     struct kdbus_name_queue_item,
 				     entry_entry);
 
-		ret = kdbus_name_entry_replace_owner(e, q->conn, q->flags);
-		if (ret < 0)
-			continue;
-
+		kdbus_name_entry_replace_owner(e, q->conn, q->flags);
 		kdbus_name_queue_item_free(q);
 		return 0;
 	}
@@ -230,7 +224,8 @@ static int kdbus_name_entry_release(struct kdbus_name_entry *e)
 		if (ret < 0)
 			return ret;
 
-		return kdbus_name_entry_replace_owner(e, e->activator, flags);
+		kdbus_name_entry_replace_owner(e, e->activator, flags);
+		return 0;
 	}
 
 	/* release the name */
@@ -509,7 +504,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			if (ret < 0)
 				goto exit_unlock;
 
-			ret = kdbus_name_entry_replace_owner(e, conn, *flags);
+			kdbus_name_entry_replace_owner(e, conn, *flags);
 			goto exit_unlock;
 		}
 
@@ -524,7 +519,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 					goto exit_unlock;
 			}
 
-			ret = kdbus_name_entry_replace_owner(e, conn, *flags);
+			kdbus_name_entry_replace_owner(e, conn, *flags);
 			goto exit_unlock;
 		}
 
