@@ -210,6 +210,9 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
 {
 	struct kdbus_match_rule *r;
 
+	if (conn_src)
+		lockdep_assert_held(&conn_src->ep->bus->name_registry->rwlock);
+
 	/*
 	 * Walk all the rules and bail out immediately
 	 * if any of them is unsatisfied.
@@ -295,6 +298,9 @@ static bool kdbus_match_rules(const struct kdbus_match_entry *entry,
  * This function will walk through all the database entries previously uploaded
  * with kdbus_match_db_add(). As soon as any of them has an all-satisfied rule
  * set, this function will return true.
+ *
+ * The caller must hold the registry lock of conn_src->ep->bus, in case conn_src
+ * is non-NULL.
  *
  * Return: true if there was a matching database entry, false otherwise.
  */

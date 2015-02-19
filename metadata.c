@@ -32,6 +32,7 @@
 
 #include "bus.h"
 #include "connection.h"
+#include "endpoint.h"
 #include "item.h"
 #include "message.h"
 #include "metadata.h"
@@ -697,6 +698,8 @@ static int kdbus_meta_conn_collect_names(struct kdbus_meta_conn *mc,
 	struct kdbus_item *item;
 	size_t slen, size;
 
+	lockdep_assert_held(&conn->ep->bus->name_registry->rwlock);
+
 	size = 0;
 	list_for_each_entry(e, &conn->names_list, conn_entry)
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_name) +
@@ -751,6 +754,9 @@ static int kdbus_meta_conn_collect_description(struct kdbus_meta_conn *mc,
  *
  * This collects connection metadata from @kmsg and @conn and saves it in @mc.
  *
+ * If KDBUS_ATTACH_NAMES is set in @what and @conn is non-NULL, the caller must
+ * hold the name-registry read-lock of conn->ep->bus->registry.
+ *
  * Return: 0 on success, negative error code on failure.
  */
 int kdbus_meta_conn_collect(struct kdbus_meta_conn *mc,
@@ -765,8 +771,6 @@ int kdbus_meta_conn_collect(struct kdbus_meta_conn *mc,
 			     KDBUS_ATTACH_CONN_DESCRIPTION)))
 		return 0;
 
-	if (conn)
-		mutex_lock(&conn->lock);
 	mutex_lock(&mc->lock);
 
 	if (kmsg && (what & KDBUS_ATTACH_TIMESTAMP) &&
@@ -795,8 +799,6 @@ int kdbus_meta_conn_collect(struct kdbus_meta_conn *mc,
 
 exit_unlock:
 	mutex_unlock(&mc->lock);
-	if (conn)
-		mutex_unlock(&conn->lock);
 	return ret;
 }
 

@@ -592,27 +592,21 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
  * @conn:		Connection
  * @name:		Well-know name to check for
  *
+ * The caller must hold the registry lock of conn->ep->bus.
+ *
  * Return: true if the name is currently owned by the connection
  */
 bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 {
 	struct kdbus_name_entry *e;
-	bool match = false;
 
-	/* No need to go further if we do not own names */
-	if (atomic_read(&conn->name_count) == 0)
-		return false;
+	lockdep_assert_held(&conn->ep->bus->name_registry->rwlock);
 
-	mutex_lock(&conn->lock);
-	list_for_each_entry(e, &conn->names_list, conn_entry) {
-		if (strcmp(e->name, name) == 0) {
-			match = true;
-			break;
-		}
-	}
-	mutex_unlock(&conn->lock);
+	list_for_each_entry(e, &conn->names_list, conn_entry)
+		if (strcmp(e->name, name) == 0)
+			return true;
 
-	return match;
+	return false;
 }
 
 static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
@@ -1362,6 +1356,8 @@ static bool kdbus_conn_policy_query_all(struct kdbus_conn *conn,
 	struct kdbus_name_entry *ne;
 	bool pass = false;
 	int res;
+
+	lockdep_assert_held(&conn->ep->bus->name_registry->rwlock);
 
 	down_read(&db->entries_rwlock);
 	mutex_lock(&whom->lock);

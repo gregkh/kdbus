@@ -115,7 +115,6 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 				       struct kdbus_conn *conn)
 {
 	WARN_ON(e->conn);
-	lockdep_assert_held(&conn->lock);
 
 	e->conn = kdbus_conn_ref(conn);
 	atomic_inc(&conn->name_count);
@@ -125,7 +124,6 @@ static void kdbus_name_entry_set_owner(struct kdbus_name_entry *e,
 static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 {
 	WARN_ON(!e->conn);
-	lockdep_assert_held(&e->conn->lock);
 
 	list_del_init(&e->conn_entry);
 	atomic_dec(&e->conn->name_count);
@@ -135,13 +133,8 @@ static void kdbus_name_entry_remove_owner(struct kdbus_name_entry *e)
 static void kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
 					   struct kdbus_conn *conn, u64 flags)
 {
-	struct kdbus_conn *conn_old;
-
 	if (WARN_ON(!e->conn) || WARN_ON(conn == e->conn))
 		return;
-
-	conn_old = kdbus_conn_ref(e->conn);
-	kdbus_conn_lock2(conn, conn_old);
 
 	kdbus_notify_name_change(conn->ep->bus, KDBUS_ITEM_NAME_CHANGE,
 				 e->conn->id, conn->id,
@@ -149,9 +142,6 @@ static void kdbus_name_entry_replace_owner(struct kdbus_name_entry *e,
 	kdbus_name_entry_remove_owner(e);
 	kdbus_name_entry_set_owner(e, conn);
 	e->flags = flags;
-
-	kdbus_conn_unlock2(conn, conn_old);
-	kdbus_conn_unref(conn_old);
 }
 
 /**
@@ -302,6 +292,11 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 
 	down_write(&reg->rwlock);
 
+	if (!kdbus_conn_policy_own_name(conn, current_cred(), name)) {
+		ret = -EPERM;
+		goto exit_unlock;
+	}
+
 	hash = kdbus_strhash(name);
 	e = kdbus_name_find(reg, hash, name);
 	if (!e) {
@@ -323,11 +318,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			conn->activator_of = e;
 		}
 
-		mutex_lock(&conn->lock);
 		hash_add(reg->entries_hash, &e->hentry, hash);
 		kdbus_name_entry_set_owner(e, conn);
-		mutex_unlock(&conn->lock);
-
 		kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
 					 0, e->conn->id, 0, e->flags, e->name);
 	} else if (e->conn == conn || e == conn->activator_of) {
@@ -383,7 +375,6 @@ static void kdbus_name_release_unlocked(struct kdbus_name_registry *reg,
 					struct kdbus_name_entry *e)
 {
 	struct kdbus_name_pending *p;
-	struct kdbus_conn *conn;
 
 	lockdep_assert_held(&reg->rwlock);
 
@@ -402,13 +393,7 @@ static void kdbus_name_release_unlocked(struct kdbus_name_registry *reg,
 		kdbus_notify_name_change(e->conn->ep->bus,
 					 KDBUS_ITEM_NAME_REMOVE,
 					 e->conn->id, 0, e->flags, 0, e->name);
-
-		conn = kdbus_conn_ref(e->conn);
-		mutex_lock(&conn->lock);
 		kdbus_name_entry_remove_owner(e);
-		mutex_unlock(&conn->lock);
-		kdbus_conn_unref(conn);
-
 		kdbus_name_entry_free(e);
 	}
 }
@@ -454,25 +439,20 @@ void kdbus_name_release_all(struct kdbus_name_registry *reg,
 	struct kdbus_name_pending *p;
 	struct kdbus_conn *activator = NULL;
 	struct kdbus_name_entry *e;
-	LIST_HEAD(names);
-	LIST_HEAD(queue);
 
 	down_write(&reg->rwlock);
-
-	mutex_lock(&conn->lock);
-	list_splice_init(&conn->names_list, &names);
-	list_splice_init(&conn->names_queue_list, &queue);
-	mutex_unlock(&conn->lock);
 
 	if (kdbus_conn_is_activator(conn)) {
 		activator = conn->activator_of->activator;
 		conn->activator_of->activator = NULL;
 	}
 
-	while ((p = list_first_entry_or_null(&queue, struct kdbus_name_pending,
+	while ((p = list_first_entry_or_null(&conn->names_queue_list,
+					     struct kdbus_name_pending,
 					     conn_entry)))
 		kdbus_name_pending_free(p);
-	while ((e = list_first_entry_or_null(&names, struct kdbus_name_entry,
+	while ((e = list_first_entry_or_null(&conn->names_list,
+					     struct kdbus_name_entry,
 					     conn_entry)))
 		kdbus_name_release_unlocked(reg, e);
 
@@ -527,11 +507,6 @@ int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp)
 	 */
 	if (atomic_inc_return(&conn->name_count) > KDBUS_CONN_MAX_NAMES) {
 		ret = -E2BIG;
-		goto exit_dec;
-	}
-
-	if (!kdbus_conn_policy_own_name(conn, current_cred(), item_name)) {
-		ret = -EPERM;
 		goto exit_dec;
 	}
 
@@ -663,7 +638,6 @@ static int kdbus_list_all(struct kdbus_conn *conn, u64 flags,
 		if (flags & (KDBUS_LIST_NAMES | KDBUS_LIST_ACTIVATORS)) {
 			struct kdbus_name_entry *e;
 
-			mutex_lock(&c->lock);
 			list_for_each_entry(e, &c->names_list, conn_entry) {
 				struct kdbus_conn *a = e->activator;
 
@@ -691,14 +665,12 @@ static int kdbus_list_all(struct kdbus_conn *conn, u64 flags,
 					added = true;
 				}
 			}
-			mutex_unlock(&c->lock);
 		}
 
 		/* queue of names the connection is currently waiting for */
 		if (flags & KDBUS_LIST_QUEUED) {
 			struct kdbus_name_pending *q;
 
-			mutex_lock(&c->lock);
 			list_for_each_entry(q, &c->names_queue_list,
 					    conn_entry) {
 				ret = kdbus_list_write(conn, c,
@@ -710,7 +682,6 @@ static int kdbus_list_all(struct kdbus_conn *conn, u64 flags,
 
 				added = true;
 			}
-			mutex_unlock(&c->lock);
 		}
 
 		/* nothing added so far, just add the unique ID */
