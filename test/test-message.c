@@ -32,6 +32,7 @@
 
 #define MAX_USER_TOTAL_MSGS  (KDBUS_CONN_MAX_MSGS_UNACCOUNTED + \
 				KDBUS_CONN_MAX_MSGS_PER_USER)
+
 /* maximum number of queued messages in a connection */
 #define KDBUS_CONN_MAX_MSGS			256
 
@@ -178,6 +179,7 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 	struct kdbus_conn *conn;
 	struct kdbus_conn *reader;
 	struct kdbus_msg *msg = NULL;
+	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
 
 	reader = kdbus_hello(env->buspath, 0, NULL, 0);
 	ASSERT_RETURN(reader);
@@ -202,7 +204,6 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 		ASSERT_RETURN(notifier);
 
 		kdbus_conn_free(notifier);
-
 	}
 
 	/*
@@ -220,13 +221,29 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 
 	kdbus_conn_free(conn);
 
+	/*
+	 * We lost only 3 packets since only signal msgs are
+	 * accounted. The connection ID add/remove notification
+	 */
+	ret = kdbus_cmd_recv(reader->fd, &recv);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(recv.return_flags & KDBUS_RECV_RETURN_DROPPED_MSGS);
+	ASSERT_RETURN(recv.dropped_msgs == 3);
+
+	msg = (struct kdbus_msg *)(reader->buf + recv.msg.offset);
 	kdbus_msg_free(msg);
 
 	/* Read our queue */
-	for (i = 0; i < KDBUS_CONN_MAX_MSGS; i++) {
-		ret = kdbus_msg_recv_poll(reader, 100, &msg, NULL);
-		ASSERT_RETURN(ret == 0);
+	for (i = 0; i < KDBUS_CONN_MAX_MSGS - 1; i++) {
+		memset(&recv, 0, sizeof(recv));
+		recv.size = sizeof(recv);
 
+		ret = kdbus_cmd_recv(reader->fd, &recv);
+		ASSERT_RETURN(ret == 0);
+		ASSERT_RETURN(!(recv.return_flags &
+			        KDBUS_RECV_RETURN_DROPPED_MSGS));
+
+		msg = (struct kdbus_msg *)(reader->buf + recv.msg.offset);
 		kdbus_msg_free(msg);
 	}
 
