@@ -482,6 +482,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	}
 	up_write(&reg->rwlock);
 
+	kdbus_notify_flush(conn->ep->bus);
 	return ret;
 }
 
@@ -626,7 +627,6 @@ int kdbus_cmd_name_release(struct kdbus_conn *conn, void __user *argp)
 
 	ret = kdbus_name_release(conn->ep->bus->name_registry, conn,
 				 argv[1].item->str);
-	kdbus_notify_flush(conn->ep->bus);
 	return kdbus_args_clear(&args, ret);
 }
 
