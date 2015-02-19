@@ -985,6 +985,8 @@ static int kdbus_pin_dst(struct kdbus_bus *bus,
 	if (WARN_ON(!res))
 		return -EINVAL;
 
+	lockdep_assert_held(&bus->name_registry->rwlock);
+
 	if (!res->dst_name) {
 		dst = kdbus_bus_find_conn_by_id(bus, msg->dst_id);
 		if (!dst)
@@ -995,16 +997,8 @@ static int kdbus_pin_dst(struct kdbus_bus *bus,
 			goto error;
 		}
 	} else {
-		/*
-		 * Lock the destination name so it will not get dropped or
-		 * moved between activator/implementer while we try to queue a
-		 * message. We also rely on this to read-lock the entire
-		 * registry so kdbus_meta_conn_collect() will have a consistent
-		 * view of all acquired names on both connections.
-		 * If kdbus_name_lock() gets changed to a per-name lock, we
-		 * really need to read-lock the whole registry here.
-		 */
-		name = kdbus_name_lock(bus->name_registry, res->dst_name);
+		name = kdbus_name_lookup_unlocked(bus->name_registry,
+						  res->dst_name);
 		if (!name)
 			return -ESRCH;
 
@@ -1017,10 +1011,8 @@ static int kdbus_pin_dst(struct kdbus_bus *bus,
 		 * owns the given name.
 		 */
 		if (msg->dst_id != KDBUS_DST_ID_NAME &&
-		    msg->dst_id != name->conn->id) {
-			ret = -EREMCHG;
-			goto error;
-		}
+		    msg->dst_id != name->conn->id)
+			return -EREMCHG;
 
 		if (!name->conn && name->activator)
 			dst = kdbus_conn_ref(name->activator);
@@ -1047,7 +1039,6 @@ static int kdbus_pin_dst(struct kdbus_bus *bus,
 
 error:
 	kdbus_conn_unref(dst);
-	kdbus_name_unlock(bus->name_registry, name);
 	return ret;
 }
 
@@ -1065,11 +1056,14 @@ static int kdbus_conn_reply(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 	    WARN_ON(kmsg->msg.flags & KDBUS_MSG_SIGNAL))
 		return -EINVAL;
 
+	/* name-registry must be locked for lookup *and* collecting data */
+	down_read(&bus->name_registry->rwlock);
+
 	/* find and pin destination */
 
 	ret = kdbus_pin_dst(bus, kmsg, &name, &dst);
 	if (ret < 0)
-		return ret;
+		goto exit;
 
 	mutex_lock(&dst->lock);
 	reply = kdbus_reply_find(src, dst, kmsg->msg.cookie_reply);
@@ -1109,9 +1103,9 @@ static int kdbus_conn_reply(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 		ret = kdbus_conn_entry_insert(src, dst, kmsg, NULL);
 
 exit:
+	up_read(&bus->name_registry->rwlock);
 	kdbus_reply_unref(wake);
 	kdbus_conn_unref(dst);
-	kdbus_name_unlock(bus->name_registry, name);
 	return ret;
 }
 
@@ -1151,11 +1145,14 @@ static struct kdbus_reply *kdbus_conn_call(struct kdbus_conn *src,
 	if (ktime_compare(ktime_get(), exp) >= 0)
 		return ERR_PTR(-ETIMEDOUT);
 
+	/* name-registry must be locked for lookup *and* collecting data */
+	down_read(&bus->name_registry->rwlock);
+
 	/* find and pin destination */
 
 	ret = kdbus_pin_dst(bus, kmsg, &name, &dst);
 	if (ret < 0)
-		return ret;
+		goto exit;
 
 	if (!kdbus_conn_policy_talk(src, current_cred(), dst)) {
 		ret = -EPERM;
@@ -1191,15 +1188,16 @@ static struct kdbus_reply *kdbus_conn_call(struct kdbus_conn *src,
 	if (ret < 0)
 		goto exit;
 
-	name = kdbus_name_unlock(bus->name_registry, name);
-	kdbus_conn_unref(dst);
-	return wait;
+	ret = 0;
 
 exit:
-	kdbus_reply_unref(wait);
+	up_read(&bus->name_registry->rwlock);
+	if (ret < 0) {
+		kdbus_reply_unref(wait);
+		wait = ERR_PTR(ret);
+	}
 	kdbus_conn_unref(dst);
-	kdbus_name_unlock(bus->name_registry, name);
-	return ERR_PTR(ret);
+	return wait;
 }
 
 static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
@@ -1217,11 +1215,14 @@ static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 		    kmsg->msg.cookie_reply != 0))
 		return -EINVAL;
 
+	/* name-registry must be locked for lookup *and* collecting data */
+	down_read(&bus->name_registry->rwlock);
+
 	/* find and pin destination */
 
 	ret = kdbus_pin_dst(bus, kmsg, &name, &dst);
 	if (ret < 0)
-		return ret;
+		goto exit;
 
 	if (is_signal) {
 		/* like broadcasts we eavesdrop even if the msg is dropped */
@@ -1270,9 +1271,9 @@ static int kdbus_conn_unicast(struct kdbus_conn *src, struct kdbus_kmsg *kmsg)
 	ret = 0;
 
 exit:
+	up_read(&bus->name_registry->rwlock);
 	kdbus_reply_unref(wait);
 	kdbus_conn_unref(dst);
-	kdbus_name_unlock(bus->name_registry, name);
 	return ret;
 }
 
@@ -1694,6 +1695,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	struct kdbus_conn *owner_conn = NULL;
 	struct kdbus_info info = {};
 	struct kdbus_cmd_info *cmd;
+	struct kdbus_bus *bus = conn->ep->bus;
 	struct kvec kvec;
 	size_t meta_size;
 	const char *name;
@@ -1714,6 +1716,9 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	if (ret != 0)
 		return ret;
 
+	/* registry must be held throughout lookup *and* collecting data */
+	down_read(&bus->name_registry->rwlock);
+
 	ret = kdbus_sanitize_attach_flags(cmd->attach_flags, &attach_flags);
 	if (ret < 0)
 		goto exit;
@@ -1721,7 +1726,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	name = argv[1].item ? argv[1].item->str : NULL;
 
 	if (name) {
-		entry = kdbus_name_lock(conn->ep->bus->name_registry, name);
+		entry = kdbus_name_lookup_unlocked(bus->name_registry, name);
 		if (!entry || !entry->conn ||
 		    !kdbus_conn_policy_see_name(conn, current_cred(), name) ||
 		    (cmd->id != 0 && entry->conn->id != cmd->id)) {
@@ -1732,7 +1737,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 
 		owner_conn = kdbus_conn_ref(entry->conn);
 	} else if (cmd->id > 0) {
-		owner_conn = kdbus_bus_find_conn_by_id(conn->ep->bus, cmd->id);
+		owner_conn = kdbus_bus_find_conn_by_id(bus, cmd->id);
 		if (!owner_conn || !kdbus_conn_policy_see(conn, current_cred(),
 							  owner_conn)) {
 			/* pretend an id doesn't exist if you cannot see it */
@@ -1797,10 +1802,10 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	ret = 0;
 
 exit:
+	up_read(&bus->name_registry->rwlock);
 	kdbus_pool_slice_release(slice);
 	kdbus_meta_conn_unref(conn_meta);
 	kdbus_conn_unref(owner_conn);
-	kdbus_name_unlock(conn->ep->bus->name_registry, entry);
 	return kdbus_args_clear(&args, ret);
 }
 

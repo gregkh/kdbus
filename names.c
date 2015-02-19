@@ -253,9 +253,11 @@ void kdbus_name_registry_free(struct kdbus_name_registry *reg)
 }
 
 static struct kdbus_name_entry *
-kdbus_name_lookup(struct kdbus_name_registry *reg, u32 hash, const char *name)
+kdbus_name_find(struct kdbus_name_registry *reg, u32 hash, const char *name)
 {
 	struct kdbus_name_entry *e;
+
+	lockdep_assert_held(&reg->rwlock);
 
 	hash_for_each_possible(reg->entries_hash, e, hentry, hash)
 		if (strcmp(e->name, name) == 0)
@@ -265,60 +267,20 @@ kdbus_name_lookup(struct kdbus_name_registry *reg, u32 hash, const char *name)
 }
 
 /**
- * kdbus_name_lock() - look up a name in a name registry and lock it
- * @reg:		The name registry
- * @name:		The name to look up
+ * kdbus_name_lookup_unlocked() - lookup name in registry
+ * @reg:		name registry
+ * @name:		name to lookup
  *
- * Search for a name in a given name registry and return it with the
- * registry-lock held. If the object is not found, the lock is not acquired and
- * NULL is returned. The caller is responsible of unlocking the name via
- * kdbus_name_unlock() again. Note that kdbus_name_unlock() can be safely called
- * with NULL as name. In this case, it's a no-op as nothing was locked.
+ * This looks up @name in the given name-registry and returns the
+ * kdbus_name_entry object. The caller must hold the registry-lock and must not
+ * access the returned object after releasing the lock.
  *
- * The *_lock() + *_unlock() logic is only required for callers that need to
- * protect their code against concurrent activator/implementer name changes.
- * Multiple readers can lock names concurrently. However, you may not change
- * name-ownership while holding a name-lock.
- *
- * Return: NULL if name is unknown, otherwise return a pointer to the name
- *         entry with the name-lock held (reader lock only).
+ * Return: Pointer to name-entry, or NULL if not found.
  */
-struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
-					 const char *name)
+struct kdbus_name_entry *
+kdbus_name_lookup_unlocked(struct kdbus_name_registry *reg, const char *name)
 {
-	struct kdbus_name_entry *e = NULL;
-	u32 hash = kdbus_strhash(name);
-
-	down_read(&reg->rwlock);
-	e = kdbus_name_lookup(reg, hash, name);
-	if (e)
-		return e;
-	up_read(&reg->rwlock);
-
-	return NULL;
-}
-
-/**
- * kdbus_name_unlock() - unlock one name in a name registry
- * @reg:		The name registry
- * @entry:		The locked name entry or NULL
- *
- * This is the unlock-counterpart of kdbus_name_lock(). It unlocks a name that
- * was previously successfully locked. You can safely pass NULL as entry and
- * this will become a no-op. Therefore, it's safe to always call this on the
- * return-value of kdbus_name_lock().
- *
- * Return: This always returns NULL.
- */
-struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
-					   struct kdbus_name_entry *entry)
-{
-	if (entry) {
-		BUG_ON(!rwsem_is_locked(&reg->rwlock));
-		up_read(&reg->rwlock);
-	}
-
-	return NULL;
+	return kdbus_name_find(reg, kdbus_strhash(name), name);
 }
 
 /**
@@ -346,7 +308,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	down_write(&reg->rwlock);
 
 	hash = kdbus_strhash(name);
-	e = kdbus_name_lookup(reg, hash, name);
+	e = kdbus_name_find(reg, hash, name);
 	if (!e) {
 		/* claim new name */
 
@@ -465,7 +427,7 @@ static int kdbus_name_release(struct kdbus_name_registry *reg,
 	int ret = 0;
 
 	down_write(&reg->rwlock);
-	e = kdbus_name_lookup(reg, kdbus_strhash(name), name);
+	e = kdbus_name_find(reg, kdbus_strhash(name), name);
 	if (!e) {
 		ret = -ESRCH;
 	} else if (e->conn == conn) {

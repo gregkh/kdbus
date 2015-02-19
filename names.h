@@ -58,10 +58,8 @@ bool kdbus_name_is_valid(const char *p, bool allow_wildcard);
 struct kdbus_name_registry *kdbus_name_registry_new(void);
 void kdbus_name_registry_free(struct kdbus_name_registry *reg);
 
-struct kdbus_name_entry *kdbus_name_lock(struct kdbus_name_registry *reg,
-					 const char *name);
-struct kdbus_name_entry *kdbus_name_unlock(struct kdbus_name_registry *reg,
-					   struct kdbus_name_entry *entry);
+struct kdbus_name_entry *
+kdbus_name_lookup_unlocked(struct kdbus_name_registry *reg, const char *name);
 
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		       struct kdbus_conn *conn,
