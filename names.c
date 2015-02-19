@@ -466,30 +466,24 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 	int ret = 0;
 	u32 hash;
 
-	/* lock order: domain -> bus -> ep -> names -> conn */
 	down_write(&reg->rwlock);
 
 	hash = kdbus_strhash(name);
 	e = kdbus_name_lookup(reg, hash, name);
 	if (e) {
 		/* connection already owns that name */
-		if (e->conn == conn) {
+		if (e->conn == conn || e == conn->activator_of) {
 			ret = -EALREADY;
 			goto exit_unlock;
 		}
 
+		/* activator claims existing name */
 		if (kdbus_conn_is_activator(conn)) {
-			/* An activator can only own a single name */
 			if (conn->activator_of) {
-				if (conn->activator_of == e)
-					ret = -EALREADY;
-				else
-					ret = -EINVAL;
-			} else if (!e->activator && !conn->activator_of) {
-				/*
-				 * Activator registers for name that is
-				 * already owned
-				 */
+				ret = -EINVAL; /* multiple names not allowed */
+			} else if (e->activator) {
+				ret = -EEXIST; /* only one activator per name */
+			} else {
 				e->activator = kdbus_conn_ref(conn);
 				conn->activator_of = e;
 			}
@@ -497,12 +491,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		/* take over the name of an activator connection */
+		/* claim name of an activator */
 		if (e->flags & KDBUS_NAME_ACTIVATOR) {
-			/*
-			 * Take over the messages queued in the activator
-			 * connection, the activator itself never reads them.
-			 */
 			ret = kdbus_conn_move_messages(conn, e->activator, 0);
 			if (ret < 0)
 				goto exit_unlock;
@@ -511,13 +501,10 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		/* take over the name if both parties agree */
+		/* claim name of a previous owner */
 		if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
 		    (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
-			/*
-			 * Move name back to the queue, in case we take it away
-			 * from a connection which asked for queuing.
-			 */
+			/* move owner back to queue if they asked for it */
 			if (e->flags & KDBUS_NAME_QUEUE) {
 				ret = kdbus_name_queue_conn(e->conn,
 							    e->flags, e);
@@ -529,7 +516,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			goto exit_unlock;
 		}
 
-		/* add it to the queue waiting for the name */
+		/* add to waiting-queue of the name */
 		if (*flags & KDBUS_NAME_QUEUE) {
 			ret = kdbus_name_queue_conn(conn, *flags, e);
 			if (ret < 0)
@@ -544,16 +531,15 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* the name is busy, return a failure */
 		ret = -EEXIST;
 		goto exit_unlock;
-	} else {
-		/* An activator can only own a single name */
-		if (kdbus_conn_is_activator(conn) &&
-		    conn->activator_of) {
-			ret = -EINVAL;
-			goto exit_unlock;
-		}
 	}
 
-	/* new name entry */
+	/* claim new name */
+
+	if (conn->activator_of) {
+		ret = -EINVAL;
+		goto exit_unlock;
+	}
+
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	if (!e) {
 		ret = -ENOMEM;
