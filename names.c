@@ -59,16 +59,18 @@ kdbus_name_entry_new(struct kdbus_name_registry *reg, const char *name,
 
 	namelen = strlen(name);
 
-	e = kzalloc(sizeof(*e) + namelen + 1, GFP_KERNEL);
+	e = kmalloc(sizeof(*e) + namelen + 1, GFP_KERNEL);
 	if (!e)
 		return ERR_PTR(-ENOMEM);
 
 	e->name_id = ++reg->name_seq_last;
 	e->flags = flags;
+	e->conn = NULL;
+	e->activator = NULL;
 	INIT_LIST_HEAD(&e->queue_list);
 	INIT_LIST_HEAD(&e->conn_entry);
 	INIT_HLIST_NODE(&e->hentry);
-	memcpy(e->name, name, namelen);
+	memcpy(e->name, name, namelen + 1);
 
 	return e;
 }
