@@ -2,21 +2,21 @@
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
         "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
 
-<refentry id="kdbus.names">
+<refentry id="kdbus.name">
 
   <refentryinfo>
-    <title>kdbus.names</title>
-    <productname>kdbus.names</productname>
+    <title>kdbus.name</title>
+    <productname>kdbus.name</productname>
   </refentryinfo>
 
   <refmeta>
-    <refentrytitle>kdbus.names</refentrytitle>
+    <refentrytitle>kdbus.name</refentrytitle>
     <manvolnum>7</manvolnum>
   </refmeta>
 
   <refnamediv>
-    <refname>kdbus.names</refname>
-    <refpurpose>kdbus names</refpurpose>
+    <refname>kdbus.name</refname>
+    <refpurpose>kdbus.name</refpurpose>
   </refnamediv>
 
   <refsect1>

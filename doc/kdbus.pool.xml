@@ -133,7 +133,7 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
       </citerefentry>
       and
       <citerefentry>
-        <refentrytitle>kdbus.names</refentrytitle>
+        <refentrytitle>kdbus.name</refentrytitle>
         <manvolnum>7</manvolnum>
       </citerefentry>
       for examples of commands that use the <emphasis>pool</emphasis> to
@@ -286,7 +286,7 @@ struct kdbus_cmd_free {
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.names</refentrytitle>
+          <refentrytitle>kdbus.name</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

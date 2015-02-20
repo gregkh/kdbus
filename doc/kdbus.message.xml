@@ -461,7 +461,7 @@ struct kdbus_msg {
           <constant>KDBUS_ITEM_DST_NAME</constant> is mandatory.
           Also see
           <citerefentry>
-            <refentrytitle>kdbus.names</refentrytitle>
+            <refentrytitle>kdbus.name</refentrytitle>
             <manvolnum>7</manvolnum>
           </citerefentry>
           .
@@ -1218,7 +1218,7 @@ struct kdbus_msg_info {
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.names</refentrytitle>
+          <refentrytitle>kdbus.name</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

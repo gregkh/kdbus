@@ -342,7 +342,7 @@ struct kdbus_cmd {
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.names</refentrytitle>
+          <refentrytitle>kdbus.name</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

@@ -87,9 +87,9 @@
 
     <para>
       Names passed in items of type <constant>KDBUS_ITEM_NAME</constant> must
-      comply to the rules of valid kdbus names. See
+      comply to the rules of valid kdbus.name. See
       <citerefentry>
-        <refentrytitle>kdbus.names</refentrytitle>
+        <refentrytitle>kdbus.name</refentrytitle>
         <manvolnum>7</manvolnum>
       </citerefentry>
       for more information.
@@ -391,7 +391,7 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.names</refentrytitle>
+          <refentrytitle>kdbus.name</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

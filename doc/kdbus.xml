@@ -167,7 +167,7 @@
         well-known name. The analogy of connection ID and well-known name is an
         IP address and a DNS name associated with that address.  See
         <citerefentry>
-          <refentrytitle>kdbus.names</refentrytitle>
+          <refentrytitle>kdbus.name</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
         for more details.
@@ -502,7 +502,7 @@
             <constant>KDBUS_CMD_LIST</constant> to retrieve a list of
             currently active well-known names and unique IDs on the bus. See
             <citerefentry>
-              <refentrytitle>kdbus.names</refentrytitle>
+              <refentrytitle>kdbus.name</refentrytitle>
               <manvolnum>7</manvolnum>
             </citerefentry>.
           </para></listitem>
@@ -522,7 +522,7 @@
             <constant>KDBUS_CMD_NAME_RELEASE</constant> to acquire or release
             a well-known name on the bus. See
             <citerefentry>
-              <refentrytitle>kdbus.names</refentrytitle>
+              <refentrytitle>kdbus.name</refentrytitle>
               <manvolnum>7</manvolnum>
             </citerefentry>.
           </para></listitem>
@@ -975,7 +975,7 @@
       </member>
       <member>
         <citerefentry>
-          <refentrytitle>kdbus.names</refentrytitle>
+          <refentrytitle>kdbus.name</refentrytitle>
           <manvolnum>7</manvolnum>
         </citerefentry>
       </member>

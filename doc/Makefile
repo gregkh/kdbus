@@ -7,7 +7,7 @@ docs=	\
 	kdbus.item.xml		\
 	kdbus.match.xml		\
 	kdbus.message.xml	\
-	kdbus.names.xml		\
+	kdbus.name.xml		\
 	kdbus.policy.xml	\
 	kdbus.pool.xml
 
