@@ -32,46 +32,45 @@
     <title>Synopsis</title>
     <para>
       kdbus is an inter-process communication bus system controlled by the
-      kernel. It provides user-space with a bus API to send unicast and
-      multicast messages to one, or many, peers connected to the same bus. It
-      does not enforce any layout on the transmitted data, but only provides the
-      transport layer used for message interchange between peers.
+      kernel. It provides user-space with an API to create buses and send
+      unicast and multicast messages to one, or many, peers connected to the
+      same bus. It does not enforce any layout on the transmitted data, but
+      only provides the transport layer used for message interchange between
+      peers.
     </para>
     <para>
-      This set of man-pages aims for giving developers a comprehensive overview
-      of the kernel-level API, with all ioctl commands, associated structs and
-      bit masks. However, most people will not use this API level directly, but
-      rather let one of the high-level abstraction libraries help them integrate
-      D-Bus functionality into their applications.
+      This set of man-pages gives a comprehensive overview of the kernel-level
+      API, with all ioctl commands, associated structs and bit masks. However,
+      most people will not use this API level directly, but rather let one of
+      the high-level abstraction libraries help them integrate D-Bus
+      functionality into their applications.
     </para>
   </refsect1>
 
   <refsect1>
     <title>Description</title>
     <para>
-      kdbus provides a pseudo file-system called
-      <emphasis>kdbusfs</emphasis>, which is usually mounted on
-      <filename>/sys/fs/kdbus</filename>. Buses and their endpoints
-      can be accessed as sub-directories and files underneath this
+      kdbus provides a pseudo file-system called <emphasis>kdbusfs</emphasis>,
+      which is usually mounted on <filename>/sys/fs/kdbus</filename>. Bus
+      primitives can be accessed as files and sub-directories underneath this
       mount-point. Any advanced operations are done via
       <function>ioctl()</function> on files created by
       <emphasis>kdbusfs</emphasis>. Multiple mount-points of
-      <emphasis>kdbusfs</emphasis> are independent of each other.
-      This allows namespacing of kdbus by mounting a new instance of
-      <emphasis>kdbusfs</emphasis> in a mount-namespace. kdbus calls
-      these domains and each mount has its own kdbus domain, with
-      each bus being linked to exactly one parent domain.
+      <emphasis>kdbusfs</emphasis> are independent of each other. This allows
+      namespacing of kdbus by mounting a new instance of
+      <emphasis>kdbusfs</emphasis> in a new mount-namespace. kdbus calls these
+      mount instances domains and each bus belongs to exactly one domain.
     </para>
 
     <para>
-      Please note that kdbus was designed as transport layer for D-Bus, but is
-      in no way limited, nor controlled by the D-Bus protocol specification.
-      The D-Bus protocol is one possible application layer on top of kdbus.
+      kdbus was designed as a transport layer for D-Bus, but is in no way
+      limited, nor controlled by the D-Bus protocol specification. The D-Bus
+      protocol is one possible application layer on top of kdbus.
     </para>
 
     <para>
-      For the general D-Bus protocol specification, the payload format, the
-      marshaling, and the communication semantics, please refer to the
+      For the general D-Bus protocol specification, its payload format, its
+      marshaling, and its communication semantics, please refer to the
       <ulink url="http://dbus.freedesktop.org/doc/dbus-specification.html">
       D-Bus specification</ulink>.
     </para>
