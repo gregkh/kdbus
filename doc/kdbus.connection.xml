@@ -871,8 +871,8 @@ struct kdbus_cmd {
               <term><constant>KDBUS_ITEM_ATTACH_FLAGS_SEND</constant></term>
               <listitem>
                 <para>
-                  Supply a new set of items that this connection permits to be
-                  sent along with messages.
+                  Supply a new set of metadata items that this connection
+                  permits to be sent along with messages.
                 </para>
               </listitem>
             </varlistentry>
@@ -881,7 +881,8 @@ struct kdbus_cmd {
               <term><constant>KDBUS_ITEM_ATTACH_FLAGS_RECV</constant></term>
               <listitem>
                 <para>
-                  Supply a new set of items to be attached to each message.
+                  Supply a new set of metadata items that this connection
+                  requests to be attached to each message.
                 </para>
               </listitem>
             </varlistentry>
