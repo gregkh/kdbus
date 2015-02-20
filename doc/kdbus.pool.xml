@@ -72,10 +72,31 @@
       be able to receive any more information through its pool.
     </para>
   </refsect1>
+
+  <refsect1>
+    <title>Pool slice allocation</title>
+    <para>
+      Pool slices are allocated by the kernel in order to report information
+      back to a task, such as messages, returned name list etc.
+      Allocation of pool slices cannot be initiated by userspace. See
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      and
+      <citerefentry>
+        <refentrytitle>kdbus.name</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      for examples of commands that use the <emphasis>pool</emphasis> to
+      return data.
+    </para>
+  </refsect1>
+
   <refsect1>
     <title>Accessing the pool memory</title>
     <para>
-      Memory is the pool is read-only for userspace and may only be written
+      Memory in the pool is read-only for userspace and may only be written
       to by the kernel. To read from the pool memory, the caller is expected to
       <citerefentry>
         <refentrytitle>mmap</refentrytitle>
@@ -95,7 +116,7 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
 
     <para>
       The <emphasis>file descriptor</emphasis> used to map the memory must be
-      the one that was used to create the <emphasis>connection</emphasis>
+      the one that was used to create the <emphasis>connection</emphasis>.
       In other words, the one that was used to call
       <constant>KDBUS_CMD_HELLO</constant>. See
       <citerefentry>
@@ -110,7 +131,7 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
       of it can be mapped. Every kdbus command that returns an
       <emphasis>offset</emphasis> (see above) also reports a
       <emphasis>size</emphasis> along with it, so programs can be written
-      in a way that it only maps portions of the part to access a specific
+      in a way that it only maps portions of the pool to access a specific
       <emphasis>slice</emphasis>.
     </para>
 
@@ -118,26 +139,6 @@ uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
       When access to the pool memory is no longer needed, programs should
       call <function>munmap</function> on the pointer returned by
       <function>mmap</function>.
-    </para>
-  </refsect1>
-
-  <refsect1>
-    <title>Pool slice allocation</title>
-    <para>
-      Pool slices are allocated by the kernel in order to report information
-      back to a task, such as messages, returned name list etc.
-      Allocation of pool slices cannot be initiated by userspace. See
-      <citerefentry>
-        <refentrytitle>kdbus.connection</refentrytitle>
-        <manvolnum>7</manvolnum>
-      </citerefentry>
-      and
-      <citerefentry>
-        <refentrytitle>kdbus.name</refentrytitle>
-        <manvolnum>7</manvolnum>
-      </citerefentry>
-      for examples of commands that use the <emphasis>pool</emphasis> to
-      return data.
     </para>
   </refsect1>
 
