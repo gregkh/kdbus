@@ -81,6 +81,15 @@
     <title>Terminology</title>
 
     <refsect2>
+      <title>Domain</title>
+      <para>
+        A domain is a <emphasis>kdbusfs</emphasis> mount-point containing all
+        the bus primitives. Each domain is independent, and separate domains
+        do not affect eachother.
+      </para>
+    </refsect2>
+
+    <refsect2>
       <title>Bus</title>
       <para>
         A bus is a named object inside a domain. Clients exchange messages
