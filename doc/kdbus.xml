@@ -136,11 +136,9 @@
       <title>Connection</title>
       <para>
         A connection to a bus is created by opening an endpoint file of a
-        bus and becoming an active client with the
-        <constant>KDBUS_CMD_HELLO</constant> exchange. Every ordinary client
-        connection has a unique identifier on the bus and can address messages
-        to every other connection on the same bus by using the peer's
-        connection ID as the destination. See
+        bus. Every ordinary client connection has a unique identifier on the
+        bus and can address messages to every other connection on the same
+        bus by using the peer's connection ID as the destination. See
         <citerefentry>
           <refentrytitle>kdbus.connection</refentrytitle>
           <manvolnum>7</manvolnum>
@@ -172,7 +170,7 @@
         request the ownership of a textual well-known name. Well-known names are
         noted in reverse-domain notation, such as com.example.service1. A
         connection that offers a service on a bus is usually reached by its
-        well-known name. The analogy of connection ID and well-known name is an
+        well-known name. An analogy of connection ID and well-known name is an
         IP address and a DNS name associated with that address.  See
         <citerefentry>
           <refentrytitle>kdbus.name</refentrytitle>
@@ -189,7 +187,7 @@
         the peers with their connection ID or well-known name. A message
         consists of a message header with information on how to route the
         message, and the message payload, which is a logical byte stream of
-        arbitrary size.  Messages can carry additional file descriptors to be
+        arbitrary size. Messages can carry additional file descriptors to be
         passed from one connection to another, just like passing file
         descriptors over UNIX domain sockets. Every connection can specify which
         set of metadata the kernel should attach to the message when it is
@@ -228,7 +226,8 @@
         bytes, called a 'match'. Signal messages must always carry a
         counter-part blob, called a 'filter', and signals are only delivered to
         peers which have a match that whitelists the message's filter.  Senders
-        of signal messages can use either a single connection ID as receiver, or
+        of signal messages can use either a single connection ID as receiver,
+        or the special connection ID
         <constant>KDBUS_DST_ID_BROADCAST</constant> to potentially send it to
         all connections of a bus, following the logic described above.  See
         <citerefentry>
