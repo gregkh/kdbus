@@ -551,6 +551,7 @@ struct kdbus_cmd_info {
   __u64 flags;
   __u64 return_flags;
   __u64 id;
+  __u64 attach_flags;
   __u64 offset;
   __u64 info_size;
   struct kdbus_item items[0];
@@ -568,12 +569,11 @@ struct kdbus_cmd_info {
       <varlistentry>
         <term><varname>flags</varname></term>
         <listitem><para>
-          Specifies which metadata items should be attached to the answer.
-          See
-          <citerefentry>
-            <refentrytitle>kdbus.message</refentrytitle>
-            <manvolnum>7</manvolnum>
-          </citerefentry>
+          Currently, no flags are supported.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will return <errorcode>0</errorcode>,
+          and the <varname>flags</varname> field is set to
+          <constant>0</constant>.
         </para></listitem>
       </varlistentry>
 
@@ -595,6 +595,18 @@ struct kdbus_cmd_info {
       </varlistentry>
 
       <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          Specifies which metadata items should be attached to the answer.
+          See
+          <citerefentry>
+            <refentrytitle>kdbus.message</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
         <term><varname>offset</varname></term>
         <listitem><para>
           When the ioctl returns, this field will contain the offset of the
@@ -608,7 +620,7 @@ struct kdbus_cmd_info {
       </varlistentry>
 
       <varlistentry>
-        <term><varname></varname></term>
+        <term><varname>info_size</varname></term>
         <listitem><para>
           The kernel will return the size of the returned information, so
           applications can optionally

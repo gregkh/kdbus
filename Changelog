@@ -14,6 +14,8 @@ since v3:
   * Get rid of the need for a 2nd pool slice at install time. This
     avoids pool fragmentation, message memory footprint and complexity.
 
+  * Separate flags from attach_flags in struct kdbus_cmd_info.
+
   * Fix handling of messages with file descriptors with regard to
     monitor connections that don't accept file descriptors.
 
