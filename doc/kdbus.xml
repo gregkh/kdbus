@@ -365,7 +365,7 @@
         information (description string, currently owned names) and timestamps.
       </para>
       <para>
-        Metadata is collected in the following circumstances.
+        Metadata is collected at the following times.
       </para>
 
       <itemizedlist mark='opencircle'>
@@ -385,7 +385,7 @@
             This data is returned by the kernel as information on a connection
             (<constant>KDBUS_CMD_CONN_INFO</constant>). Only metadata that a
             connection allowed to be sent (by setting its bit in
-            <varname>attach_flags_send</varname>) will be exported that way.
+            <varname>attach_flags_send</varname>) will be exported in this way.
           </para>
         </listitem>
 
