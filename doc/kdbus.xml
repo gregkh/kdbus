@@ -274,321 +274,6 @@
   </refsect1>
 
   <refsect1>
-    <title>The ioctl interface</title>
-
-    <para>
-      As stated in the 'synopsis' section above, application developers are
-      strongly encouraged to use kdbus through one of the high-level D-Bus
-      abstraction libaries, rather than using the low-level API directly.
-    </para>
-
-    <para>
-      kdbus on the kernel level exposes its functions exclusively through
-      <citerefentry>
-        <refentrytitle>ioctl</refentrytitle>
-        <manvolnum>2</manvolnum>
-      </citerefentry>,
-      employed on file descriptors returned by
-      <citerefentry>
-        <refentrytitle>open</refentrytitle>
-        <manvolnum>2</manvolnum>
-      </citerefentry>
-      on pseudo files exposed by
-      <citerefentry>
-        <refentrytitle>kdbus.fs</refentrytitle>
-        <manvolnum>7</manvolnum>
-      </citerefentry>.
-    </para>
-    <para>
-      Following is a list of all the ioctls, along with the command structs
-      they must be used with.
-    </para>
-
-    <informaltable frame="none">
-      <tgroup cols="3" colsep="1">
-        <thead>
-          <row>
-            <entry>ioctl signature</entry>
-            <entry>command</entry>
-            <entry>transported struct</entry>
-          </row>
-        </thead>
-        <tbody>
-          <row>
-            <entry><constant>0x40189500</constant></entry>
-            <entry><constant>KDBUS_CMD_BUS_MAKE</constant></entry>
-            <entry><type>struct kdbus_cmd *</type></entry>
-          </row><row>
-            <entry><constant>0x40189510</constant></entry>
-            <entry><constant>KDBUS_CMD_ENDPOINT_MAKE</constant></entry>
-            <entry><type>struct kdbus_cmd *</type></entry>
-          </row><row>
-            <entry><constant>0xc0609580</constant></entry>
-            <entry><constant>KDBUS_CMD_HELLO</constant></entry>
-            <entry><type>struct kdbus_cmd_hello *</type></entry>
-          </row><row>
-            <entry><constant>0x40189582</constant></entry>
-            <entry><constant>KDBUS_CMD_BYEBYE</constant></entry>
-            <entry><type>struct kdbus_cmd *</type></entry>
-          </row><row>
-            <entry><constant>0x40389590</constant></entry>
-            <entry><constant>KDBUS_CMD_SEND</constant></entry>
-            <entry><type>struct kdbus_cmd_send *</type></entry>
-          </row><row>
-            <entry><constant>0x80409591</constant></entry>
-            <entry><constant>KDBUS_CMD_RECV</constant></entry>
-            <entry><type>struct kdbus_cmd_recv *</type></entry>
-          </row><row>
-            <entry><constant>0x40209583</constant></entry>
-            <entry><constant>KDBUS_CMD_FREE</constant></entry>
-            <entry><type>struct kdbus_cmd_free *</type></entry>
-          </row><row>
-            <entry><constant>0x401895a0</constant></entry>
-            <entry><constant>KDBUS_CMD_NAME_ACQUIRE</constant></entry>
-            <entry><type>struct kdbus_cmd *</type></entry>
-          </row><row>
-            <entry><constant>0x401895a1</constant></entry>
-            <entry><constant>KDBUS_CMD_NAME_RELEASE</constant></entry>
-            <entry><type>struct kdbus_cmd *</type></entry>
-          </row><row>
-            <entry><constant>0x80289586</constant></entry>
-            <entry><constant>KDBUS_CMD_LIST</constant></entry>
-            <entry><type>struct kdbus_cmd_list *</type></entry>
-          </row><row>
-            <entry><constant>0x80309584</constant></entry>
-            <entry><constant>KDBUS_CMD_CONN_INFO</constant></entry>
-            <entry><type>struct kdbus_cmd_info *</type></entry>
-          </row><row>
-            <entry><constant>0x40209551</constant></entry>
-            <entry><constant>KDBUS_CMD_UPDATE</constant></entry>
-            <entry><type>struct kdbus_cmd *</type></entry>
-          </row><row>
-            <entry><constant>0x80309585</constant></entry>
-            <entry><constant>KDBUS_CMD_BUS_CREATOR_INFO</constant></entry>
-            <entry><type>struct kdbus_cmd_info *</type></entry>
-          </row><row>
-            <entry><constant>0x40189511</constant></entry>
-            <entry><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant></entry>
-            <entry><type>struct kdbus_cmd *</type></entry>
-          </row><row>
-            <entry><constant>0x402095b0</constant></entry>
-            <entry><constant>KDBUS_CMD_MATCH_ADD</constant></entry>
-            <entry><type>struct kdbus_cmd_match *</type></entry>
-          </row><row>
-            <entry><constant>0x402095b1</constant></entry>
-            <entry><constant>KDBUS_CMD_MATCH_REMOVE</constant></entry>
-            <entry><type>struct kdbus_cmd_match *</type></entry>
-          </row>
-        </tbody>
-      </tgroup>
-    </informaltable>
-
-    <para>
-      Depending on the type of <emphasis>kdbusfs</emphasis> node that was
-      opened and what ioctls have been executed on a file-descriptor before,
-      a different sub-set of ioctl commands is allowed.
-    </para>
-
-    <itemizedlist mark='none'>
-      <listitem>
-        <para>
-          On a file descriptor resulting from opening a
-          <emphasis>control node</emphasis>, only the
-          <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl may be executed.
-        </para>
-      </listitem>
-      <listitem>
-        <para>
-          On a file descriptor resulting from opening a
-          <emphasis>bus endpoint node</emphasis>, only the
-          <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> and
-          <constant>KDBUS_CMD_HELLO</constant> ioctls may be executed.
-        </para>
-      </listitem>
-      <listitem>
-        <para>
-          A file descriptor that was used to create a bus
-          (via <constant>KDBUS_CMD_BUS_MAKE</constant>) is called a
-          <emphasis>bus owner</emphasis> file-descriptor. The bus will be
-          active as long as the file-descriptor is kept open.
-          A bus owner file-descriptor can not be used to
-          employ any further ioctls. As soon as
-          <citerefentry>
-            <refentrytitle>close</refentrytitle>
-            <manvolnum>2</manvolnum>
-          </citerefentry>
-          is called on it, the bus will be shut down, along will all associated
-          endpoints and connections. See
-          <citerefentry>
-            <refentrytitle>kdbus.bus</refentrytitle>
-            <manvolnum>7</manvolnum>
-          </citerefentry>
-          for more details.
-        </para>
-      </listitem>
-      <listitem>
-        <para>
-          A file descriptor that was used to create an endpoint
-          (via <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>) is called an
-          <emphasis>endpoint owner</emphasis> file-descriptor. The endpoint
-          will be active as long as the file-descriptor is kept open.
-          An endpoint owner file-descriptor can only be used
-          to update details of an endpoint through the
-          <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> ioctl. As soon as
-          <citerefentry>
-            <refentrytitle>close</refentrytitle>
-            <manvolnum>2</manvolnum>
-          </citerefentry>
-          is called on it, the endpoint will be removed from the bus, and all
-          connections that are connected to the bus through it are shut down.
-          See
-          <citerefentry>
-            <refentrytitle>kdbus.endpoint</refentrytitle>
-            <manvolnum>7</manvolnum>
-          </citerefentry>
-          for more details.
-        </para>
-      </listitem>
-      <listitem>
-        <para>
-          A file descriptor that was used to create a connection
-          (via <constant>KDBUS_CMD_HELLO</constant>) is called a
-          <emphasis>connection owner</emphasis> file-descriptor. The connection
-          will be active as long as the file-descriptor is kept open.
-          A connection owner file-descriptor may be used to
-          issue any of the following ioctls.
-        </para>
-
-        <itemizedlist mark='none'>
-          <listitem><para>
-            <constant>KDBUS_CMD_UPDATE</constant> to tweak details of the
-            connection. See
-            <citerefentry>
-              <refentrytitle>kdbus.connection</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_BYEBYE</constant> to shut down a connection
-            without losing messages. See
-            <citerefentry>
-              <refentrytitle>kdbus.connection</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_FREE</constant> to free a slice of memory in
-            the pool. See
-            <citerefentry>
-              <refentrytitle>kdbus.pool</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_CONN_INFO</constant> to retrieve information
-            on other connections on the bus. See
-            <citerefentry>
-              <refentrytitle>kdbus.connection</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_BUS_CREATOR_INFO</constant> to retrieve
-            information on the bus creator. See
-            <citerefentry>
-              <refentrytitle>kdbus.connection</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_LIST</constant> to retrieve a list of
-            currently active well-known names and unique IDs on the bus. See
-            <citerefentry>
-              <refentrytitle>kdbus.name</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_SEND</constant> and
-            <constant>KDBUS_CMD_RECV</constant> to send or receive a message.
-            See
-            <citerefentry>
-              <refentrytitle>kdbus.message</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_NAME_ACQUIRE</constant> and
-            <constant>KDBUS_CMD_NAME_RELEASE</constant> to acquire or release
-            a well-known name on the bus. See
-            <citerefentry>
-              <refentrytitle>kdbus.name</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-
-          <listitem><para>
-            <constant>KDBUS_CMD_MATCH_ADD</constant> and
-            <constant>KDBUS_CMD_MATCH_REMOVE</constant> to add or remove
-            a match for signal messages. See
-            <citerefentry>
-              <refentrytitle>kdbus.match</refentrytitle>
-              <manvolnum>7</manvolnum>
-            </citerefentry>.
-          </para></listitem>
-        </itemizedlist>
-      </listitem>
-    </itemizedlist>
-
-    <para>
-      These ioctls, along with the structs they transport, are explained in
-      detail in the other documents linked to in the 'see also' section below.
-    </para>
-  </refsect1>
-
-  <refsect1>
-    <title>Data structures and interconnections</title>
-    <programlisting><![CDATA[
-  +--------------------------------------------------------------------------+
-  | Domain (Mount Point)                                                     |
-  | /sys/fs/kdbus/control                                                    |
-  | +----------------------------------------------------------------------+ |
-  | | Bus (System Bus)                                                     | |
-  | | /sys/fs/kdbus/0-system/                                              | |
-  | | +-------------------------------+ +--------------------------------+ | |
-  | | | Endpoint                      | | Endpoint                       | | |
-  | | | /sys/fs/kdbus/0-system/bus    | | /sys/fs/kdbus/0-system/ep.app  | | |
-  | | +-------------------------------+ +--------------------------------+ | |
-  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
-  | | | Connection   | | Connection   | | Connection   | | Connection    | | |
-  | | | :1.22        | | :1.25        | | :1.55        | | :1.81         | | |
-  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
-  | +----------------------------------------------------------------------+ |
-  |                                                                          |
-  | +----------------------------------------------------------------------+ |
-  | | Bus (User Bus for UID 2702)                                          | |
-  | | /sys/fs/kdbus/2702-user/                                             | |
-  | | +-------------------------------+ +--------------------------------+ | |
-  | | | Endpoint                      | | Endpoint                       | | |
-  | | | /sys/fs/kdbus/2702-user/bus   | | /sys/fs/kdbus/2702-user/ep.app | | |
-  | | +-------------------------------+ +--------------------------------+ | |
-  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
-  | | | Connection   | | Connection   | | Connection   | | Connection    | | |
-  | | | :1.22        | | :1.25        | | :1.55        | | :1.81         | | |
-  | | +--------------+ +--------------+ +--------------------------------+ | |
-  | +----------------------------------------------------------------------+ |
-  +--------------------------------------------------------------------------+
-    ]]></programlisting>
-  </refsect1>
-
-  <refsect1>
     <title>Bus Layout</title>
 
     <para>
@@ -630,6 +315,41 @@
    Connection  Connection  Connection      Connection  Connection  Connection
     ]]></programlisting>
 
+  </refsect1>
+
+  <refsect1>
+    <title>Data structures and interconnections</title>
+    <programlisting><![CDATA[
+  +--------------------------------------------------------------------------+
+  | Domain (Mount Point)                                                     |
+  | /sys/fs/kdbus/control                                                    |
+  | +----------------------------------------------------------------------+ |
+  | | Bus (System Bus)                                                     | |
+  | | /sys/fs/kdbus/0-system/                                              | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | | Endpoint                      | | Endpoint                       | | |
+  | | | /sys/fs/kdbus/0-system/bus    | | /sys/fs/kdbus/0-system/ep.app  | | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
+  | | | Connection   | | Connection   | | Connection   | | Connection    | | |
+  | | | :1.22        | | :1.25        | | :1.55        | | :1.81         | | |
+  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
+  | +----------------------------------------------------------------------+ |
+  |                                                                          |
+  | +----------------------------------------------------------------------+ |
+  | | Bus (User Bus for UID 2702)                                          | |
+  | | /sys/fs/kdbus/2702-user/                                             | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | | Endpoint                      | | Endpoint                       | | |
+  | | | /sys/fs/kdbus/2702-user/bus   | | /sys/fs/kdbus/2702-user/ep.app | | |
+  | | +-------------------------------+ +--------------------------------+ | |
+  | | +--------------+ +--------------+ +--------------+ +---------------+ | |
+  | | | Connection   | | Connection   | | Connection   | | Connection    | | |
+  | | | :1.22        | | :1.25        | | :1.55        | | :1.81         | | |
+  | | +--------------+ +--------------+ +--------------------------------+ | |
+  | +----------------------------------------------------------------------+ |
+  +--------------------------------------------------------------------------+
+    ]]></programlisting>
   </refsect1>
 
   <refsect1>
@@ -938,7 +658,286 @@
         what metadata should be used to.
       </para>
     </refsect2>
+  </refsect1>
 
+  <refsect1>
+    <title>The ioctl interface</title>
+
+    <para>
+      As stated in the 'synopsis' section above, application developers are
+      strongly encouraged to use kdbus through one of the high-level D-Bus
+      abstraction libaries, rather than using the low-level API directly.
+    </para>
+
+    <para>
+      kdbus on the kernel level exposes its functions exclusively through
+      <citerefentry>
+        <refentrytitle>ioctl</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>,
+      employed on file descriptors returned by
+      <citerefentry>
+        <refentrytitle>open</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
+      on pseudo files exposed by
+      <citerefentry>
+        <refentrytitle>kdbus.fs</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>.
+    </para>
+    <para>
+      Following is a list of all the ioctls, along with the command structs
+      they must be used with.
+    </para>
+
+    <informaltable frame="none">
+      <tgroup cols="3" colsep="1">
+        <thead>
+          <row>
+            <entry>ioctl signature</entry>
+            <entry>command</entry>
+            <entry>transported struct</entry>
+          </row>
+        </thead>
+        <tbody>
+          <row>
+            <entry><constant>0x40189500</constant></entry>
+            <entry><constant>KDBUS_CMD_BUS_MAKE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x40189510</constant></entry>
+            <entry><constant>KDBUS_CMD_ENDPOINT_MAKE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0xc0609580</constant></entry>
+            <entry><constant>KDBUS_CMD_HELLO</constant></entry>
+            <entry><type>struct kdbus_cmd_hello *</type></entry>
+          </row><row>
+            <entry><constant>0x40189582</constant></entry>
+            <entry><constant>KDBUS_CMD_BYEBYE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x40389590</constant></entry>
+            <entry><constant>KDBUS_CMD_SEND</constant></entry>
+            <entry><type>struct kdbus_cmd_send *</type></entry>
+          </row><row>
+            <entry><constant>0x80409591</constant></entry>
+            <entry><constant>KDBUS_CMD_RECV</constant></entry>
+            <entry><type>struct kdbus_cmd_recv *</type></entry>
+          </row><row>
+            <entry><constant>0x40209583</constant></entry>
+            <entry><constant>KDBUS_CMD_FREE</constant></entry>
+            <entry><type>struct kdbus_cmd_free *</type></entry>
+          </row><row>
+            <entry><constant>0x401895a0</constant></entry>
+            <entry><constant>KDBUS_CMD_NAME_ACQUIRE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x401895a1</constant></entry>
+            <entry><constant>KDBUS_CMD_NAME_RELEASE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x80289586</constant></entry>
+            <entry><constant>KDBUS_CMD_LIST</constant></entry>
+            <entry><type>struct kdbus_cmd_list *</type></entry>
+          </row><row>
+            <entry><constant>0x80309584</constant></entry>
+            <entry><constant>KDBUS_CMD_CONN_INFO</constant></entry>
+            <entry><type>struct kdbus_cmd_info *</type></entry>
+          </row><row>
+            <entry><constant>0x40209551</constant></entry>
+            <entry><constant>KDBUS_CMD_UPDATE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x80309585</constant></entry>
+            <entry><constant>KDBUS_CMD_BUS_CREATOR_INFO</constant></entry>
+            <entry><type>struct kdbus_cmd_info *</type></entry>
+          </row><row>
+            <entry><constant>0x40189511</constant></entry>
+            <entry><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant></entry>
+            <entry><type>struct kdbus_cmd *</type></entry>
+          </row><row>
+            <entry><constant>0x402095b0</constant></entry>
+            <entry><constant>KDBUS_CMD_MATCH_ADD</constant></entry>
+            <entry><type>struct kdbus_cmd_match *</type></entry>
+          </row><row>
+            <entry><constant>0x402095b1</constant></entry>
+            <entry><constant>KDBUS_CMD_MATCH_REMOVE</constant></entry>
+            <entry><type>struct kdbus_cmd_match *</type></entry>
+          </row>
+        </tbody>
+      </tgroup>
+    </informaltable>
+
+    <para>
+      Depending on the type of <emphasis>kdbusfs</emphasis> node that was
+      opened and what ioctls have been executed on a file-descriptor before,
+      a different sub-set of ioctl commands is allowed.
+    </para>
+
+    <itemizedlist mark='none'>
+      <listitem>
+        <para>
+          On a file descriptor resulting from opening a
+          <emphasis>control node</emphasis>, only the
+          <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl may be executed.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          On a file descriptor resulting from opening a
+          <emphasis>bus endpoint node</emphasis>, only the
+          <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> and
+          <constant>KDBUS_CMD_HELLO</constant> ioctls may be executed.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          A file descriptor that was used to create a bus
+          (via <constant>KDBUS_CMD_BUS_MAKE</constant>) is called a
+          <emphasis>bus owner</emphasis> file-descriptor. The bus will be
+          active as long as the file-descriptor is kept open.
+          A bus owner file-descriptor can not be used to
+          employ any further ioctls. As soon as
+          <citerefentry>
+            <refentrytitle>close</refentrytitle>
+            <manvolnum>2</manvolnum>
+          </citerefentry>
+          is called on it, the bus will be shut down, along will all associated
+          endpoints and connections. See
+          <citerefentry>
+            <refentrytitle>kdbus.bus</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
+          for more details.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          A file descriptor that was used to create an endpoint
+          (via <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>) is called an
+          <emphasis>endpoint owner</emphasis> file-descriptor. The endpoint
+          will be active as long as the file-descriptor is kept open.
+          An endpoint owner file-descriptor can only be used
+          to update details of an endpoint through the
+          <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> ioctl. As soon as
+          <citerefentry>
+            <refentrytitle>close</refentrytitle>
+            <manvolnum>2</manvolnum>
+          </citerefentry>
+          is called on it, the endpoint will be removed from the bus, and all
+          connections that are connected to the bus through it are shut down.
+          See
+          <citerefentry>
+            <refentrytitle>kdbus.endpoint</refentrytitle>
+            <manvolnum>7</manvolnum>
+          </citerefentry>
+          for more details.
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          A file descriptor that was used to create a connection
+          (via <constant>KDBUS_CMD_HELLO</constant>) is called a
+          <emphasis>connection owner</emphasis> file-descriptor. The connection
+          will be active as long as the file-descriptor is kept open.
+          A connection owner file-descriptor may be used to
+          issue any of the following ioctls.
+        </para>
+
+        <itemizedlist mark='none'>
+          <listitem><para>
+            <constant>KDBUS_CMD_UPDATE</constant> to tweak details of the
+            connection. See
+            <citerefentry>
+              <refentrytitle>kdbus.connection</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_BYEBYE</constant> to shut down a connection
+            without losing messages. See
+            <citerefentry>
+              <refentrytitle>kdbus.connection</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_FREE</constant> to free a slice of memory in
+            the pool. See
+            <citerefentry>
+              <refentrytitle>kdbus.pool</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_CONN_INFO</constant> to retrieve information
+            on other connections on the bus. See
+            <citerefentry>
+              <refentrytitle>kdbus.connection</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_BUS_CREATOR_INFO</constant> to retrieve
+            information on the bus creator. See
+            <citerefentry>
+              <refentrytitle>kdbus.connection</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_LIST</constant> to retrieve a list of
+            currently active well-known names and unique IDs on the bus. See
+            <citerefentry>
+              <refentrytitle>kdbus.name</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_SEND</constant> and
+            <constant>KDBUS_CMD_RECV</constant> to send or receive a message.
+            See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_NAME_ACQUIRE</constant> and
+            <constant>KDBUS_CMD_NAME_RELEASE</constant> to acquire or release
+            a well-known name on the bus. See
+            <citerefentry>
+              <refentrytitle>kdbus.name</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+
+          <listitem><para>
+            <constant>KDBUS_CMD_MATCH_ADD</constant> and
+            <constant>KDBUS_CMD_MATCH_REMOVE</constant> to add or remove
+            a match for signal messages. See
+            <citerefentry>
+              <refentrytitle>kdbus.match</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+        </itemizedlist>
+      </listitem>
+    </itemizedlist>
+
+    <para>
+      These ioctls, along with the structs they transport, are explained in
+      detail in the other documents linked to in the 'see also' section below.
+    </para>
   </refsect1>
 
   <refsect1>
