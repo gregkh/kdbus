@@ -303,7 +303,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 	}
 
 	/* copy message header */
-	kvec[0].iov_base = (char *) msg;
+	kvec[0].iov_base = (char *)msg;
 	kvec[0].iov_len = msg_size;
 
 	ret = kdbus_pool_slice_copy_kvec(entry->slice, 0, kvec, 1, msg_size);
@@ -380,7 +380,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 					 */
 					entry->memfd_offset[memfd_cnt++] =
 						msg_size +
-						(char *) item - (char *) items +
+						(char *)item - (char *)items +
 						offsetof(struct kdbus_item,
 							 memfd);
 
