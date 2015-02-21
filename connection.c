@@ -1331,6 +1331,7 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
 		    q->msg_res && q->msg_res->fds_count > 0) {
 			atomic_inc(&conn_dst->lost_count);
+			kdbus_queue_entry_free(q);
 			continue;
 		}
 
