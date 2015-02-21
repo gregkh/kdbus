@@ -411,14 +411,14 @@ struct kdbus_cmd_hello {
           </citerefentry>
           on the file descriptor that was used to issue the
           <constant>KDBUS_CMD_HELLO</constant> ioctl.
-        </para>
-        <para>
-          See
+          The pool size of a connection must be greater than
+          <constant>0</constant> and a multiple of
+          <constant>PAGE_SIZE</constant>. See
           <citerefentry>
             <refentrytitle>kdbus.pool</refentrytitle>
             <manvolnum>7</manvolnum>
           </citerefentry>
-          for further information.
+          for more information.
         </para></listitem>
       </varlistentry>
 

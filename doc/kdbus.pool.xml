@@ -25,10 +25,16 @@
       A pool for data received from the kernel is installed for every
       <emphasis>connection</emphasis> of the <emphasis>bus</emphasis>, and
       is sized according to the information stored in the
-      <constant>KDBUS_ITEM_BLOOM_PARAMETER</constant> item that is returned by
-      <constant>KDBUS_CMD_HELLO</constant>. Internally, the pool is segmented
-      into <emphasis>slices</emphasis>, each referenced by its
+      <varname>pool_size</varname> member of <type>struct kdbus_cmd_hello</type>
+      when <constant>KDBUS_CMD_HELLO</constant> is employed. Internally, the
+      pool is segmented into <emphasis>slices</emphasis>, each referenced by its
       <emphasis>offset</emphasis> in the pool, expressed in <type>bytes</type>.
+      See
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      for more information about <constant>KDBUS_CMD_HELLO</constant>.
     </para>
 
     <para>
@@ -105,14 +111,17 @@
       the buffer into its task, like this:
     </para>
     <programlisting>
-/*
- * POOL_SIZE has to be a multiple of PAGE_SIZE, and it must match the
- * value that was previously returned through the KDBUS_ITEM_BLOOM_PARAMETER
- * item field when the KDBUS_CMD_HELLO ioctl returned.
- */
-
-uint8_t *buf = mmap(NULL, POOL_SIZE, PROT_READ, MAP_SHARED, conn_fd, 0);
+uint8_t *buf = mmap(NULL, size, PROT_READ, MAP_SHARED, conn_fd, 0);
     </programlisting>
+
+    <para>
+      In order to map the entire pool, the <varname>size</varname> parameter in
+      the example above should be set to the value of the
+      <varname>pool_size</varname> member of
+      <type>struct kdbus_cmd_hello</type> when
+      <constant>KDBUS_CMD_HELLO</constant> was employed to create the
+      connection (see above).
+    </para>
 
     <para>
       The <emphasis>file descriptor</emphasis> used to map the memory must be
