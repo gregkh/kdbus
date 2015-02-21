@@ -1334,11 +1334,14 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			continue;
 		}
 
-		ret = kdbus_queue_entry_move(conn_dst, q);
+		ret = kdbus_pool_slice_move(conn_dst->pool, &q->slice);
 		if (ret < 0) {
 			atomic_inc(&conn_dst->lost_count);
 			kdbus_queue_entry_free(q);
+			continue;
 		}
+
+		kdbus_queue_entry_add(&conn_dst->queue, q);
 	}
 	kdbus_conn_unlock2(conn_src, conn_dst);
 
