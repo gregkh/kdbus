@@ -104,8 +104,9 @@ static int kdbus_args_negotiate(struct kdbus_args *args)
 		return 0;
 
 	negotiation = args->argv[0].item;
-	user = (void *)((u8 __user *)args->user +
-			((u8 *)negotiation - (u8 *)args->cmd));
+	user = (struct kdbus_item __user *)
+		((u8 __user *)args->user +
+		 ((u8 *)negotiation - (u8 *)args->cmd));
 	num = KDBUS_ITEM_PAYLOAD_SIZE(negotiation) / sizeof(u64);
 
 	for (i = 0; i < num; ++i) {
