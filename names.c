@@ -372,8 +372,10 @@ static void kdbus_name_release_unlocked(struct kdbus_name_registry *reg,
 
 	lockdep_assert_held(&reg->rwlock);
 
-	if ((p = list_first_entry_or_null(&e->queue, struct kdbus_name_pending,
-					  name_entry))) {
+	p = list_first_entry_or_null(&e->queue, struct kdbus_name_pending,
+				     name_entry);
+
+	if (p) {
 		/* give it to first active waiter in the queue */
 		kdbus_name_entry_replace_owner(e, p->conn, p->flags);
 		kdbus_name_pending_free(p);
