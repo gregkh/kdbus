@@ -148,12 +148,14 @@ struct kdbus_kmsg *kdbus_kmsg_new(struct kdbus_bus *bus, size_t extra_size)
 	m->proc_meta = kdbus_meta_proc_new();
 	if (IS_ERR(m->proc_meta)) {
 		ret = PTR_ERR(m->proc_meta);
+		m->proc_meta = NULL;
 		goto exit;
 	}
 
 	m->conn_meta = kdbus_meta_conn_new();
 	if (IS_ERR(m->conn_meta)) {
 		ret = PTR_ERR(m->conn_meta);
+		m->conn_meta = NULL;
 		goto exit;
 	}
 
