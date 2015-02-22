@@ -23,7 +23,7 @@ struct kdbus_item;
 /**
  * struct kdbus_policy_db - policy database
  * @entries_hash:	Hashtable of entries
- * @entries_lock:	Mutex to protect the database's access entries
+ * @entries_rwlock:	Mutex to protect the database's access entries
  */
 struct kdbus_policy_db {
 	DECLARE_HASHTABLE(entries_hash, 6);
