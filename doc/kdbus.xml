@@ -85,7 +85,7 @@
       <para>
         A domain is a <emphasis>kdbusfs</emphasis> mount-point containing all
         the bus primitives. Each domain is independent, and separate domains
-        do not affect eachother.
+        do not affect each other.
       </para>
     </refsect2>
 
