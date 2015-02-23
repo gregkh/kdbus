@@ -61,7 +61,7 @@
       <title>Iterating items</title>
       <para>
         A simple iterator would iterate over the items until the items have
-        reached the embedding structure's overall size.  An example
+        reached the embedding structure's overall size. An example
         implementation is shown below.
       </para>
 
@@ -178,8 +178,7 @@ struct kdbus_item {
               <refentrytitle>kdbus.pool</refentrytitle>
               <manvolnum>7</manvolnum>
             </citerefentry>
-            where the message payload can be found.
-            See
+            where the message payload can be found. See
             <citerefentry>
               <refentrytitle>kdbus.message</refentrytitle>
               <manvolnum>7</manvolnum>
@@ -509,7 +508,7 @@ struct kdbus_pids {
             Contains the <emphasis>comm</emphasis> string of a task's
             <emphasis>TID</emphasis> (thread ID), stored as null-terminated
             string in <varname>item.str</varname>. Its length can also be
-            derived from the item's total size.  Receivers of this item should
+            derived from the item's total size. Receivers of this item should
             not use its contents for any kind of security measures. See below.
           </para></listitem>
         </varlistentry>
@@ -520,7 +519,7 @@ struct kdbus_pids {
             Contains the <emphasis>comm</emphasis> string of a task's
             <emphasis>PID</emphasis> (process ID), stored as null-terminated
             string in <varname>item.str</varname>. Its length can also be
-            derived from the item's total size.  Receivers of this item should
+            derived from the item's total size. Receivers of this item should
             not use its contents for any kind of security measures. See below.
           </para></listitem>
         </varlistentry>
@@ -530,7 +529,7 @@ struct kdbus_pids {
           <listitem><para>
             Contains the <emphasis>path to the executable</emphasis> of a task,
             stored as null-terminated string in <varname>item.str</varname>. Its
-            length can also be derived from the item's total size.  Receivers of
+            length can also be derived from the item's total size. Receivers of
             this item should not use its contents for any kind of security
             measures. See below.
           </para></listitem>
@@ -684,8 +683,7 @@ struct kdbus_policy_access {
             The <varname>id</varname> field contains the numeric ID of the
             connection that was added or removed, and <varname>flags</varname>
             is set to the connection flags, as passed by
-            <constant>KDBUS_CMD_HELLO</constant>.
-            See
+            <constant>KDBUS_CMD_HELLO</constant>. See
             <citerefentry>
               <refentrytitle>kdbus.match</refentrytitle>
               <manvolnum>7</manvolnum>
@@ -723,8 +721,7 @@ struct kdbus_notify_id_change {
             is set to <constant>0</constant> values in case of
             <constant>KDBUS_ITEM_NAME_REMOVE</constant>.
             The <varname>name</varname> field contains the well-known name the
-            notification is about, as null-terminated string.
-            See
+            notification is about, as null-terminated string. See
             <citerefentry>
               <refentrytitle>kdbus.match</refentrytitle>
               <manvolnum>7</manvolnum>

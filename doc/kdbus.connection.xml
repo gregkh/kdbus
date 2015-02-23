@@ -597,8 +597,7 @@ struct kdbus_cmd_info {
       <varlistentry>
         <term><varname>flags</varname></term>
         <listitem><para>
-          Specifies which metadata items should be attached to the answer.
-          See
+          Specifies which metadata items should be attached to the answer. See
           <citerefentry>
             <refentrytitle>kdbus.message</refentrytitle>
             <manvolnum>7</manvolnum>

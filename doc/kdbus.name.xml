@@ -36,8 +36,7 @@
 
     <para>
       All of the below is subject to policy rules for <emphasis>SEE</emphasis>
-      and <emphasis>OWN</emphasis> permissions.
-      See
+      and <emphasis>OWN</emphasis> permissions. See
       <citerefentry>
         <refentrytitle>kdbus.policy</refentrytitle>
         <manvolnum>7</manvolnum>
@@ -203,8 +202,7 @@ struct kdbus_cmd {
             <constant>KDBUS_ITEM_NAME</constant> is expected and allowed, and
             the contained string must be a valid bus name.
             <constant>KDBUS_ITEM_NEGOTIATE</constant> may be used to probe for
-            valid item types.
-            See
+            valid item types. See
             <citerefentry>
               <refentrytitle>kdbus.item</refentrytitle>
               <manvolnum>7</manvolnum>
@@ -289,8 +287,7 @@ struct kdbus_cmd {
             <constant>KDBUS_ITEM_NAME</constant> is expected and allowed, and
             the contained string must be a valid bus name.
             <constant>KDBUS_ITEM_NEGOTIATE</constant> may be used to probe for
-            valid item types.
-            See
+            valid item types. See
             <citerefentry>
               <refentrytitle>kdbus.item</refentrytitle>
               <manvolnum>7</manvolnum>

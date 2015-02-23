@@ -124,7 +124,7 @@
         <listitem>
           <para>
             Messages can reference <emphasis>memfd</emphasis> files which
-            contain the data.  memfd files are tmpfs-backed files that allow
+            contain the data. memfd files are tmpfs-backed files that allow
             sealing of the content of the file, which prevents all writable
             access to the file content.
           </para>
@@ -235,7 +235,7 @@ struct kdbus_cmd_send {
                   to wait for a remote peer to answer a method call, there's a
                   way to send a message and wait for a reply in a synchronous
                   fashion. This is what the
-                  <constant>KDBUS_SEND_SYNC_REPLY</constant> controls.  The
+                  <constant>KDBUS_SEND_SYNC_REPLY</constant> controls. The
                   <constant>KDBUS_CMD_SEND</constant> ioctl will block until the
                   reply has arrived, the timeout limit is reached, in case the
                   remote connection was shut down, or if interrupted by a signal
@@ -560,7 +560,7 @@ struct kdbus_msg {
                 <para>
                   For messages to a unique name (ID), this item is optional. If
                   present, the kernel will make sure the name owner matches the
-                  given unique name.  This allows programs to tie the message
+                  given unique name. This allows programs to tie the message
                   sending to the condition that a name is currently owned by a
                   certain unique name.
                 </para>
@@ -592,7 +592,7 @@ struct kdbus_msg {
 
     <para>
       Messages are received by the client with the
-      <constant>KDBUS_CMD_RECV</constant> ioctl.  The endpoint file of the bus
+      <constant>KDBUS_CMD_RECV</constant> ioctl. The endpoint file of the bus
       supports <function>poll()/epoll()/select()</function>; when new messages
       are available on the connection's file-descriptor,
       <constant>POLLIN</constant> is reported. For compatibility reasons,
@@ -1103,7 +1103,7 @@ struct kdbus_msg_info {
         <varlistentry>
           <term><constant>EINTR</constant></term>
           <listitem><para>
-            Interrupted system call  while synchronously waiting for a reply.
+            Interrupted system call while synchronously waiting for a reply.
           </para></listitem>
         </varlistentry>
 

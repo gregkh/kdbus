@@ -51,7 +51,7 @@
     <para>
       Bus names may be chosen freely except for one restriction: the name must
       be prefixed with the numeric effective UID of the creator and a dash. This
-      is required to avoid namespace clashes between different users.  When
+      is required to avoid namespace clashes between different users. When
       creating a bus, the name that is passed in must be properly formatted, or
       the kernel will refuse creation of the bus. Example:
       <literal>1047-foobar</literal> is an acceptable name for a bus
@@ -206,7 +206,7 @@ struct kdbus_cmd {
                   that connections must allow. This item is used as a
                   negotiation measure during connection creation. If connections
                   do not satisfy the bus requirements, they are not allowed on
-                  the bus.  If not set, the bus does not require any metadata to
+                  the bus. If not set, the bus does not require any metadata to
                   be attached; in this case connections are free to set their
                   own attach flags.
                 </para>

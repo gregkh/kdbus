@@ -265,7 +265,7 @@ KDBUS_ITEM_POLICY_ACCESS: type=WORLD, access=TALK
   <refsect1>
     <title>TALK access and multiple well-known names per connection</title>
     <para>
-      Note that TALK access is checked against all names of a connection.  For
+      Note that TALK access is checked against all names of a connection. For
       example, if a connection owns both <constant>'org.foo.bar'</constant> and
       <constant>'org.blah.baz'</constant>, and the policy database allows
       <constant>'org.blah.baz'</constant> to be talked to by WORLD, then this

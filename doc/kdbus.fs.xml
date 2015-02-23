@@ -43,8 +43,7 @@
       <varname>bus</varname>, which can be opened to either create a connection
       with the <constant>KDBUS_CMD_HELLO</constant> ioctl, or to create new
       custom endpoints for the bus with
-      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>.
-      See
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>. See
       <citerefentry>
         <refentrytitle>kdbus.bus</refentrytitle>
         <manvolnum>7</manvolnum>
