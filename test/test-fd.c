@@ -20,8 +20,10 @@
 #include "kdbus-enum.h"
 
 #define KDBUS_MSG_MAX_ITEMS     128
-#define KDBUS_MSG_MAX_FDS        16
 #define KDBUS_USER_MAX_CONN	256
+
+/* maximum number of inflight fds in a target queue per user */
+#define KDBUS_CONN_MAX_FDS_PER_USER	16
 
 /* maximum number of memfd items per message */
 #define KDBUS_MSG_MAX_MEMFD_ITEMS       16
@@ -482,24 +484,26 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 {
 	int ret, i;
 	unsigned int nfds;
-	int fds[KDBUS_MSG_MAX_FDS + 1];
+	int fds[KDBUS_CONN_MAX_FDS_PER_USER + 1];
 	int memfds[KDBUS_MSG_MAX_ITEMS + 1];
 	struct kdbus_msg *msg;
 	uint64_t dummy_value;
 
 	dummy_value = time(NULL);
 
-	for (i = 0; i < KDBUS_MSG_MAX_FDS + 1; i++) {
+	for (i = 0; i < KDBUS_CONN_MAX_FDS_PER_USER + 1; i++) {
 		fds[i] = open("/dev/null", O_RDWR|O_CLOEXEC);
 		ASSERT_RETURN_VAL(fds[i] >= 0, -errno);
 	}
 
-	/* Send KDBUS_MSG_MAX_FDS with one more fd */
-	ret = send_fds(conn_src, conn_dst->id, fds, KDBUS_MSG_MAX_FDS + 1);
+	/* Send KDBUS_CONN_MAX_FDS_PER_USER with one more fd */
+	ret = send_fds(conn_src, conn_dst->id, fds,
+		       KDBUS_CONN_MAX_FDS_PER_USER + 1);
 	ASSERT_RETURN(ret == -EMFILE);
 
-	/* Retry with the correct KDBUS_MSG_MAX_FDS */
-	ret = send_fds(conn_src, conn_dst->id, fds, KDBUS_MSG_MAX_FDS);
+	/* Retry with the correct KDBUS_CONN_MAX_FDS_PER_USER */
+	ret = send_fds(conn_src, conn_dst->id, fds,
+		       KDBUS_CONN_MAX_FDS_PER_USER);
 	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_msg_recv(conn_dst, &msg, NULL);
@@ -507,7 +511,7 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 
 	/* Check we got the right number of fds */
 	nfds = kdbus_item_get_nfds(msg);
-	ASSERT_RETURN(nfds == KDBUS_MSG_MAX_FDS);
+	ASSERT_RETURN(nfds == KDBUS_CONN_MAX_FDS_PER_USER);
 
 	kdbus_msg_free(msg);
 
@@ -542,9 +546,12 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	kdbus_msg_free(msg);
 
 
-	/* Combine multiple KDBUS_MSG_MAX_FDS+1 fds and 10 memfds */
+	/*
+	 * Combine multiple KDBUS_CONN_MAX_FDS_PER_USER+1 fds and
+	 * 10 memfds
+	 */
 	ret = send_fds_memfds(conn_src, conn_dst->id,
-			      fds, KDBUS_MSG_MAX_FDS + 1,
+			      fds, KDBUS_CONN_MAX_FDS_PER_USER + 1,
 			      memfds, 10);
 	ASSERT_RETURN(ret == -EMFILE);
 
@@ -552,16 +559,17 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	ASSERT_RETURN(ret == -EAGAIN);
 
 	/*
-	 * Combine multiple KDBUS_MSG_MAX_FDS fds and (128 - 1) + 1 memfds,
-	 * all fds take one item, while each memfd takes one item
+	 * Combine multiple KDBUS_CONN_MAX_FDS_PER_USER fds and
+	 * (128 - 1) + 1 memfds, all fds take one item, while each
+	 * memfd takes one item
 	 */
 	ret = send_fds_memfds(conn_src, conn_dst->id,
-			      fds, KDBUS_MSG_MAX_FDS,
+			      fds, KDBUS_CONN_MAX_FDS_PER_USER,
 			      memfds, (KDBUS_MSG_MAX_ITEMS - 1) + 1);
 	ASSERT_RETURN(ret == -E2BIG);
 
 	ret = send_fds_memfds(conn_src, conn_dst->id,
-			      fds, KDBUS_MSG_MAX_FDS,
+			      fds, KDBUS_CONN_MAX_FDS_PER_USER,
 			      memfds, KDBUS_MSG_MAX_MEMFD_ITEMS + 1);
 	ASSERT_RETURN(ret == -E2BIG);
 
@@ -569,10 +577,11 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	ASSERT_RETURN(ret == -EAGAIN);
 
 	/*
-	 * Send KDBUS_MSG_MAX_FDS fds + KDBUS_MSG_MAX_MEMFD_ITEMS memfds
+	 * Send KDBUS_CONN_MAX_FDS_PER_USER fds +
+	 * KDBUS_MSG_MAX_MEMFD_ITEMS memfds
 	 */
 	ret = send_fds_memfds(conn_src, conn_dst->id,
-			      fds, KDBUS_MSG_MAX_FDS,
+			      fds, KDBUS_CONN_MAX_FDS_PER_USER,
 			      memfds, KDBUS_MSG_MAX_MEMFD_ITEMS);
 	ASSERT_RETURN(ret == 0);
 
@@ -581,7 +590,7 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 
 	/* Check we got the right number of fds */
 	nfds = kdbus_item_get_nfds(msg);
-	ASSERT_RETURN(nfds == KDBUS_MSG_MAX_FDS +
+	ASSERT_RETURN(nfds == KDBUS_CONN_MAX_FDS_PER_USER +
 			      KDBUS_MSG_MAX_MEMFD_ITEMS);
 
 	kdbus_msg_free(msg);
@@ -592,19 +601,20 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	 * and try to queue more
 	 */
 	ret = send_fds_memfds(conn_src, conn_dst->id,
-			      fds, KDBUS_MSG_MAX_FDS,
+			      fds, KDBUS_CONN_MAX_FDS_PER_USER,
 			      memfds, KDBUS_MSG_MAX_MEMFD_ITEMS);
 	ASSERT_RETURN(ret == 0);
 
 	/* close old references and get a new ones */
-	for (i = 0; i < KDBUS_MSG_MAX_FDS + 1; i++) {
+	for (i = 0; i < KDBUS_CONN_MAX_FDS_PER_USER + 1; i++) {
 		close(fds[i]);
 		fds[i] = open("/dev/null", O_RDWR|O_CLOEXEC);
 		ASSERT_RETURN_VAL(fds[i] >= 0, -errno);
 	}
 
 	/* should fail since we have already fds in the queue */
-	ret = send_fds(conn_src, conn_dst->id, fds, KDBUS_MSG_MAX_FDS);
+	ret = send_fds(conn_src, conn_dst->id, fds,
+		       KDBUS_CONN_MAX_FDS_PER_USER);
 	ASSERT_RETURN(ret == -EMFILE);
 
 	/* This should succeed */
@@ -616,7 +626,7 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	ASSERT_RETURN(ret == 0);
 
 	nfds = kdbus_item_get_nfds(msg);
-	ASSERT_RETURN(nfds == KDBUS_MSG_MAX_FDS +
+	ASSERT_RETURN(nfds == KDBUS_CONN_MAX_FDS_PER_USER +
 			      KDBUS_MSG_MAX_MEMFD_ITEMS);
 
 	kdbus_msg_free(msg);
@@ -632,7 +642,7 @@ static int kdbus_send_multiple_fds(struct kdbus_conn *conn_src,
 	ret = kdbus_msg_recv(conn_dst, NULL, NULL);
 	ASSERT_RETURN(ret == -EAGAIN);
 
-	for (i = 0; i < KDBUS_MSG_MAX_FDS + 1; i++)
+	for (i = 0; i < KDBUS_CONN_MAX_FDS_PER_USER + 1; i++)
 		close(fds[i]);
 
 	for (i = 0; i < KDBUS_MSG_MAX_ITEMS + 1; i++)
