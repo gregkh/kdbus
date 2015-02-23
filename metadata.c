@@ -910,7 +910,7 @@ int kdbus_meta_export_prepare(struct kdbus_meta_proc *mp,
 exit:
 	*sz = size;
 
-	return 0;
+	return ret;
 }
 
 static int kdbus_meta_push_kvec(struct kvec *kvec,
