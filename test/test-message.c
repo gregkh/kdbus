@@ -207,11 +207,11 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 	}
 
 	/*
-	 * Now the reader queue is full, message will be lost
-	 * but it will not be accounted in dropped msgs
+	 * Now the reader queue is full with kernel notfications,
+	 * but as a user we still have room to push our messages.
 	 */
 	ret = kdbus_msg_send(conn, NULL, 0xdeadbeef, 0, 0, 0, reader->id);
-	ASSERT_RETURN(ret == -ENOBUFS);
+	ASSERT_RETURN(ret == 0);
 
 	/* More ID kernel notifications that will be lost */
 	kdbus_conn_free(conn);
@@ -246,6 +246,9 @@ static int kdbus_test_notify_kernel_quota(struct kdbus_test_env *env)
 		msg = (struct kdbus_msg *)(reader->buf + recv.msg.offset);
 		kdbus_msg_free(msg);
 	}
+
+	ret = kdbus_msg_recv(reader, NULL, NULL);
+	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_msg_recv(reader, NULL, NULL);
 	ASSERT_RETURN(ret == -EAGAIN);

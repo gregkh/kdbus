@@ -614,6 +614,7 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 {
 	struct kdbus_quota *quota;
 	size_t available;
+	unsigned int id;
 
 	/*
 	 * Pool Layout:
@@ -640,13 +641,21 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 
 	/* per user-accounting is expensive, so we keep state small */
 	BUILD_BUG_ON(sizeof(quota->memory) != 4);
+	BUILD_BUG_ON(sizeof(quota->msgs) != 2);
 	BUILD_BUG_ON(sizeof(quota->fds) != 1);
+	BUILD_BUG_ON(KDBUS_CONN_MAX_MSGS > U16_MAX);
 	BUILD_BUG_ON(KDBUS_CONN_MAX_FDS_PER_USER > U8_MAX);
 
-	if (u->id >= c->n_quota) {
+	/*
+	 * User or kernel quota accounting, kernel is indexed at
+	 * connection->quota[0]
+	 */
+	id = u ? (u->id + 1) : 0;
+
+	if (id >= c->n_quota) {
 		unsigned int users;
 
-		users = max(KDBUS_ALIGN8(u->id) + 8, u->id);
+		users = max(KDBUS_ALIGN8(id) + 8, id);
 		quota = krealloc(c->quota, users * sizeof(*quota),
 				 GFP_KERNEL | __GFP_ZERO);
 		if (!quota)
@@ -656,12 +665,13 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 		c->quota = quota;
 	}
 
-	quota = &c->quota[u->id];
+	quota = &c->quota[id];
 	available = (kdbus_pool_remain(c->pool) + quota->memory) / 3;
 
 	if (available < quota->memory ||
 	    available - quota->memory < memory ||
-	    quota->memory + memory > U32_MAX)
+	    quota->memory + memory > U32_MAX ||
+	    quota->msgs >= KDBUS_CONN_MAX_MSGS)
 		return -ENOBUFS;
 
 	if (quota->fds + fds < quota->fds ||
@@ -670,6 +680,7 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 
 	quota->memory += memory;
 	quota->fds += fds;
+	quota->msgs++;
 	return 0;
 }
 
@@ -702,18 +713,17 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 	if (IS_ERR(entry))
 		return entry;
 
-	if (user) {
-		ret = kdbus_conn_quota(conn_dst, user,
-				       kdbus_pool_slice_size(entry->slice),
-				       entry->msg_res ?
-				       entry->msg_res->fds_count : 0);
-		if (ret < 0) {
-			kdbus_queue_entry_free(entry);
-			return ERR_PTR(ret);
-		}
-
-		entry->user = kdbus_user_ref(user);
+	ret = kdbus_conn_quota(conn_dst, user,
+			       kdbus_pool_slice_size(entry->slice),
+			       entry->msg_res ?
+			       entry->msg_res->fds_count : 0);
+	if (ret < 0) {
+		kdbus_queue_entry_free(entry);
+		return ERR_PTR(ret);
 	}
+
+	if (user)
+		entry->user = kdbus_user_ref(user);
 
 	return entry;
 }
@@ -796,20 +806,10 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	kdbus_conn_lock2(conn_src, conn_dst);
 
 	/*
-	 * Limit the maximum number of queued messages. This applies
-	 * to all messages, user messages and kernel notifications
-	 *
-	 * The kernel sends notifications to subscribed connections
-	 * only. If the connection do not clean its queue, no further
-	 * message delivery.
-	 * Kernel is able to queue KDBUS_CONN_MAX_MSGS messages, this
-	 * includes all type of notifications.
+	 * Create a queue entry for this kmsg and check quota
+	 * accounting, all user messages and kernel notifications are
+	 * subject to quota checks.
 	 */
-	if (conn_dst->queue.msg_count >= KDBUS_CONN_MAX_MSGS) {
-		ret = -ENOBUFS;
-		goto exit_unlock;
-	}
-
 	entry = kdbus_conn_entry_make(conn_dst, kmsg,
 				      conn_src ? conn_src->user : NULL);
 	if (IS_ERR(entry)) {
