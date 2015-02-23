@@ -374,7 +374,7 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (is_broadcast)
 				return -ENOTUNIQ;
 
-			if (fds_count > KDBUS_MSG_MAX_FDS)
+			if (fds_count > KDBUS_CONN_MAX_FDS_PER_USER)
 				return -EMFILE;
 
 			res->fds = kcalloc(fds_count, sizeof(struct file *),

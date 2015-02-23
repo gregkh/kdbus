@@ -28,12 +28,6 @@
 /* max size of ioctl command data */
 #define KDBUS_CMD_MAX_SIZE		SZ_32K
 
-/*
- * Maximum number of passed file descriptors
- * Number taken from AF_UNIX upper limits
- */
-#define KDBUS_MSG_MAX_FDS		253
-
 /* maximum number of inflight fds in a target queue per user */
 #define KDBUS_CONN_MAX_FDS_PER_USER	16
 
