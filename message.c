@@ -317,6 +317,9 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			if (item->memfd.fd < 0)
 				return -EBADF;
 
+			if (res->memfd_count >= KDBUS_MSG_MAX_MEMFD_ITEMS)
+				return -E2BIG;
+
 			f = fget(item->memfd.fd);
 			if (!f)
 				return -EBADF;

@@ -22,6 +22,9 @@
 /* maximum number of message items */
 #define KDBUS_MSG_MAX_ITEMS		128
 
+/* maximum number of memfd items per message */
+#define KDBUS_MSG_MAX_MEMFD_ITEMS	16
+
 /* max size of ioctl command data */
 #define KDBUS_CMD_MAX_SIZE		SZ_32K
 
@@ -30,6 +33,9 @@
  * Number taken from AF_UNIX upper limits
  */
 #define KDBUS_MSG_MAX_FDS		253
+
+/* maximum number of inflight fds in a target queue per user */
+#define KDBUS_CONN_MAX_FDS_PER_USER	16
 
 /* maximum message payload size */
 #define KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE		SZ_2M
@@ -48,9 +54,6 @@
 
 /* maximum number of queued messages in a connection */
 #define KDBUS_CONN_MAX_MSGS			256
-
-/* maximum number of inflight fds in a target queue per user */
-#define KDBUS_CONN_MAX_FDS_PER_USER		16
 
 /* maximum number of well-known names per connection */
 #define KDBUS_CONN_MAX_NAMES			256
