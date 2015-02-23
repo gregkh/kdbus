@@ -46,7 +46,7 @@
 /* maximum number of matches per connection */
 #define KDBUS_MATCH_MAX				256
 
-/* maximum number of queued messages in a connection */
+/* maximum number of queued messages from the same individual user */
 #define KDBUS_CONN_MAX_MSGS			256
 
 /* maximum number of well-known names per connection */
