@@ -322,6 +322,103 @@ static int kdbus_test_expected_reply_quota(struct kdbus_test_env *env)
 	return 0;
 }
 
+int kdbus_test_pool_quota(struct kdbus_test_env *env)
+{
+	struct kdbus_conn *a, *b, *c;
+	struct kdbus_cmd_send cmd = {};
+	struct kdbus_item *item;
+	struct kdbus_msg *recv_msg;
+	struct kdbus_msg *msg;
+	uint64_t cookie = time(NULL);
+	uint64_t size;
+	unsigned int i;
+	char *payload;
+	int ret;
+
+	/* just a guard */
+	if (POOL_SIZE <= KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE ||
+	    POOL_SIZE % KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE != 0)
+		return 0;
+
+	payload = calloc(KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE, sizeof(char));
+	ASSERT_RETURN_VAL(payload, -ENOMEM);
+
+	a = kdbus_hello(env->buspath, 0, NULL, 0);
+	b = kdbus_hello(env->buspath, 0, NULL, 0);
+	c = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(a && b && c);
+
+	size = sizeof(struct kdbus_msg);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+
+	msg = malloc(size);
+	ASSERT_RETURN_VAL(msg, -ENOMEM);
+
+	memset(msg, 0, size);
+	msg->size = size;
+	msg->src_id = a->id;
+	msg->dst_id = c->id;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
+
+	item = msg->items;
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->vec.address = (uintptr_t)payload;
+	item->vec.size = KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE;
+	item = KDBUS_ITEM_NEXT(item);
+
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg;
+
+	/*
+	 * Send 2097248 bytes, a user is only allowed to get 33% of
+	 * the free space of the pool, the already used space is
+	 * accounted as free space
+	 */
+	size += KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE;
+	for (i = size; i < (POOL_SIZE / 3); i += size) {
+		msg->cookie = cookie++;
+
+		ret = kdbus_cmd_send(a->fd, &cmd);
+		ASSERT_RETURN_VAL(ret == 0, ret);
+	}
+
+	/* Try to get more than 33% */
+	msg->cookie = cookie++;
+	ret = kdbus_cmd_send(a->fd, &cmd);
+	ASSERT_RETURN(ret == -ENOBUFS);
+
+	/* We still can pass small messages */
+	ret = kdbus_msg_send(b, NULL, cookie++, 0, 0, 0, c->id);
+	ASSERT_RETURN(ret == 0);
+
+	for (i = size; i < (POOL_SIZE/ 3); i += size) {
+		ret = kdbus_msg_recv(c, &recv_msg, NULL);
+		ASSERT_RETURN(ret == 0);
+		ASSERT_RETURN(recv_msg->src_id == a->id);
+
+		kdbus_msg_free(recv_msg);
+	}
+
+	ret = kdbus_msg_recv(c, &recv_msg, NULL);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(recv_msg->src_id == b->id);
+
+	kdbus_msg_free(recv_msg);
+
+	ret = kdbus_msg_recv(c, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
+	free(msg);
+	free(payload);
+
+	kdbus_conn_free(c);
+	kdbus_conn_free(b);
+	kdbus_conn_free(a);
+
+	return 0;
+}
+
 int kdbus_test_message_quota(struct kdbus_test_env *env)
 {
 	struct kdbus_conn *a, *b;
@@ -332,25 +429,33 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	ret = kdbus_test_notify_kernel_quota(env);
 	ASSERT_RETURN(ret == 0);
 
+	ret = kdbus_test_pool_quota(env);
+	ASSERT_RETURN(ret == 0);
+
 	ret = kdbus_test_expected_reply_quota(env);
 	ASSERT_RETURN(ret == 0);
 
 	a = kdbus_hello(env->buspath, 0, NULL, 0);
 	b = kdbus_hello(env->buspath, 0, NULL, 0);
 
-	ret = kdbus_fill_conn_queue(b, a->id, MAX_USER_TOTAL_MSGS);
-	ASSERT_RETURN(ret == MAX_USER_TOTAL_MSGS);
+	ret = kdbus_fill_conn_queue(b, a->id, KDBUS_CONN_MAX_MSGS);
+	ASSERT_RETURN(ret < KDBUS_CONN_MAX_MSGS);
 
-	for (i = 0; i < MAX_USER_TOTAL_MSGS; ++i) {
+	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
+	ASSERT_RETURN(ret == -ENOBUFS);
+
+	for (i = 0; i < KDBUS_CONN_MAX_MSGS; ++i) {
 		ret = kdbus_msg_recv(a, NULL, NULL);
+		if (ret == -EAGAIN)
+			break;
 		ASSERT_RETURN(ret == 0);
 	}
 
-	ret = kdbus_fill_conn_queue(b, a->id, MAX_USER_TOTAL_MSGS);
-	ASSERT_RETURN(ret == MAX_USER_TOTAL_MSGS);
+	ret = kdbus_fill_conn_queue(b, a->id, KDBUS_CONN_MAX_MSGS);
+	ASSERT_RETURN(ret < KDBUS_CONN_MAX_MSGS);
 
 	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
-	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(ret == -ENOBUFS);
 
 	kdbus_conn_free(a);
 	kdbus_conn_free(b);
