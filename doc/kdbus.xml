@@ -7,15 +7,6 @@
   <refentryinfo>
     <title>kdbus</title>
     <productname>kdbus</productname>
-
-    <authorgroup>
-      <author>
-        <contrib>Developer</contrib>
-        <firstname>David</firstname>
-        <surname>Herrmann</surname>
-        <email>dh.herrmann@gmail.com</email>
-      </author>
-    </authorgroup>
   </refentryinfo>
 
   <refmeta>

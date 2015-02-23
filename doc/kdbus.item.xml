@@ -7,21 +7,6 @@
   <refentryinfo>
     <title>kdbus.item</title>
     <productname>kdbus item</productname>
-
-    <authorgroup>
-      <author>
-        <contrib>Developer</contrib>
-        <firstname>David</firstname>
-        <surname>Herrmann</surname>
-        <email>dh.herrmann@gmail.com</email>
-      </author>
-      <author>
-        <contrib>Developer</contrib>
-        <firstname>Daniel</firstname>
-        <surname>Mack</surname>
-        <email>kdbus@zonque.org</email>
-      </author>
-    </authorgroup>
   </refentryinfo>
 
   <refmeta>
