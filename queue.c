@@ -170,10 +170,7 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 		if (!WARN_ON(quota->fds < n))
 			quota->fds -= n;
 
-		/*
-		 * The queue is empty, remove the whole quota
-		 * accounting
-		 */
+		/* The queue is empty, remove the whole quota accounting */
 		if (queue->msg_count == 0) {
 			kfree(conn->quota);
 			conn->quota = NULL;

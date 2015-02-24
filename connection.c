@@ -713,8 +713,7 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 
 	ret = kdbus_conn_quota(conn_dst, user,
 			       kdbus_pool_slice_size(entry->slice),
-			       entry->msg_res ?
-			       entry->msg_res->fds_count : 0);
+			       entry->msg_res ? entry->msg_res->fds_count : 0);
 	if (ret < 0) {
 		kdbus_queue_entry_free(entry);
 		return ERR_PTR(ret);
