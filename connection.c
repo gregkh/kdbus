@@ -277,6 +277,7 @@ static void __kdbus_conn_free(struct kref *kref)
 	kdbus_ep_unref(conn->ep);
 	put_cred(conn->cred);
 	kfree(conn->description);
+	kfree(conn->quota);
 	kfree(conn);
 }
 
