@@ -129,6 +129,45 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 }
 
 /**
+ * kdbus_queue_entry_dec_quota
+ * @conn:	The connection containing the queue entry
+ * @entry:	The entry that refers to the message
+ *
+ * Decrease the quota inside a connection, according to @entry.
+ */
+void kdbus_queue_entry_dec_quota(struct kdbus_conn *conn,
+				 struct kdbus_queue_entry *entry)
+{
+	size_t n;
+	unsigned int id;
+	struct kdbus_quota *quota;
+
+	if (!conn->n_quota)
+		return;
+
+	/* get user or kernel id quota */
+	if (entry->user) {
+		id = entry->user->id + 1;
+		entry->user = kdbus_user_unref(entry->user);
+	} else {
+		id = 0;
+	}
+
+	quota = &conn->quota[id];
+
+	if (!WARN_ON(quota->msgs == 0))
+		quota->msgs--;
+
+	n = kdbus_pool_slice_size(entry->slice);
+	if (!WARN_ON(quota->memory < n))
+		quota->memory -= n;
+
+	n = entry->msg_res ? entry->msg_res->fds_count : 0;
+	if (!WARN_ON(quota->fds < n))
+		quota->fds -= n;
+}
+
+/**
  * kdbus_queue_entry_remove() - Remove an entry from a queue
  * @conn:	The connection containing the queue
  * @entry:	The entry to remove
@@ -143,39 +182,13 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 	list_del(&entry->entry);
 	queue->msg_count--;
 
-	/* update quota values */
-	if (conn->n_quota > 0) {
-		size_t n;
-		unsigned int id;
-		struct kdbus_quota *quota;
+	kdbus_queue_entry_dec_quota(conn, entry);
 
-		/* get user or kernel id quota */
-		if (entry->user) {
-			id = entry->user->id + 1;
-			entry->user = kdbus_user_unref(entry->user);
-		} else {
-			id = 0;
-		}
-
-		quota = &conn->quota[id];
-
-		if (!WARN_ON(quota->msgs == 0))
-			quota->msgs--;
-
-		n = kdbus_pool_slice_size(entry->slice);
-		if (!WARN_ON(quota->memory < n))
-			quota->memory -= n;
-
-		n = entry->msg_res ? entry->msg_res->fds_count : 0;
-		if (!WARN_ON(quota->fds < n))
-			quota->fds -= n;
-
-		/* The queue is empty, remove the whole quota accounting */
-		if (queue->msg_count == 0) {
-			kfree(conn->quota);
-			conn->quota = NULL;
-			conn->n_quota = 0;
-		}
+	/* The queue is empty, remove the whole quota accounting */
+	if (queue->msg_count == 0) {
+		kfree(conn->quota);
+		conn->quota = NULL;
+		conn->n_quota = 0;
 	}
 
 	if (list_empty(&entry->prio_entry)) {
