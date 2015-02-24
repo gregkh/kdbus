@@ -1091,10 +1091,10 @@ int kdbus_name_acquire(struct kdbus_conn *conn,
 	}
 
 	kdbus_printf("%s(): flags after call: 0x%llx\n", __func__,
-		     cmd_name->flags);
+		     cmd_name->return_flags);
 
 	if (flags)
-		*flags = cmd_name->flags;
+		*flags = cmd_name->return_flags;
 
 	return 0;
 }

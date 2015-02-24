@@ -155,13 +155,14 @@ struct kdbus_cmd {
               <term><constant>KDBUS_NAME_QUEUE</constant></term>
               <listitem>
                 <para>
-                  A name that is already acquired by a connection, and which
-                  wasn't requested with the
-                  <constant>KDBUS_NAME_ALLOW_REPLACEMENT</constant> flag set
-                  can not be acquired again. However, a connection can put
-                  itself in a queue of connections waiting for the name to be
-                  released. Once that happens, the first connection in that
-                  queue becomes the new owner and is notified accordingly.
+                  A name that is already acquired by a connection can not be
+                  acquired again (unless the
+                  <constant>KDBUS_NAME_ALLOW_REPLACEMENT</constant> flag was
+                  set during acquisition; see above).
+                  However, a connection can put itself in a queue of
+                  connections waiting for the name to be released. Once that
+                  happens, the first connection in that queue becomes the new
+                  owner and is notified accordingly.
                 </para>
               </listitem>
             </varlistentry>
@@ -188,10 +189,28 @@ struct kdbus_cmd {
 
       <varlistentry>
         <term><varname>return_flags</varname></term>
-        <listitem><para>
-          Flags returned by the kernel. Currently unused and always set to
-          <constant>0</constant> by the kernel.
-        </para></listitem>
+        <listitem>
+          <para>
+            Flags returned by the kernel. Currently, the following may be
+            returned by the kernel.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><constant>KDBUS_NAME_IN_QUEUE</constant></term>
+              <listitem>
+                <para>
+                  The name was not acquired yet, but the connection was
+                  placed in the queue of peers waiting for the name.
+                  This can only happen if <constant>KDBUS_NAME_QUEUE</constant>
+                  was set in the <varname>flags</varname> member (see above).
+                  The connection will receive a name owner change notification
+                  once the current owner has given up the name and its
+                  ownership was transferred.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
       </varlistentry>
 
       <varlistentry>

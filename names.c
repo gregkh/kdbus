@@ -269,6 +269,8 @@ kdbus_name_lookup_unlocked(struct kdbus_name_registry *reg, const char *name)
  * @conn:		The connection to pin this entry to
  * @name:		The name to acquire
  * @flags:		Acquisition flags (KDBUS_NAME_*)
+ * @return_flags:	Pointer to return flags for the acquired name
+ *			(KDBUS_NAME_*), may be %NULL
  *
  * Callers must ensure that @conn is either a privileged bus user or has
  * sufficient privileges in the policy-db to own the well-known name @name.
@@ -276,10 +278,11 @@ kdbus_name_lookup_unlocked(struct kdbus_name_registry *reg, const char *name)
  * Return: 0 success, negative error number on failure.
  */
 int kdbus_name_acquire(struct kdbus_name_registry *reg,
-		       struct kdbus_conn *conn,
-		       const char *name, u64 *flags)
+		       struct kdbus_conn *conn, const char *name,
+		       u64 flags, u64 *return_flags)
 {
 	struct kdbus_name_entry *e;
+	u64 rflags = 0;
 	int ret = 0;
 	u32 hash;
 
@@ -313,7 +316,7 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 			conn->activator_of = e;
 		}
 
-		kdbus_name_entry_set_owner(e, conn, *flags);
+		kdbus_name_entry_set_owner(e, conn, flags);
 		kdbus_notify_name_change(e->conn->ep->bus, KDBUS_ITEM_NAME_ADD,
 					 0, e->conn->id, 0, e->flags, e->name);
 	} else if (e->conn == conn || e == conn->activator_of) {
@@ -334,8 +337,8 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 		/* claim name of an activator */
 
 		kdbus_conn_move_messages(conn, e->activator, 0);
-		kdbus_name_entry_replace_owner(e, conn, *flags);
-	} else if ((*flags & KDBUS_NAME_REPLACE_EXISTING) &&
+		kdbus_name_entry_replace_owner(e, conn, flags);
+	} else if ((flags & KDBUS_NAME_REPLACE_EXISTING) &&
 		   (e->flags & KDBUS_NAME_ALLOW_REPLACEMENT)) {
 		/* claim name of a previous owner */
 
@@ -346,18 +349,21 @@ int kdbus_name_acquire(struct kdbus_name_registry *reg,
 				goto exit_unlock;
 		}
 
-		kdbus_name_entry_replace_owner(e, conn, *flags);
-	} else if (*flags & KDBUS_NAME_QUEUE) {
+		kdbus_name_entry_replace_owner(e, conn, flags);
+	} else if (flags & KDBUS_NAME_QUEUE) {
 		/* add to waiting-queue of the name */
 
-		ret = kdbus_name_pending_new(e, conn, *flags);
+		ret = kdbus_name_pending_new(e, conn, flags);
 		if (ret >= 0)
 			/* tell the caller that we queued it */
-			*flags |= KDBUS_NAME_IN_QUEUE;
+			rflags |= KDBUS_NAME_IN_QUEUE;
 	} else {
 		/* the name is busy, return a failure */
 		ret = -EEXIST;
 	}
+
+	if (ret == 0 && return_flags)
+		*return_flags = rflags;
 
 exit_unlock:
 	up_write(&reg->rwlock);
@@ -507,7 +513,7 @@ int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp)
 	}
 
 	ret = kdbus_name_acquire(conn->ep->bus->name_registry, conn, item_name,
-				 &cmd->flags);
+				 cmd->flags, &cmd->return_flags);
 	if (ret < 0)
 		goto exit_dec;
 

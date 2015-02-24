@@ -448,7 +448,7 @@ static int kdbus_conn_connect(struct kdbus_conn *conn, const char *name)
 		}
 
 		ret = kdbus_name_acquire(bus->name_registry, conn, name,
-					 &flags);
+					 flags, NULL);
 		if (ret < 0)
 			goto exit_disconnect;
 	}
