@@ -64,15 +64,15 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	static struct lock_class_key __key;
 #endif
 	struct kdbus_pool_slice *slice = NULL;
-	struct kdbus_item_list items = {};
 	struct kdbus_bus *bus = ep->bus;
 	struct kdbus_conn *conn;
 	u64 attach_flags_send;
 	u64 attach_flags_recv;
+	u64 items_size = 0;
 	bool is_policy_holder;
 	bool is_activator;
 	bool is_monitor;
-	struct kvec kvec[2];
+	struct kvec kvec;
 	int ret;
 
 	struct {
@@ -231,18 +231,16 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	bloom_item.size = sizeof(bloom_item);
 	bloom_item.type = KDBUS_ITEM_BLOOM_PARAMETER;
 	bloom_item.bloom = bus->bloom;
-	kdbus_kvec_set(&kvec[0], &items, sizeof(items), &items.size);
-	kdbus_kvec_set(&kvec[1], &bloom_item, bloom_item.size, &items.size);
+	kdbus_kvec_set(&kvec, &bloom_item, bloom_item.size, &items_size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, items.size);
+	slice = kdbus_pool_slice_alloc(conn->pool, items_size);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
 		goto exit_unref;
 	}
 
-	ret = kdbus_pool_slice_copy_kvec(slice, 0, kvec, ARRAY_SIZE(kvec),
-					 items.size);
+	ret = kdbus_pool_slice_copy_kvec(slice, 0, &kvec, 1, items_size);
 	if (ret < 0)
 		goto exit_unref;
 
