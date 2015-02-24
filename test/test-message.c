@@ -265,14 +265,32 @@ static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
 {
 	unsigned int i;
 	uint64_t cookie = 0;
+	size_t size;
+	struct kdbus_cmd_send cmd = {};
+	struct kdbus_msg *msg;
 	int ret;
 
+	size = sizeof(struct kdbus_msg);
+	msg = malloc(size);
+	ASSERT_RETURN_VAL(msg, -ENOMEM);
+
+	memset(msg, 0, size);
+	msg->size = size;
+	msg->src_id = conn_src->id;
+	msg->dst_id = dst_id;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
+
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg;
+
 	for (i = 0; i < max_msgs; i++) {
-		ret = kdbus_msg_send(conn_src, NULL, ++cookie,
-				     0, 0, 0, dst_id);
+		msg->cookie = cookie++;
+		ret = kdbus_cmd_send(conn_src->fd, &cmd);
 		if (ret < 0)
 			break;
 	}
+
+	free(msg);
 
 	return i;
 }
@@ -442,20 +460,21 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	b = kdbus_hello(env->buspath, 0, NULL, 0);
 
 	ret = kdbus_fill_conn_queue(b, a->id, KDBUS_CONN_MAX_MSGS);
-	ASSERT_RETURN(ret < KDBUS_CONN_MAX_MSGS);
+	ASSERT_RETURN(ret == KDBUS_CONN_MAX_MSGS);
 
 	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
 	ASSERT_RETURN(ret == -ENOBUFS);
 
 	for (i = 0; i < KDBUS_CONN_MAX_MSGS; ++i) {
 		ret = kdbus_msg_recv(a, NULL, NULL);
-		if (ret == -EAGAIN)
-			break;
 		ASSERT_RETURN(ret == 0);
 	}
 
-	ret = kdbus_fill_conn_queue(b, a->id, KDBUS_CONN_MAX_MSGS);
-	ASSERT_RETURN(ret < KDBUS_CONN_MAX_MSGS);
+	ret = kdbus_msg_recv(a, NULL, NULL);
+	ASSERT_RETURN(ret == -EAGAIN);
+
+	ret = kdbus_fill_conn_queue(b, a->id, KDBUS_CONN_MAX_MSGS + 1);
+	ASSERT_RETURN(ret == KDBUS_CONN_MAX_MSGS);
 
 	ret = kdbus_msg_send(b, NULL, ++cookie, 0, 0, 0, a->id);
 	ASSERT_RETURN(ret == -ENOBUFS);
