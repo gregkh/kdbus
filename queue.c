@@ -179,7 +179,7 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 {
 	struct kdbus_queue *queue = &conn->queue;
 
-	list_del(&entry->entry);
+	list_del_init(&entry->entry);
 	queue->msg_count--;
 
 	kdbus_queue_entry_dec_quota(conn, entry);
