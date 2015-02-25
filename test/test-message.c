@@ -295,6 +295,106 @@ static int kdbus_fill_conn_queue(struct kdbus_conn *conn_src,
 	return i;
 }
 
+static int kdbus_test_activator_quota(struct kdbus_test_env *env)
+{
+	int ret;
+	unsigned int i;
+	unsigned int activator_msgs_count = 0;
+	uint64_t cookie = time(NULL);
+	struct kdbus_conn *conn;
+	struct kdbus_conn *sender;
+	struct kdbus_conn *activator;
+	struct kdbus_msg *msg;
+	uint64_t flags = KDBUS_NAME_REPLACE_EXISTING;
+	struct kdbus_cmd_recv recv = { .size = sizeof(recv) };
+	struct kdbus_policy_access access = {
+		.type = KDBUS_POLICY_ACCESS_USER,
+		.id = geteuid(),
+		.access = KDBUS_POLICY_OWN,
+	};
+
+	activator = kdbus_hello_activator(env->buspath, "foo.test.activator",
+					  &access, 1);
+	ASSERT_RETURN(activator);
+
+	conn = kdbus_hello(env->buspath, 0, NULL, 0);
+	sender = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(conn || sender);
+
+	ret = kdbus_list(sender, KDBUS_LIST_NAMES |
+				 KDBUS_LIST_UNIQUE |
+				 KDBUS_LIST_ACTIVATORS |
+				 KDBUS_LIST_QUEUED);
+	ASSERT_RETURN(ret == 0);
+
+	for (i = 0; i < KDBUS_CONN_MAX_MSGS; i++) {
+		ret = kdbus_msg_send(sender, "foo.test.activator",
+				     cookie++, 0, 0, 0,
+				     KDBUS_DST_ID_NAME);
+		if (ret < 0)
+			break;
+		activator_msgs_count++;
+	}
+
+	/* we must have at least sent one message */
+	ASSERT_RETURN_VAL(i > 0, -errno);
+	ASSERT_RETURN(ret == -ENOBUFS);
+
+	/* Good, activator queue is full now */
+
+	/* sending to activator fails with ENXIO */
+	ret = kdbus_msg_send(conn, NULL, cookie++, 0, 0, 0, activator->id);
+	ASSERT_RETURN(ret == -ENXIO);
+
+	/* can't queue more */
+	ret = kdbus_msg_send(conn, "foo.test.activator", cookie++,
+			     0, 0, 0, KDBUS_DST_ID_NAME);
+	ASSERT_RETURN(ret == -ENOBUFS);
+
+	ret = kdbus_msg_send(sender, NULL, cookie++, 0, 0, 0,
+			     KDBUS_DST_ID_BROADCAST);
+	ASSERT_RETURN(ret == 0);
+
+	/* Check activator queue */
+	ret = kdbus_cmd_recv(activator->fd, &recv);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(recv.dropped_msgs == 0);
+
+	activator_msgs_count--;
+
+	msg = (struct kdbus_msg *)(activator->buf + recv.msg.offset);
+	kdbus_msg_free(msg);
+
+	/* Consume the connection pool memory */
+	for (i = 0; i < KDBUS_CONN_MAX_MSGS; i++) {
+		ret = kdbus_msg_send(sender, NULL,
+				     cookie++, 0, 0, 0, conn->id);
+		if (ret < 0)
+			break;
+	}
+
+	/* Try to acquire the name now */
+	ret = kdbus_name_acquire(conn, "foo.test.activator", &flags);
+	ASSERT_RETURN(ret == 0);
+
+	memset(&recv, 0, sizeof(recv));
+	recv.size = sizeof(recv);
+
+	/* try to read messages and see if we have lost some */
+	ret = kdbus_cmd_recv(conn->fd, &recv);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(recv.dropped_msgs != 0);
+
+	msg = (struct kdbus_msg *)(activator->buf + recv.msg.offset);
+	kdbus_msg_free(msg);
+
+	kdbus_conn_free(sender);
+	kdbus_conn_free(conn);
+	kdbus_conn_free(activator);
+
+	return 0;
+}
+
 static int kdbus_test_expected_reply_quota(struct kdbus_test_env *env)
 {
 	int ret;
@@ -446,6 +546,9 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 	uint64_t cookie = 0;
 	int ret;
 	int i;
+
+	ret = kdbus_test_activator_quota(env);
+	ASSERT_RETURN(ret == 0);
 
 	ret = kdbus_test_notify_kernel_quota(env);
 	ASSERT_RETURN(ret == 0);

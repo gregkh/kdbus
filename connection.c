@@ -1347,7 +1347,6 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			continue;
 		}
 
-		kdbus_queue_entry_add(&conn_dst->queue, e);
 		ret = kdbus_conn_quota(conn_dst, e->user,
 				       kdbus_pool_slice_size(e->slice),
 				       e->msg_res ? e->msg_res->fds_count : 0);
@@ -1356,6 +1355,9 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			kdbus_queue_entry_free(e);
 			continue;
 		}
+
+		/* link the message into the receiver's entry */
+		kdbus_queue_entry_add(&conn_dst->queue, e);
 	}
 	kdbus_conn_unlock2(conn_src, conn_dst);
 
