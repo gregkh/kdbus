@@ -718,9 +718,18 @@ int kdbus_pool_slice_move(struct kdbus_pool *pool_dst,
 {
 	mm_segment_t old_fs;
 	struct kdbus_pool_slice *slice_new;
+	size_t pool_avail;
+	size_t size;
 	int ret;
 
-	slice_new = kdbus_pool_slice_alloc(pool_dst, (*slice)->size);
+	size = kdbus_pool_slice_size(*slice);
+	pool_avail = kdbus_pool_remain(pool_dst);
+
+	/* do not give out more than half of the remaining space */
+	if (size > pool_avail / 2)
+		return -EXFULL;
+
+	slice_new = kdbus_pool_slice_alloc(pool_dst, size);
 	if (IS_ERR(slice_new))
 		return PTR_ERR(slice_new);
 
