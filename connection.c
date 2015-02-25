@@ -1291,7 +1291,7 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			      struct kdbus_conn *conn_src,
 			      u64 name_id)
 {
-	struct kdbus_queue_entry *q, *q_tmp;
+	struct kdbus_queue_entry *e, *e_tmp;
 	struct kdbus_reply *r, *r_tmp;
 	struct kdbus_bus *bus;
 	struct kdbus_conn *c;
@@ -1326,34 +1326,34 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 	up_read(&bus->conn_rwlock);
 
 	kdbus_conn_lock2(conn_src, conn_dst);
-	list_for_each_entry_safe(q, q_tmp, &conn_src->queue.msg_list, entry) {
+	list_for_each_entry_safe(e, e_tmp, &conn_src->queue.msg_list, entry) {
 		/* filter messages for a specific name */
-		if (name_id > 0 && q->dst_name_id != name_id)
+		if (name_id > 0 && e->dst_name_id != name_id)
 			continue;
 
-		kdbus_queue_entry_remove(conn_src, q);
+		kdbus_queue_entry_remove(conn_src, e);
 
 		if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
-		    q->msg_res && q->msg_res->fds_count > 0) {
+		    e->msg_res && e->msg_res->fds_count > 0) {
 			atomic_inc(&conn_dst->lost_count);
-			kdbus_queue_entry_free(q);
+			kdbus_queue_entry_free(e);
 			continue;
 		}
 
-		ret = kdbus_pool_slice_move(conn_dst->pool, &q->slice);
+		ret = kdbus_pool_slice_move(conn_dst->pool, &e->slice);
 		if (ret < 0) {
 			atomic_inc(&conn_dst->lost_count);
-			kdbus_queue_entry_free(q);
+			kdbus_queue_entry_free(e);
 			continue;
 		}
 
-		kdbus_queue_entry_add(&conn_dst->queue, q);
-		ret = kdbus_conn_quota(conn_dst, q->user,
-				       kdbus_pool_slice_size(q->slice),
-				       q->msg_res ?  q->msg_res->fds_count : 0);
+		kdbus_queue_entry_add(&conn_dst->queue, e);
+		ret = kdbus_conn_quota(conn_dst, e->user,
+				       kdbus_pool_slice_size(e->slice),
+				       e->msg_res ? e->msg_res->fds_count : 0);
 		if (ret < 0) {
 			atomic_inc(&conn_dst->lost_count);
-			kdbus_queue_entry_free(q);
+			kdbus_queue_entry_free(e);
 			continue;
 		}
 	}
