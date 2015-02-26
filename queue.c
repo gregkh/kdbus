@@ -53,6 +53,9 @@ void kdbus_queue_entry_add(struct kdbus_queue *queue,
 	struct rb_node **n, *pn = NULL;
 	bool highest = true;
 
+	if (WARN_ON(!list_empty(&entry->entry)))
+		return;
+
 	/* sort into priority entry tree */
 	n = &queue->msg_prio_queue.rb_node;
 	while (*n) {
@@ -178,6 +181,9 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 			      struct kdbus_queue_entry *entry)
 {
 	struct kdbus_queue *queue = &conn->queue;
+
+	if (list_empty(&entry->entry))
+		return;
 
 	list_del_init(&entry->entry);
 	queue->msg_count--;
@@ -602,6 +608,11 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
  */
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 {
+	if (!entry)
+		return;
+
+	WARN_ON(!list_empty(&entry->entry));
+
 	kdbus_msg_resources_unref(entry->msg_res);
 	kdbus_meta_conn_unref(entry->conn_meta);
 	kdbus_meta_proc_unref(entry->proc_meta);
