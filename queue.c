@@ -204,7 +204,7 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 }
 
 /**
- * kdbus_queue_entry_alloc() - allocate a queue entry
+ * kdbus_queue_entry_new() - allocate a queue entry
  * @conn_dst:	destination connection
  * @kmsg:	kmsg object the queue entry should track
  * @user:	user to account message on (or NULL for kernel messages)
@@ -215,9 +215,9 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
  *
  * Return: the allocated entry on success, or an ERR_PTR on failures.
  */
-struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
-						  const struct kdbus_kmsg *kmsg,
-						  struct kdbus_user *user)
+struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
+						const struct kdbus_kmsg *kmsg,
+						struct kdbus_user *user)
 {
 	struct kdbus_msg_resources *res = kmsg->res;
 	const struct kdbus_msg *msg = &kmsg->msg;

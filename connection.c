@@ -752,7 +752,7 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 	    kmsg->res && kmsg->res->fds_count > 0)
 		return ERR_PTR(-ECOMM);
 
-	entry = kdbus_queue_entry_alloc(conn_dst, kmsg, user);
+	entry = kdbus_queue_entry_new(conn_dst, kmsg, user);
 	if (IS_ERR(entry))
 		return entry;
 
