@@ -38,15 +38,7 @@
 #include "queue.h"
 #include "reply.h"
 
-/**
- * kdbus_queue_entry_add() - queue an entry
- * @entry:	entry to queue
- *
- * This queues the given entry on the connection is was allocated on. From now
- * on (once the connection lock is released), the entry can be received by the
- * connection.
- */
-void kdbus_queue_entry_add(struct kdbus_queue_entry *entry)
+static void kdbus_queue_entry_link(struct kdbus_queue_entry *entry)
 {
 	struct kdbus_queue *queue = &entry->conn->queue;
 	struct rb_node **n, *pn = NULL;
@@ -226,7 +218,7 @@ int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
 
 	e->slice = slice;
 	e->conn = kdbus_conn_ref(dst);
-	kdbus_queue_entry_add(e);
+	kdbus_queue_entry_link(e);
 
 	return 0;
 
@@ -656,6 +648,31 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 	kdbus_conn_unref(entry->conn);
 	kfree(entry->memfd_offset);
 	kfree(entry);
+}
+
+/**
+ * kdbus_queue_entry_enqueue() - enqueue an entry
+ * @entry:		entry to enqueue
+ * @reply:		reply to link to this entry (or NULL if none)
+ *
+ * This enqueues an unqueued entry into the message queue of the linked
+ * connection. It also binds a reply object to the entry so we can remember it
+ * when the message is moved.
+ *
+ * Once this call returns (and the connection lock is released), this entry can
+ * be dequeued by the target connection. Note that the entry will not be removed
+ * from the queue until it is destroyed.
+ */
+void kdbus_queue_entry_enqueue(struct kdbus_queue_entry *entry,
+			       struct kdbus_reply *reply)
+{
+	lockdep_assert_held(&entry->conn->lock);
+
+	if (WARN_ON(entry->reply) || WARN_ON(!list_empty(&entry->entry)))
+		return;
+
+	entry->reply = kdbus_reply_ref(reply);
+	kdbus_queue_entry_link(entry);
 }
 
 /**

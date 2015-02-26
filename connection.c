@@ -834,11 +834,6 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 
 	kdbus_conn_lock2(conn_src, conn_dst);
 
-	/*
-	 * Create a queue entry for this kmsg and check quota
-	 * accounting, all user messages and kernel notifications are
-	 * subject to quota checks.
-	 */
 	entry = kdbus_conn_entry_make(conn_dst, kmsg,
 				      conn_src ? conn_src->user : NULL);
 	if (IS_ERR(entry)) {
@@ -846,23 +841,13 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 		goto exit_unlock;
 	}
 
-	/*
-	 * Remember the reply associated with this queue entry, so we can
-	 * move the reply entry's connection when a connection moves from an
-	 * activator to an implementer.
-	 */
-	entry->reply = kdbus_reply_ref(reply);
-
 	if (reply) {
 		kdbus_reply_link(reply);
 		if (!reply->sync)
 			schedule_delayed_work(&conn_src->work, 0);
 	}
 
-	/* link the message into the receiver's entry */
-	kdbus_queue_entry_add(entry);
-
-	/* wake up poll() */
+	kdbus_queue_entry_enqueue(entry, reply);
 	wake_up_interruptible(&conn_dst->wait);
 
 	ret = 0;

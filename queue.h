@@ -82,7 +82,8 @@ struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
 						const struct kdbus_kmsg *kmsg,
 						struct kdbus_user *user);
 void kdbus_queue_entry_free(struct kdbus_queue_entry *entry);
-void kdbus_queue_entry_add(struct kdbus_queue_entry *entry);
+void kdbus_queue_entry_enqueue(struct kdbus_queue_entry *entry,
+			       struct kdbus_reply *reply);
 int kdbus_queue_entry_move(struct kdbus_queue_entry *entry,
 			   struct kdbus_conn *dst);
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
