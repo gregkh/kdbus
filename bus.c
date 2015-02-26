@@ -528,7 +528,7 @@ int kdbus_cmd_bus_creator_info(struct kdbus_conn *conn, void __user *argp)
 	kdbus_kvec_set(&kvec[cnt++], bus->node.name, name_len, &hdr_size);
 	cnt += !!kdbus_kvec_pad(&kvec[cnt], &hdr_size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, hdr_size + meta_size);
+	slice = kdbus_pool_slice_alloc(conn->pool, hdr_size + meta_size, false);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;

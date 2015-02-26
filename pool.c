@@ -36,7 +36,7 @@
  * struct kdbus_pool - the receiver's buffer
  * @f:			The backing shmem file
  * @size:		The size of the file
- * @busy:		The currently used size
+ * @accounted_size:	Currently accounted memory in bytes
  * @lock:		Pool data lock
  * @slices:		All slices sorted by address
  * @slices_busy:	Tree of allocated slices
@@ -57,7 +57,7 @@
 struct kdbus_pool {
 	struct file *f;
 	size_t size;
-	size_t busy;
+	size_t accounted_size;
 	struct mutex lock;
 
 	struct list_head slices;
@@ -73,6 +73,7 @@ struct kdbus_pool {
  * @entry:		Entry in "all slices" list
  * @rb_node:		Entry in free or busy list
  * @free:		Unused slice
+ * @accounted:		Accounted as queue slice
  * @ref_kernel:		Kernel holds a reference
  * @ref_user:		Userspace holds a reference
  *
@@ -95,6 +96,7 @@ struct kdbus_pool_slice {
 	struct rb_node rb_node;
 
 	bool free:1;
+	bool accounted:1;
 	bool ref_kernel:1;
 	bool ref_user:1;
 };
@@ -188,6 +190,7 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * kdbus_pool_slice_alloc() - allocate memory from a pool
  * @pool:	The receiver's pool
  * @size:	The number of bytes to allocate
+ * @accounted:	Whether this slice should be accounted for
  *
  * The returned slice is used for kdbus_pool_slice_release() to
  * free the allocated memory. If either @kvec or @iovec is non-NULL, the data
@@ -197,7 +200,7 @@ static struct kdbus_pool_slice *kdbus_pool_find_slice(struct kdbus_pool *pool,
  * Return: the allocated slice on success, ERR_PTR on failure.
  */
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-						size_t size)
+						size_t size, bool accounted)
 {
 	size_t slice_size = KDBUS_ALIGN8(size);
 	struct rb_node *n, *found = NULL;
@@ -258,7 +261,9 @@ struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
 
 	s->ref_kernel = true;
 	s->free = false;
-	pool->busy += s->size;
+	s->accounted = accounted;
+	if (accounted)
+		pool->accounted_size += s->size;
 	mutex_unlock(&pool->lock);
 
 	return s;
@@ -280,7 +285,6 @@ static void __kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 		return;
 
 	rb_erase(&slice->rb_node, &pool->slices_busy);
-	pool->busy -= slice->size;
 
 	/* merge with the next free slice */
 	if (!list_is_last(&slice->entry, &pool->slices)) {
@@ -341,6 +345,9 @@ void kdbus_pool_slice_release(struct kdbus_pool_slice *slice)
 	/* kernel must own a ref to @slice to drop it */
 	WARN_ON(!slice->ref_kernel);
 	slice->ref_kernel = false;
+	/* no longer kernel-owned, de-account slice */
+	if (slice->accounted && !WARN_ON(pool->accounted_size < slice->size))
+		pool->accounted_size -= slice->size;
 	__kdbus_pool_slice_release(slice);
 	mutex_unlock(&pool->lock);
 }
@@ -497,7 +504,6 @@ struct kdbus_pool *kdbus_pool_new(const char *name, size_t size)
 
 	p->f = f;
 	p->size = size;
-	p->busy = 0;
 	p->slices_free = RB_ROOT;
 	p->slices_busy = RB_ROOT;
 	mutex_init(&p->lock);
@@ -539,20 +545,23 @@ void kdbus_pool_free(struct kdbus_pool *pool)
 }
 
 /**
- * kdbus_pool_remain() - the number of free bytes in the pool
- * @pool:		The receiver's pool
+ * kdbus_pool_accounted() - retrieve accounting information
+ * @pool:		pool to query
+ * @size:		output for overall pool size
+ * @acc:		output for currently accounted size
  *
- * Return: the number of unallocated bytes in the pool
+ * This returns accounting information of the pool. Note that the data might
+ * change after the function returns, as the pool lock is dropped. You need to
+ * protect the data via other means, if you need reliable accounting.
  */
-size_t kdbus_pool_remain(struct kdbus_pool *pool)
+void kdbus_pool_accounted(struct kdbus_pool *pool, size_t *size, size_t *acc)
 {
-	size_t size;
-
 	mutex_lock(&pool->lock);
-	size = pool->size - pool->busy;
+	if (size)
+		*size = pool->size;
+	if (acc)
+		*acc = pool->accounted_size;
 	mutex_unlock(&pool->lock);
-
-	return size;
 }
 
 /**

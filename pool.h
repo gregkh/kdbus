@@ -22,13 +22,13 @@ struct kdbus_pool_slice;
 
 struct kdbus_pool *kdbus_pool_new(const char *name, size_t size);
 void kdbus_pool_free(struct kdbus_pool *pool);
-size_t kdbus_pool_remain(struct kdbus_pool *pool);
+void kdbus_pool_accounted(struct kdbus_pool *pool, size_t *size, size_t *acc);
 int kdbus_pool_mmap(const struct kdbus_pool *pool, struct vm_area_struct *vma);
 int kdbus_pool_release_offset(struct kdbus_pool *pool, size_t off);
 void kdbus_pool_publish_empty(struct kdbus_pool *pool, u64 *off, u64 *size);
 
 struct kdbus_pool_slice *kdbus_pool_slice_alloc(struct kdbus_pool *pool,
-						size_t size);
+						size_t size, bool accounted);
 void kdbus_pool_slice_release(struct kdbus_pool_slice *slice);
 void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 			      u64 *out_offset, u64 *out_size);

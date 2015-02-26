@@ -233,7 +233,7 @@ static struct kdbus_conn *kdbus_conn_new(struct kdbus_ep *ep, bool privileged,
 	bloom_item.bloom = bus->bloom;
 	kdbus_kvec_set(&kvec, &bloom_item, bloom_item.size, &items_size);
 
-	slice = kdbus_pool_slice_alloc(conn->pool, items_size);
+	slice = kdbus_pool_slice_alloc(conn->pool, items_size, false);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
@@ -628,7 +628,7 @@ int kdbus_conn_quota_inc(struct kdbus_conn *c, struct kdbus_user *u,
 			 size_t memory, size_t fds)
 {
 	struct kdbus_quota *quota;
-	size_t available;
+	size_t available, accounted;
 	unsigned int id;
 
 	/*
@@ -676,7 +676,17 @@ int kdbus_conn_quota_inc(struct kdbus_conn *c, struct kdbus_user *u,
 	}
 
 	quota = &c->quota[id];
-	available = (kdbus_pool_remain(c->pool) + quota->memory) / 3;
+	kdbus_pool_accounted(c->pool, &available, &accounted);
+
+	/* half the pool is _always_ reserved for the pool owner */
+	available /= 2;
+
+	/* pool owner can claim more than 50%, at the expense of the queue */
+	if (available < accounted)
+		return -ENOBUFS;
+
+	/* 1/3 of the remaining space (including your own memory) */
+	available = (available - accounted + quota->memory) / 3;
 
 	if (available < quota->memory ||
 	    available - quota->memory < memory ||
@@ -1803,7 +1813,7 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	if (ret < 0)
 		goto exit;
 
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size + meta_size);
+	slice = kdbus_pool_slice_alloc(conn->pool, info.size + meta_size, true);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;

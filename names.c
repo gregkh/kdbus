@@ -741,7 +741,7 @@ int kdbus_cmd_list(struct kdbus_conn *conn, void __user *argp)
 		kdbus_pool_publish_empty(conn->pool, &cmd->offset,
 					 &cmd->list_size);
 	} else {
-		slice = kdbus_pool_slice_alloc(conn->pool, size);
+		slice = kdbus_pool_slice_alloc(conn->pool, size, false);
 		if (IS_ERR(slice)) {
 			ret = PTR_ERR(slice);
 			slice = NULL;

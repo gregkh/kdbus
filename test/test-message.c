@@ -565,12 +565,12 @@ int kdbus_test_pool_quota(struct kdbus_test_env *env)
 	cmd.msg_address = (uintptr_t)msg;
 
 	/*
-	 * Send 2097248 bytes, a user is only allowed to get 33% of
+	 * Send 2097248 bytes, a user is only allowed to get 33% of half of
 	 * the free space of the pool, the already used space is
 	 * accounted as free space
 	 */
 	size += KDBUS_MSG_MAX_PAYLOAD_VEC_SIZE;
-	for (i = size; i < (POOL_SIZE / 3); i += size) {
+	for (i = size; i < (POOL_SIZE / 2 / 3); i += size) {
 		msg->cookie = cookie++;
 
 		ret = kdbus_cmd_send(a->fd, &cmd);
@@ -586,7 +586,7 @@ int kdbus_test_pool_quota(struct kdbus_test_env *env)
 	ret = kdbus_msg_send(b, NULL, cookie++, 0, 0, 0, c->id);
 	ASSERT_RETURN(ret == 0);
 
-	for (i = size; i < (POOL_SIZE/ 3); i += size) {
+	for (i = size; i < (POOL_SIZE / 2 / 3); i += size) {
 		ret = kdbus_msg_recv(c, &recv_msg, NULL);
 		ASSERT_RETURN(ret == 0);
 		ASSERT_RETURN(recv_msg->src_id == a->id);

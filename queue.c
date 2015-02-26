@@ -190,7 +190,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
 	struct kdbus_queue_entry *entry;
 	size_t memfd_cnt = 0;
 	struct kvec kvec[2];
-	size_t pool_avail;
 	size_t meta_size;
 	size_t msg_size;
 	u64 payload_off;
@@ -265,20 +264,12 @@ struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
 	size += kmsg->pool_size;
 	size = KDBUS_ALIGN8(size);
 
-	pool_avail = kdbus_pool_remain(conn_dst->pool);
-
-	/* do not give out more than half of the remaining space */
-	if (size > pool_avail / 2) {
-		ret = -EXFULL;
-		goto exit_free_entry;
-	}
-
 	ret = kdbus_conn_quota_inc(conn_dst, user, size,
 				   res ? res->fds_count : 0);
 	if (ret < 0)
 		goto exit_free_entry;
 
-	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, size);
+	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, size, true);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;
@@ -658,7 +649,7 @@ int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
 	if (ret < 0)
 		return ret;
 
-	slice = kdbus_pool_slice_alloc(dst->pool, size);
+	slice = kdbus_pool_slice_alloc(dst->pool, size, true);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
