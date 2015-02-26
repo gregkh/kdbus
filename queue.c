@@ -607,6 +607,7 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 	kdbus_meta_conn_unref(entry->conn_meta);
 	kdbus_meta_proc_unref(entry->proc_meta);
 	kdbus_reply_unref(entry->reply);
+	kdbus_pool_slice_release(entry->slice);
 	kfree(entry->memfd_offset);
 	kfree(entry);
 }

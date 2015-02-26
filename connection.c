@@ -548,7 +548,6 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 						entry->reply->cookie);
 
 		kdbus_queue_entry_remove(conn, entry);
-		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
 	}
 
@@ -961,7 +960,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 		 * Hence, we have to do it manually in this case.
 		 */
 		kdbus_queue_entry_dec_quota(conn_src, entry);
-		kdbus_pool_slice_release(entry->slice);
 		kdbus_queue_entry_free(entry);
 	}
 	kdbus_reply_unlink(reply_wait);
@@ -2075,7 +2073,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 		struct kdbus_reply *reply = kdbus_reply_ref(entry->reply);
 
 		kdbus_queue_entry_remove(conn, entry);
-		kdbus_pool_slice_release(entry->slice);
+		kdbus_queue_entry_free(entry);
 
 		mutex_unlock(&conn->lock);
 
@@ -2094,7 +2092,6 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 			kdbus_notify_flush(conn->ep->bus);
 		}
 
-		kdbus_queue_entry_free(entry);
 		kdbus_reply_unref(reply);
 	} else {
 		bool install_fds;
@@ -2126,7 +2123,6 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 
 		if (!(cmd->flags & KDBUS_RECV_PEEK)) {
 			kdbus_queue_entry_remove(conn, entry);
-			kdbus_pool_slice_release(entry->slice);
 			kdbus_queue_entry_free(entry);
 		}
 
