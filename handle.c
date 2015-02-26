@@ -581,7 +581,8 @@ static unsigned int kdbus_handle_poll(struct file *file,
 
 	poll_wait(file, &handle->conn->wait, wait);
 
-	if (!list_empty(&handle->conn->queue.msg_list))
+	if (!list_empty(&handle->conn->queue.msg_list) ||
+	    atomic_read(&handle->conn->lost_count) > 0)
 		mask |= POLLIN | POLLRDNORM;
 
 	kdbus_conn_release(handle->conn);

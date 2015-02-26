@@ -138,6 +138,7 @@ int kdbus_conn_quota_inc(struct kdbus_conn *c, struct kdbus_user *u,
 			 size_t memory, size_t fds);
 void kdbus_conn_quota_dec(struct kdbus_conn *c, struct kdbus_user *u,
 			  size_t memory, size_t fds);
+void kdbus_conn_lost_message(struct kdbus_conn *c);
 int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 			    struct kdbus_conn *conn_dst,
 			    const struct kdbus_kmsg *kmsg,

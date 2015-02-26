@@ -726,6 +726,12 @@ void kdbus_conn_quota_dec(struct kdbus_conn *c, struct kdbus_user *u,
 		quota->fds -= fds;
 }
 
+void kdbus_conn_lost_message(struct kdbus_conn *c)
+{
+	if (atomic_inc_return(&c->lost_count) == 1)
+		wake_up_interruptible(&c->wait);
+}
+
 /* Callers should take the conn_dst lock */
 static struct kdbus_queue_entry *
 kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
@@ -1341,14 +1347,14 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 
 		if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
 		    e->msg_res && e->msg_res->fds_count > 0) {
-			atomic_inc(&conn_dst->lost_count);
+			kdbus_conn_lost_message(conn_dst);
 			kdbus_queue_entry_free(e);
 			continue;
 		}
 
 		ret = kdbus_queue_entry_move(e, conn_dst);
 		if (ret < 0) {
-			atomic_inc(&conn_dst->lost_count);
+			kdbus_conn_lost_message(conn_dst);
 			kdbus_queue_entry_free(e);
 			continue;
 		}
