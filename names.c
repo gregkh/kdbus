@@ -517,10 +517,6 @@ int kdbus_cmd_name_acquire(struct kdbus_conn *conn, void __user *argp)
 	if (ret < 0)
 		goto exit_dec;
 
-	/* TODO: we should not return data in cmd->flags! */
-	if (copy_to_user(argp, cmd, cmd->size))
-		ret = -EFAULT;
-
 exit_dec:
 	atomic_dec(&conn->name_count);
 exit:
