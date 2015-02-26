@@ -254,6 +254,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 	entry->src_id = msg->src_id;
 	entry->cookie = msg->cookie;
 	entry->priority = msg->priority;
+	entry->dst_name_id = kmsg->dst_name_id;
 	entry->msg_res = kdbus_msg_resources_ref(res);
 	entry->proc_meta = kdbus_meta_proc_ref(kmsg->proc_meta);
 	entry->conn_meta = kdbus_meta_conn_ref(kmsg->conn_meta);
