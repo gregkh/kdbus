@@ -11,6 +11,13 @@ since v3:
   * Consolidate some 'struct kdbus_cmd_*' types to make the API
     interface easier to grasp.
 
+  * Drop 'struct kdbus_item_list'. The information stored in this
+    struct was redundant as all ioctls report the returned size
+    in the command struct already.
+
+  * KDBUS_CMD_NAME_ACQUIRE now returns the KDBUS_NAME_IN_QUEUE flag
+    in cmd->return_flags rather than modifying cmd->flags.
+
   * Get rid of the need for a 2nd pool slice at install time. This
     avoids pool fragmentation, message memory footprint and complexity.
 
@@ -18,6 +25,14 @@ since v3:
 
   * Fix handling of messages with file descriptors with regard to
     monitor connections that don't accept file descriptors.
+
+  * Revisited and reimplemented the quota logic. 50% are now always
+    kept reserved for the connection to receive notification etc,
+    and the rest is accounted per remote peer to avoid denial of
+    service attacks.
+
+  * Make use of new functions introduced with 4.0-rc1
+    (vfs_iter_write(), {kstrdup,kfree}_const())
 
   * Some internal restructuring and cleanups.
 
