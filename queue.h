@@ -43,7 +43,6 @@ struct kdbus_queue {
  * @fds_offset:		Offset of FD item in slice
  * @memfd_offset:	Array of slice-offsets for all memfd items
  * @src_id:		Unique ID of message source
- * @cookie:		Cookie used for this message
  * @priority:		Message priority
  * @dst_name_id:	The sequence number of the name this message is
  *			addressed to, 0 for messages sent to an ID
@@ -66,7 +65,6 @@ struct kdbus_queue_entry {
 	size_t *memfd_offset;
 
 	u64 src_id;
-	u64 cookie;
 	s64 priority;
 	u64 dst_name_id;
 

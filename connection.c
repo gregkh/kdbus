@@ -545,7 +545,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
 		if (entry->reply)
 			kdbus_notify_reply_dead(bus, entry->src_id,
-						entry->cookie);
+						entry->reply->cookie);
 
 		kdbus_queue_entry_remove(conn, entry);
 		kdbus_pool_slice_release(entry->slice);
@@ -2088,7 +2088,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 				else
 					kdbus_notify_reply_dead(conn->ep->bus,
 								entry->src_id,
-								entry->cookie);
+								reply->cookie);
 			}
 			mutex_unlock(&reply->reply_dst->lock);
 			kdbus_notify_flush(conn->ep->bus);
