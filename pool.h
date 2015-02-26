@@ -37,10 +37,10 @@ size_t kdbus_pool_slice_size(const struct kdbus_pool_slice *slice);
 int kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice_dst,
 			  const struct kdbus_pool_slice *slice_src);
 ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
-				   size_t off, struct kvec *kvec,
+				   loff_t off, struct kvec *kvec,
 				   size_t kvec_count, size_t total_len);
 ssize_t kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice,
-				    size_t off, struct iovec *iov,
+				    loff_t off, struct iovec *iov,
 				    size_t iov_count, size_t total_len);
 
 #endif

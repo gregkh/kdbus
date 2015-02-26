@@ -27,6 +27,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/uio.h>
+#include <linux/version.h>
 
 #include "pool.h"
 #include "util.h"
@@ -567,9 +568,10 @@ size_t kdbus_pool_remain(struct kdbus_pool *pool)
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t
-kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, size_t off,
+kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, loff_t off,
 			    struct iovec *iov, size_t iov_len, size_t total_len)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 	struct file *f = slice->pool->f;
 	struct iov_iter iter;
 	struct kiocb kiocb;
@@ -591,6 +593,18 @@ kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, size_t off,
 		return -EFAULT;
 
 	return len;
+#else
+	struct iov_iter iter;
+	ssize_t len;
+
+	if (WARN_ON(off + total_len > slice->size))
+		return -EFAULT;
+
+	off += slice->off;
+	iov_iter_init(&iter, WRITE, iov, iov_len, total_len);
+	len = vfs_iter_write(slice->pool->f, &iter, &off);
+	return (len >= 0 && len != total_len) ? -EFAULT : len;
+#endif
 }
 
 /**
@@ -606,9 +620,10 @@ kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, size_t off,
  * Return: the numbers of bytes copied, negative errno on failure.
  */
 ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
-				   size_t off, struct kvec *kvec,
+				   loff_t off, struct kvec *kvec,
 				   size_t kvec_len, size_t total_len)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 	struct file *f = slice->pool->f;
 	struct iov_iter iter;
 	mm_segment_t old_fs;
@@ -635,6 +650,24 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 		return -EFAULT;
 
 	return len;
+#else
+	struct iov_iter iter;
+	mm_segment_t old_fs;
+	ssize_t len;
+
+	if (WARN_ON(off + total_len > slice->size))
+		return -EFAULT;
+
+	off += slice->off;
+	iov_iter_kvec(&iter, WRITE | ITER_KVEC, kvec, kvec_len, total_len);
+
+	old_fs = get_fs();
+	set_fs(get_ds());
+	len = vfs_iter_write(slice->pool->f, &iter, &off);
+	set_fs(old_fs);
+
+	return (len >= 0 && len != total_len) ? -EFAULT : len;
+#endif
 }
 
 /**
