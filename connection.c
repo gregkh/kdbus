@@ -2087,8 +2087,8 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 					kdbus_sync_reply_wakeup(reply, -EPIPE);
 				else
 					kdbus_notify_reply_dead(conn->ep->bus,
-								entry->src_id,
-								reply->cookie);
+							reply->reply_dst->id,
+							reply->cookie);
 			}
 			mutex_unlock(&reply->reply_dst->lock);
 			kdbus_notify_flush(conn->ep->bus);
