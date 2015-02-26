@@ -726,6 +726,22 @@ void kdbus_conn_quota_dec(struct kdbus_conn *c, struct kdbus_user *u,
 		quota->fds -= fds;
 }
 
+/**
+ * kdbus_conn_lost_message() - handle lost messages
+ * @c:		connection that lost a message
+ *
+ * kdbus is reliable. That means, we try hard to never lose messages. However,
+ * memory is limited, so we cannot rely on transmissions to never fail.
+ * Therefore, we use quota-limits to let callers know if there unicast message
+ * cannot be transmitted to a peer. This works fine for unicasts, but for
+ * broadcasts we cannot make the caller handle the transmission failure.
+ * Instead, we must let the destination know that it couldn't receive a
+ * broadcast.
+ * As this is an unlikely scenario, we keep it simple. A single lost-counter
+ * remembers the number of lost messages since the last call to RECV. The next
+ * message retrieval will notify the connection that it lost messages since the
+ * last message retrieval and thus should resync its state.
+ */
 void kdbus_conn_lost_message(struct kdbus_conn *c)
 {
 	if (atomic_inc_return(&c->lost_count) == 1)
