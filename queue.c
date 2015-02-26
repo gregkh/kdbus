@@ -251,7 +251,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 		return ERR_PTR(-ENOMEM);
 
 	INIT_LIST_HEAD(&entry->entry);
-	entry->src_id = msg->src_id;
 	entry->priority = msg->priority;
 	entry->dst_name_id = kmsg->dst_name_id;
 	entry->msg_res = kdbus_msg_resources_ref(res);

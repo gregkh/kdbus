@@ -544,7 +544,8 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 	mutex_lock(&conn->lock);
 	list_for_each_entry_safe(entry, tmp, &conn->queue.msg_list, entry) {
 		if (entry->reply)
-			kdbus_notify_reply_dead(bus, entry->src_id,
+			kdbus_notify_reply_dead(bus,
+						entry->reply->reply_dst->id,
 						entry->reply->cookie);
 
 		kdbus_queue_entry_remove(conn, entry);
