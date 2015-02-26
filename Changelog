@@ -8,6 +8,9 @@ since v3:
     and extend the documentation significantly. Requested by Michael
     Kerrisk and Christoph Hellwig.
 
+  * Add a walk-through example for using the low-level ioctl API from 
+    userspace.
+
   * Consolidate some 'struct kdbus_cmd_*' types to make the API
     interface easier to grasp.
 
