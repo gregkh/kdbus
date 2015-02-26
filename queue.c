@@ -39,20 +39,20 @@
 #include "reply.h"
 
 /**
- * kdbus_queue_entry_add() - Add an queue entry to a queue
- * @queue:	The queue to attach the item to
- * @entry:	The entry to attach
+ * kdbus_queue_entry_add() - queue an entry
+ * @entry:	entry to queue
  *
- * Adds a previously allocated queue item to a queue, and maintains the
- * priority r/b tree.
+ * This queues the given entry on the connection is was allocated on. From now
+ * on (once the connection lock is released), the entry can be received by the
+ * connection.
  */
-/* add queue entry to connection, maintain priority queue */
-void kdbus_queue_entry_add(struct kdbus_queue *queue,
-			   struct kdbus_queue_entry *entry)
+void kdbus_queue_entry_add(struct kdbus_queue_entry *entry)
 {
+	struct kdbus_queue *queue = &entry->conn->queue;
 	struct rb_node **n, *pn = NULL;
 	bool highest = true;
 
+	lockdep_assert_held(&entry->conn->lock);
 	if (WARN_ON(!list_empty(&entry->entry)))
 		return;
 
@@ -148,30 +148,30 @@ void kdbus_queue_entry_dec_quota(struct kdbus_conn *conn,
 }
 
 /**
- * kdbus_queue_entry_remove() - Remove an entry from a queue
- * @conn:	The connection containing the queue
- * @entry:	The entry to remove
+ * kdbus_queue_entry_remove() - dequeue an entry
+ * @entry:	entry to dequeue
  *
- * Remove an entry from both the queue's list and the priority r/b tree.
+ * This dequeues an entry from the incoming message queue. This is a no-op if
+ * the message was already dequeued.
  */
-void kdbus_queue_entry_remove(struct kdbus_conn *conn,
-			      struct kdbus_queue_entry *entry)
+void kdbus_queue_entry_remove(struct kdbus_queue_entry *entry)
 {
-	struct kdbus_queue *queue = &conn->queue;
+	struct kdbus_queue *queue = &entry->conn->queue;
 
+	lockdep_assert_held(&entry->conn->lock);
 	if (list_empty(&entry->entry))
 		return;
 
 	list_del_init(&entry->entry);
 	queue->msg_count--;
 
-	kdbus_queue_entry_dec_quota(conn, entry);
+	kdbus_queue_entry_dec_quota(entry->conn, entry);
 
 	/* The queue is empty, remove the whole quota accounting */
 	if (queue->msg_count == 0) {
-		kfree(conn->quota);
-		conn->quota = NULL;
-		conn->n_quota = 0;
+		kfree(entry->conn->quota);
+		entry->conn->quota = NULL;
+		entry->conn->n_quota = 0;
 	}
 
 	if (list_empty(&entry->prio_entry)) {
@@ -206,7 +206,6 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 /**
  * kdbus_queue_entry_move() - move queue entry
  * @e:		queue entry to move
- * @src:	source connection the entry is queued on
  * @dst:	destination connection to queue the entry on
  *
  * This moves a queue entry onto a different connection. It allocates a new
@@ -215,12 +214,18 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
  *
  * On failure, the entry is left untouched.
  *
+ * The queue entry must be queued right now, and after the call succeeds it will
+ * be queued on the destination, but no longer on the source.
+ *
+ * The caller must hold the connection lock of the source *and* destination.
+ *
  * Return: 0 on success, negative error code on failure.
  */
 int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
-			   struct kdbus_conn *src, struct kdbus_conn *dst)
+			   struct kdbus_conn *dst)
 {
 	struct kdbus_pool_slice *slice = NULL;
+	struct kdbus_conn *src = e->conn;
 	struct kdbus_user *user;
 	size_t size, fds;
 	int ret;
@@ -230,6 +235,8 @@ int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
 
 	if (WARN_ON(IS_ERR(e->user)) || WARN_ON(list_empty(&e->entry)))
 		return -EINVAL;
+	if (src == dst)
+		return 0;
 
 	size = kdbus_pool_slice_size(e->slice);
 	fds = e->msg_res ? e->msg_res->fds_count : 0;
@@ -250,11 +257,13 @@ int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
 		goto error;
 
 	user = kdbus_user_ref(e->user);
-	kdbus_queue_entry_remove(src, e);
+	kdbus_queue_entry_remove(e);
 	kdbus_pool_slice_release(e->slice);
+	kdbus_conn_unref(e->conn);
 	e->slice = slice;
 	e->user = user;
-	kdbus_queue_entry_add(&dst->queue, e);
+	e->conn = kdbus_conn_ref(dst);
+	kdbus_queue_entry_add(e);
 
 	return 0;
 
@@ -302,6 +311,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
 	entry->msg_res = kdbus_msg_resources_ref(res);
 	entry->proc_meta = kdbus_meta_proc_ref(kmsg->proc_meta);
 	entry->conn_meta = kdbus_meta_conn_ref(kmsg->conn_meta);
+	entry->conn = kdbus_conn_ref(conn_dst);
 	entry->user = ERR_PTR(-ENOENT);
 
 	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
@@ -668,6 +678,7 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 	if (!entry)
 		return;
 
+	lockdep_assert_held(&entry->conn->lock);
 	WARN_ON(!list_empty(&entry->entry));
 
 	kdbus_msg_resources_unref(entry->msg_res);
@@ -675,6 +686,7 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 	kdbus_meta_proc_unref(entry->proc_meta);
 	kdbus_reply_unref(entry->reply);
 	kdbus_pool_slice_release(entry->slice);
+	kdbus_conn_unref(entry->conn);
 	kfree(entry->memfd_offset);
 	kfree(entry);
 }

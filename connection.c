@@ -548,7 +548,7 @@ int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty)
 						entry->reply->reply_dst->id,
 						entry->reply->cookie);
 
-		kdbus_queue_entry_remove(conn, entry);
+		kdbus_queue_entry_remove(entry);
 		kdbus_queue_entry_free(entry);
 	}
 
@@ -862,7 +862,7 @@ int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 	}
 
 	/* link the message into the receiver's entry */
-	kdbus_queue_entry_add(&conn_dst->queue, entry);
+	kdbus_queue_entry_add(entry);
 
 	/* wake up poll() */
 	wake_up_interruptible(&conn_dst->wait);
@@ -1366,15 +1366,15 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
 		    e->msg_res && e->msg_res->fds_count > 0) {
 			atomic_inc(&conn_dst->lost_count);
-			kdbus_queue_entry_remove(conn_src, e);
+			kdbus_queue_entry_remove(e);
 			kdbus_queue_entry_free(e);
 			continue;
 		}
 
-		ret = kdbus_queue_entry_move(e, conn_src, conn_dst);
+		ret = kdbus_queue_entry_move(e, conn_dst);
 		if (ret < 0) {
 			atomic_inc(&conn_dst->lost_count);
-			kdbus_queue_entry_remove(conn_src, e);
+			kdbus_queue_entry_remove(e);
 			kdbus_queue_entry_free(e);
 			continue;
 		}
@@ -2094,7 +2094,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 	} else if (cmd->flags & KDBUS_RECV_DROP) {
 		struct kdbus_reply *reply = kdbus_reply_ref(entry->reply);
 
-		kdbus_queue_entry_remove(conn, entry);
+		kdbus_queue_entry_remove(entry);
 		kdbus_queue_entry_free(entry);
 
 		mutex_unlock(&conn->lock);
@@ -2144,7 +2144,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 					 &cmd->msg.msg_size);
 
 		if (!(cmd->flags & KDBUS_RECV_PEEK)) {
-			kdbus_queue_entry_remove(conn, entry);
+			kdbus_queue_entry_remove(entry);
 			kdbus_queue_entry_free(entry);
 		}
 
