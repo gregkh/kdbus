@@ -12,6 +12,7 @@
  */
 
 #include <linux/backing-dev.h>
+#include <linux/version.h>
 #include <linux/dcache.h>
 #include <linux/fs.h>
 #include <linux/fsnotify.h>
@@ -208,7 +209,9 @@ static struct inode *fs_inode_get(struct super_block *sb,
 
 	inode->i_private = kdbus_node_ref(node);
 	inode->i_mapping->a_ops = &empty_aops;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 	inode->i_mapping->backing_dev_info = &noop_backing_dev_info;
+#endif
 	inode->i_mode = node->mode & S_IALLUGO;
 	inode->i_atime = inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 	inode->i_uid = node->uid;
