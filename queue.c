@@ -483,7 +483,6 @@ exit_free_entry:
  * kdbus_queue_entry_install() - install message components into the
  *				 receiver's process
  * @entry:		The queue entry to install
- * @conn_dst:		The receiver connection
  * @return_flags:	Pointer to store the return flags for userspace
  * @install_fds:	Whether or not to install associated file descriptors
  *
@@ -497,15 +496,17 @@ exit_free_entry:
  * Return: 0 on success.
  */
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
-			      struct kdbus_conn *conn_dst,
 			      u64 *return_flags, bool install_fds)
 {
 	u64 msg_size = entry->meta_offset;
+	struct kdbus_conn *conn_dst = entry->conn;
 	struct kdbus_msg_resources *res;
 	bool incomplete_fds = false;
 	struct kvec kvec[2];
 	size_t memfds = 0;
 	int i, ret;
+
+	lockdep_assert_held(&conn_dst->lock);
 
 	if (entry->proc_meta || entry->conn_meta) {
 		size_t meta_size;

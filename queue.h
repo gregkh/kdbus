@@ -87,7 +87,6 @@ void kdbus_queue_entry_enqueue(struct kdbus_queue_entry *entry,
 int kdbus_queue_entry_move(struct kdbus_queue_entry *entry,
 			   struct kdbus_conn *dst);
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
-			      struct kdbus_conn *conn_dst,
 			      u64 *return_flags, bool install_fds);
 
 #endif /* __KDBUS_QUEUE_H */

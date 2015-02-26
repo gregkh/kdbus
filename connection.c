@@ -965,7 +965,7 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 	reply_wait->waiting = false;
 	entry = reply_wait->queue_entry;
 	if (entry) {
-		ret = kdbus_queue_entry_install(entry, conn_src,
+		ret = kdbus_queue_entry_install(entry,
 						&cmd_send->reply.return_flags,
 						true);
 		kdbus_pool_slice_publish(entry->slice, &cmd_send->reply.offset,
@@ -2105,7 +2105,7 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 		install_fds = (conn->flags & KDBUS_HELLO_ACCEPT_FD) &&
 			      !(cmd->flags & KDBUS_RECV_PEEK);
 
-		ret = kdbus_queue_entry_install(entry, conn,
+		ret = kdbus_queue_entry_install(entry,
 						&cmd->msg.return_flags,
 						install_fds);
 		if (ret < 0) {
