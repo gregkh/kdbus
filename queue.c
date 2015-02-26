@@ -38,6 +38,52 @@
 #include "queue.h"
 #include "reply.h"
 
+/**
+ * kdbus_queue_init() - initialize data structure related to a queue
+ * @queue:	The queue to initialize
+ */
+void kdbus_queue_init(struct kdbus_queue *queue)
+{
+	INIT_LIST_HEAD(&queue->msg_list);
+	queue->msg_prio_queue = RB_ROOT;
+}
+
+/**
+ * kdbus_queue_peek() - Retrieves an entry from a queue
+ * @queue:		The queue
+ * @priority:		The minimum priority of the entry to peek
+ * @use_priority:	Boolean flag whether or not to peek by priority
+ *
+ * Look for a entry in a queue, either by priority, or the oldest one (FIFO).
+ * The entry is not freed, put off the queue's lists or anything else.
+ *
+ * Return: the peeked queue entry on success, NULL if no suitable msg is found
+ */
+struct kdbus_queue_entry *kdbus_queue_peek(struct kdbus_queue *queue,
+					   s64 priority, bool use_priority)
+{
+	struct kdbus_queue_entry *e;
+
+	if (list_empty(&queue->msg_list))
+		return NULL;
+
+	if (use_priority) {
+		/* get next entry with highest priority */
+		e = rb_entry(queue->msg_prio_highest,
+			     struct kdbus_queue_entry, prio_node);
+
+		/* no entry with the requested priority */
+		if (e->priority > priority)
+			return NULL;
+	} else {
+		/* ignore the priority, return the next entry in the entry */
+		e = list_first_entry(&queue->msg_list,
+				     struct kdbus_queue_entry, entry);
+	}
+
+	return e;
+}
+
 static void kdbus_queue_entry_link(struct kdbus_queue_entry *entry)
 {
 	struct kdbus_queue *queue = &entry->conn->queue;
@@ -84,42 +130,6 @@ prio_done:
 	list_add_tail(&entry->entry, &queue->msg_list);
 }
 
-/**
- * kdbus_queue_peek() - Retrieves an entry from a queue
- * @queue:		The queue
- * @priority:		The minimum priority of the entry to peek
- * @use_priority:	Boolean flag whether or not to peek by priority
- *
- * Look for a entry in a queue, either by priority, or the oldest one (FIFO).
- * The entry is not freed, put off the queue's lists or anything else.
- *
- * Return: the peeked queue entry on success, NULL if no suitable msg is found
- */
-struct kdbus_queue_entry *kdbus_queue_peek(struct kdbus_queue *queue,
-					   s64 priority, bool use_priority)
-{
-	struct kdbus_queue_entry *e;
-
-	if (list_empty(&queue->msg_list))
-		return NULL;
-
-	if (use_priority) {
-		/* get next entry with highest priority */
-		e = rb_entry(queue->msg_prio_highest,
-			     struct kdbus_queue_entry, prio_node);
-
-		/* no entry with the requested priority */
-		if (e->priority > priority)
-			return NULL;
-	} else {
-		/* ignore the priority, return the next entry in the entry */
-		e = list_first_entry(&queue->msg_list,
-				     struct kdbus_queue_entry, entry);
-	}
-
-	return e;
-}
-
 static void kdbus_queue_entry_unlink(struct kdbus_queue_entry *entry)
 {
 	struct kdbus_queue *queue = &entry->conn->queue;
@@ -157,75 +167,6 @@ static void kdbus_queue_entry_unlink(struct kdbus_queue_entry *entry)
 		rb_replace_node(&entry->prio_node, &q->prio_node,
 				&queue->msg_prio_queue);
 	}
-}
-
-/**
- * kdbus_queue_entry_move() - move queue entry
- * @e:		queue entry to move
- * @dst:	destination connection to queue the entry on
- *
- * This moves a queue entry onto a different connection. It allocates a new
- * slice on the target connection and copies the message over. If the copy
- * succeeded, we move the entry from @src to @dst.
- *
- * On failure, the entry is left untouched.
- *
- * The queue entry must be queued right now, and after the call succeeds it will
- * be queued on the destination, but no longer on the source.
- *
- * The caller must hold the connection lock of the source *and* destination.
- *
- * Return: 0 on success, negative error code on failure.
- */
-int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
-			   struct kdbus_conn *dst)
-{
-	struct kdbus_pool_slice *slice = NULL;
-	struct kdbus_conn *src = e->conn;
-	size_t size, fds;
-	int ret;
-
-	lockdep_assert_held(&src->lock);
-	lockdep_assert_held(&dst->lock);
-
-	if (WARN_ON(IS_ERR(e->user)) || WARN_ON(list_empty(&e->entry)))
-		return -EINVAL;
-	if (src == dst)
-		return 0;
-
-	size = kdbus_pool_slice_size(e->slice);
-	fds = e->msg_res ? e->msg_res->fds_count : 0;
-
-	ret = kdbus_conn_quota_inc(dst, e->user, size, fds);
-	if (ret < 0)
-		return ret;
-
-	slice = kdbus_pool_slice_alloc(dst->pool, size);
-	if (IS_ERR(slice)) {
-		ret = PTR_ERR(slice);
-		slice = NULL;
-		goto error;
-	}
-
-	ret = kdbus_pool_slice_copy(slice, e->slice);
-	if (ret < 0)
-		goto error;
-
-	kdbus_queue_entry_unlink(e);
-	kdbus_conn_quota_dec(src, e->user, size, fds);
-	kdbus_pool_slice_release(e->slice);
-	kdbus_conn_unref(e->conn);
-
-	e->slice = slice;
-	e->conn = kdbus_conn_ref(dst);
-	kdbus_queue_entry_link(e);
-
-	return 0;
-
-error:
-	kdbus_pool_slice_release(slice);
-	kdbus_conn_quota_dec(dst, e->user, size, fds);
-	return ret;
 }
 
 /**
@@ -480,6 +421,40 @@ exit_free_entry:
 }
 
 /**
+ * kdbus_queue_entry_free() - free resources of an entry
+ * @entry:	The entry to free
+ *
+ * Removes resources allocated by a queue entry, along with the entry itself.
+ * Note that the entry's slice is not freed at this point.
+ */
+void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
+{
+	if (!entry)
+		return;
+
+	lockdep_assert_held(&entry->conn->lock);
+
+	kdbus_queue_entry_unlink(entry);
+	kdbus_reply_unref(entry->reply);
+
+	if (entry->slice) {
+		kdbus_conn_quota_dec(entry->conn, entry->user,
+				     kdbus_pool_slice_size(entry->slice),
+				     entry->msg_res ?
+						entry->msg_res->fds_count : 0);
+		kdbus_pool_slice_release(entry->slice);
+		kdbus_user_unref(entry->user);
+	}
+
+	kdbus_msg_resources_unref(entry->msg_res);
+	kdbus_meta_conn_unref(entry->conn_meta);
+	kdbus_meta_proc_unref(entry->proc_meta);
+	kdbus_conn_unref(entry->conn);
+	kfree(entry->memfd_offset);
+	kfree(entry);
+}
+
+/**
  * kdbus_queue_entry_install() - install message components into the
  *				 receiver's process
  * @entry:		The queue entry to install
@@ -618,40 +593,6 @@ int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 }
 
 /**
- * kdbus_queue_entry_free() - free resources of an entry
- * @entry:	The entry to free
- *
- * Removes resources allocated by a queue entry, along with the entry itself.
- * Note that the entry's slice is not freed at this point.
- */
-void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
-{
-	if (!entry)
-		return;
-
-	lockdep_assert_held(&entry->conn->lock);
-
-	kdbus_queue_entry_unlink(entry);
-	kdbus_reply_unref(entry->reply);
-
-	if (entry->slice) {
-		kdbus_conn_quota_dec(entry->conn, entry->user,
-				     kdbus_pool_slice_size(entry->slice),
-				     entry->msg_res ?
-						entry->msg_res->fds_count : 0);
-		kdbus_pool_slice_release(entry->slice);
-		kdbus_user_unref(entry->user);
-	}
-
-	kdbus_msg_resources_unref(entry->msg_res);
-	kdbus_meta_conn_unref(entry->conn_meta);
-	kdbus_meta_proc_unref(entry->proc_meta);
-	kdbus_conn_unref(entry->conn);
-	kfree(entry->memfd_offset);
-	kfree(entry);
-}
-
-/**
  * kdbus_queue_entry_enqueue() - enqueue an entry
  * @entry:		entry to enqueue
  * @reply:		reply to link to this entry (or NULL if none)
@@ -677,11 +618,70 @@ void kdbus_queue_entry_enqueue(struct kdbus_queue_entry *entry,
 }
 
 /**
- * kdbus_queue_init() - initialize data structure related to a queue
- * @queue:	The queue to initialize
+ * kdbus_queue_entry_move() - move queue entry
+ * @e:		queue entry to move
+ * @dst:	destination connection to queue the entry on
+ *
+ * This moves a queue entry onto a different connection. It allocates a new
+ * slice on the target connection and copies the message over. If the copy
+ * succeeded, we move the entry from @src to @dst.
+ *
+ * On failure, the entry is left untouched.
+ *
+ * The queue entry must be queued right now, and after the call succeeds it will
+ * be queued on the destination, but no longer on the source.
+ *
+ * The caller must hold the connection lock of the source *and* destination.
+ *
+ * Return: 0 on success, negative error code on failure.
  */
-void kdbus_queue_init(struct kdbus_queue *queue)
+int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
+			   struct kdbus_conn *dst)
 {
-	INIT_LIST_HEAD(&queue->msg_list);
-	queue->msg_prio_queue = RB_ROOT;
+	struct kdbus_pool_slice *slice = NULL;
+	struct kdbus_conn *src = e->conn;
+	size_t size, fds;
+	int ret;
+
+	lockdep_assert_held(&src->lock);
+	lockdep_assert_held(&dst->lock);
+
+	if (WARN_ON(IS_ERR(e->user)) || WARN_ON(list_empty(&e->entry)))
+		return -EINVAL;
+	if (src == dst)
+		return 0;
+
+	size = kdbus_pool_slice_size(e->slice);
+	fds = e->msg_res ? e->msg_res->fds_count : 0;
+
+	ret = kdbus_conn_quota_inc(dst, e->user, size, fds);
+	if (ret < 0)
+		return ret;
+
+	slice = kdbus_pool_slice_alloc(dst->pool, size);
+	if (IS_ERR(slice)) {
+		ret = PTR_ERR(slice);
+		slice = NULL;
+		goto error;
+	}
+
+	ret = kdbus_pool_slice_copy(slice, e->slice);
+	if (ret < 0)
+		goto error;
+
+	kdbus_queue_entry_unlink(e);
+	kdbus_conn_quota_dec(src, e->user, size, fds);
+	kdbus_pool_slice_release(e->slice);
+	kdbus_conn_unref(e->conn);
+
+	e->slice = slice;
+	e->conn = kdbus_conn_ref(dst);
+	kdbus_queue_entry_link(e);
+
+	return 0;
+
+error:
+	kdbus_pool_slice_release(slice);
+	kdbus_conn_quota_dec(dst, e->user, size, fds);
+	return ret;
 }
