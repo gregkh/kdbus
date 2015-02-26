@@ -985,13 +985,6 @@ static int kdbus_conn_wait_reply(struct kdbus_conn *conn_src,
 						true);
 		kdbus_pool_slice_publish(entry->slice, &cmd_send->reply.offset,
 					 &cmd_send->reply.msg_size);
-
-		/*
-		 * As 'entry' was never placed into the message queue, its
-		 * quota won't be removed from the connection automatically.
-		 * Hence, we have to do it manually in this case.
-		 */
-		kdbus_queue_entry_dec_quota(conn_src, entry);
 		kdbus_queue_entry_free(entry);
 	}
 	kdbus_reply_unlink(reply_wait);

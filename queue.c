@@ -130,22 +130,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 	return e;
 }
 
-/**
- * kdbus_queue_entry_dec_quota
- * @conn:	The connection containing the queue entry
- * @entry:	The entry that refers to the message
- *
- * Decrease the quota inside a connection, according to @entry.
- */
-void kdbus_queue_entry_dec_quota(struct kdbus_conn *conn,
-				 struct kdbus_queue_entry *entry)
-{
-	kdbus_conn_quota_dec(conn, entry->user,
-			     kdbus_pool_slice_size(entry->slice),
-			     entry->msg_res ? entry->msg_res->fds_count : 0);
-	entry->user = kdbus_user_unref(entry->user);
-}
-
 static void kdbus_queue_entry_unlink(struct kdbus_queue_entry *entry)
 {
 	struct kdbus_queue *queue = &entry->conn->queue;
@@ -155,15 +139,6 @@ static void kdbus_queue_entry_unlink(struct kdbus_queue_entry *entry)
 		return;
 
 	list_del_init(&entry->entry);
-
-	kdbus_queue_entry_dec_quota(entry->conn, entry);
-
-	/* The queue is empty, remove the whole quota accounting */
-	if (list_empty(&queue->msg_list)) {
-		kfree(entry->conn->quota);
-		entry->conn->quota = NULL;
-		entry->conn->n_quota = 0;
-	}
 
 	if (list_empty(&entry->prio_entry)) {
 		/*
@@ -217,7 +192,6 @@ int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
 {
 	struct kdbus_pool_slice *slice = NULL;
 	struct kdbus_conn *src = e->conn;
-	struct kdbus_user *user;
 	size_t size, fds;
 	int ret;
 
@@ -247,12 +221,12 @@ int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
 	if (ret < 0)
 		goto error;
 
-	user = kdbus_user_ref(e->user);
 	kdbus_queue_entry_unlink(e);
+	kdbus_conn_quota_dec(src, e->user, size, fds);
 	kdbus_pool_slice_release(e->slice);
 	kdbus_conn_unref(e->conn);
+
 	e->slice = slice;
-	e->user = user;
 	e->conn = kdbus_conn_ref(dst);
 	kdbus_queue_entry_add(e);
 
@@ -303,7 +277,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
 	entry->proc_meta = kdbus_meta_proc_ref(kmsg->proc_meta);
 	entry->conn_meta = kdbus_meta_conn_ref(kmsg->conn_meta);
 	entry->conn = kdbus_conn_ref(conn_dst);
-	entry->user = ERR_PTR(-ENOENT);
 
 	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
 		msg_size = msg->size;
@@ -512,10 +485,6 @@ struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
 	return entry;
 
 exit_free_entry:
-	if (!IS_ERR(entry->user))
-		kdbus_conn_quota_dec(conn_dst, entry->user,
-				     kdbus_pool_slice_size(entry->slice),
-				     res ? res->fds_count : 0);
 	kdbus_queue_entry_free(entry);
 	return ERR_PTR(ret);
 }
@@ -672,11 +641,20 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 	lockdep_assert_held(&entry->conn->lock);
 
 	kdbus_queue_entry_unlink(entry);
+	kdbus_reply_unref(entry->reply);
+
+	if (entry->slice) {
+		kdbus_conn_quota_dec(entry->conn, entry->user,
+				     kdbus_pool_slice_size(entry->slice),
+				     entry->msg_res ?
+						entry->msg_res->fds_count : 0);
+		kdbus_pool_slice_release(entry->slice);
+		kdbus_user_unref(entry->user);
+	}
+
 	kdbus_msg_resources_unref(entry->msg_res);
 	kdbus_meta_conn_unref(entry->conn_meta);
 	kdbus_meta_proc_unref(entry->proc_meta);
-	kdbus_reply_unref(entry->reply);
-	kdbus_pool_slice_release(entry->slice);
 	kdbus_conn_unref(entry->conn);
 	kfree(entry->memfd_offset);
 	kfree(entry);
