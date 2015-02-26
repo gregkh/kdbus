@@ -277,7 +277,8 @@ static void __kdbus_user_free(struct kref *kref)
  */
 struct kdbus_user *kdbus_user_ref(struct kdbus_user *u)
 {
-	kref_get(&u->kref);
+	if (u)
+		kref_get(&u->kref);
 	return u;
 }
 
