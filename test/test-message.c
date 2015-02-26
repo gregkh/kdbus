@@ -342,7 +342,7 @@ static int kdbus_test_activator_quota(struct kdbus_test_env *env)
 
 	/* Good, activator queue is full now */
 
-	/* sending to activator fails with ENXIO */
+	/* ENXIO on direct send (activators can never be addressed by ID) */
 	ret = kdbus_msg_send(conn, NULL, cookie++, 0, 0, 0, activator->id);
 	ASSERT_RETURN(ret == -ENXIO);
 
@@ -351,6 +351,7 @@ static int kdbus_test_activator_quota(struct kdbus_test_env *env)
 			     0, 0, 0, KDBUS_DST_ID_NAME);
 	ASSERT_RETURN(ret == -ENOBUFS);
 
+	/* no match installed, so the broadcast will not inc dropped_msgs */
 	ret = kdbus_msg_send(sender, NULL, cookie++, 0, 0, 0,
 			     KDBUS_DST_ID_BROADCAST);
 	ASSERT_RETURN(ret == 0);
@@ -376,20 +377,28 @@ static int kdbus_test_activator_quota(struct kdbus_test_env *env)
 			break;
 	}
 
+	/* consume one message, so later at least one can be moved */
+	memset(&recv, 0, sizeof(recv));
+	recv.size = sizeof(recv);
+	ret = kdbus_cmd_recv(conn->fd, &recv);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(recv.dropped_msgs == 0);
+	msg = (struct kdbus_msg *)(conn->buf + recv.msg.offset);
+	kdbus_msg_free(msg);
+
 	/* Try to acquire the name now */
 	ret = kdbus_name_acquire(conn, "foo.test.activator", &flags);
 	ASSERT_RETURN(ret == 0);
 
+	/* try to read messages and see if we have lost some */
 	memset(&recv, 0, sizeof(recv));
 	recv.size = sizeof(recv);
-
-	/* try to read messages and see if we have lost some */
 	ret = kdbus_cmd_recv(conn->fd, &recv);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(recv.dropped_msgs != 0);
 
-	/* The number of dropped msgs is less than received ones */
-	ASSERT_RETURN(activator_msgs_count > recv.dropped_msgs);
+	/* number of dropped msgs < received ones (at least one was moved) */
+	ASSERT_RETURN(recv.dropped_msgs < activator_msgs_count);
 
 	/* Deduct the number of dropped msgs from the activator msgs */
 	activator_msgs_count -= recv.dropped_msgs;
