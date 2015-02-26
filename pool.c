@@ -575,7 +575,8 @@ kdbus_pool_slice_copy_iovec(const struct kdbus_pool_slice *slice, size_t off,
 	struct kiocb kiocb;
 	ssize_t len;
 
-	BUG_ON(off + total_len > slice->size);
+	if (WARN_ON(off + total_len > slice->size))
+		return -EFAULT;
 
 	init_sync_kiocb(&kiocb, f);
 	kiocb.ki_pos = slice->off + off;
@@ -614,7 +615,8 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 	struct kiocb kiocb;
 	ssize_t len;
 
-	BUG_ON(off + total_len > slice->size);
+	if (WARN_ON(off + total_len > slice->size))
+		return -EFAULT;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
@@ -648,8 +650,9 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
 	loff_t off_dst = slice_dst->off;
 	int ret = 0;
 
-	BUG_ON(slice_src->size != slice_dst->size);
-	BUG_ON(slice_src->free || slice_dst->free);
+	if (WARN_ON(slice_src->size != slice_dst->size) ||
+	    WARN_ON(slice_src->free || slice_dst->free))
+		return -EINVAL;
 
 	mutex_lock(&i_dst->i_mutex);
 
