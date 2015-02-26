@@ -608,8 +608,26 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 	return false;
 }
 
-static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
-			    size_t memory, size_t fds)
+/**
+ * kdbus_conn_quota_inc() - increase quota accounting
+ * @c:		connection owning the quota tracking
+ * @u:		user to account for (or NULL for kernel accounting)
+ * @memory:	size of memory to account for
+ * @fds:	number of FDs to account for
+ *
+ * This call manages the quotas on resource @c. That is, it's used if other
+ * users want to use the resources of connection @c, which so far only concerns
+ * the receive queue of the destination.
+ *
+ * This increases the quota-accounting for user @u by @memory bytes and @fds
+ * file-descriptors. If the user has already reached the quota limits, this call
+ * will not do any accounting but return a negative error code indicating the
+ * failure.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int kdbus_conn_quota_inc(struct kdbus_conn *c, struct kdbus_user *u,
+			 size_t memory, size_t fds)
 {
 	struct kdbus_quota *quota;
 	size_t available;
@@ -678,6 +696,38 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 	return 0;
 }
 
+/**
+ * kdbus_conn_quota_dec() - decrease quota accounting
+ * @c:		connection owning the quota tracking
+ * @u:		user which was accounted for (or NULL for kernel accounting)
+ * @memory:	size of memory which was accounted for
+ * @fds:	number of FDs which were accounted for
+ *
+ * This does the reverse of kdbus_conn_quota_inc(). You have to release any
+ * accounted resources that you called kdbus_conn_quota_inc() for. However, you
+ * must not call kdbus_conn_quota_dec() if the accounting failed (that is,
+ * kdbus_conn_quota_inc() failed).
+ */
+void kdbus_conn_quota_dec(struct kdbus_conn *c, struct kdbus_user *u,
+			  size_t memory, size_t fds)
+{
+	struct kdbus_quota *quota;
+	unsigned int id;
+
+	id = u ? u->id : KDBUS_USER_KERNEL_ID;
+	if (WARN_ON(id >= c->n_quota))
+		return;
+
+	quota = &c->quota[id];
+
+	if (!WARN_ON(quota->msgs == 0))
+		--quota->msgs;
+	if (!WARN_ON(quota->memory < memory))
+		quota->memory -= memory;
+	if (!WARN_ON(quota->fds < fds))
+		quota->fds -= fds;
+}
+
 /* Callers should take the conn_dst lock */
 static struct kdbus_queue_entry *
 kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
@@ -707,7 +757,7 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 	if (IS_ERR(entry))
 		return entry;
 
-	ret = kdbus_conn_quota(conn_dst, user,
+	ret = kdbus_conn_quota_inc(conn_dst, user,
 			       kdbus_pool_slice_size(entry->slice),
 			       entry->msg_res ? entry->msg_res->fds_count : 0);
 	if (ret < 0) {
@@ -1341,7 +1391,7 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 			continue;
 		}
 
-		ret = kdbus_conn_quota(conn_dst, e->user,
+		ret = kdbus_conn_quota_inc(conn_dst, e->user,
 				       kdbus_pool_slice_size(e->slice),
 				       e->msg_res ? e->msg_res->fds_count : 0);
 		if (ret < 0) {

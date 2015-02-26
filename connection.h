@@ -134,6 +134,10 @@ int kdbus_conn_acquire(struct kdbus_conn *conn);
 void kdbus_conn_release(struct kdbus_conn *conn);
 int kdbus_conn_disconnect(struct kdbus_conn *conn, bool ensure_queue_empty);
 bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name);
+int kdbus_conn_quota_inc(struct kdbus_conn *c, struct kdbus_user *u,
+			 size_t memory, size_t fds);
+void kdbus_conn_quota_dec(struct kdbus_conn *c, struct kdbus_user *u,
+			  size_t memory, size_t fds);
 int kdbus_conn_entry_insert(struct kdbus_conn *conn_src,
 			    struct kdbus_conn *conn_dst,
 			    const struct kdbus_kmsg *kmsg,
