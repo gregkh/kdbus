@@ -2075,8 +2075,8 @@ int kdbus_cmd_recv(struct kdbus_conn *conn, void __user *argp)
 
 	mutex_lock(&conn->lock);
 
-	entry = kdbus_queue_entry_peek(&conn->queue, cmd->priority,
-				       cmd->flags & KDBUS_RECV_USE_PRIORITY);
+	entry = kdbus_queue_peek(&conn->queue, cmd->priority,
+				 cmd->flags & KDBUS_RECV_USE_PRIORITY);
 	if (!entry) {
 		mutex_unlock(&conn->lock);
 		ret = -EAGAIN;

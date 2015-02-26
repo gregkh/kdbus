@@ -75,6 +75,8 @@ struct kdbus_queue_entry {
 struct kdbus_kmsg;
 
 void kdbus_queue_init(struct kdbus_queue *queue);
+struct kdbus_queue_entry *kdbus_queue_peek(struct kdbus_queue *queue,
+					   s64 priority, bool use_priority);
 
 struct kdbus_queue_entry *kdbus_queue_entry_new(struct kdbus_conn *conn_dst,
 						const struct kdbus_kmsg *kmsg,
@@ -83,9 +85,6 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry);
 void kdbus_queue_entry_add(struct kdbus_queue_entry *entry);
 int kdbus_queue_entry_move(struct kdbus_queue_entry *entry,
 			   struct kdbus_conn *dst);
-struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
-						 s64 priority,
-						 bool use_priority);
 int kdbus_queue_entry_install(struct kdbus_queue_entry *entry,
 			      struct kdbus_conn *conn_dst,
 			      u64 *return_flags, bool install_fds);

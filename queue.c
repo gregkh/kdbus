@@ -93,8 +93,7 @@ prio_done:
 }
 
 /**
- * kdbus_queue_entry_peek() - Retrieves an entry from a queue
- *
+ * kdbus_queue_peek() - Retrieves an entry from a queue
  * @queue:		The queue
  * @priority:		The minimum priority of the entry to peek
  * @use_priority:	Boolean flag whether or not to peek by priority
@@ -104,9 +103,8 @@ prio_done:
  *
  * Return: the peeked queue entry on success, NULL if no suitable msg is found
  */
-struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
-						 s64 priority,
-						 bool use_priority)
+struct kdbus_queue_entry *kdbus_queue_peek(struct kdbus_queue *queue,
+					   s64 priority, bool use_priority)
 {
 	struct kdbus_queue_entry *e;
 
