@@ -205,8 +205,9 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
 
 /**
  * kdbus_queue_entry_alloc() - allocate a queue entry
- * @conn_dst:	The destination connection
- * @kmsg:	The kmsg object the queue entry should track
+ * @conn_dst:	destination connection
+ * @kmsg:	kmsg object the queue entry should track
+ * @user:	user to account message on (or NULL for kernel messages)
  *
  * Allocates a queue entry based on a given kmsg and allocate space for
  * the message payload and the requested metadata in the connection's pool.
@@ -215,7 +216,8 @@ void kdbus_queue_entry_remove(struct kdbus_conn *conn,
  * Return: the allocated entry on success, or an ERR_PTR on failures.
  */
 struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
-						  const struct kdbus_kmsg *kmsg)
+						  const struct kdbus_kmsg *kmsg,
+						  struct kdbus_user *user)
 {
 	struct kdbus_msg_resources *res = kmsg->res;
 	const struct kdbus_msg *msg = &kmsg->msg;
@@ -239,6 +241,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 	entry->msg_res = kdbus_msg_resources_ref(res);
 	entry->proc_meta = kdbus_meta_proc_ref(kmsg->proc_meta);
 	entry->conn_meta = kdbus_meta_conn_ref(kmsg->conn_meta);
+	entry->user = ERR_PTR(-ENOENT);
 
 	if (kmsg->msg.src_id == KDBUS_SRC_ID_KERNEL)
 		msg_size = msg->size;
@@ -294,6 +297,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 
 	payload_off = size;
 	size += kmsg->pool_size;
+	size = KDBUS_ALIGN8(size);
 
 	pool_avail = kdbus_pool_remain(conn_dst->pool);
 
@@ -303,12 +307,23 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 		goto exit_free_entry;
 	}
 
+	ret = kdbus_conn_quota_inc(conn_dst, user, size,
+				   res ? res->fds_count : 0);
+	if (ret < 0)
+		goto exit_free_entry;
+
 	entry->slice = kdbus_pool_slice_alloc(conn_dst->pool, size);
 	if (IS_ERR(entry->slice)) {
 		ret = PTR_ERR(entry->slice);
 		entry->slice = NULL;
+		kdbus_conn_quota_dec(conn_dst, user, size,
+				     res ? res->fds_count : 0);
 		goto exit_free_entry;
 	}
+
+	/* we accounted for exactly 'size' bytes, make sure it didn't grow */
+	WARN_ON(kdbus_pool_slice_size(entry->slice) != size);
+	entry->user = kdbus_user_ref(user);
 
 	/* copy message header */
 	kvec[0].iov_base = (char *)msg;
@@ -435,6 +450,10 @@ struct kdbus_queue_entry *kdbus_queue_entry_alloc(struct kdbus_conn *conn_dst,
 	return entry;
 
 exit_free_entry:
+	if (!IS_ERR(entry->user))
+		kdbus_conn_quota_dec(conn_dst, entry->user,
+				     kdbus_pool_slice_size(entry->slice),
+				     res ? res->fds_count : 0);
 	kdbus_queue_entry_free(entry);
 	return ERR_PTR(ret);
 }

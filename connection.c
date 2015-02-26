@@ -735,7 +735,6 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 		      struct kdbus_user *user)
 {
 	struct kdbus_queue_entry *entry;
-	int ret;
 
 	/* The remote connection was disconnected */
 	if (!kdbus_conn_active(conn_dst))
@@ -753,20 +752,9 @@ kdbus_conn_entry_make(struct kdbus_conn *conn_dst,
 	    kmsg->res && kmsg->res->fds_count > 0)
 		return ERR_PTR(-ECOMM);
 
-	entry = kdbus_queue_entry_alloc(conn_dst, kmsg);
+	entry = kdbus_queue_entry_alloc(conn_dst, kmsg, user);
 	if (IS_ERR(entry))
 		return entry;
-
-	ret = kdbus_conn_quota_inc(conn_dst, user,
-			       kdbus_pool_slice_size(entry->slice),
-			       entry->msg_res ? entry->msg_res->fds_count : 0);
-	if (ret < 0) {
-		kdbus_queue_entry_free(entry);
-		return ERR_PTR(ret);
-	}
-
-	if (user)
-		entry->user = kdbus_user_ref(user);
 
 	return entry;
 }
