@@ -233,7 +233,7 @@ struct kdbus_user *kdbus_user_lookup(struct kdbus_domain *domain, kuid_t uid)
 	 * Allocate the smallest possible index for this user; used
 	 * in arrays for accounting user quota in receiver queues.
 	 */
-	ret = ida_simple_get(&domain->user_ida, 0, 0, GFP_KERNEL);
+	ret = ida_simple_get(&domain->user_ida, 1, 0, GFP_KERNEL);
 	if (ret < 0)
 		goto exit;
 

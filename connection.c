@@ -645,12 +645,7 @@ static int kdbus_conn_quota(struct kdbus_conn *c, struct kdbus_user *u,
 	BUILD_BUG_ON(KDBUS_CONN_MAX_MSGS > U16_MAX);
 	BUILD_BUG_ON(KDBUS_CONN_MAX_FDS_PER_USER > U8_MAX);
 
-	/*
-	 * User or kernel quota accounting, kernel is indexed at
-	 * connection->quota[0]
-	 */
-	id = u ? (u->id + 1) : 0;
-
+	id = u ? u->id : KDBUS_USER_KERNEL_ID;
 	if (id >= c->n_quota) {
 		unsigned int users;
 

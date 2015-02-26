@@ -141,22 +141,16 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 void kdbus_queue_entry_dec_quota(struct kdbus_conn *conn,
 				 struct kdbus_queue_entry *entry)
 {
-	size_t n;
-	unsigned int id;
 	struct kdbus_quota *quota;
+	unsigned int id;
+	size_t n;
 
-	if (!conn->n_quota)
+	id = entry->user ? entry->user->id : KDBUS_USER_KERNEL_ID;
+	if (WARN_ON(id >= conn->n_quota))
 		return;
 
-	/* get user or kernel id quota */
-	if (entry->user) {
-		id = entry->user->id + 1;
-		entry->user = kdbus_user_unref(entry->user);
-	} else {
-		id = 0;
-	}
-
 	quota = &conn->quota[id];
+	entry->user = kdbus_user_unref(entry->user);
 
 	if (!WARN_ON(quota->msgs == 0))
 		quota->msgs--;

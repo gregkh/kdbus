@@ -68,6 +68,8 @@ struct kdbus_domain *kdbus_domain_ref(struct kdbus_domain *domain);
 struct kdbus_domain *kdbus_domain_unref(struct kdbus_domain *domain);
 int kdbus_domain_populate(struct kdbus_domain *domain, unsigned int access);
 
+#define KDBUS_USER_KERNEL_ID 0 /* ID 0 is reserved for kernel accounting */
+
 struct kdbus_user *kdbus_user_lookup(struct kdbus_domain *domain, kuid_t uid);
 struct kdbus_user *kdbus_user_ref(struct kdbus_user *u);
 struct kdbus_user *kdbus_user_unref(struct kdbus_user *u);
