@@ -653,7 +653,7 @@
     <para>
       As stated in the 'synopsis' section above, application developers are
       strongly encouraged to use kdbus through one of the high-level D-Bus
-      abstraction libaries, rather than using the low-level API directly.
+      abstraction libraries, rather than using the low-level API directly.
     </para>
 
     <para>
