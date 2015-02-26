@@ -90,7 +90,6 @@ void kdbus_queue_entry_add(struct kdbus_queue_entry *entry)
 prio_done:
 	/* add to unsorted fifo list */
 	list_add_tail(&entry->entry, &queue->msg_list);
-	queue->msg_count++;
 }
 
 /**
@@ -111,7 +110,7 @@ struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
 {
 	struct kdbus_queue_entry *e;
 
-	if (queue->msg_count == 0)
+	if (list_empty(&queue->msg_list))
 		return NULL;
 
 	if (use_priority) {
@@ -163,12 +162,11 @@ void kdbus_queue_entry_remove(struct kdbus_queue_entry *entry)
 		return;
 
 	list_del_init(&entry->entry);
-	queue->msg_count--;
 
 	kdbus_queue_entry_dec_quota(entry->conn, entry);
 
 	/* The queue is empty, remove the whole quota accounting */
-	if (queue->msg_count == 0) {
+	if (list_empty(&queue->msg_list)) {
 		kfree(entry->conn->quota);
 		entry->conn->quota = NULL;
 		entry->conn->n_quota = 0;
