@@ -1363,33 +1363,21 @@ void kdbus_conn_move_messages(struct kdbus_conn *conn_dst,
 		if (name_id > 0 && e->dst_name_id != name_id)
 			continue;
 
-		kdbus_queue_entry_remove(conn_src, e);
-
 		if (!(conn_dst->flags & KDBUS_HELLO_ACCEPT_FD) &&
 		    e->msg_res && e->msg_res->fds_count > 0) {
 			atomic_inc(&conn_dst->lost_count);
+			kdbus_queue_entry_remove(conn_src, e);
 			kdbus_queue_entry_free(e);
 			continue;
 		}
 
-		ret = kdbus_pool_slice_move(conn_dst->pool, &e->slice);
+		ret = kdbus_queue_entry_move(e, conn_src, conn_dst);
 		if (ret < 0) {
 			atomic_inc(&conn_dst->lost_count);
+			kdbus_queue_entry_remove(conn_src, e);
 			kdbus_queue_entry_free(e);
 			continue;
 		}
-
-		ret = kdbus_conn_quota_inc(conn_dst, e->user,
-				       kdbus_pool_slice_size(e->slice),
-				       e->msg_res ? e->msg_res->fds_count : 0);
-		if (ret < 0) {
-			atomic_inc(&conn_dst->lost_count);
-			kdbus_queue_entry_free(e);
-			continue;
-		}
-
-		/* link the message into the receiver's entry */
-		kdbus_queue_entry_add(&conn_dst->queue, e);
 	}
 	kdbus_conn_unlock2(conn_src, conn_dst);
 

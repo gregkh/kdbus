@@ -637,8 +637,15 @@ ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 	return len;
 }
 
-static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
-			   const struct kdbus_pool_slice *slice_src)
+/**
+ * kdbus_pool_slice_copy() - copy data from one slice into another
+ * @slice_dst:		destination slice
+ * @slice_src:		source slice
+ *
+ * Return: 0 on success, negative error number on failure.
+ */
+int kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice_dst,
+			  const struct kdbus_pool_slice *slice_src)
 {
 	struct file *f_src = slice_src->pool->f;
 	struct file *f_dst = slice_dst->pool->f;
@@ -648,6 +655,7 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
 	unsigned long len = slice_src->size;
 	loff_t off_src = slice_src->off;
 	loff_t off_dst = slice_dst->off;
+	mm_segment_t old_fs;
 	int ret = 0;
 
 	if (WARN_ON(slice_src->size != slice_dst->size) ||
@@ -655,7 +663,8 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
 		return -EINVAL;
 
 	mutex_lock(&i_dst->i_mutex);
-
+	old_fs = get_fs();
+	set_fs(get_ds());
 	while (len > 0) {
 		unsigned long page_off;
 		unsigned long copy_len;
@@ -697,59 +706,9 @@ static int kdbus_pool_copy(const struct kdbus_pool_slice *slice_dst,
 		off_dst += copy_len;
 		len -= copy_len;
 	}
-
+	set_fs(old_fs);
 	mutex_unlock(&i_dst->i_mutex);
 
-	return ret;
-}
-
-/**
- * kdbus_pool_slice_move() - move memory from one pool into another one
- * @pool_dst:		The receiver's pool to copy to
- * @slice:		Reference to the slice to copy from the source;
- *			updated with the newly allocated slice in the
- *			destination
- *
- * Move memory from one pool to another. A slice will be allocated in the
- * destination pool, the original memory from the existing slice is copied
- * over, and the existing slice will be released.
- *
- * Return: 0 on success, negative error number on failure.
- */
-int kdbus_pool_slice_move(struct kdbus_pool *pool_dst,
-			  struct kdbus_pool_slice **slice)
-{
-	mm_segment_t old_fs;
-	struct kdbus_pool_slice *slice_new;
-	size_t pool_avail;
-	size_t size;
-	int ret;
-
-	size = kdbus_pool_slice_size(*slice);
-	pool_avail = kdbus_pool_remain(pool_dst);
-
-	/* do not give out more than half of the remaining space */
-	if (size > pool_avail / 2)
-		return -EXFULL;
-
-	slice_new = kdbus_pool_slice_alloc(pool_dst, size);
-	if (IS_ERR(slice_new))
-		return PTR_ERR(slice_new);
-
-	old_fs = get_fs();
-	set_fs(get_ds());
-	ret = kdbus_pool_copy(slice_new, *slice);
-	set_fs(old_fs);
-	if (ret < 0)
-		goto exit_free;
-
-	kdbus_pool_slice_release(*slice);
-
-	*slice = slice_new;
-	return 0;
-
-exit_free:
-	kdbus_pool_slice_release(slice_new);
 	return ret;
 }
 

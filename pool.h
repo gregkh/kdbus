@@ -34,8 +34,8 @@ void kdbus_pool_slice_publish(struct kdbus_pool_slice *slice,
 			      u64 *out_offset, u64 *out_size);
 off_t kdbus_pool_slice_offset(const struct kdbus_pool_slice *slice);
 size_t kdbus_pool_slice_size(const struct kdbus_pool_slice *slice);
-int kdbus_pool_slice_move(struct kdbus_pool *pool_dst,
-			  struct kdbus_pool_slice **slice);
+int kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice_dst,
+			  const struct kdbus_pool_slice *slice_src);
 ssize_t kdbus_pool_slice_copy_kvec(const struct kdbus_pool_slice *slice,
 				   size_t off, struct kvec *kvec,
 				   size_t kvec_count, size_t total_len);
