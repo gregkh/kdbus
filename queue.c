@@ -146,14 +146,7 @@ void kdbus_queue_entry_dec_quota(struct kdbus_conn *conn,
 	entry->user = kdbus_user_unref(entry->user);
 }
 
-/**
- * kdbus_queue_entry_remove() - dequeue an entry
- * @entry:	entry to dequeue
- *
- * This dequeues an entry from the incoming message queue. This is a no-op if
- * the message was already dequeued.
- */
-void kdbus_queue_entry_remove(struct kdbus_queue_entry *entry)
+static void kdbus_queue_entry_unlink(struct kdbus_queue_entry *entry)
 {
 	struct kdbus_queue *queue = &entry->conn->queue;
 
@@ -255,7 +248,7 @@ int kdbus_queue_entry_move(struct kdbus_queue_entry *e,
 		goto error;
 
 	user = kdbus_user_ref(e->user);
-	kdbus_queue_entry_remove(e);
+	kdbus_queue_entry_unlink(e);
 	kdbus_pool_slice_release(e->slice);
 	kdbus_conn_unref(e->conn);
 	e->slice = slice;
@@ -677,8 +670,8 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry)
 		return;
 
 	lockdep_assert_held(&entry->conn->lock);
-	WARN_ON(!list_empty(&entry->entry));
 
+	kdbus_queue_entry_unlink(entry);
 	kdbus_msg_resources_unref(entry->msg_res);
 	kdbus_meta_conn_unref(entry->conn_meta);
 	kdbus_meta_proc_unref(entry->proc_meta);

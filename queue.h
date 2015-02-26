@@ -83,7 +83,6 @@ void kdbus_queue_entry_free(struct kdbus_queue_entry *entry);
 void kdbus_queue_entry_dec_quota(struct kdbus_conn *conn,
 				 struct kdbus_queue_entry *entry);
 void kdbus_queue_entry_add(struct kdbus_queue_entry *entry);
-void kdbus_queue_entry_remove(struct kdbus_queue_entry *entry);
 int kdbus_queue_entry_move(struct kdbus_queue_entry *entry,
 			   struct kdbus_conn *dst);
 struct kdbus_queue_entry *kdbus_queue_entry_peek(struct kdbus_queue *queue,
