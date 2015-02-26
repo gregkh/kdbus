@@ -365,6 +365,9 @@ static int kdbus_test_activator_quota(struct kdbus_test_env *env)
 	msg = (struct kdbus_msg *)(activator->buf + recv.msg.offset);
 	kdbus_msg_free(msg);
 
+
+	/* Stage 1) of test check the pool memory quota */
+
 	/* Consume the connection pool memory */
 	for (i = 0; i < KDBUS_CONN_MAX_MSGS; i++) {
 		ret = kdbus_msg_send(sender, NULL,
@@ -384,6 +387,67 @@ static int kdbus_test_activator_quota(struct kdbus_test_env *env)
 	ret = kdbus_cmd_recv(conn->fd, &recv);
 	ASSERT_RETURN(ret == 0);
 	ASSERT_RETURN(recv.dropped_msgs != 0);
+
+	/* The number of dropped msgs is less than received ones */
+	ASSERT_RETURN(activator_msgs_count > recv.dropped_msgs);
+
+	/* Deduct the number of dropped msgs from the activator msgs */
+	activator_msgs_count -= recv.dropped_msgs;
+
+	msg = (struct kdbus_msg *)(activator->buf + recv.msg.offset);
+	kdbus_msg_free(msg);
+
+	/*
+	 * Release the name and hand it back to activator, now
+	 * we should have 'activator_msgs_count' msgs again in
+	 * the activator queue
+	 */
+	ret = kdbus_name_release(conn, "foo.test.activator");
+	ASSERT_RETURN(ret == 0);
+
+	/* make sure that we got our previous activator msgs */
+	ret = kdbus_msg_recv(activator, &msg, NULL);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(msg->src_id == sender->id);
+
+	activator_msgs_count--;
+
+	kdbus_msg_free(msg);
+
+
+	/* Stage 2) of test check max message quota */
+
+	/* Empty conn queue */
+	for (i = 0; i < KDBUS_CONN_MAX_MSGS; i++) {
+		ret = kdbus_msg_recv(conn, NULL, NULL);
+		if (ret == -EAGAIN)
+			break;
+	}
+
+	/* fill queue with max msgs quota */
+	ret = kdbus_fill_conn_queue(sender, conn->id, KDBUS_CONN_MAX_MSGS);
+	ASSERT_RETURN(ret == KDBUS_CONN_MAX_MSGS);
+
+	/* This one is lost but it is not accounted */
+	ret = kdbus_msg_send(sender, NULL,
+			     cookie++, 0, 0, 0, conn->id);
+	ASSERT_RETURN(ret == -ENOBUFS);
+
+	/* Acquire the name again */
+	ret = kdbus_name_acquire(conn, "foo.test.activator", &flags);
+	ASSERT_RETURN(ret == 0);
+
+	memset(&recv, 0, sizeof(recv));
+	recv.size = sizeof(recv);
+
+	/*
+	 * Try to read messages and make sure that we have lost all
+	 * the activator messages due to quota checks. Our queue is
+	 * already full.
+	 */
+	ret = kdbus_cmd_recv(conn->fd, &recv);
+	ASSERT_RETURN(ret == 0);
+	ASSERT_RETURN(recv.dropped_msgs == activator_msgs_count);
 
 	msg = (struct kdbus_msg *)(activator->buf + recv.msg.offset);
 	kdbus_msg_free(msg);
