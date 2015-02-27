@@ -180,7 +180,7 @@
         descriptors over UNIX domain sockets. Every connection can specify which
         set of metadata the kernel should attach to the message when it is
         delivered to the receiving connection. Metadata contains information
-        like: system timestamps, UID, GID, TID, proc-starttime, well-known
+        like: system time stamps, UID, GID, TID, proc-starttime, well-known
         names, process comm, process exe, process argv, cgroup, capabilities,
         seclabel, audit session, loginuid and the connection's human-readable
         name. See
@@ -212,7 +212,7 @@
         Signals are messages that a receiver opts in for by installing a blob of
         bytes, called a 'match'. Signal messages must always carry a
         counter-part blob, called a 'filter', and signals are only delivered to
-        peers which have a match that whitelists the message's filter. Senders
+        peers which have a match that white-lists the message's filter. Senders
         of signal messages can use either a single connection ID as receiver,
         or the special connection ID
         <constant>KDBUS_DST_ID_BROADCAST</constant> to potentially send it to
@@ -349,7 +349,7 @@
         can refer to the currently active process (creds, PIDs, current user
         groups, process names and its executable path, cgroup membership,
         capabilities, security label and audit information), connection
-        information (description string, currently owned names) and timestamps.
+        information (description string, currently owned names) and time stamps.
       </para>
       <para>
         Metadata is collected at the following times.
@@ -511,7 +511,7 @@
       <title>Attach flags for metadata items</title>
       <para>
         To let the kernel know which metadata information to attach as items
-        to the afformentioned commands, it uses a bitmask. In those, the
+        to the aforementioned commands, it uses a bitmask. In those, the
         following <emphasis>attach flags</emphasis> are currently supported.
         Both the the <varname>attach_flags_recv</varname> and
         <varname>attach_flags_send</varname> fields of
