@@ -710,7 +710,7 @@ int kdbus_test_memory_access(struct kdbus_test_env *env)
 	size = sizeof(struct kdbus_msg);
 	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
 
-	msg = malloc(size);
+	msg = alloca(size);
 	ASSERT_RETURN_VAL(msg, -ENOMEM);
 
 	memset(msg, 0, size);
