@@ -280,6 +280,10 @@ static int kdbus_msg_scan_items(struct kdbus_kmsg *kmsg,
 			d->size = size;
 
 			if (ptr) {
+				if (unlikely(!access_ok(VERIFY_READ, ptr,
+							size)))
+					return -EFAULT;
+
 				d->vec.off = kmsg->pool_size;
 				iov->iov_base = ptr;
 				iov->iov_len = size;
