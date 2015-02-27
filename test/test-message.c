@@ -18,22 +18,7 @@
 #include "kdbus-enum.h"
 #include "kdbus-test.h"
 
-/*
- * maximum number of queued messages wich will not be user accounted.
- * after this value is reached each user will have an individual limit.
- */
-#define KDBUS_CONN_MAX_MSGS_UNACCOUNTED		16
-
-/*
- * maximum number of queued messages from the same indvidual user after the
- * the un-accounted value has been hit
- */
-#define KDBUS_CONN_MAX_MSGS_PER_USER		16
-
-#define MAX_USER_TOTAL_MSGS  (KDBUS_CONN_MAX_MSGS_UNACCOUNTED + \
-				KDBUS_CONN_MAX_MSGS_PER_USER)
-
-/* maximum number of queued messages in a connection */
+/* maximum number of queued messages from the same individual user */
 #define KDBUS_CONN_MAX_MSGS			256
 
 /* maximum number of queued requests waiting for a reply */
@@ -488,15 +473,22 @@ static int kdbus_test_expected_reply_quota(struct kdbus_test_env *env)
 	count = 0;
 	/* Send 16 messages to 8 different connections */
 	for (i = 0; i < 8; i++) {
-		for (n = 0; n < KDBUS_CONN_MAX_MSGS_PER_USER; n++, count++) {
+		for (n = 0; n < 16; n++) {
 			ret = kdbus_msg_send(conn, NULL, cookie++,
 					     KDBUS_MSG_EXPECT_REPLY,
 					     100000000ULL, 0,
 					     connections[i]->id);
-			ASSERT_RETURN(ret == 0);
+			if (ret < 0)
+				break;
+
+			count++;
 		}
 	}
 
+	/*
+	 * We should have queued at least
+	 * KDBUS_CONN_MAX_REQUESTS_PENDING method call
+	 */
 	ASSERT_RETURN(count == KDBUS_CONN_MAX_REQUESTS_PENDING);
 
 	/*
@@ -505,7 +497,7 @@ static int kdbus_test_expected_reply_quota(struct kdbus_test_env *env)
 	 * no further requests are allowed
 	 */
 	ret = kdbus_msg_send(conn, NULL, cookie++, KDBUS_MSG_EXPECT_REPLY,
-			     1000000000ULL, 0, connections[i]->id);
+			     1000000000ULL, 0, connections[8]->id);
 	ASSERT_RETURN(ret == -EMLINK);
 
 	for (i = 0; i < 9; i++)
