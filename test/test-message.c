@@ -660,3 +660,80 @@ int kdbus_test_message_quota(struct kdbus_test_env *env)
 
 	return TEST_OK;
 }
+
+int kdbus_test_memory_access(struct kdbus_test_env *env)
+{
+	struct kdbus_conn *a, *b;
+	struct kdbus_cmd_send cmd = {};
+	struct kdbus_item *item;
+	struct kdbus_msg *msg;
+	uint64_t test_addr = 0;
+	char line[256];
+	uint64_t size;
+	FILE *f;
+	int ret;
+
+	/*
+	 * Search in /proc/kallsyms for the address of a kernel symbol that
+	 * should always be there, regardless of the config. Use that address
+	 * in a PAYLOAD_VEC item and make sure it's inaccessible.
+	 */
+
+	f = fopen("/proc/kallsyms", "r");
+	if (!f)
+		return TEST_SKIP;
+
+	while (fgets(line, sizeof(line), f)) {
+		char *s = line;
+
+		if (!strsep(&s, " "))
+			continue;
+
+		if (!strsep(&s, " "))
+			continue;
+
+		if (!strncmp(s, "mutex_lock", 10)) {
+			test_addr = strtoull(line, NULL, 16);
+			break;
+		}
+	}
+
+	fclose(f);
+
+	if (!test_addr)
+		return TEST_SKIP;
+
+	a = kdbus_hello(env->buspath, 0, NULL, 0);
+	b = kdbus_hello(env->buspath, 0, NULL, 0);
+	ASSERT_RETURN(a && b);
+
+	size = sizeof(struct kdbus_msg);
+	size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_vec));
+
+	msg = malloc(size);
+	ASSERT_RETURN_VAL(msg, -ENOMEM);
+
+	memset(msg, 0, size);
+	msg->size = size;
+	msg->src_id = a->id;
+	msg->dst_id = b->id;
+	msg->payload_type = KDBUS_PAYLOAD_DBUS;
+
+	item = msg->items;
+	item->type = KDBUS_ITEM_PAYLOAD_VEC;
+	item->size = KDBUS_ITEM_HEADER_SIZE + sizeof(struct kdbus_vec);
+	item->vec.address = test_addr;
+	item->vec.size = sizeof(void*);
+	item = KDBUS_ITEM_NEXT(item);
+
+	cmd.size = sizeof(cmd);
+	cmd.msg_address = (uintptr_t)msg;
+
+	ret = kdbus_cmd_send(a->fd, &cmd);
+	ASSERT_RETURN(ret == -EFAULT);
+
+	kdbus_conn_free(b);
+	kdbus_conn_free(a);
+
+	return 0;
+}

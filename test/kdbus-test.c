@@ -137,6 +137,12 @@ static const struct kdbus_test tests[] = {
 		.flags	= TEST_CREATE_BUS,
 	},
 	{
+		.name	= "memory-access",
+		.desc	= "memory access",
+		.func	= kdbus_test_memory_access,
+		.flags	= TEST_CREATE_BUS,
+	},
+	{
 		.name	= "timeout",
 		.desc	= "timeout",
 		.func	= kdbus_test_timeout,
