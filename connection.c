@@ -681,7 +681,12 @@ int kdbus_conn_quota_inc(struct kdbus_conn *c, struct kdbus_user *u,
 	/* half the pool is _always_ reserved for the pool owner */
 	available /= 2;
 
-	/* pool owner can claim more than 50%, at the expense of the queue */
+	/*
+	 * Pool owner slices are un-accounted slices, they can claim more
+	 * than 50%, at the expense of the queue. In the other hand, the
+	 * current slices here belong to the incoming queue, these are
+	 * accounted slices that are limited to 50% of the pool.
+	 */
 	if (available < accounted)
 		return -ENOBUFS;
 
