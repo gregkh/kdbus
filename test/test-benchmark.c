@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <math.h>
 
 #include "kdbus-api.h"
 #include "kdbus-test.h"
@@ -39,6 +40,7 @@ struct stats {
 	uint64_t latency_acc;
 	uint64_t latency_low;
 	uint64_t latency_high;
+	uint64_t latency_ssquares;
 };
 
 static struct stats stats;
@@ -49,17 +51,19 @@ static void reset_stats(void)
 	stats.latency_acc = 0;
 	stats.latency_low = UINT64_MAX;
 	stats.latency_high = 0;
+	stats.latency_ssquares = 0;
 }
 
 static void dump_stats(bool is_uds)
 {
 	if (stats.count > 0) {
-		kdbus_printf("stats %s: %'llu packets processed, latency (nsecs) min/max/avg %'7llu // %'7llu // %'7llu\n",
+		kdbus_printf("stats %s: %'llu packets processed, latency (nsecs) min/max/avg/dev %'7llu // %'7llu // %'7llu // %'7.f\n",
 			     is_uds ? " (UNIX)" : "(KDBUS)",
 			     (unsigned long long) stats.count,
 			     (unsigned long long) stats.latency_low,
 			     (unsigned long long) stats.latency_high,
-			     (unsigned long long) (stats.latency_acc / stats.count));
+			     (unsigned long long) (stats.latency_acc / stats.count),
+			     sqrt(stats.latency_ssquares / stats.count));
 	} else {
 		kdbus_printf("*** no packets received. bus stuck?\n");
 	}
@@ -67,12 +71,21 @@ static void dump_stats(bool is_uds)
 
 static void add_stats(uint64_t prev)
 {
-	uint64_t diff;
+	uint64_t diff, delta;
 
 	diff = now(CLOCK_THREAD_CPUTIME_ID) - prev;
 
+	if (stats.count > 0)
+		delta = diff - stats.latency_acc / stats.count;
+	else
+		delta = 0;
+
 	stats.count++;
 	stats.latency_acc += diff;
+
+	/* see Welford62 */
+	stats.latency_ssquares += (diff - stats.latency_acc / stats.count) * delta;
+
 	if (stats.latency_low > diff)
 		stats.latency_low = diff;
 

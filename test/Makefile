@@ -14,7 +14,7 @@ CFLAGS		+= -std=gnu99 -Wall -Wextra -g \
 		   -Wcast-align \
 		   -Wsign-compare \
 		   -Wno-missing-field-initializers
-LDFLAGS		:= -pthread -lcap
+LDFLAGS		:= -pthread -lcap -lm
 CC		:= $(CROSS_COMPILE)gcc
 
 OBJS= \
