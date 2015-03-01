@@ -1818,7 +1818,8 @@ int kdbus_cmd_conn_info(struct kdbus_conn *conn, void __user *argp)
 	if (ret < 0)
 		goto exit;
 
-	slice = kdbus_pool_slice_alloc(conn->pool, info.size + meta_size, false);
+	slice = kdbus_pool_slice_alloc(conn->pool,
+				       info.size + meta_size, false);
 	if (IS_ERR(slice)) {
 		ret = PTR_ERR(slice);
 		slice = NULL;
