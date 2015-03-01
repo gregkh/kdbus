@@ -83,6 +83,9 @@ int kdbus_item_validate(const struct kdbus_item *item)
 	size_t l;
 	int ret;
 
+	BUILD_BUG_ON(KDBUS_ITEM_HEADER_SIZE !=
+		     sizeof(struct kdbus_item_header));
+
 	if (item->size < KDBUS_ITEM_HEADER_SIZE)
 		return -EINVAL;
 
