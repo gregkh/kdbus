@@ -80,6 +80,16 @@ static void kdbus_policy_entry_free(struct kdbus_policy_db_entry *e)
 	kfree(e);
 }
 
+static unsigned int kdbus_strnhash(const char *str, size_t len)
+{
+	unsigned long hash = init_name_hash();
+
+	while (len--)
+		hash = partial_name_hash(*str++, hash);
+
+	return end_name_hash(hash);
+}
+
 static const struct kdbus_policy_db_entry *
 kdbus_policy_lookup(struct kdbus_policy_db *db, const char *name, u32 hash)
 {

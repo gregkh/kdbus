@@ -76,23 +76,6 @@ static inline unsigned int kdbus_strhash(const char *str)
 }
 
 /**
- * kdbus_strnhash - calculate a hash
- * @str:	String
- * @len:	Length of @str
- *
- * Return: hash value
- */
-static inline unsigned int kdbus_strnhash(const char *str, size_t len)
-{
-	unsigned long hash = init_name_hash();
-
-	while (len--)
-		hash = partial_name_hash(*str++, hash);
-
-	return end_name_hash(hash);
-}
-
-/**
  * kdbus_str_valid - verify a string
  * @str:	String to verify
  * @size:	Size of buffer of string (including 0-byte)
