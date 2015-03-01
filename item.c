@@ -20,6 +20,15 @@
 #include "limits.h"
 #include "util.h"
 
+/*
+ * This verifies the string at position @str with size @size is properly
+ * zero-terminated and does not contain a 0-byte but at the end.
+ */
+static bool kdbus_str_valid(const char *str, size_t size)
+{
+	return size > 0 && memchr(str, '\0', size) == str + size - 1;
+}
+
 /**
  * kdbus_item_validate_name() - validate an item containing a name
  * @item:		Item to validate

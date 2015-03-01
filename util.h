@@ -75,21 +75,6 @@ static inline unsigned int kdbus_strhash(const char *str)
 	return end_name_hash(hash);
 }
 
-/**
- * kdbus_str_valid - verify a string
- * @str:	String to verify
- * @size:	Size of buffer of string (including 0-byte)
- *
- * This verifies the string at position @str with size @size is properly
- * zero-terminated and does not contain a 0-byte but at the end.
- *
- * Return: true if string is valid, false if not.
- */
-static inline bool kdbus_str_valid(const char *str, size_t size)
-{
-	return size > 0 && memchr(str, '\0', size) == str + size - 1;
-}
-
 int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
 			    kuid_t kuid);
 int kdbus_sanitize_attach_flags(u64 flags, u64 *attach_flags);
