@@ -70,12 +70,13 @@ static void __kdbus_msg_resources_free(struct kref *kref)
 		}
 	}
 
-	kfree(r->data);
-
-	kdbus_fput_files(r->fds, r->fds_count);
-	kfree(r->fds);
+	for (i = 0; i < r->fds_count; i++)
+		if (r->fds[i])
+			fput(r->fds[i]);
 
 	kfree(r->dst_name);
+	kfree(r->data);
+	kfree(r->fds);
 	kfree(r);
 }
 

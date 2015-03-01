@@ -58,28 +58,6 @@ int kdbus_sysname_is_valid(const char *name)
 }
 
 /**
- * kdbus_fput_files() - fput() an array of struct files
- * @files:	The array of files to put, may be NULL
- * @count:	The number of elements in @files
- *
- * Call fput() on all non-NULL elements in @files, and set the entries to
- * NULL afterwards.
- */
-void kdbus_fput_files(struct file **files, unsigned int count)
-{
-	int i;
-
-	if (!files || count == 0)
-		return;
-
-	for (i = count - 1; i >= 0; i--)
-		if (files[i]) {
-			fput(files[i]);
-			files[i] = NULL;
-		}
-}
-
-/**
  * kdbus_copy_from_user() - copy aligned data from user-space
  * @dest:	target buffer in kernel memory
  * @user_ptr:	user-provided source buffer
