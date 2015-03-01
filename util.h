@@ -109,8 +109,6 @@ static inline bool kdbus_str_valid(const char *str, size_t size)
 
 int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
 			    kuid_t kuid);
-u32 kdbus_from_kuid_keep(kuid_t uid);
-u32 kdbus_from_kgid_keep(kgid_t gid);
 int kdbus_sanitize_attach_flags(u64 flags, u64 *attach_flags);
 
 int kdbus_copy_from_user(void *dest, void __user *user_ptr, size_t size);

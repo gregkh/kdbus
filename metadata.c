@@ -925,6 +925,20 @@ static int kdbus_meta_push_kvec(struct kvec *kvec,
 	return 2 + !!kdbus_kvec_pad(kvec++, size);
 }
 
+/* This is equivalent to from_kuid_munged(), but maps INVALID_UID to itself */
+static u32 kdbus_from_kuid_keep(kuid_t uid)
+{
+	return uid_valid(uid) ?
+		from_kuid_munged(current_user_ns(), uid) : ((uid_t)-1);
+}
+
+/* This is equivalent to from_kgid_munged(), but maps INVALID_GID to itself */
+static u32 kdbus_from_kgid_keep(kgid_t gid)
+{
+	return gid_valid(gid) ?
+		from_kgid_munged(current_user_ns(), gid) : ((gid_t)-1);
+}
+
 /**
  * kdbus_meta_export() - export information from metadata into a slice
  * @mp:		Process metadata, or NULL
