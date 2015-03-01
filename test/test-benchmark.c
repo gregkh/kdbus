@@ -40,6 +40,7 @@ struct stats {
 	uint64_t latency_acc;
 	uint64_t latency_low;
 	uint64_t latency_high;
+	uint64_t latency_avg;
 	uint64_t latency_ssquares;
 };
 
@@ -51,6 +52,7 @@ static void reset_stats(void)
 	stats.latency_acc = 0;
 	stats.latency_low = UINT64_MAX;
 	stats.latency_high = 0;
+	stats.latency_avg = 0;
 	stats.latency_ssquares = 0;
 }
 
@@ -62,7 +64,7 @@ static void dump_stats(bool is_uds)
 			     (unsigned long long) stats.count,
 			     (unsigned long long) stats.latency_low,
 			     (unsigned long long) stats.latency_high,
-			     (unsigned long long) (stats.latency_acc / stats.count),
+			     (unsigned long long) stats.latency_avg,
 			     sqrt(stats.latency_ssquares / stats.count));
 	} else {
 		kdbus_printf("*** no packets received. bus stuck?\n");
@@ -71,20 +73,17 @@ static void dump_stats(bool is_uds)
 
 static void add_stats(uint64_t prev)
 {
-	uint64_t diff, delta;
+	uint64_t diff, latency_avg_prev;
 
 	diff = now(CLOCK_THREAD_CPUTIME_ID) - prev;
-
-	if (stats.count > 0)
-		delta = diff - stats.latency_acc / stats.count;
-	else
-		delta = 0;
 
 	stats.count++;
 	stats.latency_acc += diff;
 
 	/* see Welford62 */
-	stats.latency_ssquares += (diff - stats.latency_acc / stats.count) * delta;
+	latency_avg_prev = stats.latency_avg;
+	stats.latency_avg = stats.latency_acc / stats.count;
+	stats.latency_ssquares += (diff - latency_avg_prev) * (diff - stats.latency_avg);
 
 	if (stats.latency_low > diff)
 		stats.latency_low = diff;
