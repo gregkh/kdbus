@@ -38,20 +38,20 @@
  *            process manages the prime-context, spawns workers and assigns
  *            prime-ranges to each worker to compute.
  *            The master itself does not do any prime-computations itself.
- *  * child: The child object contains the context of a worker. It inherits the
- *           prime context from its parent (the master) and then creates a new
- *           bus context to request prime-ranges to compute.
- *  * prime: The "prime" object is used to abstract how we compute primes. When
- *           allocated, it prepares a memory region to hold 1 bit for each
- *           natural number up to a fixed maximum ('MAX_PRIMES').
- *           The memory region is backed by a memfd which we share between
- *           processes. Each worker now gets assigned a range of natural numbers
- *           which it clears multiples of off the memory region. The master
- *           process is responsible of distributing all natural numbers up to
- *           the fixed maximum to its workers.
- *  * bus: The bus object is an abstraction of the kdbus API. It is pretty
- *         straightfoward and only manages the connection-fd plus the
- *         memory-mapped pool in a single object.
+ *  * child:  The child object contains the context of a worker. It inherits the
+ *            prime context from its parent (the master) and then creates a new
+ *            bus context to request prime-ranges to compute.
+ *  * prime:  The "prime" object is used to abstract how we compute primes. When
+ *            allocated, it prepares a memory region to hold 1 bit for each
+ *            natural number up to a fixed maximum ('MAX_PRIMES').
+ *            The memory region is backed by a memfd which we share between
+ *            processes. Each worker now gets assigned a range of natural
+ *            numbers which it clears multiples of off the memory region. The
+ *            master process is responsible of distributing all natural numbers
+ *            up to the fixed maximum to its workers.
+ *  * bus:    The bus object is an abstraction of the kdbus API. It is pretty
+ *            straightfoward and only manages the connection-fd plus the
+ *            memory-mapped pool in a single object.
  *
  * This example is in reversed order, which should make it easier to read
  * top-down, but requires some forward-declarations. Just ignore those.
@@ -206,7 +206,7 @@ out:
  * ...this will allocate a new master context. It keeps track of the current
  * number of children/workers that are running, manages a signalfd to track
  * SIGCHLD, and creates a private kdbus bus. Afterwards, it opens its connection
- * to the bus and acquires a well known-name (arg_busname).
+ * to the bus and acquires a well known-name (arg_master).
  */
 static int master_new(struct master **out)
 {
@@ -490,7 +490,7 @@ static int master_handle_bus(struct master *m)
 		 * If such an item is attached, a new file descriptor was
 		 * installed into the task when KDBUS_CMD_RECV was called, and
 		 * its number is stored in item->memfd.fd.
-		 * Implementers *must* handle this item type close the
+		 * Implementers *must* handle this item type and close the
 		 * file descriptor when no longer needed in order to prevent
 		 * file descriptor exhaustion. This example program just bails
 		 * out with an error in this case, as memfds are not expected
@@ -679,7 +679,7 @@ static int child_new(struct child **out, struct prime *p)
 	 * Open a connection to the bus and require each received message to
 	 * carry a list of the well-known names the sendind connection currently
 	 * owns. The current UID is needed in order to determine the name of the
-	 * bus bus node to connect to.
+	 * bus node to connect to.
 	 */
 	r = bus_open_connection(&c->bus, getuid(),
 				arg_busname, KDBUS_ATTACH_NAMES);
@@ -741,7 +741,7 @@ static int child_run(struct child *c)
 	 * that
 	 *
 	 * a) The remote peer will gain temporary permission to talk to us
-	 *    if would be allowed to normally.
+	 *    even if it would not be allowed to normally.
 	 *
 	 * b) A timeout value is required.
 	 *
