@@ -27,37 +27,6 @@
 #include "util.h"
 
 /**
- * kdbus_sysname_valid() - validate names showing up in /proc, /sys and /dev
- * @name:		Name of domain, bus, endpoint
- *
- * Return: 0 if the given name is valid, otherwise negative errno
- */
-int kdbus_sysname_is_valid(const char *name)
-{
-	unsigned int i;
-	size_t len;
-
-	len = strlen(name);
-	if (len == 0)
-		return -EINVAL;
-
-	for (i = 0; i < len; i++) {
-		if (isalpha(name[i]))
-			continue;
-		if (isdigit(name[i]))
-			continue;
-		if (name[i] == '_')
-			continue;
-		if (i > 0 && i + 1 < len && (name[i] == '-' || name[i] == '.'))
-			continue;
-
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-/**
  * kdbus_copy_from_user() - copy aligned data from user-space
  * @dest:	target buffer in kernel memory
  * @user_ptr:	user-provided source buffer

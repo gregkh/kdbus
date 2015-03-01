@@ -28,6 +28,10 @@
  */
 int kdbus_item_validate_name(const struct kdbus_item *item)
 {
+	const char *name = item->str;
+	unsigned int i;
+	size_t len;
+
 	if (item->size < KDBUS_ITEM_HEADER_SIZE + 2)
 		return -EINVAL;
 
@@ -35,10 +39,27 @@ int kdbus_item_validate_name(const struct kdbus_item *item)
 			 KDBUS_SYSNAME_MAX_LEN + 1)
 		return -ENAMETOOLONG;
 
-	if (!kdbus_str_valid(item->str, KDBUS_ITEM_PAYLOAD_SIZE(item)))
+	if (!kdbus_str_valid(name, KDBUS_ITEM_PAYLOAD_SIZE(item)))
 		return -EINVAL;
 
-	return kdbus_sysname_is_valid(item->str);
+	len = strlen(name);
+	if (len == 0)
+		return -EINVAL;
+
+	for (i = 0; i < len; i++) {
+		if (isalpha(name[i]))
+			continue;
+		if (isdigit(name[i]))
+			continue;
+		if (name[i] == '_')
+			continue;
+		if (i > 0 && i + 1 < len && (name[i] == '-' || name[i] == '.'))
+			continue;
+
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 /**

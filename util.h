@@ -107,7 +107,6 @@ static inline bool kdbus_str_valid(const char *str, size_t size)
 	return size > 0 && memchr(str, '\0', size) == str + size - 1;
 }
 
-int kdbus_sysname_is_valid(const char *name);
 int kdbus_verify_uid_prefix(const char *name, struct user_namespace *user_ns,
 			    kuid_t kuid);
 u32 kdbus_from_kuid_keep(kuid_t uid);
