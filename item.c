@@ -233,18 +233,9 @@ int kdbus_items_validate(const struct kdbus_item *items, size_t items_size)
 	return 0;
 }
 
-/**
- * kdbus_items_get() - Find unique item in item-array
- * @items:		items to search through
- * @items_size:		total size of item array
- * @item_type:		item-type to find
- *
- * Return: Pointer to found item, ERR_PTR if not found or available multiple
- *         times.
- */
-struct kdbus_item *kdbus_items_get(const struct kdbus_item *items,
-				   size_t items_size,
-				   unsigned int item_type)
+static struct kdbus_item *kdbus_items_get(const struct kdbus_item *items,
+					  size_t items_size,
+					  unsigned int item_type)
 {
 	const struct kdbus_item *iter, *found = NULL;
 
