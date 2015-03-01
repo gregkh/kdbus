@@ -144,7 +144,7 @@ struct kdbus_item {
             <varname>item.data64</varname>, each set to an item type to
             probe. The kernel will reset each member of this array that is
             not recognized as valid item type to <constant>0</constant>.
-            This way, users can negotiate kernel features at startup to
+            This way, users can negotiate kernel features at start-up to
             keep newer userspace compatible with older kernels. This item
             is never attached by the kernel in response to any command.
           </para></listitem>
@@ -445,7 +445,7 @@ struct kdbus_timestamp {
           <listitem><para>
             Contains a set of <emphasis>user</emphasis> and
             <emphasis>group</emphasis> information as 32-bit values, in the
-            usual four flavors: real, effective, saved and file-system related.
+            usual four flavors: real, effective, saved and filesystem related.
             Stored as <type>struct kdbus_creds</type> in
             <varname>item.creds</varname>.
             <programlisting>
@@ -826,6 +826,12 @@ struct kdbus_notify_name_change {
         <citerefentry>
           <refentrytitle>kdbus.pool</refentrytitle>
           <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>memfd_create</refentrytitle>
+          <manvolnum>2</manvolnum>
         </citerefentry>
       </member>
     </simplelist>

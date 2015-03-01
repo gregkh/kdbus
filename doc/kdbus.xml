@@ -41,7 +41,7 @@
   <refsect1>
     <title>Description</title>
     <para>
-      kdbus provides a pseudo file-system called <emphasis>kdbusfs</emphasis>,
+      kdbus provides a pseudo filesystem called <emphasis>kdbusfs</emphasis>,
       which is usually mounted on <filename>/sys/fs/kdbus</filename>. Bus
       primitives can be accessed as files and sub-directories underneath this
       mount-point. Any advanced operations are done via

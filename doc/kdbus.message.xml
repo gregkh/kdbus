@@ -139,11 +139,6 @@
             <errorcode>-1</errorcode>, and <varname>errno</varname> will be
             set to <constant>ETXTBUSY</constant>.
           </para>
-          <para>
-            Apart from the sender filling-in the content into memfd files, the
-            data will be passed as zero-copy from one process to another,
-            read-only, shared between the peers.
-          </para>
         </listitem>
       </varlistentry>
 

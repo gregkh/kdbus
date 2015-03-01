@@ -275,7 +275,7 @@ struct kdbus_cmd_match {
               <term><constant>KDBUS_ITEM_NAME</constant></term>
               <listitem>
                 <para>
-                  When used ss part of kernel notifications, this item specifies
+                  When used as part of kernel notifications, this item specifies
                   a name that is acquired, lost or that changed its owner (see
                   below). When used as part of a match for user-generated signal
                   messages, it specifies a name that the sending connection must
@@ -322,7 +322,7 @@ struct kdbus_cmd_match {
                 <para>
                   These items request delivery of kernel notifications that are
                   generated when a connection is created or terminated.
-                  <type>struct kdbus_notify_id_change</type>is used to
+                  <type>struct kdbus_notify_id_change</type> is used to
                   store the actual match information. This item can be used to
                   monitor one particular connection ID, or, when the ID field
                   is set to <constant>KDBUS_MATCH_ID_ANY</constant>,

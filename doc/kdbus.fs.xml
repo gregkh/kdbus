@@ -23,7 +23,7 @@
     <title>File-system Layout</title>
 
     <para>
-      The <emphasis>kdbusfs</emphasis> pseudo file-system provides access to
+      The <emphasis>kdbusfs</emphasis> pseudo filesystem provides access to
       kdbus entities, such as <emphasis>buses</emphasis> and
       <emphasis>endpoints</emphasis>. Each time the filesystem is mounted,
       a new, isolated kdbus instance is created, which is independent from the
@@ -60,7 +60,7 @@
     </para>
 
     <para>Following, you can see an example layout of the
-    <emphasis>kdbusfs</emphasis> file-system:</para>
+    <emphasis>kdbusfs</emphasis> filesystem:</para>
 
 <programlisting>
         /sys/fs/kdbus/                          ; mount-point
