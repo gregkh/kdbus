@@ -129,12 +129,12 @@ struct bus {
 	uint8_t *pool;
 };
 
-static int bus_open(struct bus **out, uid_t uid, const char *name,
-		    uint64_t recv_flags);
-static void bus_close(struct bus *b);
-static void bus_release(struct bus *b, uint64_t offset);
-static int bus_acquire(struct bus *b, const char *name);
-static int bus_install(struct bus *b, const char *name);
+static int bus_open_connection(struct bus **out, uid_t uid, const char *name,
+			       uint64_t recv_flags);
+static void bus_close_connection(struct bus *b);
+static void bus_poool_free_slice(struct bus *b, uint64_t offset);
+static int bus_acquire_name(struct bus *b, const char *name);
+static int bus_install_name_loss_match(struct bus *b, const char *name);
 static int bus_poll(struct bus *b);
 static int bus_make(uid_t uid, const char *name);
 
@@ -250,7 +250,8 @@ static int master_new(struct master **out)
 	 * The current UID is needed to compute the name of the bus node to
 	 * connect to.
 	 */
-	r = bus_open(&m->bus, getuid(), arg_busname, KDBUS_ATTACH_PIDS);
+	r = bus_open_connection(&m->bus, getuid(),
+				arg_busname, KDBUS_ATTACH_PIDS);
 	if (r < 0)
 		goto error;
 
@@ -259,7 +260,7 @@ static int master_new(struct master **out)
 	 * messages to the master using KDBUS_DST_ID_NAME as destination-ID
 	 * of messages.
 	 */
-	r = bus_acquire(m->bus, arg_master);
+	r = bus_acquire_name(m->bus, arg_master);
 	if (r < 0)
 		goto error;
 
@@ -277,7 +278,7 @@ static void master_free(struct master *m)
 	if (!m)
 		return;
 
-	bus_close(m->bus);
+	bus_close_connection(m->bus);
 	if (m->control_fd >= 0)
 		close(m->control_fd);
 	prime_free(m->prime);
@@ -303,7 +304,7 @@ static int master_run(struct master *m)
 	}
 
 	if (r < 0) {
-		bus_close(m->bus);
+		bus_close_connection(m->bus);
 		m->bus = NULL;
 	}
 
@@ -311,7 +312,7 @@ static int master_run(struct master *m)
 		res = master_poll(m);
 		if (res < 0) {
 			if (m->bus) {
-				bus_close(m->bus);
+				bus_close_connection(m->bus);
 				m->bus = NULL;
 			}
 			r = res;
@@ -523,7 +524,7 @@ exit:
 	 * recv.msg.offset. Tell the kernel it can use it for other content
 	 * in the future. See kdbus.pool(7).
 	 */
-	bus_release(m->bus, recv.msg.offset);
+	bus_poool_free_slice(m->bus, recv.msg.offset);
 	return r;
 }
 
@@ -680,7 +681,8 @@ static int child_new(struct child **out, struct prime *p)
 	 * owns. The current UID is needed in order to determine the name of the
 	 * bus bus node to connect to.
 	 */
-	r = bus_open(&c->bus, getuid(), arg_busname, KDBUS_ATTACH_NAMES);
+	r = bus_open_connection(&c->bus, getuid(),
+				arg_busname, KDBUS_ATTACH_NAMES);
 	if (r < 0)
 		goto error;
 
@@ -688,7 +690,7 @@ static int child_new(struct child **out, struct prime *p)
 	 * Install a kdbus match so the child's connection gets notified when
 	 * the master loses its well-known name.
 	 */
-	r = bus_install(c->bus, arg_master);
+	r = bus_install_name_loss_match(c->bus, arg_master);
 	if (r < 0)
 		goto error;
 
@@ -705,7 +707,7 @@ static void child_free(struct child *c)
 	if (!c)
 		return;
 
-	bus_close(c->bus);
+	bus_close_connection(c->bus);
 	prime_free(c->prime);
 	free(c);
 }
@@ -900,7 +902,7 @@ exit:
 	 * cmd.reply.offset. Tell the kernel it can use it for other content
 	 * in the future. See kdbus.pool(7).
 	 */
-	bus_release(c->bus, cmd.reply.offset);
+	bus_poool_free_slice(c->bus, cmd.reply.offset);
 	return r;
 }
 
@@ -1010,8 +1012,8 @@ static void prime_print(struct prime *p)
 	fprintf(stderr, "\nEND\n");
 }
 
-static int bus_open(struct bus **out, uid_t uid, const char *name,
-		    uint64_t recv_flags)
+static int bus_open_connection(struct bus **out, uid_t uid, const char *name,
+			       uint64_t recv_flags)
 {
 	struct kdbus_cmd_hello hello;
 	char path[128];
@@ -1078,7 +1080,7 @@ static int bus_open(struct bus **out, uid_t uid, const char *name,
 		goto error;
 	}
 
-	bus_release(b, hello.offset);
+	bus_poool_free_slice(b, hello.offset);
 
 	/*
 	 * Map the pool of the connection. Its size has been set in the
@@ -1094,11 +1096,11 @@ static int bus_open(struct bus **out, uid_t uid, const char *name,
 	return 0;
 
 error:
-	bus_close(b);
+	bus_close_connection(b);
 	return r;
 }
 
-static void bus_close(struct bus *b)
+static void bus_close_connection(struct bus *b)
 {
 	if (!b)
 		return;
@@ -1116,7 +1118,7 @@ static void bus_close(struct bus *b)
 	free(b);
 }
 
-static void bus_release(struct bus *b, uint64_t offset)
+static void bus_poool_free_slice(struct bus *b, uint64_t offset)
 {
 	struct kdbus_cmd_free cmd = {
 		.size = sizeof(cmd),
@@ -1137,7 +1139,7 @@ static void bus_release(struct bus *b, uint64_t offset)
 		err_r(r, "cannot free pool slice");
 }
 
-static int bus_acquire(struct bus *b, const char *name)
+static int bus_acquire_name(struct bus *b, const char *name)
 {
 	struct kdbus_item *item;
 	struct kdbus_cmd *cmd;
@@ -1175,7 +1177,7 @@ static int bus_acquire(struct bus *b, const char *name)
 	return 0;
 }
 
-static int bus_install(struct bus *b, const char *name)
+static int bus_install_name_loss_match(struct bus *b, const char *name)
 {
 	struct kdbus_cmd_match *match;
 	struct kdbus_item *item;
