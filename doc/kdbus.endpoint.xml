@@ -304,7 +304,10 @@ struct kdbus_cmd {
     </para>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_ENDPOINT_MAKE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> may fail with the
+        following errors
+      </title>
 
       <variablelist>
         <varlistentry>
@@ -345,7 +348,10 @@ struct kdbus_cmd {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> may fail with the
+        following errors
+      </title>
 
       <variablelist>
         <varlistentry>

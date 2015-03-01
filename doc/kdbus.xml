@@ -411,7 +411,8 @@
         </para></listitem>
 
         <listitem><para>
-          (c) the per-connection receive creds mask, set by the connecting client
+          (c) the per-connection receive creds mask, set by the connecting
+          client
         </para></listitem>
 
         <listitem><para>

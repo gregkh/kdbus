@@ -511,7 +511,8 @@ struct kdbus_info {
                   .
                 </para>
                 <para>
-                  In contrast to <constant>KDBUS_NAME_REPLACE_EXISTING</constant>,
+                  In contrast to
+                  <constant>KDBUS_NAME_REPLACE_EXISTING</constant>,
                   when a name is taken over from an activator connection, all
                   the messages that have been queued in the activator
                   connection will be moved over to the new owner. The activator
@@ -568,7 +569,10 @@ struct kdbus_info {
     </para>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_NAME_ACQUIRE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_NAME_ACQUIRE</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>
@@ -610,7 +614,10 @@ struct kdbus_info {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_NAME_RELEASE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_NAME_RELEASE</constant>
+        may fail with the following errors
+      </title>
 
       <variablelist>
         <varlistentry>
@@ -637,7 +644,10 @@ struct kdbus_info {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_LIST</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_LIST</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>

@@ -238,7 +238,10 @@ struct kdbus_cmd_free {
     </para>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_FREE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_FREE</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>

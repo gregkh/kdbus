@@ -54,8 +54,8 @@
       ).
     </para>
     <para>
-      Messages synthesized and sent directly by the kernel will carry the special
-      source ID <constant>KDBUS_SRC_ID_KERNEL</constant> (0).
+      Messages synthesized and sent directly by the kernel will carry the
+      special source ID <constant>KDBUS_SRC_ID_KERNEL</constant> (0).
     </para>
     <para>
       In addition to the unique <type>uint64_t</type> connection ID,
@@ -271,8 +271,8 @@ struct kdbus_cmd_hello {
               <listitem>
                 <para>
                   When this flag is set, the connection can be sent file
-                  descriptors as message payload of unicast messages. If it's not
-                  set, an attempt to send file descriptors results in
+                  descriptors as message payload of unicast messages. If it's
+                  not set, an attempt to send file descriptors will result in
                   <constant>-ECOMM</constant> on the sender's side.
                 </para>
               </listitem>
@@ -1024,7 +1024,10 @@ struct kdbus_cmd {
     </para>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_HELLO</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_HELLO</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>
@@ -1101,7 +1104,10 @@ struct kdbus_cmd {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_BYEBYE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_BYEBYE</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>
@@ -1121,7 +1127,10 @@ struct kdbus_cmd {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_CONN_INFO</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_CONN_INFO</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>
@@ -1149,7 +1158,10 @@ struct kdbus_cmd {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_CONN_UPDATE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_CONN_UPDATE</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>

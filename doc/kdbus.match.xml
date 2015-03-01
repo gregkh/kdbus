@@ -80,12 +80,14 @@
   <refsect1>
     <title>Bloom filters</title>
     <para>
-      Bloom filters allow checking whether a given word is present in a dictionary.
-      This allows connections to set up a mask for information it is interested in,
-      and will be delivered signal messages that have a matching filter.
+      Bloom filters allow checking whether a given word is present in a
+      dictionary.  This allows connections to set up a mask for information it
+      is interested in, and will be delivered signal messages that have a
+      matching filter.
 
       For general information, see
-      <ulink url="https://en.wikipedia.org/wiki/Bloom_filter">the Wikipedia article on bloom filters</ulink>
+      <ulink url="https://en.wikipedia.org/wiki/Bloom_filter">the Wikipedia
+      article on bloom filters</ulink>.
     </para>
     <para>
       The size of the bloom filter is defined per bus when it is created, in
@@ -110,8 +112,8 @@
       its bits have to be set in the match mask as well.
     </para>
     <para>
-      For example, consider a bus that has a bloom size of 8 bytes, and the following
-      mask/filter combinations:
+      For example, consider a bus that has a bloom size of 8 bytes, and the
+      following mask/filter combinations:
     </para>
     <programlisting><![CDATA[
           filter  0x0101010101010101
@@ -442,7 +444,10 @@ struct kdbus_cmd_match {
     </para>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_MATCH_ADD</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_MATCH_ADD</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>
@@ -469,7 +474,10 @@ struct kdbus_cmd_match {
     </refsect2>
 
     <refsect2>
-      <title><constant>KDBUS_CMD_MATCH_REMOVE</constant> may fail with the following errors</title>
+      <title>
+        <constant>KDBUS_CMD_MATCH_REMOVE</constant> may fail with the following
+        errors
+      </title>
 
       <variablelist>
         <varlistentry>
