@@ -12,6 +12,7 @@
  * your option) any later version.
  */
 
+#include <linux/dcache.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/mutex.h>

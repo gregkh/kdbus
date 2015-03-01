@@ -17,7 +17,6 @@
 
 #include <linux/dcache.h>
 #include <linux/ioctl.h>
-#include <linux/uidgid.h>
 
 #include "kdbus.h"
 
