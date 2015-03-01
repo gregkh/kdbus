@@ -355,7 +355,7 @@
         Metadata is collected at the following times.
       </para>
 
-      <itemizedlist mark='opencircle'>
+      <itemizedlist>
         <listitem><para>
           When a bus is created (<constant>KDBUS_CMD_MAKE</constant>),
           information about the calling task is collected. This data is returned
@@ -400,7 +400,7 @@
         sets and masks:
       </para>
 
-      <itemizedlist mark='none'>
+      <itemizedlist>
         <listitem><para>
           (a) the system-wide kmod creds mask
           (module parameter <varname>attach_flags_mask</varname>)
@@ -435,7 +435,7 @@
         With the following rules:
       </para>
 
-      <itemizedlist mark='none'>
+      <itemizedlist>
         <listitem>
           <para>
             [1] The creds attached to messages are determined as
@@ -478,7 +478,7 @@
       <para>
         Attaching metadata to messages has two major benefits.
 
-        <itemizedlist mark='none'>
+        <itemizedlist>
           <listitem>
             <para>
               Metadata attached to messages is gathered at the moment when the
@@ -763,7 +763,7 @@
       a different sub-set of ioctl commands is allowed.
     </para>
 
-    <itemizedlist mark='none'>
+    <itemizedlist>
       <listitem>
         <para>
           On a file descriptor resulting from opening a
@@ -833,7 +833,7 @@
           issue any of the following ioctls.
         </para>
 
-        <itemizedlist mark='none'>
+        <itemizedlist>
           <listitem><para>
             <constant>KDBUS_CMD_UPDATE</constant> to tweak details of the
             connection. See

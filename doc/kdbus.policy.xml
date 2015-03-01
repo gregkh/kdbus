@@ -62,7 +62,7 @@
       following rules apply.
     </para>
 
-    <itemizedlist mark="open-circle">
+    <itemizedlist>
       <listitem>
         <para>
           An item of type <constant>KDBUS_ITEM_NAME</constant> must be followed

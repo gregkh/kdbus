@@ -854,7 +854,7 @@ struct kdbus_msg_info {
       details.
     </para>
 
-    <itemizedlist mark='opencircle'>
+    <itemizedlist>
       <listitem><para>
           kdbus_msg.src_id == <constant>KDBUS_SRC_ID_KERNEL</constant>
       </para></listitem>
@@ -877,7 +877,7 @@ struct kdbus_msg_info {
       The kernel will notify its users of the following events.
     </para>
 
-    <itemizedlist mark='opencircle'>
+    <itemizedlist>
       <listitem><para>
         When connection <emphasis>A</emphasis> is terminated while connection
         <emphasis>B</emphasis> is waiting for a reply from it, connection

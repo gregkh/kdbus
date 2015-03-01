@@ -172,7 +172,7 @@
       details:
     </para>
 
-    <itemizedlist mark='opencircle'>
+    <itemizedlist>
       <listitem><para>
         They will get every message sent over the bus, both unicasts and
         broadcasts.
