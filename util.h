@@ -29,21 +29,6 @@
 #define KDBUS_IS_ALIGNED8(s) (IS_ALIGNED(s, 8))
 
 /**
- * kdbus_size_get_user - read the size variable from user memory
- * @_s:		Size variable
- * @_b:		Buffer to read from
- * @_t:		Structure, "size" is a member of
- *
- * Return: the result of copy_from_user()
- */
-#define kdbus_size_get_user(_s, _b, _t)					\
-({									\
-	u64 __user *_sz =						\
-		(void __user *)((u8 __user *)(_b) + offsetof(_t, size));\
-	copy_from_user(_s, _sz, sizeof(__u64));				\
-})
-
-/**
  * kdbus_member_set_user - write a structure member to user memory
  * @_s:		Variable to copy from
  * @_b:		Buffer to write to
