@@ -606,6 +606,12 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
 	return false;
 }
 
+struct kdbus_quota {
+	uint32_t memory;
+	uint16_t msgs;
+	uint8_t fds;
+};
+
 /**
  * kdbus_conn_quota_inc() - increase quota accounting
  * @c:		connection owning the quota tracking

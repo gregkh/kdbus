@@ -30,17 +30,7 @@
 					 KDBUS_HELLO_POLICY_HOLDER | \
 					 KDBUS_HELLO_MONITOR)
 
-/**
- * struct kdbus_quota - per user quota state
- * @memory:		total amount of memory in target pool
- * @msgs:              total number of messages in target pool
- * @fds:		total number of fds in target queue
- */
-struct kdbus_quota {
-	uint32_t memory;
-	uint16_t msgs;
-	uint8_t fds;
-};
+struct kdbus_quota;
 
 /**
  * struct kdbus_conn - connection to a bus
