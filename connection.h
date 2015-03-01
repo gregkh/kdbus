@@ -31,6 +31,7 @@
 					 KDBUS_HELLO_MONITOR)
 
 struct kdbus_quota;
+struct kdbus_kmsg;
 
 /**
  * struct kdbus_conn - connection to a bus
@@ -113,8 +114,6 @@ struct kdbus_conn {
 	bool privileged:1;
 	bool faked_meta:1;
 };
-
-struct kdbus_kmsg;
 
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
