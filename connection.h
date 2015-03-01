@@ -125,7 +125,6 @@ struct kdbus_conn {
 };
 
 struct kdbus_kmsg;
-struct kdbus_name_registry;
 
 struct kdbus_conn *kdbus_conn_ref(struct kdbus_conn *conn);
 struct kdbus_conn *kdbus_conn_unref(struct kdbus_conn *conn);
