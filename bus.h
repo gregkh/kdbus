@@ -87,9 +87,11 @@ struct kdbus_bus *kdbus_bus_ref(struct kdbus_bus *bus);
 struct kdbus_bus *kdbus_bus_unref(struct kdbus_bus *bus);
 
 struct kdbus_conn *kdbus_bus_find_conn_by_id(struct kdbus_bus *bus, u64 id);
-void kdbus_bus_broadcast(struct kdbus_bus *bus, struct kdbus_conn *conn_src,
+void kdbus_bus_broadcast(struct kdbus_bus *bus,
+			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
-void kdbus_bus_eavesdrop(struct kdbus_bus *bus, struct kdbus_conn *conn_src,
+void kdbus_bus_eavesdrop(struct kdbus_bus *bus,
+			 struct kdbus_conn *conn_src,
 			 struct kdbus_kmsg *kmsg);
 
 struct kdbus_bus *kdbus_cmd_bus_make(struct kdbus_domain *domain,
