@@ -30,7 +30,7 @@
  * @user_idr:		Set of all users indexed by UID
  * @user_ida:		Set of all users to compute small indices
  * @user_namespace:	User namespace, pinned at creation time
- * @dentry:		Root dentry of VFS mount (dont use outside of kdbusfs)
+ * @dentry:		Root dentry of VFS mount (don't use outside of kdbusfs)
  */
 struct kdbus_domain {
 	struct kdbus_node node;

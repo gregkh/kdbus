@@ -372,8 +372,8 @@ static int kdbus_match_db_remove_unlocked(struct kdbus_match_db *mdb,
  */
 int kdbus_cmd_match_add(struct kdbus_conn *conn, void __user *argp)
 {
-	struct kdbus_match_entry *entry = NULL;
 	struct kdbus_match_db *mdb = conn->match_db;
+	struct kdbus_match_entry *entry = NULL;
 	struct kdbus_cmd_match *cmd;
 	struct kdbus_item *item;
 	int ret;

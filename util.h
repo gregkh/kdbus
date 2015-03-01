@@ -30,9 +30,9 @@
 
 /**
  * kdbus_size_get_user - read the size variable from user memory
- * @_s:			Size variable
- * @_b:			Buffer to read from
- * @_t:			Structure, "size" is a member of
+ * @_s:		Size variable
+ * @_b:		Buffer to read from
+ * @_t:		Structure, "size" is a member of
  *
  * Return: the result of copy_from_user()
  */
@@ -45,10 +45,10 @@
 
 /**
  * kdbus_member_set_user - write a structure member to user memory
- * @_s:			Variable to copy from
- * @_b:			Buffer to write to
- * @_t:			Structure type
- * @_m:			Member name in the passed structure
+ * @_s:		Variable to copy from
+ * @_b:		Buffer to write to
+ * @_t:		Structure type
+ * @_m:		Member name in the passed structure
  *
  * Return: the result of copy_to_user()
  */
@@ -61,7 +61,7 @@
 
 /**
  * kdbus_strhash - calculate a hash
- * @str:		String
+ * @str:	String
  *
  * Return: hash value
  */
@@ -77,8 +77,8 @@ static inline unsigned int kdbus_strhash(const char *str)
 
 /**
  * kdbus_strnhash - calculate a hash
- * @str:		String
- * @len:		Length of @str
+ * @str:	String
+ * @len:	Length of @str
  *
  * Return: hash value
  */
@@ -94,8 +94,8 @@ static inline unsigned int kdbus_strnhash(const char *str, size_t len)
 
 /**
  * kdbus_str_valid - verify a string
- * @str:		String to verify
- * @size:		Size of buffer of string (including 0-byte)
+ * @str:	String to verify
+ * @size:	Size of buffer of string (including 0-byte)
  *
  * This verifies the string at position @str with size @size is properly
  * zero-terminated and does not contain a 0-byte but at the end.
