@@ -618,7 +618,7 @@ bool kdbus_conn_has_name(struct kdbus_conn *conn, const char *name)
  * the receive queue of the destination.
  *
  * This increases the quota-accounting for user @u by @memory bytes and @fds
- * file-descriptors. If the user has already reached the quota limits, this call
+ * file descriptors. If the user has already reached the quota limits, this call
  * will not do any accounting but return a negative error code indicating the
  * failure.
  *
@@ -682,10 +682,10 @@ int kdbus_conn_quota_inc(struct kdbus_conn *c, struct kdbus_user *u,
 	available /= 2;
 
 	/*
-	 * Pool owner slices are un-accounted slices, they can claim more
-	 * than 50%, at the expense of the queue. In the other hand, the
-	 * current slices here belong to the incoming queue, these are
-	 * accounted slices that are limited to 50% of the pool.
+	 * Pool owner slices are un-accounted slices; they can claim more
+	 * than 50% of the queue. However, the slice we're dealing with here
+	 * belong to the incoming queue, hence they are 'accounted' slices
+	 * to which the 50%-limit applies.
 	 */
 	if (available < accounted)
 		return -ENOBUFS;

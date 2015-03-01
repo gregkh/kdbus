@@ -68,7 +68,7 @@
       used for any other control-ioctl and must be kept open for the entire
       life-time of the created bus. Closing it will immediately cleanup the
       entire bus and all its associated resources and endpoints. Every control
-      file-descriptor can only be used to create a single new bus; from that
+      file descriptor can only be used to create a single new bus; from that
       point on, it is not used for any further communication until the final
       <citerefentry>
         <refentrytitle>close</refentrytitle>

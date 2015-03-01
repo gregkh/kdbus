@@ -463,8 +463,10 @@ struct kdbus_item {
  *				cookie identifies the message and the
  *				respective reply carries the cookie
  *				in cookie_reply
- * @KDBUS_MSG_NO_AUTO_START:	Do not start a service, if the addressed
- *				name is not currently active
+ * @KDBUS_MSG_NO_AUTO_START:	Do not start a service if the addressed
+ *				name is not currently active. This flag is
+ *				not looked at by the kernel but only
+ *				serves as hint for userspace implementations.
  * @KDBUS_MSG_SIGNAL:		Treat this message as signal
  */
 enum kdbus_msg_flags {
@@ -497,9 +499,12 @@ enum kdbus_payload_type {
  * @cookie:		Userspace-supplied cookie, for the connection
  *			to identify its messages
  * @timeout_ns:		The time to wait for a message reply from the peer.
- *			If there is no reply, a kernel-generated message
+ *			If there is no reply, and the send command is
+ *			executed asynchronously, a kernel-generated message
  *			with an attached KDBUS_ITEM_REPLY_TIMEOUT item
- *			is sent to @src_id. The timeout is expected in
+ *			is sent to @src_id. For synchronously executed send
+ *			command, the value denotes the maximum time the call
+ *			blocks to wait for a reply. The timeout is expected in
  *			nanoseconds and as absolute CLOCK_MONOTONIC value.
  * @cookie_reply:	A reply to the requesting message with the same
  *			cookie. The requesting connection can match its

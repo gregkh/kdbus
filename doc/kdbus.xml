@@ -759,7 +759,7 @@
 
     <para>
       Depending on the type of <emphasis>kdbusfs</emphasis> node that was
-      opened and what ioctls have been executed on a file-descriptor before,
+      opened and what ioctls have been executed on a file descriptor before,
       a different sub-set of ioctl commands is allowed.
     </para>
 
@@ -783,9 +783,9 @@
         <para>
           A file descriptor that was used to create a bus
           (via <constant>KDBUS_CMD_BUS_MAKE</constant>) is called a
-          <emphasis>bus owner</emphasis> file-descriptor. The bus will be
-          active as long as the file-descriptor is kept open.
-          A bus owner file-descriptor can not be used to
+          <emphasis>bus owner</emphasis> file descriptor. The bus will be
+          active as long as the file descriptor is kept open.
+          A bus owner file descriptor can not be used to
           employ any further ioctls. As soon as
           <citerefentry>
             <refentrytitle>close</refentrytitle>
@@ -804,9 +804,9 @@
         <para>
           A file descriptor that was used to create an endpoint
           (via <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>) is called an
-          <emphasis>endpoint owner</emphasis> file-descriptor. The endpoint
-          will be active as long as the file-descriptor is kept open.
-          An endpoint owner file-descriptor can only be used
+          <emphasis>endpoint owner</emphasis> file descriptor. The endpoint
+          will be active as long as the file descriptor is kept open.
+          An endpoint owner file descriptor can only be used
           to update details of an endpoint through the
           <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> ioctl. As soon as
           <citerefentry>
@@ -827,9 +827,9 @@
         <para>
           A file descriptor that was used to create a connection
           (via <constant>KDBUS_CMD_HELLO</constant>) is called a
-          <emphasis>connection owner</emphasis> file-descriptor. The connection
-          will be active as long as the file-descriptor is kept open.
-          A connection owner file-descriptor may be used to
+          <emphasis>connection owner</emphasis> file descriptor. The connection
+          will be active as long as the file descriptor is kept open.
+          A connection owner file descriptor may be used to
           issue any of the following ioctls.
         </para>
 

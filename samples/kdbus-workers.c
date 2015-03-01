@@ -327,7 +327,7 @@ static int master_poll(struct master *m)
 	int r = 0, n = 0;
 
 	/*
-	 * Add stdin, the eventfd and the connection owner file-descriptor to
+	 * Add stdin, the eventfd and the connection owner file descriptor to
 	 * the pollfd table, and handle incoming traffic on the latter in
 	 * master_handle_bus().
 	 */
@@ -486,12 +486,12 @@ static int master_handle_bus(struct master *m)
 
 		/*
 		 * MEMFDs are transported as items of type PAYLOAD_MEMFD.
-		 * If such an item is attached, a new file-descriptor was
+		 * If such an item is attached, a new file descriptor was
 		 * installed into the task when KDBUS_CMD_RECV was called, and
 		 * its number is stored in item->memfd.fd.
 		 * Implementers *must* handle this item type close the
-		 * file-descriptor when no longer needed in order to prevent
-		 * file-descriptor exhaustion. This example program just bails
+		 * file descriptor when no longer needed in order to prevent
+		 * file descriptor exhaustion. This example program just bails
 		 * out with an error in this case, as memfds are not expected
 		 * in this context.
 		 */
@@ -592,7 +592,7 @@ static int master_reply(struct master *m, const struct kdbus_msg *msg)
 
 	/*
 	 * Finally, employ the command on the connection owner
-	 * file-descriptor.
+	 * file descriptor.
 	 */
 	r = kdbus_cmd_send(m->bus->fd, &cmd);
 	if (r < 0)
@@ -810,7 +810,7 @@ static int child_run(struct child *c)
 
 	/*
 	 * Finally, employ the command on the connection owner
-	 * file-descriptor.
+	 * file descriptor.
 	 */
 	r = kdbus_cmd_send(c->bus->fd, &cmd);
 	if (r == -ESRCH || r == -EPIPE || r == -ECONNRESET)
@@ -858,12 +858,12 @@ static int child_run(struct child *c)
 			}
 		/*
 		 * MEMFDs are transported as items of type PAYLOAD_MEMFD.
-		 * If such an item is attached, a new file-descriptor was
+		 * If such an item is attached, a new file descriptor was
 		 * installed into the task when KDBUS_CMD_RECV was called, and
 		 * its number is stored in item->memfd.fd.
 		 * Implementers *must* handle this item type close the
-		 * file-descriptor when no longer needed in order to prevent
-		 * file-descriptor exhaustion. This example program just bails
+		 * file descriptor when no longer needed in order to prevent
+		 * file descriptor exhaustion. This example program just bails
 		 * out with an error in this case, as memfds are not expected
 		 * in this context.
 		 */
@@ -1020,7 +1020,7 @@ static int bus_open(struct bus **out, uid_t uid, const char *name,
 
 	/*
 	 * The 'bus' object is our representation of a kdbus connection which
-	 * stores two details: the connection owner file-descriptor, and the
+	 * stores two details: the connection owner file descriptor, and the
 	 * mmap()ed memory of its associated pool. See kdbus.connection(7) and
 	 * kdbus.pool(7).
 	 */
@@ -1067,8 +1067,8 @@ static int bus_open(struct bus **out, uid_t uid, const char *name,
 	hello.pool_size = POOL_SIZE;
 
 	/*
-	 * Now employ the command on the file-descriptor opened above.
-	 * This command will turn the file-descriptor into a connection-owner
+	 * Now employ the command on the file descriptor opened above.
+	 * This command will turn the file descriptor into a connection-owner
 	 * file descriptor that controls the life-time of the connection; once
 	 * it's closed, the connection is shut down.
 	 */
@@ -1105,7 +1105,7 @@ static void bus_close(struct bus *b)
 
 	/*
 	 * A bus connection is closed by simply calling close() on the
-	 * connection owner file-descriptor. The unique name and all owned
+	 * connection owner file descriptor. The unique name and all owned
 	 * well-known names of the conneciton will disappear.
 	 * See kdbus.connection(7).
 	 */
@@ -1130,7 +1130,7 @@ static void bus_release(struct bus *b, uint64_t offset)
 	 * can be reused. The command takes an argument of type
 	 * 'struct kdbus_cmd_free', in which the pool offset of the slice to
 	 * free is stored. The ioctl is employed on the connection owner
-	 * file-descriptor. See kdbus.pool(7),
+	 * file descriptor. See kdbus.pool(7),
 	 */
 	r = kdbus_cmd_free(b->fd, &cmd);
 	if (r < 0)
@@ -1166,7 +1166,7 @@ static int bus_acquire(struct bus *b, const char *name)
 	strcpy(item->str, name);
 
 	/*
-	 * Employ the command on the connection owner file-descriptor.
+	 * Employ the command on the connection owner file descriptor.
 	 */
 	r = kdbus_cmd_name_acquire(b->fd, cmd);
 	if (r < 0)
@@ -1309,10 +1309,10 @@ static int bus_make(uid_t uid, const char *name)
 
 	/*
 	 * Now create the bus via the KDBUS_CMD_BUS_MAKE ioctl and return the
-	 * fd that was used back to the caller. This fd now called a
-	 * 'bus owner file-descriptor', and it control the life-time of the
-	 * bus; once it is closed, the bus goes away, and all connections are
-	 * shut down. See kdbus.bus(7).
+	 * fd that was used back to the caller of this function. This fd is now
+	 * called a 'bus owner file descriptor', and it controls the life-time
+	 * of the newly created bus; once the file descriptor is closed, the
+	 * bus goes away, and all connections are shut down. See kdbus.bus(7).
 	 */
 	r = kdbus_cmd_bus_make(fd, make);
 	if (r < 0) {

@@ -150,16 +150,16 @@
         <term><constant>KDBUS_ITEM_FDS</constant></term>
         <listitem>
           <para>
-            Messages can transport regular file-descriptors via
+            Messages can transport regular file descriptors via
             <constant>KDBUS_ITEM_FDS</constant>. This item carries an array
             of <type>int</type> values in <varname>item.fd</varname>. The
-            maximum number of file-descriptors in the item is
+            maximum number of file descriptors in the item is
             <constant>253</constant>, and only one item of this type is
             accepted per message. All passed values must be valid file
-            descriptors; the open count of each file-descriptors is increased
+            descriptors; the open count of each file descriptors is increased
             by installing it to the receiver's task. This item can only be
             used for directed messages, not for broadcasts, and only to
-            remote peers that have opted-in for receiving file-descriptors
+            remote peers that have opted-in for receiving file descriptors
             at connection time (<constant>KDBUS_HELLO_ACCEPT_FD</constant>).
           </para>
         </listitem>
@@ -594,7 +594,7 @@ struct kdbus_msg {
       Messages are received by the client with the
       <constant>KDBUS_CMD_RECV</constant> ioctl. The endpoint file of the bus
       supports <function>poll()/epoll()/select()</function>; when new messages
-      are available on the connection's file-descriptor,
+      are available on the connection's file descriptor,
       <constant>POLLIN</constant> is reported. For compatibility reasons,
       <constant>POLLOUT</constant> is always reported as well. Note, however,
       that the latter does not guarantee that a message can in fact be sent, as
@@ -688,7 +688,7 @@ struct kdbus_cmd_recv {
         <listitem><para>
           Flags returned by the kernel. If the <varname>dropped_msgs</varname>
           field is non-zero, <constant>KDBUS_RECV_RETURN_DROPPED_MSGS</constant>
-          is set. If a file-descriptor could not be installed, the
+          is set. If a file descriptor could not be installed, the
           <constant>KDBUS_RECV_RETURN_INCOMPLETE_FDS</constant> flag is set.
         </para></listitem>
       </varlistentry>
@@ -806,7 +806,7 @@ struct kdbus_msg_info {
                   The message contained memfds or file descriptors, and the
                   kernel failed to install one or more of them at receive time.
                   Most probably that happened because the maximum number of
-                  file-descriptors for the receiver's task were exceeded.
+                  file descriptors for the receiver's task were exceeded.
                   In such cases, the message is still delivered, so this is not
                   a fatal condition. File descriptors numbers inside the
                   <constant>KDBUS_ITEM_FDS</constant> item or memfd files
@@ -834,7 +834,7 @@ struct kdbus_msg_info {
       any, they will be installed into the receiving process when the
       <constant>KDBUS_CMD_RECV</constant> ioctl is called.
       <emphasis>memfds</emphasis> may always be part of the message payload.
-      The receiving task is obliged to close all file-descriptors appropriately
+      The receiving task is obliged to close all file descriptors appropriately
       once no longer needed. If <constant>KDBUS_RECV_PEEK</constant> is set, no
       file descriptors are installed. This allows for peeking at a message,
       looking at its metadata only and dropping it via
@@ -955,7 +955,7 @@ struct kdbus_msg_info {
           <listitem><para>
             The supplied destination is
             <constant>KDBUS_DST_ID_BROADCAST</constant> and either
-            file-descriptors were passed, or
+            file descriptors were passed, or
             <constant>KDBUS_MSG_EXPECT_REPLY</constant> was set,
             or a timeout was given.
           </para></listitem>
