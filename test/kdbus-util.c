@@ -751,7 +751,7 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			off_t size;
 
 			buf = mmap(NULL, item->memfd.size, PROT_READ,
-				   MAP_SHARED, item->memfd.fd, 0);
+				   MAP_PRIVATE, item->memfd.fd, 0);
 			if (buf == MAP_FAILED) {
 				kdbus_printf("mmap() fd=%i size=%llu failed: %m\n",
 					     item->memfd.fd, item->memfd.size);
