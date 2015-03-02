@@ -463,7 +463,6 @@ static int master_handle_bus(struct master *m)
 	 */
 	KDBUS_FOREACH(item, msg->items,
 		      msg->size - offsetof(struct kdbus_msg, items)) {
-
 		/*
 		 * An item of type PAYLOAD_OFF describes in-line memory
 		 * stored in the pool at a described offset. That offset is
@@ -881,8 +880,8 @@ static int child_run(struct child *c)
 		goto exit;
 	}
 
-	n = ((size_t*)((const uint8_t *)msg + vec->offset))[0];
-	steps = ((size_t*)((const uint8_t *)msg + vec->offset))[1];
+	n = ((size_t *)((const uint8_t *)msg + vec->offset))[0];
+	steps = ((size_t *)((const uint8_t *)msg + vec->offset))[1];
 
 	while (steps-- > 0) {
 		++n;
@@ -1235,7 +1234,7 @@ static int bus_install_name_loss_match(struct bus *b, const char *name)
 
 static int bus_poll(struct bus *b)
 {
-	struct pollfd fds[1]= {};
+	struct pollfd fds[1] = {};
 	int r;
 
 	/*
