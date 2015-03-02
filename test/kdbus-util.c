@@ -772,8 +772,8 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 		}
 
 		case KDBUS_ITEM_CREDS:
-			kdbus_printf("  +%s (%llu bytes) uid=%d, euid=%d, suid=%d, fsuid=%d, "
-							"gid=%d, egid=%d, sgid=%d, fsgid=%d\n",
+			kdbus_printf("  +%s (%llu bytes) uid=%lld, euid=%lld, suid=%lld, fsuid=%lld, "
+							"gid=%lld, egid=%lld, sgid=%lld, fsgid=%lld\n",
 				enum_MSG(item->type), item->size,
 				item->creds.uid, item->creds.euid,
 				item->creds.suid, item->creds.fsuid,
@@ -794,11 +794,11 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 			kdbus_printf("  +%s (%llu bytes)\n",
 				     enum_MSG(item->type), item->size);
 			n = (item->size - KDBUS_ITEM_HEADER_SIZE) /
-				sizeof(uint32_t);
+				sizeof(uint64_t);
 
 			for (i = 0; i < n; i++)
-				kdbus_printf("    gid[%d] = %d\n",
-					     i, item->data32[i]);
+				kdbus_printf("    gid[%d] = %lld\n",
+					     i, item->data64[i]);
 			break;
 		}
 

@@ -205,12 +205,21 @@ static int kdbus_fuzz_conn_info(struct kdbus_test_env *env, int capable)
 				 KDBUS_ATTACH_CONN_DESCRIPTION;
 
 	struct kdbus_creds cached_creds;
+	uid_t ruid, euid, suid;
+	gid_t rgid, egid, sgid;
 
-	getresuid(&cached_creds.uid, &cached_creds.euid, &cached_creds.suid);
-	getresgid(&cached_creds.gid, &cached_creds.egid, &cached_creds.sgid);
+	getresuid(&ruid, &euid, &suid);
+	getresgid(&rgid, &egid, &sgid);
 
-	cached_creds.fsuid = cached_creds.uid;
-	cached_creds.fsgid = cached_creds.gid;
+	cached_creds.uid = ruid;
+	cached_creds.euid = euid;
+	cached_creds.suid = suid;
+	cached_creds.fsuid = ruid;
+
+	cached_creds.gid = rgid;
+	cached_creds.egid = egid;
+	cached_creds.sgid = sgid;
+	cached_creds.fsgid = rgid;
 
 	struct kdbus_pids cached_pids = {
 		.pid	= getpid(),

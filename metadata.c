@@ -857,7 +857,7 @@ int kdbus_meta_export_prepare(struct kdbus_meta_proc *mp,
 		size += KDBUS_ITEM_SIZE(sizeof(struct kdbus_pids));
 
 	if (mp && (*mask & KDBUS_ATTACH_AUXGROUPS))
-		size += KDBUS_ITEM_SIZE(mp->n_auxgrps * sizeof(u32));
+		size += KDBUS_ITEM_SIZE(mp->n_auxgrps * sizeof(u64));
 
 	if (mp && (*mask & KDBUS_ATTACH_TID_COMM))
 		size += KDBUS_ITEM_SIZE(strlen(mp->tid_comm) + 1);
@@ -927,14 +927,14 @@ static int kdbus_meta_push_kvec(struct kvec *kvec,
 }
 
 /* This is equivalent to from_kuid_munged(), but maps INVALID_UID to itself */
-static u32 kdbus_from_kuid_keep(kuid_t uid)
+static uid_t kdbus_from_kuid_keep(kuid_t uid)
 {
 	return uid_valid(uid) ?
 		from_kuid_munged(current_user_ns(), uid) : ((uid_t)-1);
 }
 
 /* This is equivalent to from_kgid_munged(), but maps INVALID_GID to itself */
-static u32 kdbus_from_kgid_keep(kgid_t gid)
+static gid_t kdbus_from_kgid_keep(kgid_t gid)
 {
 	return gid_valid(gid) ?
 		from_kgid_munged(current_user_ns(), gid) : ((gid_t)-1);
@@ -977,7 +977,7 @@ int kdbus_meta_export(struct kdbus_meta_proc *mp,
 	struct kdbus_pids pids;
 	void *exe_page = NULL;
 	struct kvec kvec[40];
-	u32 *auxgrps = NULL;
+	u64 *auxgrps = NULL;
 	size_t cnt = 0;
 	u64 size = 0;
 	int ret = 0;
@@ -1023,7 +1023,7 @@ int kdbus_meta_export(struct kdbus_meta_proc *mp,
 	}
 
 	if (mp && (mask & KDBUS_ATTACH_AUXGROUPS)) {
-		size_t payload_size = mp->n_auxgrps * sizeof(u32);
+		size_t payload_size = mp->n_auxgrps * sizeof(u64);
 		int i;
 
 		auxgrps = kmalloc(payload_size, GFP_KERNEL);
