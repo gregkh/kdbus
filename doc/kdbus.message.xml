@@ -393,7 +393,7 @@ struct kdbus_msg {
                   For a message to be accepted as reply, it must be a direct
                   message to the original sender (not a broadcast and not a
                   signal message), and its
-                  <varname>kdbus_msg.reply_cookie</varname> must match the
+                  <varname>kdbus_msg.cookie_reply</varname> must match the
                   previous message's <varname>kdbus_msg.cookie</varname>.
                 </para><para>
                   Expected replies also temporarily open the policy of the
