@@ -7,7 +7,6 @@ The userspace side is developed in systemd:
 
 Development repos:
   https://github.com/gregkh/kdbus
-  https://code.google.com/p/d-bus/
 
 See also:
   https://review.tizen.org/git/?p=platform/upstream/glib.git;a=shortlog;h=refs/heads/kdbus-integration
